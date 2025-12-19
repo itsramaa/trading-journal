@@ -111,6 +111,26 @@ export function useAuth() {
     return { data, error: null };
   }, [toast]);
 
+  const signInWithGoogle = useCallback(async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/`,
+      },
+    });
+
+    if (error) {
+      toast({
+        title: 'Google sign in failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+      return { error };
+    }
+
+    return { error: null };
+  }, [toast]);
+
   const signOut = useCallback(async () => {
     const { error } = await supabase.auth.signOut();
     
@@ -137,6 +157,7 @@ export function useAuth() {
     loading,
     signUp,
     signIn,
+    signInWithGoogle,
     signOut,
     isAuthenticated: !!session,
   };
