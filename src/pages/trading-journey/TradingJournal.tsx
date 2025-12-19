@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DateRangeFilter, DateRange } from "@/components/trading/DateRangeFilter";
 import { StrategySelector, StrategyFilter } from "@/components/trading/StrategySelector";
-import { Plus, Calendar, Tag, Target } from "lucide-react";
+import { Plus, Calendar, Tag, Target, Building2, TrendingUp } from "lucide-react";
 import { format } from "date-fns";
 import { 
   demoTrades, 
@@ -20,6 +20,8 @@ import {
   Trade,
   Strategy 
 } from "@/lib/trading-data";
+import { useAccounts } from "@/hooks/use-accounts";
+import { formatCurrency } from "@/lib/formatters";
 
 export default function TradingJournal() {
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -27,6 +29,13 @@ export default function TradingJournal() {
   const [selectedStrategyIds, setSelectedStrategyIds] = useState<string[]>([]);
   const [newTradeStrategies, setNewTradeStrategies] = useState<string[]>([]);
   const [strategies, setStrategies] = useState<Strategy[]>(demoStrategies);
+  const [selectedAccountId, setSelectedAccountId] = useState<string>("");
+  const { data: accounts, isLoading: accountsLoading } = useAccounts();
+
+  // Filter accounts suitable for trading (broker type)
+  const tradingAccounts = accounts?.filter(a => 
+    a.is_active && (a.account_type === 'broker' || a.account_type === 'soft_wallet')
+  );
 
   const filteredTrades = useMemo(() => {
     let trades = filterTradesByDateRange(demoTrades, dateRange.from, dateRange.to);
@@ -40,7 +49,7 @@ export default function TradingJournal() {
     return trades;
   }, [dateRange, selectedStrategyIds]);
 
-  const formatCurrency = (v: number) => {
+  const formatCurrencyLocal = (v: number) => {
     if (Math.abs(v) >= 1000) return `$${(v / 1000).toFixed(1)}k`;
     return `$${v.toFixed(0)}`;
   };
@@ -72,6 +81,40 @@ export default function TradingJournal() {
                 <DialogTitle>New Trade Entry</DialogTitle>
               </DialogHeader>
               <div className="grid gap-4 py-4">
+                {/* Trading Account Selection */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Building2 className="h-4 w-4" />
+                    Trading Account
+                  </Label>
+                  <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={accountsLoading ? "Loading..." : "Select trading account"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tradingAccounts?.length === 0 && (
+                        <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+                          No trading accounts found. Add a Broker or Soft Wallet account first.
+                        </div>
+                      )}
+                      {tradingAccounts?.map((account) => (
+                        <SelectItem key={account.id} value={account.id}>
+                          <div className="flex items-center gap-2">
+                            <TrendingUp className="h-4 w-4" />
+                            <span>{account.name}</span>
+                            <span className="text-xs text-muted-foreground ml-2">
+                              {formatCurrency(Number(account.balance), account.currency)}
+                            </span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    PnL will be tracked in this account
+                  </p>
+                </div>
+
                 <div className="grid grid-cols-3 gap-4">
                   <div><Label>Pair</Label><Input placeholder="BTC/USDT" /></div>
                   <div><Label>Direction</Label>
@@ -90,6 +133,10 @@ export default function TradingJournal() {
                   <div><Label>Exit</Label><Input type="number" /></div>
                   <div><Label>Stop Loss</Label><Input type="number" /></div>
                   <div><Label>Take Profit</Label><Input type="number" /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div><Label>Position Size</Label><Input type="number" placeholder="1.0" /></div>
+                  <div><Label>Fees</Label><Input type="number" placeholder="0.00" /></div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div><Label>Market Condition</Label><Input placeholder="Bullish, Bearish, Ranging" /></div>
@@ -114,6 +161,30 @@ export default function TradingJournal() {
             </DialogContent>
           </Dialog>
         </div>
+
+        {/* Trading Accounts Summary */}
+        {tradingAccounts && tradingAccounts.length > 0 && (
+          <Card className="border-primary/20 bg-primary/5">
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-primary" />
+                <span className="font-semibold">Trading Accounts</span>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-4">
+                {tradingAccounts.slice(0, 4).map((account) => (
+                  <div key={account.id} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-background border">
+                    <span className="text-sm font-medium">{account.name}</span>
+                    <Badge variant="secondary">
+                      {formatCurrency(Number(account.balance), account.currency)}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Filters */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center">
@@ -153,7 +224,7 @@ export default function TradingJournal() {
                       <div className="flex items-center gap-2">
                         <Badge variant="outline">Confluence: {entry.confluence}/10</Badge>
                         <span className={`font-bold text-lg ${entry.result === "win" ? "text-green-500" : "text-red-500"}`}>
-                          {entry.pnl >= 0 ? "+" : ""}{formatCurrency(entry.pnl)}
+                          {entry.pnl >= 0 ? "+" : ""}{formatCurrencyLocal(entry.pnl)}
                         </span>
                       </div>
                     </div>

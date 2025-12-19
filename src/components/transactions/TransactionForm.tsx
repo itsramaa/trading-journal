@@ -2,7 +2,7 @@ import { useState } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CalendarIcon, Plus, Loader2 } from "lucide-react";
+import { CalendarIcon, Plus, Loader2, Building2 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import {
@@ -40,9 +41,12 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useAssets, useCreateTransaction } from "@/hooks/use-portfolio";
+import { useAccounts } from "@/hooks/use-accounts";
+import { formatCurrency } from "@/lib/formatters";
 
 const transactionSchema = z.object({
   assetId: z.string().min(1, "Asset is required"),
+  accountId: z.string().optional(),
   type: z.enum(["buy", "sell"]),
   quantity: z.string().refine((val) => !isNaN(Number(val)) && Number(val) > 0, {
     message: "Quantity must be a positive number",
@@ -63,12 +67,14 @@ interface TransactionFormProps {
 export function TransactionForm({ portfolioId }: TransactionFormProps) {
   const [open, setOpen] = useState(false);
   const { data: assets, isLoading: assetsLoading } = useAssets();
+  const { data: accounts, isLoading: accountsLoading } = useAccounts();
   const createTransaction = useCreateTransaction();
 
   const form = useForm<TransactionFormValues>({
     resolver: zodResolver(transactionSchema),
     defaultValues: {
       assetId: "",
+      accountId: "",
       type: "buy",
       quantity: "",
       price: "",
@@ -98,6 +104,7 @@ export function TransactionForm({ portfolioId }: TransactionFormProps) {
         user_id: user.id,
         portfolio_id: portfolioId,
         asset_id: data.assetId,
+        account_id: data.accountId || null,
         transaction_type: data.type,
         quantity,
         price_per_unit: price,
@@ -117,7 +124,10 @@ export function TransactionForm({ portfolioId }: TransactionFormProps) {
 
   const quantity = form.watch("quantity");
   const price = form.watch("price");
+  const accountId = form.watch("accountId");
   const total = Number(quantity) * Number(price) || 0;
+  
+  const selectedAccount = accounts?.find(a => a.id === accountId);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -183,6 +193,42 @@ export function TransactionForm({ portfolioId }: TransactionFormProps) {
                 )}
               />
             </div>
+
+            {/* Account Selection */}
+            <FormField
+              control={form.control}
+              name="accountId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Source Account (Optional)</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder={accountsLoading ? "Loading..." : "Select account"} />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="">No account linked</SelectItem>
+                      {accounts?.filter(a => a.is_active).map((account) => (
+                        <SelectItem key={account.id} value={account.id}>
+                          <div className="flex items-center gap-2">
+                            <Building2 className="h-4 w-4" />
+                            <span>{account.name}</span>
+                            <span className="text-xs text-muted-foreground ml-auto">
+                              {formatCurrency(Number(account.balance), account.currency)}
+                            </span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    Link this transaction to an account for tracking
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <div className="grid grid-cols-2 gap-4">
               <FormField
@@ -273,13 +319,21 @@ export function TransactionForm({ portfolioId }: TransactionFormProps) {
               )}
             />
 
-            <div className="rounded-lg bg-secondary p-4">
+            <div className="rounded-lg bg-secondary p-4 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Total Amount</span>
                 <span className="text-lg font-bold">
                   ${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </div>
+              {selectedAccount && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Account Balance</span>
+                  <span className={Number(selectedAccount.balance) >= total ? "text-green-500" : "text-red-500"}>
+                    {formatCurrency(Number(selectedAccount.balance), selectedAccount.currency)}
+                  </span>
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end gap-3">
