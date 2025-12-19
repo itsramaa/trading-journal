@@ -13,39 +13,51 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatCurrency } from "@/lib/formatters";
 import { demoTransactions } from "@/lib/demo-data";
+import type { Transaction } from "@/types/portfolio";
 
-const extendedTransactions = [
+// Extended transactions for demo
+const extendedTransactions: Transaction[] = [
   ...demoTransactions,
   {
-    id: "6",
-    assetSymbol: "BBCA.JK",
+    id: "t7",
+    portfolioId: "p1",
+    assetId: "5",
+    assetSymbol: "BBCA",
     assetName: "Bank Central Asia",
-    type: "BUY" as const,
+    type: "BUY",
     quantity: 100,
     price: 9500,
-    total: 950000,
-    date: "2024-12-13",
+    totalAmount: 950000,
+    fees: 0,
+    date: new Date("2024-12-13"),
   },
   {
-    id: "7",
+    id: "t8",
+    portfolioId: "p1",
+    assetId: "1",
     assetSymbol: "BTC",
     assetName: "Bitcoin",
-    type: "SELL" as const,
+    type: "SELL",
     quantity: 0.1,
     price: 68000,
-    total: 6800,
-    date: "2024-12-12",
+    totalAmount: 6800,
+    fees: 15,
+    date: new Date("2024-12-12"),
   },
   {
-    id: "8",
+    id: "t9",
+    portfolioId: "p1",
+    assetId: "9",
     assetSymbol: "MSFT",
     assetName: "Microsoft Corp.",
-    type: "BUY" as const,
+    type: "BUY",
     quantity: 15,
     price: 375,
-    total: 5625,
-    date: "2024-12-10",
+    totalAmount: 5625,
+    fees: 0,
+    date: new Date("2024-12-10"),
   },
 ];
 
@@ -63,11 +75,11 @@ const Transactions = () => {
 
   const totalBuys = extendedTransactions
     .filter((t) => t.type === "BUY")
-    .reduce((sum, t) => sum + t.total, 0);
+    .reduce((sum, t) => sum + t.totalAmount, 0);
 
   const totalSells = extendedTransactions
     .filter((t) => t.type === "SELL")
-    .reduce((sum, t) => sum + t.total, 0);
+    .reduce((sum, t) => sum + t.totalAmount, 0);
 
   return (
     <DashboardLayout>
@@ -103,7 +115,7 @@ const Transactions = () => {
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-bold text-foreground">
-                ${totalBuys.toLocaleString()}
+                {formatCurrency(totalBuys, 'USD')}
               </p>
             </CardContent>
           </Card>
@@ -115,7 +127,7 @@ const Transactions = () => {
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-bold text-profit">
-                +${totalSells.toLocaleString()}
+                +{formatCurrency(totalSells, 'USD')}
               </p>
             </CardContent>
           </Card>
@@ -137,10 +149,12 @@ const Transactions = () => {
               <Filter className="mr-2 h-4 w-4" />
               <SelectValue placeholder="Type" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="bg-popover">
               <SelectItem value="all">All Types</SelectItem>
               <SelectItem value="BUY">Buy</SelectItem>
               <SelectItem value="SELL">Sell</SelectItem>
+              <SelectItem value="TRANSFER_IN">Transfer In</SelectItem>
+              <SelectItem value="TRANSFER_OUT">Transfer Out</SelectItem>
             </SelectContent>
           </Select>
           <Button variant="outline" className="gap-2">

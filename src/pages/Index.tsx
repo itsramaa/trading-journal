@@ -8,6 +8,7 @@ import {
   demoHoldings, 
   demoPortfolioMetrics, 
   demoTransactions,
+  demoAllocationByType,
   performanceData 
 } from "@/lib/demo-data";
 
@@ -32,7 +33,7 @@ const Index = () => {
             <PerformanceChart data={performanceData} />
           </div>
           <div>
-            <AllocationChart data={demoPortfolioMetrics.allocationByType} />
+            <AllocationChart data={demoAllocationByType} />
           </div>
         </div>
 

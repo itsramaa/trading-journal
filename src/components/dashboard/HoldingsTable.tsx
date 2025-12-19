@@ -10,10 +10,11 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import type { Asset } from "@/lib/demo-data";
+import { formatCurrency, formatPercent, formatQuantity } from "@/lib/formatters";
+import type { Holding } from "@/types/portfolio";
 
 interface HoldingsTableProps {
-  holdings: Asset[];
+  holdings: Holding[];
 }
 
 const marketBadgeVariants: Record<string, string> = {
@@ -23,13 +24,6 @@ const marketBadgeVariants: Record<string, string> = {
 };
 
 export function HoldingsTable({ holdings }: HoldingsTableProps) {
-  const formatCurrency = (value: number, market: string) => {
-    if (market === 'ID') {
-      return `Rp ${value.toLocaleString('id-ID')}`;
-    }
-    return `$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  };
-
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
@@ -43,68 +37,86 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
               <TableHead className="pl-6">Asset</TableHead>
               <TableHead>Market</TableHead>
               <TableHead className="text-right">Price</TableHead>
+              <TableHead className="text-right">1h</TableHead>
               <TableHead className="text-right">24h</TableHead>
+              <TableHead className="text-right">7d</TableHead>
               <TableHead className="text-right">Holdings</TableHead>
               <TableHead className="text-right">Value</TableHead>
               <TableHead className="text-right pr-6">P/L</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {holdings.map((asset) => (
-              <TableRow key={asset.id} className="group cursor-pointer">
+            {holdings.map((holding) => (
+              <TableRow key={holding.id} className="group cursor-pointer">
                 <TableCell className="pl-6">
                   <div className="flex items-center gap-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary font-semibold text-sm">
-                      {asset.symbol.slice(0, 2)}
+                      {holding.asset.symbol.slice(0, 2)}
                     </div>
                     <div>
-                      <p className="font-medium">{asset.symbol}</p>
-                      <p className="text-sm text-muted-foreground">{asset.name}</p>
+                      <p className="font-medium">{holding.asset.symbol}</p>
+                      <p className="text-sm text-muted-foreground">{holding.asset.name}</p>
                     </div>
                   </div>
                 </TableCell>
                 <TableCell>
-                  <Badge className={cn("font-medium", marketBadgeVariants[asset.market])}>
-                    {asset.market}
+                  <Badge className={cn("font-medium", marketBadgeVariants[holding.asset.market])}>
+                    {holding.asset.market}
                   </Badge>
                 </TableCell>
                 <TableCell className="text-right font-medium">
-                  {formatCurrency(asset.currentPrice, asset.market)}
+                  {formatCurrency(holding.asset.currentPrice, holding.asset.market)}
+                </TableCell>
+                <TableCell className="text-right">
+                  <span className={cn(
+                    "font-medium",
+                    holding.asset.priceChange1h >= 0 ? "text-profit" : "text-loss"
+                  )}>
+                    {formatPercent(holding.asset.priceChange1h)}
+                  </span>
                 </TableCell>
                 <TableCell className="text-right">
                   <div className={cn(
                     "flex items-center justify-end gap-1",
-                    asset.priceChange24h >= 0 ? "text-profit" : "text-loss"
+                    holding.asset.priceChange24h >= 0 ? "text-profit" : "text-loss"
                   )}>
-                    {asset.priceChange24h >= 0 ? (
+                    {holding.asset.priceChange24h >= 0 ? (
                       <TrendingUp className="h-3.5 w-3.5" />
                     ) : (
                       <TrendingDown className="h-3.5 w-3.5" />
                     )}
                     <span className="font-medium">
-                      {asset.priceChange24h >= 0 ? '+' : ''}{asset.priceChange24h.toFixed(2)}%
+                      {formatPercent(holding.asset.priceChange24h)}
                     </span>
                   </div>
                 </TableCell>
                 <TableCell className="text-right">
-                  <p className="font-medium">{asset.quantity}</p>
+                  <span className={cn(
+                    "font-medium",
+                    holding.asset.priceChange7d >= 0 ? "text-profit" : "text-loss"
+                  )}>
+                    {formatPercent(holding.asset.priceChange7d)}
+                  </span>
+                </TableCell>
+                <TableCell className="text-right">
+                  <p className="font-medium">{formatQuantity(holding.quantity, holding.asset.market)}</p>
                   <p className="text-sm text-muted-foreground">
-                    @ {formatCurrency(asset.avgPrice, asset.market)}
+                    @ {formatCurrency(holding.avgPrice, holding.asset.market)}
                   </p>
                 </TableCell>
                 <TableCell className="text-right font-medium">
-                  {formatCurrency(asset.value, asset.market)}
+                  {formatCurrency(holding.value, holding.asset.market)}
                 </TableCell>
                 <TableCell className="text-right pr-6">
                   <div className={cn(
                     "flex flex-col items-end",
-                    asset.profitLoss >= 0 ? "text-profit" : "text-loss"
+                    holding.profitLoss >= 0 ? "text-profit" : "text-loss"
                   )}>
                     <span className="font-medium">
-                      {asset.profitLoss >= 0 ? '+' : ''}{formatCurrency(asset.profitLoss, asset.market)}
+                      {holding.profitLoss >= 0 ? '+' : ''}{formatCurrency(holding.profitLoss, holding.asset.market)}
                     </span>
                     <span className="text-sm">
-                      {asset.profitLossPercent >= 0 ? '+' : ''}{asset.profitLossPercent.toFixed(1)}%
+                      {formatPercent(holding.profitLossPercent)}
                     </span>
                   </div>
                 </TableCell>

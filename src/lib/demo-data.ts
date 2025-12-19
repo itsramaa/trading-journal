@@ -1,58 +1,32 @@
-// Demo data for Portfolio Assets Management
+/**
+ * Demo data for Portfolio Assets Management
+ * Aligned with PRD specifications and type definitions
+ */
 
-export interface Asset {
-  id: string;
-  symbol: string;
-  name: string;
-  type: 'STOCK' | 'CRYPTO' | 'ETF';
-  market: 'US' | 'ID' | 'CRYPTO';
-  imageUrl?: string;
-  quantity: number;
-  avgPrice: number;
-  currentPrice: number;
-  priceChange24h: number;
-  value: number;
-  costBasis: number;
-  profitLoss: number;
-  profitLossPercent: number;
-}
+import type {
+  Asset,
+  Holding,
+  Transaction,
+  PortfolioMetrics,
+  AllocationItem,
+  PerformanceDataPoint,
+} from '@/types/portfolio';
 
-export interface Transaction {
-  id: string;
-  assetSymbol: string;
-  assetName: string;
-  type: 'BUY' | 'SELL';
-  quantity: number;
-  price: number;
-  total: number;
-  date: string;
-}
+// ============= Demo Assets =============
 
-export interface PortfolioMetrics {
-  totalValue: number;
-  totalCostBasis: number;
-  totalProfitLoss: number;
-  totalProfitLossPercent: number;
-  dayChange: number;
-  dayChangePercent: number;
-  allocationByType: { name: string; value: number; color: string }[];
-}
-
-export const demoHoldings: Asset[] = [
+export const demoAssets: Asset[] = [
   {
     id: '1',
     symbol: 'BTC',
     name: 'Bitcoin',
     type: 'CRYPTO',
     market: 'CRYPTO',
-    quantity: 0.5,
-    avgPrice: 45000,
+    currency: 'USD',
     currentPrice: 67500,
+    priceChange1h: 0.15,
     priceChange24h: 2.34,
-    value: 33750,
-    costBasis: 22500,
-    profitLoss: 11250,
-    profitLossPercent: 50,
+    priceChange7d: 8.5,
+    lastUpdated: new Date(),
   },
   {
     id: '2',
@@ -60,14 +34,12 @@ export const demoHoldings: Asset[] = [
     name: 'Ethereum',
     type: 'CRYPTO',
     market: 'CRYPTO',
-    quantity: 5,
-    avgPrice: 2500,
+    currency: 'USD',
     currentPrice: 3650,
+    priceChange1h: -0.22,
     priceChange24h: 1.85,
-    value: 18250,
-    costBasis: 12500,
-    profitLoss: 5750,
-    profitLossPercent: 46,
+    priceChange7d: 5.2,
+    lastUpdated: new Date(),
   },
   {
     id: '3',
@@ -75,14 +47,13 @@ export const demoHoldings: Asset[] = [
     name: 'Apple Inc.',
     type: 'STOCK',
     market: 'US',
-    quantity: 50,
-    avgPrice: 165,
+    sector: 'Technology',
+    currency: 'USD',
     currentPrice: 198.5,
+    priceChange1h: 0.12,
     priceChange24h: 0.75,
-    value: 9925,
-    costBasis: 8250,
-    profitLoss: 1675,
-    profitLossPercent: 20.3,
+    priceChange7d: 2.1,
+    lastUpdated: new Date(),
   },
   {
     id: '4',
@@ -90,29 +61,27 @@ export const demoHoldings: Asset[] = [
     name: 'NVIDIA Corp.',
     type: 'STOCK',
     market: 'US',
-    quantity: 20,
-    avgPrice: 450,
+    sector: 'Technology',
+    currency: 'USD',
     currentPrice: 875,
+    priceChange1h: -0.35,
     priceChange24h: -1.2,
-    value: 17500,
-    costBasis: 9000,
-    profitLoss: 8500,
-    profitLossPercent: 94.4,
+    priceChange7d: 4.8,
+    lastUpdated: new Date(),
   },
   {
     id: '5',
-    symbol: 'BBCA.JK',
+    symbol: 'BBCA',
     name: 'Bank Central Asia',
     type: 'STOCK',
     market: 'ID',
-    quantity: 500,
-    avgPrice: 8500,
+    sector: 'Financial',
+    currency: 'IDR',
     currentPrice: 9650,
+    priceChange1h: 0.08,
     priceChange24h: 0.52,
-    value: 4825000,
-    costBasis: 4250000,
-    profitLoss: 575000,
-    profitLossPercent: 13.5,
+    priceChange7d: 1.8,
+    lastUpdated: new Date(),
   },
   {
     id: '6',
@@ -120,69 +89,238 @@ export const demoHoldings: Asset[] = [
     name: 'Vanguard S&P 500 ETF',
     type: 'ETF',
     market: 'US',
+    currency: 'USD',
+    currentPrice: 445,
+    priceChange1h: 0.05,
+    priceChange24h: 0.45,
+    priceChange7d: 1.5,
+    lastUpdated: new Date(),
+  },
+  {
+    id: '7',
+    symbol: 'SOL',
+    name: 'Solana',
+    type: 'CRYPTO',
+    market: 'CRYPTO',
+    currency: 'USD',
+    currentPrice: 126.13,
+    priceChange1h: 0.2,
+    priceChange24h: 0.3,
+    priceChange7d: 5.8,
+    lastUpdated: new Date(),
+  },
+  {
+    id: '8',
+    symbol: 'TLKM',
+    name: 'Telkom Indonesia',
+    type: 'STOCK',
+    market: 'ID',
+    sector: 'Telecom',
+    currency: 'IDR',
+    currentPrice: 3850,
+    priceChange1h: -0.12,
+    priceChange24h: -0.65,
+    priceChange7d: -2.1,
+    lastUpdated: new Date(),
+  },
+];
+
+// ============= Demo Holdings =============
+
+export const demoHoldings: Holding[] = [
+  {
+    id: 'h1',
+    portfolioId: 'p1',
+    assetId: '1',
+    asset: demoAssets[0],
+    quantity: 0.5,
+    avgPrice: 45000,
+    value: 33750,
+    costBasis: 22500,
+    profitLoss: 11250,
+    profitLossPercent: 50,
+    allocation: 8.6,
+  },
+  {
+    id: 'h2',
+    portfolioId: 'p1',
+    assetId: '2',
+    asset: demoAssets[1],
+    quantity: 5,
+    avgPrice: 2500,
+    value: 18250,
+    costBasis: 12500,
+    profitLoss: 5750,
+    profitLossPercent: 46,
+    allocation: 4.7,
+  },
+  {
+    id: 'h3',
+    portfolioId: 'p1',
+    assetId: '3',
+    asset: demoAssets[2],
+    quantity: 50,
+    avgPrice: 165,
+    value: 9925,
+    costBasis: 8250,
+    profitLoss: 1675,
+    profitLossPercent: 20.3,
+    allocation: 2.5,
+  },
+  {
+    id: 'h4',
+    portfolioId: 'p1',
+    assetId: '4',
+    asset: demoAssets[3],
+    quantity: 20,
+    avgPrice: 450,
+    value: 17500,
+    costBasis: 9000,
+    profitLoss: 8500,
+    profitLossPercent: 94.4,
+    allocation: 4.5,
+  },
+  {
+    id: 'h5',
+    portfolioId: 'p1',
+    assetId: '5',
+    asset: demoAssets[4],
+    quantity: 30000,
+    avgPrice: 8500,
+    value: 289500000,
+    costBasis: 255000000,
+    profitLoss: 34500000,
+    profitLossPercent: 13.5,
+    allocation: 74.0,
+  },
+  {
+    id: 'h6',
+    portfolioId: 'p1',
+    assetId: '6',
+    asset: demoAssets[5],
     quantity: 15,
     avgPrice: 380,
-    currentPrice: 445,
-    priceChange24h: 0.45,
     value: 6675,
     costBasis: 5700,
     profitLoss: 975,
     profitLossPercent: 17.1,
+    allocation: 1.7,
+  },
+  {
+    id: 'h7',
+    portfolioId: 'p1',
+    assetId: '7',
+    asset: demoAssets[6],
+    quantity: 100,
+    avgPrice: 85,
+    value: 12613,
+    costBasis: 8500,
+    profitLoss: 4113,
+    profitLossPercent: 48.4,
+    allocation: 3.2,
+  },
+  {
+    id: 'h8',
+    portfolioId: 'p1',
+    assetId: '8',
+    asset: demoAssets[7],
+    quantity: 5000,
+    avgPrice: 4200,
+    value: 19250000,
+    costBasis: 21000000,
+    profitLoss: -1750000,
+    profitLossPercent: -8.3,
+    allocation: 4.9,
   },
 ];
 
+// ============= Demo Transactions =============
+
 export const demoTransactions: Transaction[] = [
   {
-    id: '1',
+    id: 't1',
+    portfolioId: 'p1',
+    assetId: '1',
     assetSymbol: 'BTC',
     assetName: 'Bitcoin',
     type: 'BUY',
     quantity: 0.25,
     price: 65000,
-    total: 16250,
-    date: '2024-12-18',
+    totalAmount: 16250,
+    fees: 25,
+    date: new Date('2024-12-18'),
+    notes: 'DCA purchase',
   },
   {
-    id: '2',
+    id: 't2',
+    portfolioId: 'p1',
+    assetId: '4',
     assetSymbol: 'NVDA',
     assetName: 'NVIDIA Corp.',
     type: 'SELL',
     quantity: 5,
     price: 890,
-    total: 4450,
-    date: '2024-12-17',
+    totalAmount: 4450,
+    fees: 5,
+    date: new Date('2024-12-17'),
+    notes: 'Taking profits',
   },
   {
-    id: '3',
+    id: 't3',
+    portfolioId: 'p1',
+    assetId: '2',
     assetSymbol: 'ETH',
     assetName: 'Ethereum',
     type: 'BUY',
     quantity: 2,
     price: 3600,
-    total: 7200,
-    date: '2024-12-16',
+    totalAmount: 7200,
+    fees: 15,
+    date: new Date('2024-12-16'),
   },
   {
-    id: '4',
+    id: 't4',
+    portfolioId: 'p1',
+    assetId: '3',
     assetSymbol: 'AAPL',
     assetName: 'Apple Inc.',
     type: 'BUY',
     quantity: 10,
     price: 195,
-    total: 1950,
-    date: '2024-12-15',
+    totalAmount: 1950,
+    fees: 0,
+    date: new Date('2024-12-15'),
   },
   {
-    id: '5',
+    id: 't5',
+    portfolioId: 'p1',
+    assetId: '6',
     assetSymbol: 'VOO',
     assetName: 'Vanguard S&P 500 ETF',
     type: 'BUY',
     quantity: 5,
     price: 440,
-    total: 2200,
-    date: '2024-12-14',
+    totalAmount: 2200,
+    fees: 0,
+    date: new Date('2024-12-14'),
+  },
+  {
+    id: 't6',
+    portfolioId: 'p1',
+    assetId: '7',
+    assetSymbol: 'SOL',
+    assetName: 'Solana',
+    type: 'TRANSFER_IN',
+    quantity: 50,
+    price: 0,
+    totalAmount: 0,
+    fees: 0,
+    date: new Date('2024-12-13'),
+    notes: 'Transfer from Binance',
   },
 ];
+
+// ============= Demo Portfolio Metrics =============
 
 export const demoPortfolioMetrics: PortfolioMetrics = {
   totalValue: 391100,
@@ -191,25 +329,68 @@ export const demoPortfolioMetrics: PortfolioMetrics = {
   totalProfitLossPercent: 26.6,
   dayChange: 4250,
   dayChangePercent: 1.1,
-  allocationByType: [
-    { name: 'Crypto', value: 52000, color: 'hsl(var(--chart-1))' },
-    { name: 'US Stocks', value: 34100, color: 'hsl(var(--chart-2))' },
-    { name: 'ID Stocks', value: 298325, color: 'hsl(var(--chart-3))' },
-    { name: 'ETF', value: 6675, color: 'hsl(var(--chart-4))' },
-  ],
+  bestPerformer: {
+    symbol: 'NVDA',
+    profitLossPercent: 94.4,
+  },
+  worstPerformer: {
+    symbol: 'TLKM',
+    profitLossPercent: -8.3,
+  },
 };
 
-export const performanceData = [
-  { date: 'Jan', value: 280000 },
-  { date: 'Feb', value: 295000 },
-  { date: 'Mar', value: 285000 },
-  { date: 'Apr', value: 310000 },
-  { date: 'May', value: 325000 },
-  { date: 'Jun', value: 318000 },
-  { date: 'Jul', value: 340000 },
-  { date: 'Aug', value: 355000 },
-  { date: 'Sep', value: 348000 },
-  { date: 'Oct', value: 365000 },
-  { date: 'Nov', value: 378000 },
-  { date: 'Dec', value: 391100 },
+// ============= Demo Allocation Data =============
+
+export const demoAllocationByType: AllocationItem[] = [
+  { name: 'Crypto', value: 64613, percentage: 16.5, color: 'hsl(var(--chart-1))' },
+  { name: 'US Stocks', value: 34100, percentage: 8.7, color: 'hsl(var(--chart-2))' },
+  { name: 'ID Stocks', value: 285575, percentage: 73.1, color: 'hsl(var(--chart-3))' },
+  { name: 'ETF', value: 6675, percentage: 1.7, color: 'hsl(var(--chart-4))' },
+];
+
+export const demoAllocationByAsset: AllocationItem[] = [
+  { name: 'BBCA', value: 289500000, percentage: 65.98, color: 'hsl(32, 95%, 44%)' },
+  { name: 'BTC', value: 33750, percentage: 15.45, color: 'hsl(38, 92%, 50%)' },
+  { name: 'TLKM', value: 19250000, percentage: 7.83, color: 'hsl(217, 91%, 60%)' },
+  { name: 'ETH', value: 18250, percentage: 4.60, color: 'hsl(262, 83%, 58%)' },
+  { name: 'NVDA', value: 17500, percentage: 2.45, color: 'hsl(142, 76%, 36%)' },
+  { name: 'SOL', value: 12613, percentage: 1.66, color: 'hsl(0, 72%, 51%)' },
+  { name: 'AAPL', value: 9925, percentage: 1.28, color: 'hsl(180, 50%, 50%)' },
+  { name: 'VOO', value: 6675, percentage: 0.75, color: 'hsl(300, 50%, 50%)' },
+];
+
+// ============= Demo Performance Data =============
+
+export const performanceData: PerformanceDataPoint[] = [
+  { date: 'Jan', value: 280000, profitLoss: -15000 },
+  { date: 'Feb', value: 295000, profitLoss: 15000 },
+  { date: 'Mar', value: 285000, profitLoss: -10000 },
+  { date: 'Apr', value: 310000, profitLoss: 25000 },
+  { date: 'May', value: 325000, profitLoss: 15000 },
+  { date: 'Jun', value: 318000, profitLoss: -7000 },
+  { date: 'Jul', value: 340000, profitLoss: 22000 },
+  { date: 'Aug', value: 355000, profitLoss: 15000 },
+  { date: 'Sep', value: 348000, profitLoss: -7000 },
+  { date: 'Oct', value: 365000, profitLoss: 17000 },
+  { date: 'Nov', value: 378000, profitLoss: 13000 },
+  { date: 'Dec', value: 391100, profitLoss: 13100 },
+];
+
+export const performance24h: PerformanceDataPoint[] = [
+  { date: '00:00', value: 386500 },
+  { date: '04:00', value: 387200 },
+  { date: '08:00', value: 385800 },
+  { date: '12:00', value: 388500 },
+  { date: '16:00', value: 390200 },
+  { date: '20:00', value: 389800 },
+  { date: '24:00', value: 391100 },
+];
+
+// ============= Target Allocations =============
+
+export const targetAllocations = [
+  { name: 'Crypto', target: 30, current: 16.5, color: 'bg-chart-1' },
+  { name: 'US Stocks', target: 25, current: 8.7, color: 'bg-chart-2' },
+  { name: 'ID Stocks', target: 35, current: 73.1, color: 'bg-chart-3' },
+  { name: 'ETF', target: 10, current: 1.7, color: 'bg-chart-4' },
 ];

@@ -1,7 +1,8 @@
 import { TrendingUp, TrendingDown, DollarSign, Percent, Activity } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { PortfolioMetrics as PortfolioMetricsType } from "@/lib/demo-data";
+import { formatCompactCurrency } from "@/lib/formatters";
+import type { PortfolioMetrics as PortfolioMetricsType } from "@/types/portfolio";
 
 interface MetricCardProps {
   title: string;
@@ -57,21 +58,11 @@ interface PortfolioMetricsProps {
 }
 
 export function PortfolioMetrics({ metrics }: PortfolioMetricsProps) {
-  const formatCurrency = (value: number) => {
-    if (value >= 1000000) {
-      return `$${(value / 1000000).toFixed(2)}M`;
-    }
-    if (value >= 1000) {
-      return `$${(value / 1000).toFixed(1)}K`;
-    }
-    return `$${value.toLocaleString()}`;
-  };
-
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
       <MetricCard
         title="Total Portfolio Value"
-        value={formatCurrency(metrics.totalValue)}
+        value={formatCompactCurrency(metrics.totalValue)}
         change={metrics.dayChangePercent}
         changeLabel="today"
         icon={<DollarSign className="h-6 w-6 text-primary" />}
@@ -79,7 +70,7 @@ export function PortfolioMetrics({ metrics }: PortfolioMetricsProps) {
       />
       <MetricCard
         title="Total Profit/Loss"
-        value={formatCurrency(metrics.totalProfitLoss)}
+        value={formatCompactCurrency(metrics.totalProfitLoss)}
         change={metrics.totalProfitLossPercent}
         changeLabel="all time"
         icon={<TrendingUp className="h-6 w-6 text-profit" />}
@@ -87,14 +78,14 @@ export function PortfolioMetrics({ metrics }: PortfolioMetricsProps) {
       />
       <MetricCard
         title="Today's Change"
-        value={`${metrics.dayChange >= 0 ? '+' : ''}${formatCurrency(metrics.dayChange)}`}
+        value={`${metrics.dayChange >= 0 ? '+' : ''}${formatCompactCurrency(metrics.dayChange)}`}
         change={metrics.dayChangePercent}
         icon={<Activity className="h-6 w-6 text-primary" />}
         trend={metrics.dayChange >= 0 ? 'up' : 'down'}
       />
       <MetricCard
         title="Cost Basis"
-        value={formatCurrency(metrics.totalCostBasis)}
+        value={formatCompactCurrency(metrics.totalCostBasis)}
         icon={<Percent className="h-6 w-6 text-muted-foreground" />}
         trend="neutral"
       />
