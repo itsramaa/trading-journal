@@ -1,10 +1,17 @@
 /**
  * Global App Store using Zustand
- * Handles UI state: currency, notifications, search
+ * Handles UI state: currency, notifications, search, active app
  */
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Currency } from '@/types/portfolio';
+
+export type AppType = 'portfolio' | 'financial-freedom' | 'trading-journey';
+
+export interface CurrencyPair {
+  base: string;
+  quote: string;
+}
 
 export interface Notification {
   id: string;
@@ -17,7 +24,15 @@ export interface Notification {
 }
 
 interface AppState {
-  // Currency
+  // Active App
+  activeApp: AppType;
+  setActiveApp: (app: AppType) => void;
+  
+  // Currency pair
+  currencyPair: CurrencyPair;
+  setCurrencyPair: (pair: CurrencyPair) => void;
+  
+  // Legacy currency support
   currency: Currency;
   setCurrency: (currency: Currency) => void;
   
@@ -43,7 +58,15 @@ interface AppState {
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
-      // Currency
+      // Active App
+      activeApp: 'portfolio',
+      setActiveApp: (app) => set({ activeApp: app }),
+      
+      // Currency pair
+      currencyPair: { base: 'USD', quote: 'IDR' },
+      setCurrencyPair: (pair) => set({ currencyPair: pair }),
+      
+      // Legacy currency support
       currency: 'USD',
       setCurrency: (currency) => set({ currency }),
       
@@ -111,6 +134,8 @@ export const useAppStore = create<AppState>()(
     {
       name: 'portfolio-app-storage',
       partialize: (state) => ({
+        activeApp: state.activeApp,
+        currencyPair: state.currencyPair,
         currency: state.currency,
         notifications: state.notifications,
       }),
