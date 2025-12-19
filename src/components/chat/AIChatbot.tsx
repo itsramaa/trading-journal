@@ -3,8 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
-  MessageCircle, 
   X, 
   Send, 
   Bot, 
@@ -12,17 +12,40 @@ import {
   Sparkles,
   Loader2,
   Minimize2,
-  Maximize2
+  Maximize2,
+  TrendingUp,
+  BarChart3,
+  ChevronDown
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useHoldings, usePortfolios } from '@/hooks/use-portfolio';
+import { demoTrades, demoStrategies } from '@/lib/trading-data';
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
 }
 
-const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/portfolio-insights`;
+type AIMode = 'investment' | 'trading';
+
+const AI_MODES = {
+  investment: {
+    label: 'Investment Advisor',
+    icon: TrendingUp,
+    description: 'Analisis portfolio & strategi investasi',
+    endpoint: 'portfolio-insights',
+    suggestions: ['Analisis portfolio saya', 'Tips diversifikasi', 'Apa itu DCA?'],
+    greeting: 'Halo! Saya AI Investment Advisor. Tanyakan apa saja tentang portfolio Anda, strategi investasi, atau insight pasar.',
+  },
+  trading: {
+    label: 'Trading Analyst',
+    icon: BarChart3,
+    description: 'Analisis pattern & performa trading',
+    endpoint: 'trading-analysis',
+    suggestions: ['Analisis performa saya', 'Strategi terbaik?', 'Kelemahan trading saya?'],
+    greeting: 'Halo! Saya AI Trading Analyst. Saya akan menganalisis pattern dan performa trading journal Anda.',
+  },
+};
 
 export function AIChatbot() {
   const [isOpen, setIsOpen] = useState(false);
@@ -30,12 +53,16 @@ export function AIChatbot() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [aiMode, setAIMode] = useState<AIMode>('investment');
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const { data: portfolios } = usePortfolios();
   const defaultPortfolio = portfolios?.find(p => p.is_default) || portfolios?.[0];
   const { data: holdings } = useHoldings(defaultPortfolio?.id);
+
+  const currentMode = AI_MODES[aiMode];
+  const ModeIcon = currentMode.icon;
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -48,6 +75,12 @@ export function AIChatbot() {
       inputRef.current.focus();
     }
   }, [isOpen, isMinimized]);
+
+  // Clear messages when mode changes
+  const handleModeChange = (mode: AIMode) => {
+    setAIMode(mode);
+    setMessages([]);
+  };
 
   const getPortfolioContext = () => {
     if (!holdings || holdings.length === 0) {
@@ -96,18 +129,27 @@ export function AIChatbot() {
     setIsLoading(true);
 
     let assistantContent = '';
+    const endpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${currentMode.endpoint}`;
 
     try {
-      const response = await fetch(CHAT_URL, {
+      const body = aiMode === 'investment' 
+        ? {
+            messages: [...messages, userMessage],
+            portfolioContext: getPortfolioContext(),
+          }
+        : {
+            trades: demoTrades,
+            strategies: demoStrategies,
+            question: input.trim(),
+          };
+
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
-        body: JSON.stringify({
-          messages: [...messages, userMessage],
-          portfolioContext: getPortfolioContext(),
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
@@ -192,23 +234,45 @@ export function AIChatbot() {
 
   return (
     <Card className={cn(
-      "fixed bottom-6 right-6 z-50 shadow-2xl transition-all duration-300",
-      isMinimized ? "w-72 h-14" : "w-96 h-[500px]"
+      "fixed bottom-6 right-6 z-50 shadow-2xl transition-all duration-300 flex flex-col",
+      isMinimized ? "w-72 h-14" : "w-96 h-[520px]"
     )}>
       {/* Header */}
-      <div className="flex items-center justify-between p-3 border-b bg-primary/5 rounded-t-lg">
-        <div className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-            <Bot className="h-4 w-4 text-primary" />
+      <div className="flex items-center justify-between p-3 border-b bg-primary/5 rounded-t-lg shrink-0">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+            <ModeIcon className="h-4 w-4 text-primary" />
           </div>
-          <div>
-            <h3 className="font-semibold text-sm">AI Investment Advisor</h3>
-            {!isMinimized && (
-              <p className="text-xs text-muted-foreground">Powered by AI</p>
-            )}
-          </div>
+          {!isMinimized ? (
+            <Select value={aiMode} onValueChange={(v: AIMode) => handleModeChange(v)}>
+              <SelectTrigger className="h-8 border-0 bg-transparent p-0 shadow-none focus:ring-0 w-auto">
+                <div className="flex items-center gap-1">
+                  <span className="font-semibold text-sm">{currentMode.label}</span>
+                  <ChevronDown className="h-3 w-3 opacity-50" />
+                </div>
+              </SelectTrigger>
+              <SelectContent className="z-[60]">
+                {Object.entries(AI_MODES).map(([key, mode]) => {
+                  const Icon = mode.icon;
+                  return (
+                    <SelectItem key={key} value={key}>
+                      <div className="flex items-center gap-2">
+                        <Icon className="h-4 w-4" />
+                        <div>
+                          <div className="font-medium">{mode.label}</div>
+                          <div className="text-xs text-muted-foreground">{mode.description}</div>
+                        </div>
+                      </div>
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+          ) : (
+            <span className="font-semibold text-sm truncate">{currentMode.label}</span>
+          )}
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 shrink-0">
           <Button
             variant="ghost"
             size="icon"
@@ -231,20 +295,16 @@ export function AIChatbot() {
       {!isMinimized && (
         <>
           {/* Messages */}
-          <ScrollArea className="flex-1 p-4 h-[380px]" ref={scrollRef}>
+          <ScrollArea className="flex-1 p-4" ref={scrollRef}>
             {messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center">
                 <Sparkles className="h-12 w-12 text-muted-foreground/50 mb-4" />
-                <h4 className="font-medium mb-2">Halo! Saya AI Investment Advisor</h4>
+                <h4 className="font-medium mb-2">{currentMode.greeting.split('.')[0]}.</h4>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Tanyakan apa saja tentang portfolio Anda, strategi investasi, atau insight pasar.
+                  {currentMode.greeting.split('.').slice(1).join('.')}
                 </p>
                 <div className="flex flex-wrap gap-2 justify-center">
-                  {[
-                    'Analisis portfolio saya',
-                    'Tips diversifikasi',
-                    'Apa itu DCA?'
-                  ].map((suggestion) => (
+                  {currentMode.suggestions.map((suggestion) => (
                     <Button
                       key={suggestion}
                       variant="outline"
@@ -272,7 +332,7 @@ export function AIChatbot() {
                   >
                     {message.role === 'assistant' && (
                       <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                        <Bot className="h-4 w-4 text-primary" />
+                        <ModeIcon className="h-4 w-4 text-primary" />
                       </div>
                     )}
                     <div
@@ -295,7 +355,7 @@ export function AIChatbot() {
                 {isLoading && messages[messages.length - 1]?.role === 'user' && (
                   <div className="flex gap-2">
                     <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                      <Bot className="h-4 w-4 text-primary" />
+                      <ModeIcon className="h-4 w-4 text-primary" />
                     </div>
                     <div className="bg-muted rounded-lg px-3 py-2">
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -307,14 +367,14 @@ export function AIChatbot() {
           </ScrollArea>
 
           {/* Input */}
-          <div className="p-3 border-t">
+          <div className="p-3 border-t shrink-0">
             <div className="flex gap-2">
               <Input
                 ref={inputRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Tanya tentang investasi..."
+                placeholder={aiMode === 'investment' ? "Tanya tentang investasi..." : "Tanya tentang trading..."}
                 disabled={isLoading}
                 className="flex-1"
               />

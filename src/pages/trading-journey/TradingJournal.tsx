@@ -10,7 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DateRangeFilter, DateRange } from "@/components/trading/DateRangeFilter";
 import { StrategySelector, StrategyFilter } from "@/components/trading/StrategySelector";
-import { TradingAIAnalysis } from "@/components/trading/TradingAIAnalysis";
 import { Plus, Calendar, Tag, Target, Building2, TrendingUp } from "lucide-react";
 import { format } from "date-fns";
 import { 
@@ -196,9 +195,6 @@ export default function TradingJournal() {
             strategies={strategies}
           />
         </div>
-
-        {/* AI Analysis Section */}
-        <TradingAIAnalysis trades={filteredTrades} strategies={strategies} />
 
         {/* Journal Entries */}
         <div className="space-y-4">
