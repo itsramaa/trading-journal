@@ -5,14 +5,14 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-interface PriceData {
-  asset_id: string
-  current_price: number
-  price_change_1h: number | null
+interface PriceUpdate {
+  symbol: string
+  price: number
   price_change_24h: number | null
-  price_change_7d: number | null
+  price_change_percentage_24h: number | null
   market_cap: number | null
   volume_24h: number | null
+  currency: string
 }
 
 // Rate limiting helper - delay between requests
@@ -278,27 +278,32 @@ Deno.serve(async (req) => {
 
     // Group assets by type
     const cryptoAssets = assets.filter(a => a.asset_type === 'CRYPTO' && a.coingecko_id)
-    const usStockAssets = assets.filter(a => a.asset_type === 'STOCK' && a.finnhub_symbol)
-    const idStockAssets = assets.filter(a => a.asset_type === 'STOCK' && a.fcs_id)
-    const alphaAssets = assets.filter(a => a.alpha_symbol && !a.coingecko_id && !a.finnhub_symbol && !a.fcs_id)
+    const usStockAssets = assets.filter(a => a.asset_type === 'US_STOCK' && a.finnhub_symbol)
+    const idStockAssets = assets.filter(a => a.asset_type === 'ID_STOCK' && a.fcs_symbol)
+    const alphaAssets = assets.filter(a => a.alpha_symbol && !a.coingecko_id && !a.finnhub_symbol && !a.fcs_symbol)
 
     console.log(`Assets breakdown: ${cryptoAssets.length} crypto, ${usStockAssets.length} US stocks, ${idStockAssets.length} ID stocks, ${alphaAssets.length} Alpha Vantage`)
 
     // Fetch prices from different sources (sequential to avoid overwhelming APIs)
     const cryptoPrices = await fetchCryptoFromCoinGecko(cryptoAssets.map(a => a.coingecko_id!))
     const usStockPrices = await fetchUSStockFromFinnhub(usStockAssets.map(a => a.finnhub_symbol!))
-    const idStockPrices = await fetchIDStockFromFCS(idStockAssets.map(a => a.fcs_id!))
+    const idStockPrices = await fetchIDStockFromFCS(idStockAssets.map(a => a.fcs_symbol!))
 
-    // Prepare price cache updates
-    const priceUpdates: PriceData[] = []
+    // Prepare price cache updates using symbol
+    const priceUpdates: PriceUpdate[] = []
 
     // Process crypto
     for (const asset of cryptoAssets) {
       const priceInfo = cryptoPrices.get(asset.coingecko_id!)
       if (priceInfo) {
         priceUpdates.push({
-          asset_id: asset.id,
-          ...priceInfo,
+          symbol: asset.symbol.toUpperCase(),
+          price: priceInfo.current_price,
+          price_change_24h: priceInfo.price_change_24h,
+          price_change_percentage_24h: priceInfo.price_change_24h,
+          market_cap: priceInfo.market_cap,
+          volume_24h: priceInfo.volume_24h,
+          currency: 'USD',
         })
       }
     }
@@ -308,23 +313,29 @@ Deno.serve(async (req) => {
       const priceInfo = usStockPrices.get(asset.finnhub_symbol!)
       if (priceInfo) {
         priceUpdates.push({
-          asset_id: asset.id,
-          ...priceInfo,
+          symbol: asset.symbol.toUpperCase(),
+          price: priceInfo.current_price,
+          price_change_24h: null,
+          price_change_percentage_24h: priceInfo.price_change_24h,
           market_cap: null,
           volume_24h: null,
+          currency: 'USD',
         })
       }
     }
 
     // Process ID stocks
     for (const asset of idStockAssets) {
-      const priceInfo = idStockPrices.get(asset.fcs_id!)
+      const priceInfo = idStockPrices.get(asset.fcs_symbol!)
       if (priceInfo) {
         priceUpdates.push({
-          asset_id: asset.id,
-          ...priceInfo,
+          symbol: asset.symbol.toUpperCase(),
+          price: priceInfo.current_price,
+          price_change_24h: null,
+          price_change_percentage_24h: priceInfo.price_change_24h,
           market_cap: null,
           volume_24h: null,
+          currency: 'IDR',
         })
       }
     }
@@ -336,10 +347,13 @@ Deno.serve(async (req) => {
       const priceInfo = await fetchFromAlphaVantage(asset.alpha_symbol!)
       if (priceInfo) {
         priceUpdates.push({
-          asset_id: asset.id,
-          ...priceInfo,
+          symbol: asset.symbol.toUpperCase(),
+          price: priceInfo.current_price,
+          price_change_24h: null,
+          price_change_percentage_24h: priceInfo.price_change_24h,
           market_cap: null,
           volume_24h: null,
+          currency: asset.asset_type === 'ID_STOCK' ? 'IDR' : 'USD',
         })
       }
       if (i < alphaVantageLimit - 1 && i < alphaAssets.length - 1) {
@@ -349,7 +363,7 @@ Deno.serve(async (req) => {
 
     console.log(`Updating ${priceUpdates.length} price entries`)
 
-    // Batch upsert price cache
+    // Batch upsert price cache by symbol
     if (priceUpdates.length > 0) {
       const updatesWithTimestamp = priceUpdates.map(update => ({
         ...update,
@@ -358,7 +372,7 @@ Deno.serve(async (req) => {
 
       const { error: upsertError } = await supabase
         .from('price_cache')
-        .upsert(updatesWithTimestamp, { onConflict: 'asset_id' })
+        .upsert(updatesWithTimestamp, { onConflict: 'symbol' })
 
       if (upsertError) {
         console.error('Error upserting prices:', upsertError)

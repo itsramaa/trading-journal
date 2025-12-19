@@ -111,10 +111,14 @@ export type Database = {
       }
       assets: {
         Row: {
+          alpha_symbol: string | null
           asset_type: string
+          coingecko_id: string | null
           created_at: string
           current_price: number | null
           exchange: string | null
+          fcs_symbol: string | null
+          finnhub_symbol: string | null
           id: string
           logo_url: string | null
           name: string
@@ -125,10 +129,14 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          alpha_symbol?: string | null
           asset_type: string
+          coingecko_id?: string | null
           created_at?: string
           current_price?: number | null
           exchange?: string | null
+          fcs_symbol?: string | null
+          finnhub_symbol?: string | null
           id?: string
           logo_url?: string | null
           name: string
@@ -139,10 +147,14 @@ export type Database = {
           user_id: string
         }
         Update: {
+          alpha_symbol?: string | null
           asset_type?: string
+          coingecko_id?: string | null
           created_at?: string
           current_price?: number | null
           exchange?: string | null
+          fcs_symbol?: string | null
+          finnhub_symbol?: string | null
           id?: string
           logo_url?: string | null
           name?: string
