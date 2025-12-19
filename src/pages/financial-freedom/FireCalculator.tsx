@@ -33,6 +33,14 @@ import { Slider } from "@/components/ui/slider";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Tooltip as UITooltip,
   TooltipContent,
@@ -49,6 +57,9 @@ import { cn } from "@/lib/utils";
 export default function FireCalculator() {
   const { currency } = useAppStore();
   
+  // Manual FIRE number toggle
+  const [useManualFireNumber, setUseManualFireNumber] = useState(false);
+  
   // Input state
   const [inputs, setInputs] = useState<FireInputs>({
     currentAge: 30,
@@ -59,6 +70,7 @@ export default function FireCalculator() {
     expectedAnnualReturn: 8,
     inflationRate: 3,
     safeWithdrawalRate: 4,
+    customFireNumber: currency === 'IDR' ? 5_000_000_000 : 1_000_000,
   });
 
   const updateInput = <K extends keyof FireInputs>(key: K, value: FireInputs[K]) => {
@@ -68,11 +80,14 @@ export default function FireCalculator() {
   // Calculate FIRE metrics
   const results = useMemo(() => {
     try {
-      return calculateFire(inputs);
+      const inputsToUse = useManualFireNumber 
+        ? inputs 
+        : { ...inputs, customFireNumber: undefined };
+      return calculateFire(inputsToUse);
     } catch (error) {
       return null;
     }
-  }, [inputs]);
+  }, [inputs, useManualFireNumber]);
 
   const formatCurrency = (value: number) => formatFireCurrency(value, currency);
 
@@ -186,26 +201,43 @@ export default function FireCalculator() {
               <CardDescription>Adjust your FIRE calculation inputs</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* Age inputs using Select dropdowns */}
               <div className="space-y-2">
-                <Label>Current Age: {inputs.currentAge}</Label>
-                <Slider
-                  value={[inputs.currentAge]}
-                  onValueChange={([v]) => updateInput('currentAge', v)}
-                  min={18}
-                  max={65}
-                  step={1}
-                />
+                <Label>Current Age</Label>
+                <Select
+                  value={inputs.currentAge.toString()}
+                  onValueChange={(v) => updateInput('currentAge', Number(v))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 48 }, (_, i) => i + 18).map((age) => (
+                      <SelectItem key={age} value={age.toString()}>
+                        {age} years
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
-                <Label>Target Retirement Age: {inputs.targetRetirementAge}</Label>
-                <Slider
-                  value={[inputs.targetRetirementAge]}
-                  onValueChange={([v]) => updateInput('targetRetirementAge', v)}
-                  min={inputs.currentAge + 1}
-                  max={80}
-                  step={1}
-                />
+                <Label>Target Retirement Age</Label>
+                <Select
+                  value={inputs.targetRetirementAge.toString()}
+                  onValueChange={(v) => updateInput('targetRetirementAge', Number(v))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 80 - inputs.currentAge }, (_, i) => i + inputs.currentAge + 1).map((age) => (
+                      <SelectItem key={age} value={age.toString()}>
+                        {age} years
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
@@ -247,37 +279,98 @@ export default function FireCalculator() {
                 </div>
               </div>
 
+              {/* Rate inputs using Select dropdowns */}
               <div className="space-y-2">
-                <Label>Expected Return: {inputs.expectedAnnualReturn}%</Label>
-                <Slider
-                  value={[inputs.expectedAnnualReturn]}
-                  onValueChange={([v]) => updateInput('expectedAnnualReturn', v)}
-                  min={1}
-                  max={15}
-                  step={0.5}
-                />
+                <Label>Expected Annual Return</Label>
+                <Select
+                  value={inputs.expectedAnnualReturn.toString()}
+                  onValueChange={(v) => updateInput('expectedAnnualReturn', Number(v))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 29 }, (_, i) => (i + 2) * 0.5).map((rate) => (
+                      <SelectItem key={rate} value={rate.toString()}>
+                        {rate}%
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
-                <Label>Inflation Rate: {inputs.inflationRate}%</Label>
-                <Slider
-                  value={[inputs.inflationRate]}
-                  onValueChange={([v]) => updateInput('inflationRate', v)}
-                  min={1}
-                  max={10}
-                  step={0.5}
-                />
+                <Label>Inflation Rate</Label>
+                <Select
+                  value={inputs.inflationRate.toString()}
+                  onValueChange={(v) => updateInput('inflationRate', Number(v))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 19 }, (_, i) => (i + 2) * 0.5).map((rate) => (
+                      <SelectItem key={rate} value={rate.toString()}>
+                        {rate}%
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
-                <Label>Safe Withdrawal Rate: {inputs.safeWithdrawalRate}%</Label>
-                <Slider
-                  value={[inputs.safeWithdrawalRate]}
-                  onValueChange={([v]) => updateInput('safeWithdrawalRate', v)}
-                  min={2}
-                  max={6}
-                  step={0.25}
-                />
+                <Label>Safe Withdrawal Rate (SWR)</Label>
+                <Select
+                  value={inputs.safeWithdrawalRate.toString()}
+                  onValueChange={(v) => updateInput('safeWithdrawalRate', Number(v))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 17 }, (_, i) => 2 + i * 0.25).map((rate) => (
+                      <SelectItem key={rate} value={rate.toString()}>
+                        {rate}%
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Manual FIRE Number Toggle */}
+              <div className="space-y-4 pt-4 border-t">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="manual-fire" className="flex flex-col">
+                    <span>Custom FIRE Number</span>
+                    <span className="text-xs font-normal text-muted-foreground">
+                      Override calculated target
+                    </span>
+                  </Label>
+                  <Switch
+                    id="manual-fire"
+                    checked={useManualFireNumber}
+                    onCheckedChange={setUseManualFireNumber}
+                  />
+                </div>
+                
+                {useManualFireNumber && (
+                  <div className="space-y-2">
+                    <Label>FIRE Number Target</Label>
+                    <div className="relative">
+                      <Target className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        type="number"
+                        value={inputs.customFireNumber || 0}
+                        onChange={(e) => updateInput('customFireNumber', Number(e.target.value))}
+                        className="pl-9"
+                        placeholder="Enter your target FIRE number"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Enter the amount you need to achieve financial independence
+                    </p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

@@ -1,6 +1,5 @@
 import { Link } from "react-router-dom";
 import {
-  BadgeCheck,
   Bell,
   ChevronsUpDown,
   CreditCard,
@@ -84,9 +83,11 @@ export function NavUser({ user }: NavUserProps) {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem>
-                <Sparkles className="mr-2 h-4 w-4" />
-                Upgrade to Pro
+              <DropdownMenuItem asChild>
+                <Link to="/upgrade">
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Upgrade to Pro
+                </Link>
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
@@ -97,17 +98,17 @@ export function NavUser({ user }: NavUserProps) {
                   Settings
                 </Link>
               </DropdownMenuItem>
-              <DropdownMenuItem>
-                <BadgeCheck className="mr-2 h-4 w-4" />
-                Account
+              <DropdownMenuItem asChild>
+                <Link to="/billing">
+                  <CreditCard className="mr-2 h-4 w-4" />
+                  Billing
+                </Link>
               </DropdownMenuItem>
-              <DropdownMenuItem>
-                <CreditCard className="mr-2 h-4 w-4" />
-                Billing
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <Bell className="mr-2 h-4 w-4" />
-                Notifications
+              <DropdownMenuItem asChild>
+                <Link to="/notifications">
+                  <Bell className="mr-2 h-4 w-4" />
+                  Notifications
+                </Link>
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
