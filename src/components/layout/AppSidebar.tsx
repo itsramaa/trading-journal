@@ -15,6 +15,7 @@ import {
   Activity,
   Lightbulb,
   Clock,
+  Settings,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { AppSwitcher } from "./AppSwitcher";
@@ -32,6 +33,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  SidebarSeparator,
 } from "@/components/ui/sidebar";
 
 // Navigation items for each app
@@ -69,6 +71,13 @@ const appNavigation: Record<AppType, { label: string; items: { icon: any; label:
   },
 };
 
+// Settings page for each app (app-specific config, not account settings)
+const appSettings: Record<AppType, string> = {
+  portfolio: "/settings/portfolio",
+  "financial-freedom": "/settings/ff",
+  "trading-journey": "/settings/trading",
+};
+
 // Dummy user data
 const dummyUser = {
   name: "John Doe",
@@ -81,6 +90,7 @@ export function AppSidebar() {
   const { activeApp } = useAppStore();
   
   const currentNavigation = appNavigation[activeApp];
+  const settingsPath = appSettings[activeApp];
 
   return (
     <Sidebar collapsible="icon">
@@ -106,6 +116,27 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                 );
               })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarSeparator />
+
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton 
+                  asChild 
+                  isActive={location.pathname === settingsPath}
+                  tooltip="Settings"
+                >
+                  <Link to={settingsPath}>
+                    <Settings />
+                    <span>Settings</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
