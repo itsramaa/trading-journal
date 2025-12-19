@@ -1,5 +1,4 @@
-import { TrendingUp, TrendingDown, DollarSign, Percent, Activity } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { TrendingUp, TrendingDown, Wallet, Activity, Target } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCompactCurrency } from "@/lib/formatters";
 import type { PortfolioMetrics as PortfolioMetricsType } from "@/types/portfolio";
@@ -11,45 +10,50 @@ interface MetricCardProps {
   changeLabel?: string;
   icon: React.ReactNode;
   trend?: 'up' | 'down' | 'neutral';
+  className?: string;
 }
 
-function MetricCard({ title, value, change, changeLabel, icon, trend }: MetricCardProps) {
+function MetricCard({ title, value, change, changeLabel, icon, trend, className }: MetricCardProps) {
   return (
-    <Card className="overflow-hidden">
-      <CardContent className="p-6">
-        <div className="flex items-start justify-between">
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-muted-foreground">{title}</p>
-            <p className="text-2xl font-bold tracking-tight">{value}</p>
-            {change !== undefined && (
-              <div className="flex items-center gap-1.5">
+    <div className={cn(
+      "group relative overflow-hidden rounded-xl border border-border/50 bg-card p-5 transition-all duration-300 hover:border-border hover:shadow-sm",
+      className
+    )}>
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-1.5 flex-1 min-w-0">
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{title}</p>
+          <p className="text-2xl font-semibold tracking-tight font-mono-numbers truncate">{value}</p>
+          {change !== undefined && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <div className={cn(
+                "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium",
+                trend === 'up' ? "bg-profit-muted text-profit" : 
+                trend === 'down' ? "bg-loss-muted text-loss" : 
+                "bg-muted text-muted-foreground"
+              )}>
                 {trend === 'up' ? (
-                  <TrendingUp className="h-4 w-4 text-profit" />
+                  <TrendingUp className="h-3 w-3" />
                 ) : trend === 'down' ? (
-                  <TrendingDown className="h-4 w-4 text-loss" />
+                  <TrendingDown className="h-3 w-3" />
                 ) : null}
-                <span
-                  className={cn(
-                    "text-sm font-medium",
-                    trend === 'up' ? "text-profit" : trend === 'down' ? "text-loss" : "text-muted-foreground"
-                  )}
-                >
-                  {change > 0 ? '+' : ''}{change.toFixed(2)}%
-                </span>
-                {changeLabel && (
-                  <span className="text-sm text-muted-foreground">
-                    {changeLabel}
-                  </span>
-                )}
+                <span>{change > 0 ? '+' : ''}{change.toFixed(2)}%</span>
               </div>
-            )}
-          </div>
-          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-            {icon}
-          </div>
+              {changeLabel && (
+                <span className="text-xs text-muted-foreground">{changeLabel}</span>
+              )}
+            </div>
+          )}
         </div>
-      </CardContent>
-    </Card>
+        <div className={cn(
+          "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors",
+          trend === 'up' ? "bg-profit/10 text-profit" :
+          trend === 'down' ? "bg-loss/10 text-loss" :
+          "bg-primary/10 text-primary"
+        )}>
+          {icon}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -59,34 +63,34 @@ interface PortfolioMetricsProps {
 
 export function PortfolioMetrics({ metrics }: PortfolioMetricsProps) {
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <MetricCard
-        title="Total Portfolio Value"
+        title="Portfolio Value"
         value={formatCompactCurrency(metrics.totalValue)}
         change={metrics.dayChangePercent}
         changeLabel="today"
-        icon={<DollarSign className="h-6 w-6 text-primary" />}
+        icon={<Wallet className="h-5 w-5" />}
         trend={metrics.dayChangePercent >= 0 ? 'up' : 'down'}
       />
       <MetricCard
-        title="Total Profit/Loss"
+        title="Total P/L"
         value={formatCompactCurrency(metrics.totalProfitLoss)}
         change={metrics.totalProfitLossPercent}
         changeLabel="all time"
-        icon={<TrendingUp className="h-6 w-6 text-profit" />}
+        icon={<TrendingUp className="h-5 w-5" />}
         trend={metrics.totalProfitLoss >= 0 ? 'up' : 'down'}
       />
       <MetricCard
         title="Today's Change"
         value={`${metrics.dayChange >= 0 ? '+' : ''}${formatCompactCurrency(metrics.dayChange)}`}
         change={metrics.dayChangePercent}
-        icon={<Activity className="h-6 w-6 text-primary" />}
+        icon={<Activity className="h-5 w-5" />}
         trend={metrics.dayChange >= 0 ? 'up' : 'down'}
       />
       <MetricCard
         title="Cost Basis"
         value={formatCompactCurrency(metrics.totalCostBasis)}
-        icon={<Percent className="h-6 w-6 text-muted-foreground" />}
+        icon={<Target className="h-5 w-5" />}
         trend="neutral"
       />
     </div>
