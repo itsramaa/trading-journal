@@ -1,4 +1,5 @@
-import { TrendingUp, TrendingDown, MoreHorizontal } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { TrendingUp, TrendingDown } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -24,6 +25,12 @@ const marketColors: Record<string, string> = {
 };
 
 export function HoldingsTable({ holdings }: HoldingsTableProps) {
+  const navigate = useNavigate();
+
+  const handleRowClick = (symbol: string) => {
+    navigate(`/asset/${symbol}`);
+  };
+
   return (
     <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
       <div className="flex items-center justify-between px-5 py-4 border-b border-border/50">
@@ -31,7 +38,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
           <h3 className="font-semibold">Holdings</h3>
           <p className="text-xs text-muted-foreground mt-0.5">{holdings.length} assets in portfolio</p>
         </div>
-        <Button variant="ghost" size="sm" className="text-xs">
+        <Button variant="ghost" size="sm" className="text-xs" onClick={() => navigate('/portfolio')}>
           View All
         </Button>
       </div>
@@ -54,9 +61,10 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
               <TableRow 
                 key={holding.id} 
                 className={cn(
-                  "group transition-colors hover:bg-muted/30",
+                  "group transition-colors hover:bg-muted/30 cursor-pointer",
                   index === holdings.length - 1 && "border-0"
                 )}
+                onClick={() => handleRowClick(holding.asset.symbol)}
               >
                 <TableCell className="pl-5">
                   <div className="flex items-center gap-3">
