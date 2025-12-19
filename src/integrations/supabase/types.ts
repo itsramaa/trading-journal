@@ -260,6 +260,60 @@ export type Database = {
           },
         ]
       }
+      debts: {
+        Row: {
+          created_at: string
+          current_balance: number
+          debt_type: string
+          due_date: number | null
+          id: string
+          interest_rate: number
+          is_active: boolean
+          minimum_payment: number
+          monthly_payment: number
+          name: string
+          notes: string | null
+          original_balance: number
+          start_date: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_balance: number
+          debt_type?: string
+          due_date?: number | null
+          id?: string
+          interest_rate?: number
+          is_active?: boolean
+          minimum_payment?: number
+          monthly_payment?: number
+          name: string
+          notes?: string | null
+          original_balance: number
+          start_date?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          current_balance?: number
+          debt_type?: string
+          due_date?: number | null
+          id?: string
+          interest_rate?: number
+          is_active?: boolean
+          minimum_payment?: number
+          monthly_payment?: number
+          name?: string
+          notes?: string | null
+          original_balance?: number
+          start_date?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       holdings: {
         Row: {
           asset_id: string
