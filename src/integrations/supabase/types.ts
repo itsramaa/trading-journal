@@ -410,6 +410,57 @@ export type Database = {
         }
         Relationships: []
       }
+      financial_goals: {
+        Row: {
+          color: string | null
+          created_at: string
+          current_amount: number
+          deadline: string
+          icon: string
+          id: string
+          is_active: boolean
+          monthly_contribution: number
+          name: string
+          notes: string | null
+          priority: string
+          target_amount: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          current_amount?: number
+          deadline: string
+          icon?: string
+          id?: string
+          is_active?: boolean
+          monthly_contribution?: number
+          name: string
+          notes?: string | null
+          priority?: string
+          target_amount?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          current_amount?: number
+          deadline?: string
+          icon?: string
+          id?: string
+          is_active?: boolean
+          monthly_contribution?: number
+          name?: string
+          notes?: string | null
+          priority?: string
+          target_amount?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       holdings: {
         Row: {
           asset_id: string
