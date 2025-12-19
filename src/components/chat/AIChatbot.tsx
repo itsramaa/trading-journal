@@ -7,7 +7,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { 
   X, 
   Send, 
-  Bot, 
   User,
   Sparkles,
   Loader2,
@@ -15,7 +14,8 @@ import {
   Maximize2,
   TrendingUp,
   BarChart3,
-  ChevronDown
+  ChevronDown,
+  Flame
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useHoldings, usePortfolios } from '@/hooks/use-portfolio';
@@ -26,7 +26,7 @@ interface Message {
   content: string;
 }
 
-type AIMode = 'investment' | 'trading';
+type AIMode = 'investment' | 'trading' | 'fire';
 
 const AI_MODES = {
   investment: {
@@ -36,6 +36,7 @@ const AI_MODES = {
     endpoint: 'portfolio-insights',
     suggestions: ['Analisis portfolio saya', 'Tips diversifikasi', 'Apa itu DCA?'],
     greeting: 'Halo! Saya AI Investment Advisor. Tanyakan apa saja tentang portfolio Anda, strategi investasi, atau insight pasar.',
+    placeholder: 'Tanya tentang investasi...',
   },
   trading: {
     label: 'Trading Analyst',
@@ -44,6 +45,16 @@ const AI_MODES = {
     endpoint: 'trading-analysis',
     suggestions: ['Analisis performa saya', 'Strategi terbaik?', 'Kelemahan trading saya?'],
     greeting: 'Halo! Saya AI Trading Analyst. Saya akan menganalisis pattern dan performa trading journal Anda.',
+    placeholder: 'Tanya tentang trading...',
+  },
+  fire: {
+    label: 'FIRE Coach',
+    icon: Flame,
+    description: 'Financial independence & retirement planning',
+    endpoint: 'fire-insights',
+    suggestions: ['Berapa FIRE number saya?', 'Tips tingkatkan savings rate', 'Apa itu Coast FIRE?'],
+    greeting: 'Halo! Saya AI FIRE Coach. Saya akan membantu Anda merencanakan kebebasan finansial dan pensiun dini.',
+    placeholder: 'Tanya tentang FIRE planning...',
   },
 };
 
@@ -132,16 +143,36 @@ export function AIChatbot() {
     const endpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${currentMode.endpoint}`;
 
     try {
-      const body = aiMode === 'investment' 
-        ? {
-            messages: [...messages, userMessage],
-            portfolioContext: getPortfolioContext(),
-          }
-        : {
-            trades: demoTrades,
-            strategies: demoStrategies,
-            question: input.trim(),
-          };
+      let body: any;
+      
+      if (aiMode === 'investment') {
+        body = {
+          messages: [...messages, userMessage],
+          portfolioContext: getPortfolioContext(),
+        };
+      } else if (aiMode === 'trading') {
+        body = {
+          trades: demoTrades,
+          strategies: demoStrategies,
+          question: input.trim(),
+        };
+      } else {
+        // FIRE mode
+        body = {
+          messages: [...messages, userMessage],
+          fireData: {
+            currentAge: 30,
+            targetRetirementAge: 45,
+            currentSavings: 50000,
+            monthlyExpenses: 3000,
+            fireNumber: 900000,
+            progressPercent: 5.5,
+            yearsToFire: 15,
+            withdrawalRate: 4,
+            expectedReturn: 7,
+          },
+        };
+      }
 
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -374,7 +405,7 @@ export function AIChatbot() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder={aiMode === 'investment' ? "Tanya tentang investasi..." : "Tanya tentang trading..."}
+                placeholder={currentMode.placeholder}
                 disabled={isLoading}
                 className="flex-1"
               />

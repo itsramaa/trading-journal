@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.trading-analysis]
 verify_jwt = false
+
+[functions.fire-insights]
+verify_jwt = false
