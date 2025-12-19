@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      assets: {
+        Row: {
+          alpha_symbol: string | null
+          asset_type: string
+          coingecko_id: string | null
+          created_at: string
+          fcs_id: string | null
+          finnhub_symbol: string | null
+          id: string
+          logo_url: string | null
+          name: string
+          symbol: string
+          updated_at: string | null
+        }
+        Insert: {
+          alpha_symbol?: string | null
+          asset_type: string
+          coingecko_id?: string | null
+          created_at?: string
+          fcs_id?: string | null
+          finnhub_symbol?: string | null
+          id?: string
+          logo_url?: string | null
+          name: string
+          symbol: string
+          updated_at?: string | null
+        }
+        Update: {
+          alpha_symbol?: string | null
+          asset_type?: string
+          coingecko_id?: string | null
+          created_at?: string
+          fcs_id?: string | null
+          finnhub_symbol?: string | null
+          id?: string
+          logo_url?: string | null
+          name?: string
+          symbol?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       badges: {
         Row: {
           created_at: string | null
@@ -228,6 +270,54 @@ export type Database = {
           },
         ]
       }
+      holdings: {
+        Row: {
+          asset_id: string
+          average_cost: number
+          created_at: string
+          id: string
+          portfolio_id: string
+          quantity: number
+          total_cost: number
+          updated_at: string | null
+        }
+        Insert: {
+          asset_id: string
+          average_cost?: number
+          created_at?: string
+          id?: string
+          portfolio_id: string
+          quantity?: number
+          total_cost?: number
+          updated_at?: string | null
+        }
+        Update: {
+          asset_id?: string
+          average_cost?: number
+          created_at?: string
+          id?: string
+          portfolio_id?: string
+          quantity?: number
+          total_cost?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "holdings_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "holdings_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "portfolios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ingat_dok_migrations: {
         Row: {
           dirty: boolean
@@ -344,6 +434,83 @@ export type Database = {
           },
         ]
       }
+      portfolios: {
+        Row: {
+          created_at: string
+          currency: string
+          description: string | null
+          id: string
+          is_default: boolean
+          name: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          currency?: string
+          description?: string | null
+          id?: string
+          is_default?: boolean
+          name: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          description?: string | null
+          id?: string
+          is_default?: boolean
+          name?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      price_cache: {
+        Row: {
+          asset_id: string
+          current_price: number
+          id: string
+          last_updated: string
+          market_cap: number | null
+          price_change_1h: number | null
+          price_change_24h: number | null
+          price_change_7d: number | null
+          volume_24h: number | null
+        }
+        Insert: {
+          asset_id: string
+          current_price: number
+          id?: string
+          last_updated?: string
+          market_cap?: number | null
+          price_change_1h?: number | null
+          price_change_24h?: number | null
+          price_change_7d?: number | null
+          volume_24h?: number | null
+        }
+        Update: {
+          asset_id?: string
+          current_price?: number
+          id?: string
+          last_updated?: string
+          market_cap?: number | null
+          price_change_1h?: number | null
+          price_change_24h?: number | null
+          price_change_7d?: number | null
+          volume_24h?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "price_cache_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: true
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       provinces: {
         Row: {
           created_at: string | null
@@ -448,6 +615,99 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      transactions: {
+        Row: {
+          asset_id: string
+          created_at: string
+          fees: number | null
+          id: string
+          notes: string | null
+          portfolio_id: string
+          price_per_unit: number
+          quantity: number
+          total_amount: number
+          transaction_date: string
+          transaction_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          asset_id: string
+          created_at?: string
+          fees?: number | null
+          id?: string
+          notes?: string | null
+          portfolio_id: string
+          price_per_unit: number
+          quantity: number
+          total_amount: number
+          transaction_date: string
+          transaction_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          asset_id?: string
+          created_at?: string
+          fees?: number | null
+          id?: string
+          notes?: string | null
+          portfolio_id?: string
+          price_per_unit?: number
+          quantity?: number
+          total_amount?: number
+          transaction_date?: string
+          transaction_type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "portfolios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_settings: {
+        Row: {
+          created_at: string
+          default_currency: string
+          id: string
+          notifications_enabled: boolean | null
+          theme: string
+          timezone: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          default_currency?: string
+          id?: string
+          notifications_enabled?: boolean | null
+          theme?: string
+          timezone?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          default_currency?: string
+          id?: string
+          notifications_enabled?: boolean | null
+          theme?: string
+          timezone?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
       }
       users_badge: {
         Row: {
