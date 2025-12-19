@@ -39,7 +39,8 @@ const assetSchema = z.object({
   asset_type: z.enum(["CRYPTO", "US_STOCK", "ID_STOCK"]),
   coingecko_id: z.string().optional(),
   finnhub_symbol: z.string().optional(),
-  fcs_id: z.string().optional(),
+  fcs_symbol: z.string().optional(),
+  alpha_symbol: z.string().optional(),
   logo_url: z.string().url().optional().or(z.literal("")),
 });
 
@@ -61,7 +62,8 @@ export function AddAssetForm({ trigger }: AddAssetFormProps) {
       asset_type: "CRYPTO",
       coingecko_id: "",
       finnhub_symbol: "",
-      fcs_id: "",
+      fcs_symbol: "",
+      alpha_symbol: "",
       logo_url: "",
     },
   });
@@ -86,6 +88,10 @@ export function AddAssetForm({ trigger }: AddAssetFormProps) {
         sector: null,
         current_price: null,
         logo_url: data.logo_url || null,
+        coingecko_id: data.coingecko_id || null,
+        finnhub_symbol: data.finnhub_symbol || null,
+        fcs_symbol: data.fcs_symbol || null,
+        alpha_symbol: data.alpha_symbol || null,
       });
       
       toast.success(`Asset ${data.symbol} added successfully`);
@@ -212,15 +218,34 @@ export function AddAssetForm({ trigger }: AddAssetFormProps) {
             {assetType === "ID_STOCK" && (
               <FormField
                 control={form.control}
-                name="fcs_id"
+                name="fcs_symbol"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>FCS API ID (Optional)</FormLabel>
+                    <FormLabel>FCS API Symbol (Optional)</FormLabel>
                     <FormControl>
-                      <Input placeholder="BBCA.JK" {...field} />
+                      <Input placeholder="BBCA" {...field} />
                     </FormControl>
                     <FormDescription>
                       Used to fetch live prices for Indonesian stocks
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
+            {(assetType === "US_STOCK" || assetType === "ID_STOCK") && (
+              <FormField
+                control={form.control}
+                name="alpha_symbol"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Alpha Vantage Symbol (Optional)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="AAPL or BBCA.JK" {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      Used to fetch historical price data
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
