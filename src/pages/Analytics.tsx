@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import {
   AreaChart,
   Area,
@@ -15,12 +15,10 @@ import {
   PolarRadiusAxis,
   Radar,
   Cell,
-  LineChart,
-  Line,
 } from "recharts";
 import { 
-  TrendingUp, TrendingDown, AlertTriangle, Shield, Target, Activity,
-  Percent, BarChart3, Zap, Scale, Trophy, Calculator
+  TrendingUp, TrendingDown, Shield, Target, Activity,
+  Scale, Trophy, Calculator
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -28,18 +26,15 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
-import { 
-  demoHoldings, 
-  demoPortfolioMetrics, 
-  analyticsData,
-  performanceData,
-} from "@/lib/demo-data";
-import { formatCompactCurrency, formatPercent } from "@/lib/formatters";
+import { useAnalyticsData } from "@/hooks/use-analytics";
+import { usePortfolioHistory, useDefaultPortfolio } from "@/hooks/use-portfolio";
+import { EmptyState } from "@/components/ui/empty-state";
+import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
 
 const Analytics = () => {
-  const holdings = demoHoldings;
-  const metrics = demoPortfolioMetrics;
-  const analytics = analyticsData;
+  const { analytics, isLoading, hasData } = useAnalyticsData();
+  const { data: defaultPortfolio } = useDefaultPortfolio();
+  const { data: history = [] } = usePortfolioHistory(defaultPortfolio?.id, 'ALL');
 
   // Calculate cumulative returns for chart
   const cumulativeReturns = useMemo(() => {
@@ -50,30 +45,22 @@ const Analytics = () => {
     });
   }, [analytics.monthlyReturns]);
 
-  // Drawdown calculation
+  // Drawdown calculation from history
   const drawdownData = useMemo(() => {
-    let peak = 100;
-    return performanceData.map(p => {
-      const normalizedValue = (p.value / performanceData[performanceData.length - 1].value) * 100;
-      if (normalizedValue > peak) peak = normalizedValue;
-      const drawdown = ((normalizedValue - peak) / peak) * 100;
-      return { date: p.date, value: parseFloat(drawdown.toFixed(1)) };
+    if (history.length === 0) return [];
+    
+    let peak = 0;
+    return history.map(h => {
+      const value = Number(h.total_value);
+      if (value > peak) peak = value;
+      const drawdown = peak > 0 ? ((value - peak) / peak) * 100 : 0;
+      const date = new Date(h.recorded_at);
+      return { 
+        date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), 
+        value: parseFloat(drawdown.toFixed(1)) 
+      };
     });
-  }, []);
-
-  // Asset performance from real holdings
-  const assetPerformance = useMemo(() => {
-    return holdings
-      .map(h => ({
-        symbol: h.asset.symbol,
-        name: h.asset.name,
-        return: h.profitLossPercent,
-        value: h.value,
-        weight: (h.value / metrics.totalValue) * 100,
-        contribution: (h.profitLossPercent * ((h.value / metrics.totalValue) * 100)) / 100,
-      }))
-      .sort((a, b) => b.contribution - a.contribution);
-  }, [holdings, metrics.totalValue]);
+  }, [history]);
 
   // Risk rating based on metrics
   const getRiskRating = (sharpe: number) => {
@@ -84,6 +71,38 @@ const Analytics = () => {
   };
 
   const riskRating = getRiskRating(analytics.sharpeRatio);
+
+  if (isLoading) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Analytics</h1>
+            <p className="text-muted-foreground">Advanced performance metrics and risk analysis.</p>
+          </div>
+          <MetricsGridSkeleton />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (!hasData) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Analytics</h1>
+            <p className="text-muted-foreground">Advanced performance metrics and risk analysis.</p>
+          </div>
+          <EmptyState
+            icon={TrendingUp}
+            title="No portfolio data yet"
+            description="Add holdings to your portfolio to see analytics and performance metrics."
+          />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -107,9 +126,9 @@ const Analytics = () => {
               </div>
               <p className={cn(
                 "text-xl font-bold font-mono-numbers",
-                metrics.totalProfitLossPercent >= 0 ? "text-profit" : "text-loss"
+                analytics.totalProfitLossPercent >= 0 ? "text-profit" : "text-loss"
               )}>
-                {metrics.totalProfitLossPercent >= 0 ? '+' : ''}{metrics.totalProfitLossPercent.toFixed(1)}%
+                {analytics.totalProfitLossPercent >= 0 ? '+' : ''}{analytics.totalProfitLossPercent.toFixed(1)}%
               </p>
             </CardContent>
           </Card>
@@ -123,9 +142,9 @@ const Analytics = () => {
               </div>
               <p className={cn(
                 "text-xl font-bold font-mono-numbers",
-                metrics.cagr >= 0 ? "text-profit" : "text-loss"
+                analytics.cagr >= 0 ? "text-profit" : "text-loss"
               )}>
-                {metrics.cagr >= 0 ? '+' : ''}{metrics.cagr.toFixed(1)}%
+                {analytics.cagr >= 0 ? '+' : ''}{analytics.cagr.toFixed(1)}%
               </p>
             </CardContent>
           </Card>
@@ -216,7 +235,9 @@ const Analytics = () => {
               <div className="grid grid-cols-3 gap-6 text-center">
                 <div>
                   <p className="text-sm text-muted-foreground">Alpha</p>
-                  <p className="text-lg font-bold text-profit">+{analytics.alpha.toFixed(1)}%</p>
+                  <p className={cn("text-lg font-bold", analytics.alpha >= 0 ? "text-profit" : "text-loss")}>
+                    {analytics.alpha >= 0 ? '+' : ''}{analytics.alpha.toFixed(1)}%
+                  </p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Beta</p>
@@ -246,51 +267,57 @@ const Analytics = () => {
               <Card className="border-border/50">
                 <CardHeader>
                   <CardTitle>Monthly Returns</CardTitle>
-                  <CardDescription>Return percentage by month (YTD)</CardDescription>
+                  <CardDescription>Return percentage by month</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={analytics.monthlyReturns}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                        <XAxis
-                          dataKey="month"
-                          axisLine={false}
-                          tickLine={false}
-                          tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
-                        />
-                        <YAxis
-                          axisLine={false}
-                          tickLine={false}
-                          tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
-                          tickFormatter={(v) => `${v}%`}
-                        />
-                        <Tooltip
-                          content={({ active, payload }) => {
-                            if (active && payload && payload.length) {
-                              const value = payload[0].value as number;
-                              return (
-                                <div className="rounded-lg border border-border bg-popover p-3 shadow-lg">
-                                  <p className="text-sm text-muted-foreground">{payload[0].payload.month}</p>
-                                  <p className={cn("text-lg font-bold font-mono-numbers", value >= 0 ? "text-profit" : "text-loss")}>
-                                    {value >= 0 ? "+" : ""}{value.toFixed(1)}%
-                                  </p>
-                                </div>
-                              );
-                            }
-                            return null;
-                          }}
-                        />
-                        <Bar dataKey="return" radius={[4, 4, 0, 0]}>
-                          {analytics.monthlyReturns.map((entry, index) => (
-                            <Cell 
-                              key={`cell-${index}`} 
-                              fill={entry.return >= 0 ? "hsl(var(--profit))" : "hsl(var(--loss))"} 
-                            />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
+                    {analytics.monthlyReturns.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={analytics.monthlyReturns}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                          <XAxis
+                            dataKey="month"
+                            axisLine={false}
+                            tickLine={false}
+                            tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                          />
+                          <YAxis
+                            axisLine={false}
+                            tickLine={false}
+                            tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                            tickFormatter={(v) => `${v}%`}
+                          />
+                          <Tooltip
+                            content={({ active, payload }) => {
+                              if (active && payload && payload.length) {
+                                const value = payload[0].value as number;
+                                return (
+                                  <div className="rounded-lg border border-border bg-popover p-3 shadow-lg">
+                                    <p className="text-sm text-muted-foreground">{payload[0].payload.month}</p>
+                                    <p className={cn("text-lg font-bold font-mono-numbers", value >= 0 ? "text-profit" : "text-loss")}>
+                                      {value >= 0 ? "+" : ""}{value.toFixed(1)}%
+                                    </p>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                          <Bar dataKey="return" radius={[4, 4, 0, 0]}>
+                            {analytics.monthlyReturns.map((entry, index) => (
+                              <Cell 
+                                key={`cell-${index}`} 
+                                fill={entry.return >= 0 ? "hsl(var(--profit))" : "hsl(var(--loss))"} 
+                              />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-full flex items-center justify-center text-muted-foreground">
+                        No monthly data available yet
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -303,84 +330,92 @@ const Analytics = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={cumulativeReturns}>
-                        <defs>
-                          <linearGradient id="colorCumulative" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-                            <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                        <XAxis
-                          dataKey="month"
-                          axisLine={false}
-                          tickLine={false}
-                          tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
-                        />
-                        <YAxis
-                          axisLine={false}
-                          tickLine={false}
-                          tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
-                          tickFormatter={(v) => `${v}%`}
-                        />
-                        <Tooltip
-                          content={({ active, payload }) => {
-                            if (active && payload && payload.length) {
-                              return (
-                                <div className="rounded-lg border border-border bg-popover p-3 shadow-lg">
-                                  <p className="text-sm text-muted-foreground">{payload[0].payload.month}</p>
-                                  <p className="text-lg font-bold font-mono-numbers text-primary">
-                                    +{payload[0].value}%
-                                  </p>
-                                </div>
-                              );
-                            }
-                            return null;
-                          }}
-                        />
-                        <Area
-                          type="monotone"
-                          dataKey="cumulative"
-                          stroke="hsl(var(--primary))"
-                          strokeWidth={2}
-                          fillOpacity={1}
-                          fill="url(#colorCumulative)"
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
+                    {cumulativeReturns.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={cumulativeReturns}>
+                          <defs>
+                            <linearGradient id="colorCumulative" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+                              <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                          <XAxis
+                            dataKey="month"
+                            axisLine={false}
+                            tickLine={false}
+                            tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                          />
+                          <YAxis
+                            axisLine={false}
+                            tickLine={false}
+                            tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                            tickFormatter={(v) => `${v}%`}
+                          />
+                          <Tooltip
+                            content={({ active, payload }) => {
+                              if (active && payload && payload.length) {
+                                return (
+                                  <div className="rounded-lg border border-border bg-popover p-3 shadow-lg">
+                                    <p className="text-sm text-muted-foreground">{payload[0].payload.month}</p>
+                                    <p className="text-lg font-bold font-mono-numbers text-primary">
+                                      {Number(payload[0].value) >= 0 ? '+' : ''}{payload[0].value}%
+                                    </p>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                          <Area
+                            type="monotone"
+                            dataKey="cumulative"
+                            stroke="hsl(var(--primary))"
+                            strokeWidth={2}
+                            fillOpacity={1}
+                            fill="url(#colorCumulative)"
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-full flex items-center justify-center text-muted-foreground">
+                        No cumulative data available yet
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
             </div>
 
             {/* Monthly Returns Table */}
-            <Card className="border-border/50">
-              <CardHeader>
-                <CardTitle>Monthly Returns Breakdown</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-12 gap-2">
-                  {analytics.monthlyReturns.map((m) => (
-                    <div 
-                      key={m.month}
-                      className={cn(
-                        "rounded-lg p-3 text-center",
-                        m.return >= 0 ? "bg-profit/10" : "bg-loss/10"
-                      )}
-                    >
-                      <p className="text-xs text-muted-foreground mb-1">{m.month}</p>
-                      <p className={cn(
-                        "text-sm font-bold font-mono-numbers",
-                        m.return >= 0 ? "text-profit" : "text-loss"
-                      )}>
-                        {m.return >= 0 ? '+' : ''}{m.return.toFixed(1)}%
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            {analytics.monthlyReturns.length > 0 && (
+              <Card className="border-border/50">
+                <CardHeader>
+                  <CardTitle>Monthly Returns Breakdown</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-12 gap-2">
+                    {analytics.monthlyReturns.map((m) => (
+                      <div 
+                        key={m.month}
+                        className={cn(
+                          "rounded-lg p-3 text-center",
+                          m.return >= 0 ? "bg-profit/10" : "bg-loss/10"
+                        )}
+                      >
+                        <p className="text-xs text-muted-foreground mb-1">{m.month}</p>
+                        <p className={cn(
+                          "text-sm font-bold font-mono-numbers",
+                          m.return >= 0 ? "text-profit" : "text-loss"
+                        )}>
+                          {m.return >= 0 ? '+' : ''}{m.return.toFixed(1)}%
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* Risk Analysis Tab */}
@@ -427,53 +462,59 @@ const Analytics = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="h-[350px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={drawdownData}>
-                        <defs>
-                          <linearGradient id="colorDrawdown" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="hsl(var(--loss))" stopOpacity={0.3} />
-                            <stop offset="95%" stopColor="hsl(var(--loss))" stopOpacity={0} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                        <XAxis
-                          dataKey="date"
-                          axisLine={false}
-                          tickLine={false}
-                          tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
-                        />
-                        <YAxis
-                          axisLine={false}
-                          tickLine={false}
-                          tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
-                          tickFormatter={(v) => `${v}%`}
-                          domain={['auto', 0]}
-                        />
-                        <Tooltip
-                          content={({ active, payload }) => {
-                            if (active && payload && payload.length) {
-                              return (
-                                <div className="rounded-lg border border-border bg-popover p-3 shadow-lg">
-                                  <p className="text-sm text-muted-foreground">{payload[0].payload.date}</p>
-                                  <p className="text-lg font-bold font-mono-numbers text-loss">
-                                    {payload[0].value}%
-                                  </p>
-                                </div>
-                              );
-                            }
-                            return null;
-                          }}
-                        />
-                        <Area
-                          type="monotone"
-                          dataKey="value"
-                          stroke="hsl(var(--loss))"
-                          strokeWidth={2}
-                          fillOpacity={1}
-                          fill="url(#colorDrawdown)"
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
+                    {drawdownData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={drawdownData}>
+                          <defs>
+                            <linearGradient id="colorDrawdown" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="hsl(var(--loss))" stopOpacity={0.3} />
+                              <stop offset="95%" stopColor="hsl(var(--loss))" stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                          <XAxis
+                            dataKey="date"
+                            axisLine={false}
+                            tickLine={false}
+                            tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                          />
+                          <YAxis
+                            axisLine={false}
+                            tickLine={false}
+                            tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                            tickFormatter={(v) => `${v}%`}
+                            domain={['auto', 0]}
+                          />
+                          <Tooltip
+                            content={({ active, payload }) => {
+                              if (active && payload && payload.length) {
+                                return (
+                                  <div className="rounded-lg border border-border bg-popover p-3 shadow-lg">
+                                    <p className="text-sm text-muted-foreground">{payload[0].payload.date}</p>
+                                    <p className="text-lg font-bold font-mono-numbers text-loss">
+                                      {payload[0].value}%
+                                    </p>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                          <Area
+                            type="monotone"
+                            dataKey="value"
+                            stroke="hsl(var(--loss))"
+                            strokeWidth={2}
+                            fillOpacity={1}
+                            fill="url(#colorDrawdown)"
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-full flex items-center justify-center text-muted-foreground">
+                        No historical data available yet
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -553,53 +594,59 @@ const Analytics = () => {
                 <CardDescription>Individual asset contribution to portfolio returns</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {assetPerformance.map((asset) => (
-                    <div key={asset.symbol} className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 font-semibold text-sm text-primary">
-                            {asset.symbol.slice(0, 2)}
+                {analytics.assetPerformance.length > 0 ? (
+                  <div className="space-y-4">
+                    {analytics.assetPerformance.map((asset) => (
+                      <div key={asset.symbol} className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 font-semibold text-sm text-primary">
+                              {asset.symbol.slice(0, 2)}
+                            </div>
+                            <div>
+                              <p className="font-medium">{asset.symbol}</p>
+                              <p className="text-sm text-muted-foreground">{asset.name}</p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-medium">{asset.symbol}</p>
-                            <p className="text-sm text-muted-foreground">{asset.name}</p>
+                          <div className="text-right">
+                            <div className="flex items-center gap-4">
+                              <div>
+                                <p className="text-xs text-muted-foreground">Weight</p>
+                                <p className="font-mono-numbers">{asset.weight.toFixed(1)}%</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-muted-foreground">Return</p>
+                                <p className={cn(
+                                  "font-mono-numbers font-medium",
+                                  asset.return >= 0 ? "text-profit" : "text-loss"
+                                )}>
+                                  {asset.return >= 0 ? '+' : ''}{asset.return.toFixed(1)}%
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-muted-foreground">Contribution</p>
+                                <p className={cn(
+                                  "font-mono-numbers font-medium",
+                                  asset.contribution >= 0 ? "text-profit" : "text-loss"
+                                )}>
+                                  {asset.contribution >= 0 ? '+' : ''}{asset.contribution.toFixed(2)}%
+                                </p>
+                              </div>
+                            </div>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <div className="flex items-center gap-4">
-                            <div>
-                              <p className="text-xs text-muted-foreground">Weight</p>
-                              <p className="font-mono-numbers">{asset.weight.toFixed(1)}%</p>
-                            </div>
-                            <div>
-                              <p className="text-xs text-muted-foreground">Return</p>
-                              <p className={cn(
-                                "font-mono-numbers font-medium",
-                                asset.return >= 0 ? "text-profit" : "text-loss"
-                              )}>
-                                {asset.return >= 0 ? '+' : ''}{asset.return.toFixed(1)}%
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-xs text-muted-foreground">Contribution</p>
-                              <p className={cn(
-                                "font-mono-numbers font-medium",
-                                asset.contribution >= 0 ? "text-profit" : "text-loss"
-                              )}>
-                                {asset.contribution >= 0 ? '+' : ''}{asset.contribution.toFixed(2)}%
-                              </p>
-                            </div>
-                          </div>
-                        </div>
+                        <Progress 
+                          value={Math.min(100, Math.abs(asset.contribution) * 10)} 
+                          className={cn("h-2", asset.contribution < 0 && "[&>div]:bg-loss")}
+                        />
                       </div>
-                      <Progress 
-                        value={Math.abs(asset.contribution) * 5} 
-                        className={cn("h-2", asset.contribution < 0 && "[&>div]:bg-loss")}
-                      />
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-8 text-center text-muted-foreground">
+                    No holdings data available
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -622,7 +669,9 @@ const Analytics = () => {
                   <div className="grid grid-cols-2 gap-4 pt-2">
                     <div className="rounded-lg bg-profit/10 p-3 text-center">
                       <p className="text-xs text-muted-foreground mb-1">Avg Win</p>
-                      <p className="text-lg font-bold text-profit font-mono-numbers">+{analytics.avgWin.toFixed(1)}%</p>
+                      <p className="text-lg font-bold text-profit font-mono-numbers">
+                        {analytics.avgWin >= 0 ? '+' : ''}{analytics.avgWin.toFixed(1)}%
+                      </p>
                     </div>
                     <div className="rounded-lg bg-loss/10 p-3 text-center">
                       <p className="text-xs text-muted-foreground mb-1">Avg Loss</p>
@@ -667,9 +716,11 @@ const Analytics = () => {
                   <CardTitle>Alpha & Beta</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="text-center p-4 rounded-lg bg-profit/10">
+                  <div className={cn("text-center p-4 rounded-lg", analytics.alpha >= 0 ? "bg-profit/10" : "bg-loss/10")}>
                     <p className="text-sm text-muted-foreground mb-1">Alpha (Excess Return)</p>
-                    <p className="text-3xl font-bold text-profit font-mono-numbers">+{analytics.alpha.toFixed(1)}%</p>
+                    <p className={cn("text-3xl font-bold font-mono-numbers", analytics.alpha >= 0 ? "text-profit" : "text-loss")}>
+                      {analytics.alpha >= 0 ? '+' : ''}{analytics.alpha.toFixed(1)}%
+                    </p>
                     <p className="text-xs text-muted-foreground mt-1">Annualized outperformance vs benchmark</p>
                   </div>
                   
