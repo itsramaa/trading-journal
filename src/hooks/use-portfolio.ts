@@ -14,6 +14,7 @@ export const portfolioKeys = {
   list: (userId: string) => [...portfolioKeys.lists(), userId] as const,
   details: () => [...portfolioKeys.all, 'detail'] as const,
   detail: (id: string) => [...portfolioKeys.details(), id] as const,
+  history: (portfolioId: string, period: string) => [...portfolioKeys.all, 'history', portfolioId, period] as const,
 };
 
 export const holdingKeys = {
@@ -34,12 +35,19 @@ export const assetKeys = {
   prices: () => [...assetKeys.all, 'prices'] as const,
 };
 
+export const alertKeys = {
+  all: ['price-alerts'] as const,
+  lists: () => [...alertKeys.all, 'list'] as const,
+};
+
 // Types derived from database
 type Portfolio = Tables<'portfolios'>;
 type Holding = Tables<'holdings'>;
 type Transaction = Tables<'transactions'>;
 type Asset = Tables<'assets'>;
 type PriceCache = Tables<'price_cache'>;
+type PortfolioHistory = Tables<'portfolio_history'>;
+type PriceAlert = Tables<'price_alerts'>;
 
 export interface HoldingWithAsset extends Holding {
   assets: Asset;
@@ -47,6 +55,10 @@ export interface HoldingWithAsset extends Holding {
 }
 
 export interface TransactionWithAsset extends Transaction {
+  assets: Asset;
+}
+
+export interface PriceAlertWithAsset extends PriceAlert {
   assets: Asset;
 }
 
@@ -109,6 +121,109 @@ export function useCreatePortfolio() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: portfolioKeys.lists() });
+    },
+  });
+}
+
+export function useUpdatePortfolio() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: Partial<Portfolio> & { id: string }) => {
+      const { data, error } = await supabase
+        .from('portfolios')
+        .update({ ...updates, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: portfolioKeys.lists() });
+    },
+  });
+}
+
+export function useDeletePortfolio() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('portfolios')
+        .delete()
+        .eq('id', id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: portfolioKeys.lists() });
+    },
+  });
+}
+
+// ============= Portfolio History Hooks =============
+
+export function usePortfolioHistory(portfolioId?: string, period: string = '1Y') {
+  return useQuery({
+    queryKey: portfolioKeys.history(portfolioId || '', period),
+    queryFn: async () => {
+      if (!portfolioId) return [];
+      
+      // Calculate date range based on period
+      const now = new Date();
+      let startDate: Date;
+      
+      switch (period) {
+        case '1M':
+          startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          break;
+        case '3M':
+          startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+          break;
+        case '1Y':
+          startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+          break;
+        case 'ALL':
+          startDate = new Date('2020-01-01');
+          break;
+        default:
+          startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+      }
+      
+      const { data, error } = await supabase
+        .from('portfolio_history')
+        .select('*')
+        .eq('portfolio_id', portfolioId)
+        .gte('recorded_at', startDate.toISOString())
+        .order('recorded_at', { ascending: true });
+      
+      if (error) throw error;
+      return data as PortfolioHistory[];
+    },
+    enabled: !!portfolioId,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useRecordPortfolioHistory() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (history: Omit<PortfolioHistory, 'id' | 'created_at'>) => {
+      const { data, error } = await supabase
+        .from('portfolio_history')
+        .insert(history)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: portfolioKeys.history(variables.portfolio_id, '') });
     },
   });
 }
@@ -201,6 +316,47 @@ export function useCreateTransaction() {
   });
 }
 
+export function useUpdateTransaction() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: Partial<Transaction> & { id: string }) => {
+      const { data, error } = await supabase
+        .from('transactions')
+        .update({ ...updates, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: transactionKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: holdingKeys.all });
+    },
+  });
+}
+
+export function useDeleteTransaction() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('id', id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: transactionKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: holdingKeys.all });
+    },
+  });
+}
+
 // ============= Assets Hooks =============
 
 export function useAssets() {
@@ -216,6 +372,50 @@ export function useAssets() {
       return data as Asset[];
     },
     staleTime: 10 * 60 * 1000, // 10 minutes - assets don't change often
+  });
+}
+
+export function useAssetBySymbol(symbol: string) {
+  return useQuery({
+    queryKey: [...assetKeys.lists(), symbol],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('assets')
+        .select(`
+          *,
+          price_cache:price_cache(*)
+        `)
+        .eq('symbol', symbol)
+        .single();
+      
+      if (error) throw error;
+      return {
+        ...data,
+        price_cache: Array.isArray(data.price_cache) ? data.price_cache[0] : data.price_cache,
+      };
+    },
+    enabled: !!symbol,
+    staleTime: 30 * 1000,
+  });
+}
+
+export function useCreateAsset() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (asset: Omit<Asset, 'id' | 'created_at' | 'updated_at'>) => {
+      const { data, error } = await supabase
+        .from('assets')
+        .insert(asset)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: assetKeys.lists() });
+    },
   });
 }
 
@@ -235,6 +435,70 @@ export function useAssetPrices() {
     },
     staleTime: 30 * 1000, // 30 seconds - prices are time sensitive
     refetchInterval: 60 * 1000, // Refetch every minute
+  });
+}
+
+// ============= Price Alerts Hooks =============
+
+export function usePriceAlerts() {
+  return useQuery({
+    queryKey: alertKeys.lists(),
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+      
+      const { data, error } = await supabase
+        .from('price_alerts')
+        .select(`
+          *,
+          assets (*)
+        `)
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return data as PriceAlertWithAsset[];
+    },
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useCreatePriceAlert() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (alert: Omit<PriceAlert, 'id' | 'created_at' | 'updated_at' | 'is_triggered' | 'triggered_at'>) => {
+      const { data, error } = await supabase
+        .from('price_alerts')
+        .insert(alert)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: alertKeys.lists() });
+    },
+  });
+}
+
+export function useDeletePriceAlert() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('price_alerts')
+        .delete()
+        .eq('id', id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: alertKeys.lists() });
+    },
   });
 }
 
@@ -275,5 +539,47 @@ export function useUserSettings() {
       return data;
     },
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useUpdateUserSettings() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (settings: Partial<Tables<'user_settings'>>) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+      
+      // First check if settings exist
+      const { data: existing } = await supabase
+        .from('user_settings')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+      
+      if (existing) {
+        const { data, error } = await supabase
+          .from('user_settings')
+          .update({ ...settings, updated_at: new Date().toISOString() })
+          .eq('user_id', user.id)
+          .select()
+          .single();
+        
+        if (error) throw error;
+        return data;
+      } else {
+        const { data, error } = await supabase
+          .from('user_settings')
+          .insert({ ...settings, user_id: user.id })
+          .select()
+          .single();
+        
+        if (error) throw error;
+        return data;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user-settings'] });
+    },
   });
 }

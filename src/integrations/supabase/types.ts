@@ -434,6 +434,47 @@ export type Database = {
           },
         ]
       }
+      portfolio_history: {
+        Row: {
+          created_at: string
+          day_change: number | null
+          id: string
+          portfolio_id: string
+          profit_loss: number
+          recorded_at: string
+          total_cost: number
+          total_value: number
+        }
+        Insert: {
+          created_at?: string
+          day_change?: number | null
+          id?: string
+          portfolio_id: string
+          profit_loss?: number
+          recorded_at?: string
+          total_cost?: number
+          total_value?: number
+        }
+        Update: {
+          created_at?: string
+          day_change?: number | null
+          id?: string
+          portfolio_id?: string
+          profit_loss?: number
+          recorded_at?: string
+          total_cost?: number
+          total_value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portfolio_history_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "portfolios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       portfolios: {
         Row: {
           created_at: string
@@ -466,6 +507,53 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      price_alerts: {
+        Row: {
+          asset_id: string
+          condition: string
+          created_at: string
+          id: string
+          is_active: boolean
+          is_triggered: boolean
+          target_price: number
+          triggered_at: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          asset_id: string
+          condition: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_triggered?: boolean
+          target_price: number
+          triggered_at?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          asset_id?: string
+          condition?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_triggered?: boolean
+          target_price?: number
+          triggered_at?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "price_alerts_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       price_cache: {
         Row: {

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { 
   ArrowLeft, 
@@ -6,15 +6,14 @@ import {
   TrendingDown, 
   Plus, 
   ExternalLink,
-  Activity,
-  DollarSign,
-  BarChart3,
-  Clock
+  Clock,
+  Bell
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
 import { 
   Area, 
   AreaChart, 
@@ -25,20 +24,130 @@ import {
 } from "recharts";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatPercent, formatQuantity, formatDate } from "@/lib/formatters";
-import { demoAssets, demoHoldings, demoTransactions, performance24h } from "@/lib/demo-data";
+import { useAssetBySymbol, useHoldings, useTransactions, useDefaultPortfolio } from "@/hooks/use-portfolio";
+import { transformHoldings, transformTransactions } from "@/lib/data-transformers";
+import { useAppStore, convertCurrency } from "@/store/app-store";
+import { TransactionForm } from "@/components/transactions/TransactionForm";
+import { PriceAlertForm } from "@/components/alerts/PriceAlertForm";
 
 const timeframes = ['1H', '24H', '7D', '1M', '1Y', 'ALL'] as const;
+
+function AssetDetailSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="flex items-start gap-4">
+        <Skeleton className="h-10 w-10 rounded" />
+        <div>
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-4 w-32 mt-2" />
+        </div>
+      </div>
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Skeleton className="h-[350px] rounded-xl lg:col-span-2" />
+        <Skeleton className="h-[350px] rounded-xl" />
+      </div>
+    </div>
+  );
+}
 
 const AssetDetail = () => {
   const { symbol } = useParams<{ symbol: string }>();
   const navigate = useNavigate();
   const [selectedTimeframe, setSelectedTimeframe] = useState<string>('24H');
+  const [showTransactionForm, setShowTransactionForm] = useState(false);
+  const [showAlertForm, setShowAlertForm] = useState(false);
+  
+  const { currency, exchangeRate } = useAppStore();
+  const { data: portfolio } = useDefaultPortfolio();
+  const { data: assetData, isLoading: assetLoading } = useAssetBySymbol(symbol || '');
+  const { data: dbHoldings, isLoading: holdingsLoading } = useHoldings(portfolio?.id);
+  const { data: dbTransactions, isLoading: transactionsLoading } = useTransactions(portfolio?.id);
 
-  const asset = demoAssets.find(a => a.symbol === symbol);
-  const holding = demoHoldings.find(h => h.asset.symbol === symbol);
-  const assetTransactions = demoTransactions.filter(t => t.assetSymbol === symbol);
+  const isLoading = assetLoading || holdingsLoading || transactionsLoading;
 
-  if (!asset) {
+  // Transform data
+  const holdings = useMemo(() => dbHoldings ? transformHoldings(dbHoldings) : [], [dbHoldings]);
+  const transactions = useMemo(() => dbTransactions ? transformTransactions(dbTransactions) : [], [dbTransactions]);
+
+  // Find holding and transactions for this asset
+  const holding = holdings.find(h => h.asset.symbol === symbol);
+  const assetTransactions = transactions.filter(t => t.assetSymbol === symbol);
+
+  // Generate chart data based on timeframe
+  const chartData = useMemo(() => {
+    if (!assetData?.price_cache) return [];
+    
+    const currentPrice = assetData.price_cache.current_price;
+    const points: { date: string; value: number }[] = [];
+    const now = new Date();
+    
+    let intervals = 24;
+    let intervalMs = 60 * 60 * 1000; // 1 hour
+    
+    switch (selectedTimeframe) {
+      case '1H':
+        intervals = 12;
+        intervalMs = 5 * 60 * 1000; // 5 minutes
+        break;
+      case '24H':
+        intervals = 24;
+        intervalMs = 60 * 60 * 1000;
+        break;
+      case '7D':
+        intervals = 7;
+        intervalMs = 24 * 60 * 60 * 1000;
+        break;
+      case '1M':
+        intervals = 30;
+        intervalMs = 24 * 60 * 60 * 1000;
+        break;
+      case '1Y':
+        intervals = 12;
+        intervalMs = 30 * 24 * 60 * 60 * 1000;
+        break;
+      case 'ALL':
+        intervals = 24;
+        intervalMs = 30 * 24 * 60 * 60 * 1000;
+        break;
+    }
+    
+    // Generate simulated historical data based on current price and change percentages
+    const change24h = assetData.price_cache.price_change_24h || 0;
+    const volatility = Math.abs(change24h) / 100;
+    
+    for (let i = intervals; i >= 0; i--) {
+      const date = new Date(now.getTime() - i * intervalMs);
+      const randomChange = (Math.random() - 0.5) * volatility * 2;
+      const historicalPrice = currentPrice * (1 - (change24h / 100) * (i / intervals) + randomChange);
+      
+      points.push({
+        date: selectedTimeframe === '1H' || selectedTimeframe === '24H' 
+          ? date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+          : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        value: historicalPrice,
+      });
+    }
+    
+    return points;
+  }, [assetData, selectedTimeframe]);
+
+  // Format currency with conversion
+  const formatValue = (value: number, market: 'US' | 'ID' | 'CRYPTO' = 'US') => {
+    if (currency === 'IDR' && market !== 'ID') {
+      return formatCurrency(convertCurrency(value, 'USD', 'IDR', exchangeRate), 'ID');
+    }
+    return formatCurrency(value, market);
+  };
+
+  if (isLoading) {
+    return (
+      <DashboardLayout>
+        <AssetDetailSkeleton />
+      </DashboardLayout>
+    );
+  }
+
+  if (!assetData) {
     return (
       <DashboardLayout>
         <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
@@ -49,7 +158,13 @@ const AssetDetail = () => {
     );
   }
 
-  const isPositive = asset.priceChange24h >= 0;
+  const priceCache = assetData.price_cache;
+  const currentPrice = priceCache?.current_price || 0;
+  const priceChange24h = priceCache?.price_change_24h || 0;
+  const priceChange1h = priceCache?.price_change_1h || 0;
+  const priceChange7d = priceCache?.price_change_7d || 0;
+  const isPositive = priceChange24h >= 0;
+  const market = assetData.asset_type === 'id_stock' ? 'ID' : 'US';
 
   return (
     <DashboardLayout>
@@ -61,34 +176,30 @@ const AssetDetail = () => {
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 text-lg font-bold text-primary">
-                {asset.symbol.slice(0, 2)}
-              </div>
+              {assetData.logo_url ? (
+                <img src={assetData.logo_url} alt={assetData.name} className="h-12 w-12 rounded-xl" />
+              ) : (
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 text-lg font-bold text-primary">
+                  {assetData.symbol.slice(0, 2)}
+                </div>
+              )}
               <div>
                 <div className="flex items-center gap-2">
-                  <h1 className="text-2xl font-bold">{asset.name}</h1>
-                  <Badge variant="outline" className="text-xs">{asset.symbol}</Badge>
+                  <h1 className="text-2xl font-bold">{assetData.name}</h1>
+                  <Badge variant="outline" className="text-xs">{assetData.symbol}</Badge>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Badge variant="secondary" className="text-xs">{asset.market}</Badge>
-                  <span>•</span>
-                  <span>{asset.type}</span>
-                  {asset.sector && (
-                    <>
-                      <span>•</span>
-                      <span>{asset.sector}</span>
-                    </>
-                  )}
+                  <Badge variant="secondary" className="text-xs">{assetData.asset_type}</Badge>
                 </div>
               </div>
             </div>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" className="gap-2">
-              <ExternalLink className="h-4 w-4" />
-              View on Exchange
+            <Button variant="outline" className="gap-2" onClick={() => setShowAlertForm(true)}>
+              <Bell className="h-4 w-4" />
+              Set Alert
             </Button>
-            <Button className="gap-2">
+            <Button className="gap-2" onClick={() => setShowTransactionForm(true)}>
               <Plus className="h-4 w-4" />
               Add Transaction
             </Button>
@@ -101,7 +212,7 @@ const AssetDetail = () => {
             <div className="flex items-start justify-between mb-4">
               <div>
                 <p className="text-3xl font-bold font-mono-numbers">
-                  {formatCurrency(asset.currentPrice, asset.market)}
+                  {formatValue(currentPrice, market)}
                 </p>
                 <div className="flex items-center gap-2 mt-1">
                   <span className={cn(
@@ -109,7 +220,7 @@ const AssetDetail = () => {
                     isPositive ? "text-profit" : "text-loss"
                   )}>
                     {isPositive ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
-                    {formatPercent(asset.priceChange24h)}
+                    {formatPercent(priceChange24h)}
                   </span>
                   <span className="text-sm text-muted-foreground">24h</span>
                 </div>
@@ -133,25 +244,31 @@ const AssetDetail = () => {
             </div>
 
             <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={performance24h} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
-                  <defs>
-                    <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={isPositive ? "hsl(152, 82%, 39%)" : "hsl(0, 84%, 60%)"} stopOpacity={0.2} />
-                      <stop offset="100%" stopColor={isPositive ? "hsl(152, 82%, 39%)" : "hsl(0, 84%, 60%)"} stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} domain={['dataMin - 1000', 'dataMax + 1000']} width={60} />
-                  <Tooltip content={({ active, payload, label }) => active && payload?.length ? (
-                    <div className="rounded-lg border border-border/50 bg-card px-3 py-2 shadow-lg">
-                      <p className="text-xs text-muted-foreground">{label}</p>
-                      <p className="text-sm font-semibold font-mono-numbers">{formatCurrency(payload[0].value as number, asset.market)}</p>
-                    </div>
-                  ) : null} />
-                  <Area type="monotone" dataKey="value" stroke={isPositive ? "hsl(152, 82%, 39%)" : "hsl(0, 84%, 60%)"} strokeWidth={2} fill="url(#priceGradient)" />
-                </AreaChart>
-              </ResponsiveContainer>
+              {chartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
+                    <defs>
+                      <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={isPositive ? "hsl(152, 82%, 39%)" : "hsl(0, 84%, 60%)"} stopOpacity={0.2} />
+                        <stop offset="100%" stopColor={isPositive ? "hsl(152, 82%, 39%)" : "hsl(0, 84%, 60%)"} stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} domain={['dataMin * 0.99', 'dataMax * 1.01']} width={60} tickFormatter={(v) => formatValue(v, market)} />
+                    <Tooltip content={({ active, payload, label }) => active && payload?.length ? (
+                      <div className="rounded-lg border border-border/50 bg-card px-3 py-2 shadow-lg">
+                        <p className="text-xs text-muted-foreground">{label}</p>
+                        <p className="text-sm font-semibold font-mono-numbers">{formatValue(payload[0].value as number, market)}</p>
+                      </div>
+                    ) : null} />
+                    <Area type="monotone" dataKey="value" stroke={isPositive ? "hsl(152, 82%, 39%)" : "hsl(0, 84%, 60%)"} strokeWidth={2} fill="url(#priceGradient)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-muted-foreground">
+                  No price data available
+                </div>
+              )}
             </div>
           </div>
 
@@ -162,22 +279,38 @@ const AssetDetail = () => {
               <div className="space-y-3">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">1h Change</span>
-                  <span className={cn("font-mono-numbers font-medium", asset.priceChange1h >= 0 ? "text-profit" : "text-loss")}>
-                    {formatPercent(asset.priceChange1h)}
+                  <span className={cn("font-mono-numbers font-medium", priceChange1h >= 0 ? "text-profit" : "text-loss")}>
+                    {formatPercent(priceChange1h)}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">24h Change</span>
-                  <span className={cn("font-mono-numbers font-medium", asset.priceChange24h >= 0 ? "text-profit" : "text-loss")}>
-                    {formatPercent(asset.priceChange24h)}
+                  <span className={cn("font-mono-numbers font-medium", priceChange24h >= 0 ? "text-profit" : "text-loss")}>
+                    {formatPercent(priceChange24h)}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">7d Change</span>
-                  <span className={cn("font-mono-numbers font-medium", asset.priceChange7d >= 0 ? "text-profit" : "text-loss")}>
-                    {formatPercent(asset.priceChange7d)}
+                  <span className={cn("font-mono-numbers font-medium", priceChange7d >= 0 ? "text-profit" : "text-loss")}>
+                    {formatPercent(priceChange7d)}
                   </span>
                 </div>
+                {priceCache?.market_cap && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Market Cap</span>
+                    <span className="font-mono-numbers font-medium">
+                      {formatValue(priceCache.market_cap, market)}
+                    </span>
+                  </div>
+                )}
+                {priceCache?.volume_24h && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">24h Volume</span>
+                    <span className="font-mono-numbers font-medium">
+                      {formatValue(priceCache.volume_24h, market)}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -187,20 +320,20 @@ const AssetDetail = () => {
                 <div className="space-y-3">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Quantity</span>
-                    <span className="font-mono-numbers font-medium">{formatQuantity(holding.quantity, asset.market)}</span>
+                    <span className="font-mono-numbers font-medium">{formatQuantity(holding.quantity, market)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Avg. Price</span>
-                    <span className="font-mono-numbers font-medium">{formatCurrency(holding.avgPrice, asset.market)}</span>
+                    <span className="font-mono-numbers font-medium">{formatValue(holding.avgPrice, market)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Value</span>
-                    <span className="font-mono-numbers font-medium">{formatCurrency(holding.value, asset.market)}</span>
+                    <span className="font-mono-numbers font-medium">{formatValue(holding.value, market)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">P/L</span>
                     <span className={cn("font-mono-numbers font-medium", holding.profitLoss >= 0 ? "text-profit" : "text-loss")}>
-                      {holding.profitLoss >= 0 ? '+' : ''}{formatCurrency(holding.profitLoss, asset.market)} ({formatPercent(holding.profitLossPercent)})
+                      {holding.profitLoss >= 0 ? '+' : ''}{formatValue(holding.profitLoss, market)} ({formatPercent(holding.profitLossPercent)})
                     </span>
                   </div>
                 </div>
@@ -229,9 +362,9 @@ const AssetDetail = () => {
                       <div className="flex items-center gap-3">
                         <div className={cn(
                           "flex h-8 w-8 items-center justify-center rounded-lg",
-                          tx.type === 'BUY' ? "bg-profit/10" : "bg-loss/10"
+                          tx.type === 'BUY' || tx.type === 'TRANSFER_IN' ? "bg-profit/10" : "bg-loss/10"
                         )}>
-                          {tx.type === 'BUY' ? (
+                          {tx.type === 'BUY' || tx.type === 'TRANSFER_IN' ? (
                             <TrendingDown className="h-4 w-4 text-profit" />
                           ) : (
                             <TrendingUp className="h-4 w-4 text-loss" />
@@ -244,10 +377,10 @@ const AssetDetail = () => {
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-mono-numbers font-medium">
-                          {tx.quantity} {asset.symbol}
+                          {tx.quantity} {assetData.symbol}
                         </p>
                         <p className="text-xs text-muted-foreground font-mono-numbers">
-                          @ {formatCurrency(tx.price, asset.market)}
+                          @ {formatValue(tx.price, market)}
                         </p>
                       </div>
                     </div>
@@ -257,7 +390,7 @@ const AssetDetail = () => {
                 <div className="flex flex-col items-center justify-center py-12">
                   <Clock className="h-10 w-10 text-muted-foreground/50 mb-3" />
                   <p className="text-muted-foreground">No transactions yet</p>
-                  <Button variant="outline" size="sm" className="mt-3 gap-2">
+                  <Button variant="outline" size="sm" className="mt-3 gap-2" onClick={() => setShowTransactionForm(true)}>
                     <Plus className="h-4 w-4" />
                     Add Transaction
                   </Button>
@@ -268,17 +401,32 @@ const AssetDetail = () => {
 
           <TabsContent value="about">
             <div className="rounded-xl border border-border/50 bg-card p-5">
-              <h3 className="font-semibold mb-3">About {asset.name}</h3>
+              <h3 className="font-semibold mb-3">About {assetData.name}</h3>
               <p className="text-sm text-muted-foreground">
-                {asset.type === 'CRYPTO' 
-                  ? `${asset.name} (${asset.symbol}) is a cryptocurrency trading on decentralized exchanges.`
-                  : `${asset.name} (${asset.symbol}) is a ${asset.type.toLowerCase()} listed on the ${asset.market === 'US' ? 'US stock' : 'Indonesian stock'} market${asset.sector ? ` in the ${asset.sector} sector` : ''}.`
+                {assetData.asset_type === 'crypto' 
+                  ? `${assetData.name} (${assetData.symbol}) is a cryptocurrency trading on decentralized exchanges.`
+                  : `${assetData.name} (${assetData.symbol}) is a ${assetData.asset_type.replace('_', ' ')} listed on the ${market === 'US' ? 'US stock' : 'Indonesian stock'} market.`
                 }
               </p>
             </div>
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Transaction Form Dialog */}
+      {showTransactionForm && portfolio && (
+        <TransactionForm portfolioId={portfolio.id} />
+      )}
+
+      {/* Price Alert Form Dialog */}
+      {showAlertForm && (
+        <PriceAlertForm 
+          assetId={assetData.id}
+          assetSymbol={assetData.symbol}
+          currentPrice={currentPrice}
+          onClose={() => setShowAlertForm(false)}
+        />
+      )}
     </DashboardLayout>
   );
 };
