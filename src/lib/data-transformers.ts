@@ -42,9 +42,9 @@ export function transformHolding(
   dbHolding: HoldingWithAsset,
   totalPortfolioValue: number
 ): Holding {
-  const currentPrice = dbHolding.price_cache?.current_price || 0;
-  const value = dbHolding.quantity * currentPrice;
-  const costBasis = dbHolding.total_cost;
+  const currentPrice = dbHolding.price_cache?.price || 0;
+  const value = Number(dbHolding.quantity) * currentPrice;
+  const costBasis = Number(dbHolding.total_cost);
   const profitLoss = value - costBasis;
   const profitLossPercent = costBasis > 0 ? (profitLoss / costBasis) * 100 : 0;
   const market = getMarketFromAssetType(dbHolding.assets.asset_type);
@@ -58,9 +58,9 @@ export function transformHolding(
     currency: market === 'ID' ? 'IDR' : 'USD',
     imageUrl: dbHolding.assets.logo_url || undefined,
     currentPrice,
-    priceChange1h: dbHolding.price_cache?.price_change_1h || 0,
+    priceChange1h: 0,
     priceChange24h: dbHolding.price_cache?.price_change_24h || 0,
-    priceChange7d: dbHolding.price_cache?.price_change_7d || 0,
+    priceChange7d: 0,
     lastUpdated: new Date(dbHolding.price_cache?.last_updated || new Date()),
   };
 
@@ -82,7 +82,7 @@ export function transformHolding(
 export function transformHoldings(dbHoldings: HoldingWithAsset[]): Holding[] {
   // First calculate total value for allocation percentages
   const totalValue = dbHoldings.reduce((sum, h) => {
-    const price = h.price_cache?.current_price || 0;
+    const price = h.price_cache?.price || 0;
     return sum + (Number(h.quantity) * price);
   }, 0);
 
@@ -109,7 +109,7 @@ export function transformTransaction(dbTx: TransactionWithAsset): Transaction {
     quantity: Number(dbTx.quantity),
     price: Number(dbTx.price_per_unit),
     totalAmount: Number(dbTx.total_amount),
-    fees: Number(dbTx.fees || 0),
+    fees: Number(dbTx.fee || 0),
     date: new Date(dbTx.transaction_date),
     notes: dbTx.notes || undefined,
   };
