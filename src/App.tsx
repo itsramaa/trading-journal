@@ -33,6 +33,9 @@ import Insights from "./pages/trading-journey/Insights";
 
 // Other Pages
 import Settings from "./pages/Settings";
+import Billing from "./pages/Billing";
+import Upgrade from "./pages/Upgrade";
+import Notifications from "./pages/Notifications";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -73,8 +76,11 @@ const App = () => (
             <Route path="/trading/performance" element={<Performance />} />
             <Route path="/trading/insights" element={<Insights />} />
             
-            {/* Settings */}
+            {/* Settings & Account */}
             <Route path="/settings" element={<Settings />} />
+            <Route path="/billing" element={<Billing />} />
+            <Route path="/upgrade" element={<Upgrade />} />
+            <Route path="/notifications" element={<Notifications />} />
             
             <Route path="*" element={<NotFound />} />
           </Routes>

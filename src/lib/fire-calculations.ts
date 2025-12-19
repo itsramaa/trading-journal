@@ -17,6 +17,7 @@ export interface FireInputs {
   expectedAnnualReturn: number; // Percentage (e.g., 7 for 7%)
   inflationRate: number; // Percentage
   safeWithdrawalRate: number; // Percentage (e.g., 4 for 4%)
+  customFireNumber?: number; // Optional manual FIRE number override
 }
 
 export interface FireOutputs {
@@ -156,10 +157,12 @@ export function generateProjection(
   inputs: FireInputs,
   yearsToProject: number = 50
 ): ProjectionPoint[] {
-  const { currentAge, currentSavings, monthlyExpenses, monthlyIncome, safeWithdrawalRate } = inputs;
+  const { currentAge, currentSavings, monthlyExpenses, monthlyIncome, safeWithdrawalRate, customFireNumber } = inputs;
   const annualExpenses = monthlyExpenses * 12;
   const annualContribution = (monthlyIncome - monthlyExpenses) * 12;
-  const fireNumber = calculateFireNumber(annualExpenses, safeWithdrawalRate / 100);
+  const fireNumber = customFireNumber && customFireNumber > 0 
+    ? customFireNumber 
+    : calculateFireNumber(annualExpenses, safeWithdrawalRate / 100);
   const realReturn = calculateRealReturn(inputs.expectedAnnualReturn, inputs.inflationRate);
   
   const projection: ProjectionPoint[] = [];
@@ -197,7 +200,9 @@ function calculateScenario(
   
   const annualExpenses = inputs.monthlyExpenses * 12;
   const annualContribution = (inputs.monthlyIncome - inputs.monthlyExpenses) * 12;
-  const fireNumber = calculateFireNumber(annualExpenses, inputs.safeWithdrawalRate / 100);
+  const fireNumber = inputs.customFireNumber && inputs.customFireNumber > 0
+    ? inputs.customFireNumber
+    : calculateFireNumber(annualExpenses, inputs.safeWithdrawalRate / 100);
   const realReturn = calculateRealReturn(adjustedReturn, adjustedInflation);
   
   const yearsToFire = calculateYearsToFire(
@@ -246,8 +251,10 @@ export function calculateFire(inputs: FireInputs): FireOutputs {
   const monthlySavings = monthlyIncome - monthlyExpenses;
   const annualContribution = monthlySavings * 12;
   
-  // Core calculations
-  const fireNumber = calculateFireNumber(annualExpenses, safeWithdrawalRate / 100);
+  // Core calculations - use custom FIRE number if provided
+  const fireNumber = inputs.customFireNumber && inputs.customFireNumber > 0
+    ? inputs.customFireNumber
+    : calculateFireNumber(annualExpenses, safeWithdrawalRate / 100);
   const realReturn = calculateRealReturn(expectedAnnualReturn, inflationRate);
   
   const yearsToFire = calculateYearsToFire(
