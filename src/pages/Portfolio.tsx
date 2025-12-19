@@ -19,12 +19,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatCompactCurrency, formatPercent, formatQuantity } from "@/lib/formatters";
 import { demoHoldings, demoDetailedAllocation, demoPortfolioMetrics } from "@/lib/demo-data";
 import { AddTransactionDialog } from "@/components/transactions/AddTransactionDialog";
 import { AllocationBreakdown } from "@/components/portfolio/AllocationBreakdown";
+import { EmptyHoldings, EmptySearchResults } from "@/components/ui/empty-state";
+import { QuickTip } from "@/components/ui/onboarding-tooltip";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import type { Holding } from "@/types/portfolio";
 
 const Portfolio = () => {
@@ -77,6 +86,11 @@ const Portfolio = () => {
             <AddTransactionDialog />
           </div>
         </div>
+
+        {/* Quick Tip - Nielsen H10 */}
+        <QuickTip storageKey="portfolio_tip" className="mb-2">
+          <strong>Pro tip:</strong> Click on any holding card to see detailed asset information, price history, and all related transactions.
+        </QuickTip>
 
         {/* Portfolio Value Summary - 5 Cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
@@ -214,11 +228,22 @@ const Portfolio = () => {
             </div>
 
             {/* Holdings Grid */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {filteredHoldings.map((holding) => (
-                <HoldingCard key={holding.id} holding={holding} onClick={() => navigate(`/asset/${holding.asset.symbol}`)} />
-              ))}
-            </div>
+            {filteredHoldings.length > 0 ? (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {filteredHoldings.map((holding) => (
+                  <HoldingCard key={holding.id} holding={holding} onClick={() => navigate(`/asset/${holding.asset.symbol}`)} />
+                ))}
+              </div>
+            ) : holdings.length === 0 ? (
+              <EmptyHoldings />
+            ) : (
+              <EmptySearchResults 
+                onClearSearch={() => {
+                  setSearchQuery("");
+                  setMarketFilter("all");
+                }} 
+              />
+            )}
           </TabsContent>
 
           <TabsContent value="allocation" className="space-y-4">

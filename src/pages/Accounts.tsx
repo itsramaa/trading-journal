@@ -4,12 +4,19 @@ import { ArrowDownCircle, ArrowUpCircle, ArrowLeftRight, History, Wallet, Layout
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { AddAccountForm } from "@/components/accounts/AddAccountForm";
 import { AccountCardList } from "@/components/accounts/AccountCardList";
 import { AccountTransactionDialog } from "@/components/accounts/AccountTransactionDialog";
 import { AccountTransactionsTable } from "@/components/accounts/AccountTransactionsTable";
 import { AccountsDashboard } from "@/components/accounts/AccountsDashboard";
+import { QuickTip } from "@/components/ui/onboarding-tooltip";
 import { useAccounts } from "@/hooks/use-accounts";
 import type { Account } from "@/types/account";
 
@@ -49,21 +56,48 @@ export default function Accounts() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => handleQuickAction('deposit')} className="gap-2">
-              <ArrowDownCircle className="h-4 w-4" />
-              Deposit
-            </Button>
-            <Button variant="outline" onClick={() => handleQuickAction('withdraw')} className="gap-2">
-              <ArrowUpCircle className="h-4 w-4" />
-              Withdraw
-            </Button>
-            <Button variant="outline" onClick={() => handleQuickAction('transfer')} className="gap-2">
-              <ArrowLeftRight className="h-4 w-4" />
-              Transfer
-            </Button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" onClick={() => handleQuickAction('deposit')} className="gap-2">
+                    <ArrowDownCircle className="h-4 w-4" />
+                    <span className="hidden sm:inline">Deposit</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Add money to an account</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" onClick={() => handleQuickAction('withdraw')} className="gap-2">
+                    <ArrowUpCircle className="h-4 w-4" />
+                    <span className="hidden sm:inline">Withdraw</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Withdraw money from an account</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" onClick={() => handleQuickAction('transfer')} className="gap-2">
+                    <ArrowLeftRight className="h-4 w-4" />
+                    <span className="hidden sm:inline">Transfer</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Transfer between accounts</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <AddAccountForm />
           </div>
         </div>
+
+        {/* Quick Tip - Nielsen H10 */}
+        <QuickTip storageKey="accounts_tip">
+          <strong>Pro tip:</strong> Link your investment accounts to track portfolio transactions and cash flow in one place. 
+          Use transfers to move funds between accounts.
+        </QuickTip>
 
         {/* Main Content Tabs */}
         <Tabs defaultValue="dashboard" className="space-y-4">

@@ -10,7 +10,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DateRangeFilter, DateRange } from "@/components/trading/DateRangeFilter";
 import { StrategySelector, StrategyFilter } from "@/components/trading/StrategySelector";
-import { Plus, Calendar, Tag, Target, Building2, TrendingUp } from "lucide-react";
+import { OnboardingTooltip, QuickTip } from "@/components/ui/onboarding-tooltip";
+import { EmptyState } from "@/components/ui/empty-state";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { Plus, Calendar, Tag, Target, Building2, TrendingUp, BookOpen } from "lucide-react";
 import { format } from "date-fns";
 import { 
   demoTrades, 
@@ -22,6 +25,29 @@ import {
 } from "@/lib/trading-data";
 import { useAccounts } from "@/hooks/use-accounts";
 import { formatCurrency } from "@/lib/formatters";
+
+const tradingOnboardingSteps = [
+  {
+    id: "welcome",
+    title: "Welcome to Trading Journal",
+    description: "Document every trade to learn from your wins and losses. Consistency is key to improvement.",
+  },
+  {
+    id: "accounts",
+    title: "Link Trading Accounts",
+    description: "Connect your broker accounts to track PnL automatically and keep accurate records.",
+  },
+  {
+    id: "strategies",
+    title: "Tag Your Strategies",
+    description: "Use strategy tags to analyze which setups work best for you over time.",
+  },
+  {
+    id: "confluence",
+    title: "Rate Your Confluence",
+    description: "Score each trade's confluence (1-10) to understand when you have the highest edge.",
+  },
+];
 
 export default function TradingJournal() {
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -186,6 +212,12 @@ export default function TradingJournal() {
           </Card>
         )}
 
+        {/* Quick Tip - Nielsen H10 */}
+        <QuickTip storageKey="trading_journal_tip" className="mb-2">
+          <strong>Pro tip:</strong> Trades with confluence scores above 7 tend to have higher win rates. 
+          Focus on quality setups and document your entry signals for pattern recognition.
+        </QuickTip>
+
         {/* Filters */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center">
           <DateRangeFilter value={dateRange} onChange={setDateRange} />
@@ -199,11 +231,15 @@ export default function TradingJournal() {
         {/* Journal Entries */}
         <div className="space-y-4">
           {filteredTrades.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center text-muted-foreground">
-                No trades found for the selected filters
-              </CardContent>
-            </Card>
+            <EmptyState
+              icon={BookOpen}
+              title="No trades found"
+              description="No trades match your current filters. Try adjusting the date range or strategy filters, or add your first trade entry."
+              action={{
+                label: "Add New Entry",
+                onClick: () => setIsAddOpen(true),
+              }}
+            />
           ) : (
             filteredTrades.map((entry) => {
               const entryStrategies = getTradeStrategies(entry);
