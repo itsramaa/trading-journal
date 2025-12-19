@@ -11,15 +11,43 @@ import type { AssetMarket, Currency } from '@/types/portfolio';
  */
 export function formatCurrency(
   value: number,
-  currency: Currency | AssetMarket = 'USD'
+  currency: Currency | AssetMarket | string = 'USD'
 ): string {
   // Map market to currency if needed
-  const currencyCode: Currency = currency === 'ID' ? 'IDR' : currency === 'CRYPTO' || currency === 'US' ? 'USD' : currency;
+  let currencyCode: string;
+  if (currency === 'ID') {
+    currencyCode = 'IDR';
+  } else if (currency === 'CRYPTO' || currency === 'US') {
+    currencyCode = 'USD';
+  } else {
+    currencyCode = currency;
+  }
   
   if (currencyCode === 'IDR') {
     return `Rp ${value.toLocaleString('id-ID', {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
+    })}`;
+  }
+  
+  if (currencyCode === 'EUR') {
+    return `€${value.toLocaleString('de-DE', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  }
+  
+  if (currencyCode === 'SGD') {
+    return `S$${value.toLocaleString('en-SG', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  }
+  
+  if (currencyCode === 'MYR') {
+    return `RM${value.toLocaleString('ms-MY', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     })}`;
   }
   
@@ -34,10 +62,17 @@ export function formatCurrency(
  */
 export function formatCompactCurrency(
   value: number,
-  currency: Currency | AssetMarket = 'USD'
+  currency: Currency | AssetMarket | string = 'USD'
 ): string {
-  const currencyCode: Currency = currency === 'ID' ? 'IDR' : currency === 'CRYPTO' || currency === 'US' ? 'USD' : currency;
-  const prefix = currencyCode === 'IDR' ? 'Rp ' : '$';
+  let currencyCode: string;
+  if (currency === 'ID') {
+    currencyCode = 'IDR';
+  } else if (currency === 'CRYPTO' || currency === 'US') {
+    currencyCode = 'USD';
+  } else {
+    currencyCode = currency;
+  }
+  const prefix = currencyCode === 'IDR' ? 'Rp ' : currencyCode === 'EUR' ? '€' : currencyCode === 'SGD' ? 'S$' : currencyCode === 'MYR' ? 'RM' : '$';
   
   if (Math.abs(value) >= 1_000_000_000) {
     return `${prefix}${(value / 1_000_000_000).toFixed(1)}B`;
@@ -92,9 +127,16 @@ export function formatQuantity(value: number, market: AssetMarket = 'US'): strin
  * Small prices (< $1): 4-8 decimals
  * Regular prices: 2 decimals
  */
-export function formatPrice(value: number, currency: Currency | AssetMarket = 'USD'): string {
-  const currencyCode: Currency = currency === 'ID' ? 'IDR' : currency === 'CRYPTO' || currency === 'US' ? 'USD' : currency;
-  const prefix = currencyCode === 'IDR' ? 'Rp ' : '$';
+export function formatPrice(value: number, currency: Currency | AssetMarket | string = 'USD'): string {
+  let currencyCode: string;
+  if (currency === 'ID') {
+    currencyCode = 'IDR';
+  } else if (currency === 'CRYPTO' || currency === 'US') {
+    currencyCode = 'USD';
+  } else {
+    currencyCode = currency;
+  }
+  const prefix = currencyCode === 'IDR' ? 'Rp ' : currencyCode === 'EUR' ? '€' : currencyCode === 'SGD' ? 'S$' : currencyCode === 'MYR' ? 'RM' : '$';
   
   if (currencyCode === 'IDR') {
     return `${prefix}${value.toLocaleString('id-ID', {
