@@ -13,7 +13,8 @@ import Analytics from "./pages/Analytics";
 import AssetDetail from "./pages/AssetDetail";
 
 // Financial Freedom Pages
-import FFDashboard from "./pages/financial-freedom/FFDashboard";
+import FFProgress from "./pages/financial-freedom/FFProgress";
+import FireCalculator from "./pages/financial-freedom/FireCalculator";
 import Budget from "./pages/financial-freedom/Budget";
 import DebtPayoff from "./pages/financial-freedom/DebtPayoff";
 import EmergencyFund from "./pages/financial-freedom/EmergencyFund";
@@ -57,7 +58,8 @@ const App = () => (
             <Route path="/learning" element={<LearningPath />} />
             
             {/* Financial Freedom Routes */}
-            <Route path="/ff" element={<FFDashboard />} />
+            <Route path="/ff" element={<FFProgress />} />
+            <Route path="/ff/fire-calculator" element={<FireCalculator />} />
             <Route path="/ff/budget" element={<Budget />} />
             <Route path="/ff/debt" element={<DebtPayoff />} />
             <Route path="/ff/emergency" element={<EmergencyFund />} />
