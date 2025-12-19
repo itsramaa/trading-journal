@@ -2,7 +2,7 @@ import { useState } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CalendarIcon, Plus } from "lucide-react";
+import { CalendarIcon, Plus, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -38,10 +38,11 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { useAssets, useCreateTransaction } from "@/hooks/use-portfolio";
 
 const transactionSchema = z.object({
-  symbol: z.string().min(1, "Symbol is required").max(10, "Symbol too long"),
-  type: z.enum(["BUY", "SELL"]),
+  assetId: z.string().min(1, "Asset is required"),
+  type: z.enum(["buy", "sell"]),
   quantity: z.string().refine((val) => !isNaN(Number(val)) && Number(val) > 0, {
     message: "Quantity must be a positive number",
   }),
@@ -55,17 +56,19 @@ const transactionSchema = z.object({
 type TransactionFormValues = z.infer<typeof transactionSchema>;
 
 interface TransactionFormProps {
-  onSubmit?: (data: TransactionFormValues) => void;
+  portfolioId?: string;
 }
 
-export function TransactionForm({ onSubmit }: TransactionFormProps) {
+export function TransactionForm({ portfolioId }: TransactionFormProps) {
   const [open, setOpen] = useState(false);
+  const { data: assets, isLoading: assetsLoading } = useAssets();
+  const createTransaction = useCreateTransaction();
 
   const form = useForm<TransactionFormValues>({
     resolver: zodResolver(transactionSchema),
     defaultValues: {
-      symbol: "",
-      type: "BUY",
+      assetId: "",
+      type: "buy",
       quantity: "",
       price: "",
       date: new Date(),
@@ -73,11 +76,35 @@ export function TransactionForm({ onSubmit }: TransactionFormProps) {
     },
   });
 
-  const handleSubmit = (data: TransactionFormValues) => {
-    onSubmit?.(data);
-    toast.success("Transaction added successfully");
-    form.reset();
-    setOpen(false);
+  const handleSubmit = async (data: TransactionFormValues) => {
+    if (!portfolioId) {
+      toast.error("No portfolio selected");
+      return;
+    }
+
+    const quantity = Number(data.quantity);
+    const price = Number(data.price);
+    const totalAmount = quantity * price;
+
+    try {
+      await createTransaction.mutateAsync({
+        portfolio_id: portfolioId,
+        asset_id: data.assetId,
+        transaction_type: data.type,
+        quantity,
+        price_per_unit: price,
+        total_amount: totalAmount,
+        transaction_date: data.date.toISOString(),
+        notes: data.notes || null,
+        fees: 0,
+      });
+      
+      toast.success("Transaction added successfully");
+      form.reset();
+      setOpen(false);
+    } catch (error) {
+      toast.error("Failed to add transaction");
+    }
   };
 
   const quantity = form.watch("quantity");
@@ -104,13 +131,24 @@ export function TransactionForm({ onSubmit }: TransactionFormProps) {
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
-                name="symbol"
+                name="assetId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Symbol</FormLabel>
-                    <FormControl>
-                      <Input placeholder="BTC, AAPL, etc." {...field} />
-                    </FormControl>
+                    <FormLabel>Asset</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder={assetsLoading ? "Loading..." : "Select asset"} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {assets?.map((asset) => (
+                          <SelectItem key={asset.id} value={asset.id}>
+                            {asset.symbol} - {asset.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -128,8 +166,8 @@ export function TransactionForm({ onSubmit }: TransactionFormProps) {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="BUY">Buy</SelectItem>
-                        <SelectItem value="SELL">Sell</SelectItem>
+                        <SelectItem value="buy">Buy</SelectItem>
+                        <SelectItem value="sell">Sell</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -240,7 +278,16 @@ export function TransactionForm({ onSubmit }: TransactionFormProps) {
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit">Add Transaction</Button>
+              <Button type="submit" disabled={createTransaction.isPending}>
+                {createTransaction.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Adding...
+                  </>
+                ) : (
+                  'Add Transaction'
+                )}
+              </Button>
             </div>
           </form>
         </Form>

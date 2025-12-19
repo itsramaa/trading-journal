@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Filter, Download, TrendingUp, TrendingDown, ArrowRightLeft, RefreshCw } from "lucide-react";
+import { Search, Filter, Download, TrendingUp, TrendingDown, ArrowRightLeft, RefreshCw, AlertCircle } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { TransactionForm } from "@/components/transactions/TransactionForm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -24,40 +25,9 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatDate } from "@/lib/formatters";
-import { demoTransactions } from "@/lib/demo-data";
+import { useDefaultPortfolio, useTransactions } from "@/hooks/use-portfolio";
+import { transformTransactions } from "@/lib/data-transformers";
 import type { Transaction } from "@/types/portfolio";
-
-// Extended transactions for demo
-const extendedTransactions: Transaction[] = [
-  ...demoTransactions,
-  {
-    id: "t7",
-    portfolioId: "p1",
-    assetId: "5",
-    assetSymbol: "BBCA",
-    assetName: "Bank Central Asia",
-    type: "BUY",
-    quantity: 1000,
-    price: 9500,
-    totalAmount: 9500000,
-    fees: 47500,
-    date: new Date("2024-12-12"),
-    notes: "Monthly DCA",
-  },
-  {
-    id: "t8",
-    portfolioId: "p1",
-    assetId: "4",
-    assetSymbol: "NVDA",
-    assetName: "NVIDIA Corp.",
-    type: "BUY",
-    quantity: 5,
-    price: 850,
-    totalAmount: 4250,
-    fees: 5,
-    date: new Date("2024-12-10"),
-  },
-];
 
 const getTransactionConfig = (type: Transaction['type']) => {
   switch (type) {
@@ -75,28 +45,66 @@ const getTransactionConfig = (type: Transaction['type']) => {
   }
 };
 
+function TransactionsSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <Skeleton className="h-8 w-40" />
+          <Skeleton className="h-4 w-60 mt-2" />
+        </div>
+        <Skeleton className="h-10 w-32" />
+      </div>
+      <div className="grid gap-4 md:grid-cols-4">
+        {[...Array(4)].map((_, i) => (
+          <Skeleton key={i} className="h-[90px] rounded-xl" />
+        ))}
+      </div>
+      <Skeleton className="h-[400px] rounded-xl" />
+    </div>
+  );
+}
+
 const Transactions = () => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
-  const [dateFilter, setDateFilter] = useState<string>("all");
 
-  const filteredTransactions = extendedTransactions
-    .filter((tx) => {
-      const matchesSearch = 
-        tx.assetSymbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        tx.assetName.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesType = typeFilter === "all" || tx.type === typeFilter;
-      return matchesSearch && matchesType;
-    })
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const { data: portfolio, isLoading: portfolioLoading } = useDefaultPortfolio();
+  const { data: dbTransactions, isLoading: transactionsLoading } = useTransactions(portfolio?.id);
 
-  const stats = {
+  const transactions = useMemo(() => {
+    return dbTransactions ? transformTransactions(dbTransactions) : [];
+  }, [dbTransactions]);
+
+  const filteredTransactions = useMemo(() => {
+    return transactions
+      .filter((tx) => {
+        const matchesSearch = 
+          tx.assetSymbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          tx.assetName.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesType = typeFilter === "all" || tx.type === typeFilter;
+        return matchesSearch && matchesType;
+      })
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [transactions, searchQuery, typeFilter]);
+
+  const stats = useMemo(() => ({
     total: filteredTransactions.length,
     buys: filteredTransactions.filter(tx => tx.type === 'BUY').length,
     sells: filteredTransactions.filter(tx => tx.type === 'SELL').length,
     totalVolume: filteredTransactions.reduce((sum, tx) => sum + tx.totalAmount, 0),
-  };
+  }), [filteredTransactions]);
+
+  const isLoading = portfolioLoading || transactionsLoading;
+
+  if (isLoading) {
+    return (
+      <DashboardLayout>
+        <TransactionsSkeleton />
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -111,7 +119,7 @@ const Transactions = () => {
               <Download className="h-4 w-4" />
               Export
             </Button>
-            <TransactionForm />
+            {portfolio && <TransactionForm portfolioId={portfolio.id} />}
           </div>
         </div>
 
@@ -165,81 +173,80 @@ const Transactions = () => {
               <SelectItem value="TRANSFER_IN">Transfer In</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={dateFilter} onValueChange={setDateFilter}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue placeholder="Date" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Time</SelectItem>
-              <SelectItem value="7d">Last 7 Days</SelectItem>
-              <SelectItem value="30d">Last 30 Days</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
 
-        <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent border-border/50">
-                <TableHead className="pl-5 font-medium text-xs uppercase tracking-wider">Type</TableHead>
-                <TableHead className="font-medium text-xs uppercase tracking-wider">Asset</TableHead>
-                <TableHead className="text-right font-medium text-xs uppercase tracking-wider">Quantity</TableHead>
-                <TableHead className="text-right font-medium text-xs uppercase tracking-wider">Price</TableHead>
-                <TableHead className="text-right font-medium text-xs uppercase tracking-wider">Total</TableHead>
-                <TableHead className="text-right font-medium text-xs uppercase tracking-wider pr-5">Date</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredTransactions.map((tx, index) => {
-                const config = getTransactionConfig(tx.type);
-                const Icon = config.icon;
-                
-                return (
-                  <TableRow 
-                    key={tx.id} 
-                    className={cn(
-                      "hover:bg-muted/30 cursor-pointer transition-colors",
-                      index === filteredTransactions.length - 1 && "border-0"
-                    )}
-                    onClick={() => navigate(`/asset/${tx.assetSymbol}`)}
-                  >
-                    <TableCell className="pl-5">
-                      <div className="flex items-center gap-2">
-                        <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg", config.bgColor)}>
-                          <Icon className={cn("h-4 w-4", config.color)} />
+        {filteredTransactions.length > 0 ? (
+          <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent border-border/50">
+                  <TableHead className="pl-5 font-medium text-xs uppercase tracking-wider">Type</TableHead>
+                  <TableHead className="font-medium text-xs uppercase tracking-wider">Asset</TableHead>
+                  <TableHead className="text-right font-medium text-xs uppercase tracking-wider">Quantity</TableHead>
+                  <TableHead className="text-right font-medium text-xs uppercase tracking-wider">Price</TableHead>
+                  <TableHead className="text-right font-medium text-xs uppercase tracking-wider">Total</TableHead>
+                  <TableHead className="text-right font-medium text-xs uppercase tracking-wider pr-5">Date</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredTransactions.map((tx, index) => {
+                  const config = getTransactionConfig(tx.type);
+                  const Icon = config.icon;
+                  
+                  return (
+                    <TableRow 
+                      key={tx.id} 
+                      className={cn(
+                        "hover:bg-muted/30 cursor-pointer transition-colors",
+                        index === filteredTransactions.length - 1 && "border-0"
+                      )}
+                      onClick={() => navigate(`/asset/${tx.assetSymbol}`)}
+                    >
+                      <TableCell className="pl-5">
+                        <div className="flex items-center gap-2">
+                          <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg", config.bgColor)}>
+                            <Icon className={cn("h-4 w-4", config.color)} />
+                          </div>
+                          <Badge variant="outline" className="text-xs">{config.label}</Badge>
                         </div>
-                        <Badge variant="outline" className="text-xs">{config.label}</Badge>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium text-sm">{tx.assetSymbol}</p>
-                        <p className="text-xs text-muted-foreground truncate max-w-[120px]">{tx.assetName}</p>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right font-mono-numbers text-sm">{tx.quantity}</TableCell>
-                    <TableCell className="text-right font-mono-numbers text-sm">{formatCurrency(tx.price)}</TableCell>
-                    <TableCell className="text-right">
-                      <span className={cn(
-                        "font-mono-numbers text-sm font-medium",
-                        tx.type === 'BUY' ? "text-loss" : tx.type === 'SELL' ? "text-profit" : ""
-                      )}>
-                        {tx.type === 'BUY' ? '-' : tx.type === 'SELL' ? '+' : ''}{formatCurrency(tx.totalAmount)}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right pr-5 text-sm text-muted-foreground">{formatDate(tx.date)}</TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-          
-          {filteredTransactions.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <p className="text-muted-foreground">No transactions found</p>
-            </div>
-          )}
-        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div>
+                          <p className="font-medium text-sm">{tx.assetSymbol}</p>
+                          <p className="text-xs text-muted-foreground truncate max-w-[120px]">{tx.assetName}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right font-mono-numbers text-sm">{tx.quantity}</TableCell>
+                      <TableCell className="text-right font-mono-numbers text-sm">{formatCurrency(tx.price)}</TableCell>
+                      <TableCell className="text-right">
+                        <span className={cn(
+                          "font-mono-numbers text-sm font-medium",
+                          tx.type === 'BUY' ? "text-loss" : tx.type === 'SELL' ? "text-profit" : ""
+                        )}>
+                          {tx.type === 'BUY' ? '-' : tx.type === 'SELL' ? '+' : ''}{formatCurrency(tx.totalAmount)}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right pr-5 text-sm text-muted-foreground">{formatDate(tx.date)}</TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        ) : transactions.length === 0 ? (
+          <Card className="flex flex-col items-center justify-center py-12 text-center">
+            <AlertCircle className="h-8 w-8 text-muted-foreground mb-4" />
+            <h3 className="font-semibold mb-2">No Transactions Yet</h3>
+            <p className="text-muted-foreground text-sm max-w-md mb-4">
+              Add your first transaction to start building your portfolio history.
+            </p>
+            {portfolio && <TransactionForm portfolioId={portfolio.id} />}
+          </Card>
+        ) : (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <p className="text-muted-foreground">No transactions found</p>
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );
