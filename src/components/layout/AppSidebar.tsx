@@ -4,11 +4,17 @@ import {
   ArrowLeftRight,
   BarChart3,
   Target,
-  Calculator,
+  PiggyBank,
+  CreditCard,
+  Shield,
   Goal,
+  Brain,
+  BookOpen,
   Notebook,
   LineChart,
   Activity,
+  Lightbulb,
+  Clock,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { AppSwitcher } from "./AppSwitcher";
@@ -37,22 +43,28 @@ const appNavigation: Record<AppType, { label: string; items: { icon: any; label:
       { icon: Wallet, label: "Portfolio", href: "/portfolio" },
       { icon: ArrowLeftRight, label: "Transactions", href: "/transactions" },
       { icon: BarChart3, label: "Analytics", href: "/analytics" },
+      { icon: Brain, label: "Circle of Competence", href: "/competence" },
+      { icon: BookOpen, label: "Learning Path", href: "/learning" },
     ],
   },
   "financial-freedom": {
     label: "Financial Freedom",
     items: [
-      { icon: Target, label: "FIRE Calculator", href: "/fire" },
-      { icon: Goal, label: "Goals", href: "/goals" },
-      { icon: Calculator, label: "Projections", href: "/projections" },
+      { icon: Target, label: "Dashboard", href: "/ff" },
+      { icon: PiggyBank, label: "Budget", href: "/ff/budget" },
+      { icon: CreditCard, label: "Debt Payoff", href: "/ff/debt" },
+      { icon: Shield, label: "Emergency Fund", href: "/ff/emergency" },
+      { icon: Goal, label: "Goals", href: "/ff/goals" },
     ],
   },
   "trading-journey": {
     label: "Trading Journey",
     items: [
-      { icon: Notebook, label: "Journal", href: "/journal" },
-      { icon: LineChart, label: "Performance", href: "/performance" },
-      { icon: Activity, label: "Insights", href: "/insights" },
+      { icon: Activity, label: "Summary", href: "/trading" },
+      { icon: Notebook, label: "Journal", href: "/trading/journal" },
+      { icon: Clock, label: "Sessions", href: "/trading/sessions" },
+      { icon: LineChart, label: "Performance", href: "/trading/performance" },
+      { icon: Lightbulb, label: "AI Insights", href: "/trading/insights" },
     ],
   },
 };
