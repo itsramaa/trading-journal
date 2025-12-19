@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Plus, Search, TrendingUp, TrendingDown, MoreHorizontal } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Plus, Search, TrendingUp, TrendingDown, MoreHorizontal, Filter } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,20 +13,46 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatCompactCurrency, formatPercent, formatQuantity } from "@/lib/formatters";
 import { demoHoldings, demoPortfolioMetrics, targetAllocations } from "@/lib/demo-data";
+import { TransactionForm } from "@/components/transactions/TransactionForm";
 import type { Holding } from "@/types/portfolio";
 
 const Portfolio = () => {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
+  const [marketFilter, setMarketFilter] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<string>("value");
 
-  const filteredHoldings = demoHoldings.filter(
-    (h) =>
-      h.asset.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      h.asset.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredHoldings = demoHoldings
+    .filter((h) => {
+      const matchesSearch = 
+        h.asset.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        h.asset.name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesMarket = marketFilter === "all" || h.asset.market === marketFilter;
+      return matchesSearch && matchesMarket;
+    })
+    .sort((a, b) => {
+      switch (sortBy) {
+        case "value":
+          return b.value - a.value;
+        case "pl":
+          return b.profitLossPercent - a.profitLossPercent;
+        case "name":
+          return a.asset.symbol.localeCompare(b.asset.symbol);
+        default:
+          return 0;
+      }
+    });
 
   return (
     <DashboardLayout>
@@ -38,15 +65,12 @@ const Portfolio = () => {
               Manage your investment holdings and allocations.
             </p>
           </div>
-          <Button className="gap-2">
-            <Plus className="h-4 w-4" />
-            Add Asset
-          </Button>
+          <TransactionForm />
         </div>
 
         {/* Portfolio Value Summary */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card className="col-span-2">
+          <Card className="col-span-2 border-border/50">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
                 Total Portfolio Value
@@ -54,12 +78,12 @@ const Portfolio = () => {
             </CardHeader>
             <CardContent>
               <div className="flex items-baseline gap-4">
-                <p className="text-3xl font-bold">
+                <p className="text-3xl font-bold font-mono-numbers">
                   {formatCompactCurrency(demoPortfolioMetrics.totalValue)}
                 </p>
                 <div className="flex items-center gap-1 text-profit">
                   <TrendingUp className="h-4 w-4" />
-                  <span className="text-sm font-medium">
+                  <span className="text-sm font-medium font-mono-numbers">
                     {formatPercent(demoPortfolioMetrics.totalProfitLossPercent)}
                   </span>
                 </div>
@@ -70,7 +94,7 @@ const Portfolio = () => {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-border/50">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
                 Total Assets
@@ -82,7 +106,7 @@ const Portfolio = () => {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-border/50">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
                 Best Performer
@@ -92,7 +116,7 @@ const Portfolio = () => {
               <p className="text-2xl font-bold">
                 {demoPortfolioMetrics.bestPerformer?.symbol ?? 'N/A'}
               </p>
-              <p className="text-sm text-profit">
+              <p className="text-sm text-profit font-mono-numbers">
                 {demoPortfolioMetrics.bestPerformer 
                   ? formatPercent(demoPortfolioMetrics.bestPerformer.profitLossPercent) + ' return'
                   : 'No data'}
@@ -108,27 +132,58 @@ const Portfolio = () => {
           </TabsList>
 
           <TabsContent value="holdings" className="space-y-4">
-            {/* Search */}
-            <div className="relative max-w-sm">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search holdings..."
-                className="pl-9"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
+            {/* Filters */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="relative flex-1 max-w-sm">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search holdings..."
+                  className="pl-9"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+              <Select value={marketFilter} onValueChange={setMarketFilter}>
+                <SelectTrigger className="w-[140px]">
+                  <Filter className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="Market" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Markets</SelectItem>
+                  <SelectItem value="CRYPTO">Crypto</SelectItem>
+                  <SelectItem value="US">US Stocks</SelectItem>
+                  <SelectItem value="ID">ID Stocks</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue placeholder="Sort by" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="value">By Value</SelectItem>
+                  <SelectItem value="pl">By P/L %</SelectItem>
+                  <SelectItem value="name">By Name</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Holdings Grid */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {filteredHoldings.map((holding) => (
-                <HoldingCard key={holding.id} holding={holding} />
+                <HoldingCard key={holding.id} holding={holding} onClick={() => navigate(`/asset/${holding.asset.symbol}`)} />
               ))}
             </div>
+
+            {filteredHoldings.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <p className="text-muted-foreground">No holdings found</p>
+                <p className="text-sm text-muted-foreground mt-1">Try adjusting your filters</p>
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="allocation" className="space-y-4">
-            <Card>
+            <Card className="border-border/50">
               <CardHeader>
                 <CardTitle>Target vs Actual Allocation</CardTitle>
               </CardHeader>
@@ -146,7 +201,7 @@ const Portfolio = () => {
                         </span>
                         <span
                           className={cn(
-                            "font-medium",
+                            "font-medium font-mono-numbers",
                             Math.abs(allocation.current - allocation.target) > 10
                               ? "text-loss"
                               : "text-profit"
@@ -183,15 +238,19 @@ const Portfolio = () => {
 
 interface HoldingCardProps {
   holding: Holding;
+  onClick: () => void;
 }
 
-function HoldingCard({ holding }: HoldingCardProps) {
+function HoldingCard({ holding, onClick }: HoldingCardProps) {
   return (
-    <Card className="group relative overflow-hidden">
+    <Card 
+      className="group relative overflow-hidden border-border/50 cursor-pointer transition-all hover:border-border hover:shadow-sm"
+      onClick={onClick}
+    >
       <CardContent className="p-5">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-secondary font-semibold">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 font-bold text-primary">
               {holding.asset.symbol.slice(0, 2)}
             </div>
             <div>
@@ -202,7 +261,7 @@ function HoldingCard({ holding }: HoldingCardProps) {
             </div>
           </div>
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
               <Button
                 variant="ghost"
                 size="icon"
@@ -212,7 +271,9 @@ function HoldingCard({ holding }: HoldingCardProps) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="bg-popover">
-              <DropdownMenuItem>View Details</DropdownMenuItem>
+              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onClick(); }}>
+                View Details
+              </DropdownMenuItem>
               <DropdownMenuItem>Add Transaction</DropdownMenuItem>
               <DropdownMenuItem className="text-loss">
                 Remove Asset
@@ -223,25 +284,25 @@ function HoldingCard({ holding }: HoldingCardProps) {
 
         <div className="mt-4 grid grid-cols-2 gap-4">
           <div>
-            <p className="text-sm text-muted-foreground">Value</p>
-            <p className="font-semibold">
+            <p className="text-xs text-muted-foreground">Value</p>
+            <p className="font-semibold font-mono-numbers">
               {formatCurrency(holding.value, holding.asset.market)}
             </p>
           </div>
           <div>
-            <p className="text-sm text-muted-foreground">Quantity</p>
-            <p className="font-semibold">
+            <p className="text-xs text-muted-foreground">Quantity</p>
+            <p className="font-semibold font-mono-numbers">
               {formatQuantity(holding.quantity, holding.asset.market)}
             </p>
           </div>
         </div>
 
-        <div className="mt-4 flex items-center justify-between rounded-lg bg-secondary/50 p-3">
+        <div className="mt-4 flex items-center justify-between rounded-lg bg-muted/50 p-3">
           <div>
             <p className="text-xs text-muted-foreground">P/L</p>
             <p
               className={cn(
-                "font-semibold",
+                "font-semibold font-mono-numbers",
                 holding.profitLoss >= 0 ? "text-profit" : "text-loss"
               )}
             >
