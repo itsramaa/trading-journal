@@ -9,15 +9,12 @@ import {
   CreditCard,
   Shield,
   Goal,
-  Brain,
-  BookOpen,
   Notebook,
   LineChart,
   Activity,
   Lightbulb,
   Clock,
   Settings,
-  ChevronRight,
   Flame,
   Building2,
   type LucideIcon,
@@ -35,25 +32,13 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 
 interface NavItem {
   title: string;
   url: string;
   icon: LucideIcon;
-  items?: {
-    title: string;
-    url: string;
-  }[];
 }
 
 interface NavGroup {
@@ -61,39 +46,20 @@ interface NavGroup {
   items: NavItem[];
 }
 
-// All navigation groups unified - Accounts as the base/central feature
 const navigationGroups: NavGroup[] = [
   {
     label: "General",
     items: [
       { title: "Dashboard", url: "/", icon: LayoutDashboard },
-      { 
-        title: "Accounts", 
-        url: "/accounts", 
-        icon: Building2,
-        items: [
-          { title: "All Accounts", url: "/accounts" },
-          { title: "Transactions", url: "/accounts?tab=transactions" },
-        ],
-      },
+      { title: "Accounts", url: "/accounts", icon: Building2 },
     ],
   },
   {
     label: "Portfolio Management",
     items: [
-      { 
-        title: "Portfolio", 
-        url: "/portfolio", 
-        icon: Wallet,
-        items: [
-          { title: "Holdings", url: "/portfolio" },
-          { title: "Allocation", url: "/portfolio?view=allocation" },
-        ],
-      },
+      { title: "Portfolio", url: "/portfolio", icon: Wallet },
       { title: "Transactions", url: "/transactions", icon: ArrowLeftRight },
       { title: "Analytics", url: "/analytics", icon: BarChart3 },
-      { title: "Circle of Competence", url: "/competence", icon: Brain },
-      { title: "Learning Path", url: "/learning", icon: BookOpen },
     ],
   },
   {
@@ -137,45 +103,7 @@ function NavMain({ groups }: { groups: NavGroup[] }) {
           <SidebarGroupContent>
             <SidebarMenu>
               {group.items.map((item) => {
-                const isActive = location.pathname === item.url || 
-                  item.items?.some(sub => location.pathname === sub.url || location.pathname + location.search === sub.url);
-                
-                if (item.items) {
-                  return (
-                    <Collapsible
-                      key={item.title}
-                      asChild
-                      defaultOpen={isActive}
-                      className="group/collapsible"
-                    >
-                      <SidebarMenuItem>
-                        <CollapsibleTrigger asChild>
-                          <SidebarMenuButton tooltip={item.title} isActive={isActive}>
-                            <item.icon />
-                            <span>{item.title}</span>
-                            <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-                          </SidebarMenuButton>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent>
-                          <SidebarMenuSub>
-                            {item.items.map((subItem) => (
-                              <SidebarMenuSubItem key={subItem.title}>
-                                <SidebarMenuSubButton 
-                                  asChild
-                                  isActive={location.pathname === subItem.url || location.pathname + location.search === subItem.url}
-                                >
-                                  <Link to={subItem.url}>
-                                    <span>{subItem.title}</span>
-                                  </Link>
-                                </SidebarMenuSubButton>
-                              </SidebarMenuSubItem>
-                            ))}
-                          </SidebarMenuSub>
-                        </CollapsibleContent>
-                      </SidebarMenuItem>
-                    </Collapsible>
-                  );
-                }
+                const isActive = location.pathname === item.url;
                 
                 return (
                   <SidebarMenuItem key={item.title}>
