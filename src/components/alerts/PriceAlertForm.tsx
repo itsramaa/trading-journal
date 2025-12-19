@@ -52,6 +52,7 @@ export function PriceAlertForm({ assetId, assetSymbol, currentPrice, onClose }: 
       await createAlert.mutateAsync({
         user_id: user.id,
         asset_id: assetId,
+        symbol: assetSymbol,
         target_price: price,
         condition,
         is_active: true,

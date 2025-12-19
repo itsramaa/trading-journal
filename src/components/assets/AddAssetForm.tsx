@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
   DialogContent,
@@ -68,15 +69,22 @@ export function AddAssetForm({ trigger }: AddAssetFormProps) {
   const assetType = form.watch("asset_type");
 
   const handleSubmit = async (data: AssetFormValues) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast.error("Please log in to add assets");
+      return;
+    }
+
     try {
       await createAsset.mutateAsync({
+        user_id: user.id,
         symbol: data.symbol,
         name: data.name,
         asset_type: data.asset_type,
-        coingecko_id: data.coingecko_id || null,
-        finnhub_symbol: data.finnhub_symbol || null,
-        fcs_id: data.fcs_id || null,
-        alpha_symbol: null,
+        portfolio_id: null,
+        exchange: data.asset_type === 'ID_STOCK' ? 'IDX' : data.asset_type === 'US_STOCK' ? 'NYSE' : null,
+        sector: null,
+        current_price: null,
         logo_url: data.logo_url || null,
       });
       

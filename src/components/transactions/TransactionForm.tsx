@@ -6,6 +6,7 @@ import { CalendarIcon, Plus, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Dialog,
@@ -82,12 +83,19 @@ export function TransactionForm({ portfolioId }: TransactionFormProps) {
       return;
     }
 
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast.error("Please log in to add transactions");
+      return;
+    }
+
     const quantity = Number(data.quantity);
     const price = Number(data.price);
     const totalAmount = quantity * price;
 
     try {
       await createTransaction.mutateAsync({
+        user_id: user.id,
         portfolio_id: portfolioId,
         asset_id: data.assetId,
         transaction_type: data.type,
@@ -96,7 +104,7 @@ export function TransactionForm({ portfolioId }: TransactionFormProps) {
         total_amount: totalAmount,
         transaction_date: data.date.toISOString(),
         notes: data.notes || null,
-        fees: 0,
+        fee: 0,
       });
       
       toast.success("Transaction added successfully");
