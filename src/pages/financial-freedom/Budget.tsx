@@ -18,7 +18,8 @@ import {
   MoreHorizontal,
   TrendingUp,
   TrendingDown,
-  PieChart
+  PieChart,
+  Building2
 } from "lucide-react";
 import { useState } from "react";
 import {
@@ -38,6 +39,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useAccounts } from "@/hooks/use-accounts";
+import { formatCurrency } from "@/lib/formatters";
 
 const categoryIcons: Record<string, any> = {
   housing: Home,
@@ -74,13 +77,21 @@ const demoSummary = {
 
 export default function Budget() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [selectedAccountId, setSelectedAccountId] = useState<string>("");
+  const { data: accounts, isLoading: accountsLoading } = useAccounts();
 
-  const formatCurrency = (value: number) => {
+  const formatCurrencyLocal = (value: number) => {
     return `Rp${(value / 1000000).toFixed(1)}jt`;
   };
 
   const budgetRemaining = demoSummary.totalBudgeted - demoSummary.totalSpent;
   const savingsRate = ((demoSummary.actualSavings / demoSummary.totalIncome) * 100).toFixed(1);
+
+  // Calculate total from linked accounts
+  const totalAccountBalance = accounts?.reduce((sum, acc) => {
+    if (acc.currency === 'IDR') return sum + Number(acc.balance);
+    return sum;
+  }, 0) || 0;
 
   return (
     <DashboardLayout>
@@ -128,6 +139,32 @@ export default function Budget() {
                   <Label htmlFor="budget">Monthly Budget</Label>
                   <Input id="budget" type="number" placeholder="1000000" />
                 </div>
+                {/* Account Selection */}
+                <div className="grid gap-2">
+                  <Label>Link to Account (Optional)</Label>
+                  <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={accountsLoading ? "Loading..." : "Select account"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">No account linked</SelectItem>
+                      {accounts?.filter(a => a.is_active).map((account) => (
+                        <SelectItem key={account.id} value={account.id}>
+                          <div className="flex items-center gap-2">
+                            <Building2 className="h-4 w-4" />
+                            <span>{account.name}</span>
+                            <span className="text-xs text-muted-foreground ml-2">
+                              {formatCurrency(Number(account.balance), account.currency)}
+                            </span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Expenses will be tracked from this account
+                  </p>
+                </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancel</Button>
@@ -137,6 +174,33 @@ export default function Budget() {
           </Dialog>
         </div>
 
+        {/* Account Summary */}
+        {accounts && accounts.length > 0 && (
+          <Card className="border-primary/20 bg-primary/5">
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2">
+                <Building2 className="h-5 w-5 text-primary" />
+                <CardTitle className="text-base">Linked Accounts</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-4">
+                {accounts.filter(a => a.is_active).slice(0, 4).map((account) => (
+                  <div key={account.id} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-background border">
+                    <span className="text-sm font-medium">{account.name}</span>
+                    <Badge variant="secondary">
+                      {formatCurrency(Number(account.balance), account.currency)}
+                    </Badge>
+                  </div>
+                ))}
+                {accounts.length > 4 && (
+                  <Badge variant="outline">+{accounts.length - 4} more</Badge>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Summary Cards */}
         <div className="grid gap-4 md:grid-cols-4">
           <Card>
@@ -145,7 +209,7 @@ export default function Budget() {
               <TrendingUp className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(demoSummary.totalIncome)}</div>
+              <div className="text-2xl font-bold">{formatCurrencyLocal(demoSummary.totalIncome)}</div>
               <p className="text-xs text-muted-foreground">After tax income</p>
             </CardContent>
           </Card>
@@ -155,7 +219,7 @@ export default function Budget() {
               <PieChart className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(demoSummary.totalBudgeted)}</div>
+              <div className="text-2xl font-bold">{formatCurrencyLocal(demoSummary.totalBudgeted)}</div>
               <p className="text-xs text-muted-foreground">
                 {((demoSummary.totalBudgeted / demoSummary.totalIncome) * 100).toFixed(0)}% of income
               </p>
@@ -167,9 +231,9 @@ export default function Budget() {
               <TrendingDown className="h-4 w-4 text-red-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(demoSummary.totalSpent)}</div>
+              <div className="text-2xl font-bold">{formatCurrencyLocal(demoSummary.totalSpent)}</div>
               <p className={`text-xs ${budgetRemaining >= 0 ? "text-green-500" : "text-red-500"}`}>
-                {budgetRemaining >= 0 ? `${formatCurrency(budgetRemaining)} under budget` : `${formatCurrency(Math.abs(budgetRemaining))} over budget`}
+                {budgetRemaining >= 0 ? `${formatCurrencyLocal(budgetRemaining)} under budget` : `${formatCurrencyLocal(Math.abs(budgetRemaining))} over budget`}
               </p>
             </CardContent>
           </Card>
@@ -179,7 +243,7 @@ export default function Budget() {
               <Badge variant="secondary" className="bg-green-500/10 text-green-500">{savingsRate}%</Badge>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-500">{formatCurrency(demoSummary.actualSavings)}</div>
+              <div className="text-2xl font-bold text-green-500">{formatCurrencyLocal(demoSummary.actualSavings)}</div>
               <p className="text-xs text-muted-foreground">Target: 50-80%</p>
             </CardContent>
           </Card>
@@ -209,13 +273,13 @@ export default function Budget() {
                         <div>
                           <p className="font-medium">{budget.name}</p>
                           <p className="text-sm text-muted-foreground">
-                            {formatCurrency(budget.spent)} of {formatCurrency(budget.budgeted)}
+                            {formatCurrencyLocal(budget.spent)} of {formatCurrencyLocal(budget.budgeted)}
                           </p>
                         </div>
                       </div>
                       <div className="text-right">
                         <p className={`font-medium ${isOverBudget ? "text-red-500" : "text-green-500"}`}>
-                          {isOverBudget ? `-${formatCurrency(Math.abs(remaining))}` : `+${formatCurrency(remaining)}`}
+                          {isOverBudget ? `-${formatCurrencyLocal(Math.abs(remaining))}` : `+${formatCurrencyLocal(remaining)}`}
                         </p>
                         <p className="text-sm text-muted-foreground">
                           {percentage.toFixed(0)}% used

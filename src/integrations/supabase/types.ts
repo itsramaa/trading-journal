@@ -162,6 +162,104 @@ export type Database = {
           },
         ]
       }
+      budget_categories: {
+        Row: {
+          account_id: string | null
+          budgeted_amount: number
+          color: string | null
+          created_at: string
+          icon: string | null
+          id: string
+          name: string
+          period: string
+          spent_amount: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_id?: string | null
+          budgeted_amount?: number
+          color?: string | null
+          created_at?: string
+          icon?: string | null
+          id?: string
+          name: string
+          period?: string
+          spent_amount?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_id?: string | null
+          budgeted_amount?: number
+          color?: string | null
+          created_at?: string
+          icon?: string | null
+          id?: string
+          name?: string
+          period?: string
+          spent_amount?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_categories_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      budget_transactions: {
+        Row: {
+          account_id: string | null
+          amount: number
+          category_id: string
+          created_at: string
+          description: string | null
+          id: string
+          transaction_date: string
+          user_id: string
+        }
+        Insert: {
+          account_id?: string | null
+          amount: number
+          category_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          transaction_date?: string
+          user_id: string
+        }
+        Update: {
+          account_id?: string | null
+          amount?: number
+          category_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          transaction_date?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_transactions_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_transactions_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "budget_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       holdings: {
         Row: {
           asset_id: string
@@ -376,8 +474,142 @@ export type Database = {
         }
         Relationships: []
       }
+      trade_entries: {
+        Row: {
+          confluence_score: number | null
+          created_at: string
+          direction: string
+          entry_price: number
+          entry_signal: string | null
+          exit_price: number | null
+          fees: number | null
+          id: string
+          market_condition: string | null
+          notes: string | null
+          pair: string
+          pnl: number | null
+          quantity: number
+          result: string | null
+          stop_loss: number | null
+          tags: string[] | null
+          take_profit: number | null
+          trade_date: string
+          trading_account_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          confluence_score?: number | null
+          created_at?: string
+          direction: string
+          entry_price: number
+          entry_signal?: string | null
+          exit_price?: number | null
+          fees?: number | null
+          id?: string
+          market_condition?: string | null
+          notes?: string | null
+          pair: string
+          pnl?: number | null
+          quantity?: number
+          result?: string | null
+          stop_loss?: number | null
+          tags?: string[] | null
+          take_profit?: number | null
+          trade_date?: string
+          trading_account_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          confluence_score?: number | null
+          created_at?: string
+          direction?: string
+          entry_price?: number
+          entry_signal?: string | null
+          exit_price?: number | null
+          fees?: number | null
+          id?: string
+          market_condition?: string | null
+          notes?: string | null
+          pair?: string
+          pnl?: number | null
+          quantity?: number
+          result?: string | null
+          stop_loss?: number | null
+          tags?: string[] | null
+          take_profit?: number | null
+          trade_date?: string
+          trading_account_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trade_entries_trading_account_id_fkey"
+            columns: ["trading_account_id"]
+            isOneToOne: false
+            referencedRelation: "trading_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trading_accounts: {
+        Row: {
+          account_id: string
+          account_number: string | null
+          broker: string | null
+          created_at: string
+          currency: string
+          current_balance: number
+          id: string
+          initial_balance: number
+          is_active: boolean
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_id: string
+          account_number?: string | null
+          broker?: string | null
+          created_at?: string
+          currency?: string
+          current_balance?: number
+          id?: string
+          initial_balance?: number
+          is_active?: boolean
+          name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_id?: string
+          account_number?: string | null
+          broker?: string | null
+          created_at?: string
+          currency?: string
+          current_balance?: number
+          id?: string
+          initial_balance?: number
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trading_accounts_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       transactions: {
         Row: {
+          account_id: string | null
           asset_id: string
           created_at: string
           fee: number | null
@@ -392,6 +624,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          account_id?: string | null
           asset_id: string
           created_at?: string
           fee?: number | null
@@ -406,6 +639,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          account_id?: string | null
           asset_id?: string
           created_at?: string
           fee?: number | null
@@ -420,6 +654,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "transactions_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "transactions_asset_id_fkey"
             columns: ["asset_id"]
