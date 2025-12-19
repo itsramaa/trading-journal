@@ -25,6 +25,7 @@ import {
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatPercent, formatQuantity, formatDate } from "@/lib/formatters";
 import { useAssetBySymbol, useHoldings, useTransactions, useDefaultPortfolio } from "@/hooks/use-portfolio";
+import { useAssetHistory } from "@/hooks/use-asset-history";
 import { transformHoldings, transformTransactions } from "@/lib/data-transformers";
 import { useAppStore, convertCurrency } from "@/store/app-store";
 import { TransactionForm } from "@/components/transactions/TransactionForm";
@@ -60,6 +61,7 @@ const AssetDetail = () => {
   const { currency, exchangeRate } = useAppStore();
   const { data: portfolio } = useDefaultPortfolio();
   const { data: assetData, isLoading: assetLoading } = useAssetBySymbol(symbol || '');
+  const { data: historyData, isLoading: historyLoading } = useAssetHistory(symbol, selectedTimeframe);
   const { data: dbHoldings, isLoading: holdingsLoading } = useHoldings(portfolio?.id);
   const { data: dbTransactions, isLoading: transactionsLoading } = useTransactions(portfolio?.id);
 
@@ -73,11 +75,20 @@ const AssetDetail = () => {
   const holding = holdings.find(h => h.asset.symbol === symbol);
   const assetTransactions = transactions.filter(t => t.assetSymbol === symbol);
 
-  // Generate chart data based on timeframe
+  // Transform historical data for chart
   const chartData = useMemo(() => {
+    // If we have real historical data, use it
+    if (historyData && historyData.length > 0) {
+      return historyData.map(item => ({
+        date: formatChartDate(item.date, selectedTimeframe),
+        value: item.price,
+      }));
+    }
+    
+    // Fallback to simulated data if no historical data
     if (!assetData?.price_cache) return [];
     
-    const currentPrice = assetData.price_cache.current_price;
+    const currentPrice = assetData.price_cache.price || 0;
     const points: { date: string; value: number }[] = [];
     const now = new Date();
     
@@ -87,7 +98,7 @@ const AssetDetail = () => {
     switch (selectedTimeframe) {
       case '1H':
         intervals = 12;
-        intervalMs = 5 * 60 * 1000; // 5 minutes
+        intervalMs = 5 * 60 * 1000;
         break;
       case '24H':
         intervals = 24;
@@ -111,8 +122,7 @@ const AssetDetail = () => {
         break;
     }
     
-    // Generate simulated historical data based on current price and change percentages
-    const change24h = assetData.price_cache.price_change_24h || 0;
+    const change24h = assetData.price_cache.price_change_percentage_24h || 0;
     const volatility = Math.abs(change24h) / 100;
     
     for (let i = intervals; i >= 0; i--) {
@@ -121,15 +131,22 @@ const AssetDetail = () => {
       const historicalPrice = currentPrice * (1 - (change24h / 100) * (i / intervals) + randomChange);
       
       points.push({
-        date: selectedTimeframe === '1H' || selectedTimeframe === '24H' 
-          ? date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-          : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        date: formatChartDate(date.toISOString(), selectedTimeframe),
         value: historicalPrice,
       });
     }
     
     return points;
-  }, [assetData, selectedTimeframe]);
+  }, [historyData, assetData, selectedTimeframe]);
+
+  // Helper to format chart dates
+  function formatChartDate(dateStr: string, timeframe: string): string {
+    const date = new Date(dateStr);
+    if (timeframe === '1H' || timeframe === '24H') {
+      return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    }
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
 
   // Format currency with conversion
   const formatValue = (value: number, market: 'US' | 'ID' | 'CRYPTO' = 'US') => {
@@ -159,12 +176,12 @@ const AssetDetail = () => {
   }
 
   const priceCache = assetData.price_cache;
-  const currentPrice = priceCache?.current_price || 0;
-  const priceChange24h = priceCache?.price_change_24h || 0;
-  const priceChange1h = priceCache?.price_change_1h || 0;
-  const priceChange7d = priceCache?.price_change_7d || 0;
+  const currentPrice = priceCache?.price || 0;
+  const priceChange24h = priceCache?.price_change_percentage_24h || 0;
+  const priceChange1h = 0; // Not available in current schema
+  const priceChange7d = 0; // Not available in current schema
   const isPositive = priceChange24h >= 0;
-  const market = assetData.asset_type === 'id_stock' ? 'ID' : 'US';
+  const market = assetData.asset_type === 'ID_STOCK' ? 'ID' : 'US';
 
   return (
     <DashboardLayout>
@@ -244,7 +261,14 @@ const AssetDetail = () => {
             </div>
 
             <div className="h-[300px] w-full">
-              {chartData.length > 0 ? (
+              {historyLoading ? (
+                <div className="h-full flex items-center justify-center text-muted-foreground">
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                    <span className="text-sm">Loading chart data...</span>
+                  </div>
+                </div>
+              ) : chartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={chartData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
                     <defs>
