@@ -10,6 +10,14 @@ import { AddTransactionDialog } from "@/components/transactions/AddTransactionDi
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { EmptyTransactions, EmptySearchResults } from "@/components/ui/empty-state";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   Select,
   SelectContent,
@@ -119,10 +127,19 @@ const Transactions = () => {
             <p className="text-muted-foreground">View and manage your transaction history.</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" className="gap-2">
-              <Download className="h-4 w-4" />
-              Export
-            </Button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" className="gap-2">
+                    <Download className="h-4 w-4" />
+                    <span className="hidden sm:inline">Export</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Export transactions to CSV</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <AddTransactionDialog />
           </div>
         </div>
@@ -393,32 +410,15 @@ const Transactions = () => {
             </Table>
           </div>
         ) : transactions.length === 0 ? (
-          <Card className="flex flex-col items-center justify-center py-12 text-center">
-            <AlertCircle className="h-8 w-8 text-muted-foreground mb-4" />
-            <h3 className="font-semibold mb-2">No Transactions Yet</h3>
-            <p className="text-muted-foreground text-sm max-w-md mb-4">
-              Add your first transaction to start building your portfolio history.
-            </p>
-            <AddTransactionDialog />
-          </Card>
+          <EmptyTransactions />
         ) : (
-          <Card className="flex flex-col items-center justify-center py-12 text-center">
-            <Search className="h-8 w-8 text-muted-foreground mb-4" />
-            <h3 className="font-semibold mb-2">No Results Found</h3>
-            <p className="text-muted-foreground text-sm max-w-md mb-4">
-              Try adjusting your filters or search query.
-            </p>
-            <Button 
-              variant="outline"
-              onClick={() => {
-                setTypeFilter("all");
-                setDateFilter("all");
-                setSearchQuery("");
-              }}
-            >
-              Clear Filters
-            </Button>
-          </Card>
+          <EmptySearchResults 
+            onClearSearch={() => {
+              setTypeFilter("all");
+              setDateFilter("all");
+              setSearchQuery("");
+            }}
+          />
         )}
       </div>
     </DashboardLayout>
