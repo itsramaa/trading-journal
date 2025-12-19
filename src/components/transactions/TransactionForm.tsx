@@ -105,7 +105,7 @@ export function TransactionForm({ portfolioId }: TransactionFormProps) {
         portfolio_id: portfolioId,
         asset_id: data.assetId,
         account_id: data.accountId || null,
-        transaction_type: data.type,
+        transaction_type: data.type.toUpperCase(),
         quantity,
         price_per_unit: price,
         total_amount: totalAmount,

@@ -101,7 +101,7 @@ export function EditTransactionDialog({ transaction, open, onOpenChange }: EditT
       await updateTransaction.mutateAsync({
         id: transaction.id,
         asset_id: data.assetId,
-        transaction_type: data.type,
+        transaction_type: data.type.toUpperCase(),
         quantity,
         price_per_unit: price,
         total_amount: totalAmount,
