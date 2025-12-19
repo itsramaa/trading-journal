@@ -72,12 +72,31 @@ export function useAuth() {
     });
 
     if (error) {
+      let errorMessage = error.message;
+      
+      // Handle specific error cases
+      if (error.message.includes('already registered') || error.message.includes('duplicate')) {
+        errorMessage = 'This email is already registered. Please sign in instead.';
+      } else if (error.message.includes('invalid')) {
+        errorMessage = 'Please enter a valid email address.';
+      }
+      
       toast({
         title: 'Sign up failed',
-        description: error.message,
+        description: errorMessage,
         variant: 'destructive',
       });
       return { error };
+    }
+
+    // Check if user already exists (Supabase returns user but no session for existing unconfirmed users)
+    if (data?.user && !data?.session && data.user.identities?.length === 0) {
+      toast({
+        title: 'Email already registered',
+        description: 'This email is already registered. Please sign in or check your email for verification.',
+        variant: 'destructive',
+      });
+      return { error: new Error('Email already registered') };
     }
 
     toast({
