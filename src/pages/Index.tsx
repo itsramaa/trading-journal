@@ -9,7 +9,6 @@ import {
   demoTransactions, 
   demoPortfolioMetrics, 
   demoAllocationByType,
-  performanceData 
 } from "@/lib/demo-data";
 
 const Index = () => {
@@ -24,28 +23,24 @@ const Index = () => {
           </p>
         </div>
 
-        {/* Metrics Cards */}
+        {/* Metrics Cards - now includes CAGR */}
         <PortfolioMetrics metrics={demoPortfolioMetrics} />
 
         {/* Charts Row */}
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2">
-            <PerformanceChart data={performanceData} />
+            <PerformanceChart />
           </div>
           <div>
             <AllocationChart data={demoAllocationByType} />
           </div>
         </div>
 
-        {/* Holdings Table and Recent Transactions */}
-        <div className="grid gap-6 xl:grid-cols-3">
-          <div className="xl:col-span-2">
-            <HoldingsTable holdings={demoHoldings} />
-          </div>
-          <div>
-            <RecentTransactions transactions={demoTransactions} />
-          </div>
-        </div>
+        {/* Holdings Table - full width */}
+        <HoldingsTable holdings={demoHoldings} />
+
+        {/* Recent Transactions - below holdings, no view all */}
+        <RecentTransactions transactions={demoTransactions} maxItems={5} />
       </div>
     </DashboardLayout>
   );

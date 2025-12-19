@@ -1,6 +1,7 @@
-import { TrendingUp, TrendingDown, Wallet, Activity, Target } from "lucide-react";
+import { TrendingUp, TrendingDown, Wallet, Activity, Target, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCompactCurrency } from "@/lib/formatters";
+import { useAppStore, convertCurrency } from "@/store/app-store";
 import type { PortfolioMetrics as PortfolioMetricsType } from "@/types/portfolio";
 
 interface MetricCardProps {
@@ -58,15 +59,26 @@ function MetricCard({ title, value, change, changeLabel, icon, trend, className 
 }
 
 interface PortfolioMetricsProps {
-  metrics: PortfolioMetricsType;
+  metrics: PortfolioMetricsType & { cagr?: number };
 }
 
 export function PortfolioMetrics({ metrics }: PortfolioMetricsProps) {
+  const { currency, exchangeRate } = useAppStore();
+
+  // Convert values based on selected currency
+  const convertValue = (value: number) => {
+    return currency === 'IDR' ? convertCurrency(value, 'USD', 'IDR', exchangeRate) : value;
+  };
+
+  const formatValue = (value: number) => {
+    return formatCompactCurrency(convertValue(value), currency === 'IDR' ? 'ID' : 'US');
+  };
+
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
       <MetricCard
         title="Portfolio Value"
-        value={formatCompactCurrency(metrics.totalValue)}
+        value={formatValue(metrics.totalValue)}
         change={metrics.dayChangePercent}
         changeLabel="today"
         icon={<Wallet className="h-5 w-5" />}
@@ -74,7 +86,7 @@ export function PortfolioMetrics({ metrics }: PortfolioMetricsProps) {
       />
       <MetricCard
         title="Total P/L"
-        value={formatCompactCurrency(metrics.totalProfitLoss)}
+        value={formatValue(metrics.totalProfitLoss)}
         change={metrics.totalProfitLossPercent}
         changeLabel="all time"
         icon={<TrendingUp className="h-5 w-5" />}
@@ -82,16 +94,23 @@ export function PortfolioMetrics({ metrics }: PortfolioMetricsProps) {
       />
       <MetricCard
         title="Today's Change"
-        value={`${metrics.dayChange >= 0 ? '+' : ''}${formatCompactCurrency(metrics.dayChange)}`}
+        value={`${metrics.dayChange >= 0 ? '+' : ''}${formatValue(metrics.dayChange)}`}
         change={metrics.dayChangePercent}
         icon={<Activity className="h-5 w-5" />}
         trend={metrics.dayChange >= 0 ? 'up' : 'down'}
       />
       <MetricCard
         title="Cost Basis"
-        value={formatCompactCurrency(metrics.totalCostBasis)}
+        value={formatValue(metrics.totalCostBasis)}
         icon={<Target className="h-5 w-5" />}
         trend="neutral"
+      />
+      <MetricCard
+        title="CAGR"
+        value={`${(metrics.cagr ?? 0) >= 0 ? '+' : ''}${(metrics.cagr ?? 0).toFixed(1)}%`}
+        changeLabel="annualized"
+        icon={<BarChart3 className="h-5 w-5" />}
+        trend={(metrics.cagr ?? 0) >= 0 ? 'up' : 'down'}
       />
     </div>
   );
