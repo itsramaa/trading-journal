@@ -1,12 +1,11 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, TrendingUp, TrendingDown, MoreHorizontal, Filter, Plus } from "lucide-react";
+import { Search, TrendingUp, TrendingDown, MoreHorizontal, Filter } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,7 +22,9 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatCompactCurrency, formatPercent, formatQuantity } from "@/lib/formatters";
-import { demoHoldings, demoAllocationByType, demoPortfolioMetrics } from "@/lib/demo-data";
+import { demoHoldings, demoDetailedAllocation, demoPortfolioMetrics } from "@/lib/demo-data";
+import { AddTransactionDialog } from "@/components/transactions/AddTransactionDialog";
+import { AllocationBreakdown } from "@/components/portfolio/AllocationBreakdown";
 import type { Holding } from "@/types/portfolio";
 
 const Portfolio = () => {
@@ -34,7 +35,7 @@ const Portfolio = () => {
 
   const holdings = demoHoldings;
   const metrics = demoPortfolioMetrics;
-  const allocation = demoAllocationByType;
+  const detailedAllocation = demoDetailedAllocation;
 
   const filteredHoldings = useMemo(() => {
     return holdings
@@ -73,39 +74,33 @@ const Portfolio = () => {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <Button className="gap-2">
-              <Plus className="h-4 w-4" />
-              Add Transaction
-            </Button>
+            <AddTransactionDialog />
           </div>
         </div>
 
-        {/* Portfolio Value Summary */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card className="col-span-2 border-border/50">
+        {/* Portfolio Value Summary - 5 Cards */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+          {/* Total Portfolio Value */}
+          <Card className="col-span-2 lg:col-span-1 border-border/50">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                Total Portfolio Value
+                Total Value
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex items-baseline gap-4">
-                <p className="text-3xl font-bold font-mono-numbers">
-                  {formatCompactCurrency(metrics.totalValue)}
-                </p>
-                <div className={cn("flex items-center gap-1", metrics.totalProfitLoss >= 0 ? "text-profit" : "text-loss")}>
-                  {metrics.totalProfitLoss >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
-                  <span className="text-sm font-medium font-mono-numbers">
-                    {formatPercent(metrics.totalProfitLossPercent)}
-                  </span>
-                </div>
-              </div>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {metrics.totalProfitLoss >= 0 ? '+' : ''}{formatCompactCurrency(metrics.totalProfitLoss)} all time P/L
+              <p className="text-2xl font-bold font-mono-numbers">
+                {formatCompactCurrency(metrics.totalValue)}
               </p>
+              <div className={cn("flex items-center gap-1 mt-1", metrics.totalProfitLoss >= 0 ? "text-profit" : "text-loss")}>
+                {metrics.totalProfitLoss >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                <span className="text-xs font-medium font-mono-numbers">
+                  {formatPercent(metrics.totalProfitLossPercent)} all time
+                </span>
+              </div>
             </CardContent>
           </Card>
 
+          {/* Total Assets */}
           <Card className="border-border/50">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -114,10 +109,26 @@ const Portfolio = () => {
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-bold">{holdings.length}</p>
-              <p className="text-sm text-muted-foreground">Across {uniqueMarkets.length} markets</p>
+              <p className="text-xs text-muted-foreground">Across {uniqueMarkets.length} markets</p>
             </CardContent>
           </Card>
 
+          {/* Cost Basis */}
+          <Card className="border-border/50">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Cost Basis
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-2xl font-bold font-mono-numbers">
+                {formatCompactCurrency(metrics.totalCostBasis)}
+              </p>
+              <p className="text-xs text-muted-foreground">Total invested</p>
+            </CardContent>
+          </Card>
+
+          {/* Best Performer */}
           <Card className="border-border/50">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -128,9 +139,32 @@ const Portfolio = () => {
               <p className="text-2xl font-bold">
                 {metrics.bestPerformer?.symbol ?? 'N/A'}
               </p>
-              <p className={cn("text-sm font-mono-numbers", "text-profit")}>
+              <p className={cn("text-xs font-mono-numbers", "text-profit")}>
                 {metrics.bestPerformer 
-                  ? formatPercent(metrics.bestPerformer.profitLossPercent) + ' return'
+                  ? '+' + formatPercent(metrics.bestPerformer.profitLossPercent) + ' return'
+                  : 'No data'}
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Worst Performer */}
+          <Card className="border-border/50">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Worst Performer
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-2xl font-bold">
+                {metrics.worstPerformer?.symbol ?? 'N/A'}
+              </p>
+              <p className={cn(
+                "text-xs font-mono-numbers", 
+                (metrics.worstPerformer?.profitLossPercent ?? 0) >= 0 ? "text-profit" : "text-loss"
+              )}>
+                {metrics.worstPerformer 
+                  ? (metrics.worstPerformer.profitLossPercent >= 0 ? '+' : '') + 
+                    formatPercent(metrics.worstPerformer.profitLossPercent) + ' return'
                   : 'No data'}
               </p>
             </CardContent>
@@ -160,7 +194,7 @@ const Portfolio = () => {
                   <Filter className="h-4 w-4 mr-2" />
                   <SelectValue placeholder="Market" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-popover">
                   <SelectItem value="all">All Markets</SelectItem>
                   <SelectItem value="CRYPTO">Crypto</SelectItem>
                   <SelectItem value="US">US Stocks</SelectItem>
@@ -171,7 +205,7 @@ const Portfolio = () => {
                 <SelectTrigger className="w-[140px]">
                   <SelectValue placeholder="Sort by" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-popover">
                   <SelectItem value="value">By Value</SelectItem>
                   <SelectItem value="pl">By P/L %</SelectItem>
                   <SelectItem value="name">By Name</SelectItem>
@@ -188,32 +222,7 @@ const Portfolio = () => {
           </TabsContent>
 
           <TabsContent value="allocation" className="space-y-4">
-            <Card className="border-border/50">
-              <CardHeader>
-                <CardTitle>Allocation by Market</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {allocation.map((item) => (
-                  <div key={item.name} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="h-3 w-3 rounded-full" style={{ backgroundColor: item.color }} />
-                        <span className="font-medium">{item.name}</span>
-                      </div>
-                      <div className="flex items-center gap-4 text-sm">
-                        <span className="font-medium font-mono-numbers">
-                          {item.percentage.toFixed(1)}%
-                        </span>
-                        <span className="text-muted-foreground font-mono-numbers">
-                          {formatCompactCurrency(item.value)}
-                        </span>
-                      </div>
-                    </div>
-                    <Progress value={item.percentage} className="h-2" />
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+            <AllocationBreakdown allocations={detailedAllocation} />
           </TabsContent>
         </Tabs>
       </div>
@@ -281,34 +290,47 @@ function HoldingCard({ holding, onClick }: HoldingCardProps) {
           </div>
         </div>
 
-        <div className="mt-4 flex items-center justify-between rounded-lg bg-muted/50 p-3">
-          <div>
-            <p className="text-xs text-muted-foreground">P/L</p>
-            <p
+        {/* P/L Section with Avg Buy Price */}
+        <div className="mt-4 rounded-lg bg-muted/50 p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-muted-foreground">P/L</p>
+              <p
+                className={cn(
+                  "font-semibold font-mono-numbers",
+                  holding.profitLoss >= 0 ? "text-profit" : "text-loss"
+                )}
+              >
+                {holding.profitLoss >= 0 ? "+" : ""}
+                {formatCurrency(holding.profitLoss, holding.asset.market)}
+              </p>
+            </div>
+            <Badge
               className={cn(
-                "font-semibold font-mono-numbers",
-                holding.profitLoss >= 0 ? "text-profit" : "text-loss"
+                "gap-1",
+                holding.profitLossPercent >= 0
+                  ? "bg-profit-muted text-profit hover:bg-profit-muted"
+                  : "bg-loss-muted text-loss hover:bg-loss-muted"
               )}
             >
-              {holding.profitLoss >= 0 ? "+" : ""}
-              {formatCurrency(holding.profitLoss, holding.asset.market)}
-            </p>
+              {holding.profitLossPercent >= 0 ? (
+                <TrendingUp className="h-3 w-3" />
+              ) : (
+                <TrendingDown className="h-3 w-3" />
+              )}
+              {formatPercent(holding.profitLossPercent)}
+            </Badge>
           </div>
-          <Badge
-            className={cn(
-              "gap-1",
-              holding.profitLossPercent >= 0
-                ? "bg-profit-muted text-profit hover:bg-profit-muted"
-                : "bg-loss-muted text-loss hover:bg-loss-muted"
-            )}
-          >
-            {holding.profitLossPercent >= 0 ? (
-              <TrendingUp className="h-3 w-3" />
-            ) : (
-              <TrendingDown className="h-3 w-3" />
-            )}
-            {formatPercent(holding.profitLossPercent)}
-          </Badge>
+          
+          {/* Avg Buy Price */}
+          <div className="pt-2 border-t border-border/50">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Avg Buy Price</span>
+              <span className="font-mono-numbers">
+                {formatCurrency(holding.avgPrice, holding.asset.market)}
+              </span>
+            </div>
+          </div>
         </div>
       </CardContent>
     </Card>
