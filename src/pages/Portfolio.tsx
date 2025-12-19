@@ -24,11 +24,14 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatCompactCurrency, formatPercent, formatQuantity } from "@/lib/formatters";
-import { useDefaultPortfolio, useHoldings, useCreatePortfolio } from "@/hooks/use-portfolio";
+import { useDefaultPortfolio, useHoldings, useCreatePortfolio, usePortfolios } from "@/hooks/use-portfolio";
 import { useAuth } from "@/hooks/use-auth";
 import { transformHoldings, calculateMetrics, calculateAllocation } from "@/lib/data-transformers";
 import { TransactionForm } from "@/components/transactions/TransactionForm";
+import { PortfolioSelector } from "@/components/portfolio/PortfolioSelector";
+import { AddAssetForm } from "@/components/assets/AddAssetForm";
 import type { Holding } from "@/types/portfolio";
+import type { Tables } from "@/integrations/supabase/types";
 
 function PortfolioSkeleton() {
   return (
@@ -92,14 +95,20 @@ function CreatePortfolioCard() {
   );
 }
 
+type Portfolio = Tables<'portfolios'>;
+
 const Portfolio = () => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [marketFilter, setMarketFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("value");
+  const [selectedPortfolio, setSelectedPortfolio] = useState<Portfolio | null>(null);
 
-  const { data: portfolio, isLoading: portfolioLoading } = useDefaultPortfolio();
-  const { data: dbHoldings, isLoading: holdingsLoading } = useHoldings(portfolio?.id);
+  const { data: portfolios } = usePortfolios();
+  const { data: defaultPortfolio, isLoading: portfolioLoading } = useDefaultPortfolio();
+  
+  const activePortfolio = selectedPortfolio || defaultPortfolio;
+  const { data: dbHoldings, isLoading: holdingsLoading } = useHoldings(activePortfolio?.id);
 
   const holdings = useMemo(() => {
     return dbHoldings ? transformHoldings(dbHoldings) : [];
@@ -141,7 +150,7 @@ const Portfolio = () => {
     );
   }
 
-  if (!portfolio) {
+  if (!activePortfolio) {
     return (
       <DashboardLayout>
         <div className="space-y-6">
@@ -161,14 +170,21 @@ const Portfolio = () => {
     <DashboardLayout>
       <div className="space-y-6">
         {/* Page Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Portfolio</h1>
             <p className="text-muted-foreground">
               Manage your investment holdings and allocations.
             </p>
           </div>
-          <TransactionForm portfolioId={portfolio.id} />
+          <div className="flex items-center gap-3">
+            <PortfolioSelector
+              selectedPortfolioId={activePortfolio.id}
+              onPortfolioChange={setSelectedPortfolio}
+            />
+            <AddAssetForm />
+            <TransactionForm portfolioId={activePortfolio.id} />
+          </div>
         </div>
 
         {/* Portfolio Value Summary */}
@@ -286,7 +302,7 @@ const Portfolio = () => {
                 <p className="text-muted-foreground text-sm max-w-md mb-4">
                   Add your first transaction to start tracking your portfolio.
                 </p>
-                <TransactionForm portfolioId={portfolio.id} />
+                <TransactionForm portfolioId={activePortfolio.id} />
               </Card>
             ) : (
               <div className="flex flex-col items-center justify-center py-12 text-center">

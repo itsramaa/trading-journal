@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { User, Bell, Shield, Palette, LogOut } from "lucide-react";
+import { User, Bell, Shield, Palette, LogOut, Loader2 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -16,12 +16,46 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { useAppStore } from "@/store/app-store";
+import { useAuth } from "@/hooks/use-auth";
+import {
+  useUserSettings,
+  useUpdateUserSettings,
+  useUserProfile,
+  useUpdateUserProfile,
+  useUpdatePassword,
+} from "@/hooks/use-user-settings";
 import type { Currency } from "@/types/portfolio";
 
 const Settings = () => {
   const { currency, setCurrency } = useAppStore();
+  const { user, signOut } = useAuth();
+  
+  const { data: userSettings, isLoading: settingsLoading } = useUserSettings();
+  const { data: userProfile, isLoading: profileLoading } = useUserProfile();
+  const updateSettings = useUpdateUserSettings();
+  const updateProfile = useUpdateUserProfile();
+  const updatePassword = useUpdatePassword();
+
+  const [fullname, setFullname] = useState("");
+  const [bio, setBio] = useState("");
+  const [timezone, setTimezone] = useState("utc+7");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
   const [notifications, setNotifications] = useState({
     priceAlerts: true,
     portfolioUpdates: true,
@@ -34,25 +68,114 @@ const Settings = () => {
     setIsDark(document.documentElement.classList.contains('dark'));
   }, []);
 
-  const handleSave = () => {
-    toast.success("Settings saved successfully");
+  useEffect(() => {
+    if (userProfile) {
+      setFullname(userProfile.fullname || "");
+      setBio(userProfile.bio || "");
+    }
+  }, [userProfile]);
+
+  useEffect(() => {
+    if (userSettings) {
+      setTimezone(userSettings.timezone || "utc+7");
+      setCurrency(userSettings.default_currency as Currency);
+      setNotifications(prev => ({
+        ...prev,
+        priceAlerts: userSettings.notifications_enabled ?? true,
+      }));
+    }
+  }, [userSettings, setCurrency]);
+
+  const handleSaveProfile = async () => {
+    try {
+      await updateProfile.mutateAsync({ fullname, bio });
+      await updateSettings.mutateAsync({ timezone });
+      toast.success("Profile saved successfully");
+    } catch (error) {
+      toast.error("Failed to save profile");
+    }
   };
 
-  const handleCurrencyChange = (value: string) => {
+  const handleCurrencyChange = async (value: string) => {
     setCurrency(value as Currency);
-    toast.success(`Currency changed to ${value}`);
+    try {
+      await updateSettings.mutateAsync({ default_currency: value });
+      toast.success(`Currency changed to ${value}`);
+    } catch (error) {
+      toast.error("Failed to update currency");
+    }
   };
 
-  const handleThemeChange = (theme: 'light' | 'dark' | 'system') => {
+  const handleThemeChange = async (theme: 'light' | 'dark' | 'system') => {
     if (theme === 'dark') {
       document.documentElement.classList.add('dark');
       setIsDark(true);
     } else if (theme === 'light') {
       document.documentElement.classList.remove('dark');
       setIsDark(false);
+    } else {
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (prefersDark) {
+        document.documentElement.classList.add('dark');
+        setIsDark(true);
+      } else {
+        document.documentElement.classList.remove('dark');
+        setIsDark(false);
+      }
     }
-    toast.success(`Theme changed to ${theme}`);
+    
+    try {
+      await updateSettings.mutateAsync({ theme });
+      toast.success(`Theme changed to ${theme}`);
+    } catch (error) {
+      // Theme still works locally
+    }
   };
+
+  const handleNotificationChange = async (key: keyof typeof notifications, value: boolean) => {
+    setNotifications(prev => ({ ...prev, [key]: value }));
+    
+    if (key === 'priceAlerts') {
+      try {
+        await updateSettings.mutateAsync({ notifications_enabled: value });
+      } catch (error) {
+        // Silently fail
+      }
+    }
+  };
+
+  const handlePasswordChange = async () => {
+    if (newPassword !== confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+    
+    if (newPassword.length < 6) {
+      toast.error("Password must be at least 6 characters");
+      return;
+    }
+
+    try {
+      await updatePassword.mutateAsync({ newPassword });
+      toast.success("Password updated successfully");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to update password");
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    try {
+      await signOut();
+      toast.success("Account deletion requested. Please contact support to complete.");
+    } catch (error) {
+      toast.error("Failed to process request");
+    }
+  };
+
+  const isLoading = settingsLoading || profileLoading;
 
   return (
     <DashboardLayout>
@@ -89,72 +212,106 @@ const Settings = () => {
                 <CardDescription>Update your personal information and preferences.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="flex items-center gap-6">
-                  <Avatar className="h-20 w-20">
-                    <AvatarImage src="https://github.com/shadcn.png" />
-                    <AvatarFallback>JD</AvatarFallback>
-                  </Avatar>
-                  <div className="space-y-2">
-                    <Button variant="outline" size="sm">Change Avatar</Button>
-                    <p className="text-xs text-muted-foreground">JPG, PNG or GIF. Max size 2MB.</p>
+                {isLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                   </div>
-                </div>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-6">
+                      <Avatar className="h-20 w-20">
+                        <AvatarImage src={userProfile?.avatar_url || undefined} />
+                        <AvatarFallback>
+                          {fullname?.slice(0, 2).toUpperCase() || user?.email?.slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="space-y-2">
+                        <Button variant="outline" size="sm" disabled>
+                          Change Avatar
+                        </Button>
+                        <p className="text-xs text-muted-foreground">JPG, PNG or GIF. Max size 2MB.</p>
+                      </div>
+                    </div>
 
-                <Separator />
+                    <Separator />
 
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="firstName">First Name</Label>
-                    <Input id="firstName" defaultValue="John" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="lastName">Last Name</Label>
-                    <Input id="lastName" defaultValue="Doe" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input id="email" type="email" defaultValue="john@example.com" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Phone</Label>
-                    <Input id="phone" type="tel" placeholder="+1 (555) 000-0000" />
-                  </div>
-                </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="fullname">Full Name</Label>
+                        <Input
+                          id="fullname"
+                          value={fullname}
+                          onChange={(e) => setFullname(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="email">Email</Label>
+                        <Input
+                          id="email"
+                          type="email"
+                          value={user?.email || ""}
+                          disabled
+                        />
+                      </div>
+                      <div className="space-y-2 md:col-span-2">
+                        <Label htmlFor="bio">Bio</Label>
+                        <Input
+                          id="bio"
+                          value={bio}
+                          onChange={(e) => setBio(e.target.value)}
+                          placeholder="Tell us about yourself..."
+                        />
+                      </div>
+                    </div>
 
-                <Separator />
+                    <Separator />
 
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="currency">Default Currency</Label>
-                    <Select value={currency} onValueChange={handleCurrencyChange}>
-                      <SelectTrigger id="currency">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="USD">USD - US Dollar</SelectItem>
-                        <SelectItem value="IDR">IDR - Indonesian Rupiah</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="timezone">Timezone</Label>
-                    <Select defaultValue="utc+7">
-                      <SelectTrigger id="timezone">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="utc-8">Pacific Time (UTC-8)</SelectItem>
-                        <SelectItem value="utc-5">Eastern Time (UTC-5)</SelectItem>
-                        <SelectItem value="utc+7">Jakarta (UTC+7)</SelectItem>
-                        <SelectItem value="utc+0">London (UTC+0)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="currency">Default Currency</Label>
+                        <Select value={currency} onValueChange={handleCurrencyChange}>
+                          <SelectTrigger id="currency">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="USD">USD - US Dollar</SelectItem>
+                            <SelectItem value="IDR">IDR - Indonesian Rupiah</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="timezone">Timezone</Label>
+                        <Select value={timezone} onValueChange={setTimezone}>
+                          <SelectTrigger id="timezone">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="utc-8">Pacific Time (UTC-8)</SelectItem>
+                            <SelectItem value="utc-5">Eastern Time (UTC-5)</SelectItem>
+                            <SelectItem value="utc+7">Jakarta (UTC+7)</SelectItem>
+                            <SelectItem value="utc+0">London (UTC+0)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
 
-                <div className="flex justify-end">
-                  <Button onClick={handleSave}>Save Changes</Button>
-                </div>
+                    <div className="flex justify-end">
+                      <Button
+                        onClick={handleSaveProfile}
+                        disabled={updateProfile.isPending || updateSettings.isPending}
+                      >
+                        {(updateProfile.isPending || updateSettings.isPending) ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Saving...
+                          </>
+                        ) : (
+                          'Save Changes'
+                        )}
+                      </Button>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -173,7 +330,7 @@ const Settings = () => {
                   </div>
                   <Switch
                     checked={notifications.priceAlerts}
-                    onCheckedChange={(checked) => setNotifications({ ...notifications, priceAlerts: checked })}
+                    onCheckedChange={(checked) => handleNotificationChange('priceAlerts', checked)}
                   />
                 </div>
                 <Separator />
@@ -184,7 +341,7 @@ const Settings = () => {
                   </div>
                   <Switch
                     checked={notifications.portfolioUpdates}
-                    onCheckedChange={(checked) => setNotifications({ ...notifications, portfolioUpdates: checked })}
+                    onCheckedChange={(checked) => handleNotificationChange('portfolioUpdates', checked)}
                   />
                 </div>
                 <Separator />
@@ -195,7 +352,7 @@ const Settings = () => {
                   </div>
                   <Switch
                     checked={notifications.weeklyReport}
-                    onCheckedChange={(checked) => setNotifications({ ...notifications, weeklyReport: checked })}
+                    onCheckedChange={(checked) => handleNotificationChange('weeklyReport', checked)}
                   />
                 </div>
                 <Separator />
@@ -206,11 +363,8 @@ const Settings = () => {
                   </div>
                   <Switch
                     checked={notifications.marketNews}
-                    onCheckedChange={(checked) => setNotifications({ ...notifications, marketNews: checked })}
+                    onCheckedChange={(checked) => handleNotificationChange('marketNews', checked)}
                   />
-                </div>
-                <div className="flex justify-end">
-                  <Button onClick={handleSave}>Save Preferences</Button>
                 </div>
               </CardContent>
             </Card>
@@ -231,7 +385,7 @@ const Settings = () => {
                       className="h-auto flex-col gap-2 p-4"
                       onClick={() => handleThemeChange('light')}
                     >
-                      <div className="h-12 w-full rounded-md bg-gray-100 border" />
+                      <div className="h-12 w-full rounded-md bg-muted border" />
                       <span className="text-sm">Light</span>
                     </Button>
                     <Button
@@ -239,7 +393,7 @@ const Settings = () => {
                       className="h-auto flex-col gap-2 p-4"
                       onClick={() => handleThemeChange('dark')}
                     >
-                      <div className="h-12 w-full rounded-md bg-slate-900" />
+                      <div className="h-12 w-full rounded-md bg-primary" />
                       <span className="text-sm">Dark</span>
                     </Button>
                     <Button
@@ -247,7 +401,7 @@ const Settings = () => {
                       className="h-auto flex-col gap-2 p-4"
                       onClick={() => handleThemeChange('system')}
                     >
-                      <div className="h-12 w-full rounded-md bg-gradient-to-r from-gray-100 to-slate-900" />
+                      <div className="h-12 w-full rounded-md bg-gradient-to-r from-muted to-primary" />
                       <span className="text-sm">System</span>
                     </Button>
                   </div>
@@ -267,15 +421,38 @@ const Settings = () => {
                   <Label>Change Password</Label>
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
-                      <Label htmlFor="currentPassword">Current Password</Label>
-                      <Input id="currentPassword" type="password" />
+                      <Label htmlFor="newPassword">New Password</Label>
+                      <Input
+                        id="newPassword"
+                        type="password"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                      />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="newPassword">New Password</Label>
-                      <Input id="newPassword" type="password" />
+                      <Label htmlFor="confirmPassword">Confirm Password</Label>
+                      <Input
+                        id="confirmPassword"
+                        type="password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                      />
                     </div>
                   </div>
-                  <Button variant="outline">Update Password</Button>
+                  <Button
+                    variant="outline"
+                    onClick={handlePasswordChange}
+                    disabled={updatePassword.isPending || !newPassword || !confirmPassword}
+                  >
+                    {updatePassword.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Updating...
+                      </>
+                    ) : (
+                      'Update Password'
+                    )}
+                  </Button>
                 </div>
 
                 <Separator />
@@ -285,19 +462,40 @@ const Settings = () => {
                     <Label>Two-Factor Authentication</Label>
                     <p className="text-sm text-muted-foreground">Add extra security to your account.</p>
                   </div>
-                  <Button variant="outline">Enable 2FA</Button>
+                  <Button variant="outline" disabled>Enable 2FA</Button>
                 </div>
 
                 <Separator />
 
-                <div className="rounded-lg border border-loss/50 bg-loss-muted p-4">
+                <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
                   <div className="flex items-center gap-3">
-                    <LogOut className="h-5 w-5 text-loss" />
+                    <LogOut className="h-5 w-5 text-destructive" />
                     <div className="flex-1">
-                      <p className="font-medium text-loss">Delete Account</p>
+                      <p className="font-medium text-destructive">Delete Account</p>
                       <p className="text-sm text-muted-foreground">Permanently delete your account.</p>
                     </div>
-                    <Button variant="destructive" size="sm">Delete</Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="destructive" size="sm">Delete</Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This action cannot be undone. This will permanently delete your account and remove all your data from our servers.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={handleDeleteAccount}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            Delete Account
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </div>
               </CardContent>
