@@ -1,1 +1,7 @@
 project_id = "abzrjjzqykhgyorbiewq"
+
+[functions.fetch-prices]
+verify_jwt = false
+
+[functions.portfolio-insights]
+verify_jwt = false

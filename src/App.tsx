@@ -39,6 +39,9 @@ import Notifications from "./pages/Notifications";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
+// Components
+import { AIChatbot } from "./components/chat/AIChatbot";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -84,6 +87,7 @@ const App = () => (
             
             <Route path="*" element={<NotFound />} />
           </Routes>
+          <AIChatbot />
         </BrowserRouter>
       </TooltipProvider>
     </ThemeProvider>
