@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Bell, Search, Moon, Sun, X, Check, DollarSign, Trash2 } from "lucide-react";
+import { Bell, Search, Moon, Sun, X, DollarSign, Trash2, LogOut, User, Settings } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,15 +16,14 @@ import {
   Dialog,
   DialogContent,
   DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useAppStore, type Notification } from "@/store/app-store";
-import { demoAssets, demoHoldings } from "@/lib/demo-data";
+import { useAuth } from "@/hooks/use-auth";
+import { demoAssets } from "@/lib/demo-data";
 import { formatRelativeTime } from "@/lib/formatters";
-import type { Currency } from "@/types/portfolio";
 
 export function Header() {
   const navigate = useNavigate();
@@ -42,7 +41,12 @@ export function Header() {
     clearNotifications 
   } = useAppStore();
   
+  const { user, signOut } = useAuth();
   const unreadCount = notifications.filter(n => !n.read).length;
+  
+  const userInitials = user?.user_metadata?.full_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase() || 
+                       user?.email?.slice(0, 2).toUpperCase() || 
+                       'U';
 
   useEffect(() => {
     const isDarkMode = document.documentElement.classList.contains('dark');
@@ -177,12 +181,34 @@ export function Header() {
           </DropdownMenu>
 
           {/* User */}
-          <div className="flex items-center gap-2 border-l border-border/50 pl-2 ml-1">
-            <Avatar className="h-8 w-8">
-              <AvatarImage src="https://github.com/shadcn.png" />
-              <AvatarFallback>JD</AvatarFallback>
-            </Avatar>
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="flex items-center gap-2 border-l border-border/50 pl-2 ml-1 h-8 px-2">
+                <Avatar className="h-7 w-7">
+                  <AvatarImage src={user?.user_metadata?.avatar_url} />
+                  <AvatarFallback className="text-xs">{userInitials}</AvatarFallback>
+                </Avatar>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>
+                <div className="flex flex-col space-y-1">
+                  <p className="text-sm font-medium">{user?.user_metadata?.full_name || 'User'}</p>
+                  <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => navigate('/settings')}>
+                <Settings className="mr-2 h-4 w-4" />
+                Settings
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={signOut} className="text-destructive focus:text-destructive">
+                <LogOut className="mr-2 h-4 w-4" />
+                Sign out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
 
