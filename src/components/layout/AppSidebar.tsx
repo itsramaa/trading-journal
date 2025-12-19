@@ -12,7 +12,6 @@ import {
   Notebook,
   LineChart,
   Activity,
-  Lightbulb,
   Clock,
   Flame,
   Building2,
@@ -79,7 +78,6 @@ const navigationGroups: NavGroup[] = [
       { title: "Journal", url: "/trading/journal", icon: Notebook },
       { title: "Sessions", url: "/trading/sessions", icon: Clock },
       { title: "Performance", url: "/trading/performance", icon: LineChart },
-      { title: "AI Insights", url: "/trading/insights", icon: Lightbulb },
     ],
   },
 ];
