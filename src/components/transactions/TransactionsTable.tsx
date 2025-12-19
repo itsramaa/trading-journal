@@ -1,4 +1,4 @@
-import { ArrowDownLeft, ArrowUpRight, MoreHorizontal } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, RefreshCw, MoreHorizontal } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -16,22 +16,53 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import type { Transaction } from "@/lib/demo-data";
+import { formatCurrency, formatDate, formatQuantity } from "@/lib/formatters";
+import type { Transaction } from "@/types/portfolio";
 
 interface TransactionsTableProps {
   transactions: Transaction[];
 }
 
-export function TransactionsTable({ transactions }: TransactionsTableProps) {
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  };
+const getTransactionBadgeStyle = (type: Transaction['type']) => {
+  switch (type) {
+    case 'BUY':
+    case 'TRANSFER_IN':
+      return "bg-profit-muted text-profit hover:bg-profit-muted";
+    case 'SELL':
+    case 'TRANSFER_OUT':
+      return "bg-loss-muted text-loss hover:bg-loss-muted";
+    default:
+      return "bg-secondary text-secondary-foreground hover:bg-secondary";
+  }
+};
 
+const getTransactionIcon = (type: Transaction['type']) => {
+  switch (type) {
+    case 'BUY':
+    case 'TRANSFER_IN':
+      return <ArrowDownLeft className="h-4 w-4 text-profit" />;
+    case 'SELL':
+    case 'TRANSFER_OUT':
+      return <ArrowUpRight className="h-4 w-4 text-loss" />;
+    default:
+      return <RefreshCw className="h-4 w-4 text-muted-foreground" />;
+  }
+};
+
+const getTransactionIconBg = (type: Transaction['type']) => {
+  switch (type) {
+    case 'BUY':
+    case 'TRANSFER_IN':
+      return "bg-profit-muted";
+    case 'SELL':
+    case 'TRANSFER_OUT':
+      return "bg-loss-muted";
+    default:
+      return "bg-secondary";
+  }
+};
+
+export function TransactionsTable({ transactions }: TransactionsTableProps) {
   return (
     <div className="rounded-lg border border-border">
       <Table>
@@ -42,6 +73,7 @@ export function TransactionsTable({ transactions }: TransactionsTableProps) {
             <TableHead className="text-right">Quantity</TableHead>
             <TableHead className="text-right">Price</TableHead>
             <TableHead className="text-right">Total</TableHead>
+            <TableHead className="text-right">Fees</TableHead>
             <TableHead>Date</TableHead>
             <TableHead className="w-[50px]"></TableHead>
           </TableRow>
@@ -51,27 +83,14 @@ export function TransactionsTable({ transactions }: TransactionsTableProps) {
             <TableRow key={transaction.id} className="group">
               <TableCell className="pl-6">
                 <div className="flex items-center gap-2">
-                  <div
-                    className={cn(
-                      "flex h-8 w-8 items-center justify-center rounded-full",
-                      transaction.type === "BUY" ? "bg-profit-muted" : "bg-loss-muted"
-                    )}
-                  >
-                    {transaction.type === "BUY" ? (
-                      <ArrowDownLeft className="h-4 w-4 text-profit" />
-                    ) : (
-                      <ArrowUpRight className="h-4 w-4 text-loss" />
-                    )}
+                  <div className={cn(
+                    "flex h-8 w-8 items-center justify-center rounded-full",
+                    getTransactionIconBg(transaction.type)
+                  )}>
+                    {getTransactionIcon(transaction.type)}
                   </div>
-                  <Badge
-                    className={cn(
-                      "font-medium",
-                      transaction.type === "BUY"
-                        ? "bg-profit-muted text-profit hover:bg-profit-muted"
-                        : "bg-loss-muted text-loss hover:bg-loss-muted"
-                    )}
-                  >
-                    {transaction.type}
+                  <Badge className={cn("font-medium", getTransactionBadgeStyle(transaction.type))}>
+                    {transaction.type.replace('_', ' ')}
                   </Badge>
                 </div>
               </TableCell>
@@ -84,19 +103,24 @@ export function TransactionsTable({ transactions }: TransactionsTableProps) {
                 </div>
               </TableCell>
               <TableCell className="text-right font-medium">
-                {transaction.quantity}
+                {formatQuantity(transaction.quantity, 'US')}
               </TableCell>
               <TableCell className="text-right font-medium">
-                ${transaction.price.toLocaleString()}
+                {transaction.price > 0 ? formatCurrency(transaction.price, 'USD') : '--'}
               </TableCell>
-              <TableCell
-                className={cn(
-                  "text-right font-medium",
-                  transaction.type === "BUY" ? "text-foreground" : "text-profit"
-                )}
-              >
-                {transaction.type === "BUY" ? "-" : "+"}$
-                {transaction.total.toLocaleString()}
+              <TableCell className={cn(
+                "text-right font-medium",
+                transaction.type === "BUY" ? "text-foreground" : "text-profit"
+              )}>
+                {transaction.totalAmount > 0 ? (
+                  <>
+                    {transaction.type === "BUY" ? "-" : "+"}
+                    {formatCurrency(transaction.totalAmount, 'USD')}
+                  </>
+                ) : '--'}
+              </TableCell>
+              <TableCell className="text-right text-muted-foreground">
+                {transaction.fees > 0 ? formatCurrency(transaction.fees, 'USD') : '--'}
               </TableCell>
               <TableCell className="text-muted-foreground">
                 {formatDate(transaction.date)}
@@ -112,7 +136,7 @@ export function TransactionsTable({ transactions }: TransactionsTableProps) {
                       <MoreHorizontal className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
+                  <DropdownMenuContent align="end" className="bg-popover">
                     <DropdownMenuItem>Edit</DropdownMenuItem>
                     <DropdownMenuItem className="text-loss">Delete</DropdownMenuItem>
                   </DropdownMenuContent>

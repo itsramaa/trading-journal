@@ -14,33 +14,18 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { demoHoldings, demoPortfolioMetrics } from "@/lib/demo-data";
-
-const targetAllocations = [
-  { name: "Crypto", target: 30, current: 13.3, color: "bg-chart-1" },
-  { name: "US Stocks", target: 25, current: 8.7, color: "bg-chart-2" },
-  { name: "ID Stocks", target: 35, current: 76.3, color: "bg-chart-3" },
-  { name: "ETF", target: 10, current: 1.7, color: "bg-chart-4" },
-];
+import { formatCurrency, formatCompactCurrency, formatPercent, formatQuantity } from "@/lib/formatters";
+import { demoHoldings, demoPortfolioMetrics, targetAllocations } from "@/lib/demo-data";
+import type { Holding } from "@/types/portfolio";
 
 const Portfolio = () => {
   const [searchQuery, setSearchQuery] = useState("");
 
   const filteredHoldings = demoHoldings.filter(
     (h) =>
-      h.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      h.name.toLowerCase().includes(searchQuery.toLowerCase())
+      h.asset.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      h.asset.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
-
-  const formatCurrency = (value: number, market: string) => {
-    if (market === "ID") {
-      return `Rp ${value.toLocaleString("id-ID")}`;
-    }
-    return `$${value.toLocaleString("en-US", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}`;
-  };
 
   return (
     <DashboardLayout>
@@ -70,18 +55,17 @@ const Portfolio = () => {
             <CardContent>
               <div className="flex items-baseline gap-4">
                 <p className="text-3xl font-bold">
-                  ${(demoPortfolioMetrics.totalValue / 1000).toFixed(1)}K
+                  {formatCompactCurrency(demoPortfolioMetrics.totalValue)}
                 </p>
                 <div className="flex items-center gap-1 text-profit">
                   <TrendingUp className="h-4 w-4" />
                   <span className="text-sm font-medium">
-                    +{demoPortfolioMetrics.totalProfitLossPercent}%
+                    {formatPercent(demoPortfolioMetrics.totalProfitLossPercent)}
                   </span>
                 </div>
               </div>
               <p className="mt-1 text-sm text-muted-foreground">
-                +${(demoPortfolioMetrics.totalProfitLoss / 1000).toFixed(1)}K all
-                time profit
+                +{formatCompactCurrency(demoPortfolioMetrics.totalProfitLoss)} all time profit
               </p>
             </CardContent>
           </Card>
@@ -105,8 +89,14 @@ const Portfolio = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold">NVDA</p>
-              <p className="text-sm text-profit">+94.4% return</p>
+              <p className="text-2xl font-bold">
+                {demoPortfolioMetrics.bestPerformer?.symbol ?? 'N/A'}
+              </p>
+              <p className="text-sm text-profit">
+                {demoPortfolioMetrics.bestPerformer 
+                  ? formatPercent(demoPortfolioMetrics.bestPerformer.profitLossPercent) + ' return'
+                  : 'No data'}
+              </p>
             </CardContent>
           </Card>
         </div>
@@ -131,86 +121,8 @@ const Portfolio = () => {
 
             {/* Holdings Grid */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {filteredHoldings.map((asset) => (
-                <Card key={asset.id} className="group relative overflow-hidden">
-                  <CardContent className="p-5">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-secondary font-semibold">
-                          {asset.symbol.slice(0, 2)}
-                        </div>
-                        <div>
-                          <p className="font-semibold">{asset.symbol}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {asset.name}
-                          </p>
-                        </div>
-                      </div>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 opacity-0 group-hover:opacity-100"
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem>View Details</DropdownMenuItem>
-                          <DropdownMenuItem>Add Transaction</DropdownMenuItem>
-                          <DropdownMenuItem className="text-loss">
-                            Remove Asset
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-
-                    <div className="mt-4 grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-sm text-muted-foreground">Value</p>
-                        <p className="font-semibold">
-                          {formatCurrency(asset.value, asset.market)}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Quantity</p>
-                        <p className="font-semibold">{asset.quantity}</p>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 flex items-center justify-between rounded-lg bg-secondary/50 p-3">
-                      <div>
-                        <p className="text-xs text-muted-foreground">P/L</p>
-                        <p
-                          className={cn(
-                            "font-semibold",
-                            asset.profitLoss >= 0 ? "text-profit" : "text-loss"
-                          )}
-                        >
-                          {asset.profitLoss >= 0 ? "+" : ""}
-                          {formatCurrency(asset.profitLoss, asset.market)}
-                        </p>
-                      </div>
-                      <Badge
-                        className={cn(
-                          "gap-1",
-                          asset.profitLossPercent >= 0
-                            ? "bg-profit-muted text-profit hover:bg-profit-muted"
-                            : "bg-loss-muted text-loss hover:bg-loss-muted"
-                        )}
-                      >
-                        {asset.profitLossPercent >= 0 ? (
-                          <TrendingUp className="h-3 w-3" />
-                        ) : (
-                          <TrendingDown className="h-3 w-3" />
-                        )}
-                        {asset.profitLossPercent >= 0 ? "+" : ""}
-                        {asset.profitLossPercent.toFixed(1)}%
-                      </Badge>
-                    </div>
-                  </CardContent>
-                </Card>
+              {filteredHoldings.map((holding) => (
+                <HoldingCard key={holding.id} holding={holding} />
               ))}
             </div>
           </TabsContent>
@@ -266,5 +178,96 @@ const Portfolio = () => {
     </DashboardLayout>
   );
 };
+
+// ============= Extracted Components =============
+
+interface HoldingCardProps {
+  holding: Holding;
+}
+
+function HoldingCard({ holding }: HoldingCardProps) {
+  return (
+    <Card className="group relative overflow-hidden">
+      <CardContent className="p-5">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-secondary font-semibold">
+              {holding.asset.symbol.slice(0, 2)}
+            </div>
+            <div>
+              <p className="font-semibold">{holding.asset.symbol}</p>
+              <p className="text-sm text-muted-foreground">
+                {holding.asset.name}
+              </p>
+            </div>
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 opacity-0 group-hover:opacity-100"
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="bg-popover">
+              <DropdownMenuItem>View Details</DropdownMenuItem>
+              <DropdownMenuItem>Add Transaction</DropdownMenuItem>
+              <DropdownMenuItem className="text-loss">
+                Remove Asset
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-4">
+          <div>
+            <p className="text-sm text-muted-foreground">Value</p>
+            <p className="font-semibold">
+              {formatCurrency(holding.value, holding.asset.market)}
+            </p>
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground">Quantity</p>
+            <p className="font-semibold">
+              {formatQuantity(holding.quantity, holding.asset.market)}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 flex items-center justify-between rounded-lg bg-secondary/50 p-3">
+          <div>
+            <p className="text-xs text-muted-foreground">P/L</p>
+            <p
+              className={cn(
+                "font-semibold",
+                holding.profitLoss >= 0 ? "text-profit" : "text-loss"
+              )}
+            >
+              {holding.profitLoss >= 0 ? "+" : ""}
+              {formatCurrency(holding.profitLoss, holding.asset.market)}
+            </p>
+          </div>
+          <Badge
+            className={cn(
+              "gap-1",
+              holding.profitLossPercent >= 0
+                ? "bg-profit-muted text-profit hover:bg-profit-muted"
+                : "bg-loss-muted text-loss hover:bg-loss-muted"
+            )}
+          >
+            {holding.profitLossPercent >= 0 ? (
+              <TrendingUp className="h-3 w-3" />
+            ) : (
+              <TrendingDown className="h-3 w-3" />
+            )}
+            {formatPercent(holding.profitLossPercent)}
+          </Badge>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default Portfolio;
