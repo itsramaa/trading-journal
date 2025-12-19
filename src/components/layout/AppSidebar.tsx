@@ -18,12 +18,11 @@ import {
   Clock,
   Settings,
   ChevronRight,
+  Flame,
   type LucideIcon,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
-import { AppSwitcher } from "./AppSwitcher";
 import { NavUser } from "./NavUser";
-import { useAppStore, type AppType } from "@/store/app-store";
 import {
   Sidebar,
   SidebarContent,
@@ -50,16 +49,20 @@ interface NavItem {
   title: string;
   url: string;
   icon: LucideIcon;
-  isActive?: boolean;
   items?: {
     title: string;
     url: string;
   }[];
 }
 
-// Navigation items for each app - with collapsible groups
-const appNavigation: Record<AppType, { label: string; items: NavItem[] }> = {
-  portfolio: {
+interface NavGroup {
+  label: string;
+  items: NavItem[];
+}
+
+// All navigation groups unified
+const navigationGroups: NavGroup[] = [
+  {
     label: "Portfolio Management",
     items: [
       { title: "Dashboard", url: "/", icon: LayoutDashboard },
@@ -78,18 +81,18 @@ const appNavigation: Record<AppType, { label: string; items: NavItem[] }> = {
       { title: "Learning Path", url: "/learning", icon: BookOpen },
     ],
   },
-  "financial-freedom": {
+  {
     label: "Financial Freedom",
     items: [
       { title: "Progress", url: "/ff", icon: Target },
-      { title: "FIRE Calculator", url: "/ff/fire-calculator", icon: Activity },
+      { title: "FIRE Calculator", url: "/ff/fire-calculator", icon: Flame },
       { title: "Budget", url: "/ff/budget", icon: PiggyBank },
       { title: "Debt Payoff", url: "/ff/debt", icon: CreditCard },
       { title: "Emergency Fund", url: "/ff/emergency", icon: Shield },
       { title: "Goals", url: "/ff/goals", icon: Goal },
     ],
   },
-  "trading-journey": {
+  {
     label: "Trading Journey",
     items: [
       { title: "Summary", url: "/trading", icon: Activity },
@@ -99,14 +102,7 @@ const appNavigation: Record<AppType, { label: string; items: NavItem[] }> = {
       { title: "AI Insights", url: "/trading/insights", icon: Lightbulb },
     ],
   },
-};
-
-// Settings page for each app (app-specific config)
-const appSettings: Record<AppType, string> = {
-  portfolio: "/settings/portfolio",
-  "financial-freedom": "/settings/ff",
-  "trading-journey": "/settings/trading",
-};
+];
 
 // Dummy user data
 const dummyUser = {
@@ -115,87 +111,103 @@ const dummyUser = {
   avatar: "",
 };
 
-function NavMain({ items }: { items: NavItem[] }) {
+function NavMain({ groups }: { groups: NavGroup[] }) {
   const location = useLocation();
   
   return (
-    <SidebarMenu>
-      {items.map((item) => {
-        const isActive = location.pathname === item.url || 
-          item.items?.some(sub => location.pathname === sub.url);
-        
-        if (item.items) {
-          return (
-            <Collapsible
-              key={item.title}
-              asChild
-              defaultOpen={isActive}
-              className="group/collapsible"
-            >
-              <SidebarMenuItem>
-                <CollapsibleTrigger asChild>
-                  <SidebarMenuButton tooltip={item.title} isActive={isActive}>
-                    <item.icon />
-                    <span>{item.title}</span>
-                    <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-                  </SidebarMenuButton>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <SidebarMenuSub>
-                    {item.items.map((subItem) => (
-                      <SidebarMenuSubItem key={subItem.title}>
-                        <SidebarMenuSubButton 
-                          asChild
-                          isActive={location.pathname === subItem.url}
-                        >
-                          <Link to={subItem.url}>
-                            <span>{subItem.title}</span>
-                          </Link>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                    ))}
-                  </SidebarMenuSub>
-                </CollapsibleContent>
-              </SidebarMenuItem>
-            </Collapsible>
-          );
-        }
-        
-        return (
-          <SidebarMenuItem key={item.title}>
-            <SidebarMenuButton asChild isActive={isActive} tooltip={item.title}>
-              <Link to={item.url}>
-                <item.icon />
-                <span>{item.title}</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        );
-      })}
-    </SidebarMenu>
+    <>
+      {groups.map((group) => (
+        <SidebarGroup key={group.label}>
+          <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {group.items.map((item) => {
+                const isActive = location.pathname === item.url || 
+                  item.items?.some(sub => location.pathname === sub.url || location.pathname + location.search === sub.url);
+                
+                if (item.items) {
+                  return (
+                    <Collapsible
+                      key={item.title}
+                      asChild
+                      defaultOpen={isActive}
+                      className="group/collapsible"
+                    >
+                      <SidebarMenuItem>
+                        <CollapsibleTrigger asChild>
+                          <SidebarMenuButton tooltip={item.title} isActive={isActive}>
+                            <item.icon />
+                            <span>{item.title}</span>
+                            <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                          </SidebarMenuButton>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <SidebarMenuSub>
+                            {item.items.map((subItem) => (
+                              <SidebarMenuSubItem key={subItem.title}>
+                                <SidebarMenuSubButton 
+                                  asChild
+                                  isActive={location.pathname === subItem.url || location.pathname + location.search === subItem.url}
+                                >
+                                  <Link to={subItem.url}>
+                                    <span>{subItem.title}</span>
+                                  </Link>
+                                </SidebarMenuSubButton>
+                              </SidebarMenuSubItem>
+                            ))}
+                          </SidebarMenuSub>
+                        </CollapsibleContent>
+                      </SidebarMenuItem>
+                    </Collapsible>
+                  );
+                }
+                
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild isActive={isActive} tooltip={item.title}>
+                      <Link to={item.url}>
+                        <item.icon />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      ))}
+    </>
   );
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const location = useLocation();
-  const { activeApp } = useAppStore();
-  
-  const currentNavigation = appNavigation[activeApp];
-  const settingsPath = appSettings[activeApp];
 
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
-        <AppSwitcher />
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton size="lg" asChild>
+              <Link to="/">
+                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+                  <Wallet className="size-4" />
+                </div>
+                <div className="grid flex-1 text-left text-sm leading-tight">
+                  <span className="truncate font-semibold">Portfolio Assets</span>
+                  <span className="truncate text-xs text-sidebar-foreground/60">
+                    Management
+                  </span>
+                </div>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarHeader>
 
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>{currentNavigation.label}</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <NavMain items={currentNavigation.items} />
-          </SidebarGroupContent>
-        </SidebarGroup>
+        <NavMain groups={navigationGroups} />
 
         <SidebarGroup className="mt-auto">
           <SidebarGroupContent>
@@ -203,10 +215,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <SidebarMenuItem>
                 <SidebarMenuButton 
                   asChild 
-                  isActive={location.pathname === settingsPath}
+                  isActive={location.pathname === "/settings"}
                   tooltip="Settings"
                 >
-                  <Link to={settingsPath}>
+                  <Link to="/settings">
                     <Settings />
                     <span>Settings</span>
                   </Link>
