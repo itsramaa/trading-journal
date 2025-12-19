@@ -19,6 +19,7 @@ import {
   Settings,
   ChevronRight,
   Flame,
+  Building2,
   type LucideIcon,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
@@ -60,12 +61,26 @@ interface NavGroup {
   items: NavItem[];
 }
 
-// All navigation groups unified
+// All navigation groups unified - Accounts as the base/central feature
 const navigationGroups: NavGroup[] = [
+  {
+    label: "General",
+    items: [
+      { title: "Dashboard", url: "/", icon: LayoutDashboard },
+      { 
+        title: "Accounts", 
+        url: "/accounts", 
+        icon: Building2,
+        items: [
+          { title: "All Accounts", url: "/accounts" },
+          { title: "Transactions", url: "/accounts?tab=transactions" },
+        ],
+      },
+    ],
+  },
   {
     label: "Portfolio Management",
     items: [
-      { title: "Dashboard", url: "/", icon: LayoutDashboard },
       { 
         title: "Portfolio", 
         url: "/portfolio", 

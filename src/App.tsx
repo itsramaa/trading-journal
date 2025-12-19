@@ -12,6 +12,9 @@ import Transactions from "./pages/Transactions";
 import Analytics from "./pages/Analytics";
 import AssetDetail from "./pages/AssetDetail";
 
+// Accounts Page (Base feature)
+import Accounts from "./pages/Accounts";
+
 // Financial Freedom Pages
 import FFProgress from "./pages/financial-freedom/FFProgress";
 import FireCalculator from "./pages/financial-freedom/FireCalculator";
@@ -48,8 +51,11 @@ const App = () => (
           <Routes>
             <Route path="/auth" element={<Auth />} />
             
-            {/* Portfolio Management Routes */}
+            {/* General Routes */}
             <Route path="/" element={<Index />} />
+            <Route path="/accounts" element={<Accounts />} />
+            
+            {/* Portfolio Management Routes */}
             <Route path="/portfolio" element={<Portfolio />} />
             <Route path="/transactions" element={<Transactions />} />
             <Route path="/analytics" element={<Analytics />} />
