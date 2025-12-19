@@ -234,12 +234,12 @@ export function useHoldings(portfolioId?: string) {
   return useQuery({
     queryKey: portfolioId ? holdingKeys.list(portfolioId) : holdingKeys.lists(),
     queryFn: async () => {
+      // Step 1: Get holdings with assets
       let query = supabase
         .from('holdings')
         .select(`
           *,
-          assets (*),
-          price_cache:price_cache(*)
+          assets (*)
         `)
         .gt('quantity', 0);
       
@@ -247,17 +247,35 @@ export function useHoldings(portfolioId?: string) {
         query = query.eq('portfolio_id', portfolioId);
       }
       
-      const { data, error } = await query.order('total_cost', { ascending: false });
+      const { data: holdingsData, error: holdingsError } = await query.order('total_cost', { ascending: false });
       
-      if (error) throw error;
+      if (holdingsError) throw holdingsError;
+      if (!holdingsData || holdingsData.length === 0) return [];
+
+      // Step 2: Get price cache for all symbols
+      const symbols = [...new Set(holdingsData.map(h => h.assets?.symbol).filter(Boolean))];
       
-      // Transform the data to match expected structure
-      return (data || []).map(holding => ({
-        ...holding,
-        price_cache: Array.isArray(holding.price_cache) 
-          ? holding.price_cache[0] || null 
-          : holding.price_cache,
-      })) as HoldingWithAsset[];
+      const { data: priceData } = await supabase
+        .from('price_cache')
+        .select('*')
+        .in('symbol', symbols);
+
+      // Create a lookup map for prices (case-insensitive)
+      const priceMap = new Map<string, PriceCache>();
+      (priceData || []).forEach(p => {
+        priceMap.set(p.symbol.toUpperCase(), p);
+      });
+
+      // Step 3: Merge holdings with price data
+      return holdingsData.map(holding => {
+        const symbol = holding.assets?.symbol?.toUpperCase() || '';
+        const priceCache = priceMap.get(symbol) || null;
+        
+        return {
+          ...holding,
+          price_cache: priceCache,
+        };
+      }) as HoldingWithAsset[];
     },
     staleTime: 30 * 1000, // 30 seconds for holdings (price sensitive)
     enabled: !!portfolioId || portfolioId === undefined,

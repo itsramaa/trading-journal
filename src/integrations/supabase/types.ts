@@ -745,7 +745,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      record_portfolio_snapshot: {
+        Args: { p_portfolio_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       account_transaction_type:
