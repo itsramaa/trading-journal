@@ -185,6 +185,10 @@ export function useSearch() {
   const hasResults = state.results.length > 0;
   const isEmpty = !state.isLoading && state.query.trim() && !hasResults;
 
+  const clear = useCallback(() => {
+    setState({ query: '', results: [], isLoading: false, error: null });
+  }, []);
+
   return {
     query: state.query,
     setQuery,
@@ -194,6 +198,6 @@ export function useSearch() {
     error: state.error,
     hasResults,
     isEmpty,
-    clear: () => setState({ query: '', results: [], isLoading: false, error: null }),
+    clear,
   };
 }
