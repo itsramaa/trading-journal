@@ -52,7 +52,8 @@ const appNavigation: Record<AppType, { label: string; items: { icon: any; label:
   "financial-freedom": {
     label: "Financial Freedom",
     items: [
-      { icon: Target, label: "Dashboard", href: "/ff" },
+      { icon: Target, label: "Progress", href: "/ff" },
+      { icon: Activity, label: "FIRE Calculator", href: "/ff/fire-calculator" },
       { icon: PiggyBank, label: "Budget", href: "/ff/budget" },
       { icon: CreditCard, label: "Debt Payoff", href: "/ff/debt" },
       { icon: Shield, label: "Emergency Fund", href: "/ff/emergency" },
