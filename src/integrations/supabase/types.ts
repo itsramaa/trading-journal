@@ -808,6 +808,60 @@ export type Database = {
           },
         ]
       }
+      trading_sessions: {
+        Row: {
+          created_at: string
+          end_time: string | null
+          id: string
+          is_active: boolean
+          market_condition: string | null
+          mood: string
+          notes: string | null
+          pnl: number
+          rating: number
+          session_date: string
+          start_time: string
+          tags: string[] | null
+          trades_count: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          end_time?: string | null
+          id?: string
+          is_active?: boolean
+          market_condition?: string | null
+          mood?: string
+          notes?: string | null
+          pnl?: number
+          rating?: number
+          session_date?: string
+          start_time: string
+          tags?: string[] | null
+          trades_count?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          end_time?: string | null
+          id?: string
+          is_active?: boolean
+          market_condition?: string | null
+          mood?: string
+          notes?: string | null
+          pnl?: number
+          rating?: number
+          session_date?: string
+          start_time?: string
+          tags?: string[] | null
+          trades_count?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       transactions: {
         Row: {
           account_id: string | null
