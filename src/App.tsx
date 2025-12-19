@@ -23,9 +23,6 @@ import DebtPayoff from "./pages/financial-freedom/DebtPayoff";
 import EmergencyFund from "./pages/financial-freedom/EmergencyFund";
 import Goals from "./pages/financial-freedom/Goals";
 
-// Portfolio Management (Circle of Competence) Pages
-import PMDashboard from "./pages/portfolio-management/PMDashboard";
-import LearningPath from "./pages/portfolio-management/LearningPath";
 
 // Trading Journey Pages
 import TradingSummary from "./pages/trading-journey/TradingSummary";
@@ -60,8 +57,6 @@ const App = () => (
             <Route path="/transactions" element={<Transactions />} />
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/asset/:symbol" element={<AssetDetail />} />
-            <Route path="/competence" element={<PMDashboard />} />
-            <Route path="/learning" element={<LearningPath />} />
             
             {/* Financial Freedom Routes */}
             <Route path="/ff" element={<FFProgress />} />
