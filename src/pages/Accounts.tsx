@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Helmet } from "react-helmet";
-import { Plus, ArrowDownCircle, ArrowUpCircle, ArrowLeftRight, History, Wallet } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, ArrowLeftRight, History, Wallet, LayoutDashboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -9,8 +9,8 @@ import { AddAccountForm } from "@/components/accounts/AddAccountForm";
 import { AccountCardList } from "@/components/accounts/AccountCardList";
 import { AccountTransactionDialog } from "@/components/accounts/AccountTransactionDialog";
 import { AccountTransactionsTable } from "@/components/accounts/AccountTransactionsTable";
-import { useAccountsSummary, useAccounts } from "@/hooks/use-accounts";
-import { formatCurrency } from "@/lib/formatters";
+import { AccountsDashboard } from "@/components/accounts/AccountsDashboard";
+import { useAccounts } from "@/hooks/use-accounts";
 import type { Account } from "@/types/account";
 
 export default function Accounts() {
@@ -18,7 +18,6 @@ export default function Accounts() {
   const [selectedAccount, setSelectedAccount] = useState<Account | undefined>();
   const [defaultTransactionTab, setDefaultTransactionTab] = useState<'deposit' | 'withdraw' | 'transfer'>('deposit');
   const { data: accounts } = useAccounts();
-  const { totalBalance, byCurrency, isLoading } = useAccountsSummary();
 
   const handleTransact = (accountId: string, type: 'deposit' | 'withdraw' | 'transfer') => {
     const account = accounts?.find(a => a.id === accountId);
@@ -66,49 +65,26 @@ export default function Accounts() {
           </div>
         </div>
 
-        {/* Summary Cards */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Balance</CardTitle>
-              <Wallet className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {isLoading ? "Loading..." : formatCurrency(totalBalance, 'IDR')}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Across all accounts
-              </p>
-            </CardContent>
-          </Card>
-
-          {Object.entries(byCurrency).slice(0, 3).map(([currency, balance]) => (
-            <Card key={currency}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">{currency} Balance</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold font-mono-numbers">
-                  {formatCurrency(balance, currency)}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
         {/* Main Content Tabs */}
-        <Tabs defaultValue="accounts" className="space-y-4">
+        <Tabs defaultValue="dashboard" className="space-y-4">
           <TabsList>
+            <TabsTrigger value="dashboard" className="gap-2">
+              <LayoutDashboard className="h-4 w-4" />
+              Dashboard
+            </TabsTrigger>
             <TabsTrigger value="accounts" className="gap-2">
               <Wallet className="h-4 w-4" />
               Accounts
             </TabsTrigger>
             <TabsTrigger value="transactions" className="gap-2">
               <History className="h-4 w-4" />
-              Transaction History
+              Transactions
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="dashboard" className="space-y-4">
+            <AccountsDashboard />
+          </TabsContent>
 
           <TabsContent value="accounts" className="space-y-4">
             <AccountCardList
