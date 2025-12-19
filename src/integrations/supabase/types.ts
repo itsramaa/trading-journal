@@ -314,6 +314,102 @@ export type Database = {
         }
         Relationships: []
       }
+      emergency_fund_transactions: {
+        Row: {
+          account_id: string | null
+          amount: number
+          created_at: string
+          description: string | null
+          emergency_fund_id: string
+          id: string
+          transaction_date: string
+          transaction_type: string
+          user_id: string
+        }
+        Insert: {
+          account_id?: string | null
+          amount: number
+          created_at?: string
+          description?: string | null
+          emergency_fund_id: string
+          id?: string
+          transaction_date?: string
+          transaction_type: string
+          user_id: string
+        }
+        Update: {
+          account_id?: string | null
+          amount?: number
+          created_at?: string
+          description?: string | null
+          emergency_fund_id?: string
+          id?: string
+          transaction_date?: string
+          transaction_type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "emergency_fund_transactions_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_fund_transactions_emergency_fund_id_fkey"
+            columns: ["emergency_fund_id"]
+            isOneToOne: false
+            referencedRelation: "emergency_funds"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      emergency_funds: {
+        Row: {
+          created_at: string
+          currency: string
+          current_balance: number
+          id: string
+          is_active: boolean
+          monthly_contribution: number
+          monthly_expenses: number
+          name: string
+          notes: string | null
+          target_months: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          currency?: string
+          current_balance?: number
+          id?: string
+          is_active?: boolean
+          monthly_contribution?: number
+          monthly_expenses?: number
+          name?: string
+          notes?: string | null
+          target_months?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          current_balance?: number
+          id?: string
+          is_active?: boolean
+          monthly_contribution?: number
+          monthly_expenses?: number
+          name?: string
+          notes?: string | null
+          target_months?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       holdings: {
         Row: {
           asset_id: string
