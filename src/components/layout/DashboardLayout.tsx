@@ -24,13 +24,23 @@ const routeTitles: Record<string, string> = {
   "/portfolio": "Portfolio",
   "/transactions": "Transactions",
   "/analytics": "Analytics",
-  "/fire": "FIRE Calculator",
-  "/goals": "Goals",
-  "/projections": "Projections",
-  "/journal": "Trading Journal",
-  "/performance": "Performance",
-  "/insights": "Insights",
+  "/competence": "Circle of Competence",
+  "/learning": "Learning Path",
+  "/ff": "Progress",
+  "/ff/fire-calculator": "FIRE Calculator",
+  "/ff/budget": "Budget",
+  "/ff/debt": "Debt Payoff",
+  "/ff/emergency": "Emergency Fund",
+  "/ff/goals": "Goals",
+  "/trading": "Summary",
+  "/trading/journal": "Trading Journal",
+  "/trading/sessions": "Sessions",
+  "/trading/performance": "Performance",
+  "/trading/insights": "AI Insights",
   "/settings": "Settings",
+  "/settings/portfolio": "Portfolio Settings",
+  "/settings/ff": "Financial Freedom Settings",
+  "/settings/trading": "Trading Settings",
 };
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
@@ -41,9 +51,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-          {/* Left side: Trigger + Breadcrumb */}
-          <div className="flex items-center gap-2">
+        <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
+          <div className="flex items-center gap-2 px-4">
             <SidebarTrigger className="-ml-1" />
             <Separator orientation="vertical" className="mr-2 h-4" />
             <Breadcrumb>
@@ -61,13 +70,15 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           </div>
 
           {/* Right side: Controls */}
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 pr-4">
             <CurrencyToggle />
             <NotificationToggle />
             <ThemeToggle />
           </div>
         </header>
-        <main className="flex-1 p-6">{children}</main>
+        <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+          {children}
+        </div>
       </SidebarInset>
     </SidebarProvider>
   );

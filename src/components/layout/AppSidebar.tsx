@@ -1,3 +1,4 @@
+import * as React from "react";
 import {
   LayoutDashboard,
   Wallet,
@@ -16,6 +17,8 @@ import {
   Lightbulb,
   Clock,
   Settings,
+  ChevronRight,
+  type LucideIcon,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { AppSwitcher } from "./AppSwitcher";
@@ -32,47 +35,73 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarRail,
-  SidebarSeparator,
 } from "@/components/ui/sidebar";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
-// Navigation items for each app
-const appNavigation: Record<AppType, { label: string; items: { icon: any; label: string; href: string }[] }> = {
+interface NavItem {
+  title: string;
+  url: string;
+  icon: LucideIcon;
+  isActive?: boolean;
+  items?: {
+    title: string;
+    url: string;
+  }[];
+}
+
+// Navigation items for each app - with collapsible groups
+const appNavigation: Record<AppType, { label: string; items: NavItem[] }> = {
   portfolio: {
     label: "Portfolio Management",
     items: [
-      { icon: LayoutDashboard, label: "Dashboard", href: "/" },
-      { icon: Wallet, label: "Portfolio", href: "/portfolio" },
-      { icon: ArrowLeftRight, label: "Transactions", href: "/transactions" },
-      { icon: BarChart3, label: "Analytics", href: "/analytics" },
-      { icon: Brain, label: "Circle of Competence", href: "/competence" },
-      { icon: BookOpen, label: "Learning Path", href: "/learning" },
+      { title: "Dashboard", url: "/", icon: LayoutDashboard },
+      { 
+        title: "Portfolio", 
+        url: "/portfolio", 
+        icon: Wallet,
+        items: [
+          { title: "Holdings", url: "/portfolio" },
+          { title: "Allocation", url: "/portfolio?view=allocation" },
+        ],
+      },
+      { title: "Transactions", url: "/transactions", icon: ArrowLeftRight },
+      { title: "Analytics", url: "/analytics", icon: BarChart3 },
+      { title: "Circle of Competence", url: "/competence", icon: Brain },
+      { title: "Learning Path", url: "/learning", icon: BookOpen },
     ],
   },
   "financial-freedom": {
     label: "Financial Freedom",
     items: [
-      { icon: Target, label: "Progress", href: "/ff" },
-      { icon: Activity, label: "FIRE Calculator", href: "/ff/fire-calculator" },
-      { icon: PiggyBank, label: "Budget", href: "/ff/budget" },
-      { icon: CreditCard, label: "Debt Payoff", href: "/ff/debt" },
-      { icon: Shield, label: "Emergency Fund", href: "/ff/emergency" },
-      { icon: Goal, label: "Goals", href: "/ff/goals" },
+      { title: "Progress", url: "/ff", icon: Target },
+      { title: "FIRE Calculator", url: "/ff/fire-calculator", icon: Activity },
+      { title: "Budget", url: "/ff/budget", icon: PiggyBank },
+      { title: "Debt Payoff", url: "/ff/debt", icon: CreditCard },
+      { title: "Emergency Fund", url: "/ff/emergency", icon: Shield },
+      { title: "Goals", url: "/ff/goals", icon: Goal },
     ],
   },
   "trading-journey": {
     label: "Trading Journey",
     items: [
-      { icon: Activity, label: "Summary", href: "/trading" },
-      { icon: Notebook, label: "Journal", href: "/trading/journal" },
-      { icon: Clock, label: "Sessions", href: "/trading/sessions" },
-      { icon: LineChart, label: "Performance", href: "/trading/performance" },
-      { icon: Lightbulb, label: "AI Insights", href: "/trading/insights" },
+      { title: "Summary", url: "/trading", icon: Activity },
+      { title: "Journal", url: "/trading/journal", icon: Notebook },
+      { title: "Sessions", url: "/trading/sessions", icon: Clock },
+      { title: "Performance", url: "/trading/performance", icon: LineChart },
+      { title: "AI Insights", url: "/trading/insights", icon: Lightbulb },
     ],
   },
 };
 
-// Settings page for each app (app-specific config, not account settings)
+// Settings page for each app (app-specific config)
 const appSettings: Record<AppType, string> = {
   portfolio: "/settings/portfolio",
   "financial-freedom": "/settings/ff",
@@ -86,7 +115,68 @@ const dummyUser = {
   avatar: "",
 };
 
-export function AppSidebar() {
+function NavMain({ items }: { items: NavItem[] }) {
+  const location = useLocation();
+  
+  return (
+    <SidebarMenu>
+      {items.map((item) => {
+        const isActive = location.pathname === item.url || 
+          item.items?.some(sub => location.pathname === sub.url);
+        
+        if (item.items) {
+          return (
+            <Collapsible
+              key={item.title}
+              asChild
+              defaultOpen={isActive}
+              className="group/collapsible"
+            >
+              <SidebarMenuItem>
+                <CollapsibleTrigger asChild>
+                  <SidebarMenuButton tooltip={item.title} isActive={isActive}>
+                    <item.icon />
+                    <span>{item.title}</span>
+                    <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                  </SidebarMenuButton>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <SidebarMenuSub>
+                    {item.items.map((subItem) => (
+                      <SidebarMenuSubItem key={subItem.title}>
+                        <SidebarMenuSubButton 
+                          asChild
+                          isActive={location.pathname === subItem.url}
+                        >
+                          <Link to={subItem.url}>
+                            <span>{subItem.title}</span>
+                          </Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                    ))}
+                  </SidebarMenuSub>
+                </CollapsibleContent>
+              </SidebarMenuItem>
+            </Collapsible>
+          );
+        }
+        
+        return (
+          <SidebarMenuItem key={item.title}>
+            <SidebarMenuButton asChild isActive={isActive} tooltip={item.title}>
+              <Link to={item.url}>
+                <item.icon />
+                <span>{item.title}</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        );
+      })}
+    </SidebarMenu>
+  );
+}
+
+export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const location = useLocation();
   const { activeApp } = useAppStore();
   
@@ -94,7 +184,7 @@ export function AppSidebar() {
   const settingsPath = appSettings[activeApp];
 
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
         <AppSwitcher />
       </SidebarHeader>
@@ -103,27 +193,11 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupLabel>{currentNavigation.label}</SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
-              {currentNavigation.items.map((item) => {
-                const isActive = location.pathname === item.href;
-                return (
-                  <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton asChild isActive={isActive} tooltip={item.label}>
-                      <Link to={item.href}>
-                        <item.icon />
-                        <span>{item.label}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
+            <NavMain items={currentNavigation.items} />
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarSeparator />
-
-        <SidebarGroup>
+        <SidebarGroup className="mt-auto">
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
