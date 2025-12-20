@@ -307,14 +307,17 @@ export function AddTransactionDialog({ trigger, onSuccess, portfolioId }: AddTra
                   {accountsLoading ? (
                     <Skeleton className="h-10 w-full" />
                   ) : (
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select 
+                      onValueChange={(value) => field.onChange(value === "none" ? "" : value)} 
+                      value={field.value || "none"}
+                    >
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select account to debit/credit" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent className="bg-popover">
-                        <SelectItem value="">No account</SelectItem>
+                        <SelectItem value="none">No account</SelectItem>
                         {activeAccounts.map((account) => (
                           <SelectItem key={account.id} value={account.id}>
                             <div className="flex items-center gap-2">
