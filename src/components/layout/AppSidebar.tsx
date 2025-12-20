@@ -76,10 +76,10 @@ const navigationGroups: NavGroup[] = [
     label: "Trading Journey",
     items: [
       { title: "Summary", url: "/trading", icon: Activity },
-      { title: "Journal", url: "/trading/journal", icon: Notebook },
       { title: "Sessions", url: "/trading/sessions", icon: Clock },
-      { title: "Performance", url: "/trading/performance", icon: LineChart },
+      { title: "Journal", url: "/trading/journal", icon: Notebook },
       { title: "Strategies", url: "/trading/strategies", icon: Lightbulb },
+      { title: "Performance", url: "/trading/performance", icon: LineChart },
     ],
   },
 ];

@@ -21,14 +21,17 @@ export interface TradingSession {
   updated_at: string;
 }
 
+export interface TradingSessionWithStats extends TradingSession {
+  calculated_trades_count: number;
+  calculated_pnl: number;
+}
+
 export interface CreateSessionInput {
   session_date: string;
   start_time: string;
   end_time?: string;
   mood: string;
   rating: number;
-  trades_count: number;
-  pnl: number;
   tags?: string[];
   notes?: string;
   market_condition?: string;
@@ -46,7 +49,8 @@ export function useTradingSessions() {
     queryFn: async () => {
       if (!user?.id) return [];
 
-      const { data, error } = await supabase
+      // Fetch sessions
+      const { data: sessions, error: sessionsError } = await supabase
         .from("trading_sessions")
         .select("*")
         .eq("user_id", user.id)
@@ -54,8 +58,37 @@ export function useTradingSessions() {
         .order("session_date", { ascending: false })
         .order("start_time", { ascending: false });
 
-      if (error) throw error;
-      return data as TradingSession[];
+      if (sessionsError) throw sessionsError;
+
+      // Fetch linked trades for all sessions
+      const sessionIds = sessions.map(s => s.id);
+      if (sessionIds.length === 0) return [] as TradingSessionWithStats[];
+
+      const { data: trades, error: tradesError } = await supabase
+        .from("trade_entries")
+        .select("session_id, pnl, realized_pnl, status")
+        .in("session_id", sessionIds);
+
+      if (tradesError) throw tradesError;
+
+      // Calculate stats per session
+      const sessionStats = new Map<string, { count: number; pnl: number }>();
+      trades?.forEach(trade => {
+        if (!trade.session_id) return;
+        const current = sessionStats.get(trade.session_id) || { count: 0, pnl: 0 };
+        current.count += 1;
+        // Use realized_pnl for closed trades, pnl for open
+        const tradePnl = trade.status === 'closed' ? (trade.realized_pnl || 0) : (trade.pnl || 0);
+        current.pnl += tradePnl;
+        sessionStats.set(trade.session_id, current);
+      });
+
+      // Merge stats with sessions
+      return sessions.map(session => ({
+        ...session,
+        calculated_trades_count: sessionStats.get(session.id)?.count || 0,
+        calculated_pnl: sessionStats.get(session.id)?.pnl || 0,
+      })) as TradingSessionWithStats[];
     },
     enabled: !!user?.id,
   });
@@ -78,8 +111,8 @@ export function useCreateTradingSession() {
           end_time: input.end_time || null,
           mood: input.mood,
           rating: input.rating,
-          trades_count: input.trades_count,
-          pnl: input.pnl,
+          trades_count: 0, // Will be calculated from linked trades
+          pnl: 0, // Will be calculated from linked trades
           tags: input.tags || [],
           notes: input.notes || null,
           market_condition: input.market_condition || null,

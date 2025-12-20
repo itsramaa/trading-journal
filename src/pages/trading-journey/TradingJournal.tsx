@@ -18,10 +18,10 @@ import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Calendar, Tag, Target, Building2, TrendingUp, TrendingDown, BookOpen, MoreVertical, Trash2, Clock, CheckCircle, Circle, DollarSign, XCircle, AlertCircle } from "lucide-react";
+import { Plus, Calendar, Tag, Target, Building2, TrendingUp, TrendingDown, BookOpen, MoreVertical, Trash2, Clock, CheckCircle, Circle, DollarSign, XCircle, AlertCircle, Edit } from "lucide-react";
 import { format } from "date-fns";
 import { useAccounts } from "@/hooks/use-accounts";
-import { useTradeEntries, useCreateTradeEntry, useDeleteTradeEntry, useClosePosition, TradeEntry } from "@/hooks/use-trade-entries";
+import { useTradeEntries, useCreateTradeEntry, useDeleteTradeEntry, useClosePosition, useUpdateTradeEntry, TradeEntry } from "@/hooks/use-trade-entries";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { useTradingSessions } from "@/hooks/use-trading-sessions";
 import { filterTradesByDateRange, filterTradesByStrategies } from "@/lib/trading-calculations";
@@ -38,9 +38,6 @@ const tradeFormSchema = z.object({
   quantity: z.coerce.number().positive().default(1),
   pnl: z.coerce.number().optional(),
   fees: z.coerce.number().optional(),
-  confluence_score: z.coerce.number().min(1).max(10).optional(),
-  market_condition: z.string().optional(),
-  entry_signal: z.string().optional(),
   notes: z.string().optional(),
   trading_account_id: z.string().optional(),
   session_id: z.string().optional(),
@@ -53,8 +50,15 @@ const closePositionSchema = z.object({
   notes: z.string().optional(),
 });
 
+const editPositionSchema = z.object({
+  stop_loss: z.coerce.number().optional(),
+  take_profit: z.coerce.number().optional(),
+  notes: z.string().optional(),
+});
+
 type TradeFormValues = z.infer<typeof tradeFormSchema>;
 type ClosePositionFormValues = z.infer<typeof closePositionSchema>;
+type EditPositionFormValues = z.infer<typeof editPositionSchema>;
 
 export default function TradingJournal() {
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -63,7 +67,7 @@ export default function TradingJournal() {
   const [newTradeStrategies, setNewTradeStrategies] = useState<string[]>([]);
   const [deletingTrade, setDeletingTrade] = useState<TradeEntry | null>(null);
   const [closingPosition, setClosingPosition] = useState<TradeEntry | null>(null);
-  const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'closed'>('all');
+  const [editingPosition, setEditingPosition] = useState<TradeEntry | null>(null);
 
   const { data: accounts, isLoading: accountsLoading } = useAccounts();
   const { data: trades, isLoading: tradesLoading } = useTradeEntries();
@@ -72,6 +76,7 @@ export default function TradingJournal() {
   const createTrade = useCreateTradeEntry();
   const deleteTrade = useDeleteTradeEntry();
   const closePosition = useClosePosition();
+  const updateTrade = useUpdateTradeEntry();
 
   const form = useForm<TradeFormValues>({
     resolver: zodResolver(tradeFormSchema),
@@ -85,6 +90,11 @@ export default function TradingJournal() {
 
   const closeForm = useForm<ClosePositionFormValues>({
     resolver: zodResolver(closePositionSchema),
+    defaultValues: {},
+  });
+
+  const editForm = useForm<EditPositionFormValues>({
+    resolver: zodResolver(editPositionSchema),
     defaultValues: {},
   });
 
@@ -144,9 +154,6 @@ export default function TradingJournal() {
         quantity: values.quantity,
         pnl: values.pnl,
         fees: values.fees,
-        confluence_score: values.confluence_score,
-        market_condition: values.market_condition,
-        entry_signal: values.entry_signal,
         notes: values.notes,
         trading_account_id: values.trading_account_id,
         session_id: values.session_id,
@@ -184,6 +191,32 @@ export default function TradingJournal() {
     } catch (error) {
       // Error handled by mutation
     }
+  };
+
+  const handleEditPosition = async (values: EditPositionFormValues) => {
+    if (!editingPosition) return;
+    
+    try {
+      await updateTrade.mutateAsync({
+        id: editingPosition.id,
+        stop_loss: values.stop_loss,
+        take_profit: values.take_profit,
+        notes: values.notes,
+      });
+      setEditingPosition(null);
+      editForm.reset();
+    } catch (error) {
+      // Error handled by mutation
+    }
+  };
+
+  const handleOpenEditDialog = (position: TradeEntry) => {
+    editForm.reset({
+      stop_loss: position.stop_loss || undefined,
+      take_profit: position.take_profit || undefined,
+      notes: position.notes || undefined,
+    });
+    setEditingPosition(position);
   };
 
   const handleDelete = async () => {
@@ -393,17 +426,6 @@ export default function TradingJournal() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Market Condition</Label>
-                    <Input {...form.register("market_condition")} placeholder="Bullish, Bearish, Ranging" />
-                  </div>
-                  <div>
-                    <Label>Confluence Score (1-10)</Label>
-                    <Input type="number" min="1" max="10" {...form.register("confluence_score")} />
-                  </div>
-                </div>
-
                 {/* Strategy Selection */}
                 <div className="space-y-2">
                   <Label>Strategies Used</Label>
@@ -425,14 +447,9 @@ export default function TradingJournal() {
                       </Badge>
                     ))}
                     {strategies.length === 0 && (
-                      <p className="text-sm text-muted-foreground">No strategies yet. Create one in settings.</p>
+                      <p className="text-sm text-muted-foreground">No strategies yet. Create one in Strategies page.</p>
                     )}
                   </div>
-                </div>
-
-                <div>
-                  <Label>Entry Signal</Label>
-                  <Input {...form.register("entry_signal")} placeholder="Break of structure, FVG, Order block..." />
                 </div>
 
                 <div>
@@ -562,6 +579,13 @@ export default function TradingJournal() {
                         <div className="flex gap-1 justify-end">
                           <Button 
                             size="sm" 
+                            variant="ghost"
+                            onClick={() => handleOpenEditDialog(position)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            size="sm" 
                             variant="outline"
                             onClick={() => {
                               setClosingPosition(position);
@@ -598,7 +622,7 @@ export default function TradingJournal() {
         </Card>
 
         <QuickTip storageKey="trading_journal_tip" className="mb-2">
-          <strong>Pro tip:</strong> Trades with confluence scores above 7 tend to have higher win rates. 
+          <strong>Pro tip:</strong> Link your trades to sessions and track your performance over time. 
           Focus on quality setups and document your entry signals for pattern recognition.
         </QuickTip>
 
@@ -671,9 +695,6 @@ export default function TradingJournal() {
                             </span>
                           </div>
                           <div className="flex items-center gap-2">
-                            {entry.confluence_score && (
-                              <Badge variant="outline">Confluence: {entry.confluence_score}/10</Badge>
-                            )}
                             <span className={`font-bold text-lg ${(entry.realized_pnl || 0) >= 0 ? "text-green-500" : "text-red-500"}`}>
                               {(entry.realized_pnl || 0) >= 0 ? "+" : ""}{formatCurrency(entry.realized_pnl || 0, "USD")}
                             </span>
@@ -694,11 +715,10 @@ export default function TradingJournal() {
                         </div>
                       </CardHeader>
                       <CardContent className="space-y-3">
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                           <div><span className="text-muted-foreground">Entry:</span> {formatCurrency(entry.entry_price, "USD")}</div>
                           <div><span className="text-muted-foreground">Exit:</span> {entry.exit_price ? formatCurrency(entry.exit_price, "USD") : '-'}</div>
                           <div><span className="text-muted-foreground">R:R:</span> {rr > 0 ? `${rr.toFixed(2)}:1` : '-'}</div>
-                          <div><span className="text-muted-foreground">Market:</span> {entry.market_condition || '-'}</div>
                         </div>
                         
                         {entry.strategies && entry.strategies.length > 0 && (
@@ -709,13 +729,6 @@ export default function TradingJournal() {
                                 {strategy.name}
                               </Badge>
                             ))}
-                          </div>
-                        )}
-
-                        {entry.entry_signal && (
-                          <div>
-                            <span className="text-sm text-muted-foreground">Entry Signal: </span>
-                            <span className="text-sm">{entry.entry_signal}</span>
                           </div>
                         )}
 
@@ -785,6 +798,52 @@ export default function TradingJournal() {
 
               <Button type="submit" disabled={closePosition.isPending}>
                 {closePosition.isPending ? "Closing..." : "Close Position"}
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Position Dialog */}
+        <Dialog open={!!editingPosition} onOpenChange={(open) => !open && setEditingPosition(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Position: {editingPosition?.pair}</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={editForm.handleSubmit(handleEditPosition)} className="grid gap-4 py-4">
+              <div className="p-4 rounded-lg bg-muted/50 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Direction:</span>
+                  <Badge variant={editingPosition?.direction === "LONG" ? "default" : "secondary"}>
+                    {editingPosition?.direction}
+                  </Badge>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Entry Price:</span>
+                  <span className="font-mono">{formatCurrency(editingPosition?.entry_price || 0, "USD")}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Position Size:</span>
+                  <span className="font-mono">{editingPosition?.quantity}</span>
+                </div>
+              </div>
+
+              <div>
+                <Label>Stop Loss</Label>
+                <Input type="number" step="any" {...editForm.register("stop_loss")} placeholder="Enter stop loss price" />
+              </div>
+
+              <div>
+                <Label>Take Profit</Label>
+                <Input type="number" step="any" {...editForm.register("take_profit")} placeholder="Enter take profit price" />
+              </div>
+
+              <div>
+                <Label>Notes</Label>
+                <Textarea {...editForm.register("notes")} placeholder="Position notes..." />
+              </div>
+
+              <Button type="submit" disabled={updateTrade.isPending}>
+                {updateTrade.isPending ? "Saving..." : "Save Changes"}
               </Button>
             </form>
           </DialogContent>
