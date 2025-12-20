@@ -42,6 +42,8 @@ import NotFound from "./pages/NotFound";
 
 // Components
 import { AIChatbot } from "./components/chat/AIChatbot";
+import { ProtectedRoute } from "./components/ProtectedRoute";
+import { FEATURES } from "./hooks/use-permissions";
 
 const queryClient = new QueryClient();
 
@@ -53,39 +55,128 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
+            {/* Public routes */}
             <Route path="/auth" element={<Auth />} />
             
-            {/* General Routes */}
-            <Route path="/" element={<Index />} />
-            <Route path="/accounts" element={<Accounts />} />
+            {/* Protected routes - Free tier */}
+            <Route path="/" element={
+              <ProtectedRoute>
+                <Index />
+              </ProtectedRoute>
+            } />
+            <Route path="/accounts" element={
+              <ProtectedRoute requiredFeature={FEATURES.ACCOUNTS_VIEW}>
+                <Accounts />
+              </ProtectedRoute>
+            } />
+            <Route path="/portfolio" element={
+              <ProtectedRoute requiredFeature={FEATURES.PORTFOLIO_VIEW}>
+                <Portfolio />
+              </ProtectedRoute>
+            } />
+            <Route path="/transactions" element={
+              <ProtectedRoute requiredFeature={FEATURES.TRANSACTIONS_VIEW}>
+                <Transactions />
+              </ProtectedRoute>
+            } />
+            <Route path="/asset/:symbol" element={
+              <ProtectedRoute requiredFeature={FEATURES.PORTFOLIO_VIEW}>
+                <AssetDetail />
+              </ProtectedRoute>
+            } />
             
-            {/* Portfolio Management Routes */}
-            <Route path="/portfolio" element={<Portfolio />} />
-            <Route path="/transactions" element={<Transactions />} />
-            <Route path="/analytics" element={<Analytics />} />
-            <Route path="/asset/:symbol" element={<AssetDetail />} />
+            {/* Protected routes - Pro tier (Analytics) */}
+            <Route path="/analytics" element={
+              <ProtectedRoute requiredFeature={FEATURES.ANALYTICS_ADVANCED} requiredTier="pro">
+                <Analytics />
+              </ProtectedRoute>
+            } />
             
-            {/* Financial Freedom Routes */}
-            <Route path="/ff" element={<FFProgress />} />
-            <Route path="/ff/fire-calculator" element={<FireCalculator />} />
-            <Route path="/ff/budget" element={<Budget />} />
-            <Route path="/ff/debt" element={<DebtPayoff />} />
-            <Route path="/ff/emergency" element={<EmergencyFund />} />
-            <Route path="/ff/goals" element={<Goals />} />
+            {/* Protected routes - Pro tier (Financial Freedom) */}
+            <Route path="/ff" element={
+              <ProtectedRoute requiredFeature={FEATURES.FIRE_CALCULATOR} requiredTier="pro">
+                <FFProgress />
+              </ProtectedRoute>
+            } />
+            <Route path="/ff/fire-calculator" element={
+              <ProtectedRoute requiredFeature={FEATURES.FIRE_CALCULATOR} requiredTier="pro">
+                <FireCalculator />
+              </ProtectedRoute>
+            } />
+            <Route path="/ff/budget" element={
+              <ProtectedRoute requiredFeature={FEATURES.FIRE_BUDGET} requiredTier="pro">
+                <Budget />
+              </ProtectedRoute>
+            } />
+            <Route path="/ff/debt" element={
+              <ProtectedRoute requiredFeature={FEATURES.FIRE_GOALS} requiredTier="pro">
+                <DebtPayoff />
+              </ProtectedRoute>
+            } />
+            <Route path="/ff/emergency" element={
+              <ProtectedRoute requiredFeature={FEATURES.FIRE_GOALS} requiredTier="pro">
+                <EmergencyFund />
+              </ProtectedRoute>
+            } />
+            <Route path="/ff/goals" element={
+              <ProtectedRoute requiredFeature={FEATURES.FIRE_GOALS} requiredTier="pro">
+                <Goals />
+              </ProtectedRoute>
+            } />
             
-            {/* Trading Journey Routes */}
-            <Route path="/trading" element={<TradingSummary />} />
-            <Route path="/trading/journal" element={<TradingJournal />} />
-            <Route path="/trading/sessions" element={<TradingSessions />} />
-            <Route path="/trading/performance" element={<Performance />} />
-            <Route path="/trading/strategies" element={<StrategyManagement />} />
-            <Route path="/trading/insights" element={<Insights />} />
+            {/* Protected routes - Pro tier (Trading Journey) */}
+            <Route path="/trading" element={
+              <ProtectedRoute requiredFeature={FEATURES.TRADING_JOURNAL} requiredTier="pro">
+                <TradingSummary />
+              </ProtectedRoute>
+            } />
+            <Route path="/trading/journal" element={
+              <ProtectedRoute requiredFeature={FEATURES.TRADING_JOURNAL} requiredTier="pro">
+                <TradingJournal />
+              </ProtectedRoute>
+            } />
+            <Route path="/trading/sessions" element={
+              <ProtectedRoute requiredFeature={FEATURES.TRADING_SESSIONS} requiredTier="pro">
+                <TradingSessions />
+              </ProtectedRoute>
+            } />
+            <Route path="/trading/performance" element={
+              <ProtectedRoute requiredFeature={FEATURES.TRADING_JOURNAL} requiredTier="pro">
+                <Performance />
+              </ProtectedRoute>
+            } />
+            <Route path="/trading/strategies" element={
+              <ProtectedRoute requiredFeature={FEATURES.TRADING_JOURNAL} requiredTier="pro">
+                <StrategyManagement />
+              </ProtectedRoute>
+            } />
+            <Route path="/trading/insights" element={
+              <ProtectedRoute requiredFeature={FEATURES.TRADING_AI_ANALYSIS} requiredTier="pro">
+                <Insights />
+              </ProtectedRoute>
+            } />
             
-            {/* Settings & Account */}
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/billing" element={<Billing />} />
-            <Route path="/upgrade" element={<Upgrade />} />
-            <Route path="/notifications" element={<Notifications />} />
+            {/* Settings & Account - Free tier (always accessible) */}
+            <Route path="/settings" element={
+              <ProtectedRoute>
+                <Settings />
+              </ProtectedRoute>
+            } />
+            <Route path="/billing" element={
+              <ProtectedRoute>
+                <Billing />
+              </ProtectedRoute>
+            } />
+            <Route path="/upgrade" element={
+              <ProtectedRoute>
+                <Upgrade />
+              </ProtectedRoute>
+            } />
+            <Route path="/notifications" element={
+              <ProtectedRoute>
+                <Notifications />
+              </ProtectedRoute>
+            } />
             
             <Route path="*" element={<NotFound />} />
           </Routes>
