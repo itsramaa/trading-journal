@@ -129,7 +129,8 @@ export function useAnalyticsData() {
     // Calculate win/loss statistics from transactions
     const realizedPnL: number[] = [];
     transactions.forEach(t => {
-      if (t.transaction_type === 'SELL') {
+      const txType = t.transaction_type?.toUpperCase();
+      if (txType === 'SELL') {
         // Simplified P&L calculation - in reality would need cost basis tracking
         const pnl = Number(t.total_amount) - (Number(t.quantity) * Number(t.price_per_unit) * 0.9); // Assume 10% profit on sells
         realizedPnL.push(pnl);

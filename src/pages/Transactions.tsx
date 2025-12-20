@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { EmptyTransactions, EmptySearchResults } from "@/components/ui/empty-state";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
 import {
   Tooltip,
   TooltipContent,
@@ -36,7 +37,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatCompactCurrency, formatDate } from "@/lib/formatters";
-import { demoTransactions, demoTransactionStats } from "@/lib/demo-data";
+import { useTransactions, useDefaultPortfolio } from "@/hooks/use-portfolio";
+import { transformTransactions } from "@/lib/data-transformers";
 import type { Transaction } from "@/types/portfolio";
 
 const getTransactionConfig = (type: Transaction['type']) => {
@@ -62,8 +64,11 @@ const Transactions = () => {
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [dateFilter, setDateFilter] = useState<string>("all");
 
-  const transactions = demoTransactions;
-  const stats = demoTransactionStats;
+  const { data: defaultPortfolio } = useDefaultPortfolio();
+  const { data: dbTransactions = [], isLoading } = useTransactions(defaultPortfolio?.id);
+
+  // Transform database transactions to UI format
+  const transactions = useMemo(() => transformTransactions(dbTransactions), [dbTransactions]);
 
   const filteredTransactions = useMemo(() => {
     const now = new Date();
@@ -116,6 +121,20 @@ const Transactions = () => {
     dividendVolume: filteredTransactions.filter(tx => tx.type === 'DIVIDEND').reduce((sum, tx) => sum + tx.totalAmount, 0),
     totalVolume: filteredTransactions.reduce((sum, tx) => sum + tx.totalAmount, 0),
   }), [filteredTransactions]);
+
+  if (isLoading) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Transactions</h1>
+            <p className="text-muted-foreground">View and manage your transaction history.</p>
+          </div>
+          <MetricsGridSkeleton />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
