@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CalendarIcon, Plus, Loader2 } from "lucide-react";
+import { CalendarIcon, Plus, Loader2, Wallet, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -39,10 +39,12 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useDefaultPortfolio, useCreateTransaction, useCreateAsset } from "@/hooks/use-portfolio";
+import { useDefaultPortfolio, useCreateTransaction, useCreateAsset, useAssetPrices } from "@/hooks/use-portfolio";
+import { useAccounts } from "@/hooks/use-accounts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AssetSearchSelect } from "./AssetSearchSelect";
 import { SearchedAsset } from "@/hooks/use-asset-search";
+import { formatCurrency } from "@/lib/formatters";
 import type { TransactionType } from "@/types/portfolio";
 
 const transactionSchema = z.object({
@@ -56,6 +58,7 @@ const transactionSchema = z.object({
   fees: z.string().optional(),
   date: z.date(),
   notes: z.string().max(500, "Notes must be less than 500 characters").optional(),
+  accountId: z.string().optional(),
 });
 
 type TransactionFormValues = z.infer<typeof transactionSchema>;
@@ -69,12 +72,18 @@ interface AddTransactionDialogProps {
 export function AddTransactionDialog({ trigger, onSuccess, portfolioId }: AddTransactionDialogProps) {
   const [open, setOpen] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState<SearchedAsset | null>(null);
+  const [isFetchingPrice, setIsFetchingPrice] = useState(false);
   
   const { data: defaultPortfolio } = useDefaultPortfolio();
+  const { data: accounts = [], isLoading: accountsLoading } = useAccounts();
+  const { data: priceCache = [] } = useAssetPrices();
   const createTransaction = useCreateTransaction();
   const createAsset = useCreateAsset();
   
   const effectivePortfolioId = portfolioId || defaultPortfolio?.id;
+
+  // Filter active accounts suitable for transactions (bank, broker, ewallet)
+  const activeAccounts = accounts.filter(a => a.is_active);
 
   const form = useForm<TransactionFormValues>({
     resolver: zodResolver(transactionSchema),
@@ -85,10 +94,58 @@ export function AddTransactionDialog({ trigger, onSuccess, portfolioId }: AddTra
       fees: "0",
       date: new Date(),
       notes: "",
+      accountId: "",
     },
   });
 
   const transactionType = form.watch("type");
+  const selectedAccountId = form.watch("accountId");
+
+  // Auto-fetch price when asset is selected
+  useEffect(() => {
+    if (selectedAsset) {
+      fetchCurrentPrice();
+    }
+  }, [selectedAsset]);
+
+  const fetchCurrentPrice = async () => {
+    if (!selectedAsset) return;
+    
+    setIsFetchingPrice(true);
+    try {
+      // First check price cache
+      const cachedPrice = priceCache.find(
+        p => p.symbol.toUpperCase() === selectedAsset.symbol.toUpperCase()
+      );
+      
+      if (cachedPrice) {
+        form.setValue("price", cachedPrice.price.toString());
+        setIsFetchingPrice(false);
+        return;
+      }
+
+      // Fetch from external API based on asset type
+      if (selectedAsset.type === 'CRYPTO' && selectedAsset.coingecko_id) {
+        const response = await fetch(
+          `https://api.coingecko.com/api/v3/simple/price?ids=${selectedAsset.coingecko_id}&vs_currencies=usd`
+        );
+        const data = await response.json();
+        const price = data[selectedAsset.coingecko_id]?.usd;
+        if (price) {
+          form.setValue("price", price.toString());
+        }
+      } else if (selectedAsset.type === 'US_STOCK' || selectedAsset.type === 'ID_STOCK') {
+        // For stocks, use a simple placeholder or let user input manually
+        // Real implementation would use Finnhub or Alpha Vantage
+        toast.info("Enter the current stock price manually");
+      }
+    } catch (error) {
+      console.error('Error fetching price:', error);
+      toast.error("Could not fetch current price. Please enter manually.");
+    } finally {
+      setIsFetchingPrice(false);
+    }
+  };
 
   const handleSubmit = async (data: TransactionFormValues) => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -134,7 +191,7 @@ export function AddTransactionDialog({ trigger, onSuccess, portfolioId }: AddTra
           coingecko_id: selectedAsset.coingecko_id || null,
           finnhub_symbol: selectedAsset.finnhub_symbol || null,
           alpha_symbol: null,
-          current_price: null,
+          current_price: pricePerUnit,
           exchange: null,
           fcs_symbol: null,
           sector: null,
@@ -154,7 +211,7 @@ export function AddTransactionDialog({ trigger, onSuccess, portfolioId }: AddTra
         fee: fees,
         transaction_date: data.date.toISOString(),
         notes: data.notes || null,
-        account_id: null,
+        account_id: data.accountId || null,
       });
       
       toast.success(`${data.type} transaction added for ${selectedAsset.symbol}`);
@@ -175,6 +232,9 @@ export function AddTransactionDialog({ trigger, onSuccess, portfolioId }: AddTra
 
   const isDividendOrTransfer = transactionType === 'DIVIDEND';
 
+  // Get selected account for display
+  const selectedAccount = activeAccounts.find(a => a.id === selectedAccountId);
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -185,7 +245,7 @@ export function AddTransactionDialog({ trigger, onSuccess, portfolioId }: AddTra
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add Transaction</DialogTitle>
           <DialogDescription>
@@ -227,31 +287,51 @@ export function AddTransactionDialog({ trigger, onSuccess, portfolioId }: AddTra
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="type"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Type</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+            </div>
+
+            {/* Account Selection */}
+            <FormField
+              control={form.control}
+              name="accountId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="flex items-center gap-2">
+                    <Wallet className="h-4 w-4" />
+                    Account (Optional)
+                  </FormLabel>
+                  {accountsLoading ? (
+                    <Skeleton className="h-10 w-full" />
+                  ) : (
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select type" />
+                          <SelectValue placeholder="Select account to debit/credit" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent className="bg-popover">
-                        <SelectItem value="BUY">Buy</SelectItem>
-                        <SelectItem value="SELL">Sell</SelectItem>
-                        <SelectItem value="DIVIDEND">Dividend</SelectItem>
-                        <SelectItem value="TRANSFER_IN">Transfer In</SelectItem>
-                        <SelectItem value="TRANSFER_OUT">Transfer Out</SelectItem>
+                        <SelectItem value="">No account</SelectItem>
+                        {activeAccounts.map((account) => (
+                          <SelectItem key={account.id} value={account.id}>
+                            <div className="flex items-center gap-2">
+                              <span>{account.name}</span>
+                              <span className="text-xs text-muted-foreground">
+                                ({formatCurrency(Number(account.balance), account.currency)})
+                              </span>
+                            </div>
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+                  )}
+                  {selectedAccount && (
+                    <p className="text-xs text-muted-foreground">
+                      Balance: {formatCurrency(Number(selectedAccount.balance), selectedAccount.currency)}
+                    </p>
+                  )}
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <div className="grid grid-cols-2 gap-4">
               <FormField
@@ -278,9 +358,32 @@ export function AddTransactionDialog({ trigger, onSuccess, portfolioId }: AddTra
                 name="price"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{isDividendOrTransfer ? 'Dividend Amount' : 'Price per Unit'}</FormLabel>
+                    <FormLabel className="flex items-center justify-between">
+                      <span>{isDividendOrTransfer ? 'Dividend Amount' : 'Price per Unit'}</span>
+                      {selectedAsset && !isDividendOrTransfer && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-xs"
+                          onClick={fetchCurrentPrice}
+                          disabled={isFetchingPrice}
+                        >
+                          {isFetchingPrice ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-3 w-3" />
+                          )}
+                        </Button>
+                      )}
+                    </FormLabel>
                     <FormControl>
-                      <Input type="number" step="any" placeholder="0.00" {...field} />
+                      <Input 
+                        type="number" 
+                        step="any" 
+                        placeholder={isFetchingPrice ? "Fetching..." : "0.00"} 
+                        {...field} 
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
