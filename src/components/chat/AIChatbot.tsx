@@ -19,7 +19,13 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useHoldings, usePortfolios } from '@/hooks/use-portfolio';
-import { demoTrades, demoStrategies } from '@/lib/trading-data';
+import { useTradeEntries } from '@/hooks/use-trade-entries';
+import { useTradingStrategies } from '@/hooks/use-trading-strategies';
+import { useFireSettings } from '@/hooks/use-fire-settings';
+import { useBudgetCategories } from '@/hooks/use-budget';
+import { useGoals } from '@/hooks/use-goals';
+import { useEmergencyFund } from '@/hooks/use-emergency-fund';
+import { useAccounts } from '@/hooks/use-accounts';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -68,9 +74,21 @@ export function AIChatbot() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Portfolio data
   const { data: portfolios } = usePortfolios();
   const defaultPortfolio = portfolios?.find(p => p.is_default) || portfolios?.[0];
   const { data: holdings } = useHoldings(defaultPortfolio?.id);
+
+  // Trading data
+  const { data: tradeEntries } = useTradeEntries();
+  const { data: strategies } = useTradingStrategies();
+
+  // FIRE data
+  const { data: fireSettings } = useFireSettings();
+  const { data: budgetCategories } = useBudgetCategories();
+  const { data: goals } = useGoals();
+  const { data: emergencyFund } = useEmergencyFund();
+  const { data: accounts } = useAccounts();
 
   const currentMode = AI_MODES[aiMode];
   const ModeIcon = currentMode.icon;
@@ -104,11 +122,15 @@ export function AIChatbot() {
       return sum + (h.quantity * price);
     }, 0);
 
+    const totalCost = holdings.reduce((sum, h) => sum + h.total_cost, 0);
+
     const holdingsSummary = holdings.map(h => {
       const asset = h.assets as any;
       const price = asset?.price_cache?.[0]?.price || asset?.current_price || 0;
       const value = h.quantity * price;
       const change24h = asset?.price_cache?.[0]?.price_change_percentage_24h || 0;
+      const profitLoss = value - h.total_cost;
+      const profitLossPercent = h.total_cost > 0 ? ((profitLoss / h.total_cost) * 100) : 0;
       
       return {
         symbol: asset?.symbol,
@@ -119,15 +141,157 @@ export function AIChatbot() {
         currentPrice: price,
         value,
         allocation: totalValue > 0 ? ((value / totalValue) * 100).toFixed(2) + '%' : '0%',
-        profitLoss: value - (h.quantity * h.average_cost),
+        profitLoss,
+        profitLossPercent: profitLossPercent.toFixed(2) + '%',
         change24h: change24h.toFixed(2) + '%'
       };
     });
 
+    // Calculate allocation by asset type
+    const allocationByType: Record<string, number> = {};
+    holdingsSummary.forEach(h => {
+      const type = h.type || 'Other';
+      allocationByType[type] = (allocationByType[type] || 0) + parseFloat(h.allocation);
+    });
+
     return {
+      portfolioName: defaultPortfolio?.name || 'Default Portfolio',
+      currency: defaultPortfolio?.currency || 'IDR',
       totalPortfolioValue: totalValue,
+      totalCost: totalCost,
+      totalProfitLoss: totalValue - totalCost,
+      totalProfitLossPercent: totalCost > 0 ? (((totalValue - totalCost) / totalCost) * 100).toFixed(2) + '%' : '0%',
       numberOfAssets: holdings.length,
+      allocationByType,
       holdings: holdingsSummary,
+    };
+  };
+
+  const getTradingContext = () => {
+    if (!tradeEntries || tradeEntries.length === 0) {
+      return { trades: [], strategies: strategies || [] };
+    }
+
+    const closedTrades = tradeEntries.filter(t => t.status === 'closed');
+    
+    const tradesForAI = closedTrades.map(t => ({
+      id: t.id,
+      pair: t.pair,
+      direction: t.direction,
+      entryPrice: t.entry_price,
+      exitPrice: t.exit_price,
+      stopLoss: t.stop_loss,
+      takeProfit: t.take_profit,
+      quantity: t.quantity,
+      pnl: t.pnl || 0,
+      fees: t.fees || 0,
+      result: t.result,
+      tradeDate: t.trade_date,
+      notes: t.notes,
+      strategyIds: t.strategies?.map(s => s.id) || [],
+      strategyNames: t.strategies?.map(s => s.name) || [],
+      // Calculate R:R if possible
+      rr: t.stop_loss && t.take_profit && t.entry_price ? 
+        Math.abs((t.take_profit - t.entry_price) / (t.entry_price - t.stop_loss)) : null,
+    }));
+
+    return {
+      trades: tradesForAI,
+      strategies: strategies || [],
+    };
+  };
+
+  const getFireContext = () => {
+    // Calculate total savings from accounts
+    const totalSavings = accounts?.reduce((sum, acc) => sum + Number(acc.balance), 0) || 0;
+
+    // Calculate FIRE number
+    const monthlyExpenses = fireSettings?.monthly_expenses || 0;
+    const withdrawalRate = fireSettings?.safe_withdrawal_rate || 4;
+    const fireNumber = monthlyExpenses > 0 ? (monthlyExpenses * 12) / (withdrawalRate / 100) : 0;
+
+    // Calculate progress
+    const progressPercent = fireNumber > 0 ? (totalSavings / fireNumber) * 100 : 0;
+
+    // Calculate years to FIRE
+    const monthlySavings = (fireSettings?.monthly_income || 0) - monthlyExpenses;
+    const expectedReturn = (fireSettings?.expected_annual_return || 7) / 100;
+    let yearsToFire = 0;
+    if (monthlySavings > 0 && fireNumber > totalSavings) {
+      // Simple calculation - can be more sophisticated with compound interest
+      const remaining = fireNumber - totalSavings;
+      const annualSavings = monthlySavings * 12;
+      const effectiveRate = annualSavings * (1 + expectedReturn / 2);
+      yearsToFire = remaining / effectiveRate;
+    }
+
+    // Budget summary
+    const totalBudgeted = budgetCategories?.reduce((sum, c) => sum + c.budgeted_amount, 0) || 0;
+    const totalSpent = budgetCategories?.reduce((sum, c) => sum + c.spent_amount, 0) || 0;
+    const budgetSummary = budgetCategories?.map(c => ({
+      name: c.name,
+      budgeted: c.budgeted_amount,
+      spent: c.spent_amount,
+      remaining: c.budgeted_amount - c.spent_amount,
+    })) || [];
+
+    // Goals summary
+    const goalsWithProgress = goals?.map(g => ({
+      name: g.name,
+      targetAmount: g.target_amount,
+      currentAmount: g.current_amount,
+      progress: g.target_amount > 0 ? (g.current_amount / g.target_amount) * 100 : 0,
+      deadline: g.deadline,
+      monthlyContribution: g.monthly_contribution,
+      priority: g.priority,
+    })) || [];
+
+    // Emergency fund summary
+    const emergencyFundTarget = emergencyFund ? 
+      emergencyFund.monthly_expenses * emergencyFund.target_months : 0;
+    const emergencyFundProgress = emergencyFundTarget > 0 ? 
+      (emergencyFund?.current_balance || 0) / emergencyFundTarget * 100 : 0;
+
+    return {
+      fireData: {
+        currentAge: fireSettings?.current_age || null,
+        targetRetirementAge: fireSettings?.target_retirement_age || null,
+        currentSavings: totalSavings,
+        monthlyIncome: fireSettings?.monthly_income || 0,
+        monthlyExpenses: monthlyExpenses,
+        monthlySavings: monthlySavings,
+        savingsRate: fireSettings?.monthly_income ? 
+          ((monthlySavings / fireSettings.monthly_income) * 100).toFixed(1) + '%' : '0%',
+        fireNumber: fireNumber,
+        progressPercent: progressPercent,
+        yearsToFire: yearsToFire > 0 ? Math.ceil(yearsToFire) : null,
+        withdrawalRate: withdrawalRate,
+        expectedReturn: fireSettings?.expected_annual_return || 7,
+        inflationRate: fireSettings?.inflation_rate || 3,
+      },
+      budgetData: {
+        totalBudgeted,
+        totalSpent,
+        remaining: totalBudgeted - totalSpent,
+        categories: budgetSummary,
+      },
+      goalsData: goalsWithProgress,
+      emergencyFundData: emergencyFund ? {
+        name: emergencyFund.name,
+        targetMonths: emergencyFund.target_months,
+        currentAmount: emergencyFund.current_balance,
+        targetAmount: emergencyFundTarget,
+        progress: emergencyFundProgress,
+        monthlyContribution: emergencyFund.monthly_contribution,
+      } : null,
+      accountsSummary: {
+        totalBalance: totalSavings,
+        accountCount: accounts?.length || 0,
+        byType: accounts?.reduce((acc, a) => {
+          acc[a.account_type] = (acc[a.account_type] || 0) + Number(a.balance);
+          return acc;
+        }, {} as Record<string, number>) || {},
+      },
     };
   };
 
@@ -151,26 +315,18 @@ export function AIChatbot() {
           portfolioContext: getPortfolioContext(),
         };
       } else if (aiMode === 'trading') {
+        const tradingContext = getTradingContext();
         body = {
-          trades: demoTrades,
-          strategies: demoStrategies,
+          trades: tradingContext.trades,
+          strategies: tradingContext.strategies,
           question: input.trim(),
         };
       } else {
         // FIRE mode
+        const fireContext = getFireContext();
         body = {
           messages: [...messages, userMessage],
-          fireData: {
-            currentAge: 30,
-            targetRetirementAge: 45,
-            currentSavings: 50000,
-            monthlyExpenses: 3000,
-            fireNumber: 900000,
-            progressPercent: 5.5,
-            yearsToFire: 15,
-            withdrawalRate: 4,
-            expectedReturn: 7,
-          },
+          ...fireContext,
         };
       }
 
