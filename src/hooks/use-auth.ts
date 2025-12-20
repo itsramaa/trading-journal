@@ -37,114 +37,77 @@ export function useAuth() {
   }, []);
 
   const createProfileIfNotExists = async (user: User) => {
-    // Create user profile if it doesn't exist
-    const { data: existingProfile } = await supabase
-      .from('users_profile')
-      .select('id')
-      .eq('user_id', user.id)
-      .single();
+    const fullname = user.user_metadata?.full_name || 
+                     user.user_metadata?.name || 
+                     user.email?.split('@')[0] || 
+                     'User';
 
-    if (!existingProfile) {
-      const fullname = user.user_metadata?.full_name || 
-                       user.user_metadata?.name || 
-                       user.email?.split('@')[0] || 
-                       'User';
-      
-      await supabase.from('users_profile').insert({
-        user_id: user.id,
-        display_name: fullname,
-        avatar_url: user.user_metadata?.avatar_url || null,
-      });
-    }
-
-    // Create user settings if it doesn't exist
-    const { data: existingSettings } = await supabase
-      .from('user_settings')
-      .select('id')
-      .eq('user_id', user.id)
-      .single();
-
-    if (!existingSettings) {
-      await supabase.from('user_settings').insert({
-        user_id: user.id,
-        subscription_plan: 'free',
-        subscription_status: 'active',
-      });
-    }
-
-    // Auto-create Emergency Fund system account if it doesn't exist
-    const { data: existingEF } = await supabase
-      .from('emergency_funds')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('is_system', true)
-      .single();
-
-    if (!existingEF) {
-      await supabase.from('emergency_funds').insert({
-        user_id: user.id,
-        name: 'Emergency Fund',
-        current_balance: 0,
-        monthly_expenses: 0,
-        monthly_contribution: 0,
-        target_months: 6,
-        currency: 'IDR',
-        is_system: true,
-        is_active: true,
-      });
-    }
-
-    // Auto-create default Bank account for Emergency Fund
-    const { data: existingBankAccount } = await supabase
-      .from('accounts')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('account_type', 'bank')
-      .eq('is_system', true)
-      .single();
-
-    if (!existingBankAccount) {
-      await supabase.from('accounts').insert({
-        user_id: user.id,
-        name: 'Emergency Fund Account',
-        account_type: 'bank',
-        balance: 0,
-        currency: 'IDR',
-        is_system: true,
-        is_active: true,
-        description: 'Default bank account for emergency fund savings',
-      });
-    }
-
-    // Auto-create default Trading Account (broker type)
-    const { data: existingTradingAccount } = await supabase
-      .from('accounts')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('account_type', 'broker')
-      .eq('is_system', true)
-      .single();
-
-    if (!existingTradingAccount) {
-      await supabase.from('accounts').insert({
-        user_id: user.id,
-        name: 'Trading Account',
-        account_type: 'broker',
-        balance: 0,
-        currency: 'USD',
-        is_system: true,
-        is_active: true,
-        description: 'Default trading account for crypto/forex trading',
-      });
-    }
-
-    // Create welcome notification
-    await supabase.from('notifications').insert({
+    // Use upsert with onConflict to prevent duplicates - all operations are idempotent
+    // These will insert if not exists, or do nothing if already exists
+    
+    await supabase.from('users_profile').upsert({
       user_id: user.id,
-      type: 'system',
-      title: 'Welcome to Portfolio Manager!',
-      message: 'Your account is set up. Start by adding your first asset or account.',
-    });
+      display_name: fullname,
+      avatar_url: user.user_metadata?.avatar_url || null,
+    }, { onConflict: 'user_id', ignoreDuplicates: true });
+
+    await supabase.from('user_settings').upsert({
+      user_id: user.id,
+      subscription_plan: 'free',
+      subscription_status: 'active',
+    }, { onConflict: 'user_id', ignoreDuplicates: true });
+
+    await supabase.from('emergency_funds').upsert({
+      user_id: user.id,
+      name: 'Emergency Fund',
+      current_balance: 0,
+      monthly_expenses: 0,
+      monthly_contribution: 0,
+      target_months: 6,
+      currency: 'IDR',
+      is_system: true,
+      is_active: true,
+    }, { onConflict: 'user_id', ignoreDuplicates: true });
+
+    // Use upsert for accounts - conflict on (user_id, name, account_type)
+    await supabase.from('accounts').upsert({
+      user_id: user.id,
+      name: 'Emergency Fund Account',
+      account_type: 'bank',
+      balance: 0,
+      currency: 'IDR',
+      is_system: true,
+      is_active: true,
+      description: 'Default bank account for emergency fund savings',
+    }, { onConflict: 'user_id,name,account_type', ignoreDuplicates: true });
+
+    await supabase.from('accounts').upsert({
+      user_id: user.id,
+      name: 'Trading Account',
+      account_type: 'broker',
+      balance: 0,
+      currency: 'USD',
+      is_system: true,
+      is_active: true,
+      description: 'Default trading account for crypto/forex trading',
+    }, { onConflict: 'user_id,name,account_type', ignoreDuplicates: true });
+
+    // Welcome notification - only create if user is new (check first)
+    const { data: existingNotification } = await supabase
+      .from('notifications')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('title', 'Welcome to Portfolio Manager!')
+      .maybeSingle();
+
+    if (!existingNotification) {
+      await supabase.from('notifications').insert({
+        user_id: user.id,
+        type: 'system',
+        title: 'Welcome to Portfolio Manager!',
+        message: 'Your account is set up. Start by adding your first asset or account.',
+      });
+    }
   };
 
   const signUp = useCallback(async (email: string, password: string, fullName: string) => {
