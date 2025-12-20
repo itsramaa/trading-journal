@@ -1,15 +1,17 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { DateRangeFilter, DateRange } from "@/components/trading/DateRangeFilter";
 import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
-import { TrendingUp, TrendingDown, Target, Activity, BarChart3, DollarSign, Percent, AlertTriangle, FileText } from "lucide-react";
-import { useTradeEntries } from "@/hooks/use-trade-entries";
+import { ImportExportDialog } from "@/components/data/ImportExportDialog";
+import { TrendingUp, TrendingDown, Target, Activity, BarChart3, Percent, AlertTriangle, FileText } from "lucide-react";
+import { useTradeEntries, useCreateTradeEntry } from "@/hooks/use-trade-entries";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { useUserSettings } from "@/hooks/use-user-settings";
 import { useExchangeRate } from "@/hooks/use-exchange-rate";
+import { useAuth } from "@/hooks/use-auth";
 import { 
   filterTradesByDateRange, 
   filterTradesByStrategies,
@@ -21,10 +23,12 @@ export default function TradingSummary() {
   const [dateRange, setDateRange] = useState<DateRange>({ from: null, to: null });
   const [selectedStrategyIds, setSelectedStrategyIds] = useState<string[]>([]);
 
+  const { user } = useAuth();
   const { data: trades, isLoading: tradesLoading } = useTradeEntries();
   const { data: strategies = [] } = useTradingStrategies();
   const { data: userSettings } = useUserSettings();
   const { data: exchangeRate = 15500 } = useExchangeRate();
+  const createTrade = useCreateTradeEntry();
 
   const defaultCurrency = userSettings?.default_currency || 'USD';
 
@@ -50,6 +54,54 @@ export default function TradingSummary() {
     return formatCurrency(converted, defaultCurrency);
   };
 
+  // Export trades data
+  const handleExportTrades = useCallback(async () => {
+    if (!trades) return [];
+    return trades.map(trade => ({
+      pair: trade.pair,
+      direction: trade.direction,
+      entry_price: trade.entry_price,
+      exit_price: trade.exit_price,
+      stop_loss: trade.stop_loss,
+      take_profit: trade.take_profit,
+      quantity: trade.quantity,
+      pnl: trade.pnl,
+      fees: trade.fees,
+      trade_date: trade.trade_date,
+      result: trade.result,
+      market_condition: trade.market_condition,
+      entry_signal: trade.entry_signal,
+      notes: trade.notes,
+      status: trade.status,
+      strategies: trade.strategies?.map(s => s.name).join('; '),
+    }));
+  }, [trades]);
+
+  // Import trades data
+  const handleImportTrades = useCallback(async (data: Record<string, unknown>[]) => {
+    if (!user?.id) throw new Error("User not authenticated");
+    
+    for (const row of data) {
+      await createTrade.mutateAsync({
+        pair: String(row.pair || ''),
+        direction: String(row.direction || 'LONG'),
+        entry_price: Number(row.entry_price) || 0,
+        exit_price: row.exit_price ? Number(row.exit_price) : undefined,
+        stop_loss: row.stop_loss ? Number(row.stop_loss) : undefined,
+        take_profit: row.take_profit ? Number(row.take_profit) : undefined,
+        quantity: Number(row.quantity) || 1,
+        pnl: row.pnl ? Number(row.pnl) : undefined,
+        fees: row.fees ? Number(row.fees) : undefined,
+        trade_date: row.trade_date ? String(row.trade_date) : new Date().toISOString(),
+        result: row.result ? String(row.result) : undefined,
+        market_condition: row.market_condition ? String(row.market_condition) : undefined,
+        entry_signal: row.entry_signal ? String(row.entry_signal) : undefined,
+        notes: row.notes ? String(row.notes) : undefined,
+        status: row.status === 'closed' ? 'closed' : 'open',
+      });
+    }
+  }, [user?.id, createTrade]);
+
   if (tradesLoading) {
     return (
       <DashboardLayout>
@@ -73,6 +125,14 @@ export default function TradingSummary() {
             <h1 className="text-3xl font-bold tracking-tight">Trading Summary</h1>
             <p className="text-muted-foreground">Comprehensive trading performance overview</p>
           </div>
+          <ImportExportDialog
+            title="Import/Export Trades"
+            description="Backup your trading data or import trades from another platform"
+            exportData={handleExportTrades}
+            importData={handleImportTrades}
+            exportFilename="trading-journal"
+            templateFields={['pair', 'direction', 'entry_price', 'exit_price', 'stop_loss', 'take_profit', 'quantity', 'pnl', 'fees', 'trade_date', 'result', 'market_condition', 'entry_signal', 'notes', 'status']}
+          />
         </div>
 
         {/* Date Filter Only */}
