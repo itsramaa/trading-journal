@@ -70,10 +70,14 @@ export function useCreateAccount() {
       description?: string;
       icon?: string;
       color?: string;
+      initial_balance?: number;
     }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
+      const initialBalance = account.initial_balance || 0;
+
+      // Create the account with initial balance
       const { data, error } = await supabase
         .from('accounts')
         .insert({
@@ -84,17 +88,33 @@ export function useCreateAccount() {
           description: account.description || null,
           icon: account.icon || null,
           color: account.color || null,
-          balance: 0,
+          balance: initialBalance,
           is_active: true,
         })
         .select()
         .single();
 
       if (error) throw error;
+
+      // If there's an initial balance, create a deposit transaction
+      if (initialBalance > 0) {
+        await supabase
+          .from('account_transactions')
+          .insert({
+            user_id: user.id,
+            account_id: data.id,
+            transaction_type: 'deposit' as AccountTransactionType,
+            amount: initialBalance,
+            currency: account.currency,
+            description: 'Initial balance',
+          });
+      }
+
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: accountKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: accountTransactionKeys.lists() });
     },
   });
 }

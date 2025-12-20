@@ -560,19 +560,29 @@ export default function EmergencyFund() {
                   name="account_id"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>From Account (Optional)</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <FormLabel>
+                        {contributionForm.watch('transaction_type') === 'deposit' 
+                          ? 'From Account (Optional)' 
+                          : 'To Account (Optional)'}
+                      </FormLabel>
+                      <Select 
+                        onValueChange={(v) => field.onChange(v === "none" ? undefined : v)} 
+                        value={field.value || "none"}
+                      >
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select account" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {accounts.filter(a => a.is_active).map((account) => (
-                            <SelectItem key={account.id} value={account.id}>
-                              {account.name} - {formatCurrency(Number(account.balance), account.currency)}
-                            </SelectItem>
-                          ))}
+                          <SelectItem value="none">No account linked</SelectItem>
+                          {accounts
+                            .filter(a => a.is_active && !a.name.toLowerCase().includes('emergency'))
+                            .map((account) => (
+                              <SelectItem key={account.id} value={account.id}>
+                                {account.name} - {formatCurrency(Number(account.balance), account.currency)}
+                              </SelectItem>
+                            ))}
                         </SelectContent>
                       </Select>
                       <FormMessage />

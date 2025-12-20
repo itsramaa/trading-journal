@@ -149,7 +149,7 @@ export default function TradingSessions() {
       start_time: values.start_time,
       end_time,
       mood: values.mood,
-      rating: 3, // Default rating, user rates after session
+      rating: 0, // Default rating 0, user rates after session
       tags: tagsArray,
       notes: values.notes || undefined,
       market_condition: values.market_condition || undefined,

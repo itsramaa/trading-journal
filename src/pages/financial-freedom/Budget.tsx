@@ -19,11 +19,11 @@ import {
   TrendingUp,
   TrendingDown,
   PieChart,
-  Building2,
   Edit,
   Trash2,
   Loader2,
-  Receipt
+  Receipt,
+  Building2
 } from "lucide-react";
 import { useState } from "react";
 import {
@@ -33,9 +33,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -66,6 +64,7 @@ import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { ExpenseLog } from "@/components/budget/ExpenseLog";
 
 const categoryIcons: Record<string, any> = {
   housing: Home,
@@ -97,7 +96,6 @@ const categorySchema = z.object({
   name: z.string().min(1, "Name is required").max(50),
   icon: z.string().min(1, "Icon is required"),
   budgeted_amount: z.coerce.number().min(0, "Budget must be positive"),
-  account_id: z.string().optional(),
 });
 
 const expenseSchema = z.object({
@@ -167,7 +165,6 @@ export default function Budget() {
       icon: values.icon,
       color: categoryColors[values.icon] || "bg-muted-foreground",
       budgeted_amount: values.budgeted_amount,
-      account_id: values.account_id || null,
     });
     setIsAddCategoryOpen(false);
     categoryForm.reset();
@@ -181,7 +178,6 @@ export default function Budget() {
       icon: values.icon,
       color: categoryColors[values.icon] || "bg-muted-foreground",
       budgeted_amount: values.budgeted_amount,
-      account_id: values.account_id || null,
     });
     setIsEditCategoryOpen(false);
     setSelectedCategory(null);
@@ -208,7 +204,6 @@ export default function Budget() {
       name: category.name,
       icon: category.icon || "other",
       budgeted_amount: Number(category.budgeted_amount),
-      account_id: category.account_id || undefined,
     });
     setIsEditCategoryOpen(true);
   };
@@ -431,6 +426,9 @@ export default function Budget() {
             </CardContent>
           </Card>
         )}
+
+        {/* Expense Log */}
+        <ExpenseLog categories={categories || []} accounts={accounts || []} />
       </div>
 
       {/* Add Category Dialog */}
@@ -497,32 +495,6 @@ export default function Budget() {
                   </FormItem>
                 )}
               />
-              {accounts && accounts.length > 0 && (
-                <FormField
-                  control={categoryForm.control}
-                  name="account_id"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Link to Account (Optional)</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select account" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {accounts.filter(a => a.is_active).map((account) => (
-                            <SelectItem key={account.id} value={account.id}>
-                              {account.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setIsAddCategoryOpen(false)}>Cancel</Button>
                 <Button type="submit" disabled={createCategory.isPending}>
@@ -648,13 +620,17 @@ export default function Budget() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>From Account (Optional)</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select 
+                        onValueChange={(v) => field.onChange(v === "none" ? undefined : v)} 
+                        value={field.value || "none"}
+                      >
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select account" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
+                          <SelectItem value="none">No account linked</SelectItem>
                           {accounts.filter(a => a.is_active).map((account) => (
                             <SelectItem key={account.id} value={account.id}>
                               {account.name} - {formatCurrency(Number(account.balance), account.currency)}
