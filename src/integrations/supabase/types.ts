@@ -748,6 +748,7 @@ export type Database = {
           pnl: number | null
           quantity: number
           result: string | null
+          session_id: string | null
           stop_loss: number | null
           tags: string[] | null
           take_profit: number | null
@@ -771,6 +772,7 @@ export type Database = {
           pnl?: number | null
           quantity?: number
           result?: string | null
+          session_id?: string | null
           stop_loss?: number | null
           tags?: string[] | null
           take_profit?: number | null
@@ -794,6 +796,7 @@ export type Database = {
           pnl?: number | null
           quantity?: number
           result?: string | null
+          session_id?: string | null
           stop_loss?: number | null
           tags?: string[] | null
           take_profit?: number | null
@@ -804,10 +807,56 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "trade_entries_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "trading_sessions"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "trade_entries_trading_account_id_fkey"
             columns: ["trading_account_id"]
             isOneToOne: false
             referencedRelation: "trading_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trade_entry_strategies: {
+        Row: {
+          created_at: string
+          id: string
+          strategy_id: string
+          trade_entry_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          strategy_id: string
+          trade_entry_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          strategy_id?: string
+          trade_entry_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trade_entry_strategies_strategy_id_fkey"
+            columns: ["strategy_id"]
+            isOneToOne: false
+            referencedRelation: "trading_strategies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trade_entry_strategies_trade_entry_id_fkey"
+            columns: ["trade_entry_id"]
+            isOneToOne: false
+            referencedRelation: "trade_entries"
             referencedColumns: ["id"]
           },
         ]
@@ -914,6 +963,42 @@ export type Database = {
           start_time?: string
           tags?: string[] | null
           trades_count?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      trading_strategies: {
+        Row: {
+          color: string | null
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          tags: string[] | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          tags?: string[] | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          tags?: string[] | null
           updated_at?: string
           user_id?: string
         }
