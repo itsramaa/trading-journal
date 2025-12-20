@@ -52,7 +52,7 @@ export function TargetAllocationsConfig() {
 
   useEffect(() => {
     if (settings?.target_allocations) {
-      const saved = settings.target_allocations as TargetAllocations;
+      const saved = settings.target_allocations as Record<string, number>;
       setAllocations({
         crypto: saved.crypto ?? DEFAULT_ALLOCATIONS.crypto,
         stock_us: saved.stock_us ?? DEFAULT_ALLOCATIONS.stock_us,
@@ -81,7 +81,7 @@ export function TargetAllocationsConfig() {
     }
 
     await updateSettings.mutateAsync({
-      target_allocations: allocations,
+      target_allocations: allocations as unknown as Record<string, number>,
     });
     setHasChanges(false);
     toast.success("Target allocations saved");
