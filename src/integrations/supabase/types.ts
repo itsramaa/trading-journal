@@ -747,8 +747,10 @@ export type Database = {
           pair: string
           pnl: number | null
           quantity: number
+          realized_pnl: number | null
           result: string | null
           session_id: string | null
+          status: string
           stop_loss: number | null
           tags: string[] | null
           take_profit: number | null
@@ -771,8 +773,10 @@ export type Database = {
           pair: string
           pnl?: number | null
           quantity?: number
+          realized_pnl?: number | null
           result?: string | null
           session_id?: string | null
+          status?: string
           stop_loss?: number | null
           tags?: string[] | null
           take_profit?: number | null
@@ -795,8 +799,10 @@ export type Database = {
           pair?: string
           pnl?: number | null
           quantity?: number
+          realized_pnl?: number | null
           result?: string | null
           session_id?: string | null
+          status?: string
           stop_loss?: number | null
           tags?: string[] | null
           take_profit?: number | null

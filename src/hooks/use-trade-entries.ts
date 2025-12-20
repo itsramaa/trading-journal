@@ -24,6 +24,8 @@ export interface TradeEntry {
   entry_signal: string | null;
   notes: string | null;
   tags: string[] | null;
+  status: 'open' | 'closed';
+  realized_pnl: number | null;
   created_at: string;
   updated_at: string;
   // Joined data
@@ -62,6 +64,7 @@ export interface CreateTradeEntryInput {
   notes?: string;
   tags?: string[];
   strategy_ids?: string[];
+  status?: 'open' | 'closed';
 }
 
 export interface UpdateTradeEntryInput extends Partial<CreateTradeEntryInput> {
@@ -137,6 +140,10 @@ export function useCreateTradeEntry() {
         result = input.pnl > 0 ? 'win' : input.pnl < 0 ? 'loss' : 'breakeven';
       }
 
+      // Determine status based on exit_price
+      const status = input.exit_price ? 'closed' : (input.status || 'open');
+      const realizedPnl = status === 'closed' ? (input.pnl || 0) : 0;
+
       // Insert trade entry
       const { data: trade, error: tradeError } = await supabase
         .from("trade_entries")
@@ -160,6 +167,8 @@ export function useCreateTradeEntry() {
           entry_signal: tradeData.entry_signal || null,
           notes: tradeData.notes || null,
           tags: tradeData.tags || [],
+          status: status,
+          realized_pnl: realizedPnl,
         })
         .select()
         .single();
