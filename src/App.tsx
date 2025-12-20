@@ -38,6 +38,7 @@ import Billing from "./pages/Billing";
 import Upgrade from "./pages/Upgrade";
 import Notifications from "./pages/Notifications";
 import Auth from "./pages/Auth";
+import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 
 // Components
@@ -175,6 +176,18 @@ const App = () => (
             <Route path="/notifications" element={
               <ProtectedRoute>
                 <Notifications />
+              </ProtectedRoute>
+            } />
+            
+            {/* Admin routes */}
+            <Route path="/admin" element={
+              <ProtectedRoute requiredFeature={FEATURES.ADMIN_USERS}>
+                <Admin />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/users" element={
+              <ProtectedRoute requiredFeature={FEATURES.ADMIN_USERS}>
+                <Admin />
               </ProtectedRoute>
             } />
             

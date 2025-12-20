@@ -21,6 +21,8 @@ import {
   Lock,
   ChevronDown,
   ChevronRight,
+  Settings,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
@@ -104,6 +106,15 @@ const navigationGroups: NavGroup[] = [
       { title: "Debt Payoff", url: "/ff/debt", icon: CreditCard, feature: FEATURES.FIRE_GOALS, minTier: 'pro' },
       { title: "Emergency Fund", url: "/ff/emergency", icon: Shield, feature: FEATURES.FIRE_GOALS, minTier: 'pro' },
       { title: "Goals", url: "/ff/goals", icon: Goal, feature: FEATURES.FIRE_GOALS, minTier: 'pro' },
+    ],
+  },
+  {
+    label: "Administration",
+    key: "admin",
+    collapsible: true,
+    items: [
+      { title: "Admin Panel", url: "/admin", icon: Settings, feature: FEATURES.ADMIN_USERS },
+      { title: "User Management", url: "/admin/users", icon: Users, feature: FEATURES.ADMIN_USERS },
     ],
   },
 ];

@@ -44,6 +44,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useGoals, useCreateGoal, useUpdateGoal, useDeleteGoal, useAddFundsToGoal, FinancialGoal, CreateGoalInput } from "@/hooks/use-goals";
+import { useAccounts } from "@/hooks/use-accounts";
+import { Building2 } from "lucide-react";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
@@ -91,6 +93,9 @@ export default function Goals() {
   const [deletingGoal, setDeletingGoal] = useState<FinancialGoal | null>(null);
   const [addFundsGoal, setAddFundsGoal] = useState<FinancialGoal | null>(null);
   const [addFundsAmount, setAddFundsAmount] = useState("");
+  const [addFundsAccountId, setAddFundsAccountId] = useState<string>("");
+  
+  const { data: accounts } = useAccounts();
 
   const form = useForm<GoalFormValues>({
     resolver: zodResolver(goalFormSchema),
@@ -200,11 +205,15 @@ export default function Goals() {
       await addFunds.mutateAsync({
         id: addFundsGoal.id,
         amount: Number(addFundsAmount),
+        accountId: addFundsAccountId || undefined,
       });
       setAddFundsGoal(null);
       setAddFundsAmount("");
+      setAddFundsAccountId("");
     }
   };
+  
+  const selectedFundAccount = accounts?.find(a => a.id === addFundsAccountId);
 
   if (isLoading) {
     return (
@@ -539,6 +548,28 @@ export default function Goals() {
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
+                <Label htmlFor="fund-account">Source Account (Optional)</Label>
+                <Select value={addFundsAccountId} onValueChange={setAddFundsAccountId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select account" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">No account linked</SelectItem>
+                    {accounts?.filter(a => a.is_active).map((account) => (
+                      <SelectItem key={account.id} value={account.id}>
+                        <div className="flex items-center gap-2">
+                          <Building2 className="h-4 w-4" />
+                          <span>{account.name}</span>
+                          <span className="text-xs text-muted-foreground ml-auto">
+                            {formatCurrency(Number(account.balance))}
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
                 <Label htmlFor="amount">Amount to Add</Label>
                 <Input
                   id="amount"
@@ -548,6 +579,11 @@ export default function Goals() {
                   onChange={(e) => setAddFundsAmount(e.target.value)}
                 />
               </div>
+              {selectedFundAccount && (
+                <p className={`text-sm ${Number(selectedFundAccount.balance) >= Number(addFundsAmount) ? "text-green-500" : "text-destructive"}`}>
+                  Account balance: {formatCurrency(Number(selectedFundAccount.balance))}
+                </p>
+              )}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setAddFundsGoal(null)}>
