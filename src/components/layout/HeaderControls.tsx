@@ -1,4 +1,4 @@
-import { Moon, Sun, Bell } from "lucide-react";
+import { Moon, Sun, Bell, RefreshCw } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +8,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useAppStore } from "@/store/app-store";
+import { useRefreshPrices } from "@/hooks/use-price-refresh";
 import { cn } from "@/lib/utils";
 
 // Re-export GlobalSearch for backward compatibility
@@ -119,5 +126,37 @@ export function CurrencyToggle() {
     >
       {currency}
     </Button>
+  );
+}
+
+// Price Refresh button
+export function PriceRefreshButton() {
+  const refreshPrices = useRefreshPrices();
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => refreshPrices.mutate()}
+            disabled={refreshPrices.isPending}
+            className="h-9 w-9"
+          >
+            <RefreshCw 
+              className={cn(
+                "h-4 w-4",
+                refreshPrices.isPending && "animate-spin"
+              )} 
+            />
+            <span className="sr-only">Refresh prices</span>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>Refresh market prices</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
