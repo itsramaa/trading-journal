@@ -30,7 +30,7 @@ const moodIcons = {
 const sessionFormSchema = z.object({
   session_date: z.string().min(1, "Date is required"),
   start_time: z.string().min(1, "Start time is required"),
-  end_time: z.string().optional(),
+  duration: z.string().min(1, "Duration is required"),
   mood: z.string().min(1, "Mood is required"),
   rating: z.coerce.number().min(1).max(5),
   tags: z.string().optional(),
@@ -51,12 +51,18 @@ export default function TradingSessions() {
   const [deletingSession, setDeletingSession] = useState<TradingSessionWithStats | null>(null);
   const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
 
+  // Get current time in HH:MM format
+  const getCurrentTime = () => {
+    const now = new Date();
+    return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+  };
+
   const form = useForm<SessionFormValues>({
     resolver: zodResolver(sessionFormSchema),
     defaultValues: {
       session_date: new Date().toISOString().split("T")[0],
-      start_time: "",
-      end_time: "",
+      start_time: getCurrentTime(),
+      duration: "1",
       mood: "neutral",
       rating: 3,
       tags: "",
@@ -78,8 +84,8 @@ export default function TradingSessions() {
   const handleOpenAddDialog = () => {
     form.reset({
       session_date: new Date().toISOString().split("T")[0],
-      start_time: "",
-      end_time: "",
+      start_time: getCurrentTime(),
+      duration: "1",
       mood: "neutral",
       rating: 3,
       tags: "",
@@ -91,10 +97,19 @@ export default function TradingSessions() {
   };
 
   const handleOpenEditDialog = (session: TradingSessionWithStats) => {
+    // Calculate duration from start/end time if available
+    let duration = "1";
+    if (session.start_time && session.end_time) {
+      const [startH] = session.start_time.split(':').map(Number);
+      const [endH] = session.end_time.split(':').map(Number);
+      const diff = endH - startH;
+      if (diff >= 1 && diff <= 3) duration = String(diff);
+    }
+    
     form.reset({
       session_date: session.session_date,
       start_time: session.start_time,
-      end_time: session.end_time || "",
+      duration,
       mood: session.mood,
       rating: Number(session.rating),
       tags: session.tags?.join(", ") || "",
@@ -110,10 +125,16 @@ export default function TradingSessions() {
       ? values.tags.split(",").map(t => t.trim()).filter(Boolean)
       : [];
 
+    // Calculate end_time from start_time + duration
+    const [startH, startM] = values.start_time.split(':').map(Number);
+    const durationHours = parseInt(values.duration, 10);
+    const endH = (startH + durationHours) % 24;
+    const end_time = `${endH.toString().padStart(2, '0')}:${startM.toString().padStart(2, '0')}`;
+
     const sessionData: CreateSessionInput = {
       session_date: values.session_date,
       start_time: values.start_time,
-      end_time: values.end_time || undefined,
+      end_time,
       mood: values.mood,
       rating: values.rating,
       tags: tagsArray,
@@ -371,13 +392,22 @@ export default function TradingSessions() {
                   />
                   <FormField
                     control={form.control}
-                    name="end_time"
+                    name="duration"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>End Time</FormLabel>
-                        <FormControl>
-                          <Input type="time" {...field} />
-                        </FormControl>
+                        <FormLabel>Duration</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select duration" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="1">1 Hour</SelectItem>
+                            <SelectItem value="2">2 Hours</SelectItem>
+                            <SelectItem value="3">3 Hours</SelectItem>
+                          </SelectContent>
+                        </Select>
                         <FormMessage />
                       </FormItem>
                     )}

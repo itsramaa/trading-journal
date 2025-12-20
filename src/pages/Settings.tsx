@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { User, Bell, Shield, Palette, LogOut, Loader2, Upload, Camera, Database } from "lucide-react";
+import { User, Bell, Shield, Palette, LogOut, Loader2, Upload, Camera } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -39,7 +39,6 @@ import {
   useDeleteAccount
 } from "@/hooks/use-user-settings";
 import { Skeleton } from "@/components/ui/skeleton";
-import { SubscriptionDiagnostics } from "@/components/settings/SubscriptionDiagnostics";
 
 const Settings = () => {
   const { user } = useAuth();
@@ -160,7 +159,7 @@ const Settings = () => {
         </div>
 
         <Tabs defaultValue="profile" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-5 lg:w-[500px]">
+          <TabsList className="grid w-full grid-cols-4 lg:w-[400px]">
             <TabsTrigger value="profile" className="gap-2">
               <User className="h-4 w-4" />
               <span className="hidden sm:inline">Profile</span>
@@ -176,10 +175,6 @@ const Settings = () => {
             <TabsTrigger value="security" className="gap-2">
               <Shield className="h-4 w-4" />
               <span className="hidden sm:inline">Security</span>
-            </TabsTrigger>
-            <TabsTrigger value="subscription" className="gap-2">
-              <Database className="h-4 w-4" />
-              <span className="hidden sm:inline">Plan</span>
             </TabsTrigger>
           </TabsList>
 
@@ -284,8 +279,9 @@ const Settings = () => {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="USD">USD - US Dollar</SelectItem>
-                        <SelectItem value="IDR">IDR - Indonesian Rupiah</SelectItem>
+                        <SelectItem value="IDR">IDR/USD</SelectItem>
+                        <SelectItem value="BTC_USD">BTC/USD</SelectItem>
+                        <SelectItem value="BTC_IDR">BTC/IDR</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -531,11 +527,6 @@ const Settings = () => {
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
-
-          {/* Subscription Diagnostics Tab */}
-          <TabsContent value="subscription" className="space-y-4">
-            <SubscriptionDiagnostics />
           </TabsContent>
         </Tabs>
       </div>
