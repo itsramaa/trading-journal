@@ -86,9 +86,9 @@ const navigationGroups: NavGroup[] = [
     minTier: 'pro',
     items: [
       { title: "Summary", url: "/trading", icon: Activity, feature: FEATURES.TRADING_JOURNAL, minTier: 'pro' },
+      { title: "Strategies", url: "/trading/strategies", icon: Lightbulb, feature: FEATURES.TRADING_JOURNAL, minTier: 'pro' },
       { title: "Sessions", url: "/trading/sessions", icon: Clock, feature: FEATURES.TRADING_SESSIONS, minTier: 'pro' },
       { title: "Journal", url: "/trading/journal", icon: Notebook, feature: FEATURES.TRADING_JOURNAL, minTier: 'pro' },
-      { title: "Strategies", url: "/trading/strategies", icon: Lightbulb, feature: FEATURES.TRADING_JOURNAL, minTier: 'pro' },
       { title: "Performance", url: "/trading/performance", icon: LineChart, feature: FEATURES.TRADING_JOURNAL, minTier: 'pro' },
     ],
   },

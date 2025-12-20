@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, TrendingUp, TrendingDown, MoreHorizontal, Filter } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -35,7 +35,9 @@ import { EmptyHoldings, EmptySearchResults } from "@/components/ui/empty-state";
 import { QuickTip } from "@/components/ui/onboarding-tooltip";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
-import { useHoldings, useDefaultPortfolio, useAssets } from "@/hooks/use-portfolio";
+import { ImportExportDialog } from "@/components/data/ImportExportDialog";
+import { useHoldings, useDefaultPortfolio, useAssets, useTransactions, useCreateTransaction } from "@/hooks/use-portfolio";
+import { useAuth } from "@/hooks/use-auth";
 import { transformHoldings, calculateMetrics, calculateAllocation } from "@/lib/data-transformers";
 import type { Holding } from "@/types/portfolio";
 
@@ -45,9 +47,12 @@ const Portfolio = () => {
   const [marketFilter, setMarketFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("value");
 
+  const { user } = useAuth();
   const { data: defaultPortfolio } = useDefaultPortfolio();
   const { data: dbHoldings = [], isLoading: holdingsLoading } = useHoldings(defaultPortfolio?.id);
   const { data: assets = [], isLoading: assetsLoading } = useAssets();
+  const { data: transactions = [] } = useTransactions(defaultPortfolio?.id);
+  const createTransaction = useCreateTransaction();
   const isLoading = holdingsLoading || assetsLoading;
 
   // Transform database holdings to UI format
@@ -80,6 +85,53 @@ const Portfolio = () => {
 
   const uniqueMarkets = [...new Set(holdings.map(h => h.asset.market))];
 
+  // Export portfolio transactions
+  const handleExportTransactions = useCallback(async () => {
+    return transactions.map(tx => ({
+      symbol: tx.assets?.symbol || '',
+      name: tx.assets?.name || '',
+      type: tx.transaction_type,
+      quantity: tx.quantity,
+      price_per_unit: tx.price_per_unit,
+      total_amount: tx.total_amount,
+      fee: tx.fee,
+      transaction_date: tx.transaction_date,
+      notes: tx.notes,
+    }));
+  }, [transactions]);
+
+  // Import portfolio transactions
+  const handleImportTransactions = useCallback(async (data: Record<string, unknown>[]) => {
+    if (!user?.id || !defaultPortfolio?.id) throw new Error("User or portfolio not found");
+    
+    // Get all assets to find matching symbols
+    const assetMap = new Map(assets.map(a => [a.symbol.toUpperCase(), a]));
+    
+    for (const row of data) {
+      const symbol = String(row.symbol || '').toUpperCase();
+      const asset = assetMap.get(symbol);
+      
+      if (!asset) {
+        console.warn(`Asset not found for symbol: ${symbol}`);
+        continue;
+      }
+
+      await createTransaction.mutateAsync({
+        user_id: user.id,
+        portfolio_id: defaultPortfolio.id,
+        asset_id: asset.id,
+        account_id: null,
+        transaction_type: String(row.type || 'BUY'),
+        quantity: Number(row.quantity) || 0,
+        price_per_unit: Number(row.price_per_unit) || 0,
+        total_amount: Number(row.total_amount) || (Number(row.quantity) * Number(row.price_per_unit)),
+        fee: row.fee ? Number(row.fee) : 0,
+        transaction_date: row.transaction_date ? String(row.transaction_date) : new Date().toISOString(),
+        notes: row.notes ? String(row.notes) : null,
+      });
+    }
+  }, [user?.id, defaultPortfolio?.id, assets, createTransaction]);
+
   if (isLoading) {
     return (
       <DashboardLayout>
@@ -106,6 +158,14 @@ const Portfolio = () => {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <ImportExportDialog
+              title="Import/Export Portfolio"
+              description="Backup your portfolio transactions or import from another source"
+              exportData={handleExportTransactions}
+              importData={handleImportTransactions}
+              exportFilename="portfolio-transactions"
+              templateFields={['symbol', 'type', 'quantity', 'price_per_unit', 'total_amount', 'fee', 'transaction_date', 'notes']}
+            />
             <AddAssetForm />
             <AddTransactionDialog portfolioId={defaultPortfolio?.id} />
           </div>
