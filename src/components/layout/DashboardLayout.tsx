@@ -12,8 +12,8 @@ import {
   HeaderSearch,
   ThemeToggle,
   NotificationToggle,
-  CurrencyToggle,
 } from "./HeaderControls";
+import { CurrencyDisplay } from "./CurrencyDisplay";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -71,7 +71,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
           {/* Right side: Controls */}
           <div className="flex items-center gap-1 pr-4">
-            <CurrencyToggle />
+            <CurrencyDisplay />
             <NotificationToggle />
             <ThemeToggle />
           </div>
