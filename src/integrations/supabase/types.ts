@@ -473,6 +473,51 @@ export type Database = {
         }
         Relationships: []
       }
+      fire_settings: {
+        Row: {
+          created_at: string
+          current_age: number
+          custom_fire_number: number | null
+          expected_annual_return: number
+          id: string
+          inflation_rate: number
+          monthly_expenses: number
+          monthly_income: number
+          safe_withdrawal_rate: number
+          target_retirement_age: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_age?: number
+          custom_fire_number?: number | null
+          expected_annual_return?: number
+          id?: string
+          inflation_rate?: number
+          monthly_expenses?: number
+          monthly_income?: number
+          safe_withdrawal_rate?: number
+          target_retirement_age?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          current_age?: number
+          custom_fire_number?: number | null
+          expected_annual_return?: number
+          id?: string
+          inflation_rate?: number
+          monthly_expenses?: number
+          monthly_income?: number
+          safe_withdrawal_rate?: number
+          target_retirement_age?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       holdings: {
         Row: {
           asset_id: string

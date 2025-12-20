@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { 
   Flame, 
   TrendingUp, 
@@ -10,7 +10,9 @@ import {
   Clock,
   ArrowUp,
   ArrowDown,
-  HelpCircle
+  HelpCircle,
+  Save,
+  Loader2
 } from "lucide-react";
 import { 
   AreaChart, 
@@ -34,6 +36,7 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -52,15 +55,38 @@ import {
   type FireInputs 
 } from "@/lib/fire-calculations";
 import { useAppStore } from "@/store/app-store";
+import { useFireSettings, useUpsertFireSettings } from "@/hooks/use-fire-settings";
+import { useHoldings, useDefaultPortfolio } from "@/hooks/use-portfolio";
+import { useAccounts } from "@/hooks/use-accounts";
+import { transformHoldings } from "@/lib/data-transformers";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 export default function FireCalculator() {
   const { currency } = useAppStore();
   
+  // Fetch persisted data
+  const { data: fireSettings, isLoading: settingsLoading } = useFireSettings();
+  const { data: defaultPortfolio } = useDefaultPortfolio();
+  const { data: dbHoldings = [] } = useHoldings(defaultPortfolio?.id);
+  const { data: accounts = [] } = useAccounts();
+  const upsertSettings = useUpsertFireSettings();
+  
+  // Calculate current savings from portfolio + accounts
+  const currentSavingsFromData = useMemo(() => {
+    const holdings = transformHoldings(dbHoldings);
+    const portfolioValue = holdings.reduce((sum, h) => sum + h.value, 0);
+    const accountBalance = accounts.reduce((sum, acc) => {
+      if (acc.currency === 'IDR') return sum + Number(acc.balance);
+      return sum + Number(acc.balance) * 15800;
+    }, 0);
+    return portfolioValue + accountBalance;
+  }, [dbHoldings, accounts]);
+  
   // Manual FIRE number toggle
   const [useManualFireNumber, setUseManualFireNumber] = useState(false);
   
-  // Input state
+  // Input state - initialized from persisted settings or defaults
   const [inputs, setInputs] = useState<FireInputs>({
     currentAge: 30,
     targetRetirementAge: 45,
@@ -72,9 +98,58 @@ export default function FireCalculator() {
     safeWithdrawalRate: 4,
     customFireNumber: currency === 'IDR' ? 5_000_000_000 : 1_000_000,
   });
+  
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  
+  // Load persisted settings when available
+  useEffect(() => {
+    if (fireSettings) {
+      setInputs(prev => ({
+        ...prev,
+        currentAge: fireSettings.current_age,
+        targetRetirementAge: fireSettings.target_retirement_age,
+        monthlyExpenses: Number(fireSettings.monthly_expenses),
+        monthlyIncome: Number(fireSettings.monthly_income),
+        expectedAnnualReturn: Number(fireSettings.expected_annual_return),
+        inflationRate: Number(fireSettings.inflation_rate),
+        safeWithdrawalRate: Number(fireSettings.safe_withdrawal_rate),
+        customFireNumber: fireSettings.custom_fire_number ? Number(fireSettings.custom_fire_number) : undefined,
+      }));
+      setUseManualFireNumber(!!fireSettings.custom_fire_number);
+    }
+  }, [fireSettings]);
+  
+  // Update current savings from real data
+  useEffect(() => {
+    if (currentSavingsFromData > 0) {
+      setInputs(prev => ({
+        ...prev,
+        currentSavings: currentSavingsFromData,
+      }));
+    }
+  }, [currentSavingsFromData]);
 
   const updateInput = <K extends keyof FireInputs>(key: K, value: FireInputs[K]) => {
     setInputs(prev => ({ ...prev, [key]: value }));
+    setHasUnsavedChanges(true);
+  };
+  
+  const handleSaveSettings = async () => {
+    try {
+      await upsertSettings.mutateAsync({
+        current_age: inputs.currentAge,
+        target_retirement_age: inputs.targetRetirementAge,
+        monthly_income: inputs.monthlyIncome,
+        monthly_expenses: inputs.monthlyExpenses,
+        expected_annual_return: inputs.expectedAnnualReturn,
+        inflation_rate: inputs.inflationRate,
+        safe_withdrawal_rate: inputs.safeWithdrawalRate,
+        custom_fire_number: useManualFireNumber ? inputs.customFireNumber : null,
+      });
+      setHasUnsavedChanges(false);
+    } catch (error) {
+      // Error handled in hook
+    }
   };
 
   // Calculate FIRE metrics
@@ -98,6 +173,16 @@ export default function FireCalculator() {
     optimistic: 'text-profit',
   };
 
+  if (settingsLoading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-96">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   if (!results) {
     return (
       <DashboardLayout>
@@ -112,16 +197,30 @@ export default function FireCalculator() {
     <DashboardLayout>
       <div className="space-y-6">
         {/* Page Header */}
-        <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl gradient-primary">
-            <Flame className="h-6 w-6 text-primary-foreground" />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl gradient-primary">
+              <Flame className="h-6 w-6 text-primary-foreground" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">FIRE Calculator</h1>
+              <p className="text-muted-foreground">
+                Calculate your path to Financial Independence, Retire Early
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">FIRE Calculator</h1>
-            <p className="text-muted-foreground">
-              Calculate your path to Financial Independence, Retire Early
-            </p>
-          </div>
+          <Button 
+            onClick={handleSaveSettings} 
+            disabled={upsertSettings.isPending || !hasUnsavedChanges}
+            className="gap-2"
+          >
+            {upsertSettings.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Save className="h-4 w-4" />
+            )}
+            Save Settings
+          </Button>
         </div>
 
         {/* Key Results */}
