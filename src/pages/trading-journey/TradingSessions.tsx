@@ -6,11 +6,10 @@ import { Progress } from "@/components/ui/progress";
 import { Plus, Clock, Smile, Meh, Frown, Star, Calendar, TrendingUp, MoreHorizontal, Edit, Trash2, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useTradingSessions, useCreateTradingSession, useUpdateTradingSession, useDeleteTradingSession, TradingSession, CreateSessionInput } from "@/hooks/use-trading-sessions";
+import { useTradingSessions, useCreateTradingSession, useUpdateTradingSession, useDeleteTradingSession, TradingSessionWithStats, CreateSessionInput } from "@/hooks/use-trading-sessions";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
@@ -32,8 +31,6 @@ const sessionFormSchema = z.object({
   end_time: z.string().optional(),
   mood: z.string().min(1, "Mood is required"),
   rating: z.coerce.number().min(1).max(5),
-  trades_count: z.coerce.number().min(0),
-  pnl: z.coerce.number(),
   tags: z.string().optional(),
   notes: z.string().optional(),
   market_condition: z.string().optional(),
@@ -48,8 +45,8 @@ export default function TradingSessions() {
   const deleteSession = useDeleteTradingSession();
 
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [editingSession, setEditingSession] = useState<TradingSession | null>(null);
-  const [deletingSession, setDeletingSession] = useState<TradingSession | null>(null);
+  const [editingSession, setEditingSession] = useState<TradingSessionWithStats | null>(null);
+  const [deletingSession, setDeletingSession] = useState<TradingSessionWithStats | null>(null);
 
   const form = useForm<SessionFormValues>({
     resolver: zodResolver(sessionFormSchema),
@@ -59,21 +56,21 @@ export default function TradingSessions() {
       end_time: "",
       mood: "neutral",
       rating: 3,
-      trades_count: 0,
-      pnl: 0,
       tags: "",
       notes: "",
       market_condition: "",
     },
   });
 
-  const formatCurrency = (v: number) => v >= 0 ? `+Rp${(v/1000000).toFixed(1)}jt` : `-Rp${(Math.abs(v)/1000000).toFixed(1)}jt`;
+  const formatCurrency = (v: number) => v >= 0 ? `+$${v.toFixed(2)}` : `-$${Math.abs(v).toFixed(2)}`;
 
   const avgRating = sessions.length > 0 
     ? sessions.reduce((sum, s) => sum + Number(s.rating), 0) / sessions.length 
     : 0;
-  const totalPnl = sessions.reduce((sum, s) => sum + Number(s.pnl), 0);
-  const positiveSessions = sessions.filter(s => Number(s.pnl) > 0).length;
+  // Use calculated P&L from linked trades
+  const totalPnl = sessions.reduce((sum, s) => sum + (s.calculated_pnl || 0), 0);
+  const positiveSessions = sessions.filter(s => (s.calculated_pnl || 0) > 0).length;
+  const totalTrades = sessions.reduce((sum, s) => sum + (s.calculated_trades_count || 0), 0);
 
   const handleOpenAddDialog = () => {
     form.reset({
@@ -82,8 +79,6 @@ export default function TradingSessions() {
       end_time: "",
       mood: "neutral",
       rating: 3,
-      trades_count: 0,
-      pnl: 0,
       tags: "",
       notes: "",
       market_condition: "",
@@ -92,15 +87,13 @@ export default function TradingSessions() {
     setIsAddOpen(true);
   };
 
-  const handleOpenEditDialog = (session: TradingSession) => {
+  const handleOpenEditDialog = (session: TradingSessionWithStats) => {
     form.reset({
       session_date: session.session_date,
       start_time: session.start_time,
       end_time: session.end_time || "",
       mood: session.mood,
       rating: Number(session.rating),
-      trades_count: Number(session.trades_count),
-      pnl: Number(session.pnl),
       tags: session.tags?.join(", ") || "",
       notes: session.notes || "",
       market_condition: session.market_condition || "",
@@ -120,8 +113,6 @@ export default function TradingSessions() {
       end_time: values.end_time || undefined,
       mood: values.mood,
       rating: values.rating,
-      trades_count: values.trades_count,
-      pnl: values.pnl,
       tags: tagsArray,
       notes: values.notes || undefined,
       market_condition: values.market_condition || undefined,
@@ -161,7 +152,7 @@ export default function TradingSessions() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Trading Sessions</h1>
-            <p className="text-muted-foreground">Track your trading sessions with mood and performance</p>
+            <p className="text-muted-foreground">Track your trading sessions - trades and P&L are auto-calculated from linked journal entries</p>
           </div>
           <Button onClick={handleOpenAddDialog}>
             <Plus className="mr-2 h-4 w-4" />New Session
@@ -177,7 +168,7 @@ export default function TradingSessions() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{sessions.length}</div>
-              <p className="text-xs text-muted-foreground">All time</p>
+              <p className="text-xs text-muted-foreground">{totalTrades} total trades</p>
             </CardContent>
           </Card>
           <Card>
@@ -211,6 +202,7 @@ export default function TradingSessions() {
               <div className={`text-2xl font-bold ${totalPnl >= 0 ? "text-green-500" : "text-destructive"}`}>
                 {formatCurrency(totalPnl)}
               </div>
+              <p className="text-xs text-muted-foreground">From linked trades</p>
             </CardContent>
           </Card>
         </div>
@@ -220,7 +212,7 @@ export default function TradingSessions() {
           <EmptyState
             icon={Calendar}
             title="No trading sessions yet"
-            description="Start tracking your trading sessions to analyze your performance and mood patterns."
+            description="Start tracking your trading sessions. Link trades from the Journal to auto-calculate performance."
             action={{
               label: "New Session",
               onClick: handleOpenAddDialog,
@@ -230,6 +222,9 @@ export default function TradingSessions() {
           <div className="space-y-4">
             {sessions.map((session) => {
               const MoodIcon = moodIcons[session.mood as keyof typeof moodIcons] || Meh;
+              const sessionPnl = session.calculated_pnl || 0;
+              const sessionTrades = session.calculated_trades_count || 0;
+              
               return (
                 <Card key={session.id}>
                   <CardHeader className="pb-2">
@@ -264,8 +259,8 @@ export default function TradingSessions() {
                             <Star key={n} className={`h-4 w-4 ${n <= Number(session.rating) ? "text-yellow-500 fill-yellow-500" : "text-muted"}`} />
                           ))}
                         </div>
-                        <span className={`font-bold ${Number(session.pnl) >= 0 ? "text-green-500" : "text-destructive"}`}>
-                          {formatCurrency(Number(session.pnl))}
+                        <span className={`font-bold ${sessionPnl >= 0 ? "text-green-500" : "text-destructive"}`}>
+                          {formatCurrency(sessionPnl)}
                         </span>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -292,7 +287,13 @@ export default function TradingSessions() {
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <div className="flex items-center gap-4 text-sm">
-                      <span><span className="text-muted-foreground">Trades:</span> {session.trades_count}</span>
+                      <span>
+                        <span className="text-muted-foreground">Trades:</span>{" "}
+                        <span className="font-medium">{sessionTrades}</span>
+                        {sessionTrades === 0 && (
+                          <span className="text-muted-foreground text-xs ml-1">(link trades in Journal)</span>
+                        )}
+                      </span>
                       {session.market_condition && (
                         <span><span className="text-muted-foreground">Market:</span> {session.market_condition}</span>
                       )}
@@ -409,34 +410,11 @@ export default function TradingSessions() {
                     )}
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="trades_count"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Number of Trades</FormLabel>
-                        <FormControl>
-                          <Input type="number" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="pnl"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>P&L (IDR)</FormLabel>
-                        <FormControl>
-                          <Input type="number" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+
+                <div className="p-3 rounded-lg bg-muted/50 text-sm text-muted-foreground">
+                  <strong>Note:</strong> Number of trades and P&L are automatically calculated from journal entries linked to this session.
                 </div>
+
                 <FormField
                   control={form.control}
                   name="market_condition"
