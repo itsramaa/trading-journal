@@ -39,12 +39,13 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useAssets, useDefaultPortfolio, useCreateTransaction } from "@/hooks/use-portfolio";
+import { useDefaultPortfolio, useCreateTransaction, useCreateAsset } from "@/hooks/use-portfolio";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AssetSearchSelect } from "./AssetSearchSelect";
+import { SearchedAsset } from "@/hooks/use-asset-search";
 import type { TransactionType } from "@/types/portfolio";
 
 const transactionSchema = z.object({
-  assetId: z.string().min(1, "Asset is required"),
   type: z.enum(["BUY", "SELL", "DIVIDEND", "TRANSFER_IN", "TRANSFER_OUT"]),
   quantity: z.string().refine((val) => !isNaN(Number(val)) && Number(val) > 0, {
     message: "Quantity must be a positive number",
@@ -67,17 +68,17 @@ interface AddTransactionDialogProps {
 
 export function AddTransactionDialog({ trigger, onSuccess, portfolioId }: AddTransactionDialogProps) {
   const [open, setOpen] = useState(false);
+  const [selectedAsset, setSelectedAsset] = useState<SearchedAsset | null>(null);
   
-  const { data: assets = [], isLoading: assetsLoading } = useAssets();
   const { data: defaultPortfolio } = useDefaultPortfolio();
   const createTransaction = useCreateTransaction();
+  const createAsset = useCreateAsset();
   
   const effectivePortfolioId = portfolioId || defaultPortfolio?.id;
 
   const form = useForm<TransactionFormValues>({
     resolver: zodResolver(transactionSchema),
     defaultValues: {
-      assetId: "",
       type: "BUY",
       quantity: "",
       price: "",
@@ -101,17 +102,51 @@ export function AddTransactionDialog({ trigger, onSuccess, portfolioId }: AddTra
       return;
     }
 
-    const asset = assets.find(a => a.id === data.assetId);
+    if (!selectedAsset) {
+      toast.error("Please select an asset");
+      return;
+    }
+
     const quantity = Number(data.quantity);
     const pricePerUnit = Number(data.price);
     const fees = Number(data.fees || 0);
     const totalAmount = quantity * pricePerUnit + fees;
 
     try {
+      // Check if asset exists, if not create it
+      const { data: existingAsset } = await supabase
+        .from('assets')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('symbol', selectedAsset.symbol)
+        .maybeSingle();
+
+      let assetId = existingAsset?.id;
+
+      if (!assetId) {
+        // Create the asset
+        const newAsset = await createAsset.mutateAsync({
+          user_id: user.id,
+          symbol: selectedAsset.symbol,
+          name: selectedAsset.name,
+          asset_type: selectedAsset.type,
+          logo_url: selectedAsset.logo_url || null,
+          coingecko_id: selectedAsset.coingecko_id || null,
+          finnhub_symbol: selectedAsset.finnhub_symbol || null,
+          alpha_symbol: null,
+          current_price: null,
+          exchange: null,
+          fcs_symbol: null,
+          sector: null,
+          portfolio_id: effectivePortfolioId,
+        });
+        assetId = newAsset.id;
+      }
+
       await createTransaction.mutateAsync({
         user_id: user.id,
         portfolio_id: effectivePortfolioId,
-        asset_id: data.assetId,
+        asset_id: assetId,
         transaction_type: data.type,
         quantity,
         price_per_unit: pricePerUnit,
@@ -122,8 +157,9 @@ export function AddTransactionDialog({ trigger, onSuccess, portfolioId }: AddTra
         account_id: null,
       });
       
-      toast.success(`${data.type} transaction added for ${asset?.symbol}`);
+      toast.success(`${data.type} transaction added for ${selectedAsset.symbol}`);
       form.reset();
+      setSelectedAsset(null);
       setOpen(false);
       onSuccess?.();
     } catch (error: any) {
@@ -159,34 +195,34 @@ export function AddTransactionDialog({ trigger, onSuccess, portfolioId }: AddTra
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
+              <FormItem>
+                <FormLabel>Asset</FormLabel>
+                <AssetSearchSelect
+                  value={selectedAsset}
+                  onChange={setSelectedAsset}
+                  placeholder="Search crypto or stocks..."
+                />
+              </FormItem>
               <FormField
                 control={form.control}
-                name="assetId"
+                name="type"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Asset</FormLabel>
-                    {assetsLoading ? (
-                      <Skeleton className="h-10 w-full" />
-                    ) : assets.length === 0 ? (
-                      <p className="text-sm text-muted-foreground py-2">
-                        No assets found. Add an asset first.
-                      </p>
-                    ) : (
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select asset" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent className="bg-popover">
-                          {assets.map((asset) => (
-                            <SelectItem key={asset.id} value={asset.id}>
-                              {asset.symbol} - {asset.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
+                    <FormLabel>Type</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select type" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent className="bg-popover">
+                        <SelectItem value="BUY">Buy</SelectItem>
+                        <SelectItem value="SELL">Sell</SelectItem>
+                        <SelectItem value="DIVIDEND">Dividend</SelectItem>
+                        <SelectItem value="TRANSFER_IN">Transfer In</SelectItem>
+                        <SelectItem value="TRANSFER_OUT">Transfer Out</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -342,9 +378,9 @@ export function AddTransactionDialog({ trigger, onSuccess, portfolioId }: AddTra
               </Button>
               <Button 
                 type="submit" 
-                disabled={createTransaction.isPending || assets.length === 0}
+                disabled={createTransaction.isPending || createAsset.isPending || !selectedAsset}
               >
-                {createTransaction.isPending ? (
+                {(createTransaction.isPending || createAsset.isPending) ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Adding...
