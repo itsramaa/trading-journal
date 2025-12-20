@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { User, Bell, Shield, Palette, LogOut, Loader2 } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { User, Bell, Shield, Palette, LogOut, Loader2, Upload, Camera } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -28,68 +28,85 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { useAppStore } from "@/store/app-store";
-import type { Currency } from "@/types/portfolio";
+import { useAuth } from "@/hooks/use-auth";
+import { 
+  useUserProfile, 
+  useUpdateUserProfile, 
+  useUploadAvatar,
+  useUserSettings,
+  useUpdateUserSettings,
+  useUpdatePassword,
+  useDeleteAccount
+} from "@/hooks/use-user-settings";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const Settings = () => {
-  const { currency, setCurrency } = useAppStore();
+  const { user } = useAuth();
+  const { data: profile, isLoading: profileLoading } = useUserProfile();
+  const { data: settings, isLoading: settingsLoading } = useUserSettings();
+  const updateProfile = useUpdateUserProfile();
+  const uploadAvatar = useUploadAvatar();
+  const updateSettings = useUpdateUserSettings();
+  const updatePassword = useUpdatePassword();
+  const deleteAccount = useDeleteAccount();
 
-  // Demo data
-  const [fullname, setFullname] = useState("John Doe");
-  const [email] = useState("john.doe@example.com");
-  const [bio, setBio] = useState("Crypto enthusiast and long-term investor");
-  const [timezone, setTimezone] = useState("utc+7");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const [displayName, setDisplayName] = useState("");
+  const [bio, setBio] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
 
-  const [notifications, setNotifications] = useState({
-    priceAlerts: true,
-    portfolioUpdates: true,
-    weeklyReport: false,
-    marketNews: true,
-  });
-  const [isDark, setIsDark] = useState(false);
-
+  // Sync form state with fetched data
   useEffect(() => {
-    setIsDark(document.documentElement.classList.contains('dark'));
-  }, []);
+    if (profile) {
+      setDisplayName(profile.display_name || "");
+      setBio(profile.bio || "");
+    }
+  }, [profile]);
 
   const handleSaveProfile = async () => {
-    setIsSaving(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 500));
-    setIsSaving(false);
-    toast.success("Profile saved successfully");
+    await updateProfile.mutateAsync({
+      display_name: displayName,
+      bio: bio,
+    });
   };
 
-  const handleCurrencyChange = (value: string) => {
-    setCurrency(value as Currency);
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      await uploadAvatar.mutateAsync(file);
+    }
+  };
+
+  const handleCurrencyChange = async (value: string) => {
+    await updateSettings.mutateAsync({ default_currency: value });
     toast.success(`Currency changed to ${value}`);
   };
 
-  const handleThemeChange = (theme: 'light' | 'dark' | 'system') => {
+  const handleThemeChange = async (theme: 'light' | 'dark' | 'system') => {
     if (theme === 'dark') {
       document.documentElement.classList.add('dark');
-      setIsDark(true);
     } else if (theme === 'light') {
       document.documentElement.classList.remove('dark');
-      setIsDark(false);
     } else {
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       if (prefersDark) {
         document.documentElement.classList.add('dark');
-        setIsDark(true);
       } else {
         document.documentElement.classList.remove('dark');
-        setIsDark(false);
       }
     }
+    await updateSettings.mutateAsync({ theme });
     toast.success(`Theme changed to ${theme}`);
   };
 
-  const handleNotificationChange = (key: keyof typeof notifications, value: boolean) => {
-    setNotifications(prev => ({ ...prev, [key]: value }));
+  const handleNotificationChange = async (key: string, value: boolean) => {
+    await updateSettings.mutateAsync({ [key]: value });
     toast.success("Notification preference updated");
   };
 
@@ -104,17 +121,34 @@ const Settings = () => {
       return;
     }
 
-    setIsSaving(true);
-    await new Promise(resolve => setTimeout(resolve, 500));
-    setIsSaving(false);
-    toast.success("Password updated successfully");
+    await updatePassword.mutateAsync({ newPassword });
     setNewPassword("");
     setConfirmPassword("");
   };
 
-  const handleDeleteAccount = () => {
-    toast.success("Account deletion requested (demo mode)");
+  const handleDeleteAccount = async () => {
+    await deleteAccount.mutateAsync();
   };
+
+  const isLoading = profileLoading || settingsLoading;
+  const isSaving = updateProfile.isPending || updateSettings.isPending;
+  const isDark = document.documentElement.classList.contains('dark');
+
+  if (isLoading) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
+            <p className="text-muted-foreground">Manage your account preferences.</p>
+          </div>
+          <div className="space-y-4">
+            <Skeleton className="h-[400px] w-full" />
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -152,17 +186,52 @@ const Settings = () => {
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="flex items-center gap-6">
-                  <Avatar className="h-20 w-20">
-                    <AvatarImage src="https://github.com/shadcn.png" />
-                    <AvatarFallback>
-                      {fullname?.slice(0, 2).toUpperCase() || "JD"}
-                    </AvatarFallback>
-                  </Avatar>
+                  <div className="relative group">
+                    <Avatar className="h-20 w-20">
+                      <AvatarImage src={profile?.avatar_url || ""} />
+                      <AvatarFallback>
+                        {displayName?.slice(0, 2).toUpperCase() || "U"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <button
+                      onClick={handleAvatarClick}
+                      disabled={uploadAvatar.isPending}
+                      className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                    >
+                      {uploadAvatar.isPending ? (
+                        <Loader2 className="h-6 w-6 text-white animate-spin" />
+                      ) : (
+                        <Camera className="h-6 w-6 text-white" />
+                      )}
+                    </button>
+                  </div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/gif,image/webp"
+                    onChange={handleAvatarChange}
+                    className="hidden"
+                  />
                   <div className="space-y-2">
-                    <Button variant="outline" size="sm">
-                      Change Avatar
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={handleAvatarClick}
+                      disabled={uploadAvatar.isPending}
+                    >
+                      {uploadAvatar.isPending ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Uploading...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="mr-2 h-4 w-4" />
+                          Change Avatar
+                        </>
+                      )}
                     </Button>
-                    <p className="text-xs text-muted-foreground">JPG, PNG or GIF. Max size 2MB.</p>
+                    <p className="text-xs text-muted-foreground">JPG, PNG, GIF or WebP. Max 2MB.</p>
                   </div>
                 </div>
 
@@ -170,11 +239,11 @@ const Settings = () => {
 
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="fullname">Full Name</Label>
+                    <Label htmlFor="displayName">Display Name</Label>
                     <Input
-                      id="fullname"
-                      value={fullname}
-                      onChange={(e) => setFullname(e.target.value)}
+                      id="displayName"
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
                     />
                   </div>
                   <div className="space-y-2">
@@ -182,7 +251,7 @@ const Settings = () => {
                     <Input
                       id="email"
                       type="email"
-                      value={email}
+                      value={user?.email || ""}
                       disabled
                     />
                   </div>
@@ -197,36 +266,40 @@ const Settings = () => {
                   </div>
                 </div>
 
-                    <Separator />
+                <Separator />
 
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label htmlFor="currency">Default Currency</Label>
-                        <Select value={currency} onValueChange={handleCurrencyChange}>
-                          <SelectTrigger id="currency">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="USD">USD - US Dollar</SelectItem>
-                            <SelectItem value="IDR">IDR - Indonesian Rupiah</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="timezone">Timezone</Label>
-                        <Select value={timezone} onValueChange={setTimezone}>
-                          <SelectTrigger id="timezone">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="utc-8">Pacific Time (UTC-8)</SelectItem>
-                            <SelectItem value="utc-5">Eastern Time (UTC-5)</SelectItem>
-                            <SelectItem value="utc+7">Jakarta (UTC+7)</SelectItem>
-                            <SelectItem value="utc+0">London (UTC+0)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="currency">Default Currency</Label>
+                    <Select 
+                      value={settings?.default_currency || "USD"} 
+                      onValueChange={handleCurrencyChange}
+                    >
+                      <SelectTrigger id="currency">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="USD">USD - US Dollar</SelectItem>
+                        <SelectItem value="IDR">IDR - Indonesian Rupiah</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="language">Language</Label>
+                    <Select 
+                      value={settings?.language || "en"} 
+                      onValueChange={(v) => updateSettings.mutate({ language: v })}
+                    >
+                      <SelectTrigger id="language">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="en">English</SelectItem>
+                        <SelectItem value="id">Bahasa Indonesia</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
 
                 <div className="flex justify-end">
                   <Button
@@ -251,7 +324,7 @@ const Settings = () => {
             <Card className="border-border/50">
               <CardHeader>
                 <CardTitle>Notification Preferences</CardTitle>
-                <CardDescription>Choose what alerts you want to receive.</CardDescription>
+                <CardDescription>Choose what alerts you want to receive. These settings are synced across all your devices.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="flex items-center justify-between">
@@ -260,8 +333,8 @@ const Settings = () => {
                     <p className="text-sm text-muted-foreground">Get notified when assets hit target prices.</p>
                   </div>
                   <Switch
-                    checked={notifications.priceAlerts}
-                    onCheckedChange={(checked) => handleNotificationChange('priceAlerts', checked)}
+                    checked={settings?.notify_price_alerts ?? true}
+                    onCheckedChange={(checked) => handleNotificationChange('notify_price_alerts', checked)}
                   />
                 </div>
                 <Separator />
@@ -271,8 +344,8 @@ const Settings = () => {
                     <p className="text-sm text-muted-foreground">Daily summary of your portfolio.</p>
                   </div>
                   <Switch
-                    checked={notifications.portfolioUpdates}
-                    onCheckedChange={(checked) => handleNotificationChange('portfolioUpdates', checked)}
+                    checked={settings?.notify_portfolio_updates ?? true}
+                    onCheckedChange={(checked) => handleNotificationChange('notify_portfolio_updates', checked)}
                   />
                 </div>
                 <Separator />
@@ -282,8 +355,8 @@ const Settings = () => {
                     <p className="text-sm text-muted-foreground">Weekly performance report.</p>
                   </div>
                   <Switch
-                    checked={notifications.weeklyReport}
-                    onCheckedChange={(checked) => handleNotificationChange('weeklyReport', checked)}
+                    checked={settings?.notify_weekly_report ?? false}
+                    onCheckedChange={(checked) => handleNotificationChange('notify_weekly_report', checked)}
                   />
                 </div>
                 <Separator />
@@ -293,8 +366,30 @@ const Settings = () => {
                     <p className="text-sm text-muted-foreground">Important market updates.</p>
                   </div>
                   <Switch
-                    checked={notifications.marketNews}
-                    onCheckedChange={(checked) => handleNotificationChange('marketNews', checked)}
+                    checked={settings?.notify_market_news ?? true}
+                    onCheckedChange={(checked) => handleNotificationChange('notify_market_news', checked)}
+                  />
+                </div>
+                <Separator />
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Email Notifications</Label>
+                    <p className="text-sm text-muted-foreground">Receive alerts via email.</p>
+                  </div>
+                  <Switch
+                    checked={settings?.notify_email_enabled ?? true}
+                    onCheckedChange={(checked) => handleNotificationChange('notify_email_enabled', checked)}
+                  />
+                </div>
+                <Separator />
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Push Notifications</Label>
+                    <p className="text-sm text-muted-foreground">Receive push notifications on this device.</p>
+                  </div>
+                  <Switch
+                    checked={settings?.notify_push_enabled ?? false}
+                    onCheckedChange={(checked) => handleNotificationChange('notify_push_enabled', checked)}
                   />
                 </div>
               </CardContent>
@@ -312,7 +407,7 @@ const Settings = () => {
                   <Label>Theme</Label>
                   <div className="grid grid-cols-3 gap-4">
                     <Button
-                      variant={!isDark ? "default" : "outline"}
+                      variant={settings?.theme === 'light' ? "default" : "outline"}
                       className="h-auto flex-col gap-2 p-4"
                       onClick={() => handleThemeChange('light')}
                     >
@@ -320,7 +415,7 @@ const Settings = () => {
                       <span className="text-sm">Light</span>
                     </Button>
                     <Button
-                      variant={isDark ? "default" : "outline"}
+                      variant={settings?.theme === 'dark' ? "default" : "outline"}
                       className="h-auto flex-col gap-2 p-4"
                       onClick={() => handleThemeChange('dark')}
                     >
@@ -328,7 +423,7 @@ const Settings = () => {
                       <span className="text-sm">Dark</span>
                     </Button>
                     <Button
-                      variant="outline"
+                      variant={settings?.theme === 'system' ? "default" : "outline"}
                       className="h-auto flex-col gap-2 p-4"
                       onClick={() => handleThemeChange('system')}
                     >
@@ -373,9 +468,9 @@ const Settings = () => {
                   <Button
                     variant="outline"
                     onClick={handlePasswordChange}
-                    disabled={isSaving || !newPassword || !confirmPassword}
+                    disabled={updatePassword.isPending || !newPassword || !confirmPassword}
                   >
-                    {isSaving ? (
+                    {updatePassword.isPending ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         Updating...
