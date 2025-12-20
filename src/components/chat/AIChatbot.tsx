@@ -40,8 +40,8 @@ const AI_MODES = {
     icon: TrendingUp,
     description: 'Analisis portfolio & strategi investasi',
     endpoint: 'portfolio-insights',
-    suggestions: ['Analisis portfolio saya', 'Tips diversifikasi', 'Apa itu DCA?'],
-    greeting: 'Halo! Saya AI Investment Advisor. Tanyakan apa saja tentang portfolio Anda, strategi investasi, atau insight pasar.',
+    suggestions: ['Analisis portfolio saya', 'Saran rebalancing', 'Tips diversifikasi', 'Apa itu DCA?'],
+    greeting: 'Halo! Saya AI Investment Advisor. Tanyakan tentang portfolio, rebalancing, atau strategi investasi Anda.',
     placeholder: 'Tanya tentang investasi...',
   },
   trading: {
@@ -154,6 +154,15 @@ export function AIChatbot() {
       allocationByType[type] = (allocationByType[type] || 0) + parseFloat(h.allocation);
     });
 
+    // Default target allocations (can be customized by user in future)
+    const targetAllocations: Record<string, number> = {
+      'crypto': 20,
+      'stock_us': 40,
+      'stock_id': 25,
+      'reksadana': 10,
+      'other': 5,
+    };
+
     return {
       portfolioName: defaultPortfolio?.name || 'Default Portfolio',
       currency: defaultPortfolio?.currency || 'IDR',
@@ -163,6 +172,7 @@ export function AIChatbot() {
       totalProfitLossPercent: totalCost > 0 ? (((totalValue - totalCost) / totalCost) * 100).toFixed(2) + '%' : '0%',
       numberOfAssets: holdings.length,
       allocationByType,
+      targetAllocations,
       holdings: holdingsSummary,
     };
   };
