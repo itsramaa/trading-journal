@@ -40,12 +40,13 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { useAssets, useCreateTransaction } from "@/hooks/use-portfolio";
+import { useCreateTransaction, useCreateAsset } from "@/hooks/use-portfolio";
 import { useAccounts } from "@/hooks/use-accounts";
 import { formatCurrency } from "@/lib/formatters";
+import { AssetSearchSelect } from "./AssetSearchSelect";
+import { SearchedAsset } from "@/hooks/use-asset-search";
 
 const transactionSchema = z.object({
-  assetId: z.string().min(1, "Asset is required"),
   accountId: z.string().optional(),
   type: z.enum(["buy", "sell"]),
   quantity: z.string().refine((val) => !isNaN(Number(val)) && Number(val) > 0, {
@@ -66,14 +67,14 @@ interface TransactionFormProps {
 
 export function TransactionForm({ portfolioId }: TransactionFormProps) {
   const [open, setOpen] = useState(false);
-  const { data: assets, isLoading: assetsLoading } = useAssets();
+  const [selectedAsset, setSelectedAsset] = useState<SearchedAsset | null>(null);
   const { data: accounts, isLoading: accountsLoading } = useAccounts();
   const createTransaction = useCreateTransaction();
+  const createAsset = useCreateAsset();
 
   const form = useForm<TransactionFormValues>({
     resolver: zodResolver(transactionSchema),
     defaultValues: {
-      assetId: "",
       accountId: "",
       type: "buy",
       quantity: "",
@@ -89,6 +90,11 @@ export function TransactionForm({ portfolioId }: TransactionFormProps) {
       return;
     }
 
+    if (!selectedAsset) {
+      toast.error("Please select an asset");
+      return;
+    }
+
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       toast.error("Please log in to add transactions");
@@ -100,10 +106,43 @@ export function TransactionForm({ portfolioId }: TransactionFormProps) {
     const totalAmount = quantity * price;
 
     try {
+      // First, check if asset already exists for this user
+      const { data: existingAsset } = await supabase
+        .from('assets')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('symbol', selectedAsset.symbol)
+        .single();
+
+      let assetId: string;
+
+      if (existingAsset) {
+        assetId = existingAsset.id;
+      } else {
+        // Create the asset first
+        const newAsset = await createAsset.mutateAsync({
+          user_id: user.id,
+          symbol: selectedAsset.symbol,
+          name: selectedAsset.name,
+          asset_type: selectedAsset.type,
+          portfolio_id: portfolioId,
+          exchange: selectedAsset.type === 'ID_STOCK' ? 'IDX' : selectedAsset.type === 'US_STOCK' ? 'NYSE' : null,
+          sector: null,
+          current_price: null,
+          logo_url: selectedAsset.logo_url || null,
+          coingecko_id: selectedAsset.coingecko_id || null,
+          finnhub_symbol: selectedAsset.finnhub_symbol || null,
+          fcs_symbol: selectedAsset.fcs_symbol || null,
+          alpha_symbol: selectedAsset.alpha_symbol || null,
+        });
+        assetId = newAsset.id;
+      }
+
+      // Then create the transaction
       await createTransaction.mutateAsync({
         user_id: user.id,
         portfolio_id: portfolioId,
-        asset_id: data.assetId,
+        asset_id: assetId,
         account_id: data.accountId || null,
         transaction_type: data.type.toUpperCase(),
         quantity,
@@ -116,9 +155,14 @@ export function TransactionForm({ portfolioId }: TransactionFormProps) {
       
       toast.success("Transaction added successfully");
       form.reset();
+      setSelectedAsset(null);
       setOpen(false);
-    } catch (error) {
-      toast.error("Failed to add transaction");
+    } catch (error: any) {
+      if (error?.message?.includes('duplicate')) {
+        toast.error("This asset already exists");
+      } else {
+        toast.error("Failed to add transaction");
+      }
     }
   };
 
@@ -141,36 +185,25 @@ export function TransactionForm({ portfolioId }: TransactionFormProps) {
         <DialogHeader>
           <DialogTitle>Add Transaction</DialogTitle>
           <DialogDescription>
-            Record a new buy or sell transaction for your portfolio.
+            Search for an asset and record a buy or sell transaction.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="assetId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Asset</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder={assetsLoading ? "Loading..." : "Select asset"} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {assets?.map((asset) => (
-                          <SelectItem key={asset.id} value={asset.id}>
-                            {asset.symbol} - {asset.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
+            {/* Asset Search */}
+            <div className="space-y-2">
+              <FormLabel>Asset *</FormLabel>
+              <AssetSearchSelect 
+                value={selectedAsset}
+                onChange={setSelectedAsset}
+                placeholder="Search crypto or stocks..."
               />
+              {!selectedAsset && form.formState.isSubmitted && (
+                <p className="text-xs text-destructive">Please select an asset</p>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="type"
@@ -192,6 +225,47 @@ export function TransactionForm({ portfolioId }: TransactionFormProps) {
                   </FormItem>
                 )}
               />
+              <FormField
+                control={form.control}
+                name="date"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Date</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant="outline"
+                            className={cn(
+                              "w-full pl-3 text-left font-normal",
+                              !field.value && "text-muted-foreground"
+                            )}
+                          >
+                            {field.value ? (
+                              format(field.value, "PPP")
+                            ) : (
+                              <span>Pick a date</span>
+                            )}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value}
+                          onSelect={field.onChange}
+                          disabled={(date) =>
+                            date > new Date() || date < new Date("1900-01-01")
+                          }
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
 
             {/* Account Selection */}
@@ -200,7 +274,7 @@ export function TransactionForm({ portfolioId }: TransactionFormProps) {
               name="accountId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Source Account (Optional)</FormLabel>
+                  <FormLabel>Source Account</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
@@ -261,48 +335,6 @@ export function TransactionForm({ portfolioId }: TransactionFormProps) {
 
             <FormField
               control={form.control}
-              name="date"
-              render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>Date</FormLabel>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            "w-full pl-3 text-left font-normal",
-                            !field.value && "text-muted-foreground"
-                          )}
-                        >
-                          {field.value ? (
-                            format(field.value, "PPP")
-                          ) : (
-                            <span>Pick a date</span>
-                          )}
-                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={field.value}
-                        onSelect={field.onChange}
-                        disabled={(date) =>
-                          date > new Date() || date < new Date("1900-01-01")
-                        }
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
               name="notes"
               render={({ field }) => (
                 <FormItem>
@@ -340,8 +372,8 @@ export function TransactionForm({ portfolioId }: TransactionFormProps) {
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={createTransaction.isPending}>
-                {createTransaction.isPending ? (
+              <Button type="submit" disabled={createTransaction.isPending || createAsset.isPending}>
+                {(createTransaction.isPending || createAsset.isPending) ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Adding...

@@ -94,6 +94,50 @@ export function useAuth() {
       });
     }
 
+    // Auto-create default Bank account for Emergency Fund
+    const { data: existingBankAccount } = await supabase
+      .from('accounts')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('account_type', 'bank')
+      .eq('is_system', true)
+      .single();
+
+    if (!existingBankAccount) {
+      await supabase.from('accounts').insert({
+        user_id: user.id,
+        name: 'Emergency Fund Account',
+        account_type: 'bank',
+        balance: 0,
+        currency: 'IDR',
+        is_system: true,
+        is_active: true,
+        description: 'Default bank account for emergency fund savings',
+      });
+    }
+
+    // Auto-create default Trading Account (broker type)
+    const { data: existingTradingAccount } = await supabase
+      .from('accounts')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('account_type', 'broker')
+      .eq('is_system', true)
+      .single();
+
+    if (!existingTradingAccount) {
+      await supabase.from('accounts').insert({
+        user_id: user.id,
+        name: 'Trading Account',
+        account_type: 'broker',
+        balance: 0,
+        currency: 'USD',
+        is_system: true,
+        is_active: true,
+        description: 'Default trading account for crypto/forex trading',
+      });
+    }
+
     // Create welcome notification
     await supabase.from('notifications').insert({
       user_id: user.id,
