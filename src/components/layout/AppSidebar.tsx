@@ -84,13 +84,6 @@ const navigationGroups: NavGroup[] = [
   },
 ];
 
-// Dummy user data
-const dummyUser = {
-  name: "John Doe",
-  email: "john@example.com",
-  avatar: "",
-};
-
 function NavMain({ groups }: { groups: NavGroup[] }) {
   const location = useLocation();
   
@@ -124,8 +117,6 @@ function NavMain({ groups }: { groups: NavGroup[] }) {
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const location = useLocation();
-
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
@@ -153,7 +144,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarContent>
 
       <SidebarFooter>
-        <NavUser user={dummyUser} />
+        <NavUser />
       </SidebarFooter>
 
       <SidebarRail />

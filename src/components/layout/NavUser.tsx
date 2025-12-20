@@ -6,6 +6,7 @@ import {
   LogOut,
   Settings,
   Sparkles,
+  Loader2,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -23,17 +24,44 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { useAuth } from "@/hooks/use-auth";
+import { useUserProfile } from "@/hooks/use-user-settings";
+import { Badge } from "@/components/ui/badge";
 
-interface NavUserProps {
-  user: {
-    name: string;
-    email: string;
-    avatar?: string;
-  };
-}
-
-export function NavUser({ user }: NavUserProps) {
+export function NavUser() {
   const { isMobile } = useSidebar();
+  const { user, signOut, loading: authLoading } = useAuth();
+  const { data: profile } = useUserProfile();
+
+  const handleLogout = async () => {
+    await signOut();
+  };
+
+  // Get display name from profile or fallback
+  const displayName = profile?.display_name || 
+                      user?.user_metadata?.full_name || 
+                      user?.email?.split('@')[0] || 
+                      'User';
+  
+  const email = user?.email || 'user@example.com';
+  const avatarUrl = profile?.avatar_url || user?.user_metadata?.avatar_url || '';
+  const initials = displayName.slice(0, 2).toUpperCase();
+
+  if (authLoading) {
+    return (
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <SidebarMenuButton size="lg" className="animate-pulse">
+            <div className="h-8 w-8 rounded-lg bg-muted" />
+            <div className="grid flex-1 gap-1">
+              <div className="h-4 w-20 rounded bg-muted" />
+              <div className="h-3 w-32 rounded bg-muted" />
+            </div>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      </SidebarMenu>
+    );
+  }
 
   return (
     <SidebarMenu>
@@ -45,15 +73,15 @@ export function NavUser({ user }: NavUserProps) {
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
               <Avatar className="h-8 w-8 rounded-lg">
-                <AvatarImage src={user.avatar} alt={user.name} />
+                <AvatarImage src={avatarUrl} alt={displayName} />
                 <AvatarFallback className="rounded-lg">
-                  {user.name.slice(0, 2).toUpperCase()}
+                  {initials}
                 </AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-semibold">{user.name}</span>
+                <span className="truncate font-semibold">{displayName}</span>
                 <span className="truncate text-xs text-sidebar-foreground/60">
-                  {user.email}
+                  {email}
                 </span>
               </div>
               <ChevronsUpDown className="ml-auto size-4" />
@@ -68,15 +96,15 @@ export function NavUser({ user }: NavUserProps) {
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                 <Avatar className="h-8 w-8 rounded-lg">
-                  <AvatarImage src={user.avatar} alt={user.name} />
+                  <AvatarImage src={avatarUrl} alt={displayName} />
                   <AvatarFallback className="rounded-lg">
-                    {user.name.slice(0, 2).toUpperCase()}
+                    {initials}
                   </AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">{user.name}</span>
+                  <span className="truncate font-semibold">{displayName}</span>
                   <span className="truncate text-xs text-muted-foreground">
-                    {user.email}
+                    {email}
                   </span>
                 </div>
               </div>
@@ -87,6 +115,7 @@ export function NavUser({ user }: NavUserProps) {
                 <Link to="/upgrade">
                   <Sparkles className="mr-2 h-4 w-4" />
                   Upgrade to Pro
+                  <Badge variant="secondary" className="ml-auto text-xs">Free</Badge>
                 </Link>
               </DropdownMenuItem>
             </DropdownMenuGroup>
@@ -112,7 +141,7 @@ export function NavUser({ user }: NavUserProps) {
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={handleLogout}>
               <LogOut className="mr-2 h-4 w-4" />
               Log out
             </DropdownMenuItem>

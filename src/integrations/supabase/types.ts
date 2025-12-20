@@ -1087,6 +1087,15 @@ export type Database = {
           id: string
           language: string
           notifications_enabled: boolean
+          notify_email_enabled: boolean
+          notify_market_news: boolean
+          notify_portfolio_updates: boolean
+          notify_price_alerts: boolean
+          notify_push_enabled: boolean
+          notify_weekly_report: boolean
+          plan_expires_at: string | null
+          subscription_plan: string
+          subscription_status: string
           theme: string
           updated_at: string
           user_id: string
@@ -1097,6 +1106,15 @@ export type Database = {
           id?: string
           language?: string
           notifications_enabled?: boolean
+          notify_email_enabled?: boolean
+          notify_market_news?: boolean
+          notify_portfolio_updates?: boolean
+          notify_price_alerts?: boolean
+          notify_push_enabled?: boolean
+          notify_weekly_report?: boolean
+          plan_expires_at?: string | null
+          subscription_plan?: string
+          subscription_status?: string
           theme?: string
           updated_at?: string
           user_id: string
@@ -1107,6 +1125,15 @@ export type Database = {
           id?: string
           language?: string
           notifications_enabled?: boolean
+          notify_email_enabled?: boolean
+          notify_market_news?: boolean
+          notify_portfolio_updates?: boolean
+          notify_price_alerts?: boolean
+          notify_push_enabled?: boolean
+          notify_weekly_report?: boolean
+          plan_expires_at?: string | null
+          subscription_plan?: string
+          subscription_status?: string
           theme?: string
           updated_at?: string
           user_id?: string
@@ -1116,6 +1143,7 @@ export type Database = {
       users_profile: {
         Row: {
           avatar_url: string | null
+          bio: string | null
           created_at: string
           display_name: string | null
           id: string
@@ -1125,6 +1153,7 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          bio?: string | null
           created_at?: string
           display_name?: string | null
           id?: string
@@ -1134,6 +1163,7 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          bio?: string | null
           created_at?: string
           display_name?: string | null
           id?: string
