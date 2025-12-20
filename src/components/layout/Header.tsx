@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Bell, Search, Moon, Sun, X, DollarSign, Trash2, LogOut, User, Settings } from "lucide-react";
+import { Bell, Search, Moon, Sun, X, DollarSign, Trash2, LogOut, User, Settings, RefreshCw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,12 +17,19 @@ import {
   DialogContent,
   DialogHeader,
 } from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useAppStore, type Notification } from "@/store/app-store";
 import { useAuth } from "@/hooks/use-auth";
-import { demoAssets } from "@/lib/demo-data";
+import { useAssets } from "@/hooks/use-portfolio";
+import { useRefreshPrices } from "@/hooks/use-price-refresh";
 import { formatRelativeTime } from "@/lib/formatters";
 
 export function Header() {
@@ -42,6 +49,8 @@ export function Header() {
   } = useAppStore();
   
   const { user, signOut } = useAuth();
+  const { data: assets = [] } = useAssets();
+  const refreshPrices = useRefreshPrices();
   const unreadCount = notifications.filter(n => !n.read).length;
   
   const userInitials = user?.user_metadata?.full_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase() || 
@@ -83,9 +92,9 @@ export function Header() {
     setCurrency(currency === 'USD' ? 'IDR' : 'USD');
   };
 
-  // Search results
+  // Search results from real assets
   const searchResults = searchQuery.length > 0 ? [
-    ...demoAssets.filter(a => 
+    ...assets.filter(a => 
       a.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
       a.name.toLowerCase().includes(searchQuery.toLowerCase())
     ).slice(0, 5),
@@ -114,6 +123,26 @@ export function Header() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Price Refresh */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={() => refreshPrices.mutate()}
+                  disabled={refreshPrices.isPending}
+                  className="h-8 w-8"
+                >
+                  <RefreshCw className={cn("h-4 w-4", refreshPrices.isPending && "animate-spin")} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Refresh market prices</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
           {/* Currency Toggle */}
           <Button 
             variant="ghost" 
@@ -249,7 +278,7 @@ export function Header() {
                       <p className="text-sm font-medium truncate">{asset.symbol}</p>
                       <p className="text-xs text-muted-foreground truncate">{asset.name}</p>
                     </div>
-                    <Badge variant="secondary" className="text-[10px]">{asset.market}</Badge>
+                    <Badge variant="secondary" className="text-[10px]">{asset.asset_type}</Badge>
                   </button>
                 ))}
               </div>

@@ -38,14 +38,16 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { demoAssets, demoTransactions } from "@/lib/demo-data";
+import { supabase } from "@/integrations/supabase/client";
+import { useAssets, useDefaultPortfolio, useCreateTransaction } from "@/hooks/use-portfolio";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { TransactionType } from "@/types/portfolio";
 
 const transactionSchema = z.object({
   assetId: z.string().min(1, "Asset is required"),
   type: z.enum(["BUY", "SELL", "DIVIDEND", "TRANSFER_IN", "TRANSFER_OUT"]),
-  quantity: z.string().refine((val) => !isNaN(Number(val)) && Number(val) >= 0, {
-    message: "Quantity must be a non-negative number",
+  quantity: z.string().refine((val) => !isNaN(Number(val)) && Number(val) > 0, {
+    message: "Quantity must be a positive number",
   }),
   price: z.string().refine((val) => !isNaN(Number(val)) && Number(val) >= 0, {
     message: "Price must be a non-negative number",
@@ -60,11 +62,17 @@ type TransactionFormValues = z.infer<typeof transactionSchema>;
 interface AddTransactionDialogProps {
   trigger?: React.ReactNode;
   onSuccess?: () => void;
+  portfolioId?: string;
 }
 
-export function AddTransactionDialog({ trigger, onSuccess }: AddTransactionDialogProps) {
+export function AddTransactionDialog({ trigger, onSuccess, portfolioId }: AddTransactionDialogProps) {
   const [open, setOpen] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const { data: assets = [], isLoading: assetsLoading } = useAssets();
+  const { data: defaultPortfolio } = useDefaultPortfolio();
+  const createTransaction = useCreateTransaction();
+  
+  const effectivePortfolioId = portfolioId || defaultPortfolio?.id;
 
   const form = useForm<TransactionFormValues>({
     resolver: zodResolver(transactionSchema),
@@ -82,40 +90,46 @@ export function AddTransactionDialog({ trigger, onSuccess }: AddTransactionDialo
   const transactionType = form.watch("type");
 
   const handleSubmit = async (data: TransactionFormValues) => {
-    setIsSubmitting(true);
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    const asset = demoAssets.find(a => a.id === data.assetId);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast.error("Please log in to add transactions");
+      return;
+    }
+
+    if (!effectivePortfolioId) {
+      toast.error("No portfolio selected. Please create a portfolio first.");
+      return;
+    }
+
+    const asset = assets.find(a => a.id === data.assetId);
     const quantity = Number(data.quantity);
-    const price = Number(data.price);
+    const pricePerUnit = Number(data.price);
     const fees = Number(data.fees || 0);
-    const totalAmount = quantity * price;
+    const totalAmount = quantity * pricePerUnit + fees;
 
-    // In real app, this would call the API
-    const newTransaction = {
-      id: `t${demoTransactions.length + 1}`,
-      portfolioId: 'p1',
-      assetId: data.assetId,
-      assetSymbol: asset?.symbol || '',
-      assetName: asset?.name || '',
-      type: data.type as TransactionType,
-      quantity,
-      price,
-      totalAmount,
-      fees,
-      date: data.date,
-      notes: data.notes,
-    };
-
-    console.log('New transaction:', newTransaction);
-    
-    toast.success(`${data.type} transaction added for ${asset?.symbol}`);
-    form.reset();
-    setOpen(false);
-    setIsSubmitting(false);
-    onSuccess?.();
+    try {
+      await createTransaction.mutateAsync({
+        user_id: user.id,
+        portfolio_id: effectivePortfolioId,
+        asset_id: data.assetId,
+        transaction_type: data.type,
+        quantity,
+        price_per_unit: pricePerUnit,
+        total_amount: totalAmount,
+        fee: fees,
+        transaction_date: data.date.toISOString(),
+        notes: data.notes || null,
+        account_id: null,
+      });
+      
+      toast.success(`${data.type} transaction added for ${asset?.symbol}`);
+      form.reset();
+      setOpen(false);
+      onSuccess?.();
+    } catch (error: any) {
+      console.error('Transaction error:', error);
+      toast.error(error.message || "Failed to add transaction");
+    }
   };
 
   const quantity = form.watch("quantity");
@@ -151,20 +165,28 @@ export function AddTransactionDialog({ trigger, onSuccess }: AddTransactionDialo
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Asset</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select asset" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent className="bg-popover">
-                        {demoAssets.map((asset) => (
-                          <SelectItem key={asset.id} value={asset.id}>
-                            {asset.symbol} - {asset.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {assetsLoading ? (
+                      <Skeleton className="h-10 w-full" />
+                    ) : assets.length === 0 ? (
+                      <p className="text-sm text-muted-foreground py-2">
+                        No assets found. Add an asset first.
+                      </p>
+                    ) : (
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select asset" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent className="bg-popover">
+                          {assets.map((asset) => (
+                            <SelectItem key={asset.id} value={asset.id}>
+                              {asset.symbol} - {asset.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -318,8 +340,11 @@ export function AddTransactionDialog({ trigger, onSuccess }: AddTransactionDialo
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? (
+              <Button 
+                type="submit" 
+                disabled={createTransaction.isPending || assets.length === 0}
+              >
+                {createTransaction.isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Adding...

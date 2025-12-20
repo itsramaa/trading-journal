@@ -29,12 +29,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatCompactCurrency, formatPercent, formatQuantity } from "@/lib/formatters";
 import { AddTransactionDialog } from "@/components/transactions/AddTransactionDialog";
+import { AddAssetForm } from "@/components/assets/AddAssetForm";
 import { AllocationBreakdown } from "@/components/portfolio/AllocationBreakdown";
 import { EmptyHoldings, EmptySearchResults } from "@/components/ui/empty-state";
 import { QuickTip } from "@/components/ui/onboarding-tooltip";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
-import { useHoldings, useDefaultPortfolio } from "@/hooks/use-portfolio";
+import { useHoldings, useDefaultPortfolio, useAssets } from "@/hooks/use-portfolio";
 import { transformHoldings, calculateMetrics, calculateAllocation } from "@/lib/data-transformers";
 import type { Holding } from "@/types/portfolio";
 
@@ -45,7 +46,9 @@ const Portfolio = () => {
   const [sortBy, setSortBy] = useState<string>("value");
 
   const { data: defaultPortfolio } = useDefaultPortfolio();
-  const { data: dbHoldings = [], isLoading } = useHoldings(defaultPortfolio?.id);
+  const { data: dbHoldings = [], isLoading: holdingsLoading } = useHoldings(defaultPortfolio?.id);
+  const { data: assets = [], isLoading: assetsLoading } = useAssets();
+  const isLoading = holdingsLoading || assetsLoading;
 
   // Transform database holdings to UI format
   const holdings = useMemo(() => transformHoldings(dbHoldings), [dbHoldings]);
@@ -103,7 +106,8 @@ const Portfolio = () => {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <AddTransactionDialog />
+            <AddAssetForm />
+            <AddTransactionDialog portfolioId={defaultPortfolio?.id} />
           </div>
         </div>
 

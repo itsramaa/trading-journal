@@ -159,7 +159,7 @@ const Transactions = () => {
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-            <AddTransactionDialog />
+            <AddTransactionDialog portfolioId={defaultPortfolio?.id} />
           </div>
         </div>
 
