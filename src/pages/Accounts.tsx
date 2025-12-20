@@ -1,40 +1,39 @@
 import { useState } from "react";
 import { Helmet } from "react-helmet";
-import { ArrowDownCircle, ArrowUpCircle, ArrowLeftRight, History, Wallet, LayoutDashboard } from "lucide-react";
+import { History, Wallet, Building2, Smartphone, TrendingUp, Banknote, WalletCards } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { AddAccountForm } from "@/components/accounts/AddAccountForm";
 import { AccountCardList } from "@/components/accounts/AccountCardList";
 import { AccountTransactionDialog } from "@/components/accounts/AccountTransactionDialog";
 import { AccountTransactionsTable } from "@/components/accounts/AccountTransactionsTable";
 import { AccountsDashboard } from "@/components/accounts/AccountsDashboard";
+import { QuickTransaction } from "@/components/accounts/QuickTransaction";
 import { QuickTip } from "@/components/ui/onboarding-tooltip";
 import { useAccounts } from "@/hooks/use-accounts";
-import type { Account } from "@/types/account";
+import type { Account, AccountType } from "@/types/account";
+
+const ACCOUNT_TYPE_FILTERS: { value: AccountType | 'all'; label: string; icon: React.ElementType }[] = [
+  { value: 'all', label: 'All', icon: Wallet },
+  { value: 'bank', label: 'Bank', icon: Building2 },
+  { value: 'ewallet', label: 'E-Wallet', icon: Smartphone },
+  { value: 'broker', label: 'Broker', icon: TrendingUp },
+  { value: 'cash', label: 'Cash', icon: Banknote },
+  { value: 'soft_wallet', label: 'Soft Wallet', icon: WalletCards },
+];
 
 export default function Accounts() {
   const [transactionDialogOpen, setTransactionDialogOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<Account | undefined>();
   const [defaultTransactionTab, setDefaultTransactionTab] = useState<'deposit' | 'withdraw' | 'transfer'>('deposit');
+  const [accountTypeFilter, setAccountTypeFilter] = useState<AccountType | 'all'>('all');
   const { data: accounts } = useAccounts();
 
   const handleTransact = (accountId: string, type: 'deposit' | 'withdraw' | 'transfer') => {
     const account = accounts?.find(a => a.id === accountId);
     setSelectedAccount(account);
-    setDefaultTransactionTab(type);
-    setTransactionDialogOpen(true);
-  };
-
-  const handleQuickAction = (type: 'deposit' | 'withdraw' | 'transfer') => {
-    setSelectedAccount(undefined);
     setDefaultTransactionTab(type);
     setTransactionDialogOpen(true);
   };
@@ -55,95 +54,81 @@ export default function Accounts() {
               Manage all your financial accounts in one place
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="outline" onClick={() => handleQuickAction('deposit')} className="gap-2">
-                    <ArrowDownCircle className="h-4 w-4" />
-                    <span className="hidden sm:inline">Deposit</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Add money to an account</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="outline" onClick={() => handleQuickAction('withdraw')} className="gap-2">
-                    <ArrowUpCircle className="h-4 w-4" />
-                    <span className="hidden sm:inline">Withdraw</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Withdraw money from an account</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="outline" onClick={() => handleQuickAction('transfer')} className="gap-2">
-                    <ArrowLeftRight className="h-4 w-4" />
-                    <span className="hidden sm:inline">Transfer</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Transfer between accounts</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-            <AddAccountForm />
-          </div>
+          <AddAccountForm />
         </div>
 
-        {/* Quick Tip - Nielsen H10 */}
+        {/* Quick Tip */}
         <QuickTip storageKey="accounts_tip">
           <strong>Pro tip:</strong> Link your investment accounts to track portfolio transactions and cash flow in one place. 
           Use transfers to move funds between accounts.
         </QuickTip>
 
-        {/* Main Content Tabs */}
-        <Tabs defaultValue="dashboard" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="dashboard" className="gap-2">
-              <LayoutDashboard className="h-4 w-4" />
-              Dashboard
-            </TabsTrigger>
-            <TabsTrigger value="accounts" className="gap-2">
-              <Wallet className="h-4 w-4" />
-              Accounts
-            </TabsTrigger>
-            <TabsTrigger value="transactions" className="gap-2">
-              <History className="h-4 w-4" />
-              Transactions
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="dashboard" className="space-y-4">
+        {/* Main Layout: Dashboard + Quick Transaction */}
+        <div className="grid gap-6 lg:grid-cols-3">
+          {/* Left: Dashboard Summary */}
+          <div className="lg:col-span-2">
             <AccountsDashboard />
-          </TabsContent>
+          </div>
 
-          <TabsContent value="accounts" className="space-y-4">
-            <AccountCardList
-              onSelectAccount={(id) => {
-                const account = accounts?.find(a => a.id === id);
-                setSelectedAccount(account);
-              }}
-              onTransact={handleTransact}
-            />
-          </TabsContent>
+          {/* Right: Quick Transaction */}
+          <div className="lg:col-span-1">
+            <QuickTransaction />
+          </div>
+        </div>
 
-          <TabsContent value="transactions" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Transaction History</CardTitle>
-                <CardDescription>
-                  All deposits, withdrawals, and transfers across your accounts
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <AccountTransactionsTable limit={50} />
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+        {/* Account Type Filter */}
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold">Your Accounts</h2>
+            <ToggleGroup 
+              type="single" 
+              value={accountTypeFilter} 
+              onValueChange={(v) => v && setAccountTypeFilter(v as AccountType | 'all')}
+              className="flex-wrap"
+            >
+              {ACCOUNT_TYPE_FILTERS.map((filter) => {
+                const Icon = filter.icon;
+                return (
+                  <ToggleGroupItem 
+                    key={filter.value} 
+                    value={filter.value}
+                    aria-label={filter.label}
+                    className="gap-1.5 px-3"
+                  >
+                    <Icon className="h-4 w-4" />
+                    <span className="hidden sm:inline">{filter.label}</span>
+                  </ToggleGroupItem>
+                );
+              })}
+            </ToggleGroup>
+          </div>
+
+          {/* Filtered Account Cards */}
+          <AccountCardList
+            filterType={accountTypeFilter === 'all' ? undefined : accountTypeFilter}
+            onSelectAccount={(id) => {
+              const account = accounts?.find(a => a.id === id);
+              setSelectedAccount(account);
+            }}
+            onTransact={handleTransact}
+          />
+        </div>
+
+        {/* Recent Transactions */}
+        <Card>
+          <CardHeader className="flex flex-row items-center gap-2">
+            <History className="h-5 w-5 text-muted-foreground" />
+            <div>
+              <CardTitle>Recent Transactions</CardTitle>
+              <CardDescription>
+                Latest deposits, withdrawals, and transfers
+              </CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <AccountTransactionsTable limit={10} />
+          </CardContent>
+        </Card>
       </div>
 
       {/* Transaction Dialog */}
