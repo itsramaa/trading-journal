@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Plus, Clock, Smile, Meh, Frown, Star, Calendar, TrendingUp, MoreHorizontal, Edit, Trash2, Loader2 } from "lucide-react";
+import { Plus, Clock, Smile, Meh, Frown, Star, Calendar, TrendingUp, MoreHorizontal, Edit, Trash2, Loader2, Brain, ChevronDown, ChevronUp } from "lucide-react";
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { SessionAIAnalysis } from "@/components/trading/SessionAIAnalysis";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 const moodIcons = {
   positive: Smile,
@@ -47,6 +49,7 @@ export default function TradingSessions() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingSession, setEditingSession] = useState<TradingSessionWithStats | null>(null);
   const [deletingSession, setDeletingSession] = useState<TradingSessionWithStats | null>(null);
+  const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
 
   const form = useForm<SessionFormValues>({
     resolver: zodResolver(sessionFormSchema),
@@ -226,90 +229,106 @@ export default function TradingSessions() {
               const sessionTrades = session.calculated_trades_count || 0;
               
               return (
-                <Card key={session.id}>
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-full ${
-                          session.mood === "positive" ? "bg-green-500/10" :
-                          session.mood === "neutral" ? "bg-yellow-500/10" : "bg-destructive/10"
-                        }`}>
-                          <MoodIcon className={`h-5 w-5 ${
-                            session.mood === "positive" ? "text-green-500" :
-                            session.mood === "neutral" ? "text-yellow-500" : "text-destructive"
-                          }`} />
+                <Collapsible
+                  key={session.id}
+                  open={expandedSessionId === session.id}
+                  onOpenChange={(open) => setExpandedSessionId(open ? session.id : null)}
+                >
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 rounded-full ${
+                            session.mood === "positive" ? "bg-green-500/10" :
+                            session.mood === "neutral" ? "bg-yellow-500/10" : "bg-destructive/10"
+                          }`}>
+                            <MoodIcon className={`h-5 w-5 ${
+                              session.mood === "positive" ? "text-green-500" :
+                              session.mood === "neutral" ? "text-yellow-500" : "text-destructive"
+                            }`} />
+                          </div>
+                          <div>
+                            <CardTitle className="text-base">
+                              {new Date(session.session_date).toLocaleDateString("id-ID", {
+                                weekday: "short",
+                                day: "numeric",
+                                month: "short",
+                                year: "numeric"
+                              })}
+                            </CardTitle>
+                            <CardDescription>
+                              {session.start_time?.slice(0, 5)} - {session.end_time?.slice(0, 5) || "ongoing"}
+                            </CardDescription>
+                          </div>
                         </div>
-                        <div>
-                          <CardTitle className="text-base">
-                            {new Date(session.session_date).toLocaleDateString("id-ID", {
-                              weekday: "short",
-                              day: "numeric",
-                              month: "short",
-                              year: "numeric"
-                            })}
-                          </CardTitle>
-                          <CardDescription>
-                            {session.start_time?.slice(0, 5)} - {session.end_time?.slice(0, 5) || "ongoing"}
-                          </CardDescription>
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-1">
+                            {[1,2,3,4,5].map(n => (
+                              <Star key={n} className={`h-4 w-4 ${n <= Number(session.rating) ? "text-yellow-500 fill-yellow-500" : "text-muted"}`} />
+                            ))}
+                          </div>
+                          <span className={`font-bold ${sessionPnl >= 0 ? "text-green-500" : "text-destructive"}`}>
+                            {formatCurrency(sessionPnl)}
+                          </span>
+                          <CollapsibleTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <Brain className="h-4 w-4 text-primary" />
+                            </Button>
+                          </CollapsibleTrigger>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleOpenEditDialog(session)}>
+                                <Edit className="mr-2 h-4 w-4" />
+                                Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                className="text-destructive"
+                                onClick={() => setDeletingSession(session)}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </div>
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-1">
-                          {[1,2,3,4,5].map(n => (
-                            <Star key={n} className={`h-4 w-4 ${n <= Number(session.rating) ? "text-yellow-500 fill-yellow-500" : "text-muted"}`} />
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="flex items-center gap-4 text-sm">
+                        <span>
+                          <span className="text-muted-foreground">Trades:</span>{" "}
+                          <span className="font-medium">{sessionTrades}</span>
+                          {sessionTrades === 0 && (
+                            <span className="text-muted-foreground text-xs ml-1">(link trades in Journal)</span>
+                          )}
+                        </span>
+                        {session.market_condition && (
+                          <span><span className="text-muted-foreground">Market:</span> {session.market_condition}</span>
+                        )}
+                      </div>
+                      {session.notes && (
+                        <p className="text-sm text-muted-foreground">{session.notes}</p>
+                      )}
+                      {session.tags && session.tags.length > 0 && (
+                        <div className="flex gap-2 flex-wrap">
+                          {session.tags.map((tag) => (
+                            <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>
                           ))}
                         </div>
-                        <span className={`font-bold ${sessionPnl >= 0 ? "text-green-500" : "text-destructive"}`}>
-                          {formatCurrency(sessionPnl)}
-                        </span>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleOpenEditDialog(session)}>
-                              <Edit className="mr-2 h-4 w-4" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              className="text-destructive"
-                              onClick={() => setDeletingSession(session)}
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="flex items-center gap-4 text-sm">
-                      <span>
-                        <span className="text-muted-foreground">Trades:</span>{" "}
-                        <span className="font-medium">{sessionTrades}</span>
-                        {sessionTrades === 0 && (
-                          <span className="text-muted-foreground text-xs ml-1">(link trades in Journal)</span>
-                        )}
-                      </span>
-                      {session.market_condition && (
-                        <span><span className="text-muted-foreground">Market:</span> {session.market_condition}</span>
                       )}
-                    </div>
-                    {session.notes && (
-                      <p className="text-sm text-muted-foreground">{session.notes}</p>
-                    )}
-                    {session.tags && session.tags.length > 0 && (
-                      <div className="flex gap-2 flex-wrap">
-                        {session.tags.map((tag) => (
-                          <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+                      
+                      {/* AI Analysis Panel */}
+                      <CollapsibleContent className="pt-4">
+                        <SessionAIAnalysis session={session} />
+                      </CollapsibleContent>
+                    </CardContent>
+                  </Card>
+                </Collapsible>
               );
             })}
           </div>
