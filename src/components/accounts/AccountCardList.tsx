@@ -25,10 +25,16 @@ const ACCOUNT_TYPE_ICONS: Record<AccountType, React.ElementType> = {
 interface AccountCardListProps {
   onSelectAccount?: (accountId: string) => void;
   onTransact?: (accountId: string, type: 'deposit' | 'withdraw' | 'transfer') => void;
+  filterType?: AccountType;
 }
 
-export function AccountCardList({ onSelectAccount, onTransact }: AccountCardListProps) {
-  const { data: accounts, isLoading } = useAccounts();
+export function AccountCardList({ onSelectAccount, onTransact, filterType }: AccountCardListProps) {
+  const { data: allAccounts, isLoading } = useAccounts();
+  
+  // Filter accounts by type if filterType is provided
+  const accounts = filterType 
+    ? allAccounts?.filter(a => a.account_type === filterType)
+    : allAccounts;
   const deleteAccount = useDeleteAccount();
 
   const handleDelete = async (id: string, name: string) => {
