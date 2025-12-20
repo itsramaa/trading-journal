@@ -27,17 +27,18 @@ import { useTradingSessions } from "@/hooks/use-trading-sessions";
 import { filterTradesByDateRange, filterTradesByStrategies } from "@/lib/trading-calculations";
 import { formatCurrency } from "@/lib/formatters";
 
+// Binance Futures fee rates
+const BINANCE_MAKER_FEE = 0.0002; // 0.02%
+const BINANCE_TAKER_FEE = 0.0005; // 0.05%
+
 const tradeFormSchema = z.object({
   pair: z.string().min(1, "Pair is required"),
   direction: z.enum(["LONG", "SHORT"]),
   trade_date: z.string().min(1, "Date is required"),
-  entry_price: z.coerce.number().positive("Entry price must be positive"),
-  exit_price: z.coerce.number().optional(),
-  stop_loss: z.coerce.number().optional(),
-  take_profit: z.coerce.number().optional(),
-  quantity: z.coerce.number().positive().default(1),
+  quantity: z.coerce.number().positive("Position size must be positive").default(1),
   pnl: z.coerce.number().optional(),
-  fees: z.coerce.number().optional(),
+  rr_achieved: z.coerce.number().optional(),
+  fee_type: z.enum(["maker", "taker"]).default("taker"),
   notes: z.string().optional(),
   trading_account_id: z.string().optional(),
   session_id: z.string().optional(),
@@ -85,6 +86,7 @@ export default function TradingJournal() {
       quantity: 1,
       trade_date: new Date().toISOString().split('T')[0],
       status: "closed",
+      fee_type: "taker",
     },
   });
 
@@ -142,18 +144,19 @@ export default function TradingJournal() {
   }, [openPositions]);
 
   const handleSubmit = async (values: TradeFormValues) => {
+    // Calculate fees based on position size and fee type
+    const feeRate = values.fee_type === 'maker' ? BINANCE_MAKER_FEE : BINANCE_TAKER_FEE;
+    const calculatedFees = values.quantity * feeRate * 2; // Entry + Exit fees
+    
     try {
       await createTrade.mutateAsync({
         pair: values.pair,
         direction: values.direction,
-        entry_price: values.entry_price,
+        entry_price: 0, // No longer used but required by DB
         trade_date: values.trade_date,
-        exit_price: values.exit_price,
-        stop_loss: values.stop_loss,
-        take_profit: values.take_profit,
         quantity: values.quantity,
         pnl: values.pnl,
-        fees: values.fees,
+        fees: calculatedFees,
         notes: values.notes,
         trading_account_id: values.trading_account_id,
         session_id: values.session_id,
@@ -392,38 +395,61 @@ export default function TradingJournal() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-4 gap-4">
-                  <div>
-                    <Label>Entry Price *</Label>
-                    <Input type="number" step="any" {...form.register("entry_price")} />
-                  </div>
-                  <div>
-                    <Label>Exit Price</Label>
-                    <Input type="number" step="any" {...form.register("exit_price")} />
-                  </div>
-                  <div>
-                    <Label>Stop Loss</Label>
-                    <Input type="number" step="any" {...form.register("stop_loss")} />
-                  </div>
-                  <div>
-                    <Label>Take Profit</Label>
-                    <Input type="number" step="any" {...form.register("take_profit")} />
-                  </div>
-                </div>
-
                 <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <Label>Position Size</Label>
-                    <Input type="number" step="any" {...form.register("quantity")} />
+                    <Label>Position Size *</Label>
+                    <Input type="number" step="any" {...form.register("quantity")} placeholder="1000" />
+                    {form.formState.errors.quantity && (
+                      <p className="text-xs text-destructive mt-1">{form.formState.errors.quantity.message}</p>
+                    )}
                   </div>
                   <div>
-                    <Label>P&L</Label>
+                    <Label>P&L *</Label>
                     <Input type="number" step="any" {...form.register("pnl")} placeholder="0.00" />
                   </div>
                   <div>
-                    <Label>Fees</Label>
-                    <Input type="number" step="any" {...form.register("fees")} placeholder="0.00" />
+                    <Label>R:R Achieved</Label>
+                    <Input type="number" step="any" {...form.register("rr_achieved")} placeholder="1.5" />
                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Fee Type (Binance Futures)</Label>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        checked={form.watch("fee_type") === "maker"}
+                        onChange={() => form.setValue("fee_type", "maker")}
+                        className="sr-only"
+                      />
+                      <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
+                        form.watch("fee_type") === "maker" 
+                          ? "border-primary bg-primary/10" 
+                          : "border-border hover:border-muted-foreground"
+                      }`}>
+                        <span>Maker (0.02%)</span>
+                      </div>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        checked={form.watch("fee_type") === "taker"}
+                        onChange={() => form.setValue("fee_type", "taker")}
+                        className="sr-only"
+                      />
+                      <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
+                        form.watch("fee_type") === "taker" 
+                          ? "border-primary bg-primary/10" 
+                          : "border-border hover:border-muted-foreground"
+                      }`}>
+                        <span>Taker (0.05%)</span>
+                      </div>
+                    </label>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Estimated fee: ${((form.watch("quantity") || 0) * (form.watch("fee_type") === "maker" ? BINANCE_MAKER_FEE : BINANCE_TAKER_FEE) * 2).toFixed(4)}
+                  </p>
                 </div>
 
                 {/* Strategy Selection */}
