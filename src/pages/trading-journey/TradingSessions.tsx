@@ -21,6 +21,9 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { SessionAIAnalysis } from "@/components/trading/SessionAIAnalysis";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useUserSettings } from "@/hooks/use-user-settings";
+import { useExchangeRate } from "@/hooks/use-exchange-rate";
+import { formatCurrency as formatCurrencyUtil } from "@/lib/formatters";
 
 const moodIcons = {
   positive: Smile,
@@ -33,7 +36,6 @@ const sessionFormSchema = z.object({
   start_time: z.string().min(1, "Start time is required"),
   duration: z.string().min(1, "Duration is required"),
   mood: z.string().min(1, "Mood is required"),
-  rating: z.coerce.number().min(1).max(5),
   tags: z.string().optional(),
   notes: z.string().optional(),
   market_condition: z.string().optional(),
@@ -47,11 +49,15 @@ export default function TradingSessions() {
   const createSession = useCreateTradingSession();
   const updateSession = useUpdateTradingSession();
   const deleteSession = useDeleteTradingSession();
+  const { data: userSettings } = useUserSettings();
+  const { data: exchangeRate = 15500 } = useExchangeRate();
 
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingSession, setEditingSession] = useState<TradingSessionWithStats | null>(null);
   const [deletingSession, setDeletingSession] = useState<TradingSessionWithStats | null>(null);
   const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
+
+  const defaultCurrency = userSettings?.default_currency || 'USD';
 
   // Get current time in HH:MM format
   const getCurrentTime = () => {
@@ -66,14 +72,21 @@ export default function TradingSessions() {
       start_time: getCurrentTime(),
       duration: "1",
       mood: "neutral",
-      rating: 3,
       tags: "",
       notes: "",
       market_condition: "",
     },
   });
 
-  const formatCurrency = (v: number) => v >= 0 ? `+$${v.toFixed(2)}` : `-$${Math.abs(v).toFixed(2)}`;
+  // Currency conversion helper
+  const convertCurrency = (value: number) => {
+    if (defaultCurrency === 'IDR') {
+      return value * exchangeRate;
+    }
+    return value;
+  };
+
+  const formatCurrency = (v: number) => formatCurrencyUtil(convertCurrency(v), defaultCurrency);
 
   const avgRating = sessions.length > 0 
     ? sessions.reduce((sum, s) => sum + Number(s.rating), 0) / sessions.length 
@@ -89,7 +102,6 @@ export default function TradingSessions() {
       start_time: getCurrentTime(),
       duration: "1",
       mood: "neutral",
-      rating: 3,
       tags: "",
       notes: "",
       market_condition: "",
@@ -113,7 +125,6 @@ export default function TradingSessions() {
       start_time: session.start_time,
       duration,
       mood: session.mood,
-      rating: Number(session.rating),
       tags: session.tags?.join(", ") || "",
       notes: session.notes || "",
       market_condition: session.market_condition || "",
@@ -138,7 +149,7 @@ export default function TradingSessions() {
       start_time: values.start_time,
       end_time,
       mood: values.mood,
-      rating: values.rating,
+      rating: 3, // Default rating, user rates after session
       tags: tagsArray,
       notes: values.notes || undefined,
       market_condition: values.market_condition || undefined,
@@ -292,11 +303,20 @@ export default function TradingSessions() {
                           </div>
                         </div>
                         <div className="flex items-center gap-4">
-                          <div className="flex items-center gap-1">
-                            {[1,2,3,4,5].map(n => (
-                              <Star key={n} className={`h-4 w-4 ${n <= Number(session.rating) ? "text-yellow-500 fill-yellow-500" : "text-muted"}`} />
-                            ))}
-                          </div>
+                        <div className="flex items-center gap-1">
+                          {[1,2,3,4,5].map(n => (
+                            <button 
+                              key={n} 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                updateSession.mutate({ id: session.id, rating: n });
+                              }}
+                              className="hover:scale-110 transition-transform"
+                            >
+                              <Star className={`h-4 w-4 ${n <= Number(session.rating) ? "text-yellow-500 fill-yellow-500" : "text-muted hover:text-yellow-400"}`} />
+                            </button>
+                          ))}
+                        </div>
                           <span className={`font-bold ${sessionPnl >= 0 ? "text-green-500" : "text-destructive"}`}>
                             {formatCurrency(sessionPnl)}
                           </span>
@@ -426,8 +446,7 @@ export default function TradingSessions() {
                     )}
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
+                <FormField
                     control={form.control}
                     name="mood"
                     render={({ field }) => (
@@ -449,29 +468,6 @@ export default function TradingSessions() {
                       </FormItem>
                     )}
                   />
-                  <FormField
-                    control={form.control}
-                    name="rating"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Rating (1-5)</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value?.toString()}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Rate session" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {[1,2,3,4,5].map(n => (
-                              <SelectItem key={n} value={n.toString()}>{n} Star{n > 1 ? 's' : ''}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
 
                 <div className="p-3 rounded-lg bg-muted/50 text-sm text-muted-foreground">
                   <strong>Note:</strong> Number of trades and P&L are automatically calculated from journal entries linked to this session.
