@@ -75,6 +75,7 @@ export type Database = {
           icon: string | null
           id: string
           is_active: boolean
+          is_system: boolean
           name: string
           updated_at: string
           user_id: string
@@ -89,6 +90,7 @@ export type Database = {
           icon?: string | null
           id?: string
           is_active?: boolean
+          is_system?: boolean
           name: string
           updated_at?: string
           user_id: string
@@ -103,6 +105,7 @@ export type Database = {
           icon?: string | null
           id?: string
           is_active?: boolean
+          is_system?: boolean
           name?: string
           updated_at?: string
           user_id?: string
@@ -384,6 +387,7 @@ export type Database = {
           current_balance: number
           id: string
           is_active: boolean
+          is_system: boolean
           monthly_contribution: number
           monthly_expenses: number
           name: string
@@ -398,6 +402,7 @@ export type Database = {
           current_balance?: number
           id?: string
           is_active?: boolean
+          is_system?: boolean
           monthly_contribution?: number
           monthly_expenses?: number
           name?: string
@@ -412,6 +417,7 @@ export type Database = {
           current_balance?: number
           id?: string
           is_active?: boolean
+          is_system?: boolean
           monthly_contribution?: number
           monthly_expenses?: number
           name?: string
@@ -598,6 +604,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      notifications: {
+        Row: {
+          asset_symbol: string | null
+          created_at: string
+          id: string
+          message: string
+          metadata: Json | null
+          read: boolean
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          asset_symbol?: string | null
+          created_at?: string
+          id?: string
+          message: string
+          metadata?: Json | null
+          read?: boolean
+          title: string
+          type?: string
+          user_id: string
+        }
+        Update: {
+          asset_symbol?: string | null
+          created_at?: string
+          id?: string
+          message?: string
+          metadata?: Json | null
+          read?: boolean
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       portfolio_history: {
         Row: {
