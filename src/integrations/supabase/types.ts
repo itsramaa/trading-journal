@@ -422,6 +422,36 @@ export type Database = {
         }
         Relationships: []
       }
+      feature_permissions: {
+        Row: {
+          admin_only: boolean
+          created_at: string
+          description: string | null
+          feature_key: string
+          feature_name: string
+          id: string
+          min_subscription: Database["public"]["Enums"]["subscription_tier"]
+        }
+        Insert: {
+          admin_only?: boolean
+          created_at?: string
+          description?: string | null
+          feature_key: string
+          feature_name: string
+          id?: string
+          min_subscription?: Database["public"]["Enums"]["subscription_tier"]
+        }
+        Update: {
+          admin_only?: boolean
+          created_at?: string
+          description?: string | null
+          feature_key?: string
+          feature_name?: string
+          id?: string
+          min_subscription?: Database["public"]["Enums"]["subscription_tier"]
+        }
+        Relationships: []
+      }
       financial_goals: {
         Row: {
           color: string | null
@@ -1080,6 +1110,30 @@ export type Database = {
           },
         ]
       }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_settings: {
         Row: {
           created_at: string
@@ -1178,6 +1232,29 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_user_subscription: {
+        Args: { _user_id: string }
+        Returns: Database["public"]["Enums"]["subscription_tier"]
+      }
+      has_permission: {
+        Args: { _feature_key: string; _user_id: string }
+        Returns: boolean
+      }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      has_subscription: {
+        Args: {
+          _min_tier: Database["public"]["Enums"]["subscription_tier"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      is_admin: { Args: { _user_id: string }; Returns: boolean }
       record_portfolio_snapshot: {
         Args: { p_portfolio_id: string }
         Returns: undefined
@@ -1190,6 +1267,8 @@ export type Database = {
         | "transfer_in"
         | "transfer_out"
       account_type: "bank" | "ewallet" | "broker" | "cash" | "soft_wallet"
+      app_role: "admin" | "user"
+      subscription_tier: "free" | "pro" | "business"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1324,6 +1403,8 @@ export const Constants = {
         "transfer_out",
       ],
       account_type: ["bank", "ewallet", "broker", "cash", "soft_wallet"],
+      app_role: ["admin", "user"],
+      subscription_tier: ["free", "pro", "business"],
     },
   },
 } as const

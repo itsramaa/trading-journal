@@ -37,6 +37,7 @@ export function useAuth() {
   }, []);
 
   const createProfileIfNotExists = async (user: User) => {
+    // Create user profile if it doesn't exist
     const { data: existingProfile } = await supabase
       .from('users_profile')
       .select('id')
@@ -51,8 +52,23 @@ export function useAuth() {
       
       await supabase.from('users_profile').insert({
         user_id: user.id,
-        fullname,
+        display_name: fullname,
         avatar_url: user.user_metadata?.avatar_url || null,
+      });
+    }
+
+    // Create user settings if it doesn't exist
+    const { data: existingSettings } = await supabase
+      .from('user_settings')
+      .select('id')
+      .eq('user_id', user.id)
+      .single();
+
+    if (!existingSettings) {
+      await supabase.from('user_settings').insert({
+        user_id: user.id,
+        subscription_plan: 'free',
+        subscription_status: 'active',
       });
     }
   };

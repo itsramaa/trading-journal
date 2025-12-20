@@ -14,3 +14,6 @@ verify_jwt = false
 
 [functions.session-analysis]
 verify_jwt = false
+
+[functions.check-permission]
+verify_jwt = false
