@@ -261,30 +261,38 @@ export function useUpdateSubscription() {
   return useMutation({
     mutationFn: async ({ plan }: { plan: 'free' | 'pro' | 'business' }) => {
       if (!user?.id) throw new Error('Not authenticated');
-      
-      // This is a mock implementation - replace with real Stripe integration
-      const planExpiresAt = plan === 'free' 
-        ? null 
-        : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 days from now
+
+      // Dummy implementation for now.
+      // IMPORTANT: keep fields aligned with permission checks in use-permissions.ts
+      const planExpiresAt = plan === 'free'
+        ? null
+        : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
       const { data, error } = await supabase
         .from('user_settings')
-        .update({ 
+        .update({
           subscription_plan: plan,
           subscription_status: 'active',
           plan_expires_at: planExpiresAt,
-          updated_at: new Date().toISOString() 
+          updated_at: new Date().toISOString(),
         })
         .eq('user_id', user.id)
         .select()
         .single();
-      
+
       if (error) throw error;
       return data;
     },
     onSuccess: (_, variables) => {
+      // Keep ALL subscription consumers in sync
       queryClient.invalidateQueries({ queryKey: userSettingsKeys.current() });
-      toast.success(`Successfully upgraded to ${variables.plan.charAt(0).toUpperCase() + variables.plan.slice(1)} plan!`);
+      queryClient.invalidateQueries({ queryKey: ['user-subscription', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['user-roles', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['feature-permissions'] });
+
+      toast.success(
+        `Successfully updated to ${variables.plan.charAt(0).toUpperCase() + variables.plan.slice(1)} plan!`
+      );
     },
     onError: (error) => {
       toast.error(`Failed to update subscription: ${error.message}`);
