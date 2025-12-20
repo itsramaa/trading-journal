@@ -29,6 +29,7 @@ import TradingSummary from "./pages/trading-journey/TradingSummary";
 import TradingJournal from "./pages/trading-journey/TradingJournal";
 import TradingSessions from "./pages/trading-journey/TradingSessions";
 import Performance from "./pages/trading-journey/Performance";
+import Positions from "./pages/trading-journey/Positions";
 import StrategyManagement from "./pages/trading-journey/StrategyManagement";
 import Insights from "./pages/trading-journey/Insights";
 
@@ -78,6 +79,7 @@ const App = () => (
             <Route path="/trading/journal" element={<TradingJournal />} />
             <Route path="/trading/sessions" element={<TradingSessions />} />
             <Route path="/trading/performance" element={<Performance />} />
+            <Route path="/trading/positions" element={<Positions />} />
             <Route path="/trading/strategies" element={<StrategyManagement />} />
             <Route path="/trading/insights" element={<Insights />} />
             
