@@ -908,6 +908,7 @@ export type Database = {
           id: string
           initial_balance: number
           is_active: boolean
+          is_backtest: boolean
           name: string
           updated_at: string
           user_id: string
@@ -922,6 +923,7 @@ export type Database = {
           id?: string
           initial_balance?: number
           is_active?: boolean
+          is_backtest?: boolean
           name: string
           updated_at?: string
           user_id: string
@@ -936,6 +938,7 @@ export type Database = {
           id?: string
           initial_balance?: number
           is_active?: boolean
+          is_backtest?: boolean
           name?: string
           updated_at?: string
           user_id?: string
@@ -1150,6 +1153,7 @@ export type Database = {
           plan_expires_at: string | null
           subscription_plan: string
           subscription_status: string
+          target_allocations: Json | null
           theme: string
           updated_at: string
           user_id: string
@@ -1169,6 +1173,7 @@ export type Database = {
           plan_expires_at?: string | null
           subscription_plan?: string
           subscription_status?: string
+          target_allocations?: Json | null
           theme?: string
           updated_at?: string
           user_id: string
@@ -1188,6 +1193,7 @@ export type Database = {
           plan_expires_at?: string | null
           subscription_plan?: string
           subscription_status?: string
+          target_allocations?: Json | null
           theme?: string
           updated_at?: string
           user_id?: string

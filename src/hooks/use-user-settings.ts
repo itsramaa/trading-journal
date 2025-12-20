@@ -22,6 +22,7 @@ export interface UserSettings {
   notify_market_news: boolean;
   notify_email_enabled: boolean;
   notify_push_enabled: boolean;
+  target_allocations?: Record<string, number>;
   created_at: string;
   updated_at: string;
 }

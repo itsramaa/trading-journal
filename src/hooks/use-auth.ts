@@ -186,6 +186,52 @@ export function useAuth() {
     return { error: null };
   }, [toast]);
 
+  const resetPassword = useCallback(async (email: string) => {
+    const redirectUrl = `${window.location.origin}/auth?type=recovery`;
+    
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: redirectUrl,
+    });
+
+    if (error) {
+      toast({
+        title: 'Password reset failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+      return { error };
+    }
+
+    toast({
+      title: 'Password reset email sent',
+      description: 'Please check your email for a password reset link.',
+    });
+
+    return { error: null };
+  }, [toast]);
+
+  const updatePassword = useCallback(async (newPassword: string) => {
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+
+    if (error) {
+      toast({
+        title: 'Password update failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+      return { error };
+    }
+
+    toast({
+      title: 'Password updated',
+      description: 'Your password has been successfully updated.',
+    });
+
+    return { error: null };
+  }, [toast]);
+
   return {
     user,
     session,
@@ -194,6 +240,8 @@ export function useAuth() {
     signIn,
     signInWithGoogle,
     signOut,
+    resetPassword,
+    updatePassword,
     isAuthenticated: !!session,
   };
 }
