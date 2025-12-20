@@ -12,146 +12,122 @@ import {
   PiggyBank,
   CreditCard,
   ArrowUpRight,
-  Flame
+  Flame,
+  Loader2
 } from "lucide-react";
-import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { useFFProgressData } from "@/hooks/use-ff-progress";
+import { EmptyState } from "@/components/ui/empty-state";
+import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
 
-// Financial Freedom Levels
-const levels = [
-  {
-    level: 1,
-    name: "Survival",
-    icon: Shield,
-    description: "Budget management, debt payoff, emergency fund 1-3 months",
-    color: "text-red-500",
-    bgColor: "bg-red-500/10",
-    borderColor: "border-red-500/50",
-    requirements: [
-      { label: "Monthly Budget Tracked", target: true },
-      { label: "Emergency Fund", target: "1-3 months" },
-      { label: "High-Interest Debt", target: "Reducing" },
-    ],
-  },
-  {
-    level: 2,
-    name: "Stability",
-    icon: Target,
-    description: "Emergency fund 6-12 months, no high-interest debt",
-    color: "text-orange-500",
-    bgColor: "bg-orange-500/10",
-    borderColor: "border-orange-500/50",
-    requirements: [
-      { label: "Emergency Fund", target: "6-12 months" },
-      { label: "High-Interest Debt", target: "None" },
-      { label: "Debt-to-Income Ratio", target: "<30%" },
-    ],
-  },
-  {
-    level: 3,
-    name: "Independence",
-    icon: TrendingUp,
-    description: "Rp15B assets, 4% withdrawal = Rp60M/month",
-    color: "text-yellow-500",
-    bgColor: "bg-yellow-500/10",
-    borderColor: "border-yellow-500/50",
-    requirements: [
-      { label: "Total Assets", target: "Rp15 Miliar" },
-      { label: "CAGR", target: ">15%" },
-      { label: "Savings Rate", target: "50-80%" },
-      { label: "Withdrawal Rate", target: "4%" },
-    ],
-  },
-  {
-    level: 4,
-    name: "Freedom",
-    icon: Crown,
-    description: "Rp150B assets, complete time & location freedom",
-    color: "text-green-500",
-    bgColor: "bg-green-500/10",
-    borderColor: "border-green-500/50",
-    requirements: [
-      { label: "Total Assets", target: "Rp150 Miliar" },
-      { label: "Passive Income", target: ">Monthly Expenses" },
-      { label: "Time Freedom", target: "100%" },
-    ],
-  },
-  {
-    level: 5,
-    name: "Purpose",
-    icon: Heart,
-    description: "Focus on serving others, impossible ventures, legacy building",
-    color: "text-purple-500",
-    bgColor: "bg-purple-500/10",
-    borderColor: "border-purple-500/50",
-    requirements: [
-      { label: "Legacy Projects", target: "Active" },
-      { label: "Philanthropy", target: "Ongoing" },
-      { label: "Impact Score", target: "High" },
-    ],
-  },
-];
+// Level icons mapping
+const levelIcons = {
+  1: Shield,
+  2: Target,
+  3: TrendingUp,
+  4: Crown,
+  5: Heart,
+};
 
-// Demo data - will be replaced with real data
-const demoMetrics = {
-  currentLevel: 2,
-  levelProgress: 65,
-  savingsRate: 35,
-  cagr: 12.5,
-  withdrawalRate: 0,
-  emergencyFundMonths: 4,
-  debtToIncomeRatio: 25,
-  totalAssets: 850000000, // 850 juta IDR
-  monthlyExpenses: 15000000, // 15 juta IDR
-  monthlyIncome: 25000000, // 25 juta IDR
-  totalDebt: 50000000, // 50 juta IDR
+const levelColors = {
+  1: { color: "text-red-500", bgColor: "bg-red-500/10", borderColor: "border-red-500/50" },
+  2: { color: "text-orange-500", bgColor: "bg-orange-500/10", borderColor: "border-orange-500/50" },
+  3: { color: "text-yellow-500", bgColor: "bg-yellow-500/10", borderColor: "border-yellow-500/50" },
+  4: { color: "text-green-500", bgColor: "bg-green-500/10", borderColor: "border-green-500/50" },
+  5: { color: "text-purple-500", bgColor: "bg-purple-500/10", borderColor: "border-purple-500/50" },
+};
+
+const formatCurrency = (value: number) => {
+  if (value >= 1000000000) {
+    return `Rp${(value / 1000000000).toFixed(1)}M`;
+  }
+  if (value >= 1000000) {
+    return `Rp${(value / 1000000).toFixed(0)}jt`;
+  }
+  return `Rp${value.toLocaleString()}`;
 };
 
 export default function FFProgress() {
-  const currentLevelData = levels[demoMetrics.currentLevel - 1];
-  const nextLevelData = levels[demoMetrics.currentLevel];
+  const { metrics, levels, isLoading, hasData } = useFFProgressData();
 
-  const formatCurrency = (value: number) => {
-    if (value >= 1000000000) {
-      return `Rp${(value / 1000000000).toFixed(1)}M`;
-    }
-    if (value >= 1000000) {
-      return `Rp${(value / 1000000).toFixed(0)}jt`;
-    }
-    return `Rp${value.toLocaleString()}`;
-  };
+  if (isLoading) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Financial Freedom Progress</h1>
+              <p className="text-muted-foreground">Track your progress through the 5 levels of financial freedom</p>
+            </div>
+          </div>
+          <MetricsGridSkeleton />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
-  const keyMetrics = useMemo(() => [
+  if (!hasData) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Financial Freedom Progress</h1>
+              <p className="text-muted-foreground">Track your progress through the 5 levels of financial freedom</p>
+            </div>
+            <Button asChild>
+              <Link to="/ff/fire-calculator">
+                <Flame className="mr-2 h-4 w-4" />
+                FIRE Calculator
+              </Link>
+            </Button>
+          </div>
+          <EmptyState
+            icon={Target}
+            title="Start Your Financial Freedom Journey"
+            description="Add your portfolio holdings, set up your emergency fund, or configure your budget to begin tracking your progress."
+          />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  const currentLevelData = levels[metrics.currentLevel - 1];
+  const nextLevelData = metrics.currentLevel < 5 ? levels[metrics.currentLevel] : null;
+  const CurrentLevelIcon = levelIcons[metrics.currentLevel as keyof typeof levelIcons];
+  const currentColors = levelColors[metrics.currentLevel as keyof typeof levelColors];
+
+  const keyMetrics = [
     {
       label: "Savings Rate",
-      value: `${demoMetrics.savingsRate}%`,
+      value: `${metrics.savingsRate.toFixed(1)}%`,
       target: "50-80%",
       icon: PiggyBank,
-      status: demoMetrics.savingsRate >= 50 ? "success" : demoMetrics.savingsRate >= 30 ? "warning" : "danger",
+      status: metrics.savingsRate >= 50 ? "success" : metrics.savingsRate >= 30 ? "warning" : "danger",
     },
     {
       label: "CAGR",
-      value: `${demoMetrics.cagr}%`,
+      value: `${metrics.cagr.toFixed(1)}%`,
       target: ">15%",
       icon: TrendingUp,
-      status: demoMetrics.cagr >= 15 ? "success" : demoMetrics.cagr >= 10 ? "warning" : "danger",
+      status: metrics.cagr >= 15 ? "success" : metrics.cagr >= 10 ? "warning" : "danger",
     },
     {
       label: "Emergency Fund",
-      value: `${demoMetrics.emergencyFundMonths} months`,
+      value: `${metrics.emergencyFundMonths.toFixed(1)} months`,
       target: "6-12 months",
       icon: Shield,
-      status: demoMetrics.emergencyFundMonths >= 6 ? "success" : demoMetrics.emergencyFundMonths >= 3 ? "warning" : "danger",
+      status: metrics.emergencyFundMonths >= 6 ? "success" : metrics.emergencyFundMonths >= 3 ? "warning" : "danger",
     },
     {
       label: "Debt-to-Income",
-      value: `${demoMetrics.debtToIncomeRatio}%`,
+      value: `${metrics.debtToIncomeRatio.toFixed(1)}%`,
       target: "<30%",
       icon: CreditCard,
-      status: demoMetrics.debtToIncomeRatio <= 20 ? "success" : demoMetrics.debtToIncomeRatio <= 30 ? "warning" : "danger",
+      status: metrics.debtToIncomeRatio <= 20 ? "success" : metrics.debtToIncomeRatio <= 30 ? "warning" : "danger",
     },
-  ], []);
+  ];
 
   return (
     <DashboardLayout>
@@ -171,19 +147,19 @@ export default function FFProgress() {
         </div>
 
         {/* Current Level Card */}
-        <Card className={`${currentLevelData.borderColor} border-2`}>
+        <Card className={`${currentColors.borderColor} border-2`}>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className={`p-3 rounded-lg ${currentLevelData.bgColor}`}>
-                  <currentLevelData.icon className={`h-6 w-6 ${currentLevelData.color}`} />
+                <div className={`p-3 rounded-lg ${currentColors.bgColor}`}>
+                  <CurrentLevelIcon className={`h-6 w-6 ${currentColors.color}`} />
                 </div>
                 <div>
                   <CardTitle className="text-2xl">Level {currentLevelData.level}: {currentLevelData.name}</CardTitle>
                   <CardDescription>{currentLevelData.description}</CardDescription>
                 </div>
               </div>
-              <Badge variant="outline" className={currentLevelData.color}>
+              <Badge variant="outline" className={currentColors.color}>
                 Current Level
               </Badge>
             </div>
@@ -192,10 +168,10 @@ export default function FFProgress() {
             <div className="space-y-4">
               <div>
                 <div className="flex justify-between text-sm mb-2">
-                  <span>Progress to Level {demoMetrics.currentLevel + 1}</span>
-                  <span className="font-medium">{demoMetrics.levelProgress}%</span>
+                  <span>Progress to Level {Math.min(metrics.currentLevel + 1, 5)}</span>
+                  <span className="font-medium">{metrics.levelProgress.toFixed(0)}%</span>
                 </div>
-                <Progress value={demoMetrics.levelProgress} className="h-3" />
+                <Progress value={metrics.levelProgress} className="h-3" />
               </div>
               {nextLevelData && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -237,9 +213,9 @@ export default function FFProgress() {
               <Wallet className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(demoMetrics.totalAssets)}</div>
+              <div className="text-2xl font-bold">{formatCurrency(metrics.totalAssets)}</div>
               <p className="text-xs text-muted-foreground">
-                Target L3: Rp15M • Target L4: Rp150M
+                Portfolio: {formatCurrency(metrics.totalPortfolioValue)} • Accounts: {formatCurrency(metrics.totalAccountBalance)}
               </p>
             </CardContent>
           </Card>
@@ -249,11 +225,11 @@ export default function FFProgress() {
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-500">
-                +{formatCurrency(demoMetrics.monthlyIncome - demoMetrics.monthlyExpenses)}
+              <div className={`text-2xl font-bold ${metrics.monthlySavings >= 0 ? "text-green-500" : "text-red-500"}`}>
+                {metrics.monthlySavings >= 0 ? '+' : ''}{formatCurrency(metrics.monthlySavings)}
               </div>
               <p className="text-xs text-muted-foreground">
-                Income: {formatCurrency(demoMetrics.monthlyIncome)} • Expenses: {formatCurrency(demoMetrics.monthlyExpenses)}
+                Income: {formatCurrency(metrics.monthlyIncome)} • Expenses: {formatCurrency(metrics.monthlyExpenses)}
               </p>
             </CardContent>
           </Card>
@@ -263,39 +239,73 @@ export default function FFProgress() {
               <CreditCard className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-500">{formatCurrency(demoMetrics.totalDebt)}</div>
+              <div className={`text-2xl font-bold ${metrics.totalDebt > 0 ? "text-red-500" : "text-green-500"}`}>
+                {formatCurrency(metrics.totalDebt)}
+              </div>
               <p className="text-xs text-muted-foreground">
-                Debt-to-Income: {demoMetrics.debtToIncomeRatio}%
+                DTI Ratio: {metrics.debtToIncomeRatio.toFixed(1)}%
               </p>
             </CardContent>
           </Card>
         </div>
+
+        {/* FIRE Progress */}
+        <Card className="border-primary/20">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Flame className="h-5 w-5 text-primary" />
+              FIRE Progress
+            </CardTitle>
+            <CardDescription>Your journey to Financial Independence, Retire Early</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">FIRE Number</p>
+                <p className="text-2xl font-bold">{formatCurrency(metrics.fireNumber)}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-sm text-muted-foreground">Years to FIRE</p>
+                <p className="text-2xl font-bold">
+                  {metrics.yearsToFire > 100 ? "∞" : metrics.yearsToFire.toFixed(0)}
+                </p>
+              </div>
+            </div>
+            <div>
+              <div className="flex justify-between text-sm mb-2">
+                <span>Progress</span>
+                <span className="font-medium">{Math.min(metrics.fireProgress, 100).toFixed(1)}%</span>
+              </div>
+              <Progress value={Math.min(metrics.fireProgress, 100)} className="h-3" />
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Level Progress Cards */}
         <div>
           <h2 className="text-xl font-semibold mb-4">All Levels</h2>
           <div className="grid gap-4 md:grid-cols-5">
             {levels.map((level) => {
-              const isCompleted = level.level < demoMetrics.currentLevel;
-              const isCurrent = level.level === demoMetrics.currentLevel;
-              const isLocked = level.level > demoMetrics.currentLevel;
+              const LevelIcon = levelIcons[level.level as keyof typeof levelIcons];
+              const colors = levelColors[level.level as keyof typeof levelColors];
+              const isLocked = level.level > metrics.currentLevel;
 
               return (
                 <Card 
                   key={level.level} 
-                  className={`${isCurrent ? level.borderColor + " border-2" : ""} ${isLocked ? "opacity-50" : ""}`}
+                  className={`${level.isCurrent ? colors.borderColor + " border-2" : ""} ${isLocked ? "opacity-50" : ""}`}
                 >
                   <CardHeader className="pb-2">
                     <div className="flex items-center justify-between">
-                      <div className={`p-2 rounded-lg ${level.bgColor}`}>
-                        <level.icon className={`h-5 w-5 ${level.color}`} />
+                      <div className={`p-2 rounded-lg ${colors.bgColor}`}>
+                        <LevelIcon className={`h-5 w-5 ${colors.color}`} />
                       </div>
-                      {isCompleted && (
+                      {level.isCompleted && (
                         <Badge variant="secondary" className="bg-green-500/10 text-green-500">
                           ✓
                         </Badge>
                       )}
-                      {isCurrent && (
+                      {level.isCurrent && (
                         <Badge variant="secondary">Current</Badge>
                       )}
                     </div>
