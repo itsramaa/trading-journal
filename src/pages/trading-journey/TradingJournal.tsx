@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -17,12 +17,12 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Calendar, Tag, Target, Building2, TrendingUp, BookOpen, MoreVertical, Trash2, Clock, CheckCircle, Circle } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Plus, Calendar, Tag, Target, Building2, TrendingUp, TrendingDown, BookOpen, MoreVertical, Trash2, Clock, CheckCircle, Circle, DollarSign, XCircle, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
 import { useAccounts } from "@/hooks/use-accounts";
-import { useTradeEntries, useCreateTradeEntry, useDeleteTradeEntry, TradeEntry } from "@/hooks/use-trade-entries";
-import { useTradingStrategies, TradingStrategy } from "@/hooks/use-trading-strategies";
+import { useTradeEntries, useCreateTradeEntry, useDeleteTradeEntry, useClosePosition, TradeEntry } from "@/hooks/use-trade-entries";
+import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { useTradingSessions } from "@/hooks/use-trading-sessions";
 import { filterTradesByDateRange, filterTradesByStrategies } from "@/lib/trading-calculations";
 import { formatCurrency } from "@/lib/formatters";
@@ -47,7 +47,14 @@ const tradeFormSchema = z.object({
   status: z.enum(["open", "closed"]).default("closed"),
 });
 
+const closePositionSchema = z.object({
+  exit_price: z.coerce.number().positive("Exit price must be positive"),
+  fees: z.coerce.number().optional(),
+  notes: z.string().optional(),
+});
+
 type TradeFormValues = z.infer<typeof tradeFormSchema>;
+type ClosePositionFormValues = z.infer<typeof closePositionSchema>;
 
 export default function TradingJournal() {
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -55,6 +62,7 @@ export default function TradingJournal() {
   const [selectedStrategyIds, setSelectedStrategyIds] = useState<string[]>([]);
   const [newTradeStrategies, setNewTradeStrategies] = useState<string[]>([]);
   const [deletingTrade, setDeletingTrade] = useState<TradeEntry | null>(null);
+  const [closingPosition, setClosingPosition] = useState<TradeEntry | null>(null);
   const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'closed'>('all');
 
   const { data: accounts, isLoading: accountsLoading } = useAccounts();
@@ -63,6 +71,7 @@ export default function TradingJournal() {
   const { data: sessions = [] } = useTradingSessions();
   const createTrade = useCreateTradeEntry();
   const deleteTrade = useDeleteTradeEntry();
+  const closePosition = useClosePosition();
 
   const form = useForm<TradeFormValues>({
     resolver: zodResolver(tradeFormSchema),
@@ -74,34 +83,53 @@ export default function TradingJournal() {
     },
   });
 
+  const closeForm = useForm<ClosePositionFormValues>({
+    resolver: zodResolver(closePositionSchema),
+    defaultValues: {},
+  });
+
   // Filter accounts suitable for trading (broker type)
   const tradingAccounts = accounts?.filter(a => 
     a.is_active && (a.account_type === 'broker' || a.account_type === 'soft_wallet')
   );
 
-  const filteredTrades = useMemo(() => {
-    if (!trades) return [];
-    let filtered = filterTradesByDateRange(trades, dateRange.from, dateRange.to);
-    filtered = filterTradesByStrategies(filtered, selectedStrategyIds);
-    // Filter by status
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(t => t.status === statusFilter);
-    }
-    return filtered;
-  }, [trades, dateRange, selectedStrategyIds, statusFilter]);
-
-  // Calculate open and closed trade counts
-  const openTrades = useMemo(() => trades?.filter(t => t.status === 'open') || [], [trades]);
+  // Separate open and closed trades
+  const openPositions = useMemo(() => trades?.filter(t => t.status === 'open') || [], [trades]);
   const closedTrades = useMemo(() => trades?.filter(t => t.status === 'closed') || [], [trades]);
-  
-  // Calculate unrealized and realized P&L
-  const unrealizedPnl = useMemo(() => openTrades.reduce((sum, t) => sum + (t.pnl || 0), 0), [openTrades]);
-  const realizedPnl = useMemo(() => closedTrades.reduce((sum, t) => sum + (t.realized_pnl || 0), 0), [closedTrades]);
 
-  const formatCurrencyLocal = (v: number) => {
-    if (Math.abs(v) >= 1000) return `$${(v / 1000).toFixed(1)}k`;
-    return `$${v.toFixed(0)}`;
-  };
+  // Filter closed trades by date/strategy
+  const filteredClosedTrades = useMemo(() => {
+    let filtered = filterTradesByDateRange(closedTrades, dateRange.from, dateRange.to);
+    filtered = filterTradesByStrategies(filtered, selectedStrategyIds);
+    return filtered;
+  }, [closedTrades, dateRange, selectedStrategyIds]);
+
+  // Calculate P&L summaries
+  const totalUnrealizedPnL = useMemo(() => openPositions.reduce((sum, t) => sum + (t.pnl || 0), 0), [openPositions]);
+  const totalRealizedPnL = useMemo(() => closedTrades.reduce((sum, t) => sum + (t.realized_pnl || 0), 0), [closedTrades]);
+
+  // Calculate unrealized P&L for each open position (simulated current price)
+  const positionsWithPnL = useMemo(() => {
+    return openPositions.map((position) => {
+      // Simulate current price change for demo
+      const simulatedPriceChange = (Math.random() - 0.5) * 0.1;
+      const currentPrice = position.entry_price * (1 + simulatedPriceChange);
+      
+      const priceDiff = position.direction === "LONG" 
+        ? currentPrice - position.entry_price 
+        : position.entry_price - currentPrice;
+      
+      const unrealizedPnL = priceDiff * position.quantity;
+      const unrealizedPnLPercent = (priceDiff / position.entry_price) * 100;
+
+      return {
+        ...position,
+        currentPrice,
+        unrealizedPnL,
+        unrealizedPnLPercent,
+      };
+    });
+  }, [openPositions]);
 
   const handleSubmit = async (values: TradeFormValues) => {
     try {
@@ -128,6 +156,31 @@ export default function TradingJournal() {
       setIsAddOpen(false);
       form.reset();
       setNewTradeStrategies([]);
+    } catch (error) {
+      // Error handled by mutation
+    }
+  };
+
+  const handleClosePosition = async (values: ClosePositionFormValues) => {
+    if (!closingPosition) return;
+    
+    // Calculate P&L based on direction
+    const priceDiff = closingPosition.direction === "LONG"
+      ? values.exit_price - closingPosition.entry_price
+      : closingPosition.entry_price - values.exit_price;
+    
+    const pnl = priceDiff * closingPosition.quantity - (values.fees || 0);
+
+    try {
+      await closePosition.mutateAsync({
+        id: closingPosition.id,
+        exit_price: values.exit_price,
+        pnl,
+        fees: values.fees,
+        notes: values.notes,
+      });
+      setClosingPosition(null);
+      closeForm.reset();
     } catch (error) {
       // Error handled by mutation
     }
@@ -277,9 +330,6 @@ export default function TradingJournal() {
                       </div>
                     </label>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Open positions show unrealized P&L, closed trades contribute to realized P&L
-                  </p>
                 </div>
 
                 <div className="grid grid-cols-3 gap-4">
@@ -398,162 +448,347 @@ export default function TradingJournal() {
           </Dialog>
         </div>
 
-        {/* Trading Accounts Summary */}
-        {tradingAccounts && tradingAccounts.length > 0 && (
-          <Card className="border-primary/20 bg-primary/5">
-            <CardHeader className="pb-2">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-primary" />
-                <span className="font-semibold">Trading Accounts</span>
-              </div>
+        {/* P&L Summary Cards */}
+        <div className="grid gap-4 md:grid-cols-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Open Positions</CardTitle>
+              <Circle className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className="flex flex-wrap gap-4">
-                {tradingAccounts.slice(0, 4).map((account) => (
-                  <div key={account.id} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-background border">
-                    <span className="text-sm font-medium">{account.name}</span>
-                    <Badge variant="secondary">
-                      {formatCurrency(Number(account.balance), account.currency)}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
+              <div className="text-2xl font-bold">{openPositions.length}</div>
+              <p className="text-xs text-muted-foreground">Active trades</p>
             </CardContent>
           </Card>
-        )}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Unrealized P&L</CardTitle>
+              {totalUnrealizedPnL >= 0 ? (
+                <TrendingUp className="h-4 w-4 text-green-500" />
+              ) : (
+                <TrendingDown className="h-4 w-4 text-red-500" />
+              )}
+            </CardHeader>
+            <CardContent>
+              <div className={`text-2xl font-bold ${totalUnrealizedPnL >= 0 ? "text-green-500" : "text-red-500"}`}>
+                {formatCurrency(totalUnrealizedPnL, "USD")}
+              </div>
+              <p className="text-xs text-muted-foreground">From open positions</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Closed Trades</CardTitle>
+              <CheckCircle className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{closedTrades.length}</div>
+              <p className="text-xs text-muted-foreground">Completed trades</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Realized P&L</CardTitle>
+              <DollarSign className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className={`text-2xl font-bold ${totalRealizedPnL >= 0 ? "text-green-500" : "text-red-500"}`}>
+                {formatCurrency(totalRealizedPnL, "USD")}
+              </div>
+              <p className="text-xs text-muted-foreground">From closed trades</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Open Positions Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Circle className="h-5 w-5 text-primary" />
+              Open Positions
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {positionsWithPnL.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <AlertCircle className="h-10 w-10 text-muted-foreground mb-3" />
+                <h3 className="font-medium">No Open Positions</h3>
+                <p className="text-sm text-muted-foreground">
+                  Create a new trade with status "Open" to track active positions.
+                </p>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Pair</TableHead>
+                    <TableHead>Direction</TableHead>
+                    <TableHead className="text-right">Entry</TableHead>
+                    <TableHead className="text-right">Current</TableHead>
+                    <TableHead className="text-right">Size</TableHead>
+                    <TableHead className="text-right">Unrealized P&L</TableHead>
+                    <TableHead className="text-right">SL / TP</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {positionsWithPnL.map((position) => (
+                    <TableRow key={position.id}>
+                      <TableCell className="font-medium">{position.pair}</TableCell>
+                      <TableCell>
+                        <Badge variant={position.direction === "LONG" ? "default" : "secondary"}>
+                          {position.direction}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-mono">
+                        {formatCurrency(position.entry_price, "USD")}
+                      </TableCell>
+                      <TableCell className="text-right font-mono">
+                        {formatCurrency(position.currentPrice, "USD")}
+                      </TableCell>
+                      <TableCell className="text-right font-mono">{position.quantity}</TableCell>
+                      <TableCell className={`text-right font-mono font-medium ${position.unrealizedPnL >= 0 ? "text-green-500" : "text-red-500"}`}>
+                        {position.unrealizedPnL >= 0 ? "+" : ""}{formatCurrency(position.unrealizedPnL, "USD")}
+                        <span className="text-xs ml-1">
+                          ({position.unrealizedPnLPercent >= 0 ? "+" : ""}{position.unrealizedPnLPercent.toFixed(2)}%)
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right text-xs">
+                        <span className="text-red-500">{position.stop_loss ? formatCurrency(position.stop_loss, "USD") : "-"}</span>
+                        {" / "}
+                        <span className="text-green-500">{position.take_profit ? formatCurrency(position.take_profit, "USD") : "-"}</span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex gap-1 justify-end">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => {
+                              setClosingPosition(position);
+                              closeForm.reset();
+                            }}
+                          >
+                            <XCircle className="h-4 w-4 mr-1" />
+                            Close
+                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => setDeletingTrade(position)}>
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+            <p className="text-xs text-muted-foreground text-center mt-4">
+              Note: Current prices are simulated. Integrate with a market data API for live prices.
+            </p>
+          </CardContent>
+        </Card>
 
         <QuickTip storageKey="trading_journal_tip" className="mb-2">
           <strong>Pro tip:</strong> Trades with confluence scores above 7 tend to have higher win rates. 
           Focus on quality setups and document your entry signals for pattern recognition.
         </QuickTip>
 
-        {/* Filters */}
-        <div className="flex flex-col gap-4 md:flex-row md:items-center">
-          <DateRangeFilter value={dateRange} onChange={setDateRange} />
-          {strategies.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {strategies.map((strategy) => (
-                <Badge
-                  key={strategy.id}
-                  variant={selectedStrategyIds.includes(strategy.id) ? "default" : "outline"}
-                  className="cursor-pointer"
-                  onClick={() => {
-                    setSelectedStrategyIds(prev =>
-                      prev.includes(strategy.id)
-                        ? prev.filter(id => id !== strategy.id)
-                        : [...prev, strategy.id]
-                    );
-                  }}
-                >
-                  {strategy.name}
-                </Badge>
-              ))}
-              {selectedStrategyIds.length > 0 && (
-                <Button variant="ghost" size="sm" onClick={() => setSelectedStrategyIds([])}>
-                  Clear
-                </Button>
+        {/* Trade Logs Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BookOpen className="h-5 w-5" />
+              Trade Logs
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Filters */}
+            <div className="flex flex-col gap-4 md:flex-row md:items-center">
+              <DateRangeFilter value={dateRange} onChange={setDateRange} />
+              {strategies.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {strategies.map((strategy) => (
+                    <Badge
+                      key={strategy.id}
+                      variant={selectedStrategyIds.includes(strategy.id) ? "default" : "outline"}
+                      className="cursor-pointer"
+                      onClick={() => {
+                        setSelectedStrategyIds(prev =>
+                          prev.includes(strategy.id)
+                            ? prev.filter(id => id !== strategy.id)
+                            : [...prev, strategy.id]
+                        );
+                      }}
+                    >
+                      {strategy.name}
+                    </Badge>
+                  ))}
+                  {selectedStrategyIds.length > 0 && (
+                    <Button variant="ghost" size="sm" onClick={() => setSelectedStrategyIds([])}>
+                      Clear
+                    </Button>
+                  )}
+                </div>
               )}
             </div>
-          )}
-        </div>
 
-        {/* Journal Entries */}
-        <div className="space-y-4">
-          {filteredTrades.length === 0 ? (
-            <EmptyState
-              icon={BookOpen}
-              title="No trades found"
-              description="No trades match your current filters. Try adjusting the date range or strategy filters, or add your first trade entry."
-              action={{
-                label: "Add New Entry",
-                onClick: () => setIsAddOpen(true),
-              }}
-            />
-          ) : (
-            filteredTrades.map((entry) => {
-              const rr = calculateRR(entry);
-              return (
-                <Card key={entry.id}>
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center justify-between flex-wrap gap-2">
-                      <div className="flex items-center gap-3">
-                        <Badge variant={entry.direction === "LONG" ? "default" : "secondary"}>
-                          {entry.direction}
-                        </Badge>
-                        <span className="font-bold text-lg">{entry.pair}</span>
-                        <span className="text-muted-foreground flex items-center gap-1">
-                          <Calendar className="h-4 w-4" />
-                          {format(new Date(entry.trade_date), "MMM d, yyyy")}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {entry.confluence_score && (
-                          <Badge variant="outline">Confluence: {entry.confluence_score}/10</Badge>
+            {/* Trade entries */}
+            <div className="space-y-4">
+              {filteredClosedTrades.length === 0 ? (
+                <EmptyState
+                  icon={BookOpen}
+                  title="No closed trades found"
+                  description="No closed trades match your current filters. Try adjusting the date range or strategy filters, or close an open position."
+                  action={{
+                    label: "Add New Entry",
+                    onClick: () => setIsAddOpen(true),
+                  }}
+                />
+              ) : (
+                filteredClosedTrades.map((entry) => {
+                  const rr = calculateRR(entry);
+                  return (
+                    <Card key={entry.id} className="border-muted">
+                      <CardHeader className="pb-2">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <div className="flex items-center gap-3">
+                            <Badge variant={entry.direction === "LONG" ? "default" : "secondary"}>
+                              {entry.direction}
+                            </Badge>
+                            <span className="font-bold text-lg">{entry.pair}</span>
+                            <span className="text-muted-foreground flex items-center gap-1">
+                              <Calendar className="h-4 w-4" />
+                              {format(new Date(entry.trade_date), "MMM d, yyyy")}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {entry.confluence_score && (
+                              <Badge variant="outline">Confluence: {entry.confluence_score}/10</Badge>
+                            )}
+                            <span className={`font-bold text-lg ${(entry.realized_pnl || 0) >= 0 ? "text-green-500" : "text-red-500"}`}>
+                              {(entry.realized_pnl || 0) >= 0 ? "+" : ""}{formatCurrency(entry.realized_pnl || 0, "USD")}
+                            </span>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => setDeletingTrade(entry)}>
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                          <div><span className="text-muted-foreground">Entry:</span> {formatCurrency(entry.entry_price, "USD")}</div>
+                          <div><span className="text-muted-foreground">Exit:</span> {entry.exit_price ? formatCurrency(entry.exit_price, "USD") : '-'}</div>
+                          <div><span className="text-muted-foreground">R:R:</span> {rr > 0 ? `${rr.toFixed(2)}:1` : '-'}</div>
+                          <div><span className="text-muted-foreground">Market:</span> {entry.market_condition || '-'}</div>
+                        </div>
+                        
+                        {entry.strategies && entry.strategies.length > 0 && (
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Target className="h-4 w-4 text-muted-foreground" />
+                            {entry.strategies.map(strategy => (
+                              <Badge key={strategy.id} variant="secondary">
+                                {strategy.name}
+                              </Badge>
+                            ))}
+                          </div>
                         )}
-                        <span className={`font-bold text-lg ${(entry.pnl || 0) >= 0 ? "text-green-500" : "text-red-500"}`}>
-                          {(entry.pnl || 0) >= 0 ? "+" : ""}{formatCurrencyLocal(entry.pnl || 0)}
-                        </span>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => setDeletingTrade(entry)}>
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                      <div><span className="text-muted-foreground">Entry:</span> {entry.entry_price}</div>
-                      <div><span className="text-muted-foreground">Exit:</span> {entry.exit_price || '-'}</div>
-                      <div><span className="text-muted-foreground">R:R:</span> {rr > 0 ? `${rr.toFixed(2)}:1` : '-'}</div>
-                      <div><span className="text-muted-foreground">Market:</span> {entry.market_condition || '-'}</div>
-                    </div>
-                    
-                    {entry.strategies && entry.strategies.length > 0 && (
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Target className="h-4 w-4 text-muted-foreground" />
-                        {entry.strategies.map(strategy => (
-                          <Badge key={strategy.id} variant="secondary">
-                            {strategy.name}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
 
-                    {entry.entry_signal && (
-                      <div>
-                        <span className="text-sm text-muted-foreground">Entry Signal: </span>
-                        <span className="text-sm">{entry.entry_signal}</span>
-                      </div>
-                    )}
+                        {entry.entry_signal && (
+                          <div>
+                            <span className="text-sm text-muted-foreground">Entry Signal: </span>
+                            <span className="text-sm">{entry.entry_signal}</span>
+                          </div>
+                        )}
 
-                    {entry.notes && (
-                      <p className="text-sm text-muted-foreground">{entry.notes}</p>
-                    )}
+                        {entry.notes && (
+                          <p className="text-sm text-muted-foreground">{entry.notes}</p>
+                        )}
 
-                    {entry.tags && entry.tags.length > 0 && (
-                      <div className="flex gap-2 flex-wrap">
-                        {entry.tags.map((tag) => (
-                          <Badge key={tag} variant="outline" className="text-xs">
-                            <Tag className="h-3 w-3 mr-1" />{tag}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })
-          )}
-        </div>
+                        {entry.tags && entry.tags.length > 0 && (
+                          <div className="flex gap-2 flex-wrap">
+                            {entry.tags.map((tag) => (
+                              <Badge key={tag} variant="outline" className="text-xs">
+                                <Tag className="h-3 w-3 mr-1" />{tag}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Close Position Dialog */}
+        <Dialog open={!!closingPosition} onOpenChange={(open) => !open && setClosingPosition(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Close Position: {closingPosition?.pair}</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={closeForm.handleSubmit(handleClosePosition)} className="grid gap-4 py-4">
+              <div className="p-4 rounded-lg bg-muted/50 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Direction:</span>
+                  <Badge variant={closingPosition?.direction === "LONG" ? "default" : "secondary"}>
+                    {closingPosition?.direction}
+                  </Badge>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Entry Price:</span>
+                  <span className="font-mono">{formatCurrency(closingPosition?.entry_price || 0, "USD")}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Position Size:</span>
+                  <span className="font-mono">{closingPosition?.quantity}</span>
+                </div>
+              </div>
+
+              <div>
+                <Label>Exit Price *</Label>
+                <Input type="number" step="any" {...closeForm.register("exit_price")} placeholder="Enter exit price" />
+                {closeForm.formState.errors.exit_price && (
+                  <p className="text-xs text-destructive mt-1">{closeForm.formState.errors.exit_price.message}</p>
+                )}
+              </div>
+
+              <div>
+                <Label>Fees</Label>
+                <Input type="number" step="any" {...closeForm.register("fees")} placeholder="0.00" />
+              </div>
+
+              <div>
+                <Label>Notes</Label>
+                <Textarea {...closeForm.register("notes")} placeholder="Exit reasoning, lessons learned..." />
+              </div>
+
+              <Button type="submit" disabled={closePosition.isPending}>
+                {closePosition.isPending ? "Closing..." : "Close Position"}
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
 
         <ConfirmDialog
           open={!!deletingTrade}

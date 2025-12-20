@@ -79,7 +79,6 @@ const navigationGroups: NavGroup[] = [
       { title: "Journal", url: "/trading/journal", icon: Notebook },
       { title: "Sessions", url: "/trading/sessions", icon: Clock },
       { title: "Performance", url: "/trading/performance", icon: LineChart },
-      { title: "Positions", url: "/trading/positions", icon: Target },
       { title: "Strategies", url: "/trading/strategies", icon: Lightbulb },
     ],
   },

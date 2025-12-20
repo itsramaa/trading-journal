@@ -281,3 +281,51 @@ export function useDeleteTradeEntry() {
     },
   });
 }
+
+// Close an open position
+export interface ClosePositionInput {
+  id: string;
+  exit_price: number;
+  pnl: number;
+  fees?: number;
+  notes?: string;
+}
+
+export function useClosePosition() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: ClosePositionInput) => {
+      const { id, exit_price, pnl, fees, notes } = input;
+
+      // Calculate result based on P&L
+      const result = pnl > 0 ? 'win' : pnl < 0 ? 'loss' : 'breakeven';
+
+      const { data, error } = await supabase
+        .from("trade_entries")
+        .update({
+          exit_price,
+          pnl,
+          realized_pnl: pnl,
+          fees: fees || 0,
+          status: 'closed',
+          result,
+          notes: notes || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["trade-entries"] });
+      toast.success("Position closed successfully");
+    },
+    onError: (error) => {
+      toast.error(`Failed to close position: ${error.message}`);
+    },
+  });
+}
