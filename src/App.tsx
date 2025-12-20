@@ -5,8 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 
-// Portfolio Management Pages
 import Index from "./pages/Index";
+import Dashboard from "./pages/Dashboard";
 import Portfolio from "./pages/Portfolio";
 import Transactions from "./pages/Transactions";
 import Analytics from "./pages/Analytics";
@@ -62,7 +62,7 @@ const App = () => (
             {/* Protected routes - Free tier */}
             <Route path="/" element={
               <ProtectedRoute>
-                <Index />
+                <Dashboard />
               </ProtectedRoute>
             } />
             <Route path="/accounts" element={
