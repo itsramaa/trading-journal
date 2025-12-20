@@ -765,12 +765,12 @@ export default function DebtPayoff() {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="payment-account">Source Account (Optional)</Label>
-              <Select value={paymentAccountId} onValueChange={setPaymentAccountId}>
+              <Select value={paymentAccountId || "none"} onValueChange={(v) => setPaymentAccountId(v === "none" ? "" : v)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select account" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">No account linked</SelectItem>
+                  <SelectItem value="none">No account linked</SelectItem>
                   {accounts?.filter(a => a.is_active).map((account) => (
                     <SelectItem key={account.id} value={account.id}>
                       <div className="flex items-center gap-2">

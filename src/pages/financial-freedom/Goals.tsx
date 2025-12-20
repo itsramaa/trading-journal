@@ -549,12 +549,12 @@ export default function Goals() {
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
                 <Label htmlFor="fund-account">Source Account (Optional)</Label>
-                <Select value={addFundsAccountId} onValueChange={setAddFundsAccountId}>
+                <Select value={addFundsAccountId || "none"} onValueChange={(v) => setAddFundsAccountId(v === "none" ? "" : v)}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select account" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No account linked</SelectItem>
+                    <SelectItem value="none">No account linked</SelectItem>
                     {accounts?.filter(a => a.is_active).map((account) => (
                       <SelectItem key={account.id} value={account.id}>
                         <div className="flex items-center gap-2">

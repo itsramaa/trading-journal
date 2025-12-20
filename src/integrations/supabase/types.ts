@@ -809,8 +809,10 @@ export type Database = {
           confluence_score: number | null
           created_at: string
           direction: string
+          entry_datetime: string | null
           entry_price: number
           entry_signal: string | null
+          exit_datetime: string | null
           exit_price: number | null
           fees: number | null
           id: string
@@ -835,8 +837,10 @@ export type Database = {
           confluence_score?: number | null
           created_at?: string
           direction: string
+          entry_datetime?: string | null
           entry_price: number
           entry_signal?: string | null
+          exit_datetime?: string | null
           exit_price?: number | null
           fees?: number | null
           id?: string
@@ -861,8 +865,10 @@ export type Database = {
           confluence_score?: number | null
           created_at?: string
           direction?: string
+          entry_datetime?: string | null
           entry_price?: number
           entry_signal?: string | null
+          exit_datetime?: string | null
           exit_price?: number | null
           fees?: number | null
           id?: string

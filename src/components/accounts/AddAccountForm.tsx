@@ -38,6 +38,7 @@ const accountSchema = z.object({
   name: z.string().min(1, "Name is required").max(100, "Name too long"),
   account_type: z.enum(['bank', 'ewallet', 'broker', 'cash', 'soft_wallet'] as const),
   currency: z.string().min(1, "Currency is required"),
+  initial_balance: z.coerce.number().min(0, "Balance cannot be negative").default(0),
   description: z.string().max(500, "Description too long").optional(),
 });
 
@@ -58,6 +59,7 @@ export function AddAccountForm({ trigger, onSuccess }: AddAccountFormProps) {
       name: "",
       account_type: "bank",
       currency: "IDR",
+      initial_balance: 0,
       description: "",
     },
   });
@@ -69,6 +71,7 @@ export function AddAccountForm({ trigger, onSuccess }: AddAccountFormProps) {
         account_type: data.account_type,
         currency: data.currency,
         description: data.description,
+        initial_balance: data.initial_balance,
       });
 
       toast.success(`Account "${data.name}" created successfully`);
@@ -107,6 +110,20 @@ export function AddAccountForm({ trigger, onSuccess }: AddAccountFormProps) {
                   <FormLabel>Account Name</FormLabel>
                   <FormControl>
                     <Input placeholder="e.g., BCA Savings" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="initial_balance"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Initial Balance</FormLabel>
+                  <FormControl>
+                    <Input type="number" placeholder="0" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
