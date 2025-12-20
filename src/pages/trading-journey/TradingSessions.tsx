@@ -3,8 +3,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Plus, Clock, Smile, Meh, Frown, Star, Calendar, TrendingUp, MoreHorizontal, Edit, Trash2, Loader2, Brain, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Clock, Smile, Meh, Frown, Star, Calendar, TrendingUp, MoreHorizontal, Edit, Trash2, Loader2, Brain, ChevronDown, ChevronUp, Eye } from "lucide-react";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -41,6 +42,7 @@ const sessionFormSchema = z.object({
 type SessionFormValues = z.infer<typeof sessionFormSchema>;
 
 export default function TradingSessions() {
+  const navigate = useNavigate();
   const { data: sessions = [], isLoading } = useTradingSessions();
   const createSession = useCreateTradingSession();
   const updateSession = useUpdateTradingSession();
@@ -147,12 +149,19 @@ export default function TradingSessions() {
         id: editingSession.id,
         ...sessionData,
       });
+      setIsAddOpen(false);
+      setEditingSession(null);
+      form.reset();
     } else {
-      await createSession.mutateAsync(sessionData);
+      const newSession = await createSession.mutateAsync(sessionData);
+      setIsAddOpen(false);
+      setEditingSession(null);
+      form.reset();
+      // Navigate to the new session detail page
+      if (newSession?.id) {
+        navigate(`/trading/sessions/${newSession.id}`);
+      }
     }
-    setIsAddOpen(false);
-    setEditingSession(null);
-    form.reset();
   };
 
   const handleDelete = async () => {
@@ -303,6 +312,10 @@ export default function TradingSessions() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => navigate(`/trading/sessions/${session.id}`)}>
+                                <Eye className="mr-2 h-4 w-4" />
+                                View Details
+                              </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleOpenEditDialog(session)}>
                                 <Edit className="mr-2 h-4 w-4" />
                                 Edit
