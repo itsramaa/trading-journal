@@ -92,6 +92,7 @@ export default function Upgrade() {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
   const currentPlan = settings?.subscription_plan || "free";
+  const planStatus = settings?.subscription_status || 'active';
 
   const handleSelectPlan = (planId: string) => {
     if (planId === currentPlan) return;
@@ -147,7 +148,7 @@ export default function Upgrade() {
           <p className="mt-2 text-lg text-muted-foreground">
             {currentPlan === "free" 
               ? "Unlock the full potential of your portfolio management"
-              : `You're currently on the ${currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)} plan`}
+              : `You're currently on the ${currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)} plan (${planStatus})`}
           </p>
         </div>
 

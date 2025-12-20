@@ -95,6 +95,7 @@ export function useFeaturePermissions() {
 }
 
 // Hook to get user subscription from user_settings
+// IMPORTANT: Keep this logic aligned with Billing/Upgrade pages and backend checks.
 export function useUserSubscription() {
   const { user } = useAuth();
 
@@ -102,31 +103,32 @@ export function useUserSubscription() {
     queryKey: ['user-subscription', user?.id],
     queryFn: async () => {
       if (!user?.id) return 'free' as SubscriptionTier;
-      
+
       const { data, error } = await supabase
         .from('user_settings')
         .select('subscription_plan, subscription_status, plan_expires_at')
         .eq('user_id', user.id)
         .single();
-      
+
       if (error) {
-        // If no settings exist, default to free
         if (error.code === 'PGRST116') return 'free' as SubscriptionTier;
         throw error;
       }
-      
-      // Check if subscription is active and not expired
-      const isActive = data.subscription_status === 'active';
+
+      // Treat trialing as active for gating purposes.
+      const isActive = data.subscription_status === 'active' || data.subscription_status === 'trialing';
       const notExpired = !data.plan_expires_at || new Date(data.plan_expires_at) > new Date();
-      
+
       if (isActive && notExpired) {
         return data.subscription_plan as SubscriptionTier;
       }
-      
+
       return 'free' as SubscriptionTier;
     },
     enabled: !!user?.id,
-    staleTime: 1000 * 60, // 1 minute (subscription can change)
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 }
 
