@@ -28,6 +28,7 @@ import Goals from "./pages/financial-freedom/Goals";
 import TradingSummary from "./pages/trading-journey/TradingSummary";
 import TradingJournal from "./pages/trading-journey/TradingJournal";
 import TradingSessions from "./pages/trading-journey/TradingSessions";
+import SessionDetail from "./pages/trading-journey/SessionDetail";
 import Performance from "./pages/trading-journey/Performance";
 import StrategyManagement from "./pages/trading-journey/StrategyManagement";
 import Insights from "./pages/trading-journey/Insights";
@@ -139,6 +140,11 @@ const App = () => (
             <Route path="/trading/sessions" element={
               <ProtectedRoute requiredFeature={FEATURES.TRADING_SESSIONS} requiredTier="pro">
                 <TradingSessions />
+              </ProtectedRoute>
+            } />
+            <Route path="/trading/sessions/:sessionId" element={
+              <ProtectedRoute requiredFeature={FEATURES.TRADING_SESSIONS} requiredTier="pro">
+                <SessionDetail />
               </ProtectedRoute>
             } />
             <Route path="/trading/performance" element={
