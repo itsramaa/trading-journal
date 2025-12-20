@@ -175,20 +175,53 @@ export function calculateMetrics(holdings: Holding[]): PortfolioMetrics {
   };
 }
 
-export function calculateAllocation(holdings: Holding[]): AllocationItem[] {
+export interface MarketAllocationAsset {
+  symbol: string;
+  name: string;
+  value: number;
+  percentage: number;
+  marketPercentage: number;
+}
+
+export interface MarketAllocation {
+  market: string;
+  name: string;
+  value: number;
+  percentage: number;
+  color: string;
+  assets: MarketAllocationAsset[];
+}
+
+export function calculateAllocation(holdings: Holding[]): MarketAllocation[] {
   const totalValue = holdings.reduce((sum, h) => sum + h.value, 0);
   
-  // Group by market
-  const byMarket = holdings.reduce<Record<string, number>>((acc, h) => {
+  // Group holdings by market
+  const byMarket = holdings.reduce<Record<string, Holding[]>>((acc, h) => {
     const market = h.asset.market;
-    acc[market] = (acc[market] || 0) + h.value;
+    if (!acc[market]) acc[market] = [];
+    acc[market].push(h);
     return acc;
   }, {});
 
-  return Object.entries(byMarket).map(([market, value]) => ({
-    name: market === 'CRYPTO' ? 'Cryptocurrency' : market === 'US' ? 'US Stocks' : 'ID Stocks',
-    value,
-    percentage: totalValue > 0 ? (value / totalValue) * 100 : 0,
-    color: ALLOCATION_COLORS[market as keyof typeof ALLOCATION_COLORS] || ALLOCATION_COLORS.US,
-  }));
+  return Object.entries(byMarket).map(([market, marketHoldings]) => {
+    const marketValue = marketHoldings.reduce((sum, h) => sum + h.value, 0);
+    const marketPercentage = totalValue > 0 ? (marketValue / totalValue) * 100 : 0;
+    
+    const assets: MarketAllocationAsset[] = marketHoldings.map(h => ({
+      symbol: h.asset.symbol,
+      name: h.asset.name,
+      value: h.value,
+      percentage: totalValue > 0 ? (h.value / totalValue) * 100 : 0,
+      marketPercentage: marketValue > 0 ? (h.value / marketValue) * 100 : 0,
+    })).sort((a, b) => b.value - a.value);
+
+    return {
+      market,
+      name: market === 'CRYPTO' ? 'Cryptocurrency' : market === 'US' ? 'US Stocks' : 'ID Stocks',
+      value: marketValue,
+      percentage: marketPercentage,
+      color: ALLOCATION_COLORS[market as keyof typeof ALLOCATION_COLORS] || ALLOCATION_COLORS.US,
+      assets,
+    };
+  }).sort((a, b) => b.value - a.value);
 }

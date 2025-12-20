@@ -5,7 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import { formatCompactCurrency } from "@/lib/formatters";
-import type { MarketAllocation } from "@/lib/demo-data";
+import type { MarketAllocation } from "@/lib/data-transformers";
 
 interface AllocationBreakdownProps {
   allocations: MarketAllocation[];

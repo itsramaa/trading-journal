@@ -28,12 +28,14 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatCompactCurrency, formatPercent, formatQuantity } from "@/lib/formatters";
-import { demoHoldings, demoDetailedAllocation, demoPortfolioMetrics } from "@/lib/demo-data";
 import { AddTransactionDialog } from "@/components/transactions/AddTransactionDialog";
 import { AllocationBreakdown } from "@/components/portfolio/AllocationBreakdown";
 import { EmptyHoldings, EmptySearchResults } from "@/components/ui/empty-state";
 import { QuickTip } from "@/components/ui/onboarding-tooltip";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
+import { useHoldings, useDefaultPortfolio } from "@/hooks/use-portfolio";
+import { transformHoldings, calculateMetrics, calculateAllocation } from "@/lib/data-transformers";
 import type { Holding } from "@/types/portfolio";
 
 const Portfolio = () => {
@@ -42,9 +44,13 @@ const Portfolio = () => {
   const [marketFilter, setMarketFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("value");
 
-  const holdings = demoHoldings;
-  const metrics = demoPortfolioMetrics;
-  const detailedAllocation = demoDetailedAllocation;
+  const { data: defaultPortfolio } = useDefaultPortfolio();
+  const { data: dbHoldings = [], isLoading } = useHoldings(defaultPortfolio?.id);
+
+  // Transform database holdings to UI format
+  const holdings = useMemo(() => transformHoldings(dbHoldings), [dbHoldings]);
+  const metrics = useMemo(() => calculateMetrics(holdings), [holdings]);
+  const detailedAllocation = useMemo(() => calculateAllocation(holdings), [holdings]);
 
   const filteredHoldings = useMemo(() => {
     return holdings
@@ -70,6 +76,20 @@ const Portfolio = () => {
   }, [holdings, searchQuery, marketFilter, sortBy]);
 
   const uniqueMarkets = [...new Set(holdings.map(h => h.asset.market))];
+
+  if (isLoading) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Portfolio</h1>
+            <p className="text-muted-foreground">Manage your investment holdings and allocations.</p>
+          </div>
+          <MetricsGridSkeleton />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
