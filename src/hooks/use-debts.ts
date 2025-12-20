@@ -157,17 +157,56 @@ export function useDeleteDebt() {
 
 export function useMakePayment() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
-    mutationFn: async ({ id, amount }: { id: string; amount: number }) => {
+    mutationFn: async ({ 
+      id, 
+      amount, 
+      accountId 
+    }: { 
+      id: string; 
+      amount: number; 
+      accountId?: string;
+    }) => {
+      if (!user?.id) throw new Error("User not authenticated");
+
       // First get current debt
       const { data: debt, error: fetchError } = await supabase
         .from("debts")
-        .select("current_balance")
+        .select("current_balance, name")
         .eq("id", id)
         .single();
 
       if (fetchError) throw fetchError;
+
+      // If account is specified, verify balance and deduct
+      if (accountId) {
+        const { data: account, error: accError } = await supabase
+          .from("accounts")
+          .select("balance, currency")
+          .eq("id", accountId)
+          .single();
+
+        if (accError) throw accError;
+        if (Number(account.balance) < amount) {
+          throw new Error("Insufficient account balance");
+        }
+
+        // Deduct from account via account_transactions (trigger updates balance)
+        const { error: txError } = await supabase
+          .from("account_transactions")
+          .insert({
+            user_id: user.id,
+            account_id: accountId,
+            amount: amount,
+            transaction_type: 'withdrawal',
+            currency: account.currency,
+            description: `Debt payment: ${debt.name}`,
+          });
+
+        if (txError) throw txError;
+      }
 
       const newBalance = Math.max(0, Number(debt.current_balance) - amount);
 
@@ -186,6 +225,8 @@ export function useMakePayment() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: DEBTS_KEY });
+      queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["account-transactions"] });
       toast.success("Payment recorded successfully");
     },
     onError: (error) => {

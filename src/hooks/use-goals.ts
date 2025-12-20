@@ -148,17 +148,56 @@ export function useDeleteGoal() {
 
 export function useAddFundsToGoal() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
-    mutationFn: async ({ id, amount }: { id: string; amount: number }) => {
-      // First get current amount
+    mutationFn: async ({ 
+      id, 
+      amount, 
+      accountId 
+    }: { 
+      id: string; 
+      amount: number;
+      accountId?: string;
+    }) => {
+      if (!user?.id) throw new Error("User not authenticated");
+
+      // First get current goal
       const { data: goal, error: fetchError } = await supabase
         .from("financial_goals")
-        .select("current_amount")
+        .select("current_amount, name")
         .eq("id", id)
         .single();
 
       if (fetchError) throw fetchError;
+
+      // If account is specified, verify balance and deduct
+      if (accountId) {
+        const { data: account, error: accError } = await supabase
+          .from("accounts")
+          .select("balance, currency")
+          .eq("id", accountId)
+          .single();
+
+        if (accError) throw accError;
+        if (Number(account.balance) < amount) {
+          throw new Error("Insufficient account balance");
+        }
+
+        // Deduct from account via account_transactions (trigger updates balance)
+        const { error: txError } = await supabase
+          .from("account_transactions")
+          .insert({
+            user_id: user.id,
+            account_id: accountId,
+            amount: amount,
+            transaction_type: 'withdrawal',
+            currency: account.currency,
+            description: `Goal funding: ${goal.name}`,
+          });
+
+        if (txError) throw txError;
+      }
 
       const newAmount = (goal?.current_amount || 0) + amount;
 
@@ -174,6 +213,8 @@ export function useAddFundsToGoal() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["financial-goals"] });
+      queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["account-transactions"] });
       toast.success("Funds added successfully");
     },
     onError: (error) => {

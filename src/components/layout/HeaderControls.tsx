@@ -16,7 +16,9 @@ import {
 } from "@/components/ui/tooltip";
 import { useAppStore } from "@/store/app-store";
 import { useRefreshPrices } from "@/hooks/use-price-refresh";
+import { useNotifications, useMarkAsRead, useMarkAllAsRead, useUnreadCount } from "@/hooks/use-notifications";
 import { cn } from "@/lib/utils";
+import { formatDistanceToNow } from "date-fns";
 
 // Re-export GlobalSearch for backward compatibility
 export { GlobalSearch as HeaderSearch } from "@/components/search/GlobalSearch";
@@ -41,8 +43,10 @@ export function ThemeToggle() {
 }
 
 export function NotificationToggle() {
-  const { notifications, markAsRead, markAllAsRead, unreadCount } = useAppStore();
-  const count = unreadCount();
+  const { data: notifications = [] } = useNotifications();
+  const count = useUnreadCount();
+  const markAsRead = useMarkAsRead();
+  const markAllAsRead = useMarkAllAsRead();
 
   return (
     <Popover>
@@ -64,7 +68,12 @@ export function NotificationToggle() {
         <div className="flex items-center justify-between border-b px-4 py-3">
           <h4 className="font-semibold">Notifications</h4>
           {count > 0 && (
-            <Button variant="ghost" size="sm" onClick={markAllAsRead}>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => markAllAsRead.mutate()}
+              disabled={markAllAsRead.isPending}
+            >
               Mark all read
             </Button>
           )}
@@ -83,7 +92,7 @@ export function NotificationToggle() {
                     "px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors",
                     !notification.read && "bg-muted/30"
                   )}
-                  onClick={() => markAsRead(notification.id)}
+                  onClick={() => !notification.read && markAsRead.mutate(notification.id)}
                 >
                   <div className="flex items-start gap-2">
                     <div
@@ -96,6 +105,9 @@ export function NotificationToggle() {
                       <p className="font-medium text-sm truncate">{notification.title}</p>
                       <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
                         {notification.message}
+                      </p>
+                      <p className="text-xs text-muted-foreground/70 mt-1">
+                        {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
                       </p>
                     </div>
                   </div>

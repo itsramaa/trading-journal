@@ -71,6 +71,36 @@ export function useAuth() {
         subscription_status: 'active',
       });
     }
+
+    // Auto-create Emergency Fund system account if it doesn't exist
+    const { data: existingEF } = await supabase
+      .from('emergency_funds')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('is_system', true)
+      .single();
+
+    if (!existingEF) {
+      await supabase.from('emergency_funds').insert({
+        user_id: user.id,
+        name: 'Emergency Fund',
+        current_balance: 0,
+        monthly_expenses: 0,
+        monthly_contribution: 0,
+        target_months: 6,
+        currency: 'IDR',
+        is_system: true,
+        is_active: true,
+      });
+    }
+
+    // Create welcome notification
+    await supabase.from('notifications').insert({
+      user_id: user.id,
+      type: 'system',
+      title: 'Welcome to Portfolio Manager!',
+      message: 'Your account is set up. Start by adding your first asset or account.',
+    });
   };
 
   const signUp = useCallback(async (email: string, password: string, fullName: string) => {
