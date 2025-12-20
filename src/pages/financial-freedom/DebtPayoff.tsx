@@ -49,6 +49,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useDebts, useCreateDebt, useUpdateDebt, useDeleteDebt, useMakePayment, type Debt } from "@/hooks/use-debts";
 import { useAuth } from "@/hooks/use-auth";
+import { useAccounts } from "@/hooks/use-accounts";
+import { Building2 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CardSkeleton } from "@/components/ui/loading-skeleton";
 import { z } from "zod";
@@ -100,7 +102,10 @@ export default function DebtPayoff() {
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [selectedDebt, setSelectedDebt] = useState<Debt | null>(null);
   const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentAccountId, setPaymentAccountId] = useState<string>("");
   const [strategy, setStrategy] = useState<"avalanche" | "snowball">("avalanche");
+  
+  const { data: accounts } = useAccounts();
 
   const form = useForm<DebtFormValues>({
     resolver: zodResolver(debtSchema),
@@ -199,11 +204,15 @@ export default function DebtPayoff() {
     await makePayment.mutateAsync({
       id: selectedDebt.id,
       amount: Number(paymentAmount),
+      accountId: paymentAccountId || undefined,
     });
     setIsPaymentDialogOpen(false);
     setSelectedDebt(null);
     setPaymentAmount("");
+    setPaymentAccountId("");
   };
+  
+  const selectedPaymentAccount = accounts?.find(a => a.id === paymentAccountId);
 
   const openEditDialog = (debt: Debt) => {
     setSelectedDebt(debt);
@@ -755,6 +764,28 @@ export default function DebtPayoff() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
+              <Label htmlFor="payment-account">Source Account (Optional)</Label>
+              <Select value={paymentAccountId} onValueChange={setPaymentAccountId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select account" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">No account linked</SelectItem>
+                  {accounts?.filter(a => a.is_active).map((account) => (
+                    <SelectItem key={account.id} value={account.id}>
+                      <div className="flex items-center gap-2">
+                        <Building2 className="h-4 w-4" />
+                        <span>{account.name}</span>
+                        <span className="text-xs text-muted-foreground ml-auto">
+                          {formatCurrency(Number(account.balance))}
+                        </span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="payment-amount">Payment Amount</Label>
               <Input
                 id="payment-amount"
@@ -765,9 +796,14 @@ export default function DebtPayoff() {
               />
             </div>
             {selectedDebt && (
-              <p className="text-sm text-muted-foreground">
-                Current balance: {formatCurrency(Number(selectedDebt.current_balance))}
-              </p>
+              <div className="text-sm text-muted-foreground space-y-1">
+                <p>Current balance: {formatCurrency(Number(selectedDebt.current_balance))}</p>
+                {selectedPaymentAccount && (
+                  <p className={Number(selectedPaymentAccount.balance) >= Number(paymentAmount) ? "text-green-500" : "text-destructive"}>
+                    Account balance: {formatCurrency(Number(selectedPaymentAccount.balance))}
+                  </p>
+                )}
+              </div>
             )}
           </div>
           <DialogFooter>
