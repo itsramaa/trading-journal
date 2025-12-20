@@ -124,20 +124,25 @@ export function AddTransactionDialog({ trigger, onSuccess, portfolioId }: AddTra
         return;
       }
 
-      // Fetch from external API based on asset type
-      if (selectedAsset.type === 'CRYPTO' && selectedAsset.coingecko_id) {
-        const response = await fetch(
-          `https://api.coingecko.com/api/v3/simple/price?ids=${selectedAsset.coingecko_id}&vs_currencies=usd`
-        );
-        const data = await response.json();
-        const price = data[selectedAsset.coingecko_id]?.usd;
-        if (price) {
-          form.setValue("price", price.toString());
-        }
-      } else if (selectedAsset.type === 'US_STOCK' || selectedAsset.type === 'ID_STOCK') {
-        // For stocks, use a simple placeholder or let user input manually
-        // Real implementation would use Finnhub or Alpha Vantage
-        toast.info("Enter the current stock price manually");
+      // Use edge function for all asset types
+      const { data, error } = await supabase.functions.invoke('fetch-stock-price', {
+        body: {
+          symbol: selectedAsset.coingecko_id || selectedAsset.finnhub_symbol || selectedAsset.symbol,
+          type: selectedAsset.type,
+        },
+      });
+
+      if (error) {
+        console.error('Edge function error:', error);
+        toast.info("Enter the current price manually");
+        return;
+      }
+
+      if (data?.price) {
+        form.setValue("price", data.price.toString());
+        toast.success(`Current price fetched: $${data.price.toLocaleString()}`);
+      } else {
+        toast.info("Price not found. Please enter manually.");
       }
     } catch (error) {
       console.error('Error fetching price:', error);
