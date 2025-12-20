@@ -17,11 +17,13 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Plus, Calendar, Tag, Target, Building2, TrendingUp, BookOpen, MoreVertical, Edit, Trash2 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Plus, Calendar, Tag, Target, Building2, TrendingUp, BookOpen, MoreVertical, Trash2, Clock, CheckCircle, Circle } from "lucide-react";
 import { format } from "date-fns";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useTradeEntries, useCreateTradeEntry, useDeleteTradeEntry, TradeEntry } from "@/hooks/use-trade-entries";
-import { useTradingStrategies, useCreateTradingStrategy, TradingStrategy } from "@/hooks/use-trading-strategies";
+import { useTradingStrategies, TradingStrategy } from "@/hooks/use-trading-strategies";
+import { useTradingSessions } from "@/hooks/use-trading-sessions";
 import { filterTradesByDateRange, filterTradesByStrategies } from "@/lib/trading-calculations";
 import { formatCurrency } from "@/lib/formatters";
 
@@ -41,6 +43,8 @@ const tradeFormSchema = z.object({
   entry_signal: z.string().optional(),
   notes: z.string().optional(),
   trading_account_id: z.string().optional(),
+  session_id: z.string().optional(),
+  status: z.enum(["open", "closed"]).default("closed"),
 });
 
 type TradeFormValues = z.infer<typeof tradeFormSchema>;
@@ -51,13 +55,14 @@ export default function TradingJournal() {
   const [selectedStrategyIds, setSelectedStrategyIds] = useState<string[]>([]);
   const [newTradeStrategies, setNewTradeStrategies] = useState<string[]>([]);
   const [deletingTrade, setDeletingTrade] = useState<TradeEntry | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'closed'>('all');
 
   const { data: accounts, isLoading: accountsLoading } = useAccounts();
   const { data: trades, isLoading: tradesLoading } = useTradeEntries();
   const { data: strategies = [] } = useTradingStrategies();
+  const { data: sessions = [] } = useTradingSessions();
   const createTrade = useCreateTradeEntry();
   const deleteTrade = useDeleteTradeEntry();
-  const createStrategy = useCreateTradingStrategy();
 
   const form = useForm<TradeFormValues>({
     resolver: zodResolver(tradeFormSchema),
@@ -65,6 +70,7 @@ export default function TradingJournal() {
       direction: "LONG",
       quantity: 1,
       trade_date: new Date().toISOString().split('T')[0],
+      status: "closed",
     },
   });
 
@@ -77,21 +83,24 @@ export default function TradingJournal() {
     if (!trades) return [];
     let filtered = filterTradesByDateRange(trades, dateRange.from, dateRange.to);
     filtered = filterTradesByStrategies(filtered, selectedStrategyIds);
+    // Filter by status
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(t => t.status === statusFilter);
+    }
     return filtered;
-  }, [trades, dateRange, selectedStrategyIds]);
+  }, [trades, dateRange, selectedStrategyIds, statusFilter]);
+
+  // Calculate open and closed trade counts
+  const openTrades = useMemo(() => trades?.filter(t => t.status === 'open') || [], [trades]);
+  const closedTrades = useMemo(() => trades?.filter(t => t.status === 'closed') || [], [trades]);
+  
+  // Calculate unrealized and realized P&L
+  const unrealizedPnl = useMemo(() => openTrades.reduce((sum, t) => sum + (t.pnl || 0), 0), [openTrades]);
+  const realizedPnl = useMemo(() => closedTrades.reduce((sum, t) => sum + (t.realized_pnl || 0), 0), [closedTrades]);
 
   const formatCurrencyLocal = (v: number) => {
     if (Math.abs(v) >= 1000) return `$${(v / 1000).toFixed(1)}k`;
     return `$${v.toFixed(0)}`;
-  };
-
-  const handleAddStrategy = async (strategyData: { name: string; description: string; tags: string[] }) => {
-    try {
-      const result = await createStrategy.mutateAsync(strategyData);
-      setNewTradeStrategies(prev => [...prev, result.id]);
-    } catch (error) {
-      // Error handled by mutation
-    }
   };
 
   const handleSubmit = async (values: TradeFormValues) => {
@@ -112,6 +121,8 @@ export default function TradingJournal() {
         entry_signal: values.entry_signal,
         notes: values.notes,
         trading_account_id: values.trading_account_id,
+        session_id: values.session_id,
+        status: values.status,
         strategy_ids: newTradeStrategies,
       });
       setIsAddOpen(false);
@@ -203,6 +214,72 @@ export default function TradingJournal() {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+
+                {/* Session Selection */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    Link to Session (Optional)
+                  </Label>
+                  <Select 
+                    value={form.watch("session_id") || ""} 
+                    onValueChange={(v) => form.setValue("session_id", v === "none" ? undefined : v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="No session" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No session</SelectItem>
+                      {sessions.map((session) => (
+                        <SelectItem key={session.id} value={session.id}>
+                          {format(new Date(session.session_date), "MMM d, yyyy")} - {session.start_time?.slice(0, 5)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Trade Status */}
+                <div className="space-y-2">
+                  <Label>Trade Status</Label>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        checked={form.watch("status") === "open"}
+                        onChange={() => form.setValue("status", "open")}
+                        className="sr-only"
+                      />
+                      <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
+                        form.watch("status") === "open" 
+                          ? "border-primary bg-primary/10" 
+                          : "border-border hover:border-muted-foreground"
+                      }`}>
+                        <Circle className="h-4 w-4" />
+                        <span>Open Position</span>
+                      </div>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        checked={form.watch("status") === "closed"}
+                        onChange={() => form.setValue("status", "closed")}
+                        className="sr-only"
+                      />
+                      <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
+                        form.watch("status") === "closed" 
+                          ? "border-primary bg-primary/10" 
+                          : "border-border hover:border-muted-foreground"
+                      }`}>
+                        <CheckCircle className="h-4 w-4" />
+                        <span>Closed Trade</span>
+                      </div>
+                    </label>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Open positions show unrealized P&L, closed trades contribute to realized P&L
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-3 gap-4">
