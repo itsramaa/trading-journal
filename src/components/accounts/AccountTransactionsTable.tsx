@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import { ArrowDownCircle, ArrowUpCircle, ArrowLeftRight, ArrowRightLeft } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, ArrowLeftRight, ArrowRightLeft, Receipt, DollarSign } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -22,6 +22,9 @@ const TRANSACTION_TYPE_CONFIG: Record<
   withdrawal: { label: "Withdrawal", icon: ArrowUpCircle, variant: "destructive" },
   transfer_in: { label: "Transfer In", icon: ArrowRightLeft, variant: "secondary" },
   transfer_out: { label: "Transfer Out", icon: ArrowLeftRight, variant: "outline" },
+  expense: { label: "Expense", icon: Receipt, variant: "destructive" },
+  income: { label: "Income", icon: DollarSign, variant: "default" },
+  transfer: { label: "Transfer", icon: ArrowLeftRight, variant: "secondary" },
 };
 
 interface AccountTransactionsTableProps {

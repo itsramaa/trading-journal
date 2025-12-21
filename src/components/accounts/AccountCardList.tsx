@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Building2, Smartphone, TrendingUp, Banknote, Wallet, MoreHorizontal, Trash2, Edit, ChevronRight } from "lucide-react";
+import { Building2, Smartphone, TrendingUp, Banknote, Wallet, MoreHorizontal, Trash2, Edit, ChevronRight, PiggyBank, Shield, Target, CandlestickChart } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +21,10 @@ const ACCOUNT_TYPE_ICONS: Record<AccountType, React.ElementType> = {
   broker: TrendingUp,
   cash: Banknote,
   soft_wallet: Wallet,
+  investment: PiggyBank,
+  emergency: Shield,
+  goal_savings: Target,
+  trading: CandlestickChart,
 };
 
 interface AccountCardListProps {

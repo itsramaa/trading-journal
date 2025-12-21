@@ -120,7 +120,7 @@ const Portfolio = () => {
         user_id: user.id,
         portfolio_id: defaultPortfolio.id,
         asset_id: asset.id,
-        account_id: null,
+        payment_account_id: null,
         transaction_type: String(row.type || 'BUY'),
         quantity: Number(row.quantity) || 0,
         price_per_unit: Number(row.price_per_unit) || 0,

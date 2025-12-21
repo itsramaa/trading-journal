@@ -1,4 +1,4 @@
-import { Wallet, Building2, Smartphone, Briefcase, Banknote, WalletCards, TrendingUp, TrendingDown } from "lucide-react";
+import { Wallet, Building2, Smartphone, Briefcase, Banknote, WalletCards, TrendingUp, TrendingDown, PiggyBank, Shield, Target, CandlestickChart } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { useAccountsSummary } from "@/hooks/use-accounts";
@@ -11,6 +11,10 @@ const ACCOUNT_TYPE_CONFIG: Record<AccountType, { label: string; icon: React.Elem
   broker: { label: "Broker", icon: Briefcase, color: "text-purple-500" },
   cash: { label: "Cash", icon: Banknote, color: "text-yellow-500" },
   soft_wallet: { label: "Soft Wallet", icon: WalletCards, color: "text-pink-500" },
+  investment: { label: "Investment", icon: PiggyBank, color: "text-indigo-500" },
+  emergency: { label: "Emergency", icon: Shield, color: "text-orange-500" },
+  goal_savings: { label: "Goal Savings", icon: Target, color: "text-teal-500" },
+  trading: { label: "Trading", icon: CandlestickChart, color: "text-cyan-500" },
 };
 
 export function AccountsDashboard() {

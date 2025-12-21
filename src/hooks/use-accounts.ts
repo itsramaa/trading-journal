@@ -124,9 +124,18 @@ export function useUpdateAccount() {
 
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<Account> & { id: string }) => {
+      // Convert metadata to Json compatible type
+      const updateData: Record<string, unknown> = {
+        ...updates,
+        updated_at: new Date().toISOString(),
+      };
+      if (updates.metadata) {
+        updateData.metadata = updates.metadata as unknown;
+      }
+      
       const { data, error } = await supabase
         .from('accounts')
-        .update({ ...updates, updated_at: new Date().toISOString() })
+        .update(updateData)
         .eq('id', id)
         .select()
         .single();
