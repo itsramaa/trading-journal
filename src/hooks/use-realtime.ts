@@ -8,18 +8,15 @@ type RealtimeTable =
   | "account_transactions"
   | "portfolios"
   | "holdings"
-  | "transactions"
+  | "portfolio_transactions"
   | "assets"
   | "budget_categories"
-  | "budget_transactions"
-  | "emergency_funds"
-  | "emergency_fund_transactions"
   | "financial_goals"
   | "debts"
   | "trading_sessions"
   | "trade_entries"
   | "trading_strategies"
-  | "trading_accounts";
+  | "account_links";
 
 interface UseRealtimeOptions {
   tables: RealtimeTable[];
@@ -57,10 +54,13 @@ export function useRealtime({ tables, enabled = true }: UseRealtimeOptions) {
             case "accounts":
               queryClient.invalidateQueries({ queryKey: ["accounts"] });
               queryClient.invalidateQueries({ queryKey: ["account-transactions"] });
+              queryClient.invalidateQueries({ queryKey: ["trading-accounts"] });
+              queryClient.invalidateQueries({ queryKey: ["emergency-fund"] });
               break;
             case "account_transactions":
               queryClient.invalidateQueries({ queryKey: ["account-transactions"] });
               queryClient.invalidateQueries({ queryKey: ["accounts"] });
+              queryClient.invalidateQueries({ queryKey: ["budget-categories"] });
               break;
             case "portfolios":
               queryClient.invalidateQueries({ queryKey: ["portfolios"] });
@@ -69,7 +69,7 @@ export function useRealtime({ tables, enabled = true }: UseRealtimeOptions) {
               queryClient.invalidateQueries({ queryKey: ["holdings"] });
               queryClient.invalidateQueries({ queryKey: ["portfolios"] });
               break;
-            case "transactions":
+            case "portfolio_transactions":
               queryClient.invalidateQueries({ queryKey: ["transactions"] });
               queryClient.invalidateQueries({ queryKey: ["holdings"] });
               break;
@@ -79,19 +79,6 @@ export function useRealtime({ tables, enabled = true }: UseRealtimeOptions) {
               break;
             case "budget_categories":
               queryClient.invalidateQueries({ queryKey: ["budget-categories"] });
-              break;
-            case "budget_transactions":
-              queryClient.invalidateQueries({ queryKey: ["budget-transactions"] });
-              queryClient.invalidateQueries({ queryKey: ["budget-categories"] });
-              queryClient.invalidateQueries({ queryKey: ["accounts"] });
-              break;
-            case "emergency_funds":
-              queryClient.invalidateQueries({ queryKey: ["emergency-funds"] });
-              break;
-            case "emergency_fund_transactions":
-              queryClient.invalidateQueries({ queryKey: ["emergency-fund-transactions"] });
-              queryClient.invalidateQueries({ queryKey: ["emergency-funds"] });
-              queryClient.invalidateQueries({ queryKey: ["accounts"] });
               break;
             case "financial_goals":
               queryClient.invalidateQueries({ queryKey: ["financial-goals"] });
@@ -109,8 +96,9 @@ export function useRealtime({ tables, enabled = true }: UseRealtimeOptions) {
             case "trading_strategies":
               queryClient.invalidateQueries({ queryKey: ["trading-strategies"] });
               break;
-            case "trading_accounts":
-              queryClient.invalidateQueries({ queryKey: ["trading-accounts"] });
+            case "account_links":
+              queryClient.invalidateQueries({ queryKey: ["account-links"] });
+              queryClient.invalidateQueries({ queryKey: ["accounts"] });
               break;
             default:
               break;
@@ -134,7 +122,7 @@ export function useRealtime({ tables, enabled = true }: UseRealtimeOptions) {
  */
 export function useAccountsRealtime(enabled = true) {
   useRealtime({
-    tables: ["accounts", "account_transactions"],
+    tables: ["accounts", "account_transactions", "account_links"],
     enabled,
   });
 }
@@ -144,7 +132,7 @@ export function useAccountsRealtime(enabled = true) {
  */
 export function usePortfolioRealtime(enabled = true) {
   useRealtime({
-    tables: ["portfolios", "holdings", "transactions", "assets"],
+    tables: ["portfolios", "holdings", "portfolio_transactions", "assets"],
     enabled,
   });
 }
@@ -156,12 +144,10 @@ export function useFinancialFreedomRealtime(enabled = true) {
   useRealtime({
     tables: [
       "budget_categories",
-      "budget_transactions",
-      "emergency_funds",
-      "emergency_fund_transactions",
       "financial_goals",
       "debts",
       "accounts",
+      "account_transactions",
     ],
     enabled,
   });
@@ -176,7 +162,7 @@ export function useTradingRealtime(enabled = true) {
       "trading_sessions",
       "trade_entries",
       "trading_strategies",
-      "trading_accounts",
+      "accounts",
     ],
     enabled,
   });

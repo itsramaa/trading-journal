@@ -64,7 +64,7 @@ const Dashboard = () => {
   
   // Enable realtime updates for dashboard data
   useRealtime({
-    tables: ["accounts", "account_transactions", "holdings", "transactions", "trade_entries", "emergency_funds", "financial_goals", "debts"],
+    tables: ["accounts", "account_transactions", "holdings", "portfolio_transactions", "trade_entries", "financial_goals", "debts"],
   });
   const totalAccountBalance = useMemo(() => {
     return accounts.reduce((sum, acc) => sum + Number(acc.balance), 0);

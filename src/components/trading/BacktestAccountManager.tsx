@@ -2,16 +2,14 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Plus, FlaskConical, MoreHorizontal, Edit, Trash2, Loader2, DollarSign } from "lucide-react";
+import { Plus, FlaskConical, MoreHorizontal, Edit, Trash2, Loader2 } from "lucide-react";
 import { useBacktestAccounts, useCreateTradingAccount, useUpdateTradingAccount, useDeleteTradingAccount, TradingAccount } from "@/hooks/use-trading-accounts";
-import { useAccounts } from "@/hooks/use-accounts";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -24,14 +22,12 @@ const backtestAccountSchema = z.object({
   account_number: z.string().optional(),
   currency: z.string().min(1, "Currency is required"),
   initial_balance: z.coerce.number().min(0, "Balance must be positive"),
-  account_id: z.string().min(1, "Source account is required"),
 });
 
 type BacktestAccountFormValues = z.infer<typeof backtestAccountSchema>;
 
 export function BacktestAccountManager() {
   const { data: backtestAccounts = [], isLoading } = useBacktestAccounts();
-  const { data: sourceAccounts = [] } = useAccounts();
   const createAccount = useCreateTradingAccount();
   const updateAccount = useUpdateTradingAccount();
   const deleteAccount = useDeleteTradingAccount();
@@ -48,7 +44,6 @@ export function BacktestAccountManager() {
       account_number: "",
       currency: "USD",
       initial_balance: 10000,
-      account_id: "",
     },
   });
 
@@ -59,7 +54,6 @@ export function BacktestAccountManager() {
       account_number: "",
       currency: "USD",
       initial_balance: 10000,
-      account_id: sourceAccounts[0]?.id || "",
     });
     setEditingAccount(null);
     setIsAddOpen(true);
@@ -327,31 +321,6 @@ export function BacktestAccountManager() {
                   )}
                 />
               </div>
-
-              <FormField
-                control={form.control}
-                name="account_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Link to Source Account</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select source account" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {sourceAccounts.map((acc) => (
-                          <SelectItem key={acc.id} value={acc.id}>
-                            {acc.name} ({acc.account_type})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
 
               <DialogFooter>
                 <Button
