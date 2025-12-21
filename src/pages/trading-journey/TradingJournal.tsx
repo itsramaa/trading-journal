@@ -18,11 +18,11 @@ import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Calendar, Tag, Target, Building2, TrendingUp, TrendingDown, BookOpen, MoreVertical, Trash2, Clock, CheckCircle, Circle, DollarSign, XCircle, AlertCircle, Edit } from "lucide-react";
+import { Plus, Calendar, Tag, Target, Building2, TrendingUp, TrendingDown, BookOpen, MoreVertical, Trash2, Clock, CheckCircle, Circle, DollarSign, XCircle, AlertCircle, Edit, X } from "lucide-react";
 import { format } from "date-fns";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useTradeEntries, useCreateTradeEntry, useDeleteTradeEntry, useClosePosition, useUpdateTradeEntry, TradeEntry } from "@/hooks/use-trade-entries";
-import { useTradingStrategies } from "@/hooks/use-trading-strategies";
+import { useTradingStrategies, useCreateTradingStrategy } from "@/hooks/use-trading-strategies";
 import { useTradingSessions } from "@/hooks/use-trading-sessions";
 import { filterTradesByDateRange, filterTradesByStrategies } from "@/lib/trading-calculations";
 import { formatCurrency as formatCurrencyUtil } from "@/lib/formatters";
@@ -71,6 +71,8 @@ export default function TradingJournal() {
   const [deletingTrade, setDeletingTrade] = useState<TradeEntry | null>(null);
   const [closingPosition, setClosingPosition] = useState<TradeEntry | null>(null);
   const [editingPosition, setEditingPosition] = useState<TradeEntry | null>(null);
+  const [showInlineStrategyForm, setShowInlineStrategyForm] = useState(false);
+  const [inlineStrategyName, setInlineStrategyName] = useState("");
 
   const { data: userSettings } = useUserSettings();
   const { data: exchangeRate } = useExchangeRate();
@@ -82,6 +84,19 @@ export default function TradingJournal() {
   const deleteTrade = useDeleteTradeEntry();
   const closePosition = useClosePosition();
   const updateTrade = useUpdateTradeEntry();
+  const createStrategy = useCreateTradingStrategy();
+
+  // Handle inline strategy creation
+  const handleInlineStrategyCreate = async () => {
+    if (!inlineStrategyName.trim()) return;
+    try {
+      await createStrategy.mutateAsync({ name: inlineStrategyName.trim() });
+      setInlineStrategyName("");
+      setShowInlineStrategyForm(false);
+    } catch (error) {
+      // Error handled in hook
+    }
+  };
 
   // Currency conversion helper
   const displayCurrency = userSettings?.default_currency || 'USD';
@@ -474,9 +489,55 @@ export default function TradingJournal() {
                   </p>
                 </div>
 
-                {/* Strategy Selection */}
+                {/* Strategy Selection with Inline Add */}
                 <div className="space-y-2">
-                  <Label>Strategies Used</Label>
+                  <div className="flex items-center justify-between">
+                    <Label>Strategies Used</Label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 gap-1 text-xs"
+                      onClick={() => setShowInlineStrategyForm(true)}
+                    >
+                      <Plus className="h-3 w-3" />
+                      Add New
+                    </Button>
+                  </div>
+                  
+                  {showInlineStrategyForm && (
+                    <div className="flex items-center gap-2 p-2 rounded-md border bg-muted/50">
+                      <Input
+                        placeholder="Strategy name..."
+                        value={inlineStrategyName}
+                        onChange={(e) => setInlineStrategyName(e.target.value)}
+                        className="h-8 text-sm"
+                        autoFocus
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="h-8"
+                        disabled={!inlineStrategyName.trim() || createStrategy.isPending}
+                        onClick={handleInlineStrategyCreate}
+                      >
+                        {createStrategy.isPending ? "..." : "Add"}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2"
+                        onClick={() => {
+                          setShowInlineStrategyForm(false);
+                          setInlineStrategyName("");
+                        }}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+                  
                   <div className="flex flex-wrap gap-2">
                     {strategies.map((strategy) => (
                       <Badge
@@ -494,8 +555,8 @@ export default function TradingJournal() {
                         {strategy.name}
                       </Badge>
                     ))}
-                    {strategies.length === 0 && (
-                      <p className="text-sm text-muted-foreground">No strategies yet. Create one in Strategies page.</p>
+                    {strategies.length === 0 && !showInlineStrategyForm && (
+                      <p className="text-sm text-muted-foreground">No strategies yet. Click "Add New" to create one.</p>
                     )}
                   </div>
                 </div>

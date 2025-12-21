@@ -13,6 +13,7 @@ import { AccountsDashboard } from "@/components/accounts/AccountsDashboard";
 import { QuickTransaction } from "@/components/accounts/QuickTransaction";
 import { QuickTip } from "@/components/ui/onboarding-tooltip";
 import { useAccounts } from "@/hooks/use-accounts";
+import { useAccountsRealtime } from "@/hooks/use-realtime";
 import type { Account, AccountType } from "@/types/account";
 
 const ACCOUNT_TYPE_FILTERS: { value: AccountType | 'all'; label: string; icon: React.ElementType }[] = [
@@ -30,6 +31,9 @@ export default function Accounts() {
   const [defaultTransactionTab, setDefaultTransactionTab] = useState<'deposit' | 'withdraw' | 'transfer'>('deposit');
   const [accountTypeFilter, setAccountTypeFilter] = useState<AccountType | 'all'>('all');
   const { data: accounts } = useAccounts();
+  
+  // Enable realtime updates for accounts
+  useAccountsRealtime();
 
   const handleTransact = (accountId: string, type: 'deposit' | 'withdraw' | 'transfer') => {
     const account = accounts?.find(a => a.id === accountId);

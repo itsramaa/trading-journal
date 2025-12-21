@@ -1,4 +1,5 @@
-import { Building2, Smartphone, TrendingUp, Banknote, Wallet, MoreHorizontal, Trash2, Edit } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Building2, Smartphone, TrendingUp, Banknote, Wallet, MoreHorizontal, Trash2, Edit, ChevronRight } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,6 +30,7 @@ interface AccountCardListProps {
 }
 
 export function AccountCardList({ onSelectAccount, onTransact, filterType }: AccountCardListProps) {
+  const navigate = useNavigate();
   const { data: allAccounts, isLoading } = useAccounts();
   
   // Filter accounts by type if filterType is provided
@@ -36,6 +38,10 @@ export function AccountCardList({ onSelectAccount, onTransact, filterType }: Acc
     ? allAccounts?.filter(a => a.account_type === filterType)
     : allAccounts;
   const deleteAccount = useDeleteAccount();
+
+  const handleCardClick = (accountId: string) => {
+    navigate(`/accounts/${accountId}`);
+  };
 
   const handleDelete = async (id: string, name: string) => {
     if (!confirm(`Are you sure you want to delete "${name}"? This will also delete all transaction history.`)) {
@@ -91,8 +97,8 @@ export function AccountCardList({ onSelectAccount, onTransact, filterType }: Acc
         return (
           <Card 
             key={account.id} 
-            className="cursor-pointer hover:shadow-md transition-shadow"
-            onClick={() => onSelectAccount?.(account.id)}
+            className="cursor-pointer hover:shadow-md transition-shadow group"
+            onClick={() => handleCardClick(account.id)}
           >
             <CardHeader className="flex flex-row items-start justify-between pb-2">
               <div className="flex items-center gap-3">
@@ -135,7 +141,10 @@ export function AccountCardList({ onSelectAccount, onTransact, filterType }: Acc
                 <span className={`text-2xl font-bold font-mono-numbers ${balance >= 0 ? '' : 'text-destructive'}`}>
                   {formatCurrency(balance, account.currency)}
                 </span>
-                <Badge variant="outline">{account.currency}</Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline">{account.currency}</Badge>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
               </div>
               {account.description && (
                 <p className="text-xs text-muted-foreground mt-2 line-clamp-1">
