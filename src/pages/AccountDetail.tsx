@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet";
 import { 
@@ -13,7 +13,11 @@ import {
   ArrowUpCircle,
   ArrowLeftRight,
   Calendar,
-  RefreshCw
+  RefreshCw,
+  Search,
+  Filter,
+  Upload,
+  Download
 } from "lucide-react";
 import { format } from "date-fns";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -21,7 +25,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Progress } from "@/components/ui/progress";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -30,6 +35,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ImportExportDialog } from "@/components/data/ImportExportDialog";
 import { useAccounts, useAccountTransactions } from "@/hooks/use-accounts";
 import { formatCurrency } from "@/lib/formatters";
 import type { AccountType, AccountTransactionType } from "@/types/account";
@@ -57,8 +63,43 @@ export default function AccountDetail() {
   const navigate = useNavigate();
   const { data: accounts, isLoading: accountsLoading } = useAccounts();
   const { data: transactions, isLoading: transactionsLoading } = useAccountTransactions(accountId);
+  
+  // Filtering state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState<AccountTransactionType | "all">("all");
 
   const account = accounts?.find((a) => a.id === accountId);
+  
+  // Filter transactions
+  const filteredTransactions = useMemo(() => {
+    if (!transactions) return [];
+    return transactions.filter((tx) => {
+      const matchesSearch = searchQuery === "" || 
+        (tx.description?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false) ||
+        (tx.notes?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
+      const matchesType = typeFilter === "all" || tx.transaction_type === typeFilter;
+      return matchesSearch && matchesType;
+    });
+  }, [transactions, searchQuery, typeFilter]);
+  
+  // Export/Import handlers
+  const handleExportData = async () => {
+    if (!transactions) return [];
+    return transactions.map((tx) => ({
+      date: format(new Date(tx.created_at), "yyyy-MM-dd HH:mm:ss"),
+      type: tx.transaction_type,
+      amount: tx.amount,
+      currency: tx.currency,
+      description: tx.description || "",
+      notes: tx.notes || "",
+    }));
+  };
+  
+  const handleImportData = async (data: Record<string, unknown>[]) => {
+    // For now, just validate and log - actual import would require more complex logic
+    console.log("Import data:", data);
+    throw new Error("Import is not yet implemented for account transactions");
+  };
   const Icon = account ? ACCOUNT_TYPE_ICONS[account.account_type] : Wallet;
 
   // Calculate statistics
@@ -254,22 +295,69 @@ export default function AccountDetail() {
         {/* Transaction History */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Transaction History</CardTitle>
-            <CardDescription>All transactions for this account</CardDescription>
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <CardTitle className="text-lg">Transaction History</CardTitle>
+                <CardDescription>All transactions for this account</CardDescription>
+              </div>
+              <ImportExportDialog
+                title="Account Transactions"
+                description="Export or import account transaction data"
+                exportData={handleExportData}
+                importData={handleImportData}
+                exportFilename={`account-${account.name.toLowerCase().replace(/\s+/g, '-')}-transactions`}
+                templateFields={["date", "type", "amount", "currency", "description", "notes"]}
+              >
+                <Button variant="outline" size="sm">
+                  <Download className="h-4 w-4 mr-2" />
+                  Import/Export
+                </Button>
+              </ImportExportDialog>
+            </div>
           </CardHeader>
           <CardContent>
+            {/* Search and Filter */}
+            <div className="flex flex-col gap-3 mb-4 md:flex-row">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search transactions..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as any)}>
+                <SelectTrigger className="w-full md:w-[180px]">
+                  <Filter className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="Filter by type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  <SelectItem value="deposit">Deposits</SelectItem>
+                  <SelectItem value="withdrawal">Withdrawals</SelectItem>
+                  <SelectItem value="transfer_in">Transfer In</SelectItem>
+                  <SelectItem value="transfer_out">Transfer Out</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
             {transactionsLoading ? (
               <div className="space-y-3">
                 {[...Array(5)].map((_, i) => (
                   <Skeleton key={i} className="h-12 w-full" />
                 ))}
               </div>
-            ) : !transactions?.length ? (
+            ) : !filteredTransactions?.length ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <ArrowLeftRight className="h-12 w-12 text-muted-foreground/50 mb-4" />
-                <h3 className="text-lg font-medium">No transactions yet</h3>
+                <h3 className="text-lg font-medium">
+                  {transactions?.length ? "No matching transactions" : "No transactions yet"}
+                </h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Start by making a deposit, withdrawal, or transfer.
+                  {transactions?.length 
+                    ? "Try adjusting your search or filter." 
+                    : "Start by making a deposit, withdrawal, or transfer."}
                 </p>
               </div>
             ) : (
@@ -284,7 +372,7 @@ export default function AccountDetail() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {transactions.map((tx) => {
+                    {filteredTransactions.map((tx) => {
                       const config = TRANSACTION_TYPE_CONFIG[tx.transaction_type];
                       const TxIcon = config.icon;
                       const isCredit = tx.transaction_type === "deposit" || tx.transaction_type === "transfer_in";
