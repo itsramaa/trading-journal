@@ -26,6 +26,8 @@ import {
   Building2
 } from "lucide-react";
 import { useState } from "react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ChevronDown } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -64,7 +66,7 @@ import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { ExpenseLog } from "@/components/budget/ExpenseLog";
+import { CategoryExpenseList } from "@/components/budget/CategoryExpenseList";
 
 const categoryIcons: Record<string, any> = {
   housing: Home,
@@ -350,62 +352,72 @@ export default function Budget() {
                   const colorClass = category.color || categoryColors[category.icon || "other"] || "bg-muted-foreground";
 
                   return (
-                    <div key={category.id} className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className={`p-2 rounded-lg ${colorClass}/10`}>
-                            <Icon className={`h-4 w-4 ${colorClass.replace("bg-", "text-")}`} />
+                    <Collapsible key={category.id}>
+                      <div className="space-y-2 p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-lg ${colorClass}/10`}>
+                              <Icon className={`h-4 w-4 ${colorClass.replace("bg-", "text-")}`} />
+                            </div>
+                            <div>
+                              <p className="font-medium">{category.name}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {formatCurrencyLocal(Number(category.spent_amount))} of {formatCurrencyLocal(Number(category.budgeted_amount))}
+                              </p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-medium">{category.name}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {formatCurrencyLocal(Number(category.spent_amount))} of {formatCurrencyLocal(Number(category.budgeted_amount))}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <div className="text-right">
-                            <p className={`font-medium ${isOverBudget ? "text-destructive" : "text-profit"}`}>
-                              {isOverBudget ? `-${formatCurrencyLocal(Math.abs(remaining))}` : `+${formatCurrencyLocal(remaining)}`}
-                            </p>
-                            <p className="text-sm text-muted-foreground">
-                              {percentage.toFixed(0)}% used
-                            </p>
-                          </div>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
+                          <div className="flex items-center gap-2">
+                            <div className="text-right">
+                              <p className={`font-medium ${isOverBudget ? "text-destructive" : "text-profit"}`}>
+                                {isOverBudget ? `-${formatCurrencyLocal(Math.abs(remaining))}` : `+${formatCurrencyLocal(remaining)}`}
+                              </p>
+                              <p className="text-sm text-muted-foreground">
+                                {percentage.toFixed(0)}% used
+                              </p>
+                            </div>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => {
+                                  expenseForm.setValue("category_id", category.id);
+                                  setIsAddExpenseOpen(true);
+                                }}>
+                                  <Receipt className="mr-2 h-4 w-4" />
+                                  Add Expense
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => openEditCategory(category)}>
+                                  <Edit className="mr-2 h-4 w-4" />
+                                  Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  className="text-destructive"
+                                  onClick={() => handleDeleteCategory(category.id)}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                            <CollapsibleTrigger asChild>
                               <Button variant="ghost" size="icon">
-                                <MoreHorizontal className="h-4 w-4" />
+                                <ChevronDown className="h-4 w-4 transition-transform duration-200 [data-state=open]>rotate-180" />
                               </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => {
-                                expenseForm.setValue("category_id", category.id);
-                                setIsAddExpenseOpen(true);
-                              }}>
-                                <Receipt className="mr-2 h-4 w-4" />
-                                Add Expense
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => openEditCategory(category)}>
-                                <Edit className="mr-2 h-4 w-4" />
-                                Edit
-                              </DropdownMenuItem>
-                              <DropdownMenuItem 
-                                className="text-destructive"
-                                onClick={() => handleDeleteCategory(category.id)}
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                            </CollapsibleTrigger>
+                          </div>
                         </div>
+                        <Progress 
+                          value={Math.min(percentage, 100)} 
+                          className={`h-2 ${isOverBudget ? "[&>div]:bg-destructive" : ""}`}
+                        />
+                        <CollapsibleContent>
+                          <CategoryExpenseList categoryId={category.id} accounts={accounts || []} />
+                        </CollapsibleContent>
                       </div>
-                      <Progress 
-                        value={Math.min(percentage, 100)} 
-                        className={`h-2 ${isOverBudget ? "[&>div]:bg-destructive" : ""}`}
-                      />
-                    </div>
+                    </Collapsible>
                   );
                 })}
               </div>
@@ -427,8 +439,6 @@ export default function Budget() {
           </Card>
         )}
 
-        {/* Expense Log */}
-        <ExpenseLog categories={categories || []} accounts={accounts || []} />
       </div>
 
       {/* Add Category Dialog */}

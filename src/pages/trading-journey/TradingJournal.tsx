@@ -20,7 +20,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus, Calendar, Tag, Target, Building2, TrendingUp, TrendingDown, BookOpen, MoreVertical, Trash2, Clock, CheckCircle, Circle, DollarSign, XCircle, AlertCircle, Edit, X } from "lucide-react";
 import { format } from "date-fns";
-import { useAccounts } from "@/hooks/use-accounts";
+import { useTradingAccounts } from "@/hooks/use-trading-accounts";
 import { useTradeEntries, useCreateTradeEntry, useDeleteTradeEntry, useClosePosition, useUpdateTradeEntry, TradeEntry } from "@/hooks/use-trade-entries";
 import { useTradingStrategies, useCreateTradingStrategy } from "@/hooks/use-trading-strategies";
 import { useTradingSessions } from "@/hooks/use-trading-sessions";
@@ -76,7 +76,7 @@ export default function TradingJournal() {
 
   const { data: userSettings } = useUserSettings();
   const { data: exchangeRate } = useExchangeRate();
-  const { data: accounts, isLoading: accountsLoading } = useAccounts();
+  const { data: tradingAccounts, isLoading: accountsLoading } = useTradingAccounts();
   const { data: trades, isLoading: tradesLoading } = useTradeEntries();
   const { data: strategies = [] } = useTradingStrategies();
   const { data: sessions = [] } = useTradingSessions();
@@ -137,10 +137,8 @@ export default function TradingJournal() {
     defaultValues: {},
   });
 
-  // Filter accounts suitable for trading (broker type)
-  const tradingAccounts = accounts?.filter(a => 
-    a.is_active && (a.account_type === 'broker' || a.account_type === 'soft_wallet')
-  );
+  // Filter accounts suitable for trading (from trading_accounts table)
+  const activeTradingAccounts = tradingAccounts?.filter(a => a.is_active) || [];
 
   // Separate open and closed trades
   const openPositions = useMemo(() => trades?.filter(t => t.status === 'open') || [], [trades]);
@@ -322,18 +320,18 @@ export default function TradingJournal() {
                       <SelectValue placeholder={accountsLoading ? "Loading..." : "Select trading account"} />
                     </SelectTrigger>
                     <SelectContent>
-                      {tradingAccounts?.length === 0 && (
+                      {activeTradingAccounts.length === 0 && (
                         <div className="px-2 py-4 text-center text-sm text-muted-foreground">
-                          No trading accounts found. Add a Broker or Soft Wallet account first.
+                          No trading accounts found. Create a trading account first.
                         </div>
                       )}
-                      {tradingAccounts?.map((account) => (
+                      {activeTradingAccounts.map((account) => (
                         <SelectItem key={account.id} value={account.id}>
                           <div className="flex items-center gap-2">
                             <TrendingUp className="h-4 w-4" />
                             <span>{account.name}</span>
                             <span className="text-xs text-muted-foreground ml-2">
-                              {formatCurrency(Number(account.balance), account.currency)}
+                              {formatCurrency(Number(account.current_balance), account.currency)}
                             </span>
                           </div>
                         </SelectItem>

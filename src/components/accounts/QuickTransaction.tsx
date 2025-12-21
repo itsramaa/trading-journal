@@ -46,9 +46,16 @@ export function QuickTransaction() {
   const withdraw = useWithdraw();
   const transfer = useTransfer();
 
+  // Filter accounts with positive balance for withdraw/transfer source
   const activeAccounts = useMemo(() => 
     accounts?.filter(a => a.is_active) || [], 
     [accounts]
+  );
+  
+  // Accounts that can be used as source (balance > 0)
+  const accountsWithBalance = useMemo(() => 
+    activeAccounts.filter(a => Number(a.balance) > 0),
+    [activeAccounts]
   );
 
   const [depositForm, setDepositForm] = useState({ accountId: '', amount: '', description: '' });
@@ -89,8 +96,16 @@ export function QuickTransaction() {
     if (!account) return;
 
     const amount = Number(withdrawForm.amount);
+    
+    // Prevent negative balance
     if (amount > Number(account.balance)) {
-      toast.error("Insufficient balance");
+      toast.error("Insufficient balance - cannot go negative");
+      return;
+    }
+    
+    // Prevent withdrawal if balance would be zero or negative after
+    if (Number(account.balance) <= 0) {
+      toast.error("Account balance is zero or negative - cannot withdraw");
       return;
     }
 
@@ -123,8 +138,16 @@ export function QuickTransaction() {
     if (!fromAccount || !toAccount) return;
 
     const amount = Number(transferForm.amount);
+    
+    // Prevent negative balance
     if (amount > Number(fromAccount.balance)) {
-      toast.error("Insufficient balance");
+      toast.error("Insufficient balance - cannot go negative");
+      return;
+    }
+    
+    // Prevent transfer if source balance would go negative
+    if (Number(fromAccount.balance) <= 0) {
+      toast.error("Source account balance is zero or negative - cannot transfer");
       return;
     }
 
@@ -151,12 +174,17 @@ export function QuickTransaction() {
     }
   };
 
-  const renderAccountOption = (account: Account) => (
-    <SelectItem key={account.id} value={account.id}>
+  const renderAccountOption = (account: Account, showWarning: boolean = false) => (
+    <SelectItem 
+      key={account.id} 
+      value={account.id}
+      disabled={showWarning && Number(account.balance) <= 0}
+    >
       <div className="flex items-center justify-between gap-2 w-full">
         <span>{account.name}</span>
-        <span className="text-muted-foreground text-xs">
+        <span className={`text-xs ${Number(account.balance) <= 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
           {formatCurrency(Number(account.balance), account.currency)}
+          {showWarning && Number(account.balance) <= 0 && ' (No funds)'}
         </span>
       </div>
     </SelectItem>
@@ -196,7 +224,7 @@ export function QuickTransaction() {
                   <SelectValue placeholder="Select account" />
                 </SelectTrigger>
                 <SelectContent>
-                  {activeAccounts.map(renderAccountOption)}
+                  {activeAccounts.map(a => renderAccountOption(a))}
                 </SelectContent>
               </Select>
             </div>
@@ -230,7 +258,7 @@ export function QuickTransaction() {
                   <SelectValue placeholder="Select account" />
                 </SelectTrigger>
                 <SelectContent>
-                  {activeAccounts.map(renderAccountOption)}
+                  {activeAccounts.map(a => renderAccountOption(a, true))}
                 </SelectContent>
               </Select>
             </div>
@@ -275,7 +303,7 @@ export function QuickTransaction() {
                   <SelectValue placeholder="Select source account" />
                 </SelectTrigger>
                 <SelectContent>
-                  {activeAccounts.map(renderAccountOption)}
+                  {activeAccounts.map(a => renderAccountOption(a, true))}
                 </SelectContent>
               </Select>
             </div>
@@ -298,7 +326,7 @@ export function QuickTransaction() {
                 <SelectContent>
                   {activeAccounts
                     .filter(a => a.id !== transferForm.fromAccountId)
-                    .map(renderAccountOption)}
+                    .map(a => renderAccountOption(a))}
                 </SelectContent>
               </Select>
             </div>
