@@ -36,7 +36,6 @@ const sessionFormSchema = z.object({
   start_time: z.string().min(1, "Start time is required"),
   duration: z.string().min(1, "Duration is required"),
   mood: z.string().min(1, "Mood is required"),
-  tags: z.string().optional(),
   notes: z.string().optional(),
   market_condition: z.string().optional(),
 });
@@ -72,7 +71,6 @@ export default function TradingSessions() {
       start_time: getCurrentTime(),
       duration: "1",
       mood: "neutral",
-      tags: "",
       notes: "",
       market_condition: "",
     },
@@ -102,7 +100,6 @@ export default function TradingSessions() {
       start_time: getCurrentTime(),
       duration: "1",
       mood: "neutral",
-      tags: "",
       notes: "",
       market_condition: "",
     });
@@ -125,7 +122,6 @@ export default function TradingSessions() {
       start_time: session.start_time,
       duration,
       mood: session.mood,
-      tags: session.tags?.join(", ") || "",
       notes: session.notes || "",
       market_condition: session.market_condition || "",
     });
@@ -134,10 +130,6 @@ export default function TradingSessions() {
   };
 
   const handleSubmit = async (values: SessionFormValues) => {
-    const tagsArray = values.tags 
-      ? values.tags.split(",").map(t => t.trim()).filter(Boolean)
-      : [];
-
     // Calculate end_time from start_time + duration
     const [startH, startM] = values.start_time.split(':').map(Number);
     const durationHours = parseInt(values.duration, 10);
@@ -150,7 +142,6 @@ export default function TradingSessions() {
       end_time,
       mood: values.mood,
       rating: 0, // Default rating 0, user rates after session
-      tags: tagsArray,
       notes: values.notes || undefined,
       market_condition: values.market_condition || undefined,
     };
@@ -368,13 +359,6 @@ export default function TradingSessions() {
                       {session.notes && (
                         <p className="text-sm text-muted-foreground">{session.notes}</p>
                       )}
-                      {session.tags && session.tags.length > 0 && (
-                        <div className="flex gap-2 flex-wrap">
-                          {session.tags.map((tag) => (
-                            <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>
-                          ))}
-                        </div>
-                      )}
                       
                       {/* AI Analysis Panel */}
                       <CollapsibleContent className="pt-4">
@@ -493,19 +477,6 @@ export default function TradingSessions() {
                           <SelectItem value="Ranging">Ranging</SelectItem>
                         </SelectContent>
                       </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="tags"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Tags</FormLabel>
-                      <FormControl>
-                        <Input placeholder="focused, patient, disciplined..." {...field} />
-                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
