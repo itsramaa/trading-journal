@@ -58,7 +58,7 @@ const transactionSchema = z.object({
   fees: z.string().optional(),
   date: z.date(),
   notes: z.string().max(500, "Notes must be less than 500 characters").optional(),
-  accountId: z.string().optional(),
+  paymentAccountId: z.string().optional(),
 });
 
 type TransactionFormValues = z.infer<typeof transactionSchema>;
@@ -94,12 +94,12 @@ export function AddTransactionDialog({ trigger, onSuccess, portfolioId }: AddTra
       fees: "0",
       date: new Date(),
       notes: "",
-      accountId: "",
+      paymentAccountId: "",
     },
   });
 
   const transactionType = form.watch("type");
-  const selectedAccountId = form.watch("accountId");
+  const selectedAccountId = form.watch("paymentAccountId");
 
   // Auto-fetch price when asset is selected
   useEffect(() => {
@@ -216,7 +216,7 @@ export function AddTransactionDialog({ trigger, onSuccess, portfolioId }: AddTra
         fee: fees,
         transaction_date: data.date.toISOString(),
         notes: data.notes || null,
-        account_id: data.accountId || null,
+        payment_account_id: data.paymentAccountId || null,
       });
       
       toast.success(`${data.type} transaction added for ${selectedAsset.symbol}`);
@@ -297,7 +297,7 @@ export function AddTransactionDialog({ trigger, onSuccess, portfolioId }: AddTra
             {/* Account Selection */}
             <FormField
               control={form.control}
-              name="accountId"
+              name="paymentAccountId"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="flex items-center gap-2">
