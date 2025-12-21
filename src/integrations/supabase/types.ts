@@ -14,43 +14,103 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_links: {
+        Row: {
+          child_account_id: string
+          created_at: string
+          id: string
+          link_type: string
+          parent_account_id: string
+          user_id: string
+        }
+        Insert: {
+          child_account_id: string
+          created_at?: string
+          id?: string
+          link_type?: string
+          parent_account_id: string
+          user_id: string
+        }
+        Update: {
+          child_account_id?: string
+          created_at?: string
+          id?: string
+          link_type?: string
+          parent_account_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "account_links_child_account_id_fkey"
+            columns: ["child_account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "account_links_parent_account_id_fkey"
+            columns: ["parent_account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       account_transactions: {
         Row: {
           account_id: string
           amount: number
+          category_id: string | null
+          counterparty_account_id: string | null
           created_at: string
           currency: string
           description: string | null
           id: string
           metadata: Json | null
           notes: string | null
+          portfolio_transaction_id: string | null
           reference_id: string | null
+          sub_type: string | null
+          trade_entry_id: string | null
+          transaction_date: string | null
           transaction_type: Database["public"]["Enums"]["account_transaction_type"]
           user_id: string
         }
         Insert: {
           account_id: string
           amount: number
+          category_id?: string | null
+          counterparty_account_id?: string | null
           created_at?: string
           currency: string
           description?: string | null
           id?: string
           metadata?: Json | null
           notes?: string | null
+          portfolio_transaction_id?: string | null
           reference_id?: string | null
+          sub_type?: string | null
+          trade_entry_id?: string | null
+          transaction_date?: string | null
           transaction_type: Database["public"]["Enums"]["account_transaction_type"]
           user_id: string
         }
         Update: {
           account_id?: string
           amount?: number
+          category_id?: string | null
+          counterparty_account_id?: string | null
           created_at?: string
           currency?: string
           description?: string | null
           id?: string
           metadata?: Json | null
           notes?: string | null
+          portfolio_transaction_id?: string | null
           reference_id?: string | null
+          sub_type?: string | null
+          trade_entry_id?: string | null
+          transaction_date?: string | null
           transaction_type?: Database["public"]["Enums"]["account_transaction_type"]
           user_id?: string
         }
@@ -60,6 +120,34 @@ export type Database = {
             columns: ["account_id"]
             isOneToOne: false
             referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "account_transactions_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "budget_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "account_transactions_counterparty_account_id_fkey"
+            columns: ["counterparty_account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "account_transactions_portfolio_transaction_id_fkey"
+            columns: ["portfolio_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "portfolio_transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "account_transactions_trade_entry_id_fkey"
+            columns: ["trade_entry_id"]
+            isOneToOne: false
+            referencedRelation: "trade_entries"
             referencedColumns: ["id"]
           },
         ]
@@ -76,7 +164,9 @@ export type Database = {
           id: string
           is_active: boolean
           is_system: boolean
+          metadata: Json | null
           name: string
+          sub_type: string | null
           updated_at: string
           user_id: string
         }
@@ -91,7 +181,9 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_system?: boolean
+          metadata?: Json | null
           name: string
+          sub_type?: string | null
           updated_at?: string
           user_id: string
         }
@@ -106,7 +198,9 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_system?: boolean
+          metadata?: Json | null
           name?: string
+          sub_type?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -227,54 +321,6 @@ export type Database = {
           },
         ]
       }
-      budget_transactions: {
-        Row: {
-          account_id: string | null
-          amount: number
-          category_id: string
-          created_at: string
-          description: string | null
-          id: string
-          transaction_date: string
-          user_id: string
-        }
-        Insert: {
-          account_id?: string | null
-          amount: number
-          category_id: string
-          created_at?: string
-          description?: string | null
-          id?: string
-          transaction_date?: string
-          user_id: string
-        }
-        Update: {
-          account_id?: string | null
-          amount?: number
-          category_id?: string
-          created_at?: string
-          description?: string | null
-          id?: string
-          transaction_date?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "budget_transactions_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "budget_transactions_category_id_fkey"
-            columns: ["category_id"]
-            isOneToOne: false
-            referencedRelation: "budget_categories"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       debts: {
         Row: {
           created_at: string
@@ -289,6 +335,7 @@ export type Database = {
           name: string
           notes: string | null
           original_balance: number
+          payment_account_id: string | null
           start_date: string | null
           updated_at: string
           user_id: string
@@ -306,6 +353,7 @@ export type Database = {
           name: string
           notes?: string | null
           original_balance: number
+          payment_account_id?: string | null
           start_date?: string | null
           updated_at?: string
           user_id: string
@@ -323,110 +371,20 @@ export type Database = {
           name?: string
           notes?: string | null
           original_balance?: number
+          payment_account_id?: string | null
           start_date?: string | null
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
-      }
-      emergency_fund_transactions: {
-        Row: {
-          account_id: string | null
-          amount: number
-          created_at: string
-          description: string | null
-          emergency_fund_id: string
-          id: string
-          transaction_date: string
-          transaction_type: string
-          user_id: string
-        }
-        Insert: {
-          account_id?: string | null
-          amount: number
-          created_at?: string
-          description?: string | null
-          emergency_fund_id: string
-          id?: string
-          transaction_date?: string
-          transaction_type: string
-          user_id: string
-        }
-        Update: {
-          account_id?: string | null
-          amount?: number
-          created_at?: string
-          description?: string | null
-          emergency_fund_id?: string
-          id?: string
-          transaction_date?: string
-          transaction_type?: string
-          user_id?: string
-        }
         Relationships: [
           {
-            foreignKeyName: "emergency_fund_transactions_account_id_fkey"
-            columns: ["account_id"]
+            foreignKeyName: "debts_payment_account_id_fkey"
+            columns: ["payment_account_id"]
             isOneToOne: false
             referencedRelation: "accounts"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "emergency_fund_transactions_emergency_fund_id_fkey"
-            columns: ["emergency_fund_id"]
-            isOneToOne: false
-            referencedRelation: "emergency_funds"
-            referencedColumns: ["id"]
-          },
         ]
-      }
-      emergency_funds: {
-        Row: {
-          created_at: string
-          currency: string
-          current_balance: number
-          id: string
-          is_active: boolean
-          is_system: boolean
-          monthly_contribution: number
-          monthly_expenses: number
-          name: string
-          notes: string | null
-          target_months: number
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          currency?: string
-          current_balance?: number
-          id?: string
-          is_active?: boolean
-          is_system?: boolean
-          monthly_contribution?: number
-          monthly_expenses?: number
-          name?: string
-          notes?: string | null
-          target_months?: number
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          currency?: string
-          current_balance?: number
-          id?: string
-          is_active?: boolean
-          is_system?: boolean
-          monthly_contribution?: number
-          monthly_expenses?: number
-          name?: string
-          notes?: string | null
-          target_months?: number
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
       }
       feature_permissions: {
         Row: {
@@ -471,6 +429,7 @@ export type Database = {
           name: string
           notes: string | null
           priority: string
+          target_account_id: string | null
           target_amount: number
           updated_at: string
           user_id: string
@@ -487,6 +446,7 @@ export type Database = {
           name: string
           notes?: string | null
           priority?: string
+          target_account_id?: string | null
           target_amount?: number
           updated_at?: string
           user_id: string
@@ -503,11 +463,20 @@ export type Database = {
           name?: string
           notes?: string | null
           priority?: string
+          target_account_id?: string | null
           target_amount?: number
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "financial_goals_target_account_id_fkey"
+            columns: ["target_account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       fire_settings: {
         Row: {
@@ -681,6 +650,96 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "portfolio_history_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "portfolios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      portfolio_transactions: {
+        Row: {
+          account_id: string | null
+          asset_id: string
+          created_at: string
+          fee: number | null
+          holding_id: string | null
+          id: string
+          notes: string | null
+          payment_account_id: string | null
+          portfolio_id: string | null
+          price_per_unit: number
+          quantity: number
+          total_amount: number
+          transaction_date: string
+          transaction_type: string
+          user_id: string
+        }
+        Insert: {
+          account_id?: string | null
+          asset_id: string
+          created_at?: string
+          fee?: number | null
+          holding_id?: string | null
+          id?: string
+          notes?: string | null
+          payment_account_id?: string | null
+          portfolio_id?: string | null
+          price_per_unit: number
+          quantity: number
+          total_amount: number
+          transaction_date?: string
+          transaction_type: string
+          user_id: string
+        }
+        Update: {
+          account_id?: string | null
+          asset_id?: string
+          created_at?: string
+          fee?: number | null
+          holding_id?: string | null
+          id?: string
+          notes?: string | null
+          payment_account_id?: string | null
+          portfolio_id?: string | null
+          price_per_unit?: number
+          quantity?: number
+          total_amount?: number
+          transaction_date?: string
+          transaction_type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portfolio_tx_holding_fkey"
+            columns: ["holding_id"]
+            isOneToOne: false
+            referencedRelation: "holdings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portfolio_tx_payment_account_fkey"
+            columns: ["payment_account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_portfolio_id_fkey"
             columns: ["portfolio_id"]
             isOneToOne: false
             referencedRelation: "portfolios"
@@ -901,7 +960,7 @@ export type Database = {
             foreignKeyName: "trade_entries_trading_account_id_fkey"
             columns: ["trading_account_id"]
             isOneToOne: false
-            referencedRelation: "trading_accounts"
+            referencedRelation: "accounts"
             referencedColumns: ["id"]
           },
         ]
@@ -941,62 +1000,6 @@ export type Database = {
             columns: ["trade_entry_id"]
             isOneToOne: false
             referencedRelation: "trade_entries"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      trading_accounts: {
-        Row: {
-          account_id: string
-          account_number: string | null
-          broker: string | null
-          created_at: string
-          currency: string
-          current_balance: number
-          id: string
-          initial_balance: number
-          is_active: boolean
-          is_backtest: boolean
-          name: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          account_id: string
-          account_number?: string | null
-          broker?: string | null
-          created_at?: string
-          currency?: string
-          current_balance?: number
-          id?: string
-          initial_balance?: number
-          is_active?: boolean
-          is_backtest?: boolean
-          name: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          account_id?: string
-          account_number?: string | null
-          broker?: string | null
-          created_at?: string
-          currency?: string
-          current_balance?: number
-          id?: string
-          initial_balance?: number
-          is_active?: boolean
-          is_backtest?: boolean
-          name?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "trading_accounts_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "accounts"
             referencedColumns: ["id"]
           },
         ]
@@ -1091,76 +1094,6 @@ export type Database = {
         }
         Relationships: []
       }
-      transactions: {
-        Row: {
-          account_id: string | null
-          asset_id: string
-          created_at: string
-          fee: number | null
-          id: string
-          notes: string | null
-          portfolio_id: string | null
-          price_per_unit: number
-          quantity: number
-          total_amount: number
-          transaction_date: string
-          transaction_type: string
-          user_id: string
-        }
-        Insert: {
-          account_id?: string | null
-          asset_id: string
-          created_at?: string
-          fee?: number | null
-          id?: string
-          notes?: string | null
-          portfolio_id?: string | null
-          price_per_unit: number
-          quantity: number
-          total_amount: number
-          transaction_date?: string
-          transaction_type: string
-          user_id: string
-        }
-        Update: {
-          account_id?: string | null
-          asset_id?: string
-          created_at?: string
-          fee?: number | null
-          id?: string
-          notes?: string | null
-          portfolio_id?: string | null
-          price_per_unit?: number
-          quantity?: number
-          total_amount?: number
-          transaction_date?: string
-          transaction_type?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "transactions_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "transactions_asset_id_fkey"
-            columns: ["asset_id"]
-            isOneToOne: false
-            referencedRelation: "assets"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "transactions_portfolio_id_fkey"
-            columns: ["portfolio_id"]
-            isOneToOne: false
-            referencedRelation: "portfolios"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       user_roles: {
         Row: {
           created_at: string
@@ -1191,6 +1124,7 @@ export type Database = {
           default_currency: string
           id: string
           language: string
+          notification_preferences: Json | null
           notifications_enabled: boolean
           notify_email_enabled: boolean
           notify_market_news: boolean
@@ -1211,6 +1145,7 @@ export type Database = {
           default_currency?: string
           id?: string
           language?: string
+          notification_preferences?: Json | null
           notifications_enabled?: boolean
           notify_email_enabled?: boolean
           notify_market_news?: boolean
@@ -1231,6 +1166,7 @@ export type Database = {
           default_currency?: string
           id?: string
           language?: string
+          notification_preferences?: Json | null
           notifications_enabled?: boolean
           notify_email_enabled?: boolean
           notify_market_news?: boolean
@@ -1320,7 +1256,19 @@ export type Database = {
         | "withdrawal"
         | "transfer_in"
         | "transfer_out"
-      account_type: "bank" | "ewallet" | "broker" | "cash" | "soft_wallet"
+        | "expense"
+        | "income"
+        | "transfer"
+      account_type:
+        | "bank"
+        | "ewallet"
+        | "broker"
+        | "cash"
+        | "soft_wallet"
+        | "investment"
+        | "emergency"
+        | "goal_savings"
+        | "trading"
       app_role: "admin" | "user"
       subscription_tier: "free" | "pro" | "business"
     }
@@ -1455,8 +1403,21 @@ export const Constants = {
         "withdrawal",
         "transfer_in",
         "transfer_out",
+        "expense",
+        "income",
+        "transfer",
       ],
-      account_type: ["bank", "ewallet", "broker", "cash", "soft_wallet"],
+      account_type: [
+        "bank",
+        "ewallet",
+        "broker",
+        "cash",
+        "soft_wallet",
+        "investment",
+        "emergency",
+        "goal_savings",
+        "trading",
+      ],
       app_role: ["admin", "user"],
       subscription_tier: ["free", "pro", "business"],
     },

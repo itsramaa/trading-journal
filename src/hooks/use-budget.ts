@@ -17,6 +17,7 @@ export interface BudgetCategory {
   updated_at: string;
 }
 
+// Budget transactions are now stored in account_transactions with category_id
 export interface BudgetTransaction {
   id: string;
   user_id: string;
@@ -167,19 +168,33 @@ export function useBudgetTransactions(categoryId?: string) {
     queryFn: async () => {
       if (!user?.id) return [];
 
+      // Query account_transactions with category_id (expense type)
       let query = supabase
-        .from("budget_transactions")
+        .from("account_transactions")
         .select("*")
-        .order("transaction_date", { ascending: false });
+        .eq("transaction_type", "expense")
+        .order("created_at", { ascending: false });
 
       if (categoryId) {
         query = query.eq("category_id", categoryId);
+      } else {
+        query = query.not("category_id", "is", null);
       }
 
       const { data, error } = await query.limit(50);
 
       if (error) throw error;
-      return data as BudgetTransaction[];
+      
+      return (data || []).map(tx => ({
+        id: tx.id,
+        user_id: tx.user_id,
+        category_id: tx.category_id!,
+        account_id: tx.account_id,
+        amount: Number(tx.amount),
+        description: tx.description,
+        transaction_date: tx.transaction_date || tx.created_at,
+        created_at: tx.created_at,
+      })) as BudgetTransaction[];
     },
     enabled: !!user?.id,
   });
@@ -193,13 +208,16 @@ export function useAddBudgetTransaction() {
     mutationFn: async (input: CreateBudgetTransactionInput) => {
       if (!user?.id) throw new Error("User not authenticated");
 
+      // Insert into account_transactions with transaction_type = 'expense' and category_id
       const { data, error } = await supabase
-        .from("budget_transactions")
+        .from("account_transactions")
         .insert({
           user_id: user.id,
-          category_id: input.category_id,
           account_id: input.account_id || null,
+          category_id: input.category_id,
+          transaction_type: "expense",
           amount: input.amount,
+          currency: "IDR",
           description: input.description?.trim() || null,
           transaction_date: input.transaction_date || new Date().toISOString(),
         })
@@ -207,11 +225,23 @@ export function useAddBudgetTransaction() {
         .single();
 
       if (error) throw error;
-      return data as BudgetTransaction;
+      
+      return {
+        id: data.id,
+        user_id: data.user_id,
+        category_id: data.category_id!,
+        account_id: data.account_id,
+        amount: Number(data.amount),
+        description: data.description,
+        transaction_date: data.transaction_date || data.created_at,
+        created_at: data.created_at,
+      } as BudgetTransaction;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: BUDGET_CATEGORIES_KEY });
       queryClient.invalidateQueries({ queryKey: BUDGET_TRANSACTIONS_KEY });
+      queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["account-transactions"] });
       toast.success("Expense recorded successfully");
     },
     onError: (error) => {
@@ -226,7 +256,7 @@ export function useDeleteBudgetTransaction() {
   return useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
-        .from("budget_transactions")
+        .from("account_transactions")
         .delete()
         .eq("id", id);
 
@@ -235,6 +265,8 @@ export function useDeleteBudgetTransaction() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: BUDGET_CATEGORIES_KEY });
       queryClient.invalidateQueries({ queryKey: BUDGET_TRANSACTIONS_KEY });
+      queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["account-transactions"] });
       toast.success("Transaction deleted successfully");
     },
     onError: (error) => {

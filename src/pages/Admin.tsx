@@ -23,7 +23,7 @@ function AdminDashboard() {
         .select('*', { count: 'exact', head: true });
       
       const { count: transactionCount } = await supabase
-        .from('transactions')
+        .from('portfolio_transactions')
         .select('*', { count: 'exact', head: true });
       
       const { count: assetCount } = await supabase
