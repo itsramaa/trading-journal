@@ -17,7 +17,13 @@ import {
   Search,
   Filter,
   Upload,
-  Download
+  Download,
+  PiggyBank,
+  Shield,
+  Target,
+  CandlestickChart,
+  Receipt,
+  DollarSign
 } from "lucide-react";
 import { format } from "date-fns";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -46,6 +52,10 @@ const ACCOUNT_TYPE_ICONS: Record<AccountType, React.ElementType> = {
   broker: TrendingUp,
   cash: Banknote,
   soft_wallet: WalletCards,
+  investment: PiggyBank,
+  emergency: Shield,
+  goal_savings: Target,
+  trading: CandlestickChart,
 };
 
 const TRANSACTION_TYPE_CONFIG: Record<
@@ -56,6 +66,9 @@ const TRANSACTION_TYPE_CONFIG: Record<
   withdrawal: { label: "Withdrawal", icon: ArrowUpCircle, color: "text-loss" },
   transfer_in: { label: "Transfer In", icon: ArrowLeftRight, color: "text-chart-3" },
   transfer_out: { label: "Transfer Out", icon: ArrowLeftRight, color: "text-chart-4" },
+  expense: { label: "Expense", icon: Receipt, color: "text-loss" },
+  income: { label: "Income", icon: DollarSign, color: "text-profit" },
+  transfer: { label: "Transfer", icon: ArrowLeftRight, color: "text-muted-foreground" },
 };
 
 export default function AccountDetail() {
@@ -137,17 +150,17 @@ export default function AccountDetail() {
     
     const items = [];
     
-    // Check if it's used as a trading account (from trading_accounts table)
-    items.push({ name: "Trading Account", linked: account.account_type === "broker" });
+    // Check if it's a trading account
+    items.push({ name: "Trading Account", linked: account.account_type === "trading" || account.account_type === "broker" });
     
-    // Budget tracking
+    // Budget tracking (all accounts can track expenses)
     items.push({ name: "Budget Expenses", linked: true });
     
     // Emergency Fund
-    items.push({ name: "Emergency Fund", linked: true });
+    items.push({ name: "Emergency Fund", linked: account.account_type === "emergency" });
     
     // Portfolio transactions
-    items.push({ name: "Portfolio Transactions", linked: account.account_type === "broker" });
+    items.push({ name: "Portfolio Transactions", linked: account.account_type === "broker" || account.account_type === "investment" });
     
     return items;
   }, [account]);
