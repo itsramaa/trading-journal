@@ -72,7 +72,6 @@ export function BacktestAccountManager() {
       account_number: account.account_number || "",
       currency: account.currency,
       initial_balance: account.initial_balance,
-      account_id: account.account_id,
     });
     setEditingAccount(account);
     setIsAddOpen(true);
@@ -85,11 +84,7 @@ export function BacktestAccountManager() {
         ...values,
       });
     } else {
-      if (!values.account_id) {
-        return;
-      }
       await createAccount.mutateAsync({
-        account_id: values.account_id,
         name: values.name,
         broker: values.broker,
         account_number: values.account_number,

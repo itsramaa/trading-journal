@@ -24,7 +24,7 @@ export const holdingKeys = {
 };
 
 export const transactionKeys = {
-  all: ['transactions'] as const,
+  all: ['portfolio-transactions'] as const,
   lists: () => [...transactionKeys.all, 'list'] as const,
   list: (portfolioId: string) => [...transactionKeys.lists(), portfolioId] as const,
 };
@@ -43,7 +43,7 @@ export const alertKeys = {
 // Types derived from database
 type Portfolio = Tables<'portfolios'>;
 type Holding = Tables<'holdings'>;
-type Transaction = Tables<'transactions'>;
+type PortfolioTransaction = Tables<'portfolio_transactions'>;
 type Asset = Tables<'assets'>;
 type PriceCache = Tables<'price_cache'>;
 type PortfolioHistory = Tables<'portfolio_history'>;
@@ -54,7 +54,7 @@ export interface HoldingWithAsset extends Holding {
   price_cache: PriceCache | null;
 }
 
-export interface TransactionWithAsset extends Transaction {
+export interface TransactionWithAsset extends PortfolioTransaction {
   assets: Asset;
 }
 
@@ -223,7 +223,7 @@ export function useRecordPortfolioHistory() {
       return data;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: portfolioKeys.history(variables.portfolio_id, '') });
+      queryClient.invalidateQueries({ queryKey: portfolioKeys.history(variables.portfolio_id || '', '') });
     },
   });
 }
@@ -289,7 +289,7 @@ export function useTransactions(portfolioId?: string, limit?: number) {
     queryKey: [...transactionKeys.lists(), portfolioId, limit],
     queryFn: async () => {
       let query = supabase
-        .from('transactions')
+        .from('portfolio_transactions')
         .select(`
           *,
           assets (*)
@@ -317,10 +317,14 @@ export function useCreateTransaction() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async (transaction: Omit<Transaction, 'id' | 'created_at' | 'updated_at'>) => {
+    mutationFn: async (transaction: Partial<PortfolioTransaction> & { user_id: string; asset_id: string; transaction_type: string; quantity: number; price_per_unit: number; total_amount: number }) => {
       const { data, error } = await supabase
-        .from('transactions')
-        .insert(transaction)
+        .from('portfolio_transactions')
+        .insert({
+          ...transaction,
+          holding_id: transaction.holding_id || null,
+          payment_account_id: transaction.payment_account_id || null,
+        })
         .select()
         .single();
       
@@ -329,7 +333,9 @@ export function useCreateTransaction() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: transactionKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: holdingKeys.list(variables.portfolio_id) });
+      if (variables.portfolio_id) {
+        queryClient.invalidateQueries({ queryKey: holdingKeys.list(variables.portfolio_id) });
+      }
     },
   });
 }
@@ -338,10 +344,10 @@ export function useUpdateTransaction() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async ({ id, ...updates }: Partial<Transaction> & { id: string }) => {
+    mutationFn: async ({ id, ...updates }: Partial<PortfolioTransaction> & { id: string }) => {
       const { data, error } = await supabase
-        .from('transactions')
-        .update({ ...updates, updated_at: new Date().toISOString() })
+        .from('portfolio_transactions')
+        .update(updates)
         .eq('id', id)
         .select()
         .single();
@@ -362,7 +368,7 @@ export function useDeleteTransaction() {
   return useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
-        .from('transactions')
+        .from('portfolio_transactions')
         .delete()
         .eq('id', id);
       
@@ -486,10 +492,31 @@ export function useCreatePriceAlert() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async (alert: Omit<PriceAlert, 'id' | 'created_at' | 'updated_at' | 'is_triggered' | 'triggered_at'>) => {
+    mutationFn: async (alert: Omit<PriceAlert, 'id' | 'created_at' | 'triggered_at'>) => {
       const { data, error } = await supabase
         .from('price_alerts')
         .insert(alert)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: alertKeys.lists() });
+    },
+  });
+}
+
+export function useUpdatePriceAlert() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: Partial<PriceAlert> & { id: string }) => {
+      const { data, error } = await supabase
+        .from('price_alerts')
+        .update(updates)
+        .eq('id', id)
         .select()
         .single();
       
@@ -516,88 +543,6 @@ export function useDeletePriceAlert() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: alertKeys.lists() });
-    },
-  });
-}
-
-// ============= Price Refresh Hook =============
-
-export function useRefreshPrices() {
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke('fetch-prices');
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: assetKeys.prices() });
-      queryClient.invalidateQueries({ queryKey: holdingKeys.all });
-    },
-  });
-}
-
-// ============= User Settings Hooks =============
-
-export function useUserSettings() {
-  return useQuery({
-    queryKey: ['user-settings'],
-    queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return null;
-      
-      const { data, error } = await supabase
-        .from('user_settings')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
-      
-      if (error && error.code !== 'PGRST116') throw error;
-      return data;
-    },
-    staleTime: 5 * 60 * 1000,
-  });
-}
-
-export function useUpdateUserSettings() {
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: async (settings: Partial<Tables<'user_settings'>>) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-      
-      // First check if settings exist
-      const { data: existing } = await supabase
-        .from('user_settings')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
-      
-      if (existing) {
-        const { data, error } = await supabase
-          .from('user_settings')
-          .update({ ...settings, updated_at: new Date().toISOString() })
-          .eq('user_id', user.id)
-          .select()
-          .single();
-        
-        if (error) throw error;
-        return data;
-      } else {
-        const { data, error } = await supabase
-          .from('user_settings')
-          .insert({ ...settings, user_id: user.id })
-          .select()
-          .single();
-        
-        if (error) throw error;
-        return data;
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user-settings'] });
     },
   });
 }
