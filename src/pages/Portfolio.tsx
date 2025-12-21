@@ -166,7 +166,6 @@ const Portfolio = () => {
               exportFilename="portfolio-transactions"
               templateFields={['symbol', 'type', 'quantity', 'price_per_unit', 'total_amount', 'fee', 'transaction_date', 'notes']}
             />
-            <AddAssetForm />
             <AddTransactionDialog portfolioId={defaultPortfolio?.id} />
           </div>
         </div>

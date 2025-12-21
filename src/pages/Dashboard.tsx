@@ -24,8 +24,10 @@ import { useGoals } from "@/hooks/use-goals";
 import { useFireSettings } from "@/hooks/use-fire-settings";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { useUserSettings } from "@/hooks/use-user-settings";
+import { useAccounts } from "@/hooks/use-accounts";
 import { transformHoldings, transformTransactions, calculateMetrics, calculateAllocation } from "@/lib/data-transformers";
 import { calculateTradingStats } from "@/lib/trading-calculations";
+import { formatCurrency as formatCurrencyUtil } from "@/lib/formatters";
 import type { AllocationItem } from "@/types/portfolio";
 import { 
   TrendingUp, 
@@ -41,7 +43,11 @@ import {
   Wallet,
   ChevronRight,
   Briefcase,
-  LineChart
+  LineChart,
+  Plus,
+  Receipt,
+  BookOpen,
+  Building2
 } from "lucide-react";
 
 const Dashboard = () => {
@@ -51,6 +57,12 @@ const Dashboard = () => {
   const { data: settings } = useUserSettings();
   const currency = settings?.default_currency || 'USD';
   const isIDR = currency === 'IDR';
+
+  // Accounts data
+  const { data: accounts = [] } = useAccounts();
+  const totalAccountBalance = useMemo(() => {
+    return accounts.reduce((sum, acc) => sum + Number(acc.balance), 0);
+  }, [accounts]);
 
   // Portfolio data
   const { data: defaultPortfolio } = useDefaultPortfolio();
@@ -153,6 +165,92 @@ const Dashboard = () => {
           <h1 className="text-2xl font-bold tracking-tight">{t('dashboard.title')}</h1>
           <p className="text-muted-foreground">{t('dashboard.welcome')}</p>
         </div>
+
+        {/* Accounts Summary - Top Section */}
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Building2 className="h-5 w-5 text-primary" />
+              <h2 className="text-lg font-semibold">Accounts</h2>
+            </div>
+            <Button variant="ghost" size="sm" asChild>
+              <Link to="/accounts" className="flex items-center gap-1">
+                Manage <ChevronRight className="h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
+          
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+            {accounts.slice(0, 4).map((account) => (
+              <Card key={account.id} className="hover:border-primary/50 transition-colors">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-muted-foreground capitalize">{account.account_type}</span>
+                    <Badge variant="outline" className="text-xs">{account.currency}</Badge>
+                  </div>
+                  <p className="font-medium truncate">{account.name}</p>
+                  <p className="text-xl font-bold mt-1">
+                    {formatCurrencyUtil(Number(account.balance), account.currency)}
+                  </p>
+                </CardContent>
+              </Card>
+            ))}
+            {accounts.length === 0 && (
+              <Card className="col-span-full">
+                <CardContent className="py-6 text-center text-muted-foreground">
+                  No accounts yet. <Link to="/accounts" className="text-primary hover:underline">Add your first account</Link>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+          
+          {accounts.length > 0 && (
+            <Card className="bg-primary/5 border-primary/20">
+              <CardContent className="py-4 flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Total Balance Across All Accounts</p>
+                  <p className="text-2xl font-bold">{formatCurrency(totalAccountBalance)}</p>
+                </div>
+                <Wallet className="h-8 w-8 text-primary/50" />
+              </CardContent>
+            </Card>
+          )}
+        </section>
+
+        <Separator />
+
+        {/* Quick Actions */}
+        <section className="space-y-4">
+          <h2 className="text-lg font-semibold">Quick Actions</h2>
+          <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+            <Button variant="outline" className="h-auto py-4 flex flex-col gap-2" asChild>
+              <Link to="/portfolio">
+                <Plus className="h-5 w-5 text-primary" />
+                <span className="text-sm">Add Transaction</span>
+              </Link>
+            </Button>
+            <Button variant="outline" className="h-auto py-4 flex flex-col gap-2" asChild>
+              <Link to="/trading-journey/journal">
+                <BookOpen className="h-5 w-5 text-primary" />
+                <span className="text-sm">Log Trade</span>
+              </Link>
+            </Button>
+            <Button variant="outline" className="h-auto py-4 flex flex-col gap-2" asChild>
+              <Link to="/financial-freedom/budget">
+                <Receipt className="h-5 w-5 text-primary" />
+                <span className="text-sm">Add Expense</span>
+              </Link>
+            </Button>
+            <Button variant="outline" className="h-auto py-4 flex flex-col gap-2" asChild>
+              <Link to="/accounts">
+                <Wallet className="h-5 w-5 text-primary" />
+                <span className="text-sm">Manage Accounts</span>
+              </Link>
+            </Button>
+          </div>
+        </section>
+
+        <Separator />
 
         {/* Quick Tip */}
         <QuickTip storageKey="dashboard_intro" className="mb-2">

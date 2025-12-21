@@ -46,8 +46,12 @@ import { formatCurrency } from "@/lib/formatters";
 import { AssetSearchSelect } from "./AssetSearchSelect";
 import { SearchedAsset } from "@/hooks/use-asset-search";
 
+// Binance spot fee rates
+const BINANCE_SPOT_MAKER_FEE = 0.001; // 0.1%
+const BINANCE_SPOT_TAKER_FEE = 0.001; // 0.1%
+
 const transactionSchema = z.object({
-  accountId: z.string().optional(),
+  sourceAccountId: z.string().min(1, "Source account is required"),
   type: z.enum(["buy", "sell"]),
   quantity: z.string().refine((val) => !isNaN(Number(val)) && Number(val) > 0, {
     message: "Quantity must be a positive number",
@@ -55,6 +59,7 @@ const transactionSchema = z.object({
   price: z.string().refine((val) => !isNaN(Number(val)) && Number(val) > 0, {
     message: "Price must be a positive number",
   }),
+  feeType: z.enum(["maker", "taker"]).default("taker"),
   date: z.date(),
   notes: z.string().max(500, "Notes must be less than 500 characters").optional(),
 });
@@ -75,10 +80,11 @@ export function TransactionForm({ portfolioId }: TransactionFormProps) {
   const form = useForm<TransactionFormValues>({
     resolver: zodResolver(transactionSchema),
     defaultValues: {
-      accountId: "",
+      sourceAccountId: "",
       type: "buy",
       quantity: "",
       price: "",
+      feeType: "taker",
       date: new Date(),
       notes: "",
     },
@@ -138,19 +144,23 @@ export function TransactionForm({ portfolioId }: TransactionFormProps) {
         assetId = newAsset.id;
       }
 
+      // Calculate fee based on selected type
+      const feeRate = data.feeType === 'maker' ? BINANCE_SPOT_MAKER_FEE : BINANCE_SPOT_TAKER_FEE;
+      const calculatedFee = totalAmount * feeRate;
+
       // Then create the transaction
       await createTransaction.mutateAsync({
         user_id: user.id,
         portfolio_id: portfolioId,
         asset_id: assetId,
-        account_id: data.accountId || null,
+        account_id: data.sourceAccountId || null,
         transaction_type: data.type.toUpperCase(),
         quantity,
         price_per_unit: price,
         total_amount: totalAmount,
         transaction_date: data.date.toISOString(),
         notes: data.notes || null,
-        fee: 0,
+        fee: calculatedFee,
       });
       
       toast.success("Transaction added successfully");
@@ -168,10 +178,13 @@ export function TransactionForm({ portfolioId }: TransactionFormProps) {
 
   const quantity = form.watch("quantity");
   const price = form.watch("price");
-  const accountId = form.watch("accountId");
+  const sourceAccountId = form.watch("sourceAccountId");
+  const feeType = form.watch("feeType");
   const total = Number(quantity) * Number(price) || 0;
+  const feeRate = feeType === 'maker' ? BINANCE_SPOT_MAKER_FEE : BINANCE_SPOT_TAKER_FEE;
+  const calculatedFee = total * feeRate;
   
-  const selectedAccount = accounts?.find(a => a.id === accountId);
+  const selectedAccount = accounts?.find(a => a.id === sourceAccountId);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -271,18 +284,17 @@ export function TransactionForm({ portfolioId }: TransactionFormProps) {
             {/* Account Selection */}
             <FormField
               control={form.control}
-              name="accountId"
+              name="sourceAccountId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Source Account</FormLabel>
+                  <FormLabel>Source Account *</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder={accountsLoading ? "Loading..." : "Select account"} />
+                        <SelectValue placeholder={accountsLoading ? "Loading..." : "Select source account"} />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="">No account linked</SelectItem>
                       {accounts?.filter(a => a.is_active).map((account) => (
                         <SelectItem key={account.id} value={account.id}>
                           <div className="flex items-center gap-2">
@@ -297,8 +309,31 @@ export function TransactionForm({ portfolioId }: TransactionFormProps) {
                     </SelectContent>
                   </Select>
                   <FormDescription>
-                    Link this transaction to an account for tracking
+                    Select the account to deduct funds from
                   </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Fee Type Selection */}
+            <FormField
+              control={form.control}
+              name="feeType"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Fee Type (Binance Spot)</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="maker">Maker (0.1%)</SelectItem>
+                      <SelectItem value="taker">Taker (0.1%)</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
@@ -353,15 +388,27 @@ export function TransactionForm({ portfolioId }: TransactionFormProps) {
 
             <div className="rounded-lg bg-secondary p-4 space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Total Amount</span>
-                <span className="text-lg font-bold">
+                <span className="text-sm text-muted-foreground">Subtotal</span>
+                <span className="font-medium">
                   ${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Fee ({feeType === 'maker' ? '0.1%' : '0.1%'})</span>
+                <span className="font-medium text-muted-foreground">
+                  ${calculatedFee.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                </span>
+              </div>
+              <div className="flex items-center justify-between border-t pt-2">
+                <span className="text-sm font-medium">Total Amount</span>
+                <span className="text-lg font-bold">
+                  ${(total + calculatedFee).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
               {selectedAccount && (
-                <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center justify-between text-sm border-t pt-2">
                   <span className="text-muted-foreground">Account Balance</span>
-                  <span className={Number(selectedAccount.balance) >= total ? "text-green-500" : "text-red-500"}>
+                  <span className={Number(selectedAccount.balance) >= (total + calculatedFee) ? "text-green-500" : "text-red-500"}>
                     {formatCurrency(Number(selectedAccount.balance), selectedAccount.currency)}
                   </span>
                 </div>
