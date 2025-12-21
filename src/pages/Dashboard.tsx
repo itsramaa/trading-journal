@@ -25,6 +25,7 @@ import { useFireSettings } from "@/hooks/use-fire-settings";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { useUserSettings } from "@/hooks/use-user-settings";
 import { useAccounts } from "@/hooks/use-accounts";
+import { useRealtime } from "@/hooks/use-realtime";
 import { transformHoldings, transformTransactions, calculateMetrics, calculateAllocation } from "@/lib/data-transformers";
 import { calculateTradingStats } from "@/lib/trading-calculations";
 import { formatCurrency as formatCurrencyUtil } from "@/lib/formatters";
@@ -60,6 +61,11 @@ const Dashboard = () => {
 
   // Accounts data
   const { data: accounts = [] } = useAccounts();
+  
+  // Enable realtime updates for dashboard data
+  useRealtime({
+    tables: ["accounts", "account_transactions", "holdings", "transactions", "trade_entries", "emergency_funds", "financial_goals", "debts"],
+  });
   const totalAccountBalance = useMemo(() => {
     return accounts.reduce((sum, acc) => sum + Number(acc.balance), 0);
   }, [accounts]);

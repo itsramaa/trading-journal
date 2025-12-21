@@ -14,6 +14,7 @@ import AssetDetail from "./pages/AssetDetail";
 
 // Accounts Page (Base feature)
 import Accounts from "./pages/Accounts";
+import AccountDetail from "./pages/AccountDetail";
 
 // Financial Freedom Pages
 import FFProgress from "./pages/financial-freedom/FFProgress";
@@ -69,6 +70,11 @@ const App = () => (
             <Route path="/accounts" element={
               <ProtectedRoute requiredFeature={FEATURES.ACCOUNTS_VIEW}>
                 <Accounts />
+              </ProtectedRoute>
+            } />
+            <Route path="/accounts/:accountId" element={
+              <ProtectedRoute requiredFeature={FEATURES.ACCOUNTS_VIEW}>
+                <AccountDetail />
               </ProtectedRoute>
             } />
             <Route path="/portfolio" element={

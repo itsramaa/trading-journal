@@ -487,6 +487,7 @@ export default function FireCalculator() {
                 <TabsList>
                   <TabsTrigger value="chart">Projection</TabsTrigger>
                   <TabsTrigger value="scenarios">Scenarios</TabsTrigger>
+                  <TabsTrigger value="recommendations">Recommendations</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="chart">
@@ -651,6 +652,96 @@ export default function FireCalculator() {
                           </div>
                         </CardContent>
                       </Card>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="recommendations">
+                  <div className="space-y-4">
+                    <p className="text-sm text-muted-foreground">
+                      Personalized recommendations to accelerate your FIRE journey
+                    </p>
+                    
+                    <div className="space-y-3">
+                      {/* Savings Rate Recommendation */}
+                      {results.savingsRate < 50 && (
+                        <div className="flex items-start gap-3 rounded-lg border border-primary/30 bg-primary/5 p-4">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
+                            <Wallet className="h-4 w-4 text-primary" />
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="font-medium">Increase Your Savings Rate</h4>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              Your current savings rate is {results.savingsRate.toFixed(1)}%. Aim for 50%+ to reach FIRE faster.
+                              {results.savingsRate < 30 && " Consider cutting expenses or increasing income."}
+                            </p>
+                            <div className="mt-2">
+                              <Badge variant="secondary">
+                                +10% savings rate = ~{Math.round(results.yearsToFire * 0.15)} years faster
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Expense Reduction */}
+                      {inputs.monthlyExpenses > inputs.monthlyIncome * 0.5 && (
+                        <div className="flex items-start gap-3 rounded-lg border border-chart-3/30 bg-chart-3/5 p-4">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-chart-3/10">
+                            <ArrowDown className="h-4 w-4 text-chart-3" />
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="font-medium">Review Your Expenses</h4>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              Your expenses are {((inputs.monthlyExpenses / inputs.monthlyIncome) * 100).toFixed(0)}% of income.
+                              Reducing by {formatCurrency(inputs.monthlyExpenses * 0.1)}/month could save you {Math.round(results.yearsToFire * 0.12)} years.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Investment Returns */}
+                      {inputs.expectedAnnualReturn < 8 && (
+                        <div className="flex items-start gap-3 rounded-lg border border-profit/30 bg-profit/5 p-4">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-profit/10">
+                            <TrendingUp className="h-4 w-4 text-profit" />
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="font-medium">Optimize Investment Returns</h4>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              Your expected return is {inputs.expectedAnnualReturn}%. Consider low-cost index funds that historically return 7-10% annually.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Side Income */}
+                      <div className="flex items-start gap-3 rounded-lg border p-4">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary">
+                          <DollarSign className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="font-medium">Consider Additional Income</h4>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            An extra {formatCurrency(inputs.monthlyIncome * 0.2)}/month from side income could cut your FIRE timeline by ~{Math.round(results.yearsToFire * 0.18)} years.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Good Progress */}
+                      {results.currentProgress >= 25 && (
+                        <div className="flex items-start gap-3 rounded-lg border border-profit/30 bg-profit/5 p-4">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-profit/10">
+                            <Target className="h-4 w-4 text-profit" />
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="font-medium">Great Progress!</h4>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              You're {results.currentProgress.toFixed(1)}% of the way to your FIRE goal. Keep up the consistent saving and investing!
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </TabsContent>
