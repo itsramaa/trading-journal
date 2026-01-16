@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Building2, Smartphone, TrendingUp, Banknote, Wallet, MoreHorizontal, Trash2, Edit, ChevronRight, PiggyBank, Shield, Target, CandlestickChart } from "lucide-react";
+import { CandlestickChart, FlaskConical, Wallet, MoreHorizontal, Trash2, ChevronRight } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,32 +16,46 @@ import { formatCurrency } from "@/lib/formatters";
 import { toast } from "sonner";
 
 const ACCOUNT_TYPE_ICONS: Record<AccountType, React.ElementType> = {
-  bank: Building2,
-  ewallet: Smartphone,
-  broker: TrendingUp,
-  cash: Banknote,
-  soft_wallet: Wallet,
-  investment: PiggyBank,
-  emergency: Shield,
-  goal_savings: Target,
   trading: CandlestickChart,
+  backtest: FlaskConical,
+  funding: Wallet,
 };
 
 interface AccountCardListProps {
   onSelectAccount?: (accountId: string) => void;
   onTransact?: (accountId: string, type: 'deposit' | 'withdraw' | 'transfer') => void;
   filterType?: AccountType;
+  excludeBacktest?: boolean;
+  backtestOnly?: boolean;
+  emptyMessage?: string;
 }
 
-export function AccountCardList({ onSelectAccount, onTransact, filterType }: AccountCardListProps) {
+export function AccountCardList({ 
+  onSelectAccount, 
+  onTransact, 
+  filterType, 
+  excludeBacktest = false,
+  backtestOnly = false,
+  emptyMessage = "No accounts yet"
+}: AccountCardListProps) {
   const navigate = useNavigate();
   const { data: allAccounts, isLoading } = useAccounts();
-  
-  // Filter accounts by type if filterType is provided
-  const accounts = filterType 
-    ? allAccounts?.filter(a => a.account_type === filterType)
-    : allAccounts;
   const deleteAccount = useDeleteAccount();
+  
+  // Filter accounts based on type and backtest status
+  const accounts = allAccounts?.filter(a => {
+    // Type filter
+    if (filterType && a.account_type !== filterType) return false;
+    
+    // Backtest filter for trading accounts
+    if (filterType === 'trading') {
+      const isBacktest = a.metadata?.is_backtest === true;
+      if (excludeBacktest && isBacktest) return false;
+      if (backtestOnly && !isBacktest) return false;
+    }
+    
+    return true;
+  });
 
   const handleCardClick = (accountId: string) => {
     navigate(`/accounts/${accountId}`);
@@ -82,10 +96,10 @@ export function AccountCardList({ onSelectAccount, onTransact, filterType }: Acc
     return (
       <Card>
         <CardContent className="flex flex-col items-center justify-center py-12">
-          <Wallet className="h-12 w-12 text-muted-foreground/50 mb-4" />
+          <CandlestickChart className="h-12 w-12 text-muted-foreground/50 mb-4" />
           <h3 className="text-lg font-medium">No accounts yet</h3>
-          <p className="text-sm text-muted-foreground mt-1">
-            Create your first account to start tracking your finances.
+          <p className="text-sm text-muted-foreground mt-1 text-center max-w-sm">
+            {emptyMessage}
           </p>
         </CardContent>
       </Card>
@@ -95,8 +109,10 @@ export function AccountCardList({ onSelectAccount, onTransact, filterType }: Acc
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {accounts.map((account) => {
-        const Icon = ACCOUNT_TYPE_ICONS[account.account_type];
+        const isBacktest = account.metadata?.is_backtest === true;
+        const Icon = isBacktest ? FlaskConical : ACCOUNT_TYPE_ICONS[account.account_type] || CandlestickChart;
         const balance = Number(account.balance);
+        const broker = account.metadata?.broker;
 
         return (
           <Card 
@@ -106,12 +122,14 @@ export function AccountCardList({ onSelectAccount, onTransact, filterType }: Acc
           >
             <CardHeader className="flex flex-row items-start justify-between pb-2">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-primary/10">
-                  <Icon className="h-5 w-5 text-primary" />
+                <div className={`p-2 rounded-lg ${isBacktest ? 'bg-chart-4/10' : 'bg-primary/10'}`}>
+                  <Icon className={`h-5 w-5 ${isBacktest ? 'text-chart-4' : 'text-primary'}`} />
                 </div>
                 <div>
                   <CardTitle className="text-base">{account.name}</CardTitle>
-                  <CardDescription>{ACCOUNT_TYPE_LABELS[account.account_type]}</CardDescription>
+                  <CardDescription>
+                    {broker || (isBacktest ? 'Paper Trading' : ACCOUNT_TYPE_LABELS[account.account_type])}
+                  </CardDescription>
                 </div>
               </div>
               <DropdownMenu>
@@ -146,13 +164,15 @@ export function AccountCardList({ onSelectAccount, onTransact, filterType }: Acc
                   {formatCurrency(balance, account.currency)}
                 </span>
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline">{account.currency}</Badge>
+                  <Badge variant={isBacktest ? "secondary" : "outline"}>
+                    {isBacktest ? "Paper" : account.currency}
+                  </Badge>
                   <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
               </div>
-              {account.description && (
-                <p className="text-xs text-muted-foreground mt-2 line-clamp-1">
-                  {account.description}
+              {account.metadata?.account_number && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  Account: {account.metadata.account_number}
                 </p>
               )}
             </CardContent>

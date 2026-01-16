@@ -1,5 +1,6 @@
 /**
- * React Query hooks for Account Management
+ * React Query hooks for Trading Account Management
+ * Unified hooks for trading, backtest, and funding accounts
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -19,6 +20,25 @@ export const accountTransactionKeys = {
   byAccount: (accountId: string) => [...accountTransactionKeys.all, 'account', accountId] as const,
 };
 
+// Map database account types to our simplified types
+function mapAccountType(dbType: string, metadata: any): AccountType {
+  // Check if it's a backtest account
+  if (metadata?.is_backtest) return 'backtest';
+  
+  // Map database types to our simplified types
+  switch (dbType) {
+    case 'trading':
+    case 'broker':
+      return 'trading';
+    case 'bank':
+    case 'ewallet':
+    case 'cash':
+      return 'funding';
+    default:
+      return 'trading';
+  }
+}
+
 // ============= Account Hooks =============
 
 export function useAccounts() {
@@ -35,7 +55,15 @@ export function useAccounts() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data as Account[];
+      
+      // Transform accounts to use our simplified types
+      return (data || []).map(account => ({
+        ...account,
+        account_type: mapAccountType(account.account_type, account.metadata),
+        metadata: typeof account.metadata === 'string' 
+          ? JSON.parse(account.metadata) 
+          : account.metadata,
+      })) as Account[];
     },
     staleTime: 5 * 60 * 1000,
   });
@@ -52,7 +80,14 @@ export function useAccount(id: string) {
         .single();
 
       if (error) throw error;
-      return data as Account;
+      
+      return {
+        ...data,
+        account_type: mapAccountType(data.account_type, data.metadata),
+        metadata: typeof data.metadata === 'string' 
+          ? JSON.parse(data.metadata) 
+          : data.metadata,
+      } as Account;
     },
     enabled: !!id,
     staleTime: 5 * 60 * 1000,
@@ -71,11 +106,23 @@ export function useCreateAccount() {
       icon?: string;
       color?: string;
       initial_balance?: number;
+      metadata?: {
+        broker?: string;
+        account_number?: string;
+        is_backtest?: boolean;
+        initial_balance?: number;
+      };
     }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
       const initialBalance = account.initial_balance || 0;
+      
+      // Map our simplified type to database type
+      let dbAccountType: string = account.account_type;
+      if (account.account_type === 'backtest') {
+        dbAccountType = 'trading';
+      }
 
       // Create the account with initial balance
       const { data, error } = await supabase
@@ -83,13 +130,14 @@ export function useCreateAccount() {
         .insert({
           user_id: user.id,
           name: account.name,
-          account_type: account.account_type,
+          account_type: dbAccountType as any,
           currency: account.currency,
           description: account.description || null,
           icon: account.icon || null,
           color: account.color || null,
           balance: initialBalance,
           is_active: true,
+          metadata: account.metadata || null,
         })
         .select()
         .single();
@@ -115,6 +163,7 @@ export function useCreateAccount() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: accountKeys.lists() });
       queryClient.invalidateQueries({ queryKey: accountTransactionKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: ['trading-accounts'] });
     },
   });
 }
@@ -145,6 +194,7 @@ export function useUpdateAccount() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: accountKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: ['trading-accounts'] });
     },
   });
 }
@@ -163,6 +213,7 @@ export function useDeleteAccount() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: accountKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: ['trading-accounts'] });
     },
   });
 }
@@ -241,6 +292,7 @@ export function useDeposit() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: accountKeys.lists() });
       queryClient.invalidateQueries({ queryKey: accountTransactionKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: ['trading-accounts'] });
     },
   });
 }
@@ -285,6 +337,7 @@ export function useWithdraw() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: accountKeys.lists() });
       queryClient.invalidateQueries({ queryKey: accountTransactionKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: ['trading-accounts'] });
     },
   });
 }
@@ -352,6 +405,7 @@ export function useTransfer() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: accountKeys.lists() });
       queryClient.invalidateQueries({ queryKey: accountTransactionKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: ['trading-accounts'] });
     },
   });
 }

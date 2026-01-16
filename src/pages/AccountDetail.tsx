@@ -1,14 +1,11 @@
 import { useMemo, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { Helmet } from "react-helmet";
 import { 
   ArrowLeft, 
-  Wallet, 
-  Building2, 
-  Smartphone, 
-  TrendingUp, 
-  Banknote, 
-  WalletCards,
+  CandlestickChart, 
+  FlaskConical,
+  Wallet,
   ArrowDownCircle,
   ArrowUpCircle,
   ArrowLeftRight,
@@ -16,12 +13,10 @@ import {
   RefreshCw,
   Search,
   Filter,
-  PiggyBank,
-  Shield,
+  TrendingUp,
+  TrendingDown,
   Target,
-  CandlestickChart,
-  Receipt,
-  DollarSign
+  BarChart3
 } from "lucide-react";
 import { format } from "date-fns";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -40,19 +35,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useAccounts, useAccountTransactions } from "@/hooks/use-accounts";
+import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { formatCurrency } from "@/lib/formatters";
 import type { AccountType, AccountTransactionType } from "@/types/account";
 
 const ACCOUNT_TYPE_ICONS: Record<AccountType, React.ElementType> = {
-  bank: Building2,
-  ewallet: Smartphone,
-  broker: TrendingUp,
-  cash: Banknote,
-  soft_wallet: WalletCards,
-  investment: PiggyBank,
-  emergency: Shield,
-  goal_savings: Target,
   trading: CandlestickChart,
+  backtest: FlaskConical,
+  funding: Wallet,
 };
 
 const TRANSACTION_TYPE_CONFIG: Record<
@@ -63,9 +53,6 @@ const TRANSACTION_TYPE_CONFIG: Record<
   withdrawal: { label: "Withdrawal", icon: ArrowUpCircle, color: "text-loss" },
   transfer_in: { label: "Transfer In", icon: ArrowLeftRight, color: "text-chart-3" },
   transfer_out: { label: "Transfer Out", icon: ArrowLeftRight, color: "text-chart-4" },
-  expense: { label: "Expense", icon: Receipt, color: "text-loss" },
-  income: { label: "Income", icon: DollarSign, color: "text-profit" },
-  transfer: { label: "Transfer", icon: ArrowLeftRight, color: "text-muted-foreground" },
 };
 
 export default function AccountDetail() {
@@ -73,12 +60,19 @@ export default function AccountDetail() {
   const navigate = useNavigate();
   const { data: accounts, isLoading: accountsLoading } = useAccounts();
   const { data: transactions, isLoading: transactionsLoading } = useAccountTransactions(accountId);
+  const { data: allTrades } = useTradeEntries();
   
+  // Filter trades for this account
+  const accountTrades = useMemo(() => {
+    return allTrades?.filter(t => t.trading_account_id === accountId) || [];
+  }, [allTrades, accountId]);
+
   // Filtering state
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<AccountTransactionType | "all">("all");
 
   const account = accounts?.find((a) => a.id === accountId);
+  const isBacktest = account?.metadata?.is_backtest === true;
   
   // Filter transactions
   const filteredTransactions = useMemo(() => {
@@ -92,75 +86,46 @@ export default function AccountDetail() {
     });
   }, [transactions, searchQuery, typeFilter]);
   
-  // Export/Import handlers
-  const handleExportData = async () => {
-    if (!transactions) return [];
-    return transactions.map((tx) => ({
-      date: format(new Date(tx.created_at), "yyyy-MM-dd HH:mm:ss"),
-      type: tx.transaction_type,
-      amount: tx.amount,
-      currency: tx.currency,
-      description: tx.description || "",
-      notes: tx.notes || "",
-    }));
-  };
-  
-  const handleImportData = async (data: Record<string, unknown>[]) => {
-    // For now, just validate and log - actual import would require more complex logic
-    console.log("Import data:", data);
-    throw new Error("Import is not yet implemented for account transactions");
-  };
-  const Icon = account ? ACCOUNT_TYPE_ICONS[account.account_type] : Wallet;
+  const Icon = account 
+    ? (isBacktest ? FlaskConical : ACCOUNT_TYPE_ICONS[account.account_type]) 
+    : CandlestickChart;
 
   // Calculate statistics
   const stats = useMemo(() => {
-    if (!transactions?.length) return null;
+    if (!transactions?.length && !accountTrades.length) return null;
     
     const totalDeposits = transactions
-      .filter((t) => t.transaction_type === "deposit" || t.transaction_type === "transfer_in")
-      .reduce((sum, t) => sum + Number(t.amount), 0);
+      ?.filter((t) => t.transaction_type === "deposit" || t.transaction_type === "transfer_in")
+      .reduce((sum, t) => sum + Number(t.amount), 0) || 0;
     
     const totalWithdrawals = transactions
-      .filter((t) => t.transaction_type === "withdrawal" || t.transaction_type === "transfer_out")
-      .reduce((sum, t) => sum + Number(t.amount), 0);
+      ?.filter((t) => t.transaction_type === "withdrawal" || t.transaction_type === "transfer_out")
+      .reduce((sum, t) => sum + Number(t.amount), 0) || 0;
     
     const netFlow = totalDeposits - totalWithdrawals;
+
+    // Trade statistics
+    const realizedPnL = accountTrades
+      .filter(t => t.status === 'closed')
+      .reduce((sum, t) => sum + (t.realized_pnl || 0), 0);
     
-    const thisMonthTxs = transactions.filter((t) => {
-      const txDate = new Date(t.created_at);
-      const now = new Date();
-      return txDate.getMonth() === now.getMonth() && txDate.getFullYear() === now.getFullYear();
-    });
+    const winningTrades = accountTrades.filter(t => t.result === 'win').length;
+    const losingTrades = accountTrades.filter(t => t.result === 'loss').length;
+    const totalClosedTrades = winningTrades + losingTrades;
+    const winRate = totalClosedTrades > 0 ? (winningTrades / totalClosedTrades) * 100 : 0;
 
     return {
       totalDeposits,
       totalWithdrawals,
       netFlow,
-      totalTransactions: transactions.length,
-      thisMonthCount: thisMonthTxs.length,
+      totalTransactions: transactions?.length || 0,
+      realizedPnL,
+      totalTrades: accountTrades.length,
+      winRate,
+      winningTrades,
+      losingTrades,
     };
-  }, [transactions]);
-
-  // Integration summary - which features use this account
-  const integrations = useMemo(() => {
-    if (!account) return [];
-    
-    const items = [];
-    
-    // Check if it's a trading account
-    items.push({ name: "Trading Account", linked: account.account_type === "trading" || account.account_type === "broker" });
-    
-    // Budget tracking (all accounts can track expenses)
-    items.push({ name: "Budget Expenses", linked: true });
-    
-    // Emergency Fund
-    items.push({ name: "Emergency Fund", linked: account.account_type === "emergency" });
-    
-    // Portfolio transactions
-    items.push({ name: "Portfolio Transactions", linked: account.account_type === "broker" || account.account_type === "investment" });
-    
-    return items;
-  }, [account]);
+  }, [transactions, accountTrades]);
 
   if (accountsLoading) {
     return (
@@ -193,8 +158,8 @@ export default function AccountDetail() {
   return (
     <DashboardLayout>
       <Helmet>
-        <title>{account.name} | Account Detail</title>
-        <meta name="description" content={`View transactions and details for ${account.name}`} />
+        <title>{account.name} | Trading Account</title>
+        <meta name="description" content={`View trades and details for ${account.name}`} />
       </Helmet>
 
       <div className="space-y-6">
@@ -204,15 +169,17 @@ export default function AccountDetail() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div 
-            className="flex h-12 w-12 items-center justify-center rounded-xl"
-            style={{ backgroundColor: account.color || "hsl(var(--primary))" }}
+            className={`flex h-12 w-12 items-center justify-center rounded-xl ${isBacktest ? 'bg-chart-4' : 'bg-primary'}`}
           >
             <Icon className="h-6 w-6 text-primary-foreground" />
           </div>
           <div className="flex-1">
-            <h1 className="text-2xl font-bold">{account.name}</h1>
-            <p className="text-muted-foreground capitalize">
-              {account.account_type.replace("_", " ")} • {account.currency}
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold">{account.name}</h1>
+              {isBacktest && <Badge variant="secondary">Paper Trading</Badge>}
+            </div>
+            <p className="text-muted-foreground">
+              {account.metadata?.broker || 'Trading Account'} • {account.currency}
             </p>
           </div>
           <div className="text-right">
@@ -227,12 +194,16 @@ export default function AccountDetail() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Total Deposits</p>
-                  <p className="text-xl font-bold text-profit">
-                    +{formatCurrency(stats?.totalDeposits || 0, account.currency)}
+                  <p className="text-sm text-muted-foreground">Realized P&L</p>
+                  <p className={`text-xl font-bold ${(stats?.realizedPnL || 0) >= 0 ? 'text-profit' : 'text-loss'}`}>
+                    {(stats?.realizedPnL || 0) >= 0 ? '+' : ''}{formatCurrency(stats?.realizedPnL || 0, account.currency)}
                   </p>
                 </div>
-                <ArrowDownCircle className="h-8 w-8 text-profit/50" />
+                {(stats?.realizedPnL || 0) >= 0 ? (
+                  <TrendingUp className="h-8 w-8 text-profit/50" />
+                ) : (
+                  <TrendingDown className="h-8 w-8 text-loss/50" />
+                )}
               </div>
             </CardContent>
           </Card>
@@ -241,13 +212,31 @@ export default function AccountDetail() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Total Withdrawals</p>
-                  <p className="text-xl font-bold text-loss">
-                    -{formatCurrency(stats?.totalWithdrawals || 0, account.currency)}
+                  <p className="text-sm text-muted-foreground">Win Rate</p>
+                  <p className="text-xl font-bold">
+                    {stats?.winRate.toFixed(1) || 0}%
                   </p>
                 </div>
-                <ArrowUpCircle className="h-8 w-8 text-loss/50" />
+                <Target className="h-8 w-8 text-muted-foreground/50" />
               </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {stats?.winningTrades || 0}W / {stats?.losingTrades || 0}L
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Total Trades</p>
+                  <p className="text-xl font-bold">{stats?.totalTrades || 0}</p>
+                </div>
+                <BarChart3 className="h-8 w-8 text-muted-foreground/50" />
+              </div>
+              <Link to="/trading-journey/journal" className="text-xs text-primary hover:underline mt-1 block">
+                View in Journal →
+              </Link>
             </CardContent>
           </Card>
 
@@ -264,51 +253,15 @@ export default function AccountDetail() {
               </div>
             </CardContent>
           </Card>
-
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">This Month</p>
-                  <p className="text-xl font-bold">{stats?.thisMonthCount || 0} transactions</p>
-                </div>
-                <Calendar className="h-8 w-8 text-muted-foreground/50" />
-              </div>
-            </CardContent>
-          </Card>
         </div>
 
-        {/* Integration Summary */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Integration Summary</CardTitle>
-            <CardDescription>How this account connects with other features</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-              {integrations.map((item) => (
-                <div
-                  key={item.name}
-                  className="flex items-center gap-3 rounded-lg border p-3"
-                >
-                  <div className={`h-2 w-2 rounded-full ${item.linked ? "bg-profit" : "bg-muted"}`} />
-                  <span className="text-sm">{item.name}</span>
-                  <Badge variant={item.linked ? "default" : "secondary"} className="ml-auto text-xs">
-                    {item.linked ? "Linked" : "Not Linked"}
-                  </Badge>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Transaction History */}
+        {/* Deposit/Withdrawal History */}
         <Card>
           <CardHeader>
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
                 <CardTitle className="text-lg">Transaction History</CardTitle>
-                <CardDescription>All transactions for this account</CardDescription>
+                <CardDescription>Deposits, withdrawals, and transfers</CardDescription>
               </div>
             </div>
           </CardHeader>
@@ -354,7 +307,7 @@ export default function AccountDetail() {
                 <p className="text-sm text-muted-foreground mt-1">
                   {transactions?.length 
                     ? "Try adjusting your search or filter." 
-                    : "Start by making a deposit, withdrawal, or transfer."}
+                    : "Start by making a deposit to fund your trading account."}
                 </p>
               </div>
             ) : (
@@ -371,7 +324,7 @@ export default function AccountDetail() {
                   <TableBody>
                     {filteredTransactions.map((tx) => {
                       const config = TRANSACTION_TYPE_CONFIG[tx.transaction_type];
-                      const TxIcon = config.icon;
+                      const TxIcon = config?.icon || ArrowLeftRight;
                       const isCredit = tx.transaction_type === "deposit" || tx.transaction_type === "transfer_in";
 
                       return (
@@ -381,8 +334,8 @@ export default function AccountDetail() {
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
-                              <TxIcon className={`h-4 w-4 ${config.color}`} />
-                              <span>{config.label}</span>
+                              <TxIcon className={`h-4 w-4 ${config?.color || ''}`} />
+                              <span>{config?.label || tx.transaction_type}</span>
                             </div>
                           </TableCell>
                           <TableCell className="max-w-[200px] truncate">
