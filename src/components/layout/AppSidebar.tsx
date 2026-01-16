@@ -8,8 +8,6 @@ import {
   Clock,
   Building2,
   Lightbulb,
-  Crown,
-  Lock,
   ChevronDown,
   ChevronRight,
   type LucideIcon,
@@ -30,8 +28,6 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
-import { usePermissions, FeatureKey, FEATURES, SubscriptionTier } from "@/hooks/use-permissions";
-import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 
@@ -39,15 +35,12 @@ interface NavItem {
   title: string;
   url: string;
   icon: LucideIcon;
-  feature?: FeatureKey;
-  minTier?: SubscriptionTier;
 }
 
 interface NavGroup {
   label: string;
   key: string;
   items: NavItem[];
-  minTier?: SubscriptionTier;
   collapsible?: boolean;
 }
 
@@ -57,7 +50,7 @@ const navigationGroups: NavGroup[] = [
     key: "general",
     items: [
       { title: "Dashboard", url: "/", icon: LayoutDashboard },
-      { title: "Accounts", url: "/accounts", icon: Building2, feature: FEATURES.ACCOUNTS_VIEW },
+      { title: "Accounts", url: "/accounts", icon: Building2 },
     ],
   },
   {
@@ -65,11 +58,11 @@ const navigationGroups: NavGroup[] = [
     key: "trading",
     collapsible: true,
     items: [
-      { title: "Summary", url: "/trading", icon: Activity, feature: FEATURES.TRADING_JOURNAL },
-      { title: "Strategies", url: "/trading/strategies", icon: Lightbulb, feature: FEATURES.TRADING_JOURNAL },
-      { title: "Sessions", url: "/trading/sessions", icon: Clock, feature: FEATURES.TRADING_SESSIONS },
-      { title: "Journal", url: "/trading/journal", icon: Notebook, feature: FEATURES.TRADING_JOURNAL },
-      { title: "Performance", url: "/trading/performance", icon: LineChart, feature: FEATURES.TRADING_JOURNAL },
+      { title: "Summary", url: "/trading", icon: Activity },
+      { title: "Strategies", url: "/trading/strategies", icon: Lightbulb },
+      { title: "Sessions", url: "/trading/sessions", icon: Clock },
+      { title: "Journal", url: "/trading/journal", icon: Notebook },
+      { title: "Performance", url: "/trading/performance", icon: LineChart },
     ],
   },
 ];
@@ -78,7 +71,6 @@ const COLLAPSED_GROUPS_KEY = 'sidebar-collapsed-groups';
 
 function NavMain({ groups }: { groups: NavGroup[] }) {
   const location = useLocation();
-  const { hasPermission, hasSubscription, isAdmin } = usePermissions();
   
   // Initialize collapsed state from localStorage
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(() => {
@@ -110,7 +102,6 @@ function NavMain({ groups }: { groups: NavGroup[] }) {
   return (
     <>
       {groups.map((group) => {
-        const groupRequiresUpgrade = group.minTier && !isAdmin() && !hasSubscription(group.minTier);
         const isCollapsed = collapsedGroups[group.key] ?? false;
         const hasActiveItem = isGroupActive(group);
         
@@ -130,12 +121,6 @@ function NavMain({ groups }: { groups: NavGroup[] }) {
                         {group.label}
                       </span>
                     </div>
-                    {groupRequiresUpgrade && (
-                      <Badge variant="secondary" className="text-xs px-1.5 py-0">
-                        <Crown className="h-3 w-3 mr-0.5" />
-                        Pro
-                      </Badge>
-                    )}
                   </SidebarGroupLabel>
                 </CollapsibleTrigger>
                 <CollapsibleContent>
@@ -143,8 +128,6 @@ function NavMain({ groups }: { groups: NavGroup[] }) {
                     <SidebarMenu>
                       {group.items.map((item) => {
                         const isActive = location.pathname === item.url;
-                        const hasAccess = !item.feature || isAdmin() || hasPermission(item.feature);
-                        const requiresUpgrade = item.minTier && !isAdmin() && !hasSubscription(item.minTier);
                         
                         return (
                           <SidebarMenuItem key={item.title}>
@@ -152,14 +135,10 @@ function NavMain({ groups }: { groups: NavGroup[] }) {
                               asChild 
                               isActive={isActive} 
                               tooltip={item.title}
-                              className={cn(!hasAccess && "opacity-60")}
                             >
                               <Link to={item.url}>
                                 <item.icon />
                                 <span className="flex-1">{item.title}</span>
-                                {requiresUpgrade && !hasAccess && (
-                                  <Lock className="h-3 w-3 text-muted-foreground" />
-                                )}
                               </Link>
                             </SidebarMenuButton>
                           </SidebarMenuItem>
@@ -175,21 +154,13 @@ function NavMain({ groups }: { groups: NavGroup[] }) {
         
         return (
           <SidebarGroup key={group.label}>
-            <SidebarGroupLabel className="flex items-center justify-between">
+            <SidebarGroupLabel>
               <span>{group.label}</span>
-              {groupRequiresUpgrade && (
-                <Badge variant="secondary" className="text-xs px-1.5 py-0">
-                  <Crown className="h-3 w-3 mr-0.5" />
-                  Pro
-                </Badge>
-              )}
             </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {group.items.map((item) => {
                   const isActive = location.pathname === item.url;
-                  const hasAccess = !item.feature || isAdmin() || hasPermission(item.feature);
-                  const requiresUpgrade = item.minTier && !isAdmin() && !hasSubscription(item.minTier);
                   
                   return (
                     <SidebarMenuItem key={item.title}>
@@ -197,14 +168,10 @@ function NavMain({ groups }: { groups: NavGroup[] }) {
                         asChild 
                         isActive={isActive} 
                         tooltip={item.title}
-                        className={cn(!hasAccess && "opacity-60")}
                       >
                         <Link to={item.url}>
                           <item.icon />
                           <span className="flex-1">{item.title}</span>
-                          {requiresUpgrade && !hasAccess && (
-                            <Lock className="h-3 w-3 text-muted-foreground" />
-                          )}
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>

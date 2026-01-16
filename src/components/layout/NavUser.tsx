@@ -2,10 +2,8 @@ import { Link } from "react-router-dom";
 import {
   Bell,
   ChevronsUpDown,
-  CreditCard,
   LogOut,
   Settings,
-  Crown,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -25,28 +23,11 @@ import {
 } from "@/components/ui/sidebar";
 import { useAuth } from "@/hooks/use-auth";
 import { useUserProfile } from "@/hooks/use-user-settings";
-import { useUserSubscription } from "@/hooks/use-permissions";
-import { Badge } from "@/components/ui/badge";
-
-const planColors: Record<string, string> = {
-  free: "bg-muted text-muted-foreground",
-  pro: "bg-primary/10 text-primary",
-  business: "bg-amber-500/10 text-amber-600",
-};
-
-const planLabels: Record<string, string> = {
-  free: "Free",
-  pro: "Pro",
-  business: "Business",
-};
 
 export function NavUser() {
   const { isMobile } = useSidebar();
   const { user, signOut, loading: authLoading } = useAuth();
   const { data: profile } = useUserProfile();
-  const { data: subscription } = useUserSubscription();
-
-  const currentPlan = subscription || 'free';
 
   const handleLogout = async () => {
     await signOut();
@@ -99,9 +80,6 @@ export function NavUser() {
                   {email}
                 </span>
               </div>
-              <Badge variant="secondary" className={`text-xs ${planColors[currentPlan]}`}>
-                {planLabels[currentPlan]}
-              </Badge>
               <ChevronsUpDown className="ml-auto size-4" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
@@ -125,36 +103,14 @@ export function NavUser() {
                     {email}
                   </span>
                 </div>
-                <Badge variant="secondary" className={`text-xs ${planColors[currentPlan]}`}>
-                  {planLabels[currentPlan]}
-                </Badge>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            {currentPlan === 'free' && (
-              <>
-                <DropdownMenuGroup>
-                  <DropdownMenuItem asChild>
-                    <Link to="/upgrade">
-                      <Crown className="mr-2 h-4 w-4 text-amber-500" />
-                      Upgrade to Pro
-                    </Link>
-                  </DropdownMenuItem>
-                </DropdownMenuGroup>
-                <DropdownMenuSeparator />
-              </>
-            )}
             <DropdownMenuGroup>
               <DropdownMenuItem asChild>
                 <Link to="/settings">
                   <Settings className="mr-2 h-4 w-4" />
                   Settings
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link to="/billing">
-                  <CreditCard className="mr-2 h-4 w-4" />
-                  Billing
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
