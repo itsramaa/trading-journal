@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import { ArrowDownCircle, ArrowUpCircle, ArrowLeftRight, ArrowRightLeft, Receipt, DollarSign } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, ArrowLeftRight } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -20,11 +20,8 @@ const TRANSACTION_TYPE_CONFIG: Record<
 > = {
   deposit: { label: "Deposit", icon: ArrowDownCircle, variant: "default" },
   withdrawal: { label: "Withdrawal", icon: ArrowUpCircle, variant: "destructive" },
-  transfer_in: { label: "Transfer In", icon: ArrowRightLeft, variant: "secondary" },
+  transfer_in: { label: "Transfer In", icon: ArrowLeftRight, variant: "secondary" },
   transfer_out: { label: "Transfer Out", icon: ArrowLeftRight, variant: "outline" },
-  expense: { label: "Expense", icon: Receipt, variant: "destructive" },
-  income: { label: "Income", icon: DollarSign, variant: "default" },
-  transfer: { label: "Transfer", icon: ArrowLeftRight, variant: "secondary" },
 };
 
 interface AccountTransactionsTableProps {
@@ -56,7 +53,7 @@ export function AccountTransactionsTable({ accountId, limit }: AccountTransactio
         <ArrowLeftRight className="h-12 w-12 text-muted-foreground/50 mb-4" />
         <h3 className="text-lg font-medium">No transactions yet</h3>
         <p className="text-sm text-muted-foreground mt-1">
-          Start by making a deposit, withdrawal, or transfer.
+          Start by making a deposit to fund your trading account.
         </p>
       </div>
     );
@@ -76,8 +73,8 @@ export function AccountTransactionsTable({ accountId, limit }: AccountTransactio
         </TableHeader>
         <TableBody>
           {transactions.map((tx) => {
-            const config = TRANSACTION_TYPE_CONFIG[tx.transaction_type];
-            const Icon = config.icon;
+            const config = TRANSACTION_TYPE_CONFIG[tx.transaction_type as AccountTransactionType];
+            const Icon = config?.icon || ArrowLeftRight;
             const isCredit = tx.transaction_type === 'deposit' || tx.transaction_type === 'transfer_in';
 
             return (
@@ -86,9 +83,9 @@ export function AccountTransactionsTable({ accountId, limit }: AccountTransactio
                   {format(new Date(tx.created_at), "MMM dd, yyyy HH:mm")}
                 </TableCell>
                 <TableCell>
-                  <Badge variant={config.variant} className="gap-1">
+                  <Badge variant={config?.variant || "secondary"} className="gap-1">
                     <Icon className="h-3 w-3" />
-                    {config.label}
+                    {config?.label || tx.transaction_type}
                   </Badge>
                 </TableCell>
                 <TableCell className="font-medium">
@@ -97,7 +94,7 @@ export function AccountTransactionsTable({ accountId, limit }: AccountTransactio
                 <TableCell className="max-w-[200px] truncate">
                   {tx.description || "-"}
                 </TableCell>
-                <TableCell className={`text-right font-mono ${isCredit ? 'text-green-600' : 'text-red-600'}`}>
+                <TableCell className={`text-right font-mono ${isCredit ? 'text-profit' : 'text-loss'}`}>
                   {isCredit ? '+' : '-'}{formatCurrency(Number(tx.amount), tx.currency)}
                 </TableCell>
               </TableRow>

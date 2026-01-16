@@ -78,7 +78,7 @@ export default function SessionDetail() {
   );
 
   const tradingAccounts = accounts?.filter(a => 
-    a.is_active && (a.account_type === 'broker' || a.account_type === 'soft_wallet')
+    a.is_active && a.account_type === 'trading'
   );
 
   const form = useForm<TradeFormValues>({

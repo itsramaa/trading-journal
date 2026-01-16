@@ -1,4 +1,4 @@
-import { Building2 } from "lucide-react";
+import { CandlestickChart, FlaskConical, Wallet } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -9,6 +9,13 @@ import {
 import { FormControl, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useAccounts } from "@/hooks/use-accounts";
 import { formatCurrency } from "@/lib/formatters";
+import type { AccountType } from "@/types/account";
+
+const ACCOUNT_TYPE_ICONS: Record<AccountType, React.ElementType> = {
+  trading: CandlestickChart,
+  backtest: FlaskConical,
+  funding: Wallet,
+};
 
 interface AccountSelectProps {
   value: string;
@@ -17,6 +24,9 @@ interface AccountSelectProps {
   placeholder?: string;
   showBalance?: boolean;
   filterByCurrency?: string;
+  filterByType?: AccountType;
+  excludeBacktest?: boolean;
+  backtestOnly?: boolean;
   disabled?: boolean;
   className?: string;
 }
@@ -28,14 +38,26 @@ export function AccountSelect({
   placeholder = "Select account",
   showBalance = true,
   filterByCurrency,
+  filterByType,
+  excludeBacktest = false,
+  backtestOnly = false,
   disabled = false,
   className,
 }: AccountSelectProps) {
   const { data: accounts, isLoading } = useAccounts();
 
-  const filteredAccounts = filterByCurrency
-    ? accounts?.filter((a) => a.currency === filterByCurrency && a.is_active)
-    : accounts?.filter((a) => a.is_active);
+  const filteredAccounts = accounts?.filter((a) => {
+    if (!a.is_active) return false;
+    if (filterByCurrency && a.currency !== filterByCurrency) return false;
+    if (filterByType && a.account_type !== filterByType) return false;
+    
+    // Handle backtest filtering for trading accounts
+    const isBacktest = a.metadata?.is_backtest === true;
+    if (excludeBacktest && isBacktest) return false;
+    if (backtestOnly && !isBacktest) return false;
+    
+    return true;
+  });
 
   return (
     <Select value={value} onValueChange={onValueChange} disabled={disabled || isLoading}>
@@ -48,19 +70,27 @@ export function AccountSelect({
             No accounts found
           </div>
         )}
-        {filteredAccounts?.map((account) => (
-          <SelectItem key={account.id} value={account.id}>
-            <div className="flex items-center gap-2 w-full">
-              <Building2 className="h-4 w-4 text-muted-foreground" />
-              <span className="flex-1">{account.name}</span>
-              {showBalance && (
-                <span className="text-xs text-muted-foreground ml-2">
-                  {formatCurrency(Number(account.balance), account.currency)}
-                </span>
-              )}
-            </div>
-          </SelectItem>
-        ))}
+        {filteredAccounts?.map((account) => {
+          const isBacktest = account.metadata?.is_backtest === true;
+          const Icon = isBacktest ? FlaskConical : ACCOUNT_TYPE_ICONS[account.account_type];
+          
+          return (
+            <SelectItem key={account.id} value={account.id}>
+              <div className="flex items-center gap-2 w-full">
+                <Icon className="h-4 w-4 text-muted-foreground" />
+                <span className="flex-1">{account.name}</span>
+                {isBacktest && (
+                  <span className="text-xs text-muted-foreground">(Paper)</span>
+                )}
+                {showBalance && (
+                  <span className="text-xs text-muted-foreground ml-2">
+                    {formatCurrency(Number(account.balance), account.currency)}
+                  </span>
+                )}
+              </div>
+            </SelectItem>
+          );
+        })}
       </SelectContent>
     </Select>
   );
@@ -73,6 +103,9 @@ interface AccountSelectFieldProps {
   placeholder?: string;
   showBalance?: boolean;
   filterByCurrency?: string;
+  filterByType?: AccountType;
+  excludeBacktest?: boolean;
+  backtestOnly?: boolean;
   error?: string;
 }
 
@@ -83,6 +116,9 @@ export function AccountSelectField({
   placeholder = "Select account",
   showBalance = true,
   filterByCurrency,
+  filterByType,
+  excludeBacktest,
+  backtestOnly,
   error,
 }: AccountSelectFieldProps) {
   return (
@@ -95,6 +131,9 @@ export function AccountSelectField({
           placeholder={placeholder}
           showBalance={showBalance}
           filterByCurrency={filterByCurrency}
+          filterByType={filterByType}
+          excludeBacktest={excludeBacktest}
+          backtestOnly={backtestOnly}
         />
       </FormControl>
       {error && <FormMessage>{error}</FormMessage>}
