@@ -5,12 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { DateRangeFilter, DateRange } from "@/components/trading/DateRangeFilter";
 import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
-import { ImportExportDialog } from "@/components/data/ImportExportDialog";
 import { TrendingUp, TrendingDown, Target, Activity, BarChart3, Percent, AlertTriangle, FileText } from "lucide-react";
 import { useTradeEntries, useCreateTradeEntry } from "@/hooks/use-trade-entries";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { useUserSettings } from "@/hooks/use-user-settings";
-import { useExchangeRate } from "@/hooks/use-exchange-rate";
 import { useAuth } from "@/hooks/use-auth";
 import { 
   filterTradesByDateRange, 
@@ -27,7 +25,6 @@ export default function TradingSummary() {
   const { data: trades, isLoading: tradesLoading } = useTradeEntries();
   const { data: strategies = [] } = useTradingStrategies();
   const { data: userSettings } = useUserSettings();
-  const { data: exchangeRate = 15500 } = useExchangeRate();
   const createTrade = useCreateTradeEntry();
 
   const defaultCurrency = userSettings?.default_currency || 'USD';
@@ -41,18 +38,7 @@ export default function TradingSummary() {
 
   const stats = useMemo(() => calculateTradingStats(filteredTrades), [filteredTrades]);
 
-  // Convert USD to user's currency
-  const convertCurrency = (value: number) => {
-    if (defaultCurrency === 'IDR') {
-      return value * exchangeRate;
-    }
-    return value;
-  };
-
-  const formatWithCurrency = (v: number) => {
-    const converted = convertCurrency(v);
-    return formatCurrency(converted, defaultCurrency);
-  };
+  const formatWithCurrency = (v: number) => formatCurrency(v, defaultCurrency);
 
   // Export trades data
   const handleExportTrades = useCallback(async () => {
@@ -125,14 +111,6 @@ export default function TradingSummary() {
             <h1 className="text-3xl font-bold tracking-tight">Trading Summary</h1>
             <p className="text-muted-foreground">Comprehensive trading performance overview</p>
           </div>
-          <ImportExportDialog
-            title="Import/Export Trades"
-            description="Backup your trading data or import trades from another platform"
-            exportData={handleExportTrades}
-            importData={handleImportTrades}
-            exportFilename="trading-journal"
-            templateFields={['pair', 'direction', 'entry_price', 'exit_price', 'stop_loss', 'take_profit', 'quantity', 'pnl', 'fees', 'trade_date', 'result', 'market_condition', 'entry_signal', 'notes', 'status']}
-          />
         </div>
 
         {/* Date Filter Only */}

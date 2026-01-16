@@ -21,7 +21,6 @@ import { useTradeEntries, useCreateTradeEntry, useDeleteTradeEntry, TradeEntry, 
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useUserSettings } from "@/hooks/use-user-settings";
-import { useExchangeRate } from "@/hooks/use-exchange-rate";
 import { formatCurrency as formatCurrencyUtil } from "@/lib/formatters";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -60,7 +59,6 @@ export default function SessionDetail() {
   const { data: strategies = [] } = useTradingStrategies();
   const { data: accounts = [] } = useAccounts();
   const { data: userSettings } = useUserSettings();
-  const { data: exchangeRate = 15500 } = useExchangeRate();
   const createTrade = useCreateTradeEntry();
   const deleteTrade = useDeleteTradeEntry();
   
@@ -70,16 +68,8 @@ export default function SessionDetail() {
 
   const defaultCurrency = userSettings?.default_currency || 'USD';
 
-  // Currency conversion helper
-  const convertCurrency = (value: number) => {
-    if (defaultCurrency === 'IDR') {
-      return value * exchangeRate;
-    }
-    return value;
-  };
-
   const formatCurrency = (value: number, currency?: string) => 
-    formatCurrencyUtil(convertCurrency(value), currency || defaultCurrency);
+    formatCurrencyUtil(value, currency || defaultCurrency);
 
   const session = sessions.find(s => s.id === sessionId);
   const sessionTrades = useMemo(() => 

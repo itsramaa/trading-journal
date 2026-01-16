@@ -16,8 +16,6 @@ import {
   RefreshCw,
   Search,
   Filter,
-  Upload,
-  Download,
   PiggyBank,
   Shield,
   Target,
@@ -41,7 +39,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ImportExportDialog } from "@/components/data/ImportExportDialog";
 import { useAccounts, useAccountTransactions } from "@/hooks/use-accounts";
 import { formatCurrency } from "@/lib/formatters";
 import type { AccountType, AccountTransactionType } from "@/types/account";
@@ -313,19 +310,6 @@ export default function AccountDetail() {
                 <CardTitle className="text-lg">Transaction History</CardTitle>
                 <CardDescription>All transactions for this account</CardDescription>
               </div>
-              <ImportExportDialog
-                title="Account Transactions"
-                description="Export or import account transaction data"
-                exportData={handleExportData}
-                importData={handleImportData}
-                exportFilename={`account-${account.name.toLowerCase().replace(/\s+/g, '-')}-transactions`}
-                templateFields={["date", "type", "amount", "currency", "description", "notes"]}
-              >
-                <Button variant="outline" size="sm">
-                  <Download className="h-4 w-4 mr-2" />
-                  Import/Export
-                </Button>
-              </ImportExportDialog>
             </div>
           </CardHeader>
           <CardContent>

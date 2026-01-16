@@ -22,7 +22,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { SessionAIAnalysis } from "@/components/trading/SessionAIAnalysis";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useUserSettings } from "@/hooks/use-user-settings";
-import { useExchangeRate } from "@/hooks/use-exchange-rate";
 import { formatCurrency as formatCurrencyUtil } from "@/lib/formatters";
 
 const moodIcons = {
@@ -49,7 +48,6 @@ export default function TradingSessions() {
   const updateSession = useUpdateTradingSession();
   const deleteSession = useDeleteTradingSession();
   const { data: userSettings } = useUserSettings();
-  const { data: exchangeRate = 15500 } = useExchangeRate();
 
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingSession, setEditingSession] = useState<TradingSessionWithStats | null>(null);
@@ -76,15 +74,7 @@ export default function TradingSessions() {
     },
   });
 
-  // Currency conversion helper
-  const convertCurrency = (value: number) => {
-    if (defaultCurrency === 'IDR') {
-      return value * exchangeRate;
-    }
-    return value;
-  };
-
-  const formatCurrency = (v: number) => formatCurrencyUtil(convertCurrency(v), defaultCurrency);
+  const formatCurrency = (v: number) => formatCurrencyUtil(v, defaultCurrency);
 
   const avgRating = sessions.length > 0 
     ? sessions.reduce((sum, s) => sum + Number(s.rating), 0) / sessions.length 
