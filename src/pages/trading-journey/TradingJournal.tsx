@@ -27,7 +27,6 @@ import { useTradingSessions } from "@/hooks/use-trading-sessions";
 import { filterTradesByDateRange, filterTradesByStrategies } from "@/lib/trading-calculations";
 import { formatCurrency as formatCurrencyUtil } from "@/lib/formatters";
 import { useUserSettings } from "@/hooks/use-user-settings";
-import { useExchangeRate } from "@/hooks/use-exchange-rate";
 
 // Binance Futures fee rates
 const BINANCE_MAKER_FEE = 0.0002; // 0.02%
@@ -75,7 +74,6 @@ export default function TradingJournal() {
   const [inlineStrategyName, setInlineStrategyName] = useState("");
 
   const { data: userSettings } = useUserSettings();
-  const { data: exchangeRate } = useExchangeRate();
   const { data: tradingAccounts, isLoading: accountsLoading } = useTradingAccounts();
   const { data: trades, isLoading: tradesLoading } = useTradeEntries();
   const { data: strategies = [] } = useTradingStrategies();
@@ -100,20 +98,9 @@ export default function TradingJournal() {
 
   // Currency conversion helper
   const displayCurrency = userSettings?.default_currency || 'USD';
-  const convertCurrency = (value: number, fromCurrency: string = 'USD') => {
-    if (!exchangeRate || displayCurrency === fromCurrency) return value;
-    if (displayCurrency === 'IDR' && fromCurrency === 'USD') {
-      return value * exchangeRate;
-    }
-    if (displayCurrency === 'USD' && fromCurrency === 'IDR') {
-      return value / exchangeRate;
-    }
-    return value;
-  };
 
   const formatCurrency = (value: number, currency: string = 'USD') => {
-    const convertedValue = convertCurrency(value, currency);
-    return formatCurrencyUtil(convertedValue, displayCurrency);
+    return formatCurrencyUtil(value, displayCurrency);
   };
 
   const form = useForm<TradeFormValues>({
