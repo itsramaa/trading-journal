@@ -233,6 +233,7 @@ export function useAccountTransactions(accountId?: string, limit?: number) {
         .from('account_transactions')
         .select('*')
         .eq('user_id', user.id)
+        .in('transaction_type', ['deposit', 'withdrawal'])
         .order('created_at', { ascending: false });
 
       if (accountId) {
@@ -332,74 +333,6 @@ export function useWithdraw() {
         .single();
 
       if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: accountKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: accountTransactionKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: ['trading-accounts'] });
-    },
-  });
-}
-
-export function useTransfer() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({
-      fromAccountId,
-      toAccountId,
-      amount,
-      currency,
-      description,
-      notes,
-    }: {
-      fromAccountId: string;
-      toAccountId: string;
-      amount: number;
-      currency: string;
-      description?: string;
-      notes?: string;
-    }) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-
-      // Generate a reference ID to link the two transactions
-      const referenceId = crypto.randomUUID();
-
-      // Create withdrawal from source account
-      const { error: withdrawError } = await supabase
-        .from('account_transactions')
-        .insert({
-          user_id: user.id,
-          account_id: fromAccountId,
-          transaction_type: 'transfer_out' as AccountTransactionType,
-          amount,
-          currency,
-          reference_id: referenceId,
-          description: description || 'Transfer out',
-          notes: notes || null,
-        });
-
-      if (withdrawError) throw withdrawError;
-
-      // Create deposit to destination account
-      const { data, error: depositError } = await supabase
-        .from('account_transactions')
-        .insert({
-          user_id: user.id,
-          account_id: toAccountId,
-          transaction_type: 'transfer_in' as AccountTransactionType,
-          amount,
-          currency,
-          reference_id: referenceId,
-          description: description || 'Transfer in',
-          notes: notes || null,
-        })
-        .select()
-        .single();
-
-      if (depositError) throw depositError;
       return data;
     },
     onSuccess: () => {

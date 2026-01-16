@@ -15,14 +15,14 @@ import type { Account } from "@/types/account";
 export default function Accounts() {
   const [transactionDialogOpen, setTransactionDialogOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<Account | undefined>();
-  const [defaultTransactionTab, setDefaultTransactionTab] = useState<'deposit' | 'withdraw' | 'transfer'>('deposit');
+  const [defaultTransactionTab, setDefaultTransactionTab] = useState<'deposit' | 'withdraw'>('deposit');
   const [activeTab, setActiveTab] = useState<'trading' | 'backtest' | 'funding'>('trading');
   const { data: accounts } = useAccounts();
   
   // Enable realtime updates for accounts
   useAccountsRealtime();
 
-  const handleTransact = (accountId: string, type: 'deposit' | 'withdraw' | 'transfer') => {
+  const handleTransact = (accountId: string, type: 'deposit' | 'withdraw') => {
     const account = accounts?.find(a => a.id === accountId);
     setSelectedAccount(account);
     setDefaultTransactionTab(type);
