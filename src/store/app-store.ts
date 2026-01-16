@@ -1,12 +1,11 @@
 /**
  * Global App Store using Zustand
- * Handles UI state: currency, notifications, search, active app
+ * Handles UI state: currency, notifications, search
  */
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Currency } from '@/types/portfolio';
 
-export type AppType = 'portfolio' | 'financial-freedom' | 'trading-journey';
+export type Currency = 'USD' | 'IDR';
 
 export interface CurrencyPair {
   base: string;
@@ -24,10 +23,6 @@ export interface Notification {
 }
 
 interface AppState {
-  // Active App
-  activeApp: AppType;
-  setActiveApp: (app: AppType) => void;
-  
   // Currency pair
   currencyPair: CurrencyPair;
   setCurrencyPair: (pair: CurrencyPair) => void;
@@ -58,10 +53,6 @@ interface AppState {
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
-      // Active App
-      activeApp: 'portfolio',
-      setActiveApp: (app) => set({ activeApp: app }),
-      
       // Currency pair
       currencyPair: { base: 'USD', quote: 'IDR' },
       setCurrencyPair: (pair) => set({ currencyPair: pair }),
@@ -75,34 +66,7 @@ export const useAppStore = create<AppState>()(
       setExchangeRate: (rate) => set({ exchangeRate: rate }),
       
       // Notifications
-      notifications: [
-        {
-          id: '1',
-          type: 'price_alert',
-          title: 'BTC Price Alert',
-          message: 'Bitcoin has increased by 5% in the last 24 hours',
-          read: false,
-          createdAt: new Date(),
-          assetSymbol: 'BTC',
-        },
-        {
-          id: '2',
-          type: 'transaction',
-          title: 'Buy Order Completed',
-          message: 'Successfully purchased 0.25 BTC at $67,500',
-          read: false,
-          createdAt: new Date(Date.now() - 3600000),
-          assetSymbol: 'BTC',
-        },
-        {
-          id: '3',
-          type: 'system',
-          title: 'Portfolio Milestone',
-          message: 'Congratulations! Your portfolio has reached $100K',
-          read: true,
-          createdAt: new Date(Date.now() - 86400000),
-        },
-      ],
+      notifications: [],
       addNotification: (notification) => set((state) => ({
         notifications: [
           {
@@ -132,9 +96,8 @@ export const useAppStore = create<AppState>()(
       setSearchOpen: (open) => set({ isSearchOpen: open }),
     }),
     {
-      name: 'portfolio-app-storage',
+      name: 'trading-app-storage',
       partialize: (state) => ({
-        activeApp: state.activeApp,
         currencyPair: state.currencyPair,
         currency: state.currency,
         notifications: state.notifications,

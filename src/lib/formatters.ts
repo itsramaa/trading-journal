@@ -1,13 +1,13 @@
 /**
- * Formatting utilities for Portfolio Assets Management
+ * Formatting utilities for Trading Journey
  * Centralized formatters for currency, percentages, and numbers
  */
 
-import type { AssetMarket, Currency } from '@/types/portfolio';
+type AssetMarket = 'CRYPTO' | 'US' | 'ID';
+type Currency = 'USD' | 'IDR' | 'EUR' | 'SGD' | 'MYR';
 
 /**
  * Format currency value based on market or currency type
- * PRD Requirement: Support USD and IDR with proper formatting
  */
 export function formatCurrency(
   value: number,
@@ -104,7 +104,6 @@ export function formatPercentUnsigned(value: number, decimals: number = 2): stri
 
 /**
  * Format quantity with appropriate precision
- * Crypto: up to 8 decimals, Stocks: whole numbers or 2 decimals for fractional
  */
 export function formatQuantity(value: number, market: AssetMarket = 'US'): string {
   if (market === 'CRYPTO') {
@@ -124,8 +123,6 @@ export function formatQuantity(value: number, market: AssetMarket = 'US'): strin
 
 /**
  * Format price with appropriate decimals based on value
- * Small prices (< $1): 4-8 decimals
- * Regular prices: 2 decimals
  */
 export function formatPrice(value: number, currency: Currency | AssetMarket | string = 'USD'): string {
   let currencyCode: string;

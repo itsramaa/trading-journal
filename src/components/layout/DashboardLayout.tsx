@@ -9,7 +9,6 @@ import {
 } from "@/components/ui/breadcrumb";
 import { useLocation } from "react-router-dom";
 import {
-  HeaderSearch,
   ThemeToggle,
   NotificationToggle,
 } from "./HeaderControls";
@@ -21,25 +20,14 @@ interface DashboardLayoutProps {
 
 const routeTitles: Record<string, string> = {
   "/": "Dashboard",
-  "/portfolio": "Portfolio",
-  "/transactions": "Transactions",
-  "/analytics": "Analytics",
-  "/competence": "Circle of Competence",
-  "/learning": "Learning Path",
-  "/ff": "Progress",
-  "/ff/fire-calculator": "FIRE Calculator",
-  "/ff/budget": "Budget",
-  "/ff/debt": "Debt Payoff",
-  "/ff/emergency": "Emergency Fund",
-  "/ff/goals": "Goals",
+  "/accounts": "Accounts",
   "/trading": "Summary",
   "/trading/journal": "Trading Journal",
   "/trading/sessions": "Sessions",
   "/trading/performance": "Performance",
+  "/trading/strategies": "Strategies",
   "/trading/insights": "AI Insights",
   "/settings": "Settings",
-  "/settings/portfolio": "Portfolio Settings",
-  "/settings/ff": "Financial Freedom Settings",
   "/settings/trading": "Trading Settings",
 };
 
@@ -64,10 +52,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             </Breadcrumb>
           </div>
 
-          {/* Center: Search */}
-          <div className="flex-1 flex justify-center px-4">
-            <HeaderSearch />
-          </div>
+          {/* Spacer */}
+          <div className="flex-1" />
 
           {/* Right side: Controls */}
           <div className="flex items-center gap-1 pr-4">

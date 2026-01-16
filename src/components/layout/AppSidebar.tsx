@@ -2,19 +2,10 @@ import * as React from "react";
 import { useState, useEffect } from "react";
 import {
   LayoutDashboard,
-  Wallet,
-  ArrowLeftRight,
-  BarChart3,
-  Target,
-  PiggyBank,
-  CreditCard,
-  Shield,
-  Goal,
   Notebook,
   LineChart,
   Activity,
   Clock,
-  Flame,
   Building2,
   Lightbulb,
   Crown,
@@ -22,6 +13,7 @@ import {
   ChevronDown,
   ChevronRight,
   type LucideIcon,
+  CandlestickChart,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { NavUser } from "./NavUser";
@@ -40,7 +32,6 @@ import {
 } from "@/components/ui/sidebar";
 import { usePermissions, FeatureKey, FEATURES, SubscriptionTier } from "@/hooks/use-permissions";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 
@@ -70,40 +61,15 @@ const navigationGroups: NavGroup[] = [
     ],
   },
   {
-    label: "Portfolio Management",
-    key: "portfolio",
-    collapsible: true,
-    items: [
-      { title: "Portfolio", url: "/portfolio", icon: Wallet, feature: FEATURES.PORTFOLIO_VIEW },
-      { title: "Transactions", url: "/transactions", icon: ArrowLeftRight, feature: FEATURES.TRANSACTIONS_VIEW },
-      { title: "Analytics", url: "/analytics", icon: BarChart3, feature: FEATURES.ANALYTICS_ADVANCED, minTier: 'pro' },
-    ],
-  },
-  {
     label: "Trading Journey",
     key: "trading",
     collapsible: true,
-    minTier: 'pro',
     items: [
-      { title: "Summary", url: "/trading", icon: Activity, feature: FEATURES.TRADING_JOURNAL, minTier: 'pro' },
-      { title: "Strategies", url: "/trading/strategies", icon: Lightbulb, feature: FEATURES.TRADING_JOURNAL, minTier: 'pro' },
-      { title: "Sessions", url: "/trading/sessions", icon: Clock, feature: FEATURES.TRADING_SESSIONS, minTier: 'pro' },
-      { title: "Journal", url: "/trading/journal", icon: Notebook, feature: FEATURES.TRADING_JOURNAL, minTier: 'pro' },
-      { title: "Performance", url: "/trading/performance", icon: LineChart, feature: FEATURES.TRADING_JOURNAL, minTier: 'pro' },
-    ],
-  },
-  {
-    label: "Financial Freedom",
-    key: "financial-freedom",
-    collapsible: true,
-    minTier: 'pro',
-    items: [
-      { title: "Progress", url: "/ff", icon: Target, feature: FEATURES.FIRE_CALCULATOR, minTier: 'pro' },
-      { title: "FIRE Calculator", url: "/ff/fire-calculator", icon: Flame, feature: FEATURES.FIRE_CALCULATOR, minTier: 'pro' },
-      { title: "Budget", url: "/ff/budget", icon: PiggyBank, feature: FEATURES.FIRE_BUDGET, minTier: 'pro' },
-      { title: "Debt Payoff", url: "/ff/debt", icon: CreditCard, feature: FEATURES.FIRE_GOALS, minTier: 'pro' },
-      { title: "Emergency Fund", url: "/ff/emergency", icon: Shield, feature: FEATURES.FIRE_GOALS, minTier: 'pro' },
-      { title: "Goals", url: "/ff/goals", icon: Goal, feature: FEATURES.FIRE_GOALS, minTier: 'pro' },
+      { title: "Summary", url: "/trading", icon: Activity, feature: FEATURES.TRADING_JOURNAL },
+      { title: "Strategies", url: "/trading/strategies", icon: Lightbulb, feature: FEATURES.TRADING_JOURNAL },
+      { title: "Sessions", url: "/trading/sessions", icon: Clock, feature: FEATURES.TRADING_SESSIONS },
+      { title: "Journal", url: "/trading/journal", icon: Notebook, feature: FEATURES.TRADING_JOURNAL },
+      { title: "Performance", url: "/trading/performance", icon: LineChart, feature: FEATURES.TRADING_JOURNAL },
     ],
   },
 ];
@@ -262,12 +228,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <SidebarMenuButton size="lg" asChild>
               <Link to="/">
                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                  <Wallet className="size-4" />
+                  <CandlestickChart className="size-4" />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">Portfolio Assets</span>
+                  <span className="truncate font-semibold">Trading Journey</span>
                   <span className="truncate text-xs text-sidebar-foreground/60">
-                    Management
+                    Journal & Analytics
                   </span>
                 </div>
               </Link>
