@@ -8,7 +8,6 @@ import {
   Wallet,
   ArrowDownCircle,
   ArrowUpCircle,
-  ArrowLeftRight,
   Calendar,
   RefreshCw,
   Search,
@@ -51,8 +50,6 @@ const TRANSACTION_TYPE_CONFIG: Record<
 > = {
   deposit: { label: "Deposit", icon: ArrowDownCircle, color: "text-profit" },
   withdrawal: { label: "Withdrawal", icon: ArrowUpCircle, color: "text-loss" },
-  transfer_in: { label: "Transfer In", icon: ArrowLeftRight, color: "text-chart-3" },
-  transfer_out: { label: "Transfer Out", icon: ArrowLeftRight, color: "text-chart-4" },
 };
 
 export default function AccountDetail() {
@@ -95,11 +92,11 @@ export default function AccountDetail() {
     if (!transactions?.length && !accountTrades.length) return null;
     
     const totalDeposits = transactions
-      ?.filter((t) => t.transaction_type === "deposit" || t.transaction_type === "transfer_in")
+      ?.filter((t) => t.transaction_type === "deposit")
       .reduce((sum, t) => sum + Number(t.amount), 0) || 0;
     
     const totalWithdrawals = transactions
-      ?.filter((t) => t.transaction_type === "withdrawal" || t.transaction_type === "transfer_out")
+      ?.filter((t) => t.transaction_type === "withdrawal")
       .reduce((sum, t) => sum + Number(t.amount), 0) || 0;
     
     const netFlow = totalDeposits - totalWithdrawals;
@@ -261,7 +258,7 @@ export default function AccountDetail() {
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
                 <CardTitle className="text-lg">Transaction History</CardTitle>
-                <CardDescription>Deposits, withdrawals, and transfers</CardDescription>
+                <CardDescription>Deposits and withdrawals</CardDescription>
               </div>
             </div>
           </CardHeader>
@@ -286,8 +283,6 @@ export default function AccountDetail() {
                   <SelectItem value="all">All Types</SelectItem>
                   <SelectItem value="deposit">Deposits</SelectItem>
                   <SelectItem value="withdrawal">Withdrawals</SelectItem>
-                  <SelectItem value="transfer_in">Transfer In</SelectItem>
-                  <SelectItem value="transfer_out">Transfer Out</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -300,7 +295,7 @@ export default function AccountDetail() {
               </div>
             ) : !filteredTransactions?.length ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
-                <ArrowLeftRight className="h-12 w-12 text-muted-foreground/50 mb-4" />
+                <ArrowDownCircle className="h-12 w-12 text-muted-foreground/50 mb-4" />
                 <h3 className="text-lg font-medium">
                   {transactions?.length ? "No matching transactions" : "No transactions yet"}
                 </h3>
@@ -324,8 +319,8 @@ export default function AccountDetail() {
                   <TableBody>
                     {filteredTransactions.map((tx) => {
                       const config = TRANSACTION_TYPE_CONFIG[tx.transaction_type];
-                      const TxIcon = config?.icon || ArrowLeftRight;
-                      const isCredit = tx.transaction_type === "deposit" || tx.transaction_type === "transfer_in";
+                      const TxIcon = config?.icon || ArrowDownCircle;
+                      const isCredit = tx.transaction_type === "deposit";
 
                       return (
                         <TableRow key={tx.id}>

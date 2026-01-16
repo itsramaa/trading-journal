@@ -23,7 +23,7 @@ const ACCOUNT_TYPE_ICONS: Record<AccountType, React.ElementType> = {
 
 interface AccountCardListProps {
   onSelectAccount?: (accountId: string) => void;
-  onTransact?: (accountId: string, type: 'deposit' | 'withdraw' | 'transfer') => void;
+  onTransact?: (accountId: string, type: 'deposit' | 'withdraw') => void;
   filterType?: AccountType;
   excludeBacktest?: boolean;
   backtestOnly?: boolean;
@@ -144,9 +144,6 @@ export function AccountCardList({
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onTransact?.(account.id, 'withdraw'); }}>
                     Withdraw
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onTransact?.(account.id, 'transfer'); }}>
-                    Transfer
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     className="text-destructive"

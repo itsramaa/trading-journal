@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import { ArrowDownCircle, ArrowUpCircle, ArrowLeftRight } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, FileText } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -20,8 +20,6 @@ const TRANSACTION_TYPE_CONFIG: Record<
 > = {
   deposit: { label: "Deposit", icon: ArrowDownCircle, variant: "default" },
   withdrawal: { label: "Withdrawal", icon: ArrowUpCircle, variant: "destructive" },
-  transfer_in: { label: "Transfer In", icon: ArrowLeftRight, variant: "secondary" },
-  transfer_out: { label: "Transfer Out", icon: ArrowLeftRight, variant: "outline" },
 };
 
 interface AccountTransactionsTableProps {
@@ -50,7 +48,7 @@ export function AccountTransactionsTable({ accountId, limit }: AccountTransactio
   if (!transactions?.length) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
-        <ArrowLeftRight className="h-12 w-12 text-muted-foreground/50 mb-4" />
+        <FileText className="h-12 w-12 text-muted-foreground/50 mb-4" />
         <h3 className="text-lg font-medium">No transactions yet</h3>
         <p className="text-sm text-muted-foreground mt-1">
           Start by making a deposit to fund your trading account.
@@ -73,9 +71,9 @@ export function AccountTransactionsTable({ accountId, limit }: AccountTransactio
         </TableHeader>
         <TableBody>
           {transactions.map((tx) => {
-            const config = TRANSACTION_TYPE_CONFIG[tx.transaction_type as AccountTransactionType];
-            const Icon = config?.icon || ArrowLeftRight;
-            const isCredit = tx.transaction_type === 'deposit' || tx.transaction_type === 'transfer_in';
+            const config = TRANSACTION_TYPE_CONFIG[tx.transaction_type];
+            const Icon = config?.icon || ArrowDownCircle;
+            const isCredit = tx.transaction_type === 'deposit';
 
             return (
               <TableRow key={tx.id}>

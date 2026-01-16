@@ -6,11 +6,8 @@
 // Simplified account types for trading journal
 export type AccountType = 'trading' | 'backtest' | 'funding';
 
-export type AccountTransactionType = 
-  | 'deposit' 
-  | 'withdrawal' 
-  | 'transfer_in' 
-  | 'transfer_out';
+// Simplified transaction types - only deposit and withdrawal
+export type AccountTransactionType = 'deposit' | 'withdrawal';
 
 export interface Account {
   id: string;
@@ -43,10 +40,6 @@ export interface AccountTransaction {
   amount: number;
   currency: string;
   sub_type: string | null;
-  category_id: string | null;
-  counterparty_account_id: string | null;
-  portfolio_transaction_id: string | null;
-  trade_entry_id: string | null;
   reference_id: string | null;
   description: string | null;
   notes: string | null;
