@@ -38,6 +38,13 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   return (
     <SidebarProvider>
+      {/* Skip to main content link for keyboard users */}
+      <a 
+        href="#main-content" 
+        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-4 focus:left-4 focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:rounded-md focus:outline-none"
+      >
+        Skip to main content
+      </a>
       <AppSidebar />
       <SidebarInset>
         {/* Global Risk Alert Banner */}
@@ -65,9 +72,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             <ThemeToggle />
           </div>
         </header>
-        <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+        <main id="main-content" className="flex flex-1 flex-col gap-4 p-4 pt-0">
           {children}
-        </div>
+        </main>
       </SidebarInset>
     </SidebarProvider>
   );
