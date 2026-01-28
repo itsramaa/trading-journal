@@ -24,9 +24,10 @@ const routeTitles: Record<string, string> = {
   "/trading": "Summary",
   "/trading/journal": "Trading Journal",
   "/trading/sessions": "Sessions",
-  "/trading/performance": "Performance",
+  "/trading/performance": "Analytics",
   "/trading/strategies": "Strategies",
   "/trading/insights": "AI Insights",
+  "/risk": "Risk Management",
   "/settings": "Settings",
   "/settings/trading": "Trading Settings",
 };

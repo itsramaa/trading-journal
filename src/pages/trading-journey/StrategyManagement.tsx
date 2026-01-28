@@ -1,3 +1,6 @@
+/**
+ * Strategy Management - Enhanced per Trading Journey Markdown spec
+ */
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -9,12 +12,14 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
-import { Plus, Target, MoreVertical, Edit, Trash2, Tag } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Plus, Target, MoreVertical, Edit, Trash2, Tag, Clock, TrendingUp, Shield, Zap } from "lucide-react";
 import { format } from "date-fns";
 import { 
   useTradingStrategies, 
@@ -23,6 +28,7 @@ import {
   useDeleteTradingStrategy,
   TradingStrategy 
 } from "@/hooks/use-trading-strategies";
+import { TIMEFRAME_OPTIONS, COMMON_PAIRS, type TimeframeType, type MarketType } from "@/types/strategy";
 
 const strategyColors = [
   { name: 'Blue', value: 'blue' },
@@ -51,6 +57,10 @@ const strategyFormSchema = z.object({
   description: z.string().max(500, "Description must be 500 characters or less").optional(),
   tags: z.string().optional(),
   color: z.string().default('blue'),
+  timeframe: z.string().optional(),
+  market_type: z.string().default('spot'),
+  min_confluences: z.number().min(1).max(10).default(4),
+  min_rr: z.number().min(0.5).max(10).default(1.5),
 });
 
 type StrategyFormValues = z.infer<typeof strategyFormSchema>;
@@ -60,6 +70,8 @@ export default function StrategyManagement() {
   const [editingStrategy, setEditingStrategy] = useState<TradingStrategy | null>(null);
   const [deletingStrategy, setDeletingStrategy] = useState<TradingStrategy | null>(null);
   const [selectedColor, setSelectedColor] = useState('blue');
+  const [selectedTimeframe, setSelectedTimeframe] = useState<string>('');
+  const [selectedMarketType, setSelectedMarketType] = useState<string>('spot');
 
   const { data: strategies, isLoading } = useTradingStrategies();
   const createStrategy = useCreateTradingStrategy();
@@ -73,12 +85,27 @@ export default function StrategyManagement() {
       description: '',
       tags: '',
       color: 'blue',
+      timeframe: '',
+      market_type: 'spot',
+      min_confluences: 4,
+      min_rr: 1.5,
     },
   });
 
   const handleOpenAdd = () => {
-    form.reset({ name: '', description: '', tags: '', color: 'blue' });
+    form.reset({ 
+      name: '', 
+      description: '', 
+      tags: '', 
+      color: 'blue',
+      timeframe: '',
+      market_type: 'spot',
+      min_confluences: 4,
+      min_rr: 1.5,
+    });
     setSelectedColor('blue');
+    setSelectedTimeframe('');
+    setSelectedMarketType('spot');
     setEditingStrategy(null);
     setIsAddOpen(true);
   };
@@ -89,8 +116,12 @@ export default function StrategyManagement() {
       description: strategy.description || '',
       tags: strategy.tags?.join(', ') || '',
       color: strategy.color || 'blue',
+      min_confluences: 4,
+      min_rr: 1.5,
     });
     setSelectedColor(strategy.color || 'blue');
+    setSelectedTimeframe('');
+    setSelectedMarketType('spot');
     setEditingStrategy(strategy);
     setIsAddOpen(true);
   };
@@ -140,7 +171,7 @@ export default function StrategyManagement() {
       <DashboardLayout>
         <div className="space-y-6">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Strategy Management</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Strategy & Rules</h1>
             <p className="text-muted-foreground">Create and manage your trading strategies</p>
           </div>
           <MetricsGridSkeleton />
@@ -154,8 +185,8 @@ export default function StrategyManagement() {
       <div className="space-y-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Strategy Management</h1>
-            <p className="text-muted-foreground">Create and manage your trading strategies</p>
+            <h1 className="text-3xl font-bold tracking-tight">Strategy & Rules</h1>
+            <p className="text-muted-foreground">Create and manage your trading strategies with entry/exit rules</p>
           </div>
           <Button onClick={handleOpenAdd}>
             <Plus className="mr-2 h-4 w-4" />
@@ -164,7 +195,7 @@ export default function StrategyManagement() {
         </div>
 
         {/* Stats */}
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-4">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium">Total Strategies</CardTitle>
@@ -175,52 +206,33 @@ export default function StrategyManagement() {
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Most Used Tags</CardTitle>
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <Zap className="h-4 w-4 text-primary" />
+                Active
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex flex-wrap gap-1">
-                {strategies?.flatMap(s => s.tags || [])
-                  .reduce((acc, tag) => {
-                    acc[tag] = (acc[tag] || 0) + 1;
-                    return acc;
-                  }, {} as Record<string, number>)
-                  ? Object.entries(
-                      strategies?.flatMap(s => s.tags || [])
-                        .reduce((acc, tag) => {
-                          acc[tag] = (acc[tag] || 0) + 1;
-                          return acc;
-                        }, {} as Record<string, number>) || {}
-                    )
-                    .sort((a, b) => b[1] - a[1])
-                    .slice(0, 3)
-                    .map(([tag]) => (
-                      <Badge key={tag} variant="outline" className="text-xs">
-                        {tag}
-                      </Badge>
-                    ))
-                  : <span className="text-muted-foreground text-sm">No tags yet</span>
-                }
+              <div className="text-2xl font-bold">
+                {strategies?.filter(s => s.is_active).length || 0}
               </div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Color Distribution</CardTitle>
+              <CardTitle className="text-sm font-medium">Spot Strategies</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex gap-1">
-                {strategyColors.slice(0, 6).map(color => {
-                  const count = strategies?.filter(s => s.color === color.value).length || 0;
-                  return count > 0 ? (
-                    <div
-                      key={color.value}
-                      className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${colorClasses[color.value]}`}
-                    >
-                      {count}
-                    </div>
-                  ) : null;
-                })}
+              <div className="text-2xl font-bold">
+                {strategies?.length || 0}
               </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Futures Strategies</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">0</div>
             </CardContent>
           </Card>
         </div>
@@ -273,10 +285,26 @@ export default function StrategyManagement() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
+                    {/* Strategy metadata badges */}
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="outline" className="text-xs">
+                        <TrendingUp className="h-3 w-3 mr-1" />
+                        Spot
+                      </Badge>
+                      <Badge variant="outline" className="text-xs">
+                        <Shield className="h-3 w-3 mr-1" />
+                        4 confluences
+                      </Badge>
+                      <Badge variant="outline" className="text-xs">
+                        <Target className="h-3 w-3 mr-1" />
+                        1.5:1 R:R
+                      </Badge>
+                    </div>
+
                     {strategy.tags && strategy.tags.length > 0 && (
                       <div className="flex flex-wrap gap-1">
                         {strategy.tags.map((tag) => (
-                          <Badge key={tag} variant="outline" className="text-xs">
+                          <Badge key={tag} variant="secondary" className="text-xs">
                             <Tag className="h-3 w-3 mr-1" />
                             {tag}
                           </Badge>
@@ -295,57 +323,151 @@ export default function StrategyManagement() {
 
         {/* Add/Edit Dialog */}
         <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {editingStrategy ? 'Edit Strategy' : 'Create Strategy'}
               </DialogTitle>
             </DialogHeader>
-            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 pt-4">
-              <div className="space-y-2">
-                <Label>Name *</Label>
-                <Input {...form.register("name")} placeholder="e.g., Breakout Strategy" />
-                {form.formState.errors.name && (
-                  <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>
-                )}
-              </div>
+            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6 pt-4">
+              <Tabs defaultValue="basic" className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="basic">Basic Info</TabsTrigger>
+                  <TabsTrigger value="rules">Rules & Settings</TabsTrigger>
+                </TabsList>
 
-              <div className="space-y-2">
-                <Label>Description</Label>
-                <Textarea 
-                  {...form.register("description")} 
-                  placeholder="Describe when and how you use this strategy..."
-                  rows={3}
-                />
-              </div>
+                <TabsContent value="basic" className="space-y-4 pt-4">
+                  <div className="space-y-2">
+                    <Label>Name *</Label>
+                    <Input {...form.register("name")} placeholder="e.g., Breakout Strategy" />
+                    {form.formState.errors.name && (
+                      <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>
+                    )}
+                  </div>
 
-              <div className="space-y-2">
-                <Label>Tags (comma-separated)</Label>
-                <Input 
-                  {...form.register("tags")} 
-                  placeholder="e.g., momentum, trend-following, scalping"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Color</Label>
-                <div className="flex flex-wrap gap-2">
-                  {strategyColors.map((color) => (
-                    <button
-                      key={color.value}
-                      type="button"
-                      onClick={() => setSelectedColor(color.value)}
-                      className={`w-8 h-8 rounded-full border-2 transition-all ${
-                        colorClasses[color.value]?.split(' ')[0]
-                      } ${
-                        selectedColor === color.value
-                          ? 'ring-2 ring-offset-2 ring-primary'
-                          : 'opacity-60 hover:opacity-100'
-                      }`}
+                  <div className="space-y-2">
+                    <Label>Description</Label>
+                    <Textarea 
+                      {...form.register("description")} 
+                      placeholder="Describe when and how you use this strategy..."
+                      rows={3}
                     />
-                  ))}
-                </div>
-              </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Timeframe</Label>
+                      <Select value={selectedTimeframe} onValueChange={setSelectedTimeframe}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select timeframe" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TIMEFRAME_OPTIONS.map(tf => (
+                            <SelectItem key={tf.value} value={tf.value}>
+                              {tf.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Market Type</Label>
+                      <Select value={selectedMarketType} onValueChange={setSelectedMarketType}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select market" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="spot">Spot</SelectItem>
+                          <SelectItem value="futures">Futures</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Tags (comma-separated)</Label>
+                    <Input 
+                      {...form.register("tags")} 
+                      placeholder="e.g., momentum, trend-following, scalping"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Color</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {strategyColors.map((color) => (
+                        <button
+                          key={color.value}
+                          type="button"
+                          onClick={() => setSelectedColor(color.value)}
+                          className={`w-8 h-8 rounded-full border-2 transition-all ${
+                            colorClasses[color.value]?.split(' ')[0]
+                          } ${
+                            selectedColor === color.value
+                              ? 'ring-2 ring-offset-2 ring-primary'
+                              : 'opacity-60 hover:opacity-100'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="rules" className="space-y-4 pt-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Min. Confluences</Label>
+                      <Input 
+                        type="number"
+                        {...form.register("min_confluences", { valueAsNumber: true })} 
+                        min={1}
+                        max={10}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Minimum indicators needed before entry
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Min. Risk:Reward</Label>
+                      <Input 
+                        type="number"
+                        {...form.register("min_rr", { valueAsNumber: true })} 
+                        min={0.5}
+                        max={10}
+                        step={0.1}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Minimum R:R ratio for entries
+                      </p>
+                    </div>
+                  </div>
+
+                  <Card className="bg-muted/50">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm">Entry Rules (Coming Soon)</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-xs text-muted-foreground">
+                        Define specific entry conditions like price action at S/R, volume confirmation, 
+                        technical indicators, and higher timeframe alignment.
+                      </p>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="bg-muted/50">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm">Exit Rules (Coming Soon)</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-xs text-muted-foreground">
+                        Configure take profit, stop loss, and trailing stop parameters for this strategy.
+                      </p>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              </Tabs>
 
               <div className="flex gap-2 pt-4">
                 <Button
