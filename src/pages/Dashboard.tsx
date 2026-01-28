@@ -141,6 +141,72 @@ const Dashboard = () => {
 
         <Separator />
 
+        {/* Portfolio Performance Overview */}
+        {trades.length > 0 && (
+          <section className="space-y-4">
+            <div className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-primary" />
+              <h2 className="text-lg font-semibold">Portfolio Performance</h2>
+            </div>
+            <div className="grid gap-4 md:grid-cols-4">
+              <Card className="bg-primary/5 border-primary/20">
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Win Rate</p>
+                      <p className="text-2xl font-bold">{tradingStats.winRate.toFixed(1)}%</p>
+                    </div>
+                    <Target className="h-8 w-8 text-primary/50" />
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="bg-primary/5 border-primary/20">
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Profit Factor</p>
+                      <p className="text-2xl font-bold">
+                        {tradingStats.profitFactor === Infinity ? '∞' : tradingStats.profitFactor.toFixed(2)}
+                      </p>
+                    </div>
+                    <TrendingUp className="h-8 w-8 text-primary/50" />
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className={`${tradingStats.totalPnl >= 0 ? 'bg-green-500/10 border-green-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Total P&L</p>
+                      <p className={`text-2xl font-bold ${tradingStats.totalPnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        {tradingStats.totalPnl >= 0 ? '+' : ''}${tradingStats.totalPnl.toFixed(2)}
+                      </p>
+                    </div>
+                    {tradingStats.totalPnl >= 0 ? (
+                      <TrendingUp className="h-8 w-8 text-green-500/50" />
+                    ) : (
+                      <TrendingDown className="h-8 w-8 text-red-500/50" />
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="bg-muted/30">
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Expectancy</p>
+                      <p className="text-2xl font-bold">${tradingStats.expectancy.toFixed(2)}</p>
+                    </div>
+                    <Activity className="h-8 w-8 text-muted-foreground/50" />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </section>
+        )}
+
+        <Separator />
+
         {/* Quick Actions */}
         <section className="space-y-4">
           <h2 className="text-lg font-semibold">Quick Actions</h2>

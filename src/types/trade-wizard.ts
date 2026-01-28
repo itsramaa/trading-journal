@@ -71,6 +71,8 @@ export interface FinalChecklistData {
   confidenceLevel: number;
   followingRules: boolean;
   tradeComment: string;
+  aiQualityScore?: number;
+  aiConfidence?: number;
 }
 
 export interface WizardState {

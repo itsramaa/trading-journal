@@ -113,6 +113,8 @@ export function FinalChecklist({ onNext, onBack }: FinalChecklistProps) {
       confidenceLevel,
       followingRules,
       tradeComment,
+      aiQualityScore: aiResult?.score,
+      aiConfidence: aiResult?.confidence,
     });
     onNext();
   };

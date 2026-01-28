@@ -116,12 +116,12 @@ export default function StrategyManagement() {
       description: strategy.description || '',
       tags: strategy.tags?.join(', ') || '',
       color: strategy.color || 'blue',
-      min_confluences: 4,
-      min_rr: 1.5,
+      min_confluences: strategy.min_confluences || 4,
+      min_rr: strategy.min_rr || 1.5,
     });
     setSelectedColor(strategy.color || 'blue');
-    setSelectedTimeframe('');
-    setSelectedMarketType('spot');
+    setSelectedTimeframe(strategy.timeframe || '');
+    setSelectedMarketType(strategy.market_type || 'spot');
     setEditingStrategy(strategy);
     setIsAddOpen(true);
   };
@@ -139,6 +139,10 @@ export default function StrategyManagement() {
           description: values.description,
           tags: tagsArray,
           color: selectedColor,
+          timeframe: selectedTimeframe as any || undefined,
+          market_type: selectedMarketType as any || 'spot',
+          min_confluences: values.min_confluences,
+          min_rr: values.min_rr,
         });
       } else {
         await createStrategy.mutateAsync({
@@ -146,6 +150,10 @@ export default function StrategyManagement() {
           description: values.description,
           tags: tagsArray,
           color: selectedColor,
+          timeframe: selectedTimeframe as any || undefined,
+          market_type: selectedMarketType as any || 'spot',
+          min_confluences: values.min_confluences,
+          min_rr: values.min_rr,
         });
       }
       setIsAddOpen(false);
@@ -285,19 +293,25 @@ export default function StrategyManagement() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {/* Strategy metadata badges */}
+                    {/* Strategy metadata badges - now using actual data */}
                     <div className="flex flex-wrap gap-2">
+                      {strategy.timeframe && (
+                        <Badge variant="outline" className="text-xs">
+                          <Clock className="h-3 w-3 mr-1" />
+                          {strategy.timeframe}
+                        </Badge>
+                      )}
                       <Badge variant="outline" className="text-xs">
                         <TrendingUp className="h-3 w-3 mr-1" />
-                        Spot
+                        {strategy.market_type || 'spot'}
                       </Badge>
                       <Badge variant="outline" className="text-xs">
                         <Shield className="h-3 w-3 mr-1" />
-                        4 confluences
+                        {strategy.min_confluences || 4} confluences
                       </Badge>
                       <Badge variant="outline" className="text-xs">
                         <Target className="h-3 w-3 mr-1" />
-                        1.5:1 R:R
+                        {strategy.min_rr || 1.5}:1 R:R
                       </Badge>
                     </div>
 
