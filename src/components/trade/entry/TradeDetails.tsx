@@ -1,5 +1,6 @@
 /**
  * Step 3: Trade Details
+ * Now integrates with centralized trading pairs from database
  */
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -10,9 +11,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { FileText, TrendingUp, TrendingDown, Clock } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { FileText, TrendingUp, TrendingDown, Clock, RefreshCw } from "lucide-react";
 import { useTradeEntryWizard } from "@/features/trade/useTradeEntryWizard";
 import { TIMEFRAME_OPTIONS, type TimeframeType } from "@/types/strategy";
+import { useTradingPairs, useSyncTradingPairs } from "@/hooks/use-trading-pairs";
 
 const tradeDetailsSchema = z.object({
   pair: z.string().min(1, "Pair is required"),
@@ -33,6 +36,10 @@ interface TradeDetailsProps {
 export function TradeDetails({ onNext, onBack }: TradeDetailsProps) {
   const wizard = useTradeEntryWizard();
   const strategyDetails = wizard.strategyDetails;
+  
+  // Fetch trading pairs from database
+  const { data: tradingPairs, isLoading: pairsLoading } = useTradingPairs();
+  const syncPairs = useSyncTradingPairs();
 
   const form = useForm<TradeDetailsFormValues>({
     resolver: zodResolver(tradeDetailsSchema),
@@ -94,15 +101,67 @@ export function TradeDetails({ onNext, onBack }: TradeDetailsProps) {
             {/* Pair and Direction */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="pair">Trading Pair *</Label>
-                <Input
-                  id="pair"
-                  {...form.register("pair")}
-                  placeholder="BTC/USDT"
-                  className="uppercase"
-                  aria-describedby={form.formState.errors.pair ? "pair-error" : undefined}
-                  aria-invalid={!!form.formState.errors.pair}
-                />
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="pair">Trading Pair *</Label>
+                  {tradingPairs && tradingPairs.length > 0 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 text-xs"
+                      onClick={() => syncPairs.mutate()}
+                      disabled={syncPairs.isPending}
+                    >
+                      <RefreshCw className={`h-3 w-3 mr-1 ${syncPairs.isPending ? 'animate-spin' : ''}`} />
+                      Sync
+                    </Button>
+                  )}
+                </div>
+                
+                {pairsLoading ? (
+                  <Skeleton className="h-10 w-full" />
+                ) : tradingPairs && tradingPairs.length > 0 ? (
+                  <Select
+                    value={form.watch("pair")}
+                    onValueChange={(value) => form.setValue("pair", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select trading pair" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      {tradingPairs.map((pair) => (
+                        <SelectItem key={pair.symbol} value={pair.symbol}>
+                          {pair.symbol}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <>
+                    <Input
+                      id="pair"
+                      {...form.register("pair")}
+                      placeholder="BTCUSDT"
+                      className="uppercase"
+                      aria-describedby={form.formState.errors.pair ? "pair-error" : undefined}
+                      aria-invalid={!!form.formState.errors.pair}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      No pairs synced yet.{" "}
+                      <Button
+                        type="button"
+                        variant="link"
+                        size="sm"
+                        className="h-auto p-0 text-xs"
+                        onClick={() => syncPairs.mutate()}
+                        disabled={syncPairs.isPending}
+                      >
+                        Sync from Binance
+                      </Button>
+                    </p>
+                  </>
+                )}
+                
                 {form.formState.errors.pair && (
                   <p id="pair-error" className="text-xs text-destructive" role="alert">
                     {form.formState.errors.pair.message}
@@ -110,7 +169,7 @@ export function TradeDetails({ onNext, onBack }: TradeDetailsProps) {
                 )}
                 {validPairs.length > 0 && (
                   <div className="flex flex-wrap gap-1 mt-2">
-                    <span className="text-xs text-muted-foreground">Valid pairs:</span>
+                    <span className="text-xs text-muted-foreground">Strategy pairs:</span>
                     {validPairs.map((pair: string) => (
                       <Badge
                         key={pair}

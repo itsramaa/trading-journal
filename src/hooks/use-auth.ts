@@ -57,23 +57,6 @@ export function useAuth() {
       subscription_status: 'active',
     }, { onConflict: 'user_id', ignoreDuplicates: true });
 
-    // Create default emergency fund account (type: emergency)
-    await supabase.from('accounts').upsert({
-      user_id: user.id,
-      name: 'Emergency Fund',
-      account_type: 'emergency',
-      balance: 0,
-      currency: 'IDR',
-      is_system: true,
-      is_active: true,
-      description: 'Default emergency fund account',
-      metadata: JSON.stringify({
-        monthly_expenses: 0,
-        target_months: 6,
-        monthly_contribution: 0,
-      }),
-    }, { onConflict: 'user_id,name,account_type', ignoreDuplicates: true });
-
     // Create default trading account (type: trading)
     await supabase.from('accounts').upsert({
       user_id: user.id,

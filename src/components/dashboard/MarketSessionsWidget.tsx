@@ -1,6 +1,7 @@
 /**
  * Market Sessions Widget - Compact display for Dashboard
  * Shows live status of Sydney, Tokyo, London, NY sessions with progress
+ * Times converted to user's local timezone
  */
 import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -8,62 +9,83 @@ import { Badge } from "@/components/ui/badge";
 import { Clock, Activity, Sun, Sunrise, Sunset } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// Market session data (times in UTC)
+// Market session data (times in UTC for calculations)
 const MARKET_SESSIONS = [
   { 
     name: 'Sydney', 
-    openHour: 21, 
-    closeHour: 6,
+    // Sydney session: 07:00-16:00 AEDT (UTC+11)
+    // In UTC: 20:00-05:00
+    utcOpenHour: 20, 
+    utcCloseHour: 5,
     icon: Sunrise,
     color: 'bg-purple-500',
   },
   { 
     name: 'Tokyo', 
-    openHour: 23, 
-    closeHour: 8,
+    // Tokyo session: 09:00-18:00 JST (UTC+9)
+    // In UTC: 00:00-09:00
+    utcOpenHour: 0, 
+    utcCloseHour: 9,
     icon: Sun,
     color: 'bg-red-500',
   },
   { 
     name: 'London', 
-    openHour: 7, 
-    closeHour: 16,
+    // London session: 08:00-17:00 GMT/BST (UTC+0/+1)
+    // In UTC (winter): 08:00-17:00
+    utcOpenHour: 8, 
+    utcCloseHour: 17,
     icon: Activity,
     color: 'bg-blue-500',
   },
   { 
     name: 'New York', 
-    openHour: 12, 
-    closeHour: 21,
+    // NY session: 08:00-17:00 EST (UTC-5)
+    // In UTC: 13:00-22:00
+    utcOpenHour: 13, 
+    utcCloseHour: 22,
     icon: Sunset,
     color: 'bg-green-500',
   },
 ];
 
-function isSessionActive(session: typeof MARKET_SESSIONS[0], currentHour: number): boolean {
-  const { openHour, closeHour } = session;
-  
-  // Handle sessions that span midnight
-  if (openHour > closeHour) {
-    return currentHour >= openHour || currentHour < closeHour;
-  }
-  return currentHour >= openHour && currentHour < closeHour;
+// Get user's timezone offset in hours
+function getTimezoneOffset(): number {
+  return new Date().getTimezoneOffset() / -60;
 }
 
-function getSessionProgress(session: typeof MARKET_SESSIONS[0], currentHour: number): number {
-  if (!isSessionActive(session, currentHour)) return 0;
+// Convert UTC hour to local hour
+function utcToLocalHour(utcHour: number): number {
+  const offset = getTimezoneOffset();
+  let localHour = (utcHour + offset) % 24;
+  if (localHour < 0) localHour += 24;
+  return localHour;
+}
+
+function isSessionActive(session: typeof MARKET_SESSIONS[0], currentUtcHour: number): boolean {
+  const { utcOpenHour, utcCloseHour } = session;
   
-  const { openHour, closeHour } = session;
+  // Handle sessions that span midnight UTC
+  if (utcOpenHour > utcCloseHour) {
+    return currentUtcHour >= utcOpenHour || currentUtcHour < utcCloseHour;
+  }
+  return currentUtcHour >= utcOpenHour && currentUtcHour < utcCloseHour;
+}
+
+function getSessionProgress(session: typeof MARKET_SESSIONS[0], currentUtcHour: number): number {
+  if (!isSessionActive(session, currentUtcHour)) return 0;
+  
+  const { utcOpenHour, utcCloseHour } = session;
   let duration: number;
   let elapsed: number;
   
-  if (openHour > closeHour) {
+  if (utcOpenHour > utcCloseHour) {
     // Session spans midnight
-    duration = (24 - openHour) + closeHour;
-    elapsed = currentHour >= openHour ? currentHour - openHour : (24 - openHour) + currentHour;
+    duration = (24 - utcOpenHour) + utcCloseHour;
+    elapsed = currentUtcHour >= utcOpenHour ? currentUtcHour - utcOpenHour : (24 - utcOpenHour) + currentUtcHour;
   } else {
-    duration = closeHour - openHour;
-    elapsed = currentHour - openHour;
+    duration = utcCloseHour - utcOpenHour;
+    elapsed = currentUtcHour - utcOpenHour;
   }
   
   return Math.min(100, (elapsed / duration) * 100);
@@ -81,25 +103,34 @@ function getTimezoneAbbreviation(): string {
   return tz?.value || 'Local';
 }
 
+// Format session time range in user's local time
+function formatSessionTimeLocal(session: typeof MARKET_SESSIONS[0]): string {
+  const openLocal = utcToLocalHour(session.utcOpenHour);
+  const closeLocal = utcToLocalHour(session.utcCloseHour);
+  return `${formatTime(openLocal)}-${formatTime(closeLocal)}`;
+}
+
 export function MarketSessionsWidget() {
-  // Use local time instead of UTC
-  const [currentHour, setCurrentHour] = useState(new Date().getHours());
+  // Track both local hour (for display) and UTC hour (for session calculations)
+  const [currentLocalHour, setCurrentLocalHour] = useState(new Date().getHours());
+  const [currentUtcHour, setCurrentUtcHour] = useState(new Date().getUTCHours());
   const [timezone, setTimezone] = useState(getTimezoneAbbreviation());
   
   useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentHour(new Date().getHours());
+      setCurrentLocalHour(new Date().getHours());
+      setCurrentUtcHour(new Date().getUTCHours());
       setTimezone(getTimezoneAbbreviation());
     }, 60000); // Update every minute
     
     return () => clearInterval(interval);
   }, []);
   
-  const activeSessions = MARKET_SESSIONS.filter(s => isSessionActive(s, currentHour));
+  const activeSessions = MARKET_SESSIONS.filter(s => isSessionActive(s, currentUtcHour));
   
   // Check for session overlaps
-  const hasLondonNYOverlap = isSessionActive(MARKET_SESSIONS[2], currentHour) && isSessionActive(MARKET_SESSIONS[3], currentHour);
-  const hasTokyoLondonOverlap = isSessionActive(MARKET_SESSIONS[1], currentHour) && isSessionActive(MARKET_SESSIONS[2], currentHour);
+  const hasLondonNYOverlap = isSessionActive(MARKET_SESSIONS[2], currentUtcHour) && isSessionActive(MARKET_SESSIONS[3], currentUtcHour);
+  const hasTokyoLondonOverlap = isSessionActive(MARKET_SESSIONS[1], currentUtcHour) && isSessionActive(MARKET_SESSIONS[2], currentUtcHour);
 
   return (
     <Card>
@@ -123,7 +154,7 @@ export function MarketSessionsWidget() {
           </div>
           <Badge variant="outline" className="font-mono text-xs">
             <Clock className="h-3 w-3 mr-1" />
-            {formatTime(currentHour)} {timezone}
+            {formatTime(currentLocalHour)} {timezone}
           </Badge>
         </div>
 
@@ -141,8 +172,8 @@ export function MarketSessionsWidget() {
         <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
           {MARKET_SESSIONS.map((session) => {
             const Icon = session.icon;
-            const isActive = isSessionActive(session, currentHour);
-            const progress = getSessionProgress(session, currentHour);
+            const isActive = isSessionActive(session, currentUtcHour);
+            const progress = getSessionProgress(session, currentUtcHour);
             
             return (
               <div 
@@ -164,7 +195,7 @@ export function MarketSessionsWidget() {
                 </div>
                 <h4 className="font-medium text-sm">{session.name}</h4>
                 <p className="text-xs text-muted-foreground">
-                  {formatTime(session.openHour)}-{formatTime(session.closeHour)}
+                  {formatSessionTimeLocal(session)}
                 </p>
                 {isActive && (
                   <div className="mt-2">

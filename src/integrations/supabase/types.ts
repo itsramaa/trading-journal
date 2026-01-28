@@ -492,6 +492,39 @@ export type Database = {
           },
         ]
       }
+      trading_pairs: {
+        Row: {
+          base_asset: string
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          last_synced_at: string | null
+          quote_asset: string
+          source: string | null
+          symbol: string
+        }
+        Insert: {
+          base_asset: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_synced_at?: string | null
+          quote_asset: string
+          source?: string | null
+          symbol: string
+        }
+        Update: {
+          base_asset?: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_synced_at?: string | null
+          quote_asset?: string
+          source?: string | null
+          symbol?: string
+        }
+        Relationships: []
+      }
       trading_sessions: {
         Row: {
           created_at: string

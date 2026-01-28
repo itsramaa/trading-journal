@@ -1,7 +1,8 @@
 /**
  * Position Size Calculator Component - Per Trading Journey Markdown spec
+ * Now uses risk profile settings and account balances as defaults
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,9 +10,11 @@ import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Calculator, AlertTriangle, CheckCircle, TrendingUp, TrendingDown } from "lucide-react";
 import { calculatePositionSize } from "@/lib/calculations/position-sizing";
 import { useRiskProfile } from "@/hooks/use-risk-profile";
+import { useAccounts } from "@/hooks/use-accounts";
 
 interface PositionSizeCalculatorProps {
   accountBalance?: number;
@@ -19,17 +22,42 @@ interface PositionSizeCalculatorProps {
 }
 
 export function PositionSizeCalculator({ 
-  accountBalance: initialBalance = 10000,
+  accountBalance: initialBalance,
   onCalculate 
 }: PositionSizeCalculatorProps) {
-  const { data: riskProfile } = useRiskProfile();
+  const { data: riskProfile, isLoading: profileLoading } = useRiskProfile();
+  const { data: accounts, isLoading: accountsLoading } = useAccounts();
   
-  const [accountBalance, setAccountBalance] = useState(initialBalance);
-  const [riskPercent, setRiskPercent] = useState(riskProfile?.risk_per_trade_percent || 2);
+  // Get total trading account balance
+  const tradingBalance = useMemo(() => {
+    if (!accounts) return initialBalance || 10000;
+    const tradingAccounts = accounts.filter(a => 
+      a.account_type === 'trading' && a.is_active
+    );
+    const total = tradingAccounts.reduce((sum, a) => sum + (a.balance || 0), 0);
+    return total > 0 ? total : (initialBalance || 10000);
+  }, [accounts, initialBalance]);
+  
+  const [accountBalance, setAccountBalance] = useState(tradingBalance);
+  const [riskPercent, setRiskPercent] = useState(2);
   const [entryPrice, setEntryPrice] = useState(50000);
   const [stopLossPrice, setStopLossPrice] = useState(49000);
   const [direction, setDirection] = useState<'long' | 'short'>('long');
   const [leverage, setLeverage] = useState(1);
+
+  // Update when risk profile loads
+  useEffect(() => {
+    if (riskProfile?.risk_per_trade_percent) {
+      setRiskPercent(riskProfile.risk_per_trade_percent);
+    }
+  }, [riskProfile]);
+  
+  // Update when trading balance changes
+  useEffect(() => {
+    if (tradingBalance > 0) {
+      setAccountBalance(tradingBalance);
+    }
+  }, [tradingBalance]);
 
   const result = useMemo(() => {
     const calc = calculatePositionSize({
@@ -57,6 +85,29 @@ export function PositionSizeCalculator({
     return value.toFixed(8);
   };
 
+  const isLoading = profileLoading || accountsLoading;
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Calculator className="h-5 w-5" />
+            Position Size Calculator
+          </CardTitle>
+          <CardDescription>
+            Loading your risk settings...
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-32 w-full" />
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -66,6 +117,11 @@ export function PositionSizeCalculator({
         </CardTitle>
         <CardDescription>
           Calculate optimal position size based on your risk parameters
+          {riskProfile && (
+            <span className="block text-xs mt-1 text-primary">
+              Using your Risk Profile settings
+            </span>
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -79,6 +135,11 @@ export function PositionSizeCalculator({
               onChange={(e) => setAccountBalance(Number(e.target.value))}
               min={0}
             />
+            {accounts && accounts.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                From {accounts.filter(a => a.account_type === 'trading' && a.is_active).length} active trading account(s)
+              </p>
+            )}
           </div>
           
           <div className="space-y-2">
@@ -94,6 +155,11 @@ export function PositionSizeCalculator({
               />
               <span className="w-12 text-right font-medium">{riskPercent}%</span>
             </div>
+            {riskProfile && (
+              <p className="text-xs text-muted-foreground">
+                Profile default: {riskProfile.risk_per_trade_percent}%
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">
