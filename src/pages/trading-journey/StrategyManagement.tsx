@@ -76,6 +76,7 @@ export default function StrategyManagement() {
   const [selectedColor, setSelectedColor] = useState('blue');
   const [selectedTimeframe, setSelectedTimeframe] = useState<string>('');
   const [selectedMarketType, setSelectedMarketType] = useState<string>('spot');
+  const [selectedValidPairs, setSelectedValidPairs] = useState<string[]>(['BTC', 'ETH', 'BNB']);
   const [entryRules, setEntryRules] = useState<EntryRule[]>([]);
   const [exitRules, setExitRules] = useState<ExitRule[]>([]);
 
@@ -113,6 +114,7 @@ export default function StrategyManagement() {
     setSelectedColor('blue');
     setSelectedTimeframe('');
     setSelectedMarketType('spot');
+    setSelectedValidPairs(['BTC', 'ETH', 'BNB']);
     setEntryRules(DEFAULT_ENTRY_RULES.slice(0, 4)); // Start with 4 default entry rules
     setExitRules(DEFAULT_EXIT_RULES);
     setEditingStrategy(null);
@@ -131,6 +133,7 @@ export default function StrategyManagement() {
     setSelectedColor(strategy.color || 'blue');
     setSelectedTimeframe(strategy.timeframe || '');
     setSelectedMarketType(strategy.market_type || 'spot');
+    setSelectedValidPairs(strategy.valid_pairs || ['BTC', 'ETH', 'BNB']);
     setEntryRules(strategy.entry_rules || []);
     setExitRules(strategy.exit_rules || []);
     setEditingStrategy(strategy);
@@ -154,6 +157,7 @@ export default function StrategyManagement() {
           market_type: selectedMarketType as any || 'spot',
           min_confluences: values.min_confluences,
           min_rr: values.min_rr,
+          valid_pairs: selectedValidPairs,
           entry_rules: entryRules,
           exit_rules: exitRules,
         });
@@ -167,6 +171,7 @@ export default function StrategyManagement() {
           market_type: selectedMarketType as any || 'spot',
           min_confluences: values.min_confluences,
           min_rr: values.min_rr,
+          valid_pairs: selectedValidPairs,
           entry_rules: entryRules,
           exit_rules: exitRules,
         });
@@ -468,8 +473,37 @@ export default function StrategyManagement() {
                           <SelectItem value="spot">Spot</SelectItem>
                           <SelectItem value="futures">Futures</SelectItem>
                         </SelectContent>
-                      </Select>
+                    </Select>
                     </div>
+                  </div>
+
+                  {/* Valid Pairs Multi-select */}
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <Target className="h-4 w-4" />
+                      Valid Trading Pairs
+                    </Label>
+                    <div className="flex flex-wrap gap-2 p-3 rounded-lg border bg-muted/30 min-h-[60px]">
+                      {COMMON_PAIRS.map((pair) => (
+                        <Badge
+                          key={pair}
+                          variant={selectedValidPairs.includes(pair) ? "default" : "outline"}
+                          className="cursor-pointer transition-all hover:scale-105"
+                          onClick={() => {
+                            setSelectedValidPairs(prev => 
+                              prev.includes(pair)
+                                ? prev.filter(p => p !== pair)
+                                : [...prev, pair]
+                            );
+                          }}
+                        >
+                          {pair}
+                        </Badge>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Click to select pairs valid for this strategy. Selected: {selectedValidPairs.length}
+                    </p>
                   </div>
 
                   <div className="space-y-2">
