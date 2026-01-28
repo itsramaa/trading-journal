@@ -20,23 +20,13 @@ export const accountTransactionKeys = {
   byAccount: (accountId: string) => [...accountTransactionKeys.all, 'account', accountId] as const,
 };
 
-// Map database account types to our simplified types
+// Map database account types to our simplified types (only trading and backtest)
 function mapAccountType(dbType: string, metadata: any): AccountType {
   // Check if it's a backtest account
   if (metadata?.is_backtest) return 'backtest';
   
-  // Map database types to our simplified types
-  switch (dbType) {
-    case 'trading':
-    case 'broker':
-      return 'trading';
-    case 'bank':
-    case 'ewallet':
-    case 'cash':
-      return 'funding';
-    default:
-      return 'trading';
-  }
+  // All other types map to trading
+  return 'trading';
 }
 
 // ============= Account Hooks =============

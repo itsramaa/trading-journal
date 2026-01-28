@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { CandlestickChart, FlaskConical, Wallet, MoreHorizontal, Trash2, ChevronRight } from "lucide-react";
+import { CandlestickChart, FlaskConical, MoreHorizontal, Trash2, ChevronRight } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,7 +18,6 @@ import { toast } from "sonner";
 const ACCOUNT_TYPE_ICONS: Record<AccountType, React.ElementType> = {
   trading: CandlestickChart,
   backtest: FlaskConical,
-  funding: Wallet,
 };
 
 interface AccountCardListProps {

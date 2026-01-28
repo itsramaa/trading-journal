@@ -48,6 +48,7 @@ const enTranslations = {
     riskManagement: 'Risk Management',
     aiAssistant: 'AI Assistant',
     marketCalendar: 'Market Calendar',
+    tradingJourney: 'Trading Journey',
   },
 
   // Dashboard
@@ -209,6 +210,7 @@ const idTranslations = {
     riskManagement: 'Manajemen Risiko',
     aiAssistant: 'Asisten AI',
     marketCalendar: 'Kalender Pasar',
+    tradingJourney: 'Perjalanan Trading',
   },
 
   // Dashboard

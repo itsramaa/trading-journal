@@ -48,6 +48,12 @@ interface AppState {
   setSearchQuery: (query: string) => void;
   isSearchOpen: boolean;
   setSearchOpen: (open: boolean) => void;
+  
+  // AI Chatbot
+  isChatbotOpen: boolean;
+  setChatbotOpen: (open: boolean) => void;
+  chatbotInitialPrompt: string | null;
+  setChatbotInitialPrompt: (prompt: string | null) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -94,6 +100,12 @@ export const useAppStore = create<AppState>()(
       setSearchQuery: (query) => set({ searchQuery: query }),
       isSearchOpen: false,
       setSearchOpen: (open) => set({ isSearchOpen: open }),
+      
+      // AI Chatbot
+      isChatbotOpen: false,
+      setChatbotOpen: (open) => set({ isChatbotOpen: open }),
+      chatbotInitialPrompt: null,
+      setChatbotInitialPrompt: (prompt) => set({ chatbotInitialPrompt: prompt }),
     }),
     {
       name: 'trading-app-storage',
