@@ -1,20 +1,16 @@
 import * as React from "react";
-import { useState, useEffect } from "react";
 import {
   LayoutDashboard,
   Notebook,
-  LineChart,
-  Activity,
-  Clock,
+  BarChart3,
   Building2,
   Lightbulb,
-  ChevronDown,
-  ChevronRight,
-  type LucideIcon,
-  CandlestickChart,
   Shield,
-  Brain,
-  BarChart3,
+  Calendar,
+  Bot,
+  Settings,
+  CandlestickChart,
+  type LucideIcon,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { NavUser } from "./NavUser";
@@ -24,15 +20,12 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { cn } from "@/lib/utils";
 
 interface NavItem {
   title: string;
@@ -40,161 +33,51 @@ interface NavItem {
   icon: LucideIcon;
 }
 
-interface NavGroup {
-  label: string;
-  key: string;
-  items: NavItem[];
-  collapsible?: boolean;
-}
-
-// Navigation structure per Trading Journey Markdown spec
-const navigationGroups: NavGroup[] = [
-  {
-    label: "General",
-    key: "general",
-    items: [
-      { title: "Dashboard", url: "/", icon: LayoutDashboard },
-      { title: "Accounts", url: "/accounts", icon: Building2 },
-    ],
-  },
-  {
-    label: "Trading Journey",
-    key: "trading",
-    collapsible: true,
-    items: [
-      { title: "Summary", url: "/trading", icon: Activity },
-      { title: "Journal", url: "/trading/journal", icon: Notebook },
-      { title: "Sessions", url: "/trading/sessions", icon: Clock },
-      { title: "Analytics", url: "/trading/performance", icon: BarChart3 },
-      { title: "Strategies", url: "/trading/strategies", icon: Lightbulb },
-      { title: "AI Insights", url: "/trading/insights", icon: Brain },
-    ],
-  },
-  {
-    label: "Risk Management",
-    key: "risk",
-    items: [
-      { title: "Risk Dashboard", url: "/risk", icon: Shield },
-    ],
-  },
+// Navigation structure per Trading Journey Markdown spec (flat 9-item menu)
+const navigationItems: NavItem[] = [
+  { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Trade Management", url: "/trading", icon: Notebook },
+  { title: "Strategy & Rules", url: "/trading/strategies", icon: Lightbulb },
+  { title: "Analytics", url: "/trading/analytics", icon: BarChart3 },
+  { title: "Risk Management", url: "/risk", icon: Shield },
+  { title: "Calendar & Market", url: "/market", icon: Calendar },
+  { title: "Accounts", url: "/accounts", icon: Building2 },
+  { title: "AI Assistant", url: "/ai", icon: Bot },
+  { title: "Settings", url: "/settings", icon: Settings },
 ];
 
-const COLLAPSED_GROUPS_KEY = 'sidebar-collapsed-groups';
-
-function NavMain({ groups }: { groups: NavGroup[] }) {
+function NavMain({ items }: { items: NavItem[] }) {
   const location = useLocation();
-  
-  // Initialize collapsed state from localStorage
-  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(() => {
-    try {
-      const stored = localStorage.getItem(COLLAPSED_GROUPS_KEY);
-      return stored ? JSON.parse(stored) : {};
-    } catch {
-      return {};
+
+  // Check if current path matches item or is a sub-route
+  const isActive = (url: string) => {
+    if (url === "/") {
+      return location.pathname === "/";
     }
-  });
-
-  // Persist collapsed state to localStorage
-  useEffect(() => {
-    localStorage.setItem(COLLAPSED_GROUPS_KEY, JSON.stringify(collapsedGroups));
-  }, [collapsedGroups]);
-
-  const toggleGroup = (key: string) => {
-    setCollapsedGroups(prev => ({
-      ...prev,
-      [key]: !prev[key]
-    }));
+    return location.pathname === url || location.pathname.startsWith(url + "/");
   };
 
-  // Check if any item in the group is active
-  const isGroupActive = (group: NavGroup) => {
-    return group.items.some(item => location.pathname === item.url);
-  };
-  
   return (
-    <>
-      {groups.map((group) => {
-        const isCollapsed = collapsedGroups[group.key] ?? false;
-        const hasActiveItem = isGroupActive(group);
-        
-        if (group.collapsible) {
-          return (
-            <SidebarGroup key={group.label}>
-              <Collapsible open={!isCollapsed} onOpenChange={() => toggleGroup(group.key)}>
-                <CollapsibleTrigger asChild>
-                  <SidebarGroupLabel className="flex items-center justify-between cursor-pointer hover:bg-sidebar-accent/50 rounded-md px-2 py-1.5 transition-colors w-full">
-                    <div className="flex items-center gap-2">
-                      {isCollapsed ? (
-                        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                      ) : (
-                        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                      )}
-                      <span className={cn(hasActiveItem && isCollapsed && "text-primary font-medium")}>
-                        {group.label}
-                      </span>
-                    </div>
-                  </SidebarGroupLabel>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <SidebarGroupContent>
-                    <SidebarMenu>
-                      {group.items.map((item) => {
-                        const isActive = location.pathname === item.url;
-                        
-                        return (
-                          <SidebarMenuItem key={item.title}>
-                            <SidebarMenuButton 
-                              asChild 
-                              isActive={isActive} 
-                              tooltip={item.title}
-                            >
-                              <Link to={item.url}>
-                                <item.icon />
-                                <span className="flex-1">{item.title}</span>
-                              </Link>
-                            </SidebarMenuButton>
-                          </SidebarMenuItem>
-                        );
-                      })}
-                    </SidebarMenu>
-                  </SidebarGroupContent>
-                </CollapsibleContent>
-              </Collapsible>
-            </SidebarGroup>
-          );
-        }
-        
-        return (
-          <SidebarGroup key={group.label}>
-            <SidebarGroupLabel>
-              <span>{group.label}</span>
-            </SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {group.items.map((item) => {
-                  const isActive = location.pathname === item.url;
-                  
-                  return (
-                    <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton 
-                        asChild 
-                        isActive={isActive} 
-                        tooltip={item.title}
-                      >
-                        <Link to={item.url}>
-                          <item.icon />
-                          <span className="flex-1">{item.title}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        );
-      })}
-    </>
+    <SidebarGroup>
+      <SidebarGroupContent>
+        <SidebarMenu>
+          {items.map((item) => (
+            <SidebarMenuItem key={item.title}>
+              <SidebarMenuButton
+                asChild
+                isActive={isActive(item.url)}
+                tooltip={item.title}
+              >
+                <Link to={item.url}>
+                  <item.icon />
+                  <span className="flex-1">{item.title}</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ))}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
   );
 }
 
@@ -222,7 +105,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
 
       <SidebarContent>
-        <NavMain groups={navigationGroups} />
+        <NavMain items={navigationItems} />
       </SidebarContent>
 
       <SidebarFooter>

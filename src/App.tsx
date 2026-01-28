@@ -5,22 +5,18 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 
-// Accounts Page (Base feature)
+// Pages
+import Dashboard from "./pages/Dashboard";
 import Accounts from "./pages/Accounts";
 import AccountDetail from "./pages/AccountDetail";
-
-// Trading Journey Pages
-import TradingSummary from "./pages/trading-journey/TradingSummary";
 import TradingJournal from "./pages/trading-journey/TradingJournal";
+import StrategyManagement from "./pages/trading-journey/StrategyManagement";
+import Performance from "./pages/trading-journey/Performance";
 import TradingSessions from "./pages/trading-journey/TradingSessions";
 import SessionDetail from "./pages/trading-journey/SessionDetail";
-import Performance from "./pages/trading-journey/Performance";
-import StrategyManagement from "./pages/trading-journey/StrategyManagement";
-import Insights from "./pages/trading-journey/Insights";
 import RiskManagement from "./pages/RiskManagement";
-
-// Other Pages
-import Dashboard from "./pages/Dashboard";
+import MarketCalendar from "./pages/MarketCalendar";
+import AIAssistant from "./pages/AIAssistant";
 import Settings from "./pages/Settings";
 import Notifications from "./pages/Notifications";
 import Auth from "./pages/Auth";
@@ -62,15 +58,24 @@ const App = () => (
               </ProtectedRoute>
             } />
             
-            {/* Trading Journey */}
+            {/* Trade Management */}
             <Route path="/trading" element={
               <ProtectedRoute>
-                <TradingSummary />
+                <TradingJournal />
               </ProtectedRoute>
             } />
-            <Route path="/trading/journal" element={
+            
+            {/* Strategy & Rules */}
+            <Route path="/trading/strategies" element={
               <ProtectedRoute>
-                <TradingJournal />
+                <StrategyManagement />
+              </ProtectedRoute>
+            } />
+            
+            {/* Analytics (includes sessions) */}
+            <Route path="/trading/analytics" element={
+              <ProtectedRoute>
+                <Performance />
               </ProtectedRoute>
             } />
             <Route path="/trading/sessions" element={
@@ -83,26 +88,25 @@ const App = () => (
                 <SessionDetail />
               </ProtectedRoute>
             } />
-            <Route path="/trading/performance" element={
-              <ProtectedRoute>
-                <Performance />
-              </ProtectedRoute>
-            } />
-            <Route path="/trading/strategies" element={
-              <ProtectedRoute>
-                <StrategyManagement />
-              </ProtectedRoute>
-            } />
-            <Route path="/trading/insights" element={
-              <ProtectedRoute>
-                <Insights />
-              </ProtectedRoute>
-            } />
             
             {/* Risk Management */}
             <Route path="/risk" element={
               <ProtectedRoute>
                 <RiskManagement />
+              </ProtectedRoute>
+            } />
+            
+            {/* Calendar & Market */}
+            <Route path="/market" element={
+              <ProtectedRoute>
+                <MarketCalendar />
+              </ProtectedRoute>
+            } />
+            
+            {/* AI Assistant */}
+            <Route path="/ai" element={
+              <ProtectedRoute>
+                <AIAssistant />
               </ProtectedRoute>
             } />
             
