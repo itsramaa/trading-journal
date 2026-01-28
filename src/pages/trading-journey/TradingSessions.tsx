@@ -173,7 +173,7 @@ export default function TradingSessions() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="space-y-8">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Trading Sessions</h1>
@@ -256,8 +256,8 @@ export default function TradingSessions() {
                   open={expandedSessionId === session.id}
                   onOpenChange={(open) => setExpandedSessionId(open ? session.id : null)}
                 >
-                  <Card>
-                    <CardHeader className="pb-2">
+                  <Card className="transition-shadow hover:shadow-md">
+                    <CardHeader className="p-6 pb-3">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <div className={`p-2 rounded-full ${
@@ -284,26 +284,29 @@ export default function TradingSessions() {
                           </div>
                         </div>
                         <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-1">
-                          {[1,2,3,4,5].map(n => (
-                            <button 
-                              key={n} 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                updateSession.mutate({ id: session.id, rating: n });
-                              }}
-                              className="hover:scale-110 transition-transform"
-                            >
-                              <Star className={`h-4 w-4 ${n <= Number(session.rating) ? "text-yellow-500 fill-yellow-500" : "text-muted hover:text-yellow-400"}`} />
-                            </button>
-                          ))}
-                        </div>
+                          {/* Rating Stars - larger touch targets */}
+                          <div className="flex items-center gap-1">
+                            {[1,2,3,4,5].map(n => (
+                              <button 
+                                key={n} 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  updateSession.mutate({ id: session.id, rating: n });
+                                }}
+                                className="p-1 hover:scale-110 transition-transform"
+                              >
+                                <Star className={`h-5 w-5 ${n <= Number(session.rating) ? "text-yellow-500 fill-yellow-500" : "text-muted hover:text-yellow-400"}`} />
+                              </button>
+                            ))}
+                          </div>
                           <span className={`font-bold ${sessionPnl >= 0 ? "text-green-500" : "text-destructive"}`}>
                             {formatCurrency(sessionPnl)}
                           </span>
+                          {/* AI Analysis Button - labeled */}
                           <CollapsibleTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <Brain className="h-4 w-4 text-primary" />
+                            <Button variant="outline" size="sm" className="gap-1.5">
+                              <Brain className="h-4 w-4" />
+                              <span className="hidden sm:inline">AI Analysis</span>
                             </Button>
                           </CollapsibleTrigger>
                           <DropdownMenu>
@@ -333,7 +336,7 @@ export default function TradingSessions() {
                         </div>
                       </div>
                     </CardHeader>
-                    <CardContent className="space-y-3">
+                    <CardContent className="p-6 pt-0 space-y-4">
                       <div className="flex items-center gap-4 text-sm">
                         <span>
                           <span className="text-muted-foreground">Trades:</span>{" "}
