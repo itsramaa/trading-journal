@@ -1,263 +1,325 @@
 
-# Phase 5 Final: Remaining Gaps & Enhancements
+# Cross-check Analysis: Markdown Spec vs Current Implementation
 
 ## Executive Summary
 
-Based on thorough cross-checking between the implementation and `docs/Trading_Journey_User_Flow.md`, the system is approximately **85% structurally complete** with several functional wiring gaps. This plan addresses the remaining critical features.
+Berdasarkan analisis menyeluruh terhadap `docs/Trading_Journey_User_Flow.md` dan current codebase, berikut adalah gap analysis lengkap mencakup mismatches, fitur yang belum diimplementasikan, dan struktur yang belum sesuai.
+
+**Overall Completion: ~80%**
 
 ---
 
-## Current Completed Items
+## Part 1: URL Structure - SUDAH BENAR
 
-| Component | Status | Notes |
-|-----------|--------|-------|
-| URL Restructuring | Done | `/strategies`, `/analytics`, `/sessions` now top-level |
-| RiskAlertBanner in DashboardLayout | Done | Line 44 shows integration |
-| Trading Gate in TradeEntryWizard | Done | Blocks when `canTrade = false` |
-| AI Pre-flight in PreEntryValidation | Done | Uses `useAIPreflight` hook |
-| AI Confluence Detection | Done | "Detect with AI" button functional |
-| Settings with AI Tab | Done | 5-tab layout with Bot icon |
-| Analytics with Heatmap/Drawdown/AI Insights | Done | All tabs present |
-| Dashboard with Market Sessions | Done | Widget integrated |
+| Markdown Spec | Current Implementation | Status |
+|---------------|----------------------|--------|
+| `/` Dashboard | `/` Dashboard | MATCH |
+| `/trading` Trade Management | `/trading` TradingJournal | MATCH |
+| `/strategies` Strategy & Rules | `/strategies` StrategyManagement | MATCH |
+| `/analytics` Analytics | `/analytics` Performance | MATCH |
+| `/risk` Risk Management | `/risk` RiskManagement | MATCH |
+| `/market` Calendar & Market | `/market` MarketCalendar | MATCH |
+| `/ai` AI Assistant | `/ai` AIAssistant | MATCH |
+| `/settings` Settings | `/settings` Settings | MATCH |
+| `/accounts` Accounts | `/accounts` Accounts | MATCH |
 
----
-
-## Remaining Gaps to Address
-
-### Gap 1: Strategy Entry/Exit Rules Not Saved to Database
-
-**Problem:** The Strategy form has `min_confluences`, `min_rr`, `timeframe`, `market_type` fields in UI, but `useCreateTradingStrategy` and `useUpdateTradingStrategy` mutations don't save these fields.
-
-**Current Code (use-trading-strategies.ts lines 61-69):**
-```typescript
-.insert({
-  user_id: user.id,
-  name: input.name,
-  description: input.description || null,
-  tags: input.tags || [],
-  color: input.color || 'blue',
-  // Missing: timeframe, market_type, min_confluences, min_rr
-})
-```
-
-**Fix Required:**
-- Update `CreateStrategyInput` interface to include: `timeframe`, `market_type`, `min_confluences`, `min_rr`, `entry_rules`, `exit_rules`
-- Update insert/update mutations to save all fields
-- Update `StrategyManagement.tsx` form to pass new values
+URL structure sudah sesuai dengan flat 9-menu yang dispesifikasikan di Markdown.
 
 ---
 
-### Gap 2: Entry/Exit Rules Builder Not Implemented
+## Part 2: Feature Gap Analysis - Per Menu
 
-**Problem:** Per Markdown spec (lines 149-155), strategies should have structured entry rules (price_action, volume, indicator, higher_tf) and exit rules (take_profit, stop_loss, trailing_stop). The database supports JSONB columns but UI doesn't have rule builder.
+### DASHBOARD (Completion: 85%)
 
-**Markdown Spec:**
-```
-Entry Rules: Must have 4 confluences
-├─ Price action at S/R (mandatory)
-├─ Volume confirmation (optional)
-├─ Technical indicator (optional)
-└─ Higher timeframe confirmation (optional)
-```
+| Feature (Markdown) | Current Status | Gap |
+|-------------------|----------------|-----|
+| Portfolio Overview (Total Capital, P/L, Win Rate, Profit Factor) | Implemented via `Portfolio Performance` section | DONE |
+| Today's Performance (24H) | `TodayPerformance` component integrated | DONE |
+| Active Positions Table | `ActivePositionsTable` component integrated | DONE |
+| Risk Summary | `RiskSummaryCard` integrated | DONE |
+| AI Insights Widget | `AIInsightsWidget` integrated | DONE |
+| System Status Indicator | `SystemStatusIndicator` integrated | DONE |
+| Market Sessions | `MarketSessionsWidget` integrated | DONE |
+| Quick Stats (7-Day Win Rate, Consecutive Wins/Losses) | MISSING | GAP |
+| Correlated Positions Warning | Listed in spec but not shown prominently | PARTIAL |
 
-**Current:** Only displays hardcoded badges "4 confluences", "1.5:1 R:R" in strategy cards.
-
-**Fix Required:**
-- Add Entry Rules section to Strategy form with dynamic rule builder
-- Add Exit Rules section with TP/SL/Trailing inputs
-- Save rules as JSONB to database
-
----
-
-### Gap 3: Dashboard Portfolio Overview Incomplete
-
-**Problem:** Dashboard shows basic account summary but missing per-Markdown metrics:
-- Win Rate %
-- Profit Factor
-- 7-Day performance stats
-
-**Markdown Spec (lines 19-26):**
-```
-Portfolio Overview
-  → Win Rate %
-  → Profit Factor
-  → Profit/Loss (Daily, Weekly, Monthly)
-```
-
-**Current:** Only shows total balance from accounts.
-
-**Fix Required:**
-- Add Portfolio Overview card with calculated metrics from trade_entries
-- Show Win Rate, Profit Factor, Total P&L, ROI
+**Gaps to Fix:**
+1. Add 7-Day Quick Stats section (consecutive wins/losses, best/worst day)
+2. Enhance correlation warning visibility in Risk Summary
 
 ---
 
-### Gap 4: AI Strategy Recommendations in Step 2
+### TRADE MANAGEMENT (Completion: 80%)
 
-**Problem:** Strategy Selection step has placeholder AI section but no actual AI recommendation.
+| Feature (Markdown) | Current Status | Gap |
+|-------------------|----------------|-----|
+| 7-Step Wizard Flow | Implemented with all 7 steps | DONE |
+| Step 1: Pre-Entry Validation | `PreEntryValidation.tsx` with AI Pre-flight | DONE |
+| Step 2: Strategy Selection | `StrategySelection.tsx` exists | DONE |
+| Step 3: Trade Details | `TradeDetails.tsx` exists | DONE |
+| Step 4: Confluence Validation | `ConfluenceValidator.tsx` exists | DONE |
+| Step 5: Position Sizing | `PositionSizingStep.tsx` exists | DONE |
+| Step 6: Final Checklist | `FinalChecklist.tsx` with emotional state | DONE |
+| Step 7: Confirmation | `TradeConfirmation.tsx` exists | DONE |
+| AI Strategy Recommendation in Step 2 | Placeholder "AI Match %" badge, not real AI | GAP |
+| AI Entry Price Optimization | Not implemented | GAP |
+| Pending Positions Tab | Tab exists but no "pending" status workflow | PARTIAL |
+| AI Quality Score Sort in History | Column exists but not sortable | PARTIAL |
+| AI Post-Trade Analysis | `post_trade_analysis` column exists, not populated | GAP |
 
-**Current Code (StrategySelection.tsx):**
-Shows "AI Match: 85%" badge with dummy calculation, not real AI analysis.
-
-**Markdown Spec (lines 127-144):**
-```
-🤖 AI STRATEGY RECOMMENDATION
-    "Based on current market conditions and your history:
-    1. Support & Resistance (Confidence: 92%)
-       - You have 76% win rate with this setup on BTC
-    → RECOMMENDED: Support & Resistance"
-```
-
-**Fix Required:**
-- Create edge function for strategy recommendation
-- Call AI with user's trade history and strategy performance
-- Display real confidence scores and reasoning
-
----
-
-### Gap 5: Trade Quality Score Not Populated
-
-**Problem:** `trade_entries.ai_quality_score` column exists but never populated. Trade history shows badges but values are null.
-
-**Current:** Badge displays but falls back to "N/A" when `ai_quality_score` is undefined.
-
-**Fix Required:**
-- Integrate `useAITradeQuality` hook into TradeConfirmation step
-- Call trade-quality edge function before/after trade submission
-- Store returned score in database
+**Gaps to Fix:**
+1. Implement real AI Strategy Recommendation (edge function call in StrategySelection)
+2. Add AI Entry Price Optimization in TradeDetails step
+3. Wire AI Post-Trade Analysis when trade closes
+4. Add AI Quality Score sorting to trade history table
 
 ---
 
-### Gap 6: AI Post-Trade Analysis
+### STRATEGY & RULES (Completion: 60%)
 
-**Problem:** Per Markdown, there should be post-trade AI analysis when trade is closed.
+| Feature (Markdown) | Current Status | Gap |
+|-------------------|----------------|-----|
+| Strategy List | Implemented with cards | DONE |
+| Create/Edit Strategy Form | Basic form working | DONE |
+| Timeframe, Market Type, Min Confluences, Min R:R | Form fields exist and save to DB | DONE |
+| Entry Rules (4 confluence types: price_action, volume, indicator, higher_tf) | DB columns exist (`entry_rules` JSONB), NO UI BUILDER | GAP |
+| Exit Rules (TP, SL, Trailing) | DB columns exist (`exit_rules` JSONB), NO UI BUILDER | GAP |
+| AI Quality Score per Strategy | Not displayed | GAP |
+| AI Rule Optimizer | Not implemented | GAP |
+| AI Strategy Performance Analysis | Basic stats only, no AI analysis | GAP |
+| Strategy Performance by Cryptocurrency | Not implemented | GAP |
+| Strategy Performance by Timeframe | Not implemented | GAP |
 
-**Markdown Spec (lines 500-550):**
-```
-POST-TRADE AI ANALYSIS
-├─ What went well
-├─ What could improve
-├─ Pattern detected
-└─ Learning for future
-```
-
-**Current:** Column `post_trade_analysis` exists in DB but never populated.
-
-**Fix Required:**
-- Create hook for post-trade analysis
-- Call when trade status changes to 'closed'
-- Store analysis in `post_trade_analysis` JSONB column
-
----
-
-## Implementation Priority
-
-### Batch 1: Strategy Data Persistence (High Priority)
-1. Update `use-trading-strategies.ts` to save all strategy fields
-2. Update Strategy form to pass all values to mutation
-
-### Batch 2: Dashboard Enhancement (Medium Priority)
-3. Add Portfolio Overview card with win rate, profit factor
-4. Use existing `calculateTradingStats` function from trading-calculations.ts
-
-### Batch 3: AI Quality Score Integration (Medium Priority)
-5. Wire `useAITradeQuality` into TradeConfirmation step
-6. Save score to database on trade creation
-
-### Batch 4: Entry/Exit Rules Builder (Lower Priority)
-7. Create dynamic rule builder UI component
-8. Save rules to database as JSONB
+**Gaps to Fix:**
+1. Build dynamic Entry Rules UI builder (checkboxes for price_action, volume, indicator, higher_tf with mandatory flags)
+2. Build Exit Rules UI (TP/SL/Trailing with values)
+3. Add AI Quality Score badge to strategy cards
+4. Create AI Rule Optimizer edge function
+5. Add per-crypto and per-timeframe performance breakdown
 
 ---
 
-## Files to Modify
+### ANALYTICS (Completion: 85%)
 
-### Batch 1: Strategy Persistence
+| Feature (Markdown) | Current Status | Gap |
+|-------------------|----------------|-----|
+| Overall Metrics (Win Rate, Profit Factor, ROI) | Implemented | DONE |
+| Equity Curve | Implemented | DONE |
+| Drawdown Chart | `DrawdownChart` component | DONE |
+| Trading Heatmap | `TradingHeatmap` component | DONE |
+| By Cryptocurrency Ranking | `CryptoRanking` component | DONE |
+| AI Pattern Recognition | `AIPatternInsights` component | DONE |
+| Strategy Analysis Tab | Implemented | DONE |
+| Sessions Tab | Implemented with link to `/sessions` | DONE |
+| AI Trade Recommendations (Real-time) | Not implemented | GAP |
+| AI Portfolio Advisor (Correlation analysis) | Not implemented | GAP |
+| AI Performance Summary | Basic - could be enhanced | PARTIAL |
 
-| File | Changes |
-|------|---------|
-| `src/hooks/use-trading-strategies.ts` | Add fields to interfaces and mutations |
-| `src/pages/trading-journey/StrategyManagement.tsx` | Pass new values to mutations |
-
-### Batch 2: Dashboard Enhancement
-
-| File | Changes |
-|------|---------|
-| `src/pages/Dashboard.tsx` | Add Portfolio Overview card with stats |
-| `src/lib/trading-calculations.ts` | Ensure calculateTradingStats is used |
-
-### Batch 3: AI Quality Score
-
-| File | Changes |
-|------|---------|
-| `src/components/trade/entry/TradeConfirmation.tsx` | Call trade quality scoring |
-| `src/features/trade/useTradeEntryWizard.ts` | Store AI score in submission |
+**Gaps to Fix:**
+1. Add AI Trade Recommendations widget (real-time opportunities)
+2. Add AI Portfolio Advisor section with correlation analysis
 
 ---
 
-## Technical Details
+### RISK MANAGEMENT (Completion: 90%)
 
-### Strategy Interface Update
-```typescript
-export interface CreateStrategyInput {
-  name: string;
-  description?: string;
-  tags?: string[];
-  color?: string;
-  timeframe?: string;
-  market_type?: string;
-  min_confluences?: number;
-  min_rr?: number;
-  entry_rules?: EntryRule[];
-  exit_rules?: ExitRule[];
-  valid_pairs?: string[];
-}
-```
+| Feature (Markdown) | Current Status | Gap |
+|-------------------|----------------|-----|
+| Daily Loss Limit Tracker | `DailyLossTracker` component | DONE |
+| Position Size Calculator | `PositionSizeCalculator` component | DONE |
+| Risk Profile Settings | Full settings with sliders | DONE |
+| Risk Event Log | `RiskEventLog` component integrated | DONE |
+| Trading Gate (Auto-lock) | `useTradingGate` hook + blocks wizard | DONE |
+| RiskAlertBanner | Integrated in `DashboardLayout` | DONE |
+| Threshold Alerts (70%/90%/100%) | Implemented in hook | DONE |
+| Correlation Analysis Matrix | Not implemented | GAP |
+| AI Risk Recommendations | Not implemented | GAP |
 
-### Dashboard Stats Card
-```typescript
-<Card>
-  <CardHeader>
-    <CardTitle>Portfolio Performance</CardTitle>
-  </CardHeader>
-  <CardContent>
-    <div className="grid grid-cols-4 gap-4">
-      <Stat label="Win Rate" value={`${stats.winRate.toFixed(1)}%`} />
-      <Stat label="Profit Factor" value={stats.profitFactor.toFixed(2)} />
-      <Stat label="Total P&L" value={formatCurrency(stats.totalPnl)} />
-      <Stat label="Total Trades" value={stats.totalTrades} />
-    </div>
-  </CardContent>
-</Card>
-```
+**Gaps to Fix:**
+1. Add Correlation Matrix visualization
+2. Add AI Risk Recommendations section
 
-### AI Quality Score Flow
-```
-TradeConfirmation → Click Execute
-  ↓
-Call useAITradeQuality.getQualityScore({...})
-  ↓
-Get score + recommendations
-  ↓
-Include ai_quality_score in trade submission
-  ↓
-Save to database
-```
+---
+
+### CALENDAR & MARKET (Completion: 80%)
+
+| Feature (Markdown) | Current Status | Gap |
+|-------------------|----------------|-----|
+| Market Sessions (moved to Dashboard) | `MarketSessionsWidget` on Dashboard | DONE |
+| AI Market Sentiment | Implemented with mock data | DONE |
+| AI Volatility Assessment | Implemented with mock data | DONE |
+| Economic Calendar | Basic implementation | DONE |
+| AI Trading Opportunities | Implemented with mock data | DONE |
+| AI Whale Tracking | Not implemented | GAP |
+| AI Economic Event Impact | Basic events, no AI impact analysis | GAP |
+
+**Gaps to Fix:**
+1. Add AI Whale Tracking section
+2. Enhance Economic Events with AI impact analysis
+
+---
+
+### AI ASSISTANT (Completion: 70%)
+
+| Feature (Markdown) | Current Status | Gap |
+|-------------------|----------------|-----|
+| Chat Interface | `AIChatbot` component exists | DONE |
+| Quick Actions | Implemented | DONE |
+| Message History | Implemented | DONE |
+| Trade Quality Checker (standalone) | Not standalone, only in wizard | PARTIAL |
+| AI Learning from Trades | Not implemented | GAP |
+| Backtesting Assistant | Not implemented | GAP |
+| Chart Analysis (upload screenshot) | Not implemented | GAP |
+
+**Gaps to Fix:**
+1. Add standalone Trade Quality Checker tab
+2. Implement AI Learning/pattern summary display
+3. Add chart upload + analysis feature
+
+---
+
+### SETTINGS (Completion: 95%)
+
+| Feature (Markdown) | Current Status | Gap |
+|-------------------|----------------|-----|
+| Profile Settings | Implemented | DONE |
+| Notification Settings | Implemented | DONE |
+| Appearance/Theme | Implemented | DONE |
+| Security (Password) | Implemented | DONE |
+| AI Settings Tab | `AISettingsTab` integrated with all toggles | DONE |
+| AI Confidence Threshold | Implemented | DONE |
+| AI Suggestion Style | Implemented | DONE |
+| AI Learning Preferences | Implemented | DONE |
+| 2FA Authentication | Not implemented | GAP (Low Priority) |
+
+**Gaps to Fix:**
+1. (Optional) Add 2FA authentication
+
+---
+
+## Part 3: Database vs Implementation Sync
+
+| DB Column | Used in Code | Status |
+|-----------|--------------|--------|
+| `trade_entries.ai_quality_score` | Displayed in history, stored in wizard | DONE |
+| `trade_entries.ai_confidence` | Stored in wizard | DONE |
+| `trade_entries.emotional_state` | Captured in FinalChecklist | DONE |
+| `trade_entries.confluences_met` | Stored as JSONB | DONE |
+| `trade_entries.pre_trade_validation` | Stored in wizard | DONE |
+| `trade_entries.post_trade_analysis` | DB column exists, NOT POPULATED | GAP |
+| `trading_strategies.entry_rules` | DB column exists, NO UI to edit | GAP |
+| `trading_strategies.exit_rules` | DB column exists, NO UI to edit | GAP |
+| `risk_events` table | Used by `RiskEventLog` | DONE |
+| `daily_risk_snapshots` table | Used by risk tracking | DONE |
+| `user_settings.ai_settings` | Used by `AISettingsTab` | DONE |
+
+---
+
+## Part 4: AI Edge Functions Status
+
+| Edge Function | Status | Wired to UI |
+|---------------|--------|-------------|
+| `ai-preflight` | Deployed | Yes - PreEntryValidation |
+| `confluence-detection` | Deployed | Yes - ConfluenceValidator |
+| `trade-quality` | Deployed | Yes - FinalChecklist/TradeConfirmation |
+| `session-analysis` | Deployed | Yes - SessionDetail |
+| `trading-analysis` | Deployed | Yes - SessionAIAnalysis |
+| `dashboard-insights` | Deployed | Yes - AIInsightsWidget |
+| `post-trade-analysis` | Deployed | NO - Not wired | GAP |
+| `check-permission` | Deployed | Yes |
+
+---
+
+## Part 5: Priority Gaps Summary
+
+### High Priority (Core Feature Gaps)
+
+1. **Entry/Exit Rules Builder UI**
+   - Files: `StrategyManagement.tsx`
+   - Add: Dynamic rule builder for `entry_rules` and `exit_rules`
+
+2. **AI Strategy Recommendations (Step 2)**
+   - Files: `StrategySelection.tsx`
+   - Replace: Placeholder "AI Match" with real AI edge function call
+
+3. **AI Post-Trade Analysis**
+   - Files: `use-trade-entries.ts`, create hook
+   - Add: Call `post-trade-analysis` edge function when trade closes
+
+### Medium Priority (Enhancement Gaps)
+
+4. **AI Quality Score Sorting**
+   - Files: `TradingJournal.tsx`
+   - Add: Sort by `ai_quality_score` column
+
+5. **AI Trade Recommendations (Real-time)**
+   - Files: `Performance.tsx` or `MarketCalendar.tsx`
+   - Add: New widget for real-time trade opportunities
+
+6. **Correlation Matrix**
+   - Files: `RiskManagement.tsx`
+   - Add: Visual correlation matrix for open positions
+
+7. **Quick Stats (7-Day)**
+   - Files: `Dashboard.tsx`
+   - Add: Consecutive wins/losses, best/worst day cards
+
+### Low Priority (Nice-to-Have)
+
+8. **AI Whale Tracking**
+9. **AI Backtesting Assistant**
+10. **Chart Screenshot Analysis**
+11. **2FA Authentication**
+
+---
+
+## Part 6: Files to Modify
+
+### High Priority Files
+
+| File | Changes Required |
+|------|------------------|
+| `src/pages/trading-journey/StrategyManagement.tsx` | Add Entry/Exit Rules builder UI tabs |
+| `src/components/trade/entry/StrategySelection.tsx` | Wire AI strategy recommendation |
+| `src/hooks/use-trade-entries.ts` | Add post-trade analysis trigger |
+
+### Medium Priority Files
+
+| File | Changes Required |
+|------|------------------|
+| `src/pages/trading-journey/TradingJournal.tsx` | Add AI quality score sort |
+| `src/pages/Dashboard.tsx` | Add 7-day quick stats section |
+| `src/pages/RiskManagement.tsx` | Add correlation matrix tab |
+| `src/pages/trading-journey/Performance.tsx` | Add AI Trade Recommendations widget |
+
+---
+
+## Implementation Batches
+
+### Batch 1: Entry/Exit Rules Builder (High Priority)
+- Create `EntryRulesBuilder` component
+- Create `ExitRulesBuilder` component
+- Integrate into StrategyManagement form
+- Save to JSONB columns
+
+### Batch 2: AI Wiring Completion (High Priority)
+- Wire AI Strategy Recommendations in StrategySelection
+- Wire Post-Trade Analysis on trade close
+- Add AI Quality Score sort to TradingJournal
+
+### Batch 3: Dashboard & Analytics Enhancement (Medium Priority)
+- Add 7-day Quick Stats to Dashboard
+- Add AI Trade Recommendations widget
+- Add Correlation Matrix to Risk Management
 
 ---
 
 ## Success Criteria
 
 After implementation:
-- Strategy timeframe, market_type, min_confluences, min_rr saved to database
-- Dashboard shows Win Rate, Profit Factor, Total P&L stats
-- Trade submissions include AI quality score
-- Strategy cards show actual saved values instead of hardcoded defaults
-
----
-
-## Assumptions
-
-1. Edge functions (trade-quality, confluence-detection, ai-preflight) are deployed
-2. Database columns exist for all fields being saved
-3. JSONB columns for entry_rules, exit_rules are already in trading_strategies table
+- Entry/Exit rules can be configured per strategy with mandatory flags
+- AI recommends best strategy in wizard Step 2
+- Closed trades trigger AI post-trade analysis
+- Trade history sortable by AI quality score
+- Dashboard shows 7-day quick stats
+- Risk page shows correlation matrix
