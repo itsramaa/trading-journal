@@ -18,7 +18,8 @@ import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Calendar, Tag, Target, Building2, TrendingUp, TrendingDown, BookOpen, MoreVertical, Trash2, Clock, CheckCircle, Circle, DollarSign, XCircle, AlertCircle, Edit, X, Wand2 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Plus, Calendar, Tag, Target, Building2, TrendingUp, TrendingDown, BookOpen, MoreVertical, Trash2, Clock, CheckCircle, Circle, DollarSign, XCircle, AlertCircle, Edit, X, Wand2, Timer, Brain, Sparkles } from "lucide-react";
 import { format } from "date-fns";
 import { useTradingAccounts } from "@/hooks/use-trading-accounts";
 import { useTradeEntries, useCreateTradeEntry, useDeleteTradeEntry, useClosePosition, useUpdateTradeEntry, TradeEntry } from "@/hooks/use-trade-entries";
@@ -29,6 +30,7 @@ import { formatCurrency as formatCurrencyUtil } from "@/lib/formatters";
 import { useUserSettings } from "@/hooks/use-user-settings";
 import { TradeEntryWizard } from "@/components/trade/entry/TradeEntryWizard";
 import { useQueryClient } from "@tanstack/react-query";
+import { cn } from "@/lib/utils";
 
 // Binance Futures fee rates
 const BINANCE_MAKER_FEE = 0.0002; // 0.02%
@@ -131,7 +133,7 @@ export default function TradingJournal() {
   // Filter accounts suitable for trading (from trading_accounts table)
   const activeTradingAccounts = tradingAccounts?.filter(a => a.is_active) || [];
 
-  // Separate open and closed trades
+  // Separate open and closed trades (pending not currently in DB schema, but prepared for future)
   const openPositions = useMemo(() => trades?.filter(t => t.status === 'open') || [], [trades]);
   const closedTrades = useMemo(() => trades?.filter(t => t.status === 'closed') || [], [trades]);
 
@@ -746,7 +748,7 @@ export default function TradingJournal() {
           Focus on quality setups and document your entry signals for pattern recognition.
         </QuickTip>
 
-        {/* Trade Logs Section */}
+        {/* Trade Logs Section with Tabs */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -755,122 +757,208 @@ export default function TradingJournal() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Filters */}
-            <div className="flex flex-col gap-4 md:flex-row md:items-center">
-              <DateRangeFilter value={dateRange} onChange={setDateRange} />
-              {strategies.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {strategies.map((strategy) => (
-                    <Badge
-                      key={strategy.id}
-                      variant={selectedStrategyIds.includes(strategy.id) ? "default" : "outline"}
-                      className="cursor-pointer"
-                      onClick={() => {
-                        setSelectedStrategyIds(prev =>
-                          prev.includes(strategy.id)
-                            ? prev.filter(id => id !== strategy.id)
-                            : [...prev, strategy.id]
-                        );
-                      }}
-                    >
-                      {strategy.name}
-                    </Badge>
-                  ))}
-                  {selectedStrategyIds.length > 0 && (
-                    <Button variant="ghost" size="sm" onClick={() => setSelectedStrategyIds([])}>
-                      Clear
-                    </Button>
+            <Tabs defaultValue="history">
+              <TabsList className="grid w-full grid-cols-2 max-w-[300px]">
+                <TabsTrigger value="history" className="gap-2">
+                  <BookOpen className="h-4 w-4" />
+                  History
+                </TabsTrigger>
+                <TabsTrigger value="open" className="gap-2">
+                  <Timer className="h-4 w-4" />
+                  Open ({openPositions.length})
+                </TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="history" className="mt-4">
+                {/* Filters */}
+                <div className="flex flex-col gap-4 md:flex-row md:items-center mb-4">
+                  <DateRangeFilter value={dateRange} onChange={setDateRange} />
+                  {strategies.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {strategies.map((strategy) => (
+                        <Badge
+                          key={strategy.id}
+                          variant={selectedStrategyIds.includes(strategy.id) ? "default" : "outline"}
+                          className="cursor-pointer"
+                          onClick={() => {
+                            setSelectedStrategyIds(prev =>
+                              prev.includes(strategy.id)
+                                ? prev.filter(id => id !== strategy.id)
+                                : [...prev, strategy.id]
+                            );
+                          }}
+                        >
+                          {strategy.name}
+                        </Badge>
+                      ))}
+                      {selectedStrategyIds.length > 0 && (
+                        <Button variant="ghost" size="sm" onClick={() => setSelectedStrategyIds([])}>
+                          Clear
+                        </Button>
+                      )}
+                    </div>
                   )}
                 </div>
-              )}
-            </div>
 
-            {/* Trade entries */}
-            <div className="space-y-4">
-              {filteredClosedTrades.length === 0 ? (
-                <EmptyState
-                  icon={BookOpen}
-                  title="No closed trades found"
-                  description="No closed trades match your current filters. Try adjusting the date range or strategy filters, or close an open position."
-                  action={{
-                    label: "Add New Entry",
-                    onClick: () => setIsAddOpen(true),
-                  }}
-                />
-              ) : (
-                filteredClosedTrades.map((entry) => {
-                  const rr = calculateRR(entry);
-                  return (
-                    <Card key={entry.id} className="border-muted">
-                      <CardHeader className="pb-2">
-                        <div className="flex items-center justify-between flex-wrap gap-2">
-                          <div className="flex items-center gap-3">
-                            <Badge variant={entry.direction === "LONG" ? "default" : "secondary"}>
-                              {entry.direction}
-                            </Badge>
-                            <span className="font-bold text-lg">{entry.pair}</span>
-                            <span className="text-muted-foreground flex items-center gap-1">
-                              <Calendar className="h-4 w-4" />
-                              {format(new Date(entry.trade_date), "MMM d, yyyy")}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className={`font-bold text-lg ${(entry.realized_pnl || 0) >= 0 ? "text-green-500" : "text-red-500"}`}>
-                              {(entry.realized_pnl || 0) >= 0 ? "+" : ""}{formatCurrency(entry.realized_pnl || 0, "USD")}
-                            </span>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                  <MoreVertical className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => setDeletingTrade(entry)}>
-                                  <Trash2 className="h-4 w-4 mr-2" />
-                                  Delete
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                          <div><span className="text-muted-foreground">Entry:</span> {formatCurrency(entry.entry_price, "USD")}</div>
-                          <div><span className="text-muted-foreground">Exit:</span> {entry.exit_price ? formatCurrency(entry.exit_price, "USD") : '-'}</div>
-                          <div><span className="text-muted-foreground">R:R:</span> {rr > 0 ? `${rr.toFixed(2)}:1` : '-'}</div>
-                        </div>
-                        
-                        {entry.strategies && entry.strategies.length > 0 && (
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <Target className="h-4 w-4 text-muted-foreground" />
-                            {entry.strategies.map(strategy => (
-                              <Badge key={strategy.id} variant="secondary">
-                                {strategy.name}
+                {/* Trade entries */}
+                <div className="space-y-4">
+                  {filteredClosedTrades.length === 0 ? (
+                    <EmptyState
+                      icon={BookOpen}
+                      title="No closed trades found"
+                      description="No closed trades match your current filters. Try adjusting the date range or strategy filters, or close an open position."
+                      action={{
+                        label: "Add New Entry",
+                        onClick: () => setIsAddOpen(true),
+                      }}
+                    />
+                  ) : (
+                    filteredClosedTrades.map((entry) => {
+                      const rr = calculateRR(entry);
+                      return (
+                        <Card key={entry.id} className="border-muted">
+                          <CardHeader className="pb-2">
+                            <div className="flex items-center justify-between flex-wrap gap-2">
+                              <div className="flex items-center gap-3">
+                                <Badge variant={entry.direction === "LONG" ? "default" : "secondary"}>
+                                  {entry.direction}
+                                </Badge>
+                                <span className="font-bold text-lg">{entry.pair}</span>
+                                <span className="text-muted-foreground flex items-center gap-1">
+                                  <Calendar className="h-4 w-4" />
+                                  {format(new Date(entry.trade_date), "MMM d, yyyy")}
+                                </span>
+                                {/* AI Quality Score Badge */}
+                                {entry.ai_quality_score !== null && entry.ai_quality_score !== undefined && (
+                                  <Badge 
+                                    variant="outline" 
+                                    className={cn(
+                                      "gap-1",
+                                      entry.ai_quality_score >= 80 && "border-green-500 text-green-500",
+                                      entry.ai_quality_score >= 60 && entry.ai_quality_score < 80 && "border-yellow-500 text-yellow-500",
+                                      entry.ai_quality_score < 60 && "border-red-500 text-red-500"
+                                    )}
+                                  >
+                                    <Brain className="h-3 w-3" />
+                                    AI: {entry.ai_quality_score}%
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className={`font-bold text-lg ${(entry.realized_pnl || 0) >= 0 ? "text-green-500" : "text-red-500"}`}>
+                                  {(entry.realized_pnl || 0) >= 0 ? "+" : ""}{formatCurrency(entry.realized_pnl || 0, "USD")}
+                                </span>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                                      <MoreVertical className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={() => setDeletingTrade(entry)}>
+                                      <Trash2 className="h-4 w-4 mr-2" />
+                                      Delete
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            </div>
+                          </CardHeader>
+                          <CardContent className="space-y-3">
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                              <div><span className="text-muted-foreground">Entry:</span> {formatCurrency(entry.entry_price, "USD")}</div>
+                              <div><span className="text-muted-foreground">Exit:</span> {entry.exit_price ? formatCurrency(entry.exit_price, "USD") : '-'}</div>
+                              <div><span className="text-muted-foreground">R:R:</span> {rr > 0 ? `${rr.toFixed(2)}:1` : '-'}</div>
+                              <div className="flex items-center gap-1">
+                                <span className="text-muted-foreground">Confluence:</span> 
+                                {entry.confluence_score !== null && entry.confluence_score !== undefined ? (
+                                  <Badge variant="outline" className="text-xs">{entry.confluence_score}/5</Badge>
+                                ) : '-'}
+                              </div>
+                            </div>
+                            
+                            {entry.strategies && entry.strategies.length > 0 && (
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <Target className="h-4 w-4 text-muted-foreground" />
+                                {entry.strategies.map(strategy => (
+                                  <Badge key={strategy.id} variant="secondary">
+                                    {strategy.name}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+
+                            {entry.notes && (
+                              <p className="text-sm text-muted-foreground">{entry.notes}</p>
+                            )}
+
+                            {entry.tags && entry.tags.length > 0 && (
+                              <div className="flex gap-2 flex-wrap">
+                                {entry.tags.map((tag) => (
+                                  <Badge key={tag} variant="outline" className="text-xs">
+                                    <Tag className="h-3 w-3 mr-1" />{tag}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      );
+                    })
+                  )}
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="open" className="mt-4">
+                {openPositions.length === 0 ? (
+                  <EmptyState
+                    icon={Timer}
+                    title="No open positions"
+                    description="You don't have any open positions. Use the Trade Entry Wizard to open a new position."
+                  />
+                ) : (
+                  <div className="space-y-3">
+                    {openPositions.map((position) => (
+                      <Card key={position.id} className="border-primary/20">
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <Badge variant={position.direction === "LONG" ? "default" : "secondary"}>
+                                {position.direction}
                               </Badge>
-                            ))}
+                              <span className="font-bold">{position.pair}</span>
+                              <span className="text-sm text-muted-foreground">
+                                Entry: {formatCurrency(position.entry_price, "USD")}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setClosingPosition(position);
+                                  closeForm.reset();
+                                }}
+                              >
+                                <XCircle className="h-4 w-4 mr-1" />
+                                Close
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleOpenEditDialog(position)}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
-                        )}
-
-                        {entry.notes && (
-                          <p className="text-sm text-muted-foreground">{entry.notes}</p>
-                        )}
-
-                        {entry.tags && entry.tags.length > 0 && (
-                          <div className="flex gap-2 flex-wrap">
-                            {entry.tags.map((tag) => (
-                              <Badge key={tag} variant="outline" className="text-xs">
-                                <Tag className="h-3 w-3 mr-1" />{tag}
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  );
-                })
-              )}
-            </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
 
