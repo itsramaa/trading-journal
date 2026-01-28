@@ -220,6 +220,58 @@ const MarketCalendar = () => {
           </Card>
         </div>
 
+        {/* AI Whale Tracking */}
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Activity className="h-5 w-5 text-primary" />
+                <CardTitle className="text-lg">Whale Tracking</CardTitle>
+              </div>
+              <Badge variant="outline">Beta</Badge>
+            </div>
+            <CardDescription>
+              Monitor large wallet movements and institutional activity
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {/* Mock Whale Data */}
+            {[
+              { wallet: '0x1a2b...3c4d', asset: 'BTC', amount: '1,250 BTC', action: 'Accumulated', time: '2h ago', impact: 'bullish' },
+              { wallet: '0x5e6f...7g8h', asset: 'ETH', amount: '15,000 ETH', action: 'Transferred to Exchange', time: '4h ago', impact: 'bearish' },
+              { wallet: '0x9i0j...1k2l', asset: 'SOL', amount: '500,000 SOL', action: 'Staked', time: '6h ago', impact: 'bullish' },
+            ].map((whale, idx) => (
+              <div key={idx} className="flex items-center justify-between p-3 rounded-lg border">
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "w-2 h-2 rounded-full",
+                    whale.impact === 'bullish' ? "bg-profit" : "bg-loss"
+                  )} />
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-sm">{whale.wallet}</span>
+                      <Badge variant="outline" className="text-xs">{whale.asset}</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{whale.action} • {whale.time}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="font-medium text-sm">{whale.amount}</span>
+                  <p className={cn(
+                    "text-xs",
+                    whale.impact === 'bullish' ? "text-profit" : "text-loss"
+                  )}>
+                    {whale.impact === 'bullish' ? '↑ Bullish Signal' : '↓ Bearish Signal'}
+                  </p>
+                </div>
+              </div>
+            ))}
+            <p className="text-xs text-muted-foreground text-center pt-2">
+              Whale tracking requires blockchain data API integration.
+            </p>
+          </CardContent>
+        </Card>
+
         {/* Economic Calendar - Full Width */}
         <Card>
           <CardHeader className="pb-3">

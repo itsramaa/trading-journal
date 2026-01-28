@@ -803,14 +803,20 @@ export default function TradingJournal() {
           </CardHeader>
           <CardContent className="space-y-4">
             <Tabs defaultValue="history">
-              <TabsList className="grid w-full grid-cols-2 max-w-[300px]">
+              <TabsList className="grid w-full grid-cols-3 max-w-[450px]">
                 <TabsTrigger value="history" className="gap-2">
                   <BookOpen className="h-4 w-4" />
-                  History
+                  <span className="hidden sm:inline">History</span>
                 </TabsTrigger>
                 <TabsTrigger value="open" className="gap-2">
                   <Timer className="h-4 w-4" />
-                  Open ({openPositions.length})
+                  <span className="hidden sm:inline">Open</span>
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5">{openPositions.length}</Badge>
+                </TabsTrigger>
+                <TabsTrigger value="pending" className="gap-2">
+                  <Clock className="h-4 w-4" />
+                  <span className="hidden sm:inline">Pending</span>
+                  <Badge variant="outline" className="ml-1 h-5 px-1.5">0</Badge>
                 </TabsTrigger>
               </TabsList>
               
@@ -1017,6 +1023,33 @@ export default function TradingJournal() {
                     ))}
                   </div>
                 )}
+              </TabsContent>
+
+              {/* Pending Positions Tab */}
+              <TabsContent value="pending" className="mt-4">
+                <div className="text-center py-12 space-y-4">
+                  <div className="flex justify-center">
+                    <div className="rounded-full bg-muted p-4">
+                      <Clock className="h-8 w-8 text-muted-foreground" />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="text-lg font-medium">No Pending Orders</h3>
+                    <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                      Pending orders are limit orders that haven't been filled yet. 
+                      When you set a limit order entry through the wizard, it will appear here until filled.
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-center gap-2 pt-4">
+                    <Badge variant="outline" className="gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      Coming Soon
+                    </Badge>
+                    <p className="text-xs text-muted-foreground">
+                      Limit order tracking will be available in a future update.
+                    </p>
+                  </div>
+                </div>
               </TabsContent>
             </Tabs>
           </CardContent>
