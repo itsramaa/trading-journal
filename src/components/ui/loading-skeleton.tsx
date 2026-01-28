@@ -60,43 +60,6 @@ export function TableSkeleton({ rows = 5 }: { rows?: number }) {
   );
 }
 
-export function HoldingCardSkeleton() {
-  return (
-    <Card className="border-border/50">
-      <CardContent className="p-5">
-        <div className="flex items-start gap-3">
-          <Skeleton className="h-11 w-11 rounded-xl" />
-          <div className="space-y-2">
-            <Skeleton className="h-4 w-16" />
-            <Skeleton className="h-3 w-24" />
-          </div>
-        </div>
-        <div className="mt-4 grid grid-cols-2 gap-4">
-          <div className="space-y-1">
-            <Skeleton className="h-3 w-12" />
-            <Skeleton className="h-5 w-20" />
-          </div>
-          <div className="space-y-1">
-            <Skeleton className="h-3 w-12" />
-            <Skeleton className="h-5 w-16" />
-          </div>
-        </div>
-        <Skeleton className="mt-4 h-20 w-full rounded-lg" />
-      </CardContent>
-    </Card>
-  );
-}
-
-export function HoldingsGridSkeleton({ count = 6 }: { count?: number }) {
-  return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-      {Array.from({ length: count }).map((_, i) => (
-        <HoldingCardSkeleton key={i} />
-      ))}
-    </div>
-  );
-}
-
 export function ChartSkeleton() {
   return (
     <Card className="border-border/50">

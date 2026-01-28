@@ -1,6 +1,7 @@
 /**
  * i18n configuration with react-i18next
  * Supports English (en) and Indonesian (id)
+ * Focused on Trading Journey functionality
  */
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
@@ -32,25 +33,11 @@ const enTranslations = {
   // Navigation
   nav: {
     dashboard: 'Dashboard',
-    portfolio: 'Portfolio',
-    transactions: 'Transactions',
-    analytics: 'Analytics',
     accounts: 'Accounts',
     settings: 'Settings',
     upgrade: 'Upgrade',
     notifications: 'Notifications',
     admin: 'Admin',
-    // Dashboard tabs
-    portfolioOverview: 'Portfolio',
-    financialFreedom: 'Financial Freedom',
-    tradingJourney: 'Trading',
-    // Financial Freedom
-    fireCalculator: 'FIRE Calculator',
-    budget: 'Budget',
-    debtPayoff: 'Debt Payoff',
-    emergencyFund: 'Emergency Fund',
-    goals: 'Goals',
-    progress: 'Progress',
     // Trading
     tradingSummary: 'Summary',
     tradingJournal: 'Journal',
@@ -58,90 +45,34 @@ const enTranslations = {
     tradingPerformance: 'Performance',
     tradingStrategies: 'Strategies',
     tradingInsights: 'AI Insights',
+    riskManagement: 'Risk Management',
+    aiAssistant: 'AI Assistant',
+    marketCalendar: 'Market Calendar',
   },
 
   // Dashboard
   dashboard: {
     title: 'Dashboard',
-    welcome: 'Welcome back! Here\'s an overview of your portfolio.',
+    welcome: 'Welcome back! Here\'s your trading overview.',
     totalValue: 'Total Value',
     totalGainLoss: 'Total Gain/Loss',
     todayChange: 'Today\'s Change',
-    cagr: 'CAGR',
     performance: 'Performance',
-    allocation: 'Allocation',
-    holdings: 'Holdings',
-    recentTransactions: 'Recent Transactions',
-    noHoldings: 'No holdings yet',
-    addFirstAsset: 'Add your first asset to get started',
-  },
-
-  // Portfolio
-  portfolio: {
-    title: 'Portfolio',
-    subtitle: 'Manage your investment assets',
-    addAsset: 'Add Asset',
-    assets: 'Assets',
-    value: 'Value',
-    quantity: 'Quantity',
-    avgCost: 'Avg Cost',
-    currentPrice: 'Current Price',
-    gainLoss: 'Gain/Loss',
-    percentage: 'Percentage',
-    actions: 'Actions',
-  },
-
-  // Transactions
-  transactions: {
-    title: 'Transactions',
-    subtitle: 'View and manage your transaction history',
-    addTransaction: 'Add Transaction',
-    buy: 'Buy',
-    sell: 'Sell',
-    date: 'Date',
-    asset: 'Asset',
-    type: 'Type',
-    price: 'Price',
-    total: 'Total',
-    fee: 'Fee',
-    notes: 'Notes',
   },
 
   // Accounts
   accounts: {
-    title: 'Accounts',
-    subtitle: 'Manage your financial accounts',
+    title: 'Trading Accounts',
+    subtitle: 'Manage your trading accounts',
     addAccount: 'Add Account',
     balance: 'Balance',
     deposit: 'Deposit',
     withdraw: 'Withdraw',
     transfer: 'Transfer',
     accountType: 'Account Type',
-    bank: 'Bank',
-    ewallet: 'E-Wallet',
-    broker: 'Broker',
-    cash: 'Cash',
-    softWallet: 'Soft Wallet',
-  },
-
-  // Financial Freedom
-  ff: {
-    title: 'Financial Freedom',
-    subtitle: 'Track your journey to financial independence',
-    level: 'Level',
-    survival: 'Survival',
-    stability: 'Stability',
-    independence: 'Independence',
-    freedom: 'Freedom',
-    purpose: 'Purpose',
-    savingsRate: 'Savings Rate',
-    emergencyFundMonths: 'Emergency Fund',
-    debtToIncome: 'Debt-to-Income',
-    totalAssets: 'Total Assets',
-    monthlyExpenses: 'Monthly Expenses',
-    monthlyIncome: 'Monthly Income',
-    fireNumber: 'FIRE Number',
-    yearsToFire: 'Years to FIRE',
+    trading: 'Trading',
+    backtest: 'Backtest',
+    funding: 'Funding',
   },
 
   // Trading
@@ -157,6 +88,22 @@ const enTranslations = {
     sharpeRatio: 'Sharpe Ratio',
     wins: 'Wins',
     losses: 'Losses',
+    openTrades: 'Open Trades',
+    closedTrades: 'Closed Trades',
+    strategies: 'Strategies',
+    sessions: 'Sessions',
+  },
+
+  // Risk Management
+  risk: {
+    title: 'Risk Management',
+    subtitle: 'Monitor and control your trading risk',
+    dailyLimit: 'Daily Loss Limit',
+    weeklyDrawdown: 'Weekly Drawdown',
+    positionSize: 'Position Size',
+    riskPerTrade: 'Risk Per Trade',
+    maxPositions: 'Max Positions',
+    correlation: 'Correlation',
   },
 
   // Settings
@@ -173,6 +120,7 @@ const enTranslations = {
     darkMode: 'Dark Mode',
     lightMode: 'Light Mode',
     systemMode: 'System',
+    ai: 'AI Settings',
   },
 
   // Subscription
@@ -213,8 +161,8 @@ const enTranslations = {
     title: 'Notifications',
     markAllRead: 'Mark all read',
     noNotifications: 'No notifications',
-    priceAlert: 'Price Alert',
-    transaction: 'Transaction',
+    riskAlert: 'Risk Alert',
+    tradeUpdate: 'Trade Update',
     system: 'System',
   },
 };
@@ -246,25 +194,11 @@ const idTranslations = {
   // Navigation
   nav: {
     dashboard: 'Dasbor',
-    portfolio: 'Portofolio',
-    transactions: 'Transaksi',
-    analytics: 'Analitik',
     accounts: 'Akun',
     settings: 'Pengaturan',
     upgrade: 'Upgrade',
     notifications: 'Notifikasi',
     admin: 'Admin',
-    // Dashboard tabs
-    portfolioOverview: 'Portofolio',
-    financialFreedom: 'Kebebasan Finansial',
-    tradingJourney: 'Trading',
-    // Financial Freedom
-    fireCalculator: 'Kalkulator FIRE',
-    budget: 'Anggaran',
-    debtPayoff: 'Pelunasan Hutang',
-    emergencyFund: 'Dana Darurat',
-    goals: 'Target',
-    progress: 'Progres',
     // Trading
     tradingSummary: 'Ringkasan',
     tradingJournal: 'Jurnal',
@@ -272,90 +206,34 @@ const idTranslations = {
     tradingPerformance: 'Performa',
     tradingStrategies: 'Strategi',
     tradingInsights: 'Analisis AI',
+    riskManagement: 'Manajemen Risiko',
+    aiAssistant: 'Asisten AI',
+    marketCalendar: 'Kalender Pasar',
   },
 
   // Dashboard
   dashboard: {
     title: 'Dasbor',
-    welcome: 'Selamat datang! Berikut ringkasan portofolio Anda.',
+    welcome: 'Selamat datang! Berikut ringkasan trading Anda.',
     totalValue: 'Total Nilai',
     totalGainLoss: 'Total Untung/Rugi',
     todayChange: 'Perubahan Hari Ini',
-    cagr: 'CAGR',
     performance: 'Performa',
-    allocation: 'Alokasi',
-    holdings: 'Kepemilikan',
-    recentTransactions: 'Transaksi Terbaru',
-    noHoldings: 'Belum ada kepemilikan',
-    addFirstAsset: 'Tambah aset pertama Anda untuk memulai',
-  },
-
-  // Portfolio
-  portfolio: {
-    title: 'Portofolio',
-    subtitle: 'Kelola aset investasi Anda',
-    addAsset: 'Tambah Aset',
-    assets: 'Aset',
-    value: 'Nilai',
-    quantity: 'Jumlah',
-    avgCost: 'Biaya Rata-rata',
-    currentPrice: 'Harga Sekarang',
-    gainLoss: 'Untung/Rugi',
-    percentage: 'Persentase',
-    actions: 'Aksi',
-  },
-
-  // Transactions
-  transactions: {
-    title: 'Transaksi',
-    subtitle: 'Lihat dan kelola riwayat transaksi',
-    addTransaction: 'Tambah Transaksi',
-    buy: 'Beli',
-    sell: 'Jual',
-    date: 'Tanggal',
-    asset: 'Aset',
-    type: 'Tipe',
-    price: 'Harga',
-    total: 'Total',
-    fee: 'Biaya',
-    notes: 'Catatan',
   },
 
   // Accounts
   accounts: {
-    title: 'Akun',
-    subtitle: 'Kelola akun keuangan Anda',
+    title: 'Akun Trading',
+    subtitle: 'Kelola akun trading Anda',
     addAccount: 'Tambah Akun',
     balance: 'Saldo',
     deposit: 'Setor',
     withdraw: 'Tarik',
     transfer: 'Transfer',
     accountType: 'Tipe Akun',
-    bank: 'Bank',
-    ewallet: 'E-Wallet',
-    broker: 'Broker',
-    cash: 'Tunai',
-    softWallet: 'Dompet Digital',
-  },
-
-  // Financial Freedom
-  ff: {
-    title: 'Kebebasan Finansial',
-    subtitle: 'Lacak perjalanan menuju kemandirian finansial',
-    level: 'Level',
-    survival: 'Bertahan',
-    stability: 'Stabilitas',
-    independence: 'Kemandirian',
-    freedom: 'Kebebasan',
-    purpose: 'Tujuan Hidup',
-    savingsRate: 'Tingkat Tabungan',
-    emergencyFundMonths: 'Dana Darurat',
-    debtToIncome: 'Rasio Hutang',
-    totalAssets: 'Total Aset',
-    monthlyExpenses: 'Pengeluaran Bulanan',
-    monthlyIncome: 'Pendapatan Bulanan',
-    fireNumber: 'Angka FIRE',
-    yearsToFire: 'Tahun ke FIRE',
+    trading: 'Trading',
+    backtest: 'Backtest',
+    funding: 'Pendanaan',
   },
 
   // Trading
@@ -371,6 +249,22 @@ const idTranslations = {
     sharpeRatio: 'Sharpe Ratio',
     wins: 'Menang',
     losses: 'Kalah',
+    openTrades: 'Trade Terbuka',
+    closedTrades: 'Trade Tertutup',
+    strategies: 'Strategi',
+    sessions: 'Sesi',
+  },
+
+  // Risk Management
+  risk: {
+    title: 'Manajemen Risiko',
+    subtitle: 'Monitor dan kontrol risiko trading Anda',
+    dailyLimit: 'Batas Kerugian Harian',
+    weeklyDrawdown: 'Drawdown Mingguan',
+    positionSize: 'Ukuran Posisi',
+    riskPerTrade: 'Risiko Per Trade',
+    maxPositions: 'Posisi Maksimal',
+    correlation: 'Korelasi',
   },
 
   // Settings
@@ -387,6 +281,7 @@ const idTranslations = {
     darkMode: 'Mode Gelap',
     lightMode: 'Mode Terang',
     systemMode: 'Sistem',
+    ai: 'Pengaturan AI',
   },
 
   // Subscription
@@ -427,8 +322,8 @@ const idTranslations = {
     title: 'Notifikasi',
     markAllRead: 'Tandai semua dibaca',
     noNotifications: 'Tidak ada notifikasi',
-    priceAlert: 'Peringatan Harga',
-    transaction: 'Transaksi',
+    riskAlert: 'Peringatan Risiko',
+    tradeUpdate: 'Update Trade',
     system: 'Sistem',
   },
 };

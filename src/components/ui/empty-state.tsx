@@ -4,7 +4,7 @@
  * Enhanced with JTBD (Jobs To Be Done) framework messaging
  */
 
-import { LucideIcon, Inbox, FileText, TrendingUp, Wallet, Target, BarChart3, BookOpen, Brain, LineChart } from "lucide-react";
+import { LucideIcon, Inbox, BookOpen, Brain, LineChart, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -59,72 +59,6 @@ export function EmptyState({
   );
 }
 
-// Pre-configured empty states for common scenarios
-export function EmptyTransactions({ onAddTransaction }: { onAddTransaction?: () => void }) {
-  return (
-    <EmptyState
-      icon={FileText}
-      title="No transactions yet"
-      description="Start tracking your investments by adding your first transaction. You can record buys, sells, dividends, and transfers."
-      action={onAddTransaction ? { label: "Add Transaction", onClick: onAddTransaction } : undefined}
-    />
-  );
-}
-
-export function EmptyHoldings({ onAddTransaction }: { onAddTransaction?: () => void }) {
-  return (
-    <EmptyState
-      icon={TrendingUp}
-      title="No holdings found"
-      description="Your portfolio is empty. Add transactions to start building your portfolio and track your investments."
-      action={onAddTransaction ? { label: "Add Transaction", onClick: onAddTransaction } : undefined}
-    />
-  );
-}
-
-export function EmptyAccounts({ onAddAccount }: { onAddAccount?: () => void }) {
-  return (
-    <EmptyState
-      icon={Wallet}
-      title="No accounts set up"
-      description="Create your first account to start tracking your cash flow and link transactions to specific accounts."
-      action={onAddAccount ? { label: "Add Account", onClick: onAddAccount } : undefined}
-    />
-  );
-}
-
-export function EmptyGoals({ onAddGoal }: { onAddGoal?: () => void }) {
-  return (
-    <EmptyState
-      icon={Target}
-      title="No financial goals"
-      description="Set up your first financial goal to track your progress towards financial freedom."
-      action={onAddGoal ? { label: "Create Goal", onClick: onAddGoal } : undefined}
-    />
-  );
-}
-
-export function EmptySearchResults({ onClearSearch }: { onClearSearch?: () => void }) {
-  return (
-    <EmptyState
-      icon={Inbox}
-      title="No results found"
-      description="Try adjusting your search or filter criteria to find what you're looking for."
-      action={onClearSearch ? { label: "Clear Search", onClick: onClearSearch } : undefined}
-    />
-  );
-}
-
-export function EmptyAnalytics() {
-  return (
-    <EmptyState
-      icon={BarChart3}
-      title="Not enough data"
-      description="Add more transactions to see analytics and insights about your portfolio performance."
-    />
-  );
-}
-
 // JTBD-focused empty states for Trading Journey
 export function EmptyTrades({ onAddTrade }: { onAddTrade?: () => void }) {
   return (
@@ -165,6 +99,17 @@ export function EmptyStrategies({ onCreateStrategy }: { onCreateStrategy?: () =>
       title="Define your edge"
       description="Create your first strategy with clear entry rules and risk parameters to trade consistently."
       action={onCreateStrategy ? { label: "Create Strategy", onClick: onCreateStrategy } : undefined}
+    />
+  );
+}
+
+export function EmptySearchResults({ onClearSearch }: { onClearSearch?: () => void }) {
+  return (
+    <EmptyState
+      icon={Inbox}
+      title="No results found"
+      description="Try adjusting your search or filter criteria to find what you're looking for."
+      action={onClearSearch ? { label: "Clear Search", onClick: onClearSearch } : undefined}
     />
   );
 }
