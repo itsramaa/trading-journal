@@ -23,6 +23,7 @@ import { useAccounts } from "@/hooks/use-accounts";
 import { useRealtime } from "@/hooks/use-realtime";
 import { calculateTradingStats } from "@/lib/trading-calculations";
 import { formatCurrency } from "@/lib/formatters";
+import { MarketSessionsWidget } from "@/components/dashboard/MarketSessionsWidget";
 import { 
   TrendingUp, 
   TrendingDown,
@@ -35,6 +36,7 @@ import {
   Building2,
   Wallet,
   Shield,
+  Globe,
 } from "lucide-react";
 
 const Dashboard = () => {
@@ -170,6 +172,14 @@ const Dashboard = () => {
           </div>
         </section>
 
+        {/* Market Sessions */}
+        <section className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Globe className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-semibold">Market Sessions</h2>
+          </div>
+          <MarketSessionsWidget />
+        </section>
         {/* Active Positions + Today's Performance */}
         <section className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
