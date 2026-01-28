@@ -18,7 +18,7 @@ import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Calendar, Tag, Target, Building2, TrendingUp, TrendingDown, BookOpen, MoreVertical, Trash2, Clock, CheckCircle, Circle, DollarSign, XCircle, AlertCircle, Edit, X } from "lucide-react";
+import { Plus, Calendar, Tag, Target, Building2, TrendingUp, TrendingDown, BookOpen, MoreVertical, Trash2, Clock, CheckCircle, Circle, DollarSign, XCircle, AlertCircle, Edit, X, Wand2 } from "lucide-react";
 import { format } from "date-fns";
 import { useTradingAccounts } from "@/hooks/use-trading-accounts";
 import { useTradeEntries, useCreateTradeEntry, useDeleteTradeEntry, useClosePosition, useUpdateTradeEntry, TradeEntry } from "@/hooks/use-trade-entries";
@@ -27,6 +27,8 @@ import { useTradingSessions } from "@/hooks/use-trading-sessions";
 import { filterTradesByDateRange, filterTradesByStrategies } from "@/lib/trading-calculations";
 import { formatCurrency as formatCurrencyUtil } from "@/lib/formatters";
 import { useUserSettings } from "@/hooks/use-user-settings";
+import { TradeEntryWizard } from "@/components/trade/entry/TradeEntryWizard";
+import { useQueryClient } from "@tanstack/react-query";
 
 // Binance Futures fee rates
 const BINANCE_MAKER_FEE = 0.0002; // 0.02%
@@ -64,6 +66,7 @@ type EditPositionFormValues = z.infer<typeof editPositionSchema>;
 
 export default function TradingJournal() {
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange>({ from: null, to: null });
   const [selectedStrategyIds, setSelectedStrategyIds] = useState<string[]>([]);
   const [newTradeStrategies, setNewTradeStrategies] = useState<string[]>([]);
@@ -73,6 +76,7 @@ export default function TradingJournal() {
   const [showInlineStrategyForm, setShowInlineStrategyForm] = useState(false);
   const [inlineStrategyName, setInlineStrategyName] = useState("");
 
+  const queryClient = useQueryClient();
   const { data: userSettings } = useUserSettings();
   const { data: tradingAccounts, isLoading: accountsLoading } = useTradingAccounts();
   const { data: trades, isLoading: tradesLoading } = useTradeEntries();
@@ -284,10 +288,18 @@ export default function TradingJournal() {
             <h1 className="text-3xl font-bold tracking-tight">Trading Journal</h1>
             <p className="text-muted-foreground">Document every trade for continuous improvement</p>
           </div>
-          <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-            <DialogTrigger asChild>
-              <Button><Plus className="mr-2 h-4 w-4" />New Entry</Button>
-            </DialogTrigger>
+          <div className="flex gap-2">
+            {/* Wizard Entry Button */}
+            <Button variant="default" onClick={() => setIsWizardOpen(true)}>
+              <Wand2 className="mr-2 h-4 w-4" />
+              New Trade (Wizard)
+            </Button>
+            
+            {/* Quick Entry Dialog */}
+            <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline"><Plus className="mr-2 h-4 w-4" />Quick Entry</Button>
+              </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>New Trade Entry</DialogTitle>
@@ -557,7 +569,21 @@ export default function TradingJournal() {
               </form>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
+        
+        {/* Trade Entry Wizard Dialog */}
+        <Dialog open={isWizardOpen} onOpenChange={setIsWizardOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden p-0">
+            <TradeEntryWizard
+              onClose={() => setIsWizardOpen(false)}
+              onComplete={() => {
+                setIsWizardOpen(false);
+                queryClient.invalidateQueries({ queryKey: ["trade-entries"] });
+              }}
+            />
+          </DialogContent>
+        </Dialog>
 
         {/* P&L Summary Cards */}
         <div className="grid gap-4 md:grid-cols-4">
