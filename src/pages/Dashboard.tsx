@@ -37,6 +37,10 @@ import {
   Wallet,
   Shield,
   Globe,
+  Calendar,
+  Flame,
+  Trophy,
+  AlertTriangle,
 } from "lucide-react";
 
 const Dashboard = () => {
@@ -64,6 +68,43 @@ const Dashboard = () => {
 
   // Trading stats
   const tradingStats = useMemo(() => calculateTradingStats(trades), [trades]);
+
+  // 7-Day Quick Stats
+  const sevenDayStats = useMemo(() => {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    
+    const recentTrades = trades
+      .filter(t => t.status === 'closed' && new Date(t.trade_date) >= sevenDaysAgo)
+      .sort((a, b) => new Date(b.trade_date).getTime() - new Date(a.trade_date).getTime());
+    
+    // Calculate streak (consecutive wins or losses from most recent)
+    let streak = { type: 'win' as 'win' | 'loss', count: 0 };
+    if (recentTrades.length > 0) {
+      const firstResult = recentTrades[0].result;
+      streak.type = firstResult === 'win' ? 'win' : 'loss';
+      for (const trade of recentTrades) {
+        if (trade.result === streak.type) {
+          streak.count++;
+        } else {
+          break;
+        }
+      }
+    }
+    
+    // Calculate best/worst day
+    const byDay = recentTrades.reduce((acc, t) => {
+      const day = new Date(t.trade_date).toISOString().split('T')[0];
+      acc[day] = (acc[day] || 0) + (t.realized_pnl || 0);
+      return acc;
+    }, {} as Record<string, number>);
+    
+    const days = Object.entries(byDay).sort((a, b) => b[1] - a[1]);
+    const bestDay = days[0] ? { date: days[0][0], pnl: days[0][1] } : { date: '', pnl: 0 };
+    const worstDay = days[days.length - 1] ? { date: days[days.length - 1][0], pnl: days[days.length - 1][1] } : { date: '', pnl: 0 };
+    
+    return { streak, bestDay, worstDay, trades7d: recentTrades.length };
+  }, [trades]);
 
   const formatCurrencyValue = (value: number) => {
     if (isIDR) {
@@ -196,6 +237,78 @@ const Dashboard = () => {
                     <div>
                       <p className="text-sm text-muted-foreground">Expectancy</p>
                       <p className="text-2xl font-bold">${tradingStats.expectancy.toFixed(2)}</p>
+                    </div>
+                    <Activity className="h-8 w-8 text-muted-foreground/50" />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </section>
+        )}
+
+        {/* 7-Day Quick Stats */}
+        {trades.length > 0 && (
+          <section className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-primary" />
+              <h2 className="text-lg font-semibold">7-Day Stats</h2>
+            </div>
+            <div className="grid gap-4 md:grid-cols-4">
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Current Streak</p>
+                      <p className={`text-xl font-bold ${sevenDayStats.streak.type === 'win' ? 'text-green-500' : 'text-red-500'}`}>
+                        {sevenDayStats.streak.count > 0 ? (
+                          sevenDayStats.streak.type === 'win' 
+                            ? `${sevenDayStats.streak.count} Win${sevenDayStats.streak.count > 1 ? 's' : ''}` 
+                            : `${sevenDayStats.streak.count} Loss${sevenDayStats.streak.count > 1 ? 'es' : ''}`
+                        ) : 'No streak'}
+                      </p>
+                    </div>
+                    <Flame className={`h-8 w-8 ${sevenDayStats.streak.type === 'win' ? 'text-green-500/50' : 'text-red-500/50'}`} />
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Best Day (7d)</p>
+                      <p className="text-xl font-bold text-green-500">
+                        {sevenDayStats.bestDay.pnl > 0 ? `+$${sevenDayStats.bestDay.pnl.toFixed(2)}` : '-'}
+                      </p>
+                      {sevenDayStats.bestDay.date && (
+                        <p className="text-xs text-muted-foreground">{sevenDayStats.bestDay.date}</p>
+                      )}
+                    </div>
+                    <Trophy className="h-8 w-8 text-green-500/50" />
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Worst Day (7d)</p>
+                      <p className="text-xl font-bold text-red-500">
+                        {sevenDayStats.worstDay.pnl < 0 ? `$${sevenDayStats.worstDay.pnl.toFixed(2)}` : '-'}
+                      </p>
+                      {sevenDayStats.worstDay.date && (
+                        <p className="text-xs text-muted-foreground">{sevenDayStats.worstDay.date}</p>
+                      )}
+                    </div>
+                    <AlertTriangle className="h-8 w-8 text-red-500/50" />
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Trades (7d)</p>
+                      <p className="text-xl font-bold">{sevenDayStats.trades7d}</p>
                     </div>
                     <Activity className="h-8 w-8 text-muted-foreground/50" />
                   </div>
