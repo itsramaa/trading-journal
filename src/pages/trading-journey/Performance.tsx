@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -7,10 +8,15 @@ import { Badge } from "@/components/ui/badge";
 import { DateRangeFilter, DateRange } from "@/components/trading/DateRangeFilter";
 import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
-import { TrendingUp, Target, BarChart3, AlertTriangle, Trophy, FileText } from "lucide-react";
+import { TrendingUp, Target, BarChart3, AlertTriangle, Trophy, FileText, Calendar, Brain, Grid3X3 } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from "recharts";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
+import { useTradingSessions } from "@/hooks/use-trading-sessions";
+import { TradingHeatmap } from "@/components/analytics/TradingHeatmap";
+import { DrawdownChart } from "@/components/analytics/DrawdownChart";
+import { AIPatternInsights } from "@/components/analytics/AIPatternInsights";
+import { CryptoRanking } from "@/components/analytics/CryptoRanking";
 import { 
   filterTradesByDateRange, 
   filterTradesByStrategies,
@@ -18,6 +24,7 @@ import {
   calculateStrategyPerformance,
   generateEquityCurve,
 } from "@/lib/trading-calculations";
+import { format } from "date-fns";
 
 export default function Performance() {
   const [dateRange, setDateRange] = useState<DateRange>({ from: null, to: null });
@@ -25,6 +32,7 @@ export default function Performance() {
 
   const { data: trades, isLoading: tradesLoading } = useTradeEntries();
   const { data: strategies = [] } = useTradingStrategies();
+  const { data: sessions = [], isLoading: sessionsLoading } = useTradingSessions();
 
   const filteredTrades = useMemo(() => {
     if (!trades) return [];
@@ -110,9 +118,21 @@ export default function Performance() {
           />
         ) : (
           <Tabs defaultValue="overview" className="space-y-6">
-            <TabsList>
+            <TabsList className="flex-wrap">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="strategies">Strategy Analysis</TabsTrigger>
+              <TabsTrigger value="heatmap" className="gap-2">
+                <Grid3X3 className="h-4 w-4" />
+                Heatmap
+              </TabsTrigger>
+              <TabsTrigger value="sessions" className="gap-2">
+                <Calendar className="h-4 w-4" />
+                Sessions
+              </TabsTrigger>
+              <TabsTrigger value="ai-insights" className="gap-2">
+                <Brain className="h-4 w-4" />
+                AI Insights
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview" className="space-y-6">
@@ -220,6 +240,9 @@ export default function Performance() {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Drawdown Chart */}
+              <DrawdownChart />
             </TabsContent>
 
             <TabsContent value="strategies" className="space-y-6">
@@ -337,6 +360,79 @@ export default function Performance() {
                   </Card>
                 </>
               )}
+            </TabsContent>
+
+            {/* Heatmap Tab */}
+            <TabsContent value="heatmap" className="space-y-6">
+              <TradingHeatmap />
+            </TabsContent>
+
+            {/* Sessions Tab */}
+            <TabsContent value="sessions" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Calendar className="h-5 w-5" />
+                    Trading Sessions
+                  </CardTitle>
+                  <CardDescription>Your trading session history</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {sessionsLoading ? (
+                    <div className="text-center py-8 text-muted-foreground">Loading sessions...</div>
+                  ) : sessions.length === 0 ? (
+                    <EmptyState
+                      icon={Calendar}
+                      title="No sessions recorded"
+                      description="Start a trading session from the Dashboard to track your trading activity."
+                    />
+                  ) : (
+                    <div className="space-y-3">
+                      {sessions.slice(0, 10).map((session) => (
+                        <Link
+                          key={session.id}
+                          to={`/trading/sessions/${session.id}`}
+                          className="block p-4 rounded-lg border hover:bg-muted/50 transition-colors"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="font-medium">
+                                {format(new Date(session.session_date), 'EEEE, MMM d, yyyy')}
+                              </div>
+                              <div className="text-sm text-muted-foreground">
+                                {session.trades_count} trades • {session.mood}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className={`font-bold ${session.pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                {session.pnl >= 0 ? '+' : ''}${session.pnl.toFixed(2)}
+                              </div>
+                              <div className="flex items-center gap-1">
+                                {[1, 2, 3, 4, 5].map((star) => (
+                                  <span
+                                    key={star}
+                                    className={star <= session.rating ? 'text-yellow-500' : 'text-muted'}
+                                  >
+                                    ★
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* AI Insights Tab */}
+            <TabsContent value="ai-insights" className="space-y-6">
+              <div className="grid gap-6 lg:grid-cols-2">
+                <AIPatternInsights />
+                <CryptoRanking />
+              </div>
             </TabsContent>
           </Tabs>
         )}

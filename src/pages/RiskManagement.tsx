@@ -8,9 +8,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
-import { Shield, Calculator, Settings, TrendingDown, AlertTriangle } from "lucide-react";
+import { Shield, Calculator, Settings, TrendingDown, AlertTriangle, History } from "lucide-react";
 import { DailyLossTracker } from "@/components/risk/DailyLossTracker";
 import { PositionSizeCalculator } from "@/components/risk/PositionSizeCalculator";
+import { RiskEventLog } from "@/components/risk/RiskEventLog";
 import { useRiskProfile, useUpsertRiskProfile } from "@/hooks/use-risk-profile";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
@@ -70,6 +71,10 @@ export default function RiskManagement() {
             <TabsTrigger value="settings" className="gap-2">
               <Settings className="h-4 w-4" />
               Settings
+            </TabsTrigger>
+            <TabsTrigger value="events" className="gap-2">
+              <History className="h-4 w-4" />
+              Event Log
             </TabsTrigger>
           </TabsList>
 
@@ -260,6 +265,11 @@ export default function RiskManagement() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Event Log Tab */}
+          <TabsContent value="events">
+            <RiskEventLog />
           </TabsContent>
         </Tabs>
       </div>
