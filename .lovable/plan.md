@@ -1,180 +1,321 @@
 
 
-# Plan: Reorganisasi Navbar dan Dashboard
+# Plan: Multi-Fix untuk Dashboard, Accounts, dan Calendar
 
 ## Objective
 
-1. Mengubah urutan navigation sidebar sesuai spesifikasi baru
-2. Memisahkan "Calendar & Market" menjadi 2 page terpisah: "Calendar" dan "Market Insight"
-3. Mengubah urutan section di Dashboard dan menghapus Total Balance dari Accounts
+Memperbaiki berbagai issue yang dilaporkan:
+1. **Hapus Funding** - Hanya Real dan Paper (tidak ada funding)
+2. **Dashboard Fixes**:
+   - Integrasi System Status dengan benar
+   - Market Session berdasarkan User Time (bukan UTC)
+   - Fix "Open A New Trade" link
+   - Fix "Ask AI For Details" membuka Floating AI
+   - Benarkan text `t('nav.tradingJourney')` yang tidak terbaca
+3. **Trading Account Form**:
+   - Hapus currency select (otomatis dari navbar toggle)
+   - Hapus Account ID field
+4. **Economic Calendar**: Tambah AI-powered macro condition widget
 
 ---
 
-## 1. Perubahan Navigation Sidebar
+## 1. Hapus Funding Account Type
 
-### Urutan Lama → Baru
+### File: `src/types/account.ts`
 
-| # | Lama | Baru |
-|---|------|------|
-| 1 | Dashboard | Dashboard |
-| 2 | Trade Management | Accounts |
-| 3 | Strategy & Rules | Calendar |
-| 4 | Analytics | Market Insight |
-| 5 | Risk Management | Risk Management |
-| 6 | Calendar & Market | Trade Management |
-| 7 | Accounts | Strategy & Rules |
-| 8 | Trade Quality | Trade Quality |
-| 9 | Settings | Settings |
+**Sebelum:**
+```typescript
+export type AccountType = 'trading' | 'backtest' | 'funding';
+```
 
-**Catatan:** Analytics dihapus dari navbar utama (tetap accessible via route /analytics)
+**Sesudah:**
+```typescript
+export type AccountType = 'trading' | 'backtest';
+```
 
-### File: `src/components/layout/AppSidebar.tsx`
+Hapus semua referensi ke `funding` dari:
+- `ACCOUNT_TYPE_LABELS`
+- `ACCOUNT_TYPE_ICONS`
+
+### File: `src/pages/Accounts.tsx`
+
+- Ubah tabs dari 3 (Trading, Paper, Funding) menjadi 2 (Real, Paper)
+- Hapus TabsContent untuk funding
+- Update fundingCount logic
+
+### File: `src/components/accounts/AddAccountForm.tsx`
+
+- Hapus option "Funding Source" dari account_type select
+- Hanya show "Real Trading" dan "Paper Trading" options
+- Ubah schema agar `account_type` hanya `'trading'` (dengan flag `is_backtest` untuk differentiate)
+
+---
+
+## 2. Dashboard Fixes
+
+### 2.1 System Status Integration
+
+Saat ini SystemStatusIndicator sudah terintegrasi dengan benar ke Dashboard. Verifikasi tidak ada issue.
+
+### 2.2 Market Session - User Time
+
+**File: `src/components/dashboard/MarketSessionsWidget.tsx`**
+
+Masalah: Saat ini menggunakan `new Date().getUTCHours()` (UTC time).
+Solusi: Gunakan local time user.
 
 ```typescript
-const navigationItems: NavItem[] = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Accounts", url: "/accounts", icon: Building2 },
-  { title: "Calendar", url: "/calendar", icon: Calendar },
-  { title: "Market Insight", url: "/market", icon: TrendingUp },
-  { title: "Risk Management", url: "/risk", icon: Shield },
-  { title: "Trade Management", url: "/trading", icon: Notebook },
-  { title: "Strategy & Rules", url: "/strategies", icon: Lightbulb },
-  { title: "Trade Quality", url: "/ai", icon: Target },
-  { title: "Settings", url: "/settings", icon: Settings },
-];
+// Sebelum
+const [currentHour, setCurrentHour] = useState(new Date().getUTCHours());
+
+// Sesudah  
+const [currentHour, setCurrentHour] = useState(new Date().getHours());
+```
+
+Update display dari "UTC" ke "Local":
+```typescript
+// Sebelum
+{formatTime(currentHour)} UTC
+
+// Sesudah
+{formatTime(currentHour)} Local
+```
+
+### 2.3 Fix "Open A New Trade" Link
+
+**File: `src/components/dashboard/ActivePositionsTable.tsx`**
+
+Masalah: Link mengarah ke `/trading/journal` yang tidak ada.
+Solusi: Ubah ke `/trading`.
+
+```typescript
+// Line 81
+<Link to="/trading">Open a new trade</Link>
+
+// Line 164
+<Link to="/trading" className="flex items-center gap-1">
+```
+
+### 2.4 Fix "Ask AI For Details" Button
+
+**Masalah:** Button tidak membuka Floating AI Chatbot.
+
+**Solusi:** Buat global state untuk mengontrol chatbot dan trigger dari AIInsightsWidget.
+
+**File: `src/store/app-store.ts`**
+Tambah state untuk chatbot:
+```typescript
+// New state
+isChatbotOpen: boolean;
+setChatbotOpen: (open: boolean) => void;
+chatbotInitialPrompt: string | null;
+setChatbotInitialPrompt: (prompt: string | null) => void;
+```
+
+**File: `src/components/chat/AIChatbot.tsx`**
+Subscribe ke global state:
+```typescript
+const { isChatbotOpen, setChatbotOpen, chatbotInitialPrompt } = useAppStore();
+
+useEffect(() => {
+  if (isChatbotOpen) {
+    setIsOpen(true);
+    if (chatbotInitialPrompt) {
+      setInput(chatbotInitialPrompt);
+      setChatbotInitialPrompt(null);
+    }
+  }
+}, [isChatbotOpen, chatbotInitialPrompt]);
+```
+
+**File: `src/components/dashboard/AIInsightsWidget.tsx`**
+Update button click handler:
+```typescript
+const { setChatbotOpen, setChatbotInitialPrompt } = useAppStore();
+
+<Button 
+  variant="outline" 
+  size="sm" 
+  className="w-full"
+  onClick={() => {
+    setChatbotInitialPrompt("Jelaskan detail insight trading saya");
+    setChatbotOpen(true);
+  }}
+>
+  <MessageCircle className="h-4 w-4 mr-2" />
+  Ask AI for Details
+  <ChevronRight className="h-4 w-4 ml-auto" />
+</Button>
+```
+
+### 2.5 Fix `t('nav.tradingJourney')` Text
+
+**File: `src/lib/i18n.ts`**
+
+Masalah: Key `tradingJourney` tidak ada di translations.
+Solusi: Tambahkan key ke both EN dan ID translations.
+
+```typescript
+// English
+nav: {
+  // ... existing
+  tradingJourney: 'Trading Journey',
+}
+
+// Indonesian
+nav: {
+  // ... existing
+  tradingJourney: 'Perjalanan Trading',
+}
 ```
 
 ---
 
-## 2. Split Calendar & Market menjadi 2 Pages
+## 3. Trading Account Form Updates
 
-### Page 1: Calendar (`/calendar`)
+**File: `src/components/accounts/AddAccountForm.tsx`**
 
-**File baru:** `src/pages/Calendar.tsx`
+### 3.1 Hapus Currency Select
 
-Konten:
-- Page header: "Calendar"
-- Economic Calendar (upcoming events)
-- Fokus pada jadwal event ekonomi
-
-### Page 2: Market Insight (`/market`)
-
-**File:** `src/pages/MarketCalendar.tsx` → Rename ke `src/pages/MarketInsight.tsx`
-
-Konten:
-- AI Market Sentiment
-- Volatility Assessment
-- Trading Opportunities
-- Whale Tracking
-
-### Router Updates: `src/App.tsx`
+- Hapus field `currency` dari form
+- Auto-set currency dari user settings (navbar toggle)
+- Fetch currency dari `useUserSettings()`
 
 ```typescript
-// Calendar (baru)
-<Route path="/calendar" element={
-  <ProtectedRoute>
-    <Calendar />
-  </ProtectedRoute>
-} />
+const { data: settings } = useUserSettings();
+const defaultCurrency = settings?.default_currency || 'USD';
 
-// Market Insight (rename dari MarketCalendar)
-<Route path="/market" element={
-  <ProtectedRoute>
-    <MarketInsight />
-  </ProtectedRoute>
-} />
+// Remove currency field from form
+// Auto-set in submit:
+await createAccount.mutateAsync({
+  ...data,
+  currency: defaultCurrency, // Auto from settings
+});
+```
+
+### 3.2 Hapus Account ID Field
+
+- Hapus field `account_number` dari form schema
+- Hapus FormField untuk Account ID
+- Masih simpan di metadata jika diperlukan nanti
+
+---
+
+## 4. Economic Calendar - AI Macro Widget
+
+**File: `src/pages/Calendar.tsx`**
+
+Tambah widget baru untuk kondisi macro dengan AI-powered analysis.
+
+### New Component Structure
+
+```text
+Calendar Page
+├── Page Header
+├── **AI Macro Conditions Widget (NEW)**
+│   ├── Overall Market Mood (Bullish/Bearish/Neutral)
+│   ├── Key Correlations:
+│   │   - DXY (Dollar Index) → Impact on crypto
+│   │   - S&P 500 → Risk sentiment
+│   │   - 10Y Treasury → Rate expectations
+│   │   - VIX → Volatility
+│   ├── AI Summary paragraph
+│   └── Refresh button
+├── Economic Calendar Card
+└── Footer disclaimer
+```
+
+### AI Edge Function Integration
+
+Gunakan existing `dashboard-insights` atau buat query ke AI untuk macro analysis:
+```typescript
+const getMacroAnalysis = async () => {
+  // Call AI to analyze current macro conditions
+  // Return structured data for display
+};
 ```
 
 ---
 
-## 3. Reorganisasi Dashboard
+## Files to Modify
 
-### Urutan Baru
-
-| # | Section | Keterangan |
-|---|---------|------------|
-| 1 | Pro Tip | QuickTip component (onboarding) |
-| 2 | Quick Actions | 4 buttons: Log Trade, New Session, Risk Check, Analytics |
-| 3 | System Status | ALL SYSTEMS NORMAL indicator |
-| 4 | Market Sessions | MarketSessionsWidget |
-| 5 | Accounts | Account cards (TANPA Total Balance) |
-| 6 | Today Activity | TodayPerformance + ActivePositionsTable |
-| 7 | Risk & AI Insights | RiskSummaryCard + AIInsightsWidget |
-| 8 | Trading Journey | CTA untuk new users / 7-Day Stats + Portfolio Performance |
-
-### Perubahan di Dashboard.tsx
-
-1. **Pindahkan SystemStatusIndicator** dari header ke section tersendiri
-2. **Hilangkan Total Balance card** dari section Accounts
-3. **Reorder sections** sesuai urutan baru
-4. **Pro Tip** ditambahkan di paling atas
-
----
-
-## Files to Modify/Create
-
-| File | Action |
-|------|--------|
-| `src/components/layout/AppSidebar.tsx` | Reorder nav items, add TrendingUp icon |
-| `src/pages/Calendar.tsx` | **CREATE** - Economic calendar only |
-| `src/pages/MarketInsight.tsx` | **CREATE** - AI market features (dari MarketCalendar) |
-| `src/pages/MarketCalendar.tsx` | **DELETE** - diganti MarketInsight |
-| `src/App.tsx` | Update routes (add /calendar, update imports) |
-| `src/pages/Dashboard.tsx` | Reorder sections, remove Total Balance |
+| File | Changes |
+|------|---------|
+| `src/types/account.ts` | Remove 'funding' from AccountType |
+| `src/pages/Accounts.tsx` | Remove funding tab, only Real & Paper |
+| `src/components/accounts/AddAccountForm.tsx` | Remove currency select, remove Account ID, remove funding option |
+| `src/components/dashboard/MarketSessionsWidget.tsx` | Use local time instead of UTC |
+| `src/components/dashboard/ActivePositionsTable.tsx` | Fix "/trading/journal" → "/trading" |
+| `src/components/dashboard/AIInsightsWidget.tsx` | Wire "Ask AI" button to open chatbot |
+| `src/components/chat/AIChatbot.tsx` | Listen to global state for open trigger |
+| `src/store/app-store.ts` | Add chatbot open state |
+| `src/lib/i18n.ts` | Add 'tradingJourney' translation key |
+| `src/pages/Calendar.tsx` | Add AI Macro Conditions widget |
 
 ---
 
 ## Technical Details
 
-### Calendar.tsx Structure
+### Account Type Simplification
 
 ```text
-Calendar Page
-├── Page Header
-│   ├── Title: "Economic Calendar"
-│   └── Description: Track upcoming economic events
-├── Economic Calendar Card
-│   └── Upcoming events list (from UPCOMING_EVENTS)
-└── Footer disclaimer
+Before: trading | backtest | funding (3 types)
+After:  trading (is_backtest: false) → "Real"
+        trading (is_backtest: true)  → "Paper"
 ```
 
-### MarketInsight.tsx Structure
+### Chatbot Global State
 
-```text
-Market Insight Page
-├── Page Header
-│   ├── Title: "Market Insight"
-│   └── Description: AI-powered market analysis
-├── AI Market Sentiment Card
-├── Grid: Volatility + Opportunities
-├── Whale Tracking Card
-└── Footer disclaimer
+```typescript
+// app-store.ts
+interface AppState {
+  // ... existing
+  isChatbotOpen: boolean;
+  setChatbotOpen: (open: boolean) => void;
+  chatbotInitialPrompt: string | null;
+  setChatbotInitialPrompt: (prompt: string | null) => void;
+}
 ```
 
-### Dashboard Section Order (Final)
+### Market Sessions Time Logic
 
 ```text
-Dashboard
-├── Page Header (title only, no status)
-├── Pro Tip (QuickTip)
-├── Quick Actions (4 buttons)
-├── System Status (full-width card)
-├── Market Sessions
-├── Accounts (cards only, NO Total Balance)
-├── Today's Activity
-├── Risk & AI Insights
-└── Trading Journey (7-Day Stats + Portfolio Performance / CTA)
+Before: UTC time (getUTCHours)
+After:  Local time (getHours)
+
+Display:
+- Show user's local timezone
+- Convert session hours to user's timezone for accurate display
+```
+
+### AI Macro Widget Data Structure
+
+```typescript
+interface MacroConditions {
+  overallSentiment: 'bullish' | 'bearish' | 'neutral';
+  correlations: {
+    dxy: { value: number; change: number; impact: string };
+    sp500: { value: number; change: number; impact: string };
+    treasury10y: { value: number; change: number; impact: string };
+    vix: { value: number; change: number; impact: string };
+  };
+  aiSummary: string;
+  lastUpdated: Date;
+}
 ```
 
 ---
 
 ## Summary
 
-| Change | Files Affected |
-|--------|----------------|
-| Navbar reorder | AppSidebar.tsx |
-| Split Calendar/Market | Calendar.tsx (new), MarketInsight.tsx (new), MarketCalendar.tsx (delete) |
-| Route updates | App.tsx |
-| Dashboard reorder | Dashboard.tsx |
-| Remove Total Balance | Dashboard.tsx |
+| Issue | Solution |
+|-------|----------|
+| Remove Funding | Simplify to Real/Paper only |
+| Market Session UTC | Use local time |
+| "Open New Trade" link | Change to /trading |
+| "Ask AI" button | Wire to global chatbot state |
+| tradingJourney text | Add i18n key |
+| Currency select | Auto from user settings |
+| Account ID field | Remove from form |
+| AI Macro widget | Add to Calendar page |
 
