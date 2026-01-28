@@ -1,6 +1,6 @@
 /**
- * Calendar Page - Economic Calendar with AI Macro Analysis
- * Focus on upcoming economic events and macro conditions
+ * Calendar Page - Economic Calendar with AI Economic News Analysis
+ * Focus on upcoming economic events and AI predictions
  */
 import { useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -8,16 +8,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
 import { 
   Calendar as CalendarIcon, 
   TrendingUp, 
   TrendingDown, 
-  Minus,
   RefreshCw,
   Sparkles,
-  DollarSign,
-  BarChart3,
-  Activity,
+  Newspaper,
   AlertTriangle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -32,51 +30,34 @@ const UPCOMING_EVENTS = [
   { date: 'Thu', time: '12:30', event: 'US Jobless Claims', impact: 'medium', forecast: '215K' },
 ];
 
-// Mock macro conditions data
-const MACRO_CONDITIONS = {
-  overallSentiment: 'cautious' as 'bullish' | 'bearish' | 'cautious',
-  correlations: [
-    { name: 'DXY (Dollar Index)', value: 104.25, change: -0.15, impact: 'Weaker dollar supportive for risk assets' },
-    { name: 'S&P 500', value: 5234.50, change: 0.45, impact: 'Risk-on sentiment in equities' },
-    { name: '10Y Treasury', value: 4.42, change: 0.08, impact: 'Rising yields may pressure growth stocks' },
-    { name: 'VIX', value: 14.25, change: -0.85, impact: 'Low volatility, complacency risk' },
-  ],
-  aiSummary: 'Market sedang dalam fase konsolidasi dengan sentimen mixed. DXY melemah sedikit yang mendukung aset berisiko, namun yield treasury naik menandakan kekhawatiran inflasi. VIX rendah menunjukkan potensi volatilitas mendadak. Perhatikan CPI release hari ini yang bisa memicu pergerakan signifikan.',
-  lastUpdated: new Date(),
-};
+// Mock AI Economic News Predictions
+const UPCOMING_NEWS_PREDICTIONS = [
+  {
+    date: 'Tomorrow',
+    time: '08:00',
+    event: 'UK GDP (QoQ)',
+    aiPrediction: 'Likely to meet consensus. UK economy showing gradual recovery. Minimal crypto impact expected.',
+  },
+  {
+    date: 'Wed',
+    time: '18:00',
+    event: 'FOMC Minutes',
+    aiPrediction: 'Focus on rate cut timeline. Dovish tone could boost risk assets including crypto.',
+  },
+  {
+    date: 'Thu',
+    time: '12:30',
+    event: 'US Jobless Claims',
+    aiPrediction: 'Labor market remains tight. Higher claims could signal cooling, positive for rate cut expectations.',
+  },
+];
 
 const Calendar = () => {
-  const [macroLoading, setMacroLoading] = useState(false);
-  const [macroData] = useState(MACRO_CONDITIONS);
+  const [newsLoading, setNewsLoading] = useState(false);
 
-  const handleRefreshMacro = () => {
-    setMacroLoading(true);
-    // Simulate API call
-    setTimeout(() => setMacroLoading(false), 1500);
-  };
-
-  const getSentimentIcon = (sentiment: string) => {
-    switch (sentiment) {
-      case 'bullish': return <TrendingUp className="h-5 w-5 text-profit" />;
-      case 'bearish': return <TrendingDown className="h-5 w-5 text-loss" />;
-      default: return <Minus className="h-5 w-5 text-secondary" />;
-    }
-  };
-
-  const getSentimentLabel = (sentiment: string) => {
-    switch (sentiment) {
-      case 'bullish': return 'Bullish';
-      case 'bearish': return 'Bearish';
-      default: return 'Cautious';
-    }
-  };
-
-  const getSentimentColor = (sentiment: string) => {
-    switch (sentiment) {
-      case 'bullish': return 'bg-profit/10 text-profit border-profit/30';
-      case 'bearish': return 'bg-loss/10 text-loss border-loss/30';
-      default: return 'bg-secondary/10 text-secondary-foreground border-secondary/30';
-    }
+  const handleRefreshNews = () => {
+    setNewsLoading(true);
+    setTimeout(() => setNewsLoading(false), 1500);
   };
 
   return (
@@ -90,104 +71,12 @@ const Calendar = () => {
               Economic Calendar
             </h1>
             <p className="text-muted-foreground">
-              Track upcoming high-impact economic events and macro conditions
+              Track upcoming high-impact economic events and AI predictions
             </p>
           </div>
         </div>
 
-        {/* AI Macro Conditions Widget */}
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-primary" />
-                <CardTitle className="text-lg">AI Macro Analysis</CardTitle>
-                <Badge variant="outline" className="text-xs">AI Powered</Badge>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleRefreshMacro}
-                disabled={macroLoading}
-              >
-                <RefreshCw className={cn("h-4 w-4", macroLoading && "animate-spin")} />
-              </Button>
-            </div>
-            <CardDescription>
-              Current macro conditions affecting crypto & forex markets
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {macroLoading ? (
-              <div className="space-y-3">
-                <Skeleton className="h-12 w-full" />
-                <Skeleton className="h-20 w-full" />
-                <Skeleton className="h-16 w-full" />
-              </div>
-            ) : (
-              <>
-                {/* Overall Sentiment */}
-                <div className={cn(
-                  "inline-flex items-center gap-2 px-4 py-2 rounded-full border font-medium",
-                  getSentimentColor(macroData.overallSentiment)
-                )}>
-                  {getSentimentIcon(macroData.overallSentiment)}
-                  <span>Market Sentiment: {getSentimentLabel(macroData.overallSentiment)}</span>
-                </div>
-
-                {/* Key Correlations Grid */}
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {macroData.correlations.map((item, idx) => (
-                    <div 
-                      key={idx}
-                      className="p-3 rounded-lg border bg-muted/30"
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-medium">{item.name}</span>
-                        <div className="flex items-center gap-1">
-                          {item.change >= 0 ? (
-                            <TrendingUp className="h-3 w-3 text-profit" />
-                          ) : (
-                            <TrendingDown className="h-3 w-3 text-loss" />
-                          )}
-                          <span className={cn(
-                            "text-xs font-mono",
-                            item.change >= 0 ? "text-profit" : "text-loss"
-                          )}>
-                            {item.change >= 0 ? '+' : ''}{item.change.toFixed(2)}%
-                          </span>
-                        </div>
-                      </div>
-                      <p className="text-lg font-bold font-mono">{item.value.toLocaleString()}</p>
-                      <p className="text-xs text-muted-foreground mt-1">{item.impact}</p>
-                    </div>
-                  ))}
-                </div>
-
-                {/* AI Summary */}
-                <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
-                  <div className="flex items-start gap-3">
-                    <Sparkles className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-medium text-primary mb-1">AI Analysis Summary</p>
-                      <p className="text-sm leading-relaxed">{macroData.aiSummary}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Warning for high-impact events */}
-                <div className="flex items-center gap-2 p-3 rounded-lg bg-secondary/10 border border-secondary/30">
-                  <AlertTriangle className="h-4 w-4 text-secondary shrink-0" />
-                  <p className="text-xs text-muted-foreground">
-                    <span className="font-medium">High-impact event today:</span> US CPI release at 14:30 UTC may cause significant volatility
-                  </p>
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Economic Calendar */}
+        {/* Economic Calendar - Upcoming Events */}
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
@@ -229,6 +118,99 @@ const Calendar = () => {
                 </div>
               ))}
             </div>
+          </CardContent>
+        </Card>
+
+        {/* AI Economic News Analysis */}
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Newspaper className="h-5 w-5 text-primary" />
+                <CardTitle className="text-lg">AI Economic News Analysis</CardTitle>
+                <Badge variant="outline" className="text-xs">AI Powered</Badge>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleRefreshNews}
+                disabled={newsLoading}
+              >
+                <RefreshCw className={cn("h-4 w-4", newsLoading && "animate-spin")} />
+              </Button>
+            </div>
+            <CardDescription>
+              AI predictions based on upcoming economic data releases
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {newsLoading ? (
+              <div className="space-y-3">
+                <Skeleton className="h-32 w-full" />
+                <Skeleton className="h-20 w-full" />
+                <Skeleton className="h-20 w-full" />
+              </div>
+            ) : (
+              <>
+                {/* Today's Key Release */}
+                <div className="p-4 rounded-lg border-2 border-primary/30 bg-primary/5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <AlertTriangle className="h-4 w-4 text-primary" />
+                    <span className="font-semibold">Today: US CPI (YoY)</span>
+                    <Badge>High Impact</Badge>
+                  </div>
+                  <div className="grid gap-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Forecast:</span>
+                      <span className="font-mono font-medium">3.2%</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Previous:</span>
+                      <span className="font-mono">3.4%</span>
+                    </div>
+                    <Separator className="my-2" />
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-primary" />
+                        <p className="font-medium">AI Prediction:</p>
+                      </div>
+                      <p className="text-muted-foreground leading-relaxed">
+                        Expected slightly below consensus at 3.1%. Positive surprise could trigger 
+                        USD weakness and risk-on rally. Watch for BTC reaction in the first 30 minutes.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      <div className="flex items-center gap-1">
+                        <TrendingUp className="h-3 w-3 text-profit" />
+                        <Badge variant="outline" className="bg-profit/10 text-profit border-profit/30">
+                          If Below: Bullish Crypto
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <TrendingDown className="h-3 w-3 text-loss" />
+                        <Badge variant="outline" className="bg-loss/10 text-loss border-loss/30">
+                          If Above: Bearish Crypto
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Upcoming High-Impact Events with Predictions */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-medium text-muted-foreground">Upcoming Events Analysis</h4>
+                  {UPCOMING_NEWS_PREDICTIONS.map((news, idx) => (
+                    <div key={idx} className="p-3 rounded-lg border hover:bg-muted/30 transition-colors">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-medium">{news.event}</span>
+                        <span className="text-xs text-muted-foreground">{news.date} {news.time}</span>
+                      </div>
+                      <p className="text-sm text-muted-foreground">{news.aiPrediction}</p>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
