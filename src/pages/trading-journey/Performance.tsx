@@ -117,25 +117,31 @@ export default function Performance() {
             description="Start logging your trades in the Trading Journal to see performance analytics here."
           />
         ) : (
-          <Tabs defaultValue="overview" className="space-y-6">
+          <Tabs defaultValue="overview" className="space-y-8">
             <TabsList className="flex-wrap">
-              <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="strategies">Strategy Analysis</TabsTrigger>
+              <TabsTrigger value="overview" className="gap-2">
+                <BarChart3 className="h-4 w-4" />
+                <span className="hidden sm:inline">Overview</span>
+              </TabsTrigger>
+              <TabsTrigger value="strategies" className="gap-2">
+                <Trophy className="h-4 w-4" />
+                <span className="hidden sm:inline">Strategies</span>
+              </TabsTrigger>
               <TabsTrigger value="heatmap" className="gap-2">
                 <Grid3X3 className="h-4 w-4" />
-                Heatmap
+                <span className="hidden sm:inline">Heatmap</span>
               </TabsTrigger>
               <TabsTrigger value="sessions" className="gap-2">
                 <Calendar className="h-4 w-4" />
-                Sessions
+                <span className="hidden sm:inline">Sessions</span>
               </TabsTrigger>
               <TabsTrigger value="ai-insights" className="gap-2">
                 <Brain className="h-4 w-4" />
-                AI Insights
+                <span className="hidden sm:inline">AI Insights</span>
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="overview" className="space-y-6">
+            <TabsContent value="overview" className="space-y-8">
               {/* Key Metrics */}
               <div className="grid gap-4 md:grid-cols-4">
                 <Card>
@@ -245,7 +251,7 @@ export default function Performance() {
               <DrawdownChart />
             </TabsContent>
 
-            <TabsContent value="strategies" className="space-y-6">
+            <TabsContent value="strategies" className="space-y-8">
               {strategies.length === 0 ? (
                 <EmptyState
                   icon={Trophy}

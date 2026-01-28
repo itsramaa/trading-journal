@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Helmet } from "react-helmet";
-import { History, CandlestickChart, FlaskConical, Wallet, TrendingUp, TrendingDown } from "lucide-react";
+import { CandlestickChart, FlaskConical, Wallet } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -56,37 +57,38 @@ export default function Accounts() {
         {/* Dashboard Summary */}
         <TradingAccountsDashboard />
 
-        {/* Account Tabs */}
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
-          <TabsList className="grid w-full grid-cols-3 lg:w-[500px]">
-            <TabsTrigger value="trading" className="gap-2">
-              <CandlestickChart className="h-4 w-4" />
-              <span className="hidden sm:inline">Trading</span>
-              {tradingCount > 0 && (
-                <span className="ml-1 text-xs bg-primary/20 px-1.5 py-0.5 rounded-full">
-                  {tradingCount}
-                </span>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="backtest" className="gap-2">
-              <FlaskConical className="h-4 w-4" />
-              <span className="hidden sm:inline">Paper Trading</span>
-              {backtestCount > 0 && (
-                <span className="ml-1 text-xs bg-primary/20 px-1.5 py-0.5 rounded-full">
-                  {backtestCount}
-                </span>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="funding" className="gap-2">
-              <Wallet className="h-4 w-4" />
-              <span className="hidden sm:inline">Funding</span>
-              {fundingCount > 0 && (
-                <span className="ml-1 text-xs bg-primary/20 px-1.5 py-0.5 rounded-full">
-                  {fundingCount}
-                </span>
-              )}
-            </TabsTrigger>
-          </TabsList>
+        {/* Account Tabs - with section spacing */}
+        <div className="pt-4">
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
+            <TabsList className="grid w-full grid-cols-3 lg:w-[500px]">
+              <TabsTrigger value="trading" className="gap-2">
+                <CandlestickChart className="h-4 w-4" />
+                <span className="hidden sm:inline">Trading</span>
+                {tradingCount > 0 && (
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                    {tradingCount}
+                  </Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="backtest" className="gap-2">
+                <FlaskConical className="h-4 w-4" />
+                <span className="hidden sm:inline">Paper</span>
+                {backtestCount > 0 && (
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                    {backtestCount}
+                  </Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="funding" className="gap-2">
+                <Wallet className="h-4 w-4" />
+                <span className="hidden sm:inline">Funding</span>
+                {fundingCount > 0 && (
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                    {fundingCount}
+                  </Badge>
+                )}
+              </TabsTrigger>
+            </TabsList>
 
           <TabsContent value="trading" className="mt-6">
             <div className="space-y-4">
@@ -155,7 +157,8 @@ export default function Accounts() {
               />
             </div>
           </TabsContent>
-        </Tabs>
+          </Tabs>
+        </div>
       </div>
 
       {/* Transaction Dialog */}
