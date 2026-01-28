@@ -1,4 +1,4 @@
-import { CandlestickChart, FlaskConical, Wallet } from "lucide-react";
+import { CandlestickChart, FlaskConical } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -14,7 +14,6 @@ import type { AccountType } from "@/types/account";
 const ACCOUNT_TYPE_ICONS: Record<AccountType, React.ElementType> = {
   trading: CandlestickChart,
   backtest: FlaskConical,
-  funding: Wallet,
 };
 
 interface AccountSelectProps {

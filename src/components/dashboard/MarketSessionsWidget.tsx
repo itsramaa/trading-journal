@@ -73,12 +73,23 @@ function formatTime(hour: number): string {
   return `${hour.toString().padStart(2, '0')}:00`;
 }
 
+function getTimezoneAbbreviation(): string {
+  const date = new Date();
+  const options: Intl.DateTimeFormatOptions = { timeZoneName: 'short' };
+  const parts = new Intl.DateTimeFormat('en-US', options).formatToParts(date);
+  const tz = parts.find(p => p.type === 'timeZoneName');
+  return tz?.value || 'Local';
+}
+
 export function MarketSessionsWidget() {
-  const [currentHour, setCurrentHour] = useState(new Date().getUTCHours());
+  // Use local time instead of UTC
+  const [currentHour, setCurrentHour] = useState(new Date().getHours());
+  const [timezone, setTimezone] = useState(getTimezoneAbbreviation());
   
   useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentHour(new Date().getUTCHours());
+      setCurrentHour(new Date().getHours());
+      setTimezone(getTimezoneAbbreviation());
     }, 60000); // Update every minute
     
     return () => clearInterval(interval);
@@ -112,7 +123,7 @@ export function MarketSessionsWidget() {
           </div>
           <Badge variant="outline" className="font-mono text-xs">
             <Clock className="h-3 w-3 mr-1" />
-            {formatTime(currentHour)} UTC
+            {formatTime(currentHour)} {timezone}
           </Badge>
         </div>
 

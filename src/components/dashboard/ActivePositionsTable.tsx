@@ -78,7 +78,7 @@ export function ActivePositionsTable() {
             <AlertCircle className="h-8 w-8 mb-2" />
             <p className="text-sm">No open positions</p>
             <Button variant="link" size="sm" asChild className="mt-2">
-              <Link to="/trading/journal">Open a new trade</Link>
+              <Link to="/trading">Open a new trade</Link>
             </Button>
           </div>
         </CardContent>
@@ -161,7 +161,7 @@ export function ActivePositionsTable() {
         </Table>
         <div className="p-3 border-t">
           <Button variant="ghost" size="sm" className="w-full" asChild>
-            <Link to="/trading/journal" className="flex items-center gap-1">
+            <Link to="/trading" className="flex items-center gap-1">
               Manage Positions <ExternalLink className="h-3 w-3" />
             </Link>
           </Button>

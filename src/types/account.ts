@@ -3,8 +3,8 @@
  * Simplified for Trading Journal focus
  */
 
-// Simplified account types for trading journal
-export type AccountType = 'trading' | 'backtest' | 'funding';
+// Simplified account types for trading journal - Real and Paper only
+export type AccountType = 'trading' | 'backtest';
 
 // Simplified transaction types - only deposit and withdrawal
 export type AccountTransactionType = 'deposit' | 'withdrawal';
@@ -53,15 +53,13 @@ export interface AccountWithBalance extends Account {
 }
 
 export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
-  trading: 'Trading Account',
+  trading: 'Real Trading',
   backtest: 'Paper Trading',
-  funding: 'Funding Source',
 };
 
 export const ACCOUNT_TYPE_ICONS: Record<AccountType, string> = {
   trading: 'candlestick-chart',
   backtest: 'flask-conical',
-  funding: 'wallet',
 };
 
 export const CURRENCIES = [

@@ -24,6 +24,7 @@ import { useDashboardInsights, type DashboardInsights } from "@/features/ai/useD
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { useAccounts } from "@/hooks/use-accounts";
+import { useAppStore } from "@/store/app-store";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -61,6 +62,7 @@ export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
   const { data: trades = [] } = useTradeEntries();
   const { data: strategies = [] } = useTradingStrategies();
   const { data: accounts = [] } = useAccounts();
+  const { setChatbotOpen, setChatbotInitialPrompt } = useAppStore();
   
   const [hasLoaded, setHasLoaded] = useState(false);
 
@@ -275,7 +277,15 @@ export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
             )}
 
             {/* Ask AI Button */}
-            <Button variant="outline" size="sm" className="w-full">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="w-full"
+              onClick={() => {
+                setChatbotInitialPrompt("Jelaskan detail insight trading saya berdasarkan data performa terkini");
+                setChatbotOpen(true);
+              }}
+            >
               <MessageCircle className="h-4 w-4 mr-2" />
               Ask AI for Details
               <ChevronRight className="h-4 w-4 ml-auto" />

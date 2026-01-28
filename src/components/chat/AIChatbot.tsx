@@ -19,6 +19,7 @@ import { cn } from '@/lib/utils';
 import { useTradeEntries } from '@/hooks/use-trade-entries';
 import { useTradingStrategies } from '@/hooks/use-trading-strategies';
 import { useAccounts } from '@/hooks/use-accounts';
+import { useAppStore } from '@/store/app-store';
 import { ChatMessage } from './ChatMessage';
 import { QuickActionsPanel } from './QuickActionsPanel';
 import { TipsPanel } from './TipsPanel';
@@ -53,6 +54,9 @@ export function AIChatbot() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Global state for chatbot control
+  const { isChatbotOpen, setChatbotOpen, chatbotInitialPrompt, setChatbotInitialPrompt } = useAppStore();
+
   // Trading data
   const { data: tradeEntries } = useTradeEntries();
   const { data: strategies } = useTradingStrategies();
@@ -60,6 +64,24 @@ export function AIChatbot() {
 
   const currentMode = AI_MODES[aiMode];
   const ModeIcon = currentMode.icon;
+
+  // Listen to global state for opening chatbot
+  useEffect(() => {
+    if (isChatbotOpen && !isOpen) {
+      setIsOpen(true);
+      setIsMinimized(false);
+      if (chatbotInitialPrompt) {
+        setInput(chatbotInitialPrompt);
+        setChatbotInitialPrompt(null);
+        // Focus input after a short delay
+        setTimeout(() => inputRef.current?.focus(), 100);
+      }
+    }
+    // Reset global state when closed
+    if (!isChatbotOpen && isOpen === false) {
+      setChatbotOpen(false);
+    }
+  }, [isChatbotOpen, chatbotInitialPrompt, isOpen, setChatbotOpen, setChatbotInitialPrompt]);
 
   // Keyboard shortcut: Escape to collapse/close
   useEffect(() => {
@@ -69,12 +91,13 @@ export function AIChatbot() {
           setIsExpanded(false);
         } else {
           setIsOpen(false);
+          setChatbotOpen(false);
         }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, isExpanded]);
+  }, [isOpen, isExpanded, setChatbotOpen]);
 
   useEffect(() => {
     if (scrollRef.current) {

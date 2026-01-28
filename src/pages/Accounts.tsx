@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { Helmet } from "react-helmet";
-import { CandlestickChart, FlaskConical, Wallet } from "lucide-react";
+import { CandlestickChart, FlaskConical } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { AddAccountForm } from "@/components/accounts/AddAccountForm";
@@ -17,7 +16,7 @@ export default function Accounts() {
   const [transactionDialogOpen, setTransactionDialogOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<Account | undefined>();
   const [defaultTransactionTab, setDefaultTransactionTab] = useState<'deposit' | 'withdraw'>('deposit');
-  const [activeTab, setActiveTab] = useState<'trading' | 'backtest' | 'funding'>('trading');
+  const [activeTab, setActiveTab] = useState<'trading' | 'backtest'>('trading');
   const { data: accounts } = useAccounts();
   
   // Enable realtime updates for accounts
@@ -30,10 +29,9 @@ export default function Accounts() {
     setTransactionDialogOpen(true);
   };
 
-  // Count accounts by type
+  // Count accounts by type - only Real and Paper
   const tradingCount = accounts?.filter(a => a.account_type === 'trading' && !a.metadata?.is_backtest).length || 0;
   const backtestCount = accounts?.filter(a => a.account_type === 'trading' && a.metadata?.is_backtest).length || 0;
-  const fundingCount = accounts?.filter(a => a.account_type === 'funding').length || 0;
 
   return (
     <DashboardLayout>
@@ -60,10 +58,10 @@ export default function Accounts() {
         {/* Account Tabs - with section spacing */}
         <div className="pt-4">
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
-            <TabsList className="grid w-full grid-cols-3 lg:w-[500px]">
+            <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
               <TabsTrigger value="trading" className="gap-2">
                 <CandlestickChart className="h-4 w-4" />
-                <span className="hidden sm:inline">Trading</span>
+                <span className="hidden sm:inline">Real</span>
                 {tradingCount > 0 && (
                   <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
                     {tradingCount}
@@ -76,15 +74,6 @@ export default function Accounts() {
                 {backtestCount > 0 && (
                   <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
                     {backtestCount}
-                  </Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="funding" className="gap-2">
-                <Wallet className="h-4 w-4" />
-                <span className="hidden sm:inline">Funding</span>
-                {fundingCount > 0 && (
-                  <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-                    {fundingCount}
                   </Badge>
                 )}
               </TabsTrigger>
@@ -132,28 +121,6 @@ export default function Accounts() {
                 }}
                 onTransact={handleTransact}
                 emptyMessage="No paper trading accounts yet. Create one to test your strategies risk-free."
-              />
-            </div>
-          </TabsContent>
-
-          <TabsContent value="funding" className="mt-6">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-semibold">Funding Sources</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Bank accounts and wallets used to fund your trading
-                  </p>
-                </div>
-              </div>
-              <AccountCardList
-                filterType="funding"
-                onSelectAccount={(id) => {
-                  const account = accounts?.find(a => a.id === id);
-                  setSelectedAccount(account);
-                }}
-                onTransact={handleTransact}
-                emptyMessage="No funding sources yet. Add your bank account or wallet to track capital flow."
               />
             </div>
           </TabsContent>

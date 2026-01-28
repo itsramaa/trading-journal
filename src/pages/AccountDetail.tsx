@@ -5,7 +5,6 @@ import {
   ArrowLeft, 
   CandlestickChart, 
   FlaskConical,
-  Wallet,
   ArrowDownCircle,
   ArrowUpCircle,
   Calendar,
@@ -41,7 +40,6 @@ import type { AccountType, AccountTransactionType } from "@/types/account";
 const ACCOUNT_TYPE_ICONS: Record<AccountType, React.ElementType> = {
   trading: CandlestickChart,
   backtest: FlaskConical,
-  funding: Wallet,
 };
 
 const TRANSACTION_TYPE_CONFIG: Record<
