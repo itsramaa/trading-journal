@@ -37,8 +37,8 @@ interface NavItem {
 const navigationItems: NavItem[] = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Trade Management", url: "/trading", icon: Notebook },
-  { title: "Strategy & Rules", url: "/trading/strategies", icon: Lightbulb },
-  { title: "Analytics", url: "/trading/analytics", icon: BarChart3 },
+  { title: "Strategy & Rules", url: "/strategies", icon: Lightbulb },
+  { title: "Analytics", url: "/analytics", icon: BarChart3 },
   { title: "Risk Management", url: "/risk", icon: Shield },
   { title: "Calendar & Market", url: "/market", icon: Calendar },
   { title: "Accounts", url: "/accounts", icon: Building2 },

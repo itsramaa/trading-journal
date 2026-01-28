@@ -151,7 +151,7 @@ export default function TradingSessions() {
       form.reset();
       // Navigate to the new session detail page
       if (newSession?.id) {
-        navigate(`/trading/sessions/${newSession.id}`);
+        navigate(`/sessions/${newSession.id}`);
       }
     }
   };
@@ -313,7 +313,7 @@ export default function TradingSessions() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => navigate(`/trading/sessions/${session.id}`)}>
+                              <DropdownMenuItem onClick={() => navigate(`/sessions/${session.id}`)}>
                                 <Eye className="mr-2 h-4 w-4" />
                                 View Details
                               </DropdownMenuItem>

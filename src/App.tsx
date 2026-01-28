@@ -65,25 +65,27 @@ const App = () => (
               </ProtectedRoute>
             } />
             
-            {/* Strategy & Rules */}
-            <Route path="/trading/strategies" element={
+            {/* Strategy & Rules (top-level) */}
+            <Route path="/strategies" element={
               <ProtectedRoute>
                 <StrategyManagement />
               </ProtectedRoute>
             } />
             
-            {/* Analytics (includes sessions) */}
-            <Route path="/trading/analytics" element={
+            {/* Analytics (top-level) */}
+            <Route path="/analytics" element={
               <ProtectedRoute>
                 <Performance />
               </ProtectedRoute>
             } />
-            <Route path="/trading/sessions" element={
+            
+            {/* Sessions (top-level) */}
+            <Route path="/sessions" element={
               <ProtectedRoute>
                 <TradingSessions />
               </ProtectedRoute>
             } />
-            <Route path="/trading/sessions/:sessionId" element={
+            <Route path="/sessions/:sessionId" element={
               <ProtectedRoute>
                 <SessionDetail />
               </ProtectedRoute>
