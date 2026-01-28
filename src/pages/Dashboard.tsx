@@ -1,9 +1,8 @@
 /**
  * Trading Dashboard - Main overview showing trading performance
- * Restructured following Design Thinking principles:
- * - F-Pattern scanning (important info top-left, actions top-right)
- * - Progressive disclosure (summary first, details on demand)
- * - Visual rhythm with consistent spacing
+ * Reorganized per user spec:
+ * 1. Pro Tip, 2. Quick Actions, 3. System Status, 4. Market Sessions,
+ * 5. Accounts (no Total Balance), 6. Today Activity, 7. Risk & AI Insights, 8. Trading Journey
  */
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
@@ -13,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { QuickTip, OnboardingTooltip } from "@/components/ui/onboarding-tooltip";
-import { EmptyState, EmptyTrades } from "@/components/ui/empty-state";
+import { EmptyState } from "@/components/ui/empty-state";
 import { RiskSummaryCard } from "@/components/risk/RiskSummaryCard";
 import { AIInsightsWidget } from "@/components/dashboard/AIInsightsWidget";
 import { ActivePositionsTable } from "@/components/dashboard/ActivePositionsTable";
@@ -36,7 +35,6 @@ import {
   LineChart,
   BookOpen,
   Building2,
-  Wallet,
   Shield,
   Globe,
   Calendar,
@@ -78,10 +76,6 @@ const Dashboard = () => {
   useRealtime({
     tables: ["accounts", "account_transactions", "trade_entries"],
   });
-  
-  const totalAccountBalance = useMemo(() => {
-    return accounts.reduce((sum, acc) => sum + Number(acc.balance), 0);
-  }, [accounts]);
 
   // Trading data
   const { data: trades = [], isLoading: tradesLoading } = useTradeEntries();
@@ -126,197 +120,61 @@ const Dashboard = () => {
     return { streak, bestDay, worstDay, trades7d: recentTrades.length };
   }, [trades]);
 
-  const formatCurrencyValue = (value: number) => {
-    if (isIDR) {
-      if (value >= 1000000000) return `Rp${(value / 1000000000).toFixed(1)}M`;
-      if (value >= 1000000) return `Rp${(value / 1000000).toFixed(0)}jt`;
-      return `Rp${value.toLocaleString()}`;
-    }
-    if (value >= 1000000) return `$${(value / 1000000).toFixed(2)}M`;
-    if (value >= 1000) return `$${(value / 1000).toFixed(0)}K`;
-    return `$${value.toLocaleString()}`;
-  };
-
   return (
     <DashboardLayout>
       <div className="space-y-8">
-        {/* Page Header with System Status inline */}
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">{t('dashboard.title')}</h1>
-            <p className="text-muted-foreground">{t('dashboard.welcome')}</p>
-          </div>
-          <SystemStatusIndicator />
+        {/* Page Header */}
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">{t('dashboard.title')}</h1>
+          <p className="text-muted-foreground">{t('dashboard.welcome')}</p>
         </div>
 
-        {/* Section 1: Most Urgent - Today's Performance + Active Positions */}
+        {/* Section 1: Pro Tip */}
+        <QuickTip storageKey="dashboard_intro" className="mb-2">
+          <strong>Pro tip:</strong> Press <kbd className="px-1.5 py-0.5 text-xs bg-muted rounded border">⌘K</kbd> to quickly search, or <kbd className="px-1.5 py-0.5 text-xs bg-muted rounded border">Shift+?</kbd> for all shortcuts.
+        </QuickTip>
+
+        {/* Section 2: Quick Actions */}
         <section className="space-y-4">
-          <div className="flex items-center gap-2">
-            <Activity className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-semibold">Today's Activity</h2>
-          </div>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <TodayPerformance />
-            <ActivePositionsTable />
-          </div>
-        </section>
-
-        {/* Section 2: 7-Day Quick Stats */}
-        {trades.length > 0 && (
-          <section className="space-y-4">
-            <div className="flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-primary" />
-              <h2 className="text-lg font-semibold">7-Day Stats</h2>
-            </div>
-            <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
-              <Card>
-                <CardContent className="pt-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Current Streak</p>
-                      <p className={`text-xl font-bold ${sevenDayStats.streak.type === 'win' ? 'text-profit' : 'text-loss'}`}>
-                        {sevenDayStats.streak.count > 0 ? (
-                          sevenDayStats.streak.type === 'win' 
-                            ? `${sevenDayStats.streak.count} Win${sevenDayStats.streak.count > 1 ? 's' : ''}` 
-                            : `${sevenDayStats.streak.count} Loss${sevenDayStats.streak.count > 1 ? 'es' : ''}`
-                        ) : 'No streak'}
-                      </p>
-                    </div>
-                    <Flame className={`h-8 w-8 ${sevenDayStats.streak.type === 'win' ? 'text-profit/50' : 'text-loss/50'}`} />
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Best Day (7d)</p>
-                      <p className="text-xl font-bold text-profit">
-                        {sevenDayStats.bestDay.pnl > 0 ? `+$${sevenDayStats.bestDay.pnl.toFixed(2)}` : '-'}
-                      </p>
-                      {sevenDayStats.bestDay.date && (
-                        <p className="text-xs text-muted-foreground">{sevenDayStats.bestDay.date}</p>
-                      )}
-                    </div>
-                    <Trophy className="h-8 w-8 text-profit/50" />
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Worst Day (7d)</p>
-                      <p className="text-xl font-bold text-loss">
-                        {sevenDayStats.worstDay.pnl < 0 ? `$${sevenDayStats.worstDay.pnl.toFixed(2)}` : '-'}
-                      </p>
-                      {sevenDayStats.worstDay.date && (
-                        <p className="text-xs text-muted-foreground">{sevenDayStats.worstDay.date}</p>
-                      )}
-                    </div>
-                    <AlertTriangle className="h-8 w-8 text-loss/50" />
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Trades (7d)</p>
-                      <p className="text-xl font-bold">{sevenDayStats.trades7d}</p>
-                    </div>
-                    <Activity className="h-8 w-8 text-muted-foreground/50" />
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </section>
-        )}
-
-        {/* Section 3: Portfolio Performance Overview */}
-        {trades.length > 0 && (
-          <section className="space-y-4">
-            <div className="flex items-center gap-2">
-              <BarChart3 className="h-5 w-5 text-primary" />
-              <h2 className="text-lg font-semibold">Portfolio Performance</h2>
-            </div>
-            <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
-              <Card className="bg-primary/5 border-primary/20">
-                <CardContent className="pt-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Win Rate</p>
-                      <p className="text-2xl font-bold">{tradingStats.winRate.toFixed(1)}%</p>
-                    </div>
-                    <Target className="h-8 w-8 text-primary/50" />
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="bg-primary/5 border-primary/20">
-                <CardContent className="pt-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Profit Factor</p>
-                      <p className="text-2xl font-bold">
-                        {tradingStats.profitFactor === Infinity ? '∞' : tradingStats.profitFactor.toFixed(2)}
-                      </p>
-                    </div>
-                    <TrendingUp className="h-8 w-8 text-primary/50" />
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className={tradingStats.totalPnl >= 0 ? 'bg-profit-muted border-profit/20' : 'bg-loss-muted border-loss/20'}>
-                <CardContent className="pt-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Total P&L</p>
-                      <p className={`text-2xl font-bold ${tradingStats.totalPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                        {tradingStats.totalPnl >= 0 ? '+' : ''}${tradingStats.totalPnl.toFixed(2)}
-                      </p>
-                    </div>
-                    {tradingStats.totalPnl >= 0 ? (
-                      <TrendingUp className="h-8 w-8 text-profit/50" />
-                    ) : (
-                      <TrendingDown className="h-8 w-8 text-loss/50" />
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="bg-muted/30">
-                <CardContent className="pt-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Expectancy</p>
-                      <p className="text-2xl font-bold">${tradingStats.expectancy.toFixed(2)}</p>
-                    </div>
-                    <Activity className="h-8 w-8 text-muted-foreground/50" />
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </section>
-        )}
-
-        {/* Section 4: Risk Summary + AI Insights (side by side) */}
-        <section className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Shield className="h-5 w-5 text-primary" />
-              <h2 className="text-lg font-semibold">Risk & AI Insights</h2>
-            </div>
-            <Button variant="ghost" size="sm" asChild>
-              <Link to="/risk" className="flex items-center gap-1">
-                View Details <ChevronRight className="h-4 w-4" />
+          <h2 className="text-lg font-semibold">Quick Actions</h2>
+          <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+            <Button variant="outline" className="h-auto py-4 flex flex-col gap-2" asChild>
+              <Link to="/trading">
+                <BookOpen className="h-5 w-5 text-primary" />
+                <span className="text-sm">Log Trade</span>
+              </Link>
+            </Button>
+            <Button variant="outline" className="h-auto py-4 flex flex-col gap-2" asChild>
+              <Link to="/sessions">
+                <Activity className="h-5 w-5 text-primary" />
+                <span className="text-sm">New Session</span>
+              </Link>
+            </Button>
+            <Button variant="outline" className="h-auto py-4 flex flex-col gap-2" asChild>
+              <Link to="/risk">
+                <Shield className="h-5 w-5 text-primary" />
+                <span className="text-sm">Risk Check</span>
+              </Link>
+            </Button>
+            <Button variant="outline" className="h-auto py-4 flex flex-col gap-2" asChild>
+              <Link to="/analytics">
+                <LineChart className="h-5 w-5 text-primary" />
+                <span className="text-sm">Analytics</span>
               </Link>
             </Button>
           </div>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <RiskSummaryCard />
-            <AIInsightsWidget />
-          </div>
         </section>
 
-        {/* Section 5: Market Sessions */}
+        {/* Section 3: System Status (ALL SYSTEMS NORMAL) */}
+        <section className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Shield className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-semibold">System Status</h2>
+          </div>
+          <SystemStatusIndicator />
+        </section>
+
+        {/* Section 4: Market Sessions */}
         <section className="space-y-4">
           <div className="flex items-center gap-2">
             <Globe className="h-5 w-5 text-primary" />
@@ -325,7 +183,7 @@ const Dashboard = () => {
           <MarketSessionsWidget />
         </section>
 
-        {/* Section 6: Accounts Summary */}
+        {/* Section 5: Accounts (NO Total Balance) */}
         <section className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -362,53 +220,176 @@ const Dashboard = () => {
               </Card>
             )}
           </div>
-          
-          {accounts.length > 0 && (
-            <Card className="bg-primary/5 border-primary/20">
-              <CardContent className="py-4 flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Total Balance</p>
-                  <p className="text-2xl font-bold">{formatCurrencyValue(totalAccountBalance)}</p>
-                </div>
-                <Wallet className="h-8 w-8 text-primary/50" />
-              </CardContent>
-            </Card>
-          )}
         </section>
 
-        {/* Section 7: Quick Actions */}
+        {/* Section 6: Today's Activity */}
         <section className="space-y-4">
-          <h2 className="text-lg font-semibold">Quick Actions</h2>
-          <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
-            <Button variant="outline" className="h-auto py-4 flex flex-col gap-2" asChild>
-              <Link to="/trading">
-                <BookOpen className="h-5 w-5 text-primary" />
-                <span className="text-sm">Log Trade</span>
-              </Link>
-            </Button>
-            <Button variant="outline" className="h-auto py-4 flex flex-col gap-2" asChild>
-              <Link to="/sessions">
-                <Activity className="h-5 w-5 text-primary" />
-                <span className="text-sm">New Session</span>
-              </Link>
-            </Button>
-            <Button variant="outline" className="h-auto py-4 flex flex-col gap-2" asChild>
-              <Link to="/risk">
-                <Shield className="h-5 w-5 text-primary" />
-                <span className="text-sm">Risk Check</span>
-              </Link>
-            </Button>
-            <Button variant="outline" className="h-auto py-4 flex flex-col gap-2" asChild>
-              <Link to="/analytics">
-                <LineChart className="h-5 w-5 text-primary" />
-                <span className="text-sm">Analytics</span>
-              </Link>
-            </Button>
+          <div className="flex items-center gap-2">
+            <Activity className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-semibold">Today's Activity</h2>
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <TodayPerformance />
+            <ActivePositionsTable />
           </div>
         </section>
 
-        {/* Trading Journey CTA (if no trades) */}
-        {trades.length === 0 && (
+        {/* Section 7: Risk & AI Insights */}
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Shield className="h-5 w-5 text-primary" />
+              <h2 className="text-lg font-semibold">Risk & AI Insights</h2>
+            </div>
+            <Button variant="ghost" size="sm" asChild>
+              <Link to="/risk" className="flex items-center gap-1">
+                View Details <ChevronRight className="h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <RiskSummaryCard />
+            <AIInsightsWidget />
+          </div>
+        </section>
+
+        {/* Section 8: Trading Journey - 7-Day Stats + Portfolio Performance OR CTA */}
+        {trades.length > 0 ? (
+          <>
+            {/* 7-Day Quick Stats */}
+            <section className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-primary" />
+                <h2 className="text-lg font-semibold">7-Day Stats</h2>
+              </div>
+              <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Current Streak</p>
+                        <p className={`text-xl font-bold ${sevenDayStats.streak.type === 'win' ? 'text-profit' : 'text-loss'}`}>
+                          {sevenDayStats.streak.count > 0 ? (
+                            sevenDayStats.streak.type === 'win' 
+                              ? `${sevenDayStats.streak.count} Win${sevenDayStats.streak.count > 1 ? 's' : ''}` 
+                              : `${sevenDayStats.streak.count} Loss${sevenDayStats.streak.count > 1 ? 'es' : ''}`
+                          ) : 'No streak'}
+                        </p>
+                      </div>
+                      <Flame className={`h-8 w-8 ${sevenDayStats.streak.type === 'win' ? 'text-profit/50' : 'text-loss/50'}`} />
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Best Day (7d)</p>
+                        <p className="text-xl font-bold text-profit">
+                          {sevenDayStats.bestDay.pnl > 0 ? `+$${sevenDayStats.bestDay.pnl.toFixed(2)}` : '-'}
+                        </p>
+                        {sevenDayStats.bestDay.date && (
+                          <p className="text-xs text-muted-foreground">{sevenDayStats.bestDay.date}</p>
+                        )}
+                      </div>
+                      <Trophy className="h-8 w-8 text-profit/50" />
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Worst Day (7d)</p>
+                        <p className="text-xl font-bold text-loss">
+                          {sevenDayStats.worstDay.pnl < 0 ? `$${sevenDayStats.worstDay.pnl.toFixed(2)}` : '-'}
+                        </p>
+                        {sevenDayStats.worstDay.date && (
+                          <p className="text-xs text-muted-foreground">{sevenDayStats.worstDay.date}</p>
+                        )}
+                      </div>
+                      <AlertTriangle className="h-8 w-8 text-loss/50" />
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Trades (7d)</p>
+                        <p className="text-xl font-bold">{sevenDayStats.trades7d}</p>
+                      </div>
+                      <Activity className="h-8 w-8 text-muted-foreground/50" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </section>
+
+            {/* Portfolio Performance Overview */}
+            <section className="space-y-4">
+              <div className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-primary" />
+                <h2 className="text-lg font-semibold">Portfolio Performance</h2>
+              </div>
+              <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+                <Card className="bg-primary/5 border-primary/20">
+                  <CardContent className="pt-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Win Rate</p>
+                        <p className="text-2xl font-bold">{tradingStats.winRate.toFixed(1)}%</p>
+                      </div>
+                      <Target className="h-8 w-8 text-primary/50" />
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card className="bg-primary/5 border-primary/20">
+                  <CardContent className="pt-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Profit Factor</p>
+                        <p className="text-2xl font-bold">
+                          {tradingStats.profitFactor === Infinity ? '∞' : tradingStats.profitFactor.toFixed(2)}
+                        </p>
+                      </div>
+                      <TrendingUp className="h-8 w-8 text-primary/50" />
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card className={tradingStats.totalPnl >= 0 ? 'bg-profit-muted border-profit/20' : 'bg-loss-muted border-loss/20'}>
+                  <CardContent className="pt-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Total P&L</p>
+                        <p className={`text-2xl font-bold ${tradingStats.totalPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                          {tradingStats.totalPnl >= 0 ? '+' : ''}${tradingStats.totalPnl.toFixed(2)}
+                        </p>
+                      </div>
+                      {tradingStats.totalPnl >= 0 ? (
+                        <TrendingUp className="h-8 w-8 text-profit/50" />
+                      ) : (
+                        <TrendingDown className="h-8 w-8 text-loss/50" />
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card className="bg-muted/30">
+                  <CardContent className="pt-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Expectancy</p>
+                        <p className="text-2xl font-bold">${tradingStats.expectancy.toFixed(2)}</p>
+                      </div>
+                      <Activity className="h-8 w-8 text-muted-foreground/50" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </section>
+          </>
+        ) : (
+          /* Trading Journey CTA (if no trades) */
           <section className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -436,11 +417,6 @@ const Dashboard = () => {
             </Card>
           </section>
         )}
-
-        {/* Quick Tip - Dismissable footer */}
-        <QuickTip storageKey="dashboard_intro" className="mb-2">
-          <strong>Pro tip:</strong> Press <kbd className="px-1.5 py-0.5 text-xs bg-muted rounded border">⌘K</kbd> to quickly search, or <kbd className="px-1.5 py-0.5 text-xs bg-muted rounded border">Shift+?</kbd> for all shortcuts.
-        </QuickTip>
       </div>
 
       {/* First-Time User Onboarding */}
