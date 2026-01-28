@@ -14,6 +14,9 @@ import { useGlobalShortcuts } from "@/components/ui/keyboard-shortcut";
 import { EmptyState } from "@/components/ui/empty-state";
 import { RiskSummaryCard } from "@/components/risk/RiskSummaryCard";
 import { AIInsightsWidget } from "@/components/dashboard/AIInsightsWidget";
+import { ActivePositionsTable } from "@/components/dashboard/ActivePositionsTable";
+import { TodayPerformance } from "@/components/dashboard/TodayPerformance";
+import { SystemStatusIndicator } from "@/components/dashboard/SystemStatusIndicator";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { useUserSettings } from "@/hooks/use-user-settings";
 import { useAccounts } from "@/hooks/use-accounts";
@@ -74,6 +77,9 @@ const Dashboard = () => {
   return (
     <DashboardLayout>
       <div className="space-y-8">
+        {/* System Status */}
+        <SystemStatusIndicator />
+
         {/* Page Header */}
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{t('dashboard.title')}</h1>
@@ -161,6 +167,14 @@ const Dashboard = () => {
                 <span className="text-sm">Accounts</span>
               </Link>
             </Button>
+          </div>
+        </section>
+
+        {/* Active Positions + Today's Performance */}
+        <section className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <ActivePositionsTable />
+            <TodayPerformance />
           </div>
         </section>
 

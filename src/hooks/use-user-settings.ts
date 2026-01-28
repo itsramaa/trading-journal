@@ -23,6 +23,7 @@ export interface UserSettings {
   notify_email_enabled: boolean;
   notify_push_enabled: boolean;
   target_allocations?: Record<string, number>;
+  ai_settings?: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 }
