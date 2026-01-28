@@ -19,7 +19,8 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Target, MoreVertical, Edit, Trash2, Tag, Clock, TrendingUp, Shield, Zap, ListChecks, LogOut } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Plus, Target, MoreVertical, Edit, Trash2, Tag, Clock, TrendingUp, Shield, Zap, ListChecks, LogOut, Brain, Star } from "lucide-react";
 import { format } from "date-fns";
 import { 
   useTradingStrategies, 
@@ -28,6 +29,7 @@ import {
   useDeleteTradingStrategy,
   TradingStrategy 
 } from "@/hooks/use-trading-strategies";
+import { useStrategyPerformance, getQualityScoreLabel } from "@/hooks/use-strategy-performance";
 import { TIMEFRAME_OPTIONS, COMMON_PAIRS, type TimeframeType, type MarketType, type EntryRule, type ExitRule, DEFAULT_ENTRY_RULES, DEFAULT_EXIT_RULES } from "@/types/strategy";
 import { EntryRulesBuilder } from "@/components/strategy/EntryRulesBuilder";
 import { ExitRulesBuilder } from "@/components/strategy/ExitRulesBuilder";
@@ -78,6 +80,7 @@ export default function StrategyManagement() {
   const [exitRules, setExitRules] = useState<ExitRule[]>([]);
 
   const { data: strategies, isLoading } = useTradingStrategies();
+  const strategyPerformance = useStrategyPerformance();
   const createStrategy = useCreateTradingStrategy();
   const updateStrategy = useUpdateTradingStrategy();
   const deleteStrategy = useDeleteTradingStrategy();
@@ -270,80 +273,127 @@ export default function StrategyManagement() {
           />
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {strategies.map((strategy) => (
-              <Card key={strategy.id} className={`border-l-4 ${colorClasses[strategy.color || 'blue']?.replace('bg-', 'border-l-')?.split(' ')[0] || 'border-l-blue-500'}`}>
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-3 h-3 rounded-full ${colorClasses[strategy.color || 'blue']?.split(' ')[0]}`} />
-                      <CardTitle className="text-lg">{strategy.name}</CardTitle>
-                    </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleOpenEdit(strategy)}>
-                          <Edit className="h-4 w-4 mr-2" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          onClick={() => setDeletingStrategy(strategy)}
-                          className="text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                  <CardDescription className="line-clamp-2">
-                    {strategy.description || 'No description'}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {/* Strategy metadata badges - now using actual data */}
-                    <div className="flex flex-wrap gap-2">
-                      {strategy.timeframe && (
-                        <Badge variant="outline" className="text-xs">
-                          <Clock className="h-3 w-3 mr-1" />
-                          {strategy.timeframe}
-                        </Badge>
-                      )}
-                      <Badge variant="outline" className="text-xs">
-                        <TrendingUp className="h-3 w-3 mr-1" />
-                        {strategy.market_type || 'spot'}
-                      </Badge>
-                      <Badge variant="outline" className="text-xs">
-                        <Shield className="h-3 w-3 mr-1" />
-                        {strategy.min_confluences || 4} confluences
-                      </Badge>
-                      <Badge variant="outline" className="text-xs">
-                        <Target className="h-3 w-3 mr-1" />
-                        {strategy.min_rr || 1.5}:1 R:R
-                      </Badge>
-                    </div>
-
-                    {strategy.tags && strategy.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {strategy.tags.map((tag) => (
-                          <Badge key={tag} variant="secondary" className="text-xs">
-                            <Tag className="h-3 w-3 mr-1" />
-                            {tag}
-                          </Badge>
-                        ))}
+            {strategies.map((strategy) => {
+              const performance = strategyPerformance.get(strategy.id);
+              const qualityScore = performance?.aiQualityScore || 0;
+              const scoreInfo = getQualityScoreLabel(qualityScore);
+              
+              return (
+                <Card key={strategy.id} className={`border-l-4 ${colorClasses[strategy.color || 'blue']?.replace('bg-', 'border-l-')?.split(' ')[0] || 'border-l-blue-500'}`}>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-3 h-3 rounded-full ${colorClasses[strategy.color || 'blue']?.split(' ')[0]}`} />
+                        <CardTitle className="text-lg">{strategy.name}</CardTitle>
                       </div>
-                    )}
-                    <div className="text-xs text-muted-foreground">
-                      Created {format(new Date(strategy.created_at), 'MMM d, yyyy')}
+                      <div className="flex items-center gap-1">
+                        {/* AI Quality Score Badge */}
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Badge className={`text-xs ${scoreInfo.colorClass}`}>
+                                <Brain className="h-3 w-3 mr-1" />
+                                {qualityScore > 0 ? `${qualityScore}%` : 'N/A'}
+                              </Badge>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <div className="text-sm space-y-1">
+                                <p className="font-medium">AI Quality Score: {scoreInfo.label}</p>
+                                {performance && performance.totalTrades > 0 ? (
+                                  <>
+                                    <p>Win Rate: {(performance.winRate * 100).toFixed(1)}%</p>
+                                    <p>Trades: {performance.totalTrades}</p>
+                                    <p>Profit Factor: {performance.profitFactor.toFixed(2)}</p>
+                                  </>
+                                ) : (
+                                  <p>No trade data available</p>
+                                )}
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleOpenEdit(strategy)}>
+                              <Edit className="h-4 w-4 mr-2" />
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => setDeletingStrategy(strategy)}
+                              className="text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                    <CardDescription className="line-clamp-2">
+                      {strategy.description || 'No description'}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {/* Strategy metadata badges - now using actual data */}
+                      <div className="flex flex-wrap gap-2">
+                        {strategy.timeframe && (
+                          <Badge variant="outline" className="text-xs">
+                            <Clock className="h-3 w-3 mr-1" />
+                            {strategy.timeframe}
+                          </Badge>
+                        )}
+                        <Badge variant="outline" className="text-xs">
+                          <TrendingUp className="h-3 w-3 mr-1" />
+                          {strategy.market_type || 'spot'}
+                        </Badge>
+                        <Badge variant="outline" className="text-xs">
+                          <Shield className="h-3 w-3 mr-1" />
+                          {strategy.min_confluences || 4} confluences
+                        </Badge>
+                        <Badge variant="outline" className="text-xs">
+                          <Target className="h-3 w-3 mr-1" />
+                          {strategy.min_rr || 1.5}:1 R:R
+                        </Badge>
+                      </div>
+
+                      {/* Performance stats if available */}
+                      {performance && performance.totalTrades > 0 && (
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground bg-muted/50 rounded-md px-2 py-1.5">
+                          <span className="flex items-center gap-1">
+                            <Star className="h-3 w-3" />
+                            {performance.wins}W / {performance.losses}L
+                          </span>
+                          <span>|</span>
+                          <span className={performance.winRate >= 0.5 ? 'text-green-500' : 'text-red-500'}>
+                            {(performance.winRate * 100).toFixed(0)}% WR
+                          </span>
+                        </div>
+                      )}
+
+                      {strategy.tags && strategy.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {strategy.tags.map((tag) => (
+                            <Badge key={tag} variant="secondary" className="text-xs">
+                              <Tag className="h-3 w-3 mr-1" />
+                              {tag}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                      <div className="text-xs text-muted-foreground">
+                        Created {format(new Date(strategy.created_at), 'MMM d, yyyy')}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         )}
 
