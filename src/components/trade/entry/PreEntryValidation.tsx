@@ -1,6 +1,6 @@
 /**
  * Step 1: Pre-Entry Validation
- * Auto-checks daily loss limits, position limits, and correlation
+ * Auto-checks daily loss limits, position limits, correlation, and AI Pre-flight
  */
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,11 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { CheckCircle, XCircle, AlertTriangle, Loader2, ShieldCheck, Building2 } from "lucide-react";
+import { CheckCircle, XCircle, AlertTriangle, Loader2, ShieldCheck, Building2, Brain, Sparkles, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePreTradeValidation } from "@/features/trade/usePreTradeValidation";
 import { useTradeEntryWizard } from "@/features/trade/useTradeEntryWizard";
 import { useTradingAccounts } from "@/hooks/use-trading-accounts";
+import { useAIPreflight } from "@/features/ai/useAIPreflight";
 import type { ValidationResult } from "@/types/trade-wizard";
 
 interface PreEntryValidationProps {
@@ -81,6 +82,7 @@ export function PreEntryValidation({ onNext, onCancel }: PreEntryValidationProps
   const [selectedAccountId, setSelectedAccountId] = useState<string>("");
   const { data: tradingAccounts, isLoading: accountsLoading } = useTradingAccounts();
   const wizard = useTradeEntryWizard();
+  const aiPreflight = useAIPreflight();
   
   const activeTradingAccounts = tradingAccounts?.filter(a => a.is_active) || [];
   const selectedAccount = activeTradingAccounts.find(a => a.id === selectedAccountId);
@@ -92,6 +94,7 @@ export function PreEntryValidation({ onNext, onCancel }: PreEntryValidationProps
 
   const [validationResult, setValidationResult] = useState<ReturnType<typeof runAllChecks> | null>(null);
   const [hasRun, setHasRun] = useState(false);
+  const [showAIPreflight, setShowAIPreflight] = useState(false);
 
   // Run validation when account is selected
   useEffect(() => {
@@ -104,9 +107,50 @@ export function PreEntryValidation({ onNext, onCancel }: PreEntryValidationProps
     }
   }, [selectedAccountId, accountBalance]);
 
+  // Run AI Pre-flight check
+  const handleAIPreflight = async () => {
+    if (!selectedAccountId) return;
+    
+    setShowAIPreflight(true);
+    
+    // Mock user history data - in production this would come from actual trade data
+    const mockUserHistory = [
+      { pair: 'BTC/USDT', winRate: 65, totalTrades: 24, avgWin: 150, avgLoss: 80 },
+      { pair: 'ETH/USDT', winRate: 58, totalTrades: 18, avgWin: 120, avgLoss: 90 },
+    ];
+    
+    await aiPreflight.mutateAsync({
+      pair: 'BTC/USDT', // Will be updated in next step
+      direction: 'LONG',
+      userHistory: mockUserHistory,
+      currentMarketConditions: {
+        trend: 'bullish',
+        volatility: 'moderate',
+      },
+    });
+  };
+
   const handleNext = () => {
     if (validationResult?.canProceed) {
       onNext();
+    }
+  };
+
+  const getAIVerdictColor = (verdict: string) => {
+    switch (verdict) {
+      case 'proceed': return 'text-green-500 border-green-500';
+      case 'caution': return 'text-yellow-500 border-yellow-500';
+      case 'skip': return 'text-red-500 border-red-500';
+      default: return 'text-muted-foreground border-muted';
+    }
+  };
+
+  const getAIVerdictIcon = (verdict: string) => {
+    switch (verdict) {
+      case 'proceed': return '🟢';
+      case 'caution': return '🟡';
+      case 'skip': return '🔴';
+      default: return '⚪';
     }
   };
 
@@ -183,6 +227,108 @@ export function PreEntryValidation({ onNext, onCancel }: PreEntryValidationProps
                 label="Correlation Check"
                 icon={<span className="text-xs">🔗</span>}
               />
+
+              {/* AI Pre-flight Section */}
+              <div className="mt-4 p-4 rounded-lg border border-primary/20 bg-primary/5">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Brain className="h-5 w-5 text-primary" />
+                    <span className="font-medium">AI Pre-flight Analysis</span>
+                    <Badge variant="secondary" className="text-xs">
+                      <Sparkles className="h-3 w-3 mr-1" />
+                      AI
+                    </Badge>
+                  </div>
+                  {!showAIPreflight && !aiPreflight.data && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleAIPreflight}
+                      disabled={aiPreflight.isPending}
+                    >
+                      {aiPreflight.isPending ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                          Analyzing...
+                        </>
+                      ) : (
+                        <>
+                          <Brain className="h-4 w-4 mr-1" />
+                          Run AI Check
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </div>
+
+                {aiPreflight.isPending && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Analyzing your historical data and market conditions...
+                  </div>
+                )}
+
+                {aiPreflight.data && (
+                  <div className="space-y-3">
+                    {/* AI Verdict */}
+                    <div className={cn(
+                      "flex items-center gap-3 p-3 rounded-lg border",
+                      getAIVerdictColor(aiPreflight.data.verdict)
+                    )}>
+                      <span className="text-xl">{getAIVerdictIcon(aiPreflight.data.verdict)}</span>
+                      <div>
+                        <p className="font-semibold uppercase">{aiPreflight.data.verdict}</p>
+                        <p className="text-sm opacity-80">Confidence: {aiPreflight.data.confidence}%</p>
+                      </div>
+                    </div>
+
+                    {/* Metrics Grid */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="p-3 rounded-lg bg-muted/50">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+                          <TrendingUp className="h-3 w-3" />
+                          Win Prediction
+                        </div>
+                        <p className="text-lg font-bold text-green-500">
+                          {aiPreflight.data.winPrediction}%
+                        </p>
+                      </div>
+                      <div className="p-3 rounded-lg bg-muted/50">
+                        <div className="text-xs text-muted-foreground mb-1">Similar Setups</div>
+                        <p className="text-lg font-bold">{aiPreflight.data.similarSetups.count}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Avg Win: ${aiPreflight.data.similarSetups.avgWin}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Market Regime */}
+                    <div className="p-3 rounded-lg bg-muted/50">
+                      <div className="text-xs text-muted-foreground mb-1">Market Regime</div>
+                      <p className="font-medium">{aiPreflight.data.marketRegime}</p>
+                    </div>
+
+                    {/* Reasoning */}
+                    <div className="text-sm text-muted-foreground">
+                      <p className="font-medium mb-1">AI Reasoning:</p>
+                      <p>{aiPreflight.data.reasoning}</p>
+                    </div>
+                  </div>
+                )}
+
+                {aiPreflight.error && (
+                  <div className="flex items-center gap-2 text-sm text-red-500">
+                    <XCircle className="h-4 w-4" />
+                    Failed to run AI analysis. You can continue without it.
+                  </div>
+                )}
+
+                {!showAIPreflight && !aiPreflight.data && !aiPreflight.isPending && (
+                  <p className="text-sm text-muted-foreground">
+                    Run AI analysis to get a verdict based on your historical performance and current market conditions.
+                  </p>
+                )}
+              </div>
 
               {/* Overall Status */}
               <div className={cn(

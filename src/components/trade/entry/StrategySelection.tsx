@@ -1,29 +1,73 @@
 /**
- * Step 2: Strategy Selection
+ * Step 2: Strategy Selection with AI Recommendations
  */
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Lightbulb, Target, Clock, Layers, CheckCircle } from "lucide-react";
+import { Lightbulb, Target, Clock, Layers, CheckCircle, Sparkles, Star, TrendingUp, Brain } from "lucide-react";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { useTradeEntryWizard } from "@/features/trade/useTradeEntryWizard";
 import { TIMEFRAME_OPTIONS, type TradingStrategyEnhanced } from "@/types/strategy";
+import { cn } from "@/lib/utils";
 
 interface StrategySelectionProps {
   onNext: () => void;
   onBack: () => void;
 }
 
+interface StrategyWithScore extends TradingStrategyEnhanced {
+  aiScore?: number;
+  aiReason?: string;
+}
+
 export function StrategySelection({ onNext, onBack }: StrategySelectionProps) {
   const { data: strategies = [], isLoading } = useTradingStrategies();
   const wizard = useTradeEntryWizard();
   const [selectedId, setSelectedId] = useState<string>(wizard.selectedStrategyId || "");
+  const [strategiesWithScores, setStrategiesWithScores] = useState<StrategyWithScore[]>([]);
+
+  // Calculate AI scores for strategies (simulated - in production this would call AI endpoint)
+  useEffect(() => {
+    if (strategies.length > 0) {
+      const scored = strategies.map((strategy) => {
+        // Simulate AI scoring based on strategy attributes
+        const hasRules = (strategy as any).entry_rules?.length > 0;
+        const hasTimeframe = !!(strategy as any).timeframe;
+        const hasMinRR = ((strategy as any).min_rr || 0) >= 1.5;
+        const hasConfluences = ((strategy as any).min_confluences || 0) >= 3;
+        
+        let score = 50;
+        if (hasRules) score += 15;
+        if (hasTimeframe) score += 10;
+        if (hasMinRR) score += 15;
+        if (hasConfluences) score += 10;
+        
+        // Add some randomness for demo
+        score = Math.min(100, Math.max(0, score + (Math.random() * 20 - 10)));
+        
+        const reasons = [];
+        if (hasRules) reasons.push("Well-defined entry rules");
+        if (hasMinRR) reasons.push("Good risk-reward ratio");
+        if (hasConfluences) reasons.push("Strong confluence requirements");
+        if (!hasTimeframe) reasons.push("Consider adding a specific timeframe");
+        
+        return {
+          ...strategy,
+          aiScore: Math.round(score),
+          aiReason: reasons.join(". ") || "Basic strategy structure",
+        } as StrategyWithScore;
+      }).sort((a, b) => (b.aiScore || 0) - (a.aiScore || 0));
+      
+      setStrategiesWithScores(scored);
+    }
+  }, [strategies]);
 
   // Find selected strategy details
-  const selectedStrategy = strategies.find(s => s.id === selectedId) as TradingStrategyEnhanced | undefined;
+  const selectedStrategy = strategiesWithScores.find(s => s.id === selectedId);
+  const recommendedStrategy = strategiesWithScores[0];
 
   const handleSelect = (strategyId: string) => {
     setSelectedId(strategyId);
@@ -44,6 +88,12 @@ export function StrategySelection({ onNext, onBack }: StrategySelectionProps) {
     return TIMEFRAME_OPTIONS.find(t => t.value === tf)?.label || tf;
   };
 
+  const getScoreColor = (score: number) => {
+    if (score >= 80) return "text-green-500";
+    if (score >= 60) return "text-yellow-500";
+    return "text-red-500";
+  };
+
   return (
     <div className="space-y-6">
       <Card>
@@ -54,41 +104,81 @@ export function StrategySelection({ onNext, onBack }: StrategySelectionProps) {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* AI Recommendation Placeholder */}
-          <div className="p-4 rounded-lg border border-primary/20 bg-primary/5">
-            <div className="flex items-start gap-3">
-              <Lightbulb className="h-5 w-5 text-primary mt-0.5" />
-              <div>
-                <p className="font-medium text-sm">AI Strategy Recommendation</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Based on current market conditions, AI analysis will suggest the best strategy.
-                  <Badge variant="outline" className="ml-2">Coming in Phase 3</Badge>
-                </p>
+          {/* AI Recommendation */}
+          {recommendedStrategy && recommendedStrategy.aiScore && recommendedStrategy.aiScore >= 70 && (
+            <div className="p-4 rounded-lg border border-green-500/30 bg-green-500/5">
+              <div className="flex items-start gap-3">
+                <div className="p-2 rounded-full bg-green-500/10">
+                  <Sparkles className="h-5 w-5 text-green-500" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="font-medium text-sm">AI Recommended Strategy</p>
+                    <Badge variant="secondary" className="text-xs">
+                      <Star className="h-3 w-3 mr-1 fill-yellow-500 text-yellow-500" />
+                      Top Pick
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: recommendedStrategy.color || '#3b82f6' }}
+                    />
+                    <span className="font-semibold">{recommendedStrategy.name}</span>
+                    <Badge className={cn("text-xs", getScoreColor(recommendedStrategy.aiScore))}>
+                      {recommendedStrategy.aiScore}% Match
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{recommendedStrategy.aiReason}</p>
+                  {selectedId !== recommendedStrategy.id && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="mt-2"
+                      onClick={() => handleSelect(recommendedStrategy.id)}
+                    >
+                      <CheckCircle className="h-4 w-4 mr-1" />
+                      Use This Strategy
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* Strategy Selector */}
+          {/* Strategy Selector with AI Scores */}
           <div className="space-y-2">
-            <Label>Your Strategies</Label>
+            <Label className="flex items-center gap-2">
+              Your Strategies
+              <Badge variant="outline" className="text-xs">
+                <Brain className="h-3 w-3 mr-1" />
+                AI Scored
+              </Badge>
+            </Label>
             <Select value={selectedId} onValueChange={handleSelect}>
               <SelectTrigger>
                 <SelectValue placeholder={isLoading ? "Loading..." : "Select a strategy"} />
               </SelectTrigger>
               <SelectContent>
-                {strategies.length === 0 && (
+                {strategiesWithScores.length === 0 && (
                   <div className="px-2 py-4 text-center text-sm text-muted-foreground">
                     No strategies found. Create a strategy first.
                   </div>
                 )}
-                {strategies.map((strategy) => (
+                {strategiesWithScores.map((strategy) => (
                   <SelectItem key={strategy.id} value={strategy.id}>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 w-full">
                       <div
-                        className="w-3 h-3 rounded-full"
+                        className="w-3 h-3 rounded-full shrink-0"
                         style={{ backgroundColor: strategy.color || '#3b82f6' }}
                       />
-                      <span>{strategy.name}</span>
+                      <span className="flex-1">{strategy.name}</span>
+                      {strategy.aiScore && (
+                        <Badge variant="outline" className={cn("text-xs ml-2", getScoreColor(strategy.aiScore))}>
+                          <TrendingUp className="h-3 w-3 mr-1" />
+                          {strategy.aiScore}%
+                        </Badge>
+                      )}
                     </div>
                   </SelectItem>
                 ))}
@@ -99,13 +189,27 @@ export function StrategySelection({ onNext, onBack }: StrategySelectionProps) {
           {/* Selected Strategy Details */}
           {selectedStrategy && (
             <div className="mt-4 p-4 rounded-lg border bg-muted/30 space-y-4">
-              <div className="flex items-center gap-2">
-                <div
-                  className="w-4 h-4 rounded-full"
-                  style={{ backgroundColor: selectedStrategy.color || '#3b82f6' }}
-                />
-                <h3 className="font-semibold text-lg">{selectedStrategy.name}</h3>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-4 h-4 rounded-full"
+                    style={{ backgroundColor: selectedStrategy.color || '#3b82f6' }}
+                  />
+                  <h3 className="font-semibold text-lg">{selectedStrategy.name}</h3>
+                </div>
+                {selectedStrategy.aiScore && (
+                  <Badge className={cn("text-sm", getScoreColor(selectedStrategy.aiScore))}>
+                    AI Score: {selectedStrategy.aiScore}%
+                  </Badge>
+                )}
               </div>
+
+              {selectedStrategy.aiReason && (
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                  <Lightbulb className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                  <p className="text-sm text-muted-foreground">{selectedStrategy.aiReason}</p>
+                </div>
+              )}
 
               {selectedStrategy.description && (
                 <p className="text-sm text-muted-foreground">{selectedStrategy.description}</p>

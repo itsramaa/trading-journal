@@ -18,10 +18,13 @@ export interface TradeEntry {
   pnl: number | null;
   fees: number | null;
   confluence_score: number | null;
+  ai_quality_score: number | null;
+  ai_confidence: number | null;
   trade_date: string;
   result: string | null;
   market_condition: string | null;
   entry_signal: string | null;
+  emotional_state: string | null;
   notes: string | null;
   tags: string[] | null;
   status: 'open' | 'closed';
