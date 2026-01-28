@@ -12,6 +12,7 @@ import { Shield, Calculator, Settings, TrendingDown, AlertTriangle, History } fr
 import { DailyLossTracker } from "@/components/risk/DailyLossTracker";
 import { PositionSizeCalculator } from "@/components/risk/PositionSizeCalculator";
 import { RiskEventLog } from "@/components/risk/RiskEventLog";
+import { CorrelationMatrix } from "@/components/risk/CorrelationMatrix";
 import { useRiskProfile, useUpsertRiskProfile } from "@/hooks/use-risk-profile";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
@@ -130,6 +131,9 @@ export default function RiskManagement() {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Correlation Matrix */}
+            <CorrelationMatrix />
 
             {/* Risk Alerts */}
             <Card>
