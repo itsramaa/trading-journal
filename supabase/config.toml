@@ -1,1 +1,22 @@
 project_id = "ltlaznzrqsccmczhfism"
+
+[functions.check-permission]
+verify_jwt = false
+
+[functions.session-analysis]
+verify_jwt = false
+
+[functions.trading-analysis]
+verify_jwt = false
+
+[functions.confluence-detection]
+verify_jwt = false
+
+[functions.trade-quality]
+verify_jwt = false
+
+[functions.dashboard-insights]
+verify_jwt = false
+
+[functions.post-trade-analysis]
+verify_jwt = false

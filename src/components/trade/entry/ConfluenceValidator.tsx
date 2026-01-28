@@ -1,6 +1,6 @@
 /**
  * Step 4: Confluence Validation
- * Dynamic checklist based on strategy entry rules
+ * Dynamic checklist based on strategy entry rules with AI detection
  */
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,10 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
-import { CheckCircle, Circle, Sparkles, AlertTriangle } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { CheckCircle, Circle, Sparkles, AlertTriangle, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTradeEntryWizard } from "@/features/trade/useTradeEntryWizard";
+import { useAIConfluenceDetection } from "@/features/ai/useAIConfluenceDetection";
 import { DEFAULT_ENTRY_RULES, type EntryRule } from "@/types/strategy";
+import { toast } from "sonner";
 
 interface ConfluenceValidatorProps {
   onNext: () => void;
@@ -21,6 +24,8 @@ interface ConfluenceValidatorProps {
 export function ConfluenceValidator({ onNext, onBack }: ConfluenceValidatorProps) {
   const wizard = useTradeEntryWizard();
   const strategyDetails = wizard.strategyDetails;
+  const tradeDetails = wizard.tradeDetails;
+  const { detectConfluences, isLoading: aiLoading, result: aiResult, error: aiError, reset: resetAI } = useAIConfluenceDetection();
   
   // Get entry rules from strategy or use defaults
   const entryRules: EntryRule[] = (strategyDetails as any)?.entry_rules?.length > 0 
@@ -32,6 +37,7 @@ export function ConfluenceValidator({ onNext, onBack }: ConfluenceValidatorProps
   const [checkedItems, setCheckedItems] = useState<string[]>(
     wizard.confluences?.checkedItems || []
   );
+  const [aiConfidences, setAiConfidences] = useState<Record<string, number>>({});
 
   const handleToggle = (ruleId: string) => {
     setCheckedItems(prev => 
@@ -39,6 +45,44 @@ export function ConfluenceValidator({ onNext, onBack }: ConfluenceValidatorProps
         ? prev.filter(id => id !== ruleId)
         : [...prev, ruleId]
     );
+  };
+
+  // AI Detection handler
+  const handleAIDetect = async () => {
+    if (!tradeDetails) {
+      toast.error("Please complete trade details first");
+      return;
+    }
+
+    const result = await detectConfluences({
+      pair: tradeDetails.pair,
+      direction: tradeDetails.direction,
+      entryPrice: tradeDetails.entryPrice,
+      stopLoss: tradeDetails.stopLoss,
+      takeProfit: tradeDetails.takeProfit,
+      timeframe: tradeDetails.timeframe,
+      strategyRules: entryRules,
+      strategyName: strategyDetails?.name || 'Manual',
+    });
+
+    if (result) {
+      // Auto-check items based on AI detection
+      const detectedIds = result.details
+        .filter(d => d.detected)
+        .map(d => d.id);
+      setCheckedItems(detectedIds);
+      
+      // Store AI confidences
+      const confidences: Record<string, number> = {};
+      result.details.forEach(d => {
+        confidences[d.id] = d.confidence;
+      });
+      setAiConfidences(confidences);
+      
+      toast.success(`AI detected ${detectedIds.length} confluences`);
+    } else if (aiError) {
+      toast.error(aiError);
+    }
   };
 
   // Calculate progress
@@ -55,9 +99,9 @@ export function ConfluenceValidator({ onNext, onBack }: ConfluenceValidatorProps
       checkedItems,
       totalRequired: minConfluences,
       passed: canProceed,
-      aiConfidence: 0, // Placeholder for AI
+      aiConfidence: aiResult?.overall_confidence || 0,
     });
-  }, [checkedItems, canProceed, minConfluences]);
+  }, [checkedItems, canProceed, minConfluences, aiResult?.overall_confidence]);
 
   const progressPercent = Math.min((checkedCount / minConfluences) * 100, 100);
 
@@ -71,18 +115,62 @@ export function ConfluenceValidator({ onNext, onBack }: ConfluenceValidatorProps
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* AI Detection Placeholder */}
+          {/* AI Detection Section */}
           <div className="p-4 rounded-lg border border-primary/20 bg-primary/5">
-            <div className="flex items-start gap-3">
-              <Sparkles className="h-5 w-5 text-primary mt-0.5" />
-              <div>
-                <p className="font-medium text-sm">AI Confluence Detection</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  AI will automatically detect confluences from your chart.
-                  <Badge variant="outline" className="ml-2">Coming in Phase 3</Badge>
-                </p>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <Sparkles className="h-5 w-5 text-primary mt-0.5" />
+                <div>
+                  <p className="font-medium text-sm">AI Confluence Detection</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Let AI analyze your trade setup and detect confluences automatically.
+                  </p>
+                </div>
               </div>
+              <Button
+                size="sm"
+                onClick={handleAIDetect}
+                disabled={aiLoading || !tradeDetails}
+              >
+                {aiLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Analyzing...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Detect with AI
+                  </>
+                )}
+              </Button>
             </div>
+            
+            {/* AI Result Summary */}
+            {aiResult && (
+              <div className="mt-4 pt-4 border-t border-primary/20">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Badge 
+                      variant={aiResult.verdict === 'pass' ? 'default' : aiResult.verdict === 'warning' ? 'secondary' : 'destructive'}
+                    >
+                      {aiResult.verdict.toUpperCase()}
+                    </Badge>
+                    <span className="text-sm text-muted-foreground">
+                      Overall Confidence: <strong>{aiResult.overall_confidence}%</strong>
+                    </span>
+                  </div>
+                  <span className="text-sm">
+                    {aiResult.confluences_detected}/{aiResult.confluences_required} detected
+                  </span>
+                </div>
+                {aiResult.recommendation && (
+                  <p className="text-sm text-muted-foreground mt-2 italic">
+                    "{aiResult.recommendation}"
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Progress Bar */}
@@ -103,6 +191,7 @@ export function ConfluenceValidator({ onNext, onBack }: ConfluenceValidatorProps
             {entryRules.map((rule) => {
               const isChecked = checkedItems.includes(rule.id);
               const isMandatory = rule.is_mandatory;
+              const aiConfidence = aiConfidences[rule.id];
 
               return (
                 <div
@@ -127,6 +216,11 @@ export function ConfluenceValidator({ onNext, onBack }: ConfluenceValidatorProps
                       {isMandatory && (
                         <Badge variant="outline" className="text-xs border-yellow-500 text-yellow-500">
                           Required
+                        </Badge>
+                      )}
+                      {aiConfidence !== undefined && (
+                        <Badge variant="secondary" className="text-xs">
+                          AI: {aiConfidence}%
                         </Badge>
                       )}
                     </div>

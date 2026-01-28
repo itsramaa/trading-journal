@@ -13,6 +13,7 @@ import { QuickTip } from "@/components/ui/onboarding-tooltip";
 import { useGlobalShortcuts } from "@/components/ui/keyboard-shortcut";
 import { EmptyState } from "@/components/ui/empty-state";
 import { RiskSummaryCard } from "@/components/risk/RiskSummaryCard";
+import { AIInsightsWidget } from "@/components/dashboard/AIInsightsWidget";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { useUserSettings } from "@/hooks/use-user-settings";
 import { useAccounts } from "@/hooks/use-accounts";
@@ -163,12 +164,12 @@ const Dashboard = () => {
           </div>
         </section>
 
-        {/* Risk Summary */}
+        {/* Risk Summary + AI Insights */}
         <section className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Shield className="h-5 w-5 text-primary" />
-              <h2 className="text-lg font-semibold">Risk Status</h2>
+              <h2 className="text-lg font-semibold">Risk Status & AI Insights</h2>
             </div>
             <Button variant="ghost" size="sm" asChild>
               <Link to="/risk" className="flex items-center gap-1">
@@ -178,6 +179,7 @@ const Dashboard = () => {
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <RiskSummaryCard />
+            <AIInsightsWidget />
           </div>
         </section>
 
