@@ -1,6 +1,6 @@
 /**
  * Step 7: Trade Confirmation
- * Final review and execute
+ * Final review and execute with AI summary
  */
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,10 @@ import {
   DollarSign, 
   Clock,
   CheckCircle,
-  Loader2
+  Loader2,
+  Sparkles,
+  ShieldCheck,
+  AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTradeEntryWizard } from "@/features/trade/useTradeEntryWizard";
@@ -60,6 +63,9 @@ export function TradeConfirmation({ onExecute, onBack, onCancel }: TradeConfirma
       onExecute();
     }
   };
+
+  // Get AI quality data if available from wizard state (passed from FinalChecklist)
+  const aiConfidence = confluences?.aiConfidence || 0;
 
   return (
     <div className="space-y-6">
@@ -185,6 +191,28 @@ export function TradeConfirmation({ onExecute, onBack, onCancel }: TradeConfirma
               </div>
             </div>
           </div>
+
+          {/* AI Summary */}
+          {aiConfidence > 0 && (
+            <>
+              <Separator />
+              <div className="p-4 rounded-lg border border-primary/20 bg-primary/5">
+                <div className="flex items-center gap-3 mb-2">
+                  <Sparkles className="h-5 w-5 text-primary" />
+                  <span className="font-medium">AI Analysis Summary</span>
+                </div>
+                <div className="flex items-center gap-4 text-sm">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4 text-green-500" />
+                    <span>Confluence AI Confidence: {aiConfidence}%</span>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  AI will continue monitoring this trade for automated alerts and post-trade analysis.
+                </p>
+              </div>
+            </>
+          )}
 
           {/* Trade Comment */}
           {finalChecklist?.tradeComment && (
