@@ -7,7 +7,7 @@ import {
   Lightbulb,
   Shield,
   Calendar,
-  Bot,
+  Target,
   Settings,
   CandlestickChart,
   type LucideIcon,
@@ -42,7 +42,7 @@ const navigationItems: NavItem[] = [
   { title: "Risk Management", url: "/risk", icon: Shield },
   { title: "Calendar & Market", url: "/market", icon: Calendar },
   { title: "Accounts", url: "/accounts", icon: Building2 },
-  { title: "AI Assistant", url: "/ai", icon: Bot },
+  { title: "Trade Quality", url: "/ai", icon: Target },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 
