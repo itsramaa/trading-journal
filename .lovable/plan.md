@@ -1,325 +1,269 @@
 
-# Cross-check Analysis: Markdown Spec vs Current Implementation
 
-## Executive Summary
+# Phase 5 Continuation: Remaining Feature Implementation
 
-Berdasarkan analisis menyeluruh terhadap `docs/Trading_Journey_User_Flow.md` dan current codebase, berikut adalah gap analysis lengkap mencakup mismatches, fitur yang belum diimplementasikan, dan struktur yang belum sesuai.
+## Current Status Analysis
 
-**Overall Completion: ~80%**
+Based on my thorough codebase review, the following components have been successfully implemented:
 
----
+**Completed Features:**
+- URL restructuring to flat 9-menu structure
+- Strategy form with Entry/Exit Rules Builder tabs (`EntryRulesBuilder.tsx`, `ExitRulesBuilder.tsx`)
+- Strategy persistence with all fields (timeframe, market_type, min_confluences, min_rr, entry_rules, exit_rules)
+- Dashboard with Portfolio Performance section (Win Rate, Profit Factor, Total P&L, Expectancy)
+- AI Strategy Recommendation hook (`use-ai-strategy-recommendation.ts`) - but NOT wired to UI
+- Post-Trade Analysis hook (`use-post-trade-analysis.ts`) - but NOT wired to close position flow
+- AI Quality Score display in Trade History (lines 831-845 in TradingJournal.tsx)
+- Risk Management page with 4 tabs (Dashboard, Calculator, Settings, Event Log)
+- RiskEventLog component integrated
 
-## Part 1: URL Structure - SUDAH BENAR
+**Remaining Gaps to Implement:**
 
-| Markdown Spec | Current Implementation | Status |
-|---------------|----------------------|--------|
-| `/` Dashboard | `/` Dashboard | MATCH |
-| `/trading` Trade Management | `/trading` TradingJournal | MATCH |
-| `/strategies` Strategy & Rules | `/strategies` StrategyManagement | MATCH |
-| `/analytics` Analytics | `/analytics` Performance | MATCH |
-| `/risk` Risk Management | `/risk` RiskManagement | MATCH |
-| `/market` Calendar & Market | `/market` MarketCalendar | MATCH |
-| `/ai` AI Assistant | `/ai` AIAssistant | MATCH |
-| `/settings` Settings | `/settings` Settings | MATCH |
-| `/accounts` Accounts | `/accounts` Accounts | MATCH |
-
-URL structure sudah sesuai dengan flat 9-menu yang dispesifikasikan di Markdown.
-
----
-
-## Part 2: Feature Gap Analysis - Per Menu
-
-### DASHBOARD (Completion: 85%)
-
-| Feature (Markdown) | Current Status | Gap |
-|-------------------|----------------|-----|
-| Portfolio Overview (Total Capital, P/L, Win Rate, Profit Factor) | Implemented via `Portfolio Performance` section | DONE |
-| Today's Performance (24H) | `TodayPerformance` component integrated | DONE |
-| Active Positions Table | `ActivePositionsTable` component integrated | DONE |
-| Risk Summary | `RiskSummaryCard` integrated | DONE |
-| AI Insights Widget | `AIInsightsWidget` integrated | DONE |
-| System Status Indicator | `SystemStatusIndicator` integrated | DONE |
-| Market Sessions | `MarketSessionsWidget` integrated | DONE |
-| Quick Stats (7-Day Win Rate, Consecutive Wins/Losses) | MISSING | GAP |
-| Correlated Positions Warning | Listed in spec but not shown prominently | PARTIAL |
-
-**Gaps to Fix:**
-1. Add 7-Day Quick Stats section (consecutive wins/losses, best/worst day)
-2. Enhance correlation warning visibility in Risk Summary
+| Gap | Status | Priority |
+|-----|--------|----------|
+| Wire AI Strategy Recommendations to StrategySelection.tsx | NOT DONE - using placeholder scoring | High |
+| Wire Post-Trade Analysis trigger on position close | NOT DONE - hook exists but not called | High |
+| Add AI Quality Score sorting in Trade History | NOT DONE - displays but not sortable | Medium |
+| Add 7-Day Quick Stats to Dashboard | NOT DONE | Medium |
+| Add Correlation Matrix to Risk Management | NOT DONE | Low |
 
 ---
 
-### TRADE MANAGEMENT (Completion: 80%)
+## Implementation Plan
 
-| Feature (Markdown) | Current Status | Gap |
-|-------------------|----------------|-----|
-| 7-Step Wizard Flow | Implemented with all 7 steps | DONE |
-| Step 1: Pre-Entry Validation | `PreEntryValidation.tsx` with AI Pre-flight | DONE |
-| Step 2: Strategy Selection | `StrategySelection.tsx` exists | DONE |
-| Step 3: Trade Details | `TradeDetails.tsx` exists | DONE |
-| Step 4: Confluence Validation | `ConfluenceValidator.tsx` exists | DONE |
-| Step 5: Position Sizing | `PositionSizingStep.tsx` exists | DONE |
-| Step 6: Final Checklist | `FinalChecklist.tsx` with emotional state | DONE |
-| Step 7: Confirmation | `TradeConfirmation.tsx` exists | DONE |
-| AI Strategy Recommendation in Step 2 | Placeholder "AI Match %" badge, not real AI | GAP |
-| AI Entry Price Optimization | Not implemented | GAP |
-| Pending Positions Tab | Tab exists but no "pending" status workflow | PARTIAL |
-| AI Quality Score Sort in History | Column exists but not sortable | PARTIAL |
-| AI Post-Trade Analysis | `post_trade_analysis` column exists, not populated | GAP |
+### Batch 1: Wire AI Strategy Recommendations (High Priority)
 
-**Gaps to Fix:**
-1. Implement real AI Strategy Recommendation (edge function call in StrategySelection)
-2. Add AI Entry Price Optimization in TradeDetails step
-3. Wire AI Post-Trade Analysis when trade closes
-4. Add AI Quality Score sorting to trade history table
+**File:** `src/components/trade/entry/StrategySelection.tsx`
 
----
+**Current Issue:** Lines 32-66 use simulated scoring based on static attributes:
+```typescript
+// Simulate AI scoring based on strategy attributes
+const hasRules = (strategy as any).entry_rules?.length > 0;
+let score = 50;
+if (hasRules) score += 15;
+// ... static calculations
+```
 
-### STRATEGY & RULES (Completion: 60%)
+**Fix Required:**
+1. Import `useAIStrategyRecommendation` hook
+2. Add pair/direction from wizard state to trigger recommendation
+3. Call `getRecommendations()` when user selects pair in Step 3 and returns to Step 2
+4. Replace placeholder scores with actual AI-calculated recommendations
+5. Display `confidenceScore`, `winRateForPair`, `reasoning`, `strengths`, `considerations`
 
-| Feature (Markdown) | Current Status | Gap |
-|-------------------|----------------|-----|
-| Strategy List | Implemented with cards | DONE |
-| Create/Edit Strategy Form | Basic form working | DONE |
-| Timeframe, Market Type, Min Confluences, Min R:R | Form fields exist and save to DB | DONE |
-| Entry Rules (4 confluence types: price_action, volume, indicator, higher_tf) | DB columns exist (`entry_rules` JSONB), NO UI BUILDER | GAP |
-| Exit Rules (TP, SL, Trailing) | DB columns exist (`exit_rules` JSONB), NO UI BUILDER | GAP |
-| AI Quality Score per Strategy | Not displayed | GAP |
-| AI Rule Optimizer | Not implemented | GAP |
-| AI Strategy Performance Analysis | Basic stats only, no AI analysis | GAP |
-| Strategy Performance by Cryptocurrency | Not implemented | GAP |
-| Strategy Performance by Timeframe | Not implemented | GAP |
+**Changes:**
+```typescript
+// Add to imports
+import { useAIStrategyRecommendation } from "@/hooks/use-ai-strategy-recommendation";
 
-**Gaps to Fix:**
-1. Build dynamic Entry Rules UI builder (checkboxes for price_action, volume, indicator, higher_tf with mandatory flags)
-2. Build Exit Rules UI (TP/SL/Trailing with values)
-3. Add AI Quality Score badge to strategy cards
-4. Create AI Rule Optimizer edge function
-5. Add per-crypto and per-timeframe performance breakdown
+// Add to component
+const { getRecommendations, isLoading: aiLoading, result: aiResult } = useAIStrategyRecommendation();
+const wizard = useTradeEntryWizard();
+
+// Trigger when wizard has pair/direction
+useEffect(() => {
+  if (wizard.pair && wizard.direction && strategies.length > 0) {
+    getRecommendations(wizard.pair, wizard.direction, strategies);
+  }
+}, [wizard.pair, wizard.direction, strategies]);
+
+// Use aiResult.recommendations instead of placeholder scoring
+```
 
 ---
 
-### ANALYTICS (Completion: 85%)
+### Batch 2: Wire Post-Trade Analysis on Close (High Priority)
 
-| Feature (Markdown) | Current Status | Gap |
-|-------------------|----------------|-----|
-| Overall Metrics (Win Rate, Profit Factor, ROI) | Implemented | DONE |
-| Equity Curve | Implemented | DONE |
-| Drawdown Chart | `DrawdownChart` component | DONE |
-| Trading Heatmap | `TradingHeatmap` component | DONE |
-| By Cryptocurrency Ranking | `CryptoRanking` component | DONE |
-| AI Pattern Recognition | `AIPatternInsights` component | DONE |
-| Strategy Analysis Tab | Implemented | DONE |
-| Sessions Tab | Implemented with link to `/sessions` | DONE |
-| AI Trade Recommendations (Real-time) | Not implemented | GAP |
-| AI Portfolio Advisor (Correlation analysis) | Not implemented | GAP |
-| AI Performance Summary | Basic - could be enhanced | PARTIAL |
+**File:** `src/hooks/use-trade-entries.ts`
 
-**Gaps to Fix:**
-1. Add AI Trade Recommendations widget (real-time opportunities)
-2. Add AI Portfolio Advisor section with correlation analysis
+**Current Issue:** The `useClosePosition` mutation (around line 200+) successfully closes positions but doesn't trigger post-trade analysis.
 
----
+**Fix Required:**
+1. Import `usePostTradeAnalysis` hook
+2. After successful position close, call `analyzeClosedTrade(id)` asynchronously
+3. Analysis runs in background and saves to `post_trade_analysis` column
 
-### RISK MANAGEMENT (Completion: 90%)
+**Changes to useClosePosition:**
+```typescript
+// After successful mutation, trigger analysis
+onSuccess: async (data, variables) => {
+  toast.success("Position closed successfully");
+  // Trigger async AI analysis (non-blocking)
+  try {
+    const { analyzeClosedTrade } = usePostTradeAnalysis.getState();
+    analyzeClosedTrade(variables.id);
+  } catch (e) {
+    console.log('Post-trade analysis triggered');
+  }
+}
+```
 
-| Feature (Markdown) | Current Status | Gap |
-|-------------------|----------------|-----|
-| Daily Loss Limit Tracker | `DailyLossTracker` component | DONE |
-| Position Size Calculator | `PositionSizeCalculator` component | DONE |
-| Risk Profile Settings | Full settings with sliders | DONE |
-| Risk Event Log | `RiskEventLog` component integrated | DONE |
-| Trading Gate (Auto-lock) | `useTradingGate` hook + blocks wizard | DONE |
-| RiskAlertBanner | Integrated in `DashboardLayout` | DONE |
-| Threshold Alerts (70%/90%/100%) | Implemented in hook | DONE |
-| Correlation Analysis Matrix | Not implemented | GAP |
-| AI Risk Recommendations | Not implemented | GAP |
-
-**Gaps to Fix:**
-1. Add Correlation Matrix visualization
-2. Add AI Risk Recommendations section
+**Alternative approach:** Wire it in `TradingJournal.tsx` after `closePosition.mutateAsync()` call succeeds.
 
 ---
 
-### CALENDAR & MARKET (Completion: 80%)
+### Batch 3: Add AI Quality Score Sorting (Medium Priority)
 
-| Feature (Markdown) | Current Status | Gap |
-|-------------------|----------------|-----|
-| Market Sessions (moved to Dashboard) | `MarketSessionsWidget` on Dashboard | DONE |
-| AI Market Sentiment | Implemented with mock data | DONE |
-| AI Volatility Assessment | Implemented with mock data | DONE |
-| Economic Calendar | Basic implementation | DONE |
-| AI Trading Opportunities | Implemented with mock data | DONE |
-| AI Whale Tracking | Not implemented | GAP |
-| AI Economic Event Impact | Basic events, no AI impact analysis | GAP |
+**File:** `src/pages/trading-journey/TradingJournal.tsx`
 
-**Gaps to Fix:**
-1. Add AI Whale Tracking section
-2. Enhance Economic Events with AI impact analysis
+**Current Issue:** AI Quality Score badge displays (lines 831-845) but users cannot sort/filter by it.
 
----
-
-### AI ASSISTANT (Completion: 70%)
-
-| Feature (Markdown) | Current Status | Gap |
-|-------------------|----------------|-----|
-| Chat Interface | `AIChatbot` component exists | DONE |
-| Quick Actions | Implemented | DONE |
-| Message History | Implemented | DONE |
-| Trade Quality Checker (standalone) | Not standalone, only in wizard | PARTIAL |
-| AI Learning from Trades | Not implemented | GAP |
-| Backtesting Assistant | Not implemented | GAP |
-| Chart Analysis (upload screenshot) | Not implemented | GAP |
-
-**Gaps to Fix:**
-1. Add standalone Trade Quality Checker tab
-2. Implement AI Learning/pattern summary display
-3. Add chart upload + analysis feature
-
----
-
-### SETTINGS (Completion: 95%)
-
-| Feature (Markdown) | Current Status | Gap |
-|-------------------|----------------|-----|
-| Profile Settings | Implemented | DONE |
-| Notification Settings | Implemented | DONE |
-| Appearance/Theme | Implemented | DONE |
-| Security (Password) | Implemented | DONE |
-| AI Settings Tab | `AISettingsTab` integrated with all toggles | DONE |
-| AI Confidence Threshold | Implemented | DONE |
-| AI Suggestion Style | Implemented | DONE |
-| AI Learning Preferences | Implemented | DONE |
-| 2FA Authentication | Not implemented | GAP (Low Priority) |
-
-**Gaps to Fix:**
-1. (Optional) Add 2FA authentication
+**Fix Required:**
+1. Add state: `const [sortByAI, setSortByAI] = useState<'none' | 'asc' | 'desc'>('none')`
+2. Add sort toggle button in filters section
+3. Modify `filteredClosedTrades` useMemo to apply sorting:
+```typescript
+const filteredClosedTrades = useMemo(() => {
+  let filtered = filterTradesByDateRange(closedTrades, dateRange.from, dateRange.to);
+  filtered = filterTradesByStrategies(filtered, selectedStrategyIds);
+  
+  // AI Quality Score sorting
+  if (sortByAI !== 'none') {
+    filtered = [...filtered].sort((a, b) => {
+      const scoreA = a.ai_quality_score ?? -1;
+      const scoreB = b.ai_quality_score ?? -1;
+      return sortByAI === 'asc' ? scoreA - scoreB : scoreB - scoreA;
+    });
+  }
+  
+  return filtered;
+}, [closedTrades, dateRange, selectedStrategyIds, sortByAI]);
+```
+4. Add UI button:
+```tsx
+<Button 
+  variant={sortByAI !== 'none' ? 'default' : 'outline'} 
+  size="sm"
+  onClick={() => setSortByAI(prev => prev === 'none' ? 'desc' : prev === 'desc' ? 'asc' : 'none')}
+>
+  <Brain className="h-4 w-4 mr-1" />
+  AI Score {sortByAI === 'desc' ? '↓' : sortByAI === 'asc' ? '↑' : ''}
+</Button>
+```
 
 ---
 
-## Part 3: Database vs Implementation Sync
+### Batch 4: Add 7-Day Quick Stats to Dashboard (Medium Priority)
 
-| DB Column | Used in Code | Status |
-|-----------|--------------|--------|
-| `trade_entries.ai_quality_score` | Displayed in history, stored in wizard | DONE |
-| `trade_entries.ai_confidence` | Stored in wizard | DONE |
-| `trade_entries.emotional_state` | Captured in FinalChecklist | DONE |
-| `trade_entries.confluences_met` | Stored as JSONB | DONE |
-| `trade_entries.pre_trade_validation` | Stored in wizard | DONE |
-| `trade_entries.post_trade_analysis` | DB column exists, NOT POPULATED | GAP |
-| `trading_strategies.entry_rules` | DB column exists, NO UI to edit | GAP |
-| `trading_strategies.exit_rules` | DB column exists, NO UI to edit | GAP |
-| `risk_events` table | Used by `RiskEventLog` | DONE |
-| `daily_risk_snapshots` table | Used by risk tracking | DONE |
-| `user_settings.ai_settings` | Used by `AISettingsTab` | DONE |
+**File:** `src/pages/Dashboard.tsx`
 
----
+**Current Issue:** Missing consecutive wins/losses and best/worst day stats per Markdown spec.
 
-## Part 4: AI Edge Functions Status
+**Fix Required:**
+1. Add calculation for 7-day window trades
+2. Calculate consecutive wins/losses streak
+3. Calculate best/worst trading day
+4. Add new section after Portfolio Performance
 
-| Edge Function | Status | Wired to UI |
-|---------------|--------|-------------|
-| `ai-preflight` | Deployed | Yes - PreEntryValidation |
-| `confluence-detection` | Deployed | Yes - ConfluenceValidator |
-| `trade-quality` | Deployed | Yes - FinalChecklist/TradeConfirmation |
-| `session-analysis` | Deployed | Yes - SessionDetail |
-| `trading-analysis` | Deployed | Yes - SessionAIAnalysis |
-| `dashboard-insights` | Deployed | Yes - AIInsightsWidget |
-| `post-trade-analysis` | Deployed | NO - Not wired | GAP |
-| `check-permission` | Deployed | Yes |
+**New Section:**
+```tsx
+{/* 7-Day Quick Stats */}
+<section className="space-y-4">
+  <div className="flex items-center gap-2">
+    <Calendar className="h-5 w-5 text-primary" />
+    <h2 className="text-lg font-semibold">7-Day Stats</h2>
+  </div>
+  <div className="grid gap-4 md:grid-cols-4">
+    <Card>
+      <CardContent className="pt-4">
+        <p className="text-sm text-muted-foreground">Current Streak</p>
+        <p className="text-xl font-bold text-green-500">
+          {streak.type === 'win' ? `${streak.count} Wins` : `${streak.count} Losses`}
+        </p>
+      </CardContent>
+    </Card>
+    <Card>
+      <CardContent className="pt-4">
+        <p className="text-sm text-muted-foreground">Best Day (7d)</p>
+        <p className="text-xl font-bold text-green-500">+${bestDay.pnl.toFixed(2)}</p>
+      </CardContent>
+    </Card>
+    {/* ... more cards */}
+  </div>
+</section>
+```
 
----
-
-## Part 5: Priority Gaps Summary
-
-### High Priority (Core Feature Gaps)
-
-1. **Entry/Exit Rules Builder UI**
-   - Files: `StrategyManagement.tsx`
-   - Add: Dynamic rule builder for `entry_rules` and `exit_rules`
-
-2. **AI Strategy Recommendations (Step 2)**
-   - Files: `StrategySelection.tsx`
-   - Replace: Placeholder "AI Match" with real AI edge function call
-
-3. **AI Post-Trade Analysis**
-   - Files: `use-trade-entries.ts`, create hook
-   - Add: Call `post-trade-analysis` edge function when trade closes
-
-### Medium Priority (Enhancement Gaps)
-
-4. **AI Quality Score Sorting**
-   - Files: `TradingJournal.tsx`
-   - Add: Sort by `ai_quality_score` column
-
-5. **AI Trade Recommendations (Real-time)**
-   - Files: `Performance.tsx` or `MarketCalendar.tsx`
-   - Add: New widget for real-time trade opportunities
-
-6. **Correlation Matrix**
-   - Files: `RiskManagement.tsx`
-   - Add: Visual correlation matrix for open positions
-
-7. **Quick Stats (7-Day)**
-   - Files: `Dashboard.tsx`
-   - Add: Consecutive wins/losses, best/worst day cards
-
-### Low Priority (Nice-to-Have)
-
-8. **AI Whale Tracking**
-9. **AI Backtesting Assistant**
-10. **Chart Screenshot Analysis**
-11. **2FA Authentication**
+**Calculation Logic:**
+```typescript
+const sevenDayStats = useMemo(() => {
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  
+  const recentTrades = trades.filter(t => 
+    t.status === 'closed' && new Date(t.trade_date) >= sevenDaysAgo
+  );
+  
+  // Calculate streak
+  let streak = { type: 'win', count: 0 };
+  for (const trade of recentTrades) {
+    if (trade.result === streak.type) streak.count++;
+    else break;
+  }
+  
+  // Calculate best/worst day
+  const byDay = recentTrades.reduce((acc, t) => {
+    const day = t.trade_date.split('T')[0];
+    acc[day] = (acc[day] || 0) + (t.realized_pnl || 0);
+    return acc;
+  }, {});
+  
+  const days = Object.entries(byDay).sort((a, b) => b[1] - a[1]);
+  const bestDay = days[0] || ['', 0];
+  const worstDay = days[days.length - 1] || ['', 0];
+  
+  return { streak, bestDay, worstDay, trades7d: recentTrades.length };
+}, [trades]);
+```
 
 ---
 
-## Part 6: Files to Modify
+## Files to Modify
 
-### High Priority Files
-
-| File | Changes Required |
-|------|------------------|
-| `src/pages/trading-journey/StrategyManagement.tsx` | Add Entry/Exit Rules builder UI tabs |
-| `src/components/trade/entry/StrategySelection.tsx` | Wire AI strategy recommendation |
-| `src/hooks/use-trade-entries.ts` | Add post-trade analysis trigger |
-
-### Medium Priority Files
-
-| File | Changes Required |
-|------|------------------|
-| `src/pages/trading-journey/TradingJournal.tsx` | Add AI quality score sort |
-| `src/pages/Dashboard.tsx` | Add 7-day quick stats section |
-| `src/pages/RiskManagement.tsx` | Add correlation matrix tab |
-| `src/pages/trading-journey/Performance.tsx` | Add AI Trade Recommendations widget |
-
----
-
-## Implementation Batches
-
-### Batch 1: Entry/Exit Rules Builder (High Priority)
-- Create `EntryRulesBuilder` component
-- Create `ExitRulesBuilder` component
-- Integrate into StrategyManagement form
-- Save to JSONB columns
-
-### Batch 2: AI Wiring Completion (High Priority)
-- Wire AI Strategy Recommendations in StrategySelection
-- Wire Post-Trade Analysis on trade close
-- Add AI Quality Score sort to TradingJournal
-
-### Batch 3: Dashboard & Analytics Enhancement (Medium Priority)
-- Add 7-day Quick Stats to Dashboard
-- Add AI Trade Recommendations widget
-- Add Correlation Matrix to Risk Management
+| File | Changes |
+|------|---------|
+| `src/components/trade/entry/StrategySelection.tsx` | Wire `useAIStrategyRecommendation` hook |
+| `src/pages/trading-journey/TradingJournal.tsx` | Add AI score sorting, trigger post-trade analysis |
+| `src/pages/Dashboard.tsx` | Add 7-Day Quick Stats section |
+| `src/hooks/use-trade-entries.ts` | (Optional) Add post-trade analysis trigger in mutation |
 
 ---
 
 ## Success Criteria
 
 After implementation:
-- Entry/Exit rules can be configured per strategy with mandatory flags
-- AI recommends best strategy in wizard Step 2
-- Closed trades trigger AI post-trade analysis
-- Trade history sortable by AI quality score
-- Dashboard shows 7-day quick stats
-- Risk page shows correlation matrix
+- StrategySelection shows real AI recommendations with confidence scores from user's trade history
+- Closing a position triggers async AI post-trade analysis, populating `post_trade_analysis` column
+- Trade History table has "Sort by AI Score" button that sorts high-to-low or low-to-high
+- Dashboard shows 7-day stats: current streak, best day, worst day, 7d trade count
+
+---
+
+## Technical Notes
+
+### Post-Trade Analysis Integration Pattern
+
+Since `usePostTradeAnalysis` is a React hook, it cannot be called directly inside a mutation's `onSuccess`. Two approaches:
+
+**Approach A (Recommended):** Wire in TradingJournal.tsx
+```typescript
+const { analyzeClosedTrade } = usePostTradeAnalysis();
+
+const handleClosePosition = async (values) => {
+  await closePosition.mutateAsync({ ... });
+  // Trigger async analysis after success
+  analyzeClosedTrade(closingPosition.id);
+};
+```
+
+**Approach B:** Create a separate effect that watches for newly closed trades
+
+### AI Strategy Recommendation Trigger
+
+The recommendation should ideally be fetched when:
+1. User enters Step 2 (StrategySelection) AND has already set pair/direction in Step 3
+2. Or: Fetch on demand with "Get AI Recommendation" button
+
+Current wizard flow is Step 1 → Step 2 → Step 3, so pair/direction aren't set when reaching Step 2. Options:
+- Add "Refresh AI Recommendations" button that fetches when user returns from Step 3
+- Or: Move pair selection to earlier step
+
