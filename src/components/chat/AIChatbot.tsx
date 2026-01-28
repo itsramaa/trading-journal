@@ -1,24 +1,27 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   X, 
   Send, 
-  User,
   Sparkles,
   Loader2,
   Minimize2,
   Maximize2,
   BarChart3,
   ChevronDown,
+  ChevronUp,
+  Trash2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTradeEntries } from '@/hooks/use-trade-entries';
 import { useTradingStrategies } from '@/hooks/use-trading-strategies';
 import { useAccounts } from '@/hooks/use-accounts';
+import { ChatMessage } from './ChatMessage';
+import { QuickActionsPanel } from './QuickActionsPanel';
+import { TipsPanel } from './TipsPanel';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -42,6 +45,7 @@ const AI_MODES = {
 export function AIChatbot() {
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -57,6 +61,21 @@ export function AIChatbot() {
   const currentMode = AI_MODES[aiMode];
   const ModeIcon = currentMode.icon;
 
+  // Keyboard shortcut: Escape to collapse/close
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        if (isExpanded) {
+          setIsExpanded(false);
+        } else {
+          setIsOpen(false);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, isExpanded]);
+
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -69,7 +88,7 @@ export function AIChatbot() {
     }
   }, [isOpen, isMinimized]);
 
-  const getTradingContext = () => {
+  const getTradingContext = useCallback(() => {
     if (!tradeEntries || tradeEntries.length === 0) {
       return { trades: [], strategies: strategies || [] };
     }
@@ -104,12 +123,13 @@ export function AIChatbot() {
         accountCount: accounts?.length || 0,
       },
     };
-  };
+  }, [tradeEntries, strategies, accounts]);
 
-  const sendMessage = async () => {
-    if (!input.trim() || isLoading) return;
+  const sendMessage = async (messageText?: string) => {
+    const text = messageText || input.trim();
+    if (!text || isLoading) return;
 
-    const userMessage: Message = { role: 'user', content: input.trim() };
+    const userMessage: Message = { role: 'user', content: text };
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
@@ -122,7 +142,7 @@ export function AIChatbot() {
       const body = {
         trades: tradingContext.trades,
         strategies: tradingContext.strategies,
-        question: input.trim(),
+        question: text,
       };
 
       const response = await fetch(endpoint, {
@@ -202,6 +222,15 @@ export function AIChatbot() {
     }
   };
 
+  const handleQuickAction = (prompt: string) => {
+    setInput(prompt);
+    inputRef.current?.focus();
+  };
+
+  const clearChat = () => {
+    setMessages([]);
+  };
+
   if (!isOpen) {
     return (
       <Button
@@ -214,11 +243,17 @@ export function AIChatbot() {
     );
   }
 
+  const containerClasses = cn(
+    "fixed z-50 shadow-2xl transition-all duration-300 flex flex-col",
+    isExpanded 
+      ? "inset-4 md:inset-8" 
+      : isMinimized 
+        ? "bottom-6 right-6 w-72 h-14" 
+        : "bottom-6 right-6 w-96 h-[520px]"
+  );
+
   return (
-    <Card className={cn(
-      "fixed bottom-6 right-6 z-50 shadow-2xl transition-all duration-300 flex flex-col",
-      isMinimized ? "w-72 h-14" : "w-96 h-[520px]"
-    )}>
+    <Card className={containerClasses}>
       {/* Header */}
       <div className="flex items-center justify-between p-3 border-b bg-primary/5 rounded-t-lg shrink-0">
         <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -226,21 +261,48 @@ export function AIChatbot() {
             <ModeIcon className="h-4 w-4 text-primary" />
           </div>
           <span className="font-semibold text-sm truncate">{currentMode.label}</span>
+          {isExpanded && (
+            <span className="text-xs text-muted-foreground hidden sm:inline">
+              — {currentMode.description}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
+          {/* Expand/Collapse */}
           <Button
             variant="ghost"
             size="icon"
             className="h-7 w-7"
-            onClick={() => setIsMinimized(!isMinimized)}
+            onClick={() => {
+              setIsExpanded(!isExpanded);
+              if (!isExpanded) setIsMinimized(false);
+            }}
+            title={isExpanded ? "Compact mode" : "Expand"}
           >
-            {isMinimized ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
+            {isExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </Button>
+          
+          {/* Minimize (only in compact mode) */}
+          {!isExpanded && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => setIsMinimized(!isMinimized)}
+            >
+              {isMinimized ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </Button>
+          )}
+          
+          {/* Close */}
           <Button
             variant="ghost"
             size="icon"
             className="h-7 w-7"
-            onClick={() => setIsOpen(false)}
+            onClick={() => { 
+              setIsOpen(false); 
+              setIsExpanded(false); 
+            }}
           >
             <X className="h-4 w-4" />
           </Button>
@@ -249,98 +311,126 @@ export function AIChatbot() {
 
       {!isMinimized && (
         <>
-          {/* Messages */}
-          <ScrollArea className="flex-1 p-4" ref={scrollRef}>
-            {messages.length === 0 ? (
-              <div className="space-y-4">
-                <div className="flex gap-3">
-                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                    <ModeIcon className="h-4 w-4 text-primary" />
-                  </div>
-                  <div className="flex-1 bg-muted rounded-lg p-3">
-                    <p className="text-sm">{currentMode.greeting}</p>
-                  </div>
-                </div>
-                <div className="pl-11 space-y-2">
-                  <p className="text-xs text-muted-foreground">Suggestions:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {currentMode.suggestions.map((suggestion, i) => (
-                      <Button
-                        key={i}
-                        variant="outline"
-                        size="sm"
-                        className="text-xs h-7"
-                        onClick={() => {
-                          setInput(suggestion);
-                          inputRef.current?.focus();
-                        }}
-                      >
-                        {suggestion}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {messages.map((message, i) => (
-                  <div key={i} className={cn("flex gap-3", message.role === 'user' && "flex-row-reverse")}>
-                    <div className={cn(
-                      "h-8 w-8 rounded-full flex items-center justify-center shrink-0",
-                      message.role === 'user' ? "bg-primary text-primary-foreground" : "bg-primary/10"
-                    )}>
-                      {message.role === 'user' ? (
-                        <User className="h-4 w-4" />
-                      ) : (
-                        <ModeIcon className="h-4 w-4 text-primary" />
-                      )}
-                    </div>
-                    <div className={cn(
-                      "flex-1 rounded-lg p-3 max-w-[85%]",
-                      message.role === 'user' ? "bg-primary text-primary-foreground" : "bg-muted"
-                    )}>
-                      <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                    </div>
-                  </div>
-                ))}
-                {isLoading && messages[messages.length - 1]?.content === '' && (
-                  <div className="flex gap-3">
-                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                      <Loader2 className="h-4 w-4 text-primary animate-spin" />
-                    </div>
-                    <div className="bg-muted rounded-lg p-3">
-                      <p className="text-sm text-muted-foreground">Thinking...</p>
-                    </div>
-                  </div>
-                )}
+          {/* Main Content */}
+          <div className={cn(
+            "flex-1 flex overflow-hidden",
+            isExpanded ? "flex-row" : "flex-col"
+          )}>
+            {/* Left Panel - Quick Actions (Expanded only) */}
+            {isExpanded && (
+              <div className="w-64 border-r p-3 hidden md:block overflow-auto">
+                <QuickActionsPanel 
+                  onSelectAction={handleQuickAction} 
+                  disabled={isLoading}
+                />
               </div>
             )}
-          </ScrollArea>
 
-          {/* Input */}
-          <div className="p-3 border-t shrink-0">
-            <div className="flex gap-2">
-              <Input
-                ref={inputRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={currentMode.placeholder}
-                disabled={isLoading}
-                className="flex-1"
-              />
-              <Button 
-                size="icon" 
-                onClick={sendMessage} 
-                disabled={!input.trim() || isLoading}
-              >
-                {isLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+            {/* Center - Chat Area */}
+            <div className="flex-1 flex flex-col min-w-0">
+              <ScrollArea className="flex-1 p-4" ref={scrollRef}>
+                {messages.length === 0 ? (
+                  <div className="space-y-4">
+                    <div className="flex gap-3">
+                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                        <ModeIcon className="h-4 w-4 text-primary" />
+                      </div>
+                      <div className="flex-1 bg-muted rounded-lg p-3">
+                        <p className="text-sm">{currentMode.greeting}</p>
+                      </div>
+                    </div>
+                    {!isExpanded && (
+                      <div className="pl-11 space-y-2">
+                        <p className="text-xs text-muted-foreground">Suggestions:</p>
+                        <div className="flex flex-wrap gap-2">
+                          {currentMode.suggestions.map((suggestion, i) => (
+                            <Button
+                              key={i}
+                              variant="outline"
+                              size="sm"
+                              className="text-xs h-7"
+                              onClick={() => handleQuickAction(suggestion)}
+                            >
+                              {suggestion}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {isExpanded && (
+                      <div className="pl-11 text-xs text-muted-foreground">
+                        Gunakan Quick Actions di panel kiri atau ketik pertanyaan Anda.
+                      </div>
+                    )}
+                  </div>
                 ) : (
-                  <Send className="h-4 w-4" />
+                  <div className="space-y-4">
+                    {messages.map((message, i) => (
+                      <ChatMessage key={i} {...message} ModeIcon={ModeIcon} />
+                    ))}
+                    {isLoading && messages[messages.length - 1]?.content === '' && (
+                      <div className="flex gap-3">
+                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                          <Loader2 className="h-4 w-4 text-primary animate-spin" />
+                        </div>
+                        <div className="bg-muted rounded-lg p-3">
+                          <p className="text-sm text-muted-foreground">Thinking...</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )}
-              </Button>
+              </ScrollArea>
+
+              {/* Input */}
+              <div className="p-3 border-t shrink-0">
+                <div className="flex gap-2">
+                  {isExpanded && messages.length > 0 && (
+                    <Button 
+                      variant="outline" 
+                      size="icon"
+                      onClick={clearChat}
+                      title="Clear conversation"
+                      className="shrink-0"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                  <Input
+                    ref={inputRef}
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder={currentMode.placeholder}
+                    disabled={isLoading}
+                    className="flex-1"
+                  />
+                  <Button 
+                    size="icon" 
+                    onClick={() => sendMessage()} 
+                    disabled={!input.trim() || isLoading}
+                  >
+                    {isLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+                {isExpanded && (
+                  <p className="text-xs text-muted-foreground mt-2 text-center">
+                    Press Escape to collapse • Enter to send
+                  </p>
+                )}
+              </div>
             </div>
+
+            {/* Right Panel - Tips (Expanded only) */}
+            {isExpanded && (
+              <div className="w-64 border-l p-3 hidden lg:block overflow-auto">
+                <TipsPanel />
+              </div>
+            )}
           </div>
         </>
       )}
