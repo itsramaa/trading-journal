@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.post-trade-analysis]
 verify_jwt = false
+
+[functions.ai-preflight]
+verify_jwt = false
