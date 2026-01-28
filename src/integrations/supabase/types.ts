@@ -902,6 +902,42 @@ export type Database = {
         }
         Relationships: []
       }
+      risk_events: {
+        Row: {
+          created_at: string | null
+          event_date: string
+          event_type: string
+          id: string
+          message: string
+          metadata: Json | null
+          threshold_value: number
+          trigger_value: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          event_date?: string
+          event_type: string
+          id?: string
+          message: string
+          metadata?: Json | null
+          threshold_value: number
+          trigger_value: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          event_date?: string
+          event_type?: string
+          id?: string
+          message?: string
+          metadata?: Json | null
+          threshold_value?: number
+          trigger_value?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       risk_profiles: {
         Row: {
           created_at: string | null
@@ -1246,6 +1282,7 @@ export type Database = {
       }
       user_settings: {
         Row: {
+          ai_settings: Json | null
           created_at: string
           default_currency: string
           id: string
@@ -1267,6 +1304,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          ai_settings?: Json | null
           created_at?: string
           default_currency?: string
           id?: string
@@ -1288,6 +1326,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          ai_settings?: Json | null
           created_at?: string
           default_currency?: string
           id?: string
