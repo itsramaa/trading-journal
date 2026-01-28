@@ -17,6 +17,8 @@ import {
   Target,
   MessageCircle,
   ChevronRight,
+  ThumbsUp,
+  ThumbsDown,
 } from "lucide-react";
 import { useDashboardInsights, type DashboardInsights } from "@/features/ai/useDashboardInsights";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
@@ -29,6 +31,31 @@ interface AIInsightsWidgetProps {
   className?: string;
 }
 
+// Calculate win rate per pair from closed trades
+function calculatePairStats(trades: any[]) {
+  const closedTrades = trades.filter(t => t.status === 'closed' && t.result);
+  const pairStats: Record<string, { wins: number; total: number; pnl: number }> = {};
+  
+  closedTrades.forEach(trade => {
+    const pair = trade.pair;
+    if (!pairStats[pair]) {
+      pairStats[pair] = { wins: 0, total: 0, pnl: 0 };
+    }
+    pairStats[pair].total++;
+    pairStats[pair].pnl += trade.pnl || 0;
+    if (trade.result === 'win') {
+      pairStats[pair].wins++;
+    }
+  });
+  
+  return Object.entries(pairStats).map(([pair, stats]) => ({
+    pair,
+    winRate: stats.total > 0 ? (stats.wins / stats.total) * 100 : 0,
+    totalTrades: stats.total,
+    totalPnl: stats.pnl,
+  })).sort((a, b) => b.winRate - a.winRate);
+}
+
 export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
   const { getInsights, isLoading, error, insights } = useDashboardInsights();
   const { data: trades = [] } = useTradeEntries();
@@ -36,6 +63,14 @@ export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
   const { data: accounts = [] } = useAccounts();
   
   const [hasLoaded, setHasLoaded] = useState(false);
+
+  // Calculate pair-specific recommendations
+  const pairRecommendations = useMemo(() => {
+    const stats = calculatePairStats(trades);
+    const focus = stats.filter(s => s.winRate >= 60 && s.totalTrades >= 3);
+    const avoid = stats.filter(s => s.winRate < 50 && s.totalTrades >= 3);
+    return { focus, avoid };
+  }, [trades]);
 
   // Calculate portfolio and risk status
   const portfolioData = useMemo(() => {
@@ -246,6 +281,58 @@ export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
               <ChevronRight className="h-4 w-4 ml-auto" />
             </Button>
           </>
+        )}
+
+        {/* Trade Opportunities - Based on Historical Win Rates */}
+        {(pairRecommendations.focus.length > 0 || pairRecommendations.avoid.length > 0) && (
+          <div className="space-y-3 pt-3 border-t">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <Target className="h-4 w-4 text-primary" />
+              Trade Opportunities
+            </div>
+            
+            {/* Focus pairs */}
+            {pairRecommendations.focus.length > 0 && (
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5 text-xs text-green-600">
+                  <ThumbsUp className="h-3 w-3" />
+                  <span>Focus on (High Win Rate)</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {pairRecommendations.focus.slice(0, 4).map((item) => (
+                    <Badge 
+                      key={item.pair} 
+                      variant="outline"
+                      className="text-xs bg-green-500/10 text-green-600 border-green-500/30"
+                    >
+                      {item.pair} ({item.winRate.toFixed(0)}%)
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {/* Avoid pairs */}
+            {pairRecommendations.avoid.length > 0 && (
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5 text-xs text-red-600">
+                  <ThumbsDown className="h-3 w-3" />
+                  <span>Consider Avoiding (Low Win Rate)</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {pairRecommendations.avoid.slice(0, 4).map((item) => (
+                    <Badge 
+                      key={item.pair} 
+                      variant="outline"
+                      className="text-xs bg-red-500/10 text-red-600 border-red-500/30"
+                    >
+                      {item.pair} ({item.winRate.toFixed(0)}%)
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         )}
       </CardContent>
     </Card>
