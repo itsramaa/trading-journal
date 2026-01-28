@@ -124,7 +124,7 @@ export const useTradeEntryWizard = create<WizardStore>((set, get) => ({
         throw new Error("Missing required trade data");
       }
 
-      // Insert trade entry
+      // Insert trade entry with AI quality score
       const { data, error } = await supabase
         .from("trade_entries")
         .insert({
@@ -143,6 +143,8 @@ export const useTradeEntryWizard = create<WizardStore>((set, get) => ({
           emotional_state: finalChecklist?.emotionalState || null,
           pre_trade_validation: state.preValidation as any,
           notes: finalChecklist?.tradeComment || null,
+          ai_quality_score: finalChecklist?.aiQualityScore || null,
+          ai_confidence: finalChecklist?.aiConfidence || confluences?.aiConfidence || null,
         })
         .select()
         .single();
