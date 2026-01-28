@@ -302,9 +302,13 @@ export default function TradingJournal() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        {/* Page Header */}
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Trading Journal</h1>
+            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+              <BookOpen className="h-6 w-6 text-primary" />
+              Trading Journal
+            </h1>
             <p className="text-muted-foreground">Document every trade for continuous improvement</p>
           </div>
           <div className="flex gap-2">
@@ -605,7 +609,7 @@ export default function TradingJournal() {
         </Dialog>
 
         {/* P&L Summary Cards */}
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Open Positions</CardTitle>
@@ -620,13 +624,13 @@ export default function TradingJournal() {
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Unrealized P&L</CardTitle>
               {totalUnrealizedPnL >= 0 ? (
-                <TrendingUp className="h-4 w-4 text-green-500" />
+                <TrendingUp className="h-4 w-4 text-profit" />
               ) : (
-                <TrendingDown className="h-4 w-4 text-red-500" />
+                <TrendingDown className="h-4 w-4 text-loss" />
               )}
             </CardHeader>
             <CardContent>
-              <div className={`text-2xl font-bold ${totalUnrealizedPnL >= 0 ? "text-green-500" : "text-red-500"}`}>
+              <div className={`text-2xl font-bold ${totalUnrealizedPnL >= 0 ? "text-profit" : "text-loss"}`}>
                 {formatCurrency(totalUnrealizedPnL, "USD")}
               </div>
               <p className="text-xs text-muted-foreground">From open positions</p>
@@ -648,7 +652,7 @@ export default function TradingJournal() {
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className={`text-2xl font-bold ${totalRealizedPnL >= 0 ? "text-green-500" : "text-red-500"}`}>
+              <div className={`text-2xl font-bold ${totalRealizedPnL >= 0 ? "text-profit" : "text-loss"}`}>
                 {formatCurrency(totalRealizedPnL, "USD")}
               </div>
               <p className="text-xs text-muted-foreground">From closed trades</p>
@@ -656,14 +660,38 @@ export default function TradingJournal() {
           </Card>
         </div>
 
-        {/* Open Positions Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Circle className="h-5 w-5 text-primary" />
+        {/* Tabs with badge counts */}
+        <Tabs defaultValue="open" className="space-y-4">
+          <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
+            <TabsTrigger value="open" className="gap-2">
+              <Circle className="h-4 w-4" />
               Open Positions
-            </CardTitle>
-          </CardHeader>
+              {openPositions.length > 0 && (
+                <Badge variant="secondary" className="ml-1 px-1.5 py-0.5 text-xs">
+                  {openPositions.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="history" className="gap-2">
+              <CheckCircle className="h-4 w-4" />
+              Trade History
+              {closedTrades.length > 0 && (
+                <Badge variant="secondary" className="ml-1 px-1.5 py-0.5 text-xs">
+                  {closedTrades.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="open">
+            {/* Open Positions Section */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Circle className="h-5 w-5 text-primary" />
+                  Open Positions
+                </CardTitle>
+              </CardHeader>
           <CardContent>
             {positionsWithPnL.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-8 text-center">
@@ -1088,6 +1116,9 @@ export default function TradingJournal() {
             </form>
           </DialogContent>
         </Dialog>
+
+          </TabsContent>
+        </Tabs>
 
         <ConfirmDialog
           open={!!deletingTrade}

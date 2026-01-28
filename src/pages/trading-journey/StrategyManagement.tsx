@@ -206,9 +206,13 @@ export default function StrategyManagement() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        {/* Page Header */}
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Strategy & Rules</h1>
+            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+              <Target className="h-6 w-6 text-primary" />
+              Strategy & Rules
+            </h1>
             <p className="text-muted-foreground">Create and manage your trading strategies with entry/exit rules</p>
           </div>
           <Button onClick={handleOpenAdd}>

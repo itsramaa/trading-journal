@@ -1,7 +1,12 @@
+/**
+ * Market Calendar Page - AI-powered market analysis
+ * Improved: Better section ordering, less prominent mock disclaimer
+ */
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, TrendingUp, TrendingDown, Activity, BarChart3, Target, Zap } from "lucide-react";
+import { Calendar, TrendingUp, TrendingDown, Activity, BarChart3, Target, Zap, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
 
@@ -46,72 +51,59 @@ const MarketCalendar = () => {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Calendar & Market Sentiment</h1>
-          <p className="text-muted-foreground">
-            AI-powered market analysis and economic calendar
-          </p>
+        {/* Page Header */}
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+              <Calendar className="h-6 w-6 text-primary" />
+              Calendar & Market Sentiment
+            </h1>
+            <p className="text-muted-foreground">
+              AI-powered market analysis and economic calendar
+            </p>
+          </div>
+          <Button variant="outline" size="sm" className="gap-2" disabled>
+            <RefreshCw className="h-4 w-4" />
+            Refresh Data
+          </Button>
         </div>
 
-        {/* AI Market Sentiment */}
+        {/* AI Market Sentiment - Compact Summary */}
         <Card>
-          <CardHeader>
+          <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <TrendingUp className="h-5 w-5 text-primary" />
-                <CardTitle>AI Market Sentiment</CardTitle>
+                <CardTitle className="text-lg">AI Market Sentiment</CardTitle>
               </div>
               <Badge 
                 className={cn(
-                  MOCK_SENTIMENT.overall === 'bullish' && "bg-green-500",
-                  MOCK_SENTIMENT.overall === 'bearish' && "bg-red-500",
-                  MOCK_SENTIMENT.overall === 'neutral' && "bg-yellow-500"
+                  MOCK_SENTIMENT.overall === 'bullish' && "bg-profit text-profit-foreground",
+                  MOCK_SENTIMENT.overall === 'bearish' && "bg-loss text-loss-foreground",
+                  MOCK_SENTIMENT.overall === 'neutral' && "bg-secondary text-secondary-foreground"
                 )}
               >
                 {MOCK_SENTIMENT.overall.toUpperCase()}
               </Badge>
             </div>
-            <CardDescription>
-              Based on technical analysis, market structure, and momentum indicators
-            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Confidence Score */}
-            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-              <span className="text-sm font-medium">AI Confidence</span>
-              <div className="flex items-center gap-3">
-                <Progress value={MOCK_SENTIMENT.confidence} className="w-24 h-2" />
-                <span className="text-sm font-bold">{MOCK_SENTIMENT.confidence}%</span>
-              </div>
-            </div>
-
-            {/* Fear & Greed */}
-            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-              <span className="text-sm font-medium">Fear & Greed Index</span>
-              <div className="flex items-center gap-2">
-                <span className="text-2xl font-bold">{MOCK_SENTIMENT.fearGreed.value}</span>
-                <Badge variant="outline">{MOCK_SENTIMENT.fearGreed.label}</Badge>
-              </div>
-            </div>
-
-            {/* Market Signals */}
-            <div className="space-y-2">
-              <h4 className="text-sm font-medium">Key Signals</h4>
-              {MOCK_SENTIMENT.signals.map((signal, idx) => (
-                <div key={idx} className="flex items-center justify-between p-2 rounded border">
-                  <div className="flex items-center gap-2">
-                    {signal.direction === 'up' ? (
-                      <TrendingUp className="h-4 w-4 text-green-500" />
-                    ) : signal.direction === 'down' ? (
-                      <TrendingDown className="h-4 w-4 text-red-500" />
-                    ) : (
-                      <Activity className="h-4 w-4 text-yellow-500" />
-                    )}
-                    <span className="font-medium">{signal.asset}</span>
-                  </div>
-                  <span className="text-sm text-muted-foreground">{signal.trend}</span>
+            {/* Key Metrics Row */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                <span className="text-sm font-medium">AI Confidence</span>
+                <div className="flex items-center gap-3">
+                  <Progress value={MOCK_SENTIMENT.confidence} className="w-16 h-2" />
+                  <span className="text-sm font-bold">{MOCK_SENTIMENT.confidence}%</span>
                 </div>
-              ))}
+              </div>
+              <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                <span className="text-sm font-medium">Fear & Greed</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xl font-bold">{MOCK_SENTIMENT.fearGreed.value}</span>
+                  <Badge variant="outline">{MOCK_SENTIMENT.fearGreed.label}</Badge>
+                </div>
+              </div>
             </div>
 
             {/* AI Recommendation */}
@@ -122,16 +114,39 @@ const MarketCalendar = () => {
               </div>
               <p className="text-sm text-muted-foreground">{MOCK_SENTIMENT.recommendation}</p>
             </div>
+
+            {/* Market Signals */}
+            <div className="space-y-2">
+              <h4 className="text-sm font-medium">Key Signals</h4>
+              <div className="grid gap-2">
+                {MOCK_SENTIMENT.signals.map((signal, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-2 rounded border">
+                    <div className="flex items-center gap-2">
+                      {signal.direction === 'up' ? (
+                        <TrendingUp className="h-4 w-4 text-profit" />
+                      ) : signal.direction === 'down' ? (
+                        <TrendingDown className="h-4 w-4 text-loss" />
+                      ) : (
+                        <Activity className="h-4 w-4 text-secondary" />
+                      )}
+                      <span className="font-medium">{signal.asset}</span>
+                    </div>
+                    <span className="text-sm text-muted-foreground">{signal.trend}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </CardContent>
         </Card>
 
-        <div className="grid gap-6 md:grid-cols-2">
+        {/* Two Column: Volatility + Opportunities */}
+        <div className="grid gap-6 lg:grid-cols-2">
           {/* AI Volatility Assessment */}
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
                 <BarChart3 className="h-5 w-5 text-primary" />
-                <CardTitle>Volatility Assessment</CardTitle>
+                <CardTitle className="text-lg">Volatility Assessment</CardTitle>
               </div>
               <CardDescription>
                 Current market volatility levels
@@ -145,9 +160,9 @@ const MarketCalendar = () => {
                     <Badge 
                       variant="outline"
                       className={cn(
-                        item.level === 'high' && "border-red-500 text-red-500",
-                        item.level === 'medium' && "border-yellow-500 text-yellow-500",
-                        item.level === 'low' && "border-green-500 text-green-500"
+                        item.level === 'high' && "border-loss text-loss",
+                        item.level === 'medium' && "border-secondary text-secondary-foreground",
+                        item.level === 'low' && "border-profit text-profit"
                       )}
                     >
                       {item.level}
@@ -158,9 +173,9 @@ const MarketCalendar = () => {
                       value={item.value} 
                       className={cn(
                         "w-16 h-2",
-                        item.level === 'high' && "[&>div]:bg-red-500",
-                        item.level === 'medium' && "[&>div]:bg-yellow-500",
-                        item.level === 'low' && "[&>div]:bg-green-500"
+                        item.level === 'high' && "[&>div]:bg-loss",
+                        item.level === 'medium' && "[&>div]:bg-secondary",
+                        item.level === 'low' && "[&>div]:bg-profit"
                       )}
                     />
                     <span className="text-xs text-muted-foreground w-24 text-right">{item.status}</span>
@@ -172,10 +187,10 @@ const MarketCalendar = () => {
 
           {/* AI Trading Opportunities */}
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
                 <Target className="h-5 w-5 text-primary" />
-                <CardTitle>Trading Opportunities</CardTitle>
+                <CardTitle className="text-lg">Trading Opportunities</CardTitle>
               </div>
               <CardDescription>
                 AI-ranked trading setups
@@ -205,12 +220,12 @@ const MarketCalendar = () => {
           </Card>
         </div>
 
-        {/* Economic Calendar */}
+        {/* Economic Calendar - Full Width */}
         <Card>
-          <CardHeader>
+          <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
               <Calendar className="h-5 w-5 text-primary" />
-              <CardTitle>Economic Calendar</CardTitle>
+              <CardTitle className="text-lg">Economic Calendar</CardTitle>
             </div>
             <CardDescription>
               Upcoming high-impact economic events
@@ -224,15 +239,15 @@ const MarketCalendar = () => {
                   className="flex items-start gap-3 p-3 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors"
                 >
                   <div className={cn(
-                    "w-2 h-2 rounded-full mt-2",
-                    event.impact === 'high' && "bg-red-500",
-                    event.impact === 'medium' && "bg-yellow-500",
-                    event.impact === 'low' && "bg-green-500"
+                    "w-2 h-2 rounded-full mt-2 shrink-0",
+                    event.impact === 'high' && "bg-loss",
+                    event.impact === 'medium' && "bg-secondary",
+                    event.impact === 'low' && "bg-profit"
                   )} />
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between">
-                      <p className="font-medium text-sm">{event.event}</p>
-                      <Badge variant="outline" className="text-xs">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-medium text-sm truncate">{event.event}</p>
+                      <Badge variant="outline" className="text-xs shrink-0">
                         {event.impact}
                       </Badge>
                     </div>
@@ -247,11 +262,13 @@ const MarketCalendar = () => {
                 </div>
               ))}
             </div>
-            <p className="text-xs text-muted-foreground text-center mt-4">
-              Data is for demonstration purposes. Connect to a live economic calendar API for real-time events.
-            </p>
           </CardContent>
         </Card>
+
+        {/* Mock Data Disclaimer - Small Footer */}
+        <p className="text-xs text-muted-foreground text-center">
+          Demo data shown. Connect to a live API for real-time market data.
+        </p>
       </div>
     </DashboardLayout>
   );

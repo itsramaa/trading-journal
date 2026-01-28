@@ -1,10 +1,14 @@
+/**
+ * AI Assistant Page - Chat interface with quick actions
+ * Improved: Better responsive layout, stacked sidebar on mobile
+ */
 import { useState, useRef, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Bot, Send, User, Loader2, Sparkles, TrendingUp, Shield, Lightbulb } from "lucide-react";
+import { Bot, Send, User, Loader2, Sparkles, TrendingUp, Shield, Lightbulb, Brain, Target, MessageSquare } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -82,9 +86,10 @@ const AIAssistant = () => {
   };
 
   const quickActions = [
-    { label: "Analyze my performance", icon: TrendingUp, prompt: "Analyze my recent trading performance and identify patterns" },
+    { label: "Analyze performance", icon: TrendingUp, prompt: "Analyze my recent trading performance and identify patterns" },
     { label: "Risk assessment", icon: Shield, prompt: "Review my current risk exposure and suggest improvements" },
     { label: "Strategy tips", icon: Lightbulb, prompt: "Based on my trading history, what strategies should I focus on?" },
+    { label: "Trade quality check", icon: Target, prompt: "How can I improve the quality of my trade entries?" },
   ];
 
   const handleQuickAction = (prompt: string) => {
@@ -93,10 +98,11 @@ const AIAssistant = () => {
 
   return (
     <DashboardLayout>
-      <div className="h-[calc(100vh-8rem)] flex flex-col">
-        <div className="mb-4">
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-            <Bot className="h-8 w-8 text-primary" />
+      <div className="space-y-6">
+        {/* Page Header */}
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+            <Bot className="h-6 w-6 text-primary" />
             AI Assistant
           </h1>
           <p className="text-muted-foreground">
@@ -104,16 +110,33 @@ const AIAssistant = () => {
           </p>
         </div>
 
-        <div className="flex-1 grid gap-4 lg:grid-cols-4">
-          {/* Chat Area */}
-          <Card className="lg:col-span-3 flex flex-col">
-            <CardHeader className="pb-2">
+        {/* Quick Actions - Horizontal scroll on mobile, above chat */}
+        <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 lg:mx-0 lg:px-0">
+          {quickActions.map((action) => (
+            <Button
+              key={action.label}
+              variant="outline"
+              size="sm"
+              className="shrink-0 gap-2"
+              onClick={() => handleQuickAction(action.prompt)}
+            >
+              <action.icon className="h-4 w-4" />
+              {action.label}
+            </Button>
+          ))}
+        </div>
+
+        {/* Main Content Grid */}
+        <div className="grid gap-6 lg:grid-cols-4">
+          {/* Chat Area - Takes more space */}
+          <Card className="lg:col-span-3 flex flex-col h-[calc(100vh-20rem)]">
+            <CardHeader className="pb-2 shrink-0">
               <CardTitle className="text-lg flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-primary" />
+                <MessageSquare className="h-5 w-5 text-primary" />
                 Trading Chat
               </CardTitle>
             </CardHeader>
-            <CardContent className="flex-1 flex flex-col p-4 pt-0">
+            <CardContent className="flex-1 flex flex-col p-4 pt-0 min-h-0">
               <ScrollArea className="flex-1 pr-4" ref={scrollRef}>
                 <div className="space-y-4 pb-4">
                   {messages.map((message) => (
@@ -160,7 +183,7 @@ const AIAssistant = () => {
                 </div>
               </ScrollArea>
 
-              <div className="flex gap-2 pt-4 border-t">
+              <div className="flex gap-2 pt-4 border-t shrink-0">
                 <Input
                   placeholder="Ask about your trades, strategies, or risk management..."
                   value={input}
@@ -180,50 +203,52 @@ const AIAssistant = () => {
             </CardContent>
           </Card>
 
-          {/* Quick Actions Sidebar */}
-          <div className="space-y-4">
+          {/* Sidebar - AI Capabilities */}
+          <div className="space-y-4 lg:block">
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-lg">Quick Actions</CardTitle>
-                <CardDescription>Common analysis requests</CardDescription>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Brain className="h-5 w-5 text-primary" />
+                  AI Capabilities
+                </CardTitle>
+                <CardDescription>What I can help with</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-2">
-                {quickActions.map((action) => (
-                  <Button
-                    key={action.label}
-                    variant="outline"
-                    className="w-full justify-start gap-2"
-                    onClick={() => handleQuickAction(action.prompt)}
-                  >
-                    <action.icon className="h-4 w-4" />
-                    {action.label}
-                  </Button>
-                ))}
+              <CardContent>
+                <ul className="text-sm text-muted-foreground space-y-3">
+                  <li className="flex items-start gap-2">
+                    <TrendingUp className="h-4 w-4 mt-0.5 text-primary shrink-0" />
+                    <span>Performance analysis & pattern recognition</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Shield className="h-4 w-4 mt-0.5 text-primary shrink-0" />
+                    <span>Risk assessment & position sizing</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Lightbulb className="h-4 w-4 mt-0.5 text-primary shrink-0" />
+                    <span>Strategy optimization tips</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Target className="h-4 w-4 mt-0.5 text-primary shrink-0" />
+                    <span>Trade quality scoring</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Sparkles className="h-4 w-4 mt-0.5 text-primary shrink-0" />
+                    <span>Market sentiment insights</span>
+                  </li>
+                </ul>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="hidden lg:block">
               <CardHeader className="pb-2">
-                <CardTitle className="text-lg">AI Capabilities</CardTitle>
+                <CardTitle className="text-sm font-medium">Tips for Better Results</CardTitle>
               </CardHeader>
               <CardContent>
-                <ul className="text-sm text-muted-foreground space-y-2">
-                  <li className="flex items-start gap-2">
-                    <TrendingUp className="h-4 w-4 mt-0.5 text-primary" />
-                    Performance analysis & patterns
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Shield className="h-4 w-4 mt-0.5 text-primary" />
-                    Risk assessment & suggestions
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Lightbulb className="h-4 w-4 mt-0.5 text-primary" />
-                    Strategy optimization
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Bot className="h-4 w-4 mt-0.5 text-primary" />
-                    Trade quality scoring
-                  </li>
+                <ul className="text-xs text-muted-foreground space-y-2">
+                  <li>• Be specific about timeframes</li>
+                  <li>• Mention specific pairs or strategies</li>
+                  <li>• Ask follow-up questions</li>
+                  <li>• Request concrete action items</li>
                 </ul>
               </CardContent>
             </Card>
