@@ -7,9 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Lightbulb, Target, Clock, Layers, CheckCircle, Sparkles, Star, TrendingUp, Brain } from "lucide-react";
+import { Lightbulb, Target, Clock, Layers, CheckCircle, Sparkles, Star, TrendingUp, Brain, RefreshCw, Loader2 } from "lucide-react";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { useTradeEntryWizard } from "@/features/trade/useTradeEntryWizard";
+import { useAIStrategyRecommendation, StrategyRecommendation } from "@/hooks/use-ai-strategy-recommendation";
 import { TIMEFRAME_OPTIONS, type TradingStrategyEnhanced } from "@/types/strategy";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +22,9 @@ interface StrategySelectionProps {
 interface StrategyWithScore extends TradingStrategyEnhanced {
   aiScore?: number;
   aiReason?: string;
+  strengths?: string[];
+  considerations?: string[];
+  winRateForPair?: number;
 }
 
 export function StrategySelection({ onNext, onBack }: StrategySelectionProps) {
@@ -28,12 +32,57 @@ export function StrategySelection({ onNext, onBack }: StrategySelectionProps) {
   const wizard = useTradeEntryWizard();
   const [selectedId, setSelectedId] = useState<string>(wizard.selectedStrategyId || "");
   const [strategiesWithScores, setStrategiesWithScores] = useState<StrategyWithScore[]>([]);
+  const { getRecommendations, isLoading: aiLoading, result: aiResult } = useAIStrategyRecommendation();
 
-  // Calculate AI scores for strategies (simulated - in production this would call AI endpoint)
+  // Get pair/direction from wizard's tradeDetails (set in Step 3)
+  const tradeDetails = wizard.tradeDetails;
+  const pair = tradeDetails?.pair;
+  const direction = tradeDetails?.direction;
+
+  // Fetch AI recommendations when wizard has pair/direction
+  const fetchAIRecommendations = async () => {
+    if (pair && direction && strategies.length > 0) {
+      const mappedStrategies = strategies.map(s => ({
+        id: s.id,
+        name: s.name,
+        description: s.description || null,
+        timeframe: (s as any).timeframe || null,
+        market_type: (s as any).market_type || 'spot',
+        min_confluences: (s as any).min_confluences || 4,
+        min_rr: (s as any).min_rr || 1.5,
+        entry_rules: (s as any).entry_rules || [],
+        exit_rules: (s as any).exit_rules || [],
+      }));
+      await getRecommendations(pair, direction, mappedStrategies);
+    }
+  };
+
+  // Auto-fetch when wizard data changes
+  useEffect(() => {
+    if (pair && direction && strategies.length > 0) {
+      fetchAIRecommendations();
+    }
+  }, [pair, direction, strategies.length]);
+
+  // Map AI recommendations to strategies
   useEffect(() => {
     if (strategies.length > 0) {
       const scored = strategies.map((strategy) => {
-        // Simulate AI scoring based on strategy attributes
+        // Check if we have AI recommendation for this strategy
+        const aiRec = aiResult?.recommendations?.find(r => r.strategyId === strategy.id);
+        
+        if (aiRec) {
+          return {
+            ...strategy,
+            aiScore: aiRec.confidenceScore,
+            aiReason: aiRec.reasoning,
+            strengths: aiRec.strengths,
+            considerations: aiRec.considerations,
+            winRateForPair: aiRec.winRateForPair,
+          } as StrategyWithScore;
+        }
+        
+        // Fallback to basic scoring if no AI result
         const hasRules = (strategy as any).entry_rules?.length > 0;
         const hasTimeframe = !!(strategy as any).timeframe;
         const hasMinRR = ((strategy as any).min_rr || 0) >= 1.5;
@@ -45,9 +94,6 @@ export function StrategySelection({ onNext, onBack }: StrategySelectionProps) {
         if (hasMinRR) score += 15;
         if (hasConfluences) score += 10;
         
-        // Add some randomness for demo
-        score = Math.min(100, Math.max(0, score + (Math.random() * 20 - 10)));
-        
         const reasons = [];
         if (hasRules) reasons.push("Well-defined entry rules");
         if (hasMinRR) reasons.push("Good risk-reward ratio");
@@ -58,12 +104,14 @@ export function StrategySelection({ onNext, onBack }: StrategySelectionProps) {
           ...strategy,
           aiScore: Math.round(score),
           aiReason: reasons.join(". ") || "Basic strategy structure",
+          strengths: hasRules ? ["Has entry rules defined"] : [],
+          considerations: !hasTimeframe ? ["No specific timeframe"] : [],
         } as StrategyWithScore;
       }).sort((a, b) => (b.aiScore || 0) - (a.aiScore || 0));
       
       setStrategiesWithScores(scored);
     }
-  }, [strategies]);
+  }, [strategies, aiResult]);
 
   // Find selected strategy details
   const selectedStrategy = strategiesWithScores.find(s => s.id === selectedId);
@@ -104,6 +152,37 @@ export function StrategySelection({ onNext, onBack }: StrategySelectionProps) {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* AI Recommendation Header */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Brain className="h-5 w-5 text-primary" />
+              <span className="font-medium">AI Strategy Analysis</span>
+              {pair && (
+                <Badge variant="outline" className="text-xs">{pair} {direction}</Badge>
+              )}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchAIRecommendations}
+              disabled={aiLoading || !pair}
+            >
+              {aiLoading ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-1" />
+              )}
+              {aiLoading ? "Analyzing..." : "Refresh AI"}
+            </Button>
+          </div>
+
+          {/* AI Overall Advice */}
+          {aiResult?.overallAdvice && (
+            <div className="p-3 rounded-lg border bg-muted/30 mb-4">
+              <p className="text-sm text-muted-foreground">{aiResult.overallAdvice}</p>
+            </div>
+          )}
+
           {/* AI Recommendation */}
           {recommendedStrategy && recommendedStrategy.aiScore && recommendedStrategy.aiScore >= 70 && (
             <div className="p-4 rounded-lg border border-green-500/30 bg-green-500/5">
@@ -128,8 +207,20 @@ export function StrategySelection({ onNext, onBack }: StrategySelectionProps) {
                     <Badge className={cn("text-xs", getScoreColor(recommendedStrategy.aiScore))}>
                       {recommendedStrategy.aiScore}% Match
                     </Badge>
+                    {recommendedStrategy.winRateForPair && recommendedStrategy.winRateForPair > 0 && (
+                      <Badge variant="outline" className="text-xs">
+                        {recommendedStrategy.winRateForPair.toFixed(0)}% win rate on {pair || 'pair'}
+                      </Badge>
+                    )}
                   </div>
                   <p className="text-sm text-muted-foreground">{recommendedStrategy.aiReason}</p>
+                  {recommendedStrategy.strengths && recommendedStrategy.strengths.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {recommendedStrategy.strengths.map((s, i) => (
+                        <Badge key={i} variant="secondary" className="text-xs bg-green-500/10 text-green-600">✓ {s}</Badge>
+                      ))}
+                    </div>
+                  )}
                   {selectedId !== recommendedStrategy.id && (
                     <Button
                       size="sm"

@@ -19,7 +19,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Calendar, Tag, Target, Building2, TrendingUp, TrendingDown, BookOpen, MoreVertical, Trash2, Clock, CheckCircle, Circle, DollarSign, XCircle, AlertCircle, Edit, X, Wand2, Timer, Brain, Sparkles } from "lucide-react";
+import { Plus, Calendar, Tag, Target, Building2, TrendingUp, TrendingDown, BookOpen, MoreVertical, Trash2, Clock, CheckCircle, Circle, DollarSign, XCircle, AlertCircle, Edit, X, Wand2, Timer, Brain, Sparkles, ArrowUpDown } from "lucide-react";
 import { format } from "date-fns";
 import { useTradingAccounts } from "@/hooks/use-trading-accounts";
 import { useTradeEntries, useCreateTradeEntry, useDeleteTradeEntry, useClosePosition, useUpdateTradeEntry, TradeEntry } from "@/hooks/use-trade-entries";
@@ -30,6 +30,7 @@ import { formatCurrency as formatCurrencyUtil } from "@/lib/formatters";
 import { useUserSettings } from "@/hooks/use-user-settings";
 import { TradeEntryWizard } from "@/components/trade/entry/TradeEntryWizard";
 import { useQueryClient } from "@tanstack/react-query";
+import { usePostTradeAnalysis } from "@/hooks/use-post-trade-analysis";
 import { cn } from "@/lib/utils";
 
 // Binance Futures fee rates
@@ -77,6 +78,7 @@ export default function TradingJournal() {
   const [editingPosition, setEditingPosition] = useState<TradeEntry | null>(null);
   const [showInlineStrategyForm, setShowInlineStrategyForm] = useState(false);
   const [inlineStrategyName, setInlineStrategyName] = useState("");
+  const [sortByAI, setSortByAI] = useState<'none' | 'asc' | 'desc'>('none');
 
   const queryClient = useQueryClient();
   const { data: userSettings } = useUserSettings();
@@ -89,6 +91,7 @@ export default function TradingJournal() {
   const closePosition = useClosePosition();
   const updateTrade = useUpdateTradeEntry();
   const createStrategy = useCreateTradingStrategy();
+  const { analyzeClosedTrade } = usePostTradeAnalysis();
 
   // Handle inline strategy creation
   const handleInlineStrategyCreate = async () => {
@@ -137,12 +140,22 @@ export default function TradingJournal() {
   const openPositions = useMemo(() => trades?.filter(t => t.status === 'open') || [], [trades]);
   const closedTrades = useMemo(() => trades?.filter(t => t.status === 'closed') || [], [trades]);
 
-  // Filter closed trades by date/strategy
+  // Filter and sort closed trades by date/strategy/AI score
   const filteredClosedTrades = useMemo(() => {
     let filtered = filterTradesByDateRange(closedTrades, dateRange.from, dateRange.to);
     filtered = filterTradesByStrategies(filtered, selectedStrategyIds);
+    
+    // AI Quality Score sorting
+    if (sortByAI !== 'none') {
+      filtered = [...filtered].sort((a, b) => {
+        const scoreA = a.ai_quality_score ?? -1;
+        const scoreB = b.ai_quality_score ?? -1;
+        return sortByAI === 'asc' ? scoreA - scoreB : scoreB - scoreA;
+      });
+    }
+    
     return filtered;
-  }, [closedTrades, dateRange, selectedStrategyIds]);
+  }, [closedTrades, dateRange, selectedStrategyIds, sortByAI]);
 
   // Calculate P&L summaries
   const totalUnrealizedPnL = useMemo(() => openPositions.reduce((sum, t) => sum + (t.pnl || 0), 0), [openPositions]);
@@ -208,10 +221,11 @@ export default function TradingJournal() {
       : closingPosition.entry_price - values.exit_price;
     
     const pnl = priceDiff * closingPosition.quantity - (values.fees || 0);
+    const tradeId = closingPosition.id;
 
     try {
       await closePosition.mutateAsync({
-        id: closingPosition.id,
+        id: tradeId,
         exit_price: values.exit_price,
         pnl,
         fees: values.fees,
@@ -219,6 +233,9 @@ export default function TradingJournal() {
       });
       setClosingPosition(null);
       closeForm.reset();
+      
+      // Trigger async AI post-trade analysis (non-blocking)
+      analyzeClosedTrade(tradeId).catch(console.error);
     } catch (error) {
       // Error handled by mutation
     }
@@ -773,6 +790,21 @@ export default function TradingJournal() {
                 {/* Filters */}
                 <div className="flex flex-col gap-4 md:flex-row md:items-center mb-4">
                   <DateRangeFilter value={dateRange} onChange={setDateRange} />
+                  
+                  {/* AI Score Sort Button */}
+                  <Button 
+                    variant={sortByAI !== 'none' ? 'default' : 'outline'} 
+                    size="sm"
+                    onClick={() => setSortByAI(prev => prev === 'none' ? 'desc' : prev === 'desc' ? 'asc' : 'none')}
+                    className="gap-1"
+                  >
+                    <Brain className="h-4 w-4" />
+                    AI Score {sortByAI === 'desc' ? '↓' : sortByAI === 'asc' ? '↑' : ''}
+                    {sortByAI !== 'none' && (
+                      <ArrowUpDown className="h-3 w-3 ml-1" />
+                    )}
+                  </Button>
+                  
                   {strategies.length > 0 && (
                     <div className="flex flex-wrap gap-2">
                       {strategies.map((strategy) => (
