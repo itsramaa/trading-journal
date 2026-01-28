@@ -1,24 +1,14 @@
 /**
- * Market Calendar Page - AI-powered market analysis
- * Improved: Better section ordering, less prominent mock disclaimer
+ * Market Insight Page - AI-powered market analysis
+ * AI Sentiment, Volatility, Opportunities, Whale Tracking
  */
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, TrendingUp, TrendingDown, Activity, BarChart3, Target, Zap, RefreshCw } from "lucide-react";
+import { TrendingUp, TrendingDown, Activity, BarChart3, Target, Zap, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
-
-// Economic events (mock data)
-const UPCOMING_EVENTS = [
-  { date: 'Today', time: '14:30', event: 'US CPI (YoY)', impact: 'high', forecast: '3.2%' },
-  { date: 'Today', time: '16:00', event: 'Fed Chair Powell Speaks', impact: 'high', forecast: '-' },
-  { date: 'Tomorrow', time: '08:00', event: 'UK GDP (QoQ)', impact: 'medium', forecast: '0.2%' },
-  { date: 'Tomorrow', time: '12:30', event: 'US Retail Sales', impact: 'medium', forecast: '0.3%' },
-  { date: 'Wed', time: '18:00', event: 'FOMC Minutes', impact: 'high', forecast: '-' },
-  { date: 'Thu', time: '12:30', event: 'US Jobless Claims', impact: 'medium', forecast: '215K' },
-];
 
 // Mock AI Sentiment Data
 const MOCK_SENTIMENT = {
@@ -47,7 +37,7 @@ const MOCK_OPPORTUNITIES = [
   { pair: 'SOL/USDT', confidence: 58, direction: 'WAIT', reason: 'Awaiting confirmation at $145 level' },
 ];
 
-const MarketCalendar = () => {
+const MarketInsight = () => {
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -55,11 +45,11 @@ const MarketCalendar = () => {
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-              <Calendar className="h-6 w-6 text-primary" />
-              Calendar & Market Sentiment
+              <TrendingUp className="h-6 w-6 text-primary" />
+              Market Insight
             </h1>
             <p className="text-muted-foreground">
-              AI-powered market analysis and economic calendar
+              AI-powered market analysis and trading opportunities
             </p>
           </div>
           <Button variant="outline" size="sm" className="gap-2" disabled>
@@ -272,52 +262,7 @@ const MarketCalendar = () => {
           </CardContent>
         </Card>
 
-        {/* Economic Calendar - Full Width */}
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-primary" />
-              <CardTitle className="text-lg">Economic Calendar</CardTitle>
-            </div>
-            <CardDescription>
-              Upcoming high-impact economic events
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {UPCOMING_EVENTS.map((event, idx) => (
-                <div 
-                  key={idx}
-                  className="flex items-start gap-3 p-3 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors"
-                >
-                  <div className={cn(
-                    "w-2 h-2 rounded-full mt-2 shrink-0",
-                    event.impact === 'high' && "bg-loss",
-                    event.impact === 'medium' && "bg-secondary",
-                    event.impact === 'low' && "bg-profit"
-                  )} />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="font-medium text-sm truncate">{event.event}</p>
-                      <Badge variant="outline" className="text-xs shrink-0">
-                        {event.impact}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                      <span>{event.date}</span>
-                      <span>{event.time} UTC</span>
-                      {event.forecast !== '-' && (
-                        <span>Forecast: {event.forecast}</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Mock Data Disclaimer - Small Footer */}
+        {/* Footer disclaimer */}
         <p className="text-xs text-muted-foreground text-center">
           Demo data shown. Connect to a live API for real-time market data.
         </p>
@@ -326,4 +271,4 @@ const MarketCalendar = () => {
   );
 };
 
-export default MarketCalendar;
+export default MarketInsight;

@@ -15,7 +15,8 @@ import Performance from "./pages/trading-journey/Performance";
 import TradingSessions from "./pages/trading-journey/TradingSessions";
 import SessionDetail from "./pages/trading-journey/SessionDetail";
 import RiskManagement from "./pages/RiskManagement";
-import MarketCalendar from "./pages/MarketCalendar";
+import Calendar from "./pages/Calendar";
+import MarketInsight from "./pages/MarketInsight";
 import AIAssistant from "./pages/AIAssistant";
 import Settings from "./pages/Settings";
 import Notifications from "./pages/Notifications";
@@ -98,10 +99,17 @@ const App = () => (
               </ProtectedRoute>
             } />
             
-            {/* Calendar & Market */}
+            {/* Calendar */}
+            <Route path="/calendar" element={
+              <ProtectedRoute>
+                <Calendar />
+              </ProtectedRoute>
+            } />
+            
+            {/* Market Insight */}
             <Route path="/market" element={
               <ProtectedRoute>
-                <MarketCalendar />
+                <MarketInsight />
               </ProtectedRoute>
             } />
             

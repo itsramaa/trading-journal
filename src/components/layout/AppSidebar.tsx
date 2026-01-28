@@ -2,7 +2,6 @@ import * as React from "react";
 import {
   LayoutDashboard,
   Notebook,
-  BarChart3,
   Building2,
   Lightbulb,
   Shield,
@@ -10,6 +9,7 @@ import {
   Target,
   Settings,
   CandlestickChart,
+  TrendingUp,
   type LucideIcon,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
@@ -33,15 +33,15 @@ interface NavItem {
   icon: LucideIcon;
 }
 
-// Navigation structure per Trading Journey Markdown spec (flat 9-item menu)
+// Navigation structure per user spec (flat 9-item menu)
 const navigationItems: NavItem[] = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Accounts", url: "/accounts", icon: Building2 },
+  { title: "Calendar", url: "/calendar", icon: Calendar },
+  { title: "Market Insight", url: "/market", icon: TrendingUp },
+  { title: "Risk Management", url: "/risk", icon: Shield },
   { title: "Trade Management", url: "/trading", icon: Notebook },
   { title: "Strategy & Rules", url: "/strategies", icon: Lightbulb },
-  { title: "Analytics", url: "/analytics", icon: BarChart3 },
-  { title: "Risk Management", url: "/risk", icon: Shield },
-  { title: "Calendar & Market", url: "/market", icon: Calendar },
-  { title: "Accounts", url: "/accounts", icon: Building2 },
   { title: "Trade Quality", url: "/ai", icon: Target },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
