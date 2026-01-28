@@ -321,6 +321,45 @@ export type Database = {
           },
         ]
       }
+      daily_risk_snapshots: {
+        Row: {
+          capital_deployed_percent: number | null
+          created_at: string | null
+          current_pnl: number | null
+          id: string
+          loss_limit_used_percent: number | null
+          positions_open: number | null
+          snapshot_date: string
+          starting_balance: number
+          trading_allowed: boolean | null
+          user_id: string
+        }
+        Insert: {
+          capital_deployed_percent?: number | null
+          created_at?: string | null
+          current_pnl?: number | null
+          id?: string
+          loss_limit_used_percent?: number | null
+          positions_open?: number | null
+          snapshot_date?: string
+          starting_balance: number
+          trading_allowed?: boolean | null
+          user_id: string
+        }
+        Update: {
+          capital_deployed_percent?: number | null
+          created_at?: string | null
+          current_pnl?: number | null
+          id?: string
+          loss_limit_used_percent?: number | null
+          positions_open?: number | null
+          snapshot_date?: string
+          starting_balance?: number
+          trading_allowed?: boolean | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       debts: {
         Row: {
           created_at: string
@@ -863,11 +902,57 @@ export type Database = {
         }
         Relationships: []
       }
+      risk_profiles: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          max_concurrent_positions: number | null
+          max_correlated_exposure: number | null
+          max_daily_loss_percent: number | null
+          max_position_size_percent: number | null
+          max_weekly_drawdown_percent: number | null
+          risk_per_trade_percent: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          max_concurrent_positions?: number | null
+          max_correlated_exposure?: number | null
+          max_daily_loss_percent?: number | null
+          max_position_size_percent?: number | null
+          max_weekly_drawdown_percent?: number | null
+          risk_per_trade_percent?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          max_concurrent_positions?: number | null
+          max_correlated_exposure?: number | null
+          max_daily_loss_percent?: number | null
+          max_position_size_percent?: number | null
+          max_weekly_drawdown_percent?: number | null
+          risk_per_trade_percent?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       trade_entries: {
         Row: {
+          ai_confidence: number | null
+          ai_quality_score: number | null
           confluence_score: number | null
+          confluences_met: Json | null
           created_at: string
           direction: string
+          emotional_state: string | null
           entry_datetime: string | null
           entry_price: number
           entry_signal: string | null
@@ -879,6 +964,8 @@ export type Database = {
           notes: string | null
           pair: string
           pnl: number | null
+          post_trade_analysis: Json | null
+          pre_trade_validation: Json | null
           quantity: number
           realized_pnl: number | null
           result: string | null
@@ -893,9 +980,13 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          ai_confidence?: number | null
+          ai_quality_score?: number | null
           confluence_score?: number | null
+          confluences_met?: Json | null
           created_at?: string
           direction: string
+          emotional_state?: string | null
           entry_datetime?: string | null
           entry_price: number
           entry_signal?: string | null
@@ -907,6 +998,8 @@ export type Database = {
           notes?: string | null
           pair: string
           pnl?: number | null
+          post_trade_analysis?: Json | null
+          pre_trade_validation?: Json | null
           quantity?: number
           realized_pnl?: number | null
           result?: string | null
@@ -921,9 +1014,13 @@ export type Database = {
           user_id: string
         }
         Update: {
+          ai_confidence?: number | null
+          ai_quality_score?: number | null
           confluence_score?: number | null
+          confluences_met?: Json | null
           created_at?: string
           direction?: string
+          emotional_state?: string | null
           entry_datetime?: string | null
           entry_price?: number
           entry_signal?: string | null
@@ -935,6 +1032,8 @@ export type Database = {
           notes?: string | null
           pair?: string
           pnl?: number | null
+          post_trade_analysis?: Json | null
+          pre_trade_validation?: Json | null
           quantity?: number
           realized_pnl?: number | null
           result?: string | null
@@ -1063,34 +1162,61 @@ export type Database = {
           color: string | null
           created_at: string
           description: string | null
+          entry_rules: Json | null
+          exit_rules: Json | null
           id: string
           is_active: boolean | null
+          market_type: string | null
+          min_confluences: number | null
+          min_rr: number | null
           name: string
+          status: string | null
           tags: string[] | null
+          timeframe: string | null
           updated_at: string
           user_id: string
+          valid_pairs: string[] | null
+          version: number | null
         }
         Insert: {
           color?: string | null
           created_at?: string
           description?: string | null
+          entry_rules?: Json | null
+          exit_rules?: Json | null
           id?: string
           is_active?: boolean | null
+          market_type?: string | null
+          min_confluences?: number | null
+          min_rr?: number | null
           name: string
+          status?: string | null
           tags?: string[] | null
+          timeframe?: string | null
           updated_at?: string
           user_id: string
+          valid_pairs?: string[] | null
+          version?: number | null
         }
         Update: {
           color?: string | null
           created_at?: string
           description?: string | null
+          entry_rules?: Json | null
+          exit_rules?: Json | null
           id?: string
           is_active?: boolean | null
+          market_type?: string | null
+          min_confluences?: number | null
+          min_rr?: number | null
           name?: string
+          status?: string | null
           tags?: string[] | null
+          timeframe?: string | null
           updated_at?: string
           user_id?: string
+          valid_pairs?: string[] | null
+          version?: number | null
         }
         Relationships: []
       }

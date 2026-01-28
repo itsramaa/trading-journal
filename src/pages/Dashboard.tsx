@@ -12,6 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { QuickTip } from "@/components/ui/onboarding-tooltip";
 import { useGlobalShortcuts } from "@/components/ui/keyboard-shortcut";
 import { EmptyState } from "@/components/ui/empty-state";
+import { RiskSummaryCard } from "@/components/risk/RiskSummaryCard";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { useUserSettings } from "@/hooks/use-user-settings";
 import { useAccounts } from "@/hooks/use-accounts";
@@ -28,7 +29,8 @@ import {
   LineChart,
   BookOpen,
   Building2,
-  Wallet
+  Wallet,
+  Shield,
 } from "lucide-react";
 
 const Dashboard = () => {
@@ -133,7 +135,7 @@ const Dashboard = () => {
         {/* Quick Actions */}
         <section className="space-y-4">
           <h2 className="text-lg font-semibold">Quick Actions</h2>
-          <div className="grid gap-3 grid-cols-2 md:grid-cols-3">
+          <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
             <Button variant="outline" className="h-auto py-4 flex flex-col gap-2" asChild>
               <Link to="/trading/journal">
                 <BookOpen className="h-5 w-5 text-primary" />
@@ -147,11 +149,35 @@ const Dashboard = () => {
               </Link>
             </Button>
             <Button variant="outline" className="h-auto py-4 flex flex-col gap-2" asChild>
-              <Link to="/accounts">
-                <Wallet className="h-5 w-5 text-primary" />
-                <span className="text-sm">Manage Accounts</span>
+              <Link to="/risk">
+                <Shield className="h-5 w-5 text-primary" />
+                <span className="text-sm">Risk Check</span>
               </Link>
             </Button>
+            <Button variant="outline" className="h-auto py-4 flex flex-col gap-2" asChild>
+              <Link to="/accounts">
+                <Wallet className="h-5 w-5 text-primary" />
+                <span className="text-sm">Accounts</span>
+              </Link>
+            </Button>
+          </div>
+        </section>
+
+        {/* Risk Summary */}
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Shield className="h-5 w-5 text-primary" />
+              <h2 className="text-lg font-semibold">Risk Status</h2>
+            </div>
+            <Button variant="ghost" size="sm" asChild>
+              <Link to="/risk" className="flex items-center gap-1">
+                View Details <ChevronRight className="h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <RiskSummaryCard />
           </div>
         </section>
 

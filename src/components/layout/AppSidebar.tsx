@@ -12,6 +12,9 @@ import {
   ChevronRight,
   type LucideIcon,
   CandlestickChart,
+  Shield,
+  Brain,
+  BarChart3,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { NavUser } from "./NavUser";
@@ -44,6 +47,7 @@ interface NavGroup {
   collapsible?: boolean;
 }
 
+// Navigation structure per Trading Journey Markdown spec
 const navigationGroups: NavGroup[] = [
   {
     label: "General",
@@ -59,10 +63,18 @@ const navigationGroups: NavGroup[] = [
     collapsible: true,
     items: [
       { title: "Summary", url: "/trading", icon: Activity },
-      { title: "Strategies", url: "/trading/strategies", icon: Lightbulb },
-      { title: "Sessions", url: "/trading/sessions", icon: Clock },
       { title: "Journal", url: "/trading/journal", icon: Notebook },
-      { title: "Performance", url: "/trading/performance", icon: LineChart },
+      { title: "Sessions", url: "/trading/sessions", icon: Clock },
+      { title: "Analytics", url: "/trading/performance", icon: BarChart3 },
+      { title: "Strategies", url: "/trading/strategies", icon: Lightbulb },
+      { title: "AI Insights", url: "/trading/insights", icon: Brain },
+    ],
+  },
+  {
+    label: "Risk Management",
+    key: "risk",
+    items: [
+      { title: "Risk Dashboard", url: "/risk", icon: Shield },
     ],
   },
 ];

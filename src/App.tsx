@@ -17,6 +17,7 @@ import SessionDetail from "./pages/trading-journey/SessionDetail";
 import Performance from "./pages/trading-journey/Performance";
 import StrategyManagement from "./pages/trading-journey/StrategyManagement";
 import Insights from "./pages/trading-journey/Insights";
+import RiskManagement from "./pages/RiskManagement";
 
 // Other Pages
 import Dashboard from "./pages/Dashboard";
@@ -95,6 +96,13 @@ const App = () => (
             <Route path="/trading/insights" element={
               <ProtectedRoute>
                 <Insights />
+              </ProtectedRoute>
+            } />
+            
+            {/* Risk Management */}
+            <Route path="/risk" element={
+              <ProtectedRoute>
+                <RiskManagement />
               </ProtectedRoute>
             } />
             
