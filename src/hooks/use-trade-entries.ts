@@ -321,6 +321,10 @@ export function useClosePosition() {
         .single();
 
       if (error) throw error;
+      
+      // Trigger post-trade analysis asynchronously (non-blocking)
+      triggerPostTradeAnalysis(id);
+      
       return data;
     },
     onSuccess: () => {
@@ -331,4 +335,86 @@ export function useClosePosition() {
       toast.error(`Failed to close position: ${error.message}`);
     },
   });
+}
+
+// Async helper to trigger AI post-trade analysis
+async function triggerPostTradeAnalysis(tradeId: string) {
+  try {
+    // Fetch trade details for analysis
+    const { data: trade, error: tradeError } = await supabase
+      .from('trade_entries')
+      .select('*')
+      .eq('id', tradeId)
+      .single();
+
+    if (tradeError || !trade) return;
+
+    // Fetch linked strategy
+    const { data: strategyLinks } = await supabase
+      .from('trade_entry_strategies')
+      .select('trading_strategies(*)')
+      .eq('trade_entry_id', tradeId)
+      .limit(1);
+
+    const strategy = strategyLinks?.[0]?.trading_strategies as any;
+
+    // Fetch similar trades for pattern analysis
+    const { data: similarTrades } = await supabase
+      .from('trade_entries')
+      .select('pair, direction, result, pnl, confluence_score')
+      .eq('user_id', trade.user_id)
+      .eq('pair', trade.pair)
+      .eq('status', 'closed')
+      .neq('id', tradeId)
+      .order('trade_date', { ascending: false })
+      .limit(20);
+
+    // Call post-trade-analysis edge function
+    const { data, error } = await supabase.functions.invoke('post-trade-analysis', {
+      body: {
+        trade: {
+          id: trade.id,
+          pair: trade.pair,
+          direction: trade.direction,
+          entryPrice: trade.entry_price,
+          exitPrice: trade.exit_price || trade.entry_price,
+          stopLoss: trade.stop_loss || 0,
+          takeProfit: trade.take_profit || 0,
+          pnl: trade.pnl || 0,
+          result: trade.result || 'unknown',
+          notes: trade.notes || '',
+          emotionalState: trade.emotional_state || 'neutral',
+          confluenceScore: trade.confluence_score || 0,
+        },
+        strategy: strategy ? {
+          name: strategy.name,
+          minConfluences: strategy.min_confluences || 4,
+          minRR: strategy.min_rr || 1.5,
+        } : undefined,
+        similarTrades: (similarTrades || []).map(t => ({
+          pair: t.pair,
+          direction: t.direction,
+          result: t.result || 'unknown',
+          pnl: t.pnl || 0,
+          confluenceScore: t.confluence_score || 0,
+        })),
+      },
+    });
+
+    if (!error && data?.success && data?.data) {
+      // Save analysis result to trade
+      await supabase
+        .from('trade_entries')
+        .update({
+          post_trade_analysis: JSON.parse(JSON.stringify(data.data)),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', tradeId);
+      
+      console.log('Post-trade analysis saved for trade:', tradeId);
+    }
+  } catch (e) {
+    console.error('Post-trade analysis failed:', e);
+    // Non-blocking - don't surface error to user
+  }
 }

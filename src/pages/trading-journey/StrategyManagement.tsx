@@ -19,7 +19,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Target, MoreVertical, Edit, Trash2, Tag, Clock, TrendingUp, Shield, Zap } from "lucide-react";
+import { Plus, Target, MoreVertical, Edit, Trash2, Tag, Clock, TrendingUp, Shield, Zap, ListChecks, LogOut } from "lucide-react";
 import { format } from "date-fns";
 import { 
   useTradingStrategies, 
@@ -28,7 +28,9 @@ import {
   useDeleteTradingStrategy,
   TradingStrategy 
 } from "@/hooks/use-trading-strategies";
-import { TIMEFRAME_OPTIONS, COMMON_PAIRS, type TimeframeType, type MarketType } from "@/types/strategy";
+import { TIMEFRAME_OPTIONS, COMMON_PAIRS, type TimeframeType, type MarketType, type EntryRule, type ExitRule, DEFAULT_ENTRY_RULES, DEFAULT_EXIT_RULES } from "@/types/strategy";
+import { EntryRulesBuilder } from "@/components/strategy/EntryRulesBuilder";
+import { ExitRulesBuilder } from "@/components/strategy/ExitRulesBuilder";
 
 const strategyColors = [
   { name: 'Blue', value: 'blue' },
@@ -72,6 +74,8 @@ export default function StrategyManagement() {
   const [selectedColor, setSelectedColor] = useState('blue');
   const [selectedTimeframe, setSelectedTimeframe] = useState<string>('');
   const [selectedMarketType, setSelectedMarketType] = useState<string>('spot');
+  const [entryRules, setEntryRules] = useState<EntryRule[]>([]);
+  const [exitRules, setExitRules] = useState<ExitRule[]>([]);
 
   const { data: strategies, isLoading } = useTradingStrategies();
   const createStrategy = useCreateTradingStrategy();
@@ -106,6 +110,8 @@ export default function StrategyManagement() {
     setSelectedColor('blue');
     setSelectedTimeframe('');
     setSelectedMarketType('spot');
+    setEntryRules(DEFAULT_ENTRY_RULES.slice(0, 4)); // Start with 4 default entry rules
+    setExitRules(DEFAULT_EXIT_RULES);
     setEditingStrategy(null);
     setIsAddOpen(true);
   };
@@ -122,6 +128,8 @@ export default function StrategyManagement() {
     setSelectedColor(strategy.color || 'blue');
     setSelectedTimeframe(strategy.timeframe || '');
     setSelectedMarketType(strategy.market_type || 'spot');
+    setEntryRules(strategy.entry_rules || []);
+    setExitRules(strategy.exit_rules || []);
     setEditingStrategy(strategy);
     setIsAddOpen(true);
   };
@@ -143,6 +151,8 @@ export default function StrategyManagement() {
           market_type: selectedMarketType as any || 'spot',
           min_confluences: values.min_confluences,
           min_rr: values.min_rr,
+          entry_rules: entryRules,
+          exit_rules: exitRules,
         });
       } else {
         await createStrategy.mutateAsync({
@@ -154,6 +164,8 @@ export default function StrategyManagement() {
           market_type: selectedMarketType as any || 'spot',
           min_confluences: values.min_confluences,
           min_rr: values.min_rr,
+          entry_rules: entryRules,
+          exit_rules: exitRules,
         });
       }
       setIsAddOpen(false);
@@ -345,9 +357,16 @@ export default function StrategyManagement() {
             </DialogHeader>
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6 pt-4">
               <Tabs defaultValue="basic" className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
+                <TabsList className="grid w-full grid-cols-3">
                   <TabsTrigger value="basic">Basic Info</TabsTrigger>
-                  <TabsTrigger value="rules">Rules & Settings</TabsTrigger>
+                  <TabsTrigger value="entry">
+                    <ListChecks className="h-3 w-3 mr-1" />
+                    Entry Rules
+                  </TabsTrigger>
+                  <TabsTrigger value="exit">
+                    <LogOut className="h-3 w-3 mr-1" />
+                    Exit Rules
+                  </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="basic" className="space-y-4 pt-4">
@@ -428,7 +447,7 @@ export default function StrategyManagement() {
                   </div>
                 </TabsContent>
 
-                <TabsContent value="rules" className="space-y-4 pt-4">
+                <TabsContent value="entry" className="space-y-4 pt-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Min. Confluences</Label>
@@ -458,28 +477,17 @@ export default function StrategyManagement() {
                     </div>
                   </div>
 
-                  <Card className="bg-muted/50">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm">Entry Rules (Coming Soon)</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-xs text-muted-foreground">
-                        Define specific entry conditions like price action at S/R, volume confirmation, 
-                        technical indicators, and higher timeframe alignment.
-                      </p>
-                    </CardContent>
-                  </Card>
+                  <EntryRulesBuilder 
+                    rules={entryRules}
+                    onChange={setEntryRules}
+                  />
+                </TabsContent>
 
-                  <Card className="bg-muted/50">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm">Exit Rules (Coming Soon)</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-xs text-muted-foreground">
-                        Configure take profit, stop loss, and trailing stop parameters for this strategy.
-                      </p>
-                    </CardContent>
-                  </Card>
+                <TabsContent value="exit" className="space-y-4 pt-4">
+                  <ExitRulesBuilder 
+                    rules={exitRules}
+                    onChange={setExitRules}
+                  />
                 </TabsContent>
               </Tabs>
 
