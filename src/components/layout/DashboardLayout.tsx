@@ -22,15 +22,14 @@ interface DashboardLayoutProps {
 const routeTitles: Record<string, string> = {
   "/": "Dashboard",
   "/accounts": "Accounts",
-  "/trading": "Summary",
-  "/trading/journal": "Trading Journal",
-  "/trading/sessions": "Sessions",
-  "/trading/performance": "Analytics",
-  "/trading/strategies": "Strategies",
-  "/trading/insights": "AI Insights",
+  "/trading": "Trade Management",
+  "/strategies": "Strategy & Rules",
+  "/analytics": "Analytics",
+  "/sessions": "Sessions",
   "/risk": "Risk Management",
+  "/market": "Calendar & Market",
+  "/ai": "AI Assistant",
   "/settings": "Settings",
-  "/settings/trading": "Trading Settings",
 };
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {

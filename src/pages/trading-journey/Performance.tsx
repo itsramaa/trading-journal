@@ -391,7 +391,7 @@ export default function Performance() {
                       {sessions.slice(0, 10).map((session) => (
                         <Link
                           key={session.id}
-                          to={`/trading/sessions/${session.id}`}
+                          to={`/sessions/${session.id}`}
                           className="block p-4 rounded-lg border hover:bg-muted/50 transition-colors"
                         >
                           <div className="flex items-center justify-between">
