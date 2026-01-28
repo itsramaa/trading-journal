@@ -1,49 +1,9 @@
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, Globe, TrendingUp, Clock, Activity, Sun, Moon, Sunrise, Sunset } from "lucide-react";
+import { Calendar, TrendingUp, TrendingDown, Activity, BarChart3, Target, Zap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { useState, useEffect } from "react";
-
-// Market session data (times in UTC)
-const MARKET_SESSIONS = [
-  { 
-    name: 'Sydney', 
-    openHour: 21, 
-    closeHour: 6,
-    icon: Sunrise,
-    color: 'bg-purple-500',
-    timezone: 'AEST',
-    description: 'Opens the trading week'
-  },
-  { 
-    name: 'Tokyo', 
-    openHour: 23, 
-    closeHour: 8,
-    icon: Sun,
-    color: 'bg-red-500',
-    timezone: 'JST',
-    description: 'Asian session'
-  },
-  { 
-    name: 'London', 
-    openHour: 7, 
-    closeHour: 16,
-    icon: Activity,
-    color: 'bg-blue-500',
-    timezone: 'GMT',
-    description: 'Highest volume session'
-  },
-  { 
-    name: 'New York', 
-    openHour: 12, 
-    closeHour: 21,
-    icon: Sunset,
-    color: 'bg-green-500',
-    timezone: 'EST',
-    description: 'USD pairs most active'
-  },
-];
+import { Progress } from "@/components/ui/progress";
 
 // Economic events (mock data)
 const UPCOMING_EVENTS = [
@@ -55,229 +15,243 @@ const UPCOMING_EVENTS = [
   { date: 'Thu', time: '12:30', event: 'US Jobless Claims', impact: 'medium', forecast: '215K' },
 ];
 
-function isSessionActive(session: typeof MARKET_SESSIONS[0], currentHour: number): boolean {
-  const { openHour, closeHour } = session;
-  
-  // Handle sessions that span midnight
-  if (openHour > closeHour) {
-    return currentHour >= openHour || currentHour < closeHour;
-  }
-  return currentHour >= openHour && currentHour < closeHour;
-}
+// Mock AI Sentiment Data
+const MOCK_SENTIMENT = {
+  overall: 'bullish' as 'bullish' | 'bearish' | 'neutral',
+  confidence: 78,
+  signals: [
+    { asset: 'BTC', trend: 'Strong uptrend, above all major MAs', direction: 'up' as 'up' | 'down' | 'neutral' },
+    { asset: 'ETH', trend: 'Outperforming BTC, strong momentum', direction: 'up' as 'up' | 'down' | 'neutral' },
+    { asset: 'SOL', trend: 'Consolidating near resistance', direction: 'neutral' as 'up' | 'down' | 'neutral' },
+  ],
+  fearGreed: { value: 62, label: 'Greed' },
+  recommendation: 'Market conditions favor long positions with tight stops',
+};
 
-function getSessionProgress(session: typeof MARKET_SESSIONS[0], currentHour: number): number {
-  if (!isSessionActive(session, currentHour)) return 0;
-  
-  const { openHour, closeHour } = session;
-  let duration: number;
-  let elapsed: number;
-  
-  if (openHour > closeHour) {
-    // Session spans midnight
-    duration = (24 - openHour) + closeHour;
-    elapsed = currentHour >= openHour ? currentHour - openHour : (24 - openHour) + currentHour;
-  } else {
-    duration = closeHour - openHour;
-    elapsed = currentHour - openHour;
-  }
-  
-  return Math.min(100, (elapsed / duration) * 100);
-}
+// Mock Volatility Data
+const MOCK_VOLATILITY = [
+  { asset: 'BTC', level: 'medium', value: 42, status: 'Normal range' },
+  { asset: 'ETH', level: 'high', value: 68, status: 'Elevated - caution' },
+  { asset: 'SOL', level: 'low', value: 28, status: 'Low volatility' },
+];
 
-function formatTime(hour: number): string {
-  return `${hour.toString().padStart(2, '0')}:00`;
-}
+// Mock Trading Opportunities
+const MOCK_OPPORTUNITIES = [
+  { pair: 'ETH/USDT', confidence: 85, direction: 'LONG', reason: 'Breakout above key resistance with volume' },
+  { pair: 'BTC/USDT', confidence: 72, direction: 'LONG', reason: 'Higher low formation, bullish structure' },
+  { pair: 'SOL/USDT', confidence: 58, direction: 'WAIT', reason: 'Awaiting confirmation at $145 level' },
+];
 
 const MarketCalendar = () => {
-  const [currentHour, setCurrentHour] = useState(new Date().getUTCHours());
-  
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentHour(new Date().getUTCHours());
-    }, 60000); // Update every minute
-    
-    return () => clearInterval(interval);
-  }, []);
-  
-  const activeSessions = MARKET_SESSIONS.filter(s => isSessionActive(s, currentHour));
-  
   return (
     <DashboardLayout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Calendar & Market</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Calendar & Market Sentiment</h1>
           <p className="text-muted-foreground">
-            Market sessions and economic calendar
+            AI-powered market analysis and economic calendar
           </p>
         </div>
 
-        {/* Current Time & Active Sessions */}
+        {/* AI Market Sentiment */}
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Globe className="h-5 w-5 text-primary" />
-                <CardTitle>Market Sessions</CardTitle>
+                <TrendingUp className="h-5 w-5 text-primary" />
+                <CardTitle>AI Market Sentiment</CardTitle>
               </div>
-              <Badge variant="outline" className="font-mono">
-                <Clock className="h-3 w-3 mr-1" />
-                {formatTime(currentHour)} UTC
+              <Badge 
+                className={cn(
+                  MOCK_SENTIMENT.overall === 'bullish' && "bg-green-500",
+                  MOCK_SENTIMENT.overall === 'bearish' && "bg-red-500",
+                  MOCK_SENTIMENT.overall === 'neutral' && "bg-yellow-500"
+                )}
+              >
+                {MOCK_SENTIMENT.overall.toUpperCase()}
               </Badge>
             </div>
             <CardDescription>
-              {activeSessions.length > 0 ? (
-                <span className="flex items-center gap-2">
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                  </span>
-                  {activeSessions.map(s => s.name).join(', ')} session{activeSessions.length > 1 ? 's' : ''} currently open
-                </span>
-              ) : (
-                "No major sessions currently open"
-              )}
+              Based on technical analysis, market structure, and momentum indicators
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              {MARKET_SESSIONS.map((session) => {
-                const Icon = session.icon;
-                const isActive = isSessionActive(session, currentHour);
-                const progress = getSessionProgress(session, currentHour);
-                
-                return (
-                  <Card key={session.name} className={cn(
-                    "transition-all",
-                    isActive && "border-green-500/50 bg-green-500/5"
-                  )}>
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className={cn("p-2 rounded-lg", session.color)}>
-                          <Icon className="h-4 w-4 text-white" />
-                        </div>
-                        {isActive ? (
-                          <Badge className="bg-green-500">OPEN</Badge>
-                        ) : (
-                          <Badge variant="outline">CLOSED</Badge>
-                        )}
-                      </div>
-                      <h3 className="font-semibold text-lg">{session.name}</h3>
-                      <p className="text-xs text-muted-foreground mb-2">{session.description}</p>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Clock className="h-3 w-3" />
-                        <span>{formatTime(session.openHour)} - {formatTime(session.closeHour)} UTC</span>
-                      </div>
-                      {isActive && (
-                        <div className="mt-3">
-                          <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                            <div 
-                              className="h-full bg-green-500 transition-all"
-                              style={{ width: `${progress}%` }}
-                            />
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {Math.round(progress)}% complete
-                          </p>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-            
-            {/* Session Overlap Info */}
-            <div className="mt-6 p-4 rounded-lg bg-muted/50">
-              <h4 className="font-medium mb-2 flex items-center gap-2">
-                <Activity className="h-4 w-4" />
-                Session Overlaps (High Volume Periods)
-              </h4>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <div className="flex items-center gap-2 text-sm">
-                  <div className="w-2 h-2 rounded-full bg-blue-500" />
-                  <span>London + Tokyo: 07:00 - 08:00 UTC</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <div className="w-2 h-2 rounded-full bg-green-500" />
-                  <span>London + New York: 12:00 - 16:00 UTC</span>
-                </div>
+          <CardContent className="space-y-4">
+            {/* Confidence Score */}
+            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+              <span className="text-sm font-medium">AI Confidence</span>
+              <div className="flex items-center gap-3">
+                <Progress value={MOCK_SENTIMENT.confidence} className="w-24 h-2" />
+                <span className="text-sm font-bold">{MOCK_SENTIMENT.confidence}%</span>
               </div>
+            </div>
+
+            {/* Fear & Greed */}
+            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+              <span className="text-sm font-medium">Fear & Greed Index</span>
+              <div className="flex items-center gap-2">
+                <span className="text-2xl font-bold">{MOCK_SENTIMENT.fearGreed.value}</span>
+                <Badge variant="outline">{MOCK_SENTIMENT.fearGreed.label}</Badge>
+              </div>
+            </div>
+
+            {/* Market Signals */}
+            <div className="space-y-2">
+              <h4 className="text-sm font-medium">Key Signals</h4>
+              {MOCK_SENTIMENT.signals.map((signal, idx) => (
+                <div key={idx} className="flex items-center justify-between p-2 rounded border">
+                  <div className="flex items-center gap-2">
+                    {signal.direction === 'up' ? (
+                      <TrendingUp className="h-4 w-4 text-green-500" />
+                    ) : signal.direction === 'down' ? (
+                      <TrendingDown className="h-4 w-4 text-red-500" />
+                    ) : (
+                      <Activity className="h-4 w-4 text-yellow-500" />
+                    )}
+                    <span className="font-medium">{signal.asset}</span>
+                  </div>
+                  <span className="text-sm text-muted-foreground">{signal.trend}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* AI Recommendation */}
+            <div className="p-3 rounded-lg border border-primary/30 bg-primary/5">
+              <div className="flex items-center gap-2 mb-1">
+                <Zap className="h-4 w-4 text-primary" />
+                <span className="text-sm font-medium">AI Recommendation</span>
+              </div>
+              <p className="text-sm text-muted-foreground">{MOCK_SENTIMENT.recommendation}</p>
             </div>
           </CardContent>
         </Card>
 
         <div className="grid gap-6 md:grid-cols-2">
-          {/* Economic Calendar */}
+          {/* AI Volatility Assessment */}
           <Card>
             <CardHeader>
               <div className="flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-primary" />
-                <CardTitle>Economic Calendar</CardTitle>
+                <BarChart3 className="h-5 w-5 text-primary" />
+                <CardTitle>Volatility Assessment</CardTitle>
               </div>
               <CardDescription>
-                Upcoming high-impact economic events
+                Current market volatility levels
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {UPCOMING_EVENTS.map((event, idx) => (
-                  <div 
-                    key={idx}
-                    className="flex items-start gap-3 p-3 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors"
-                  >
-                    <div className={cn(
-                      "w-2 h-2 rounded-full mt-2",
-                      event.impact === 'high' && "bg-red-500",
-                      event.impact === 'medium' && "bg-yellow-500",
-                      event.impact === 'low' && "bg-green-500"
-                    )} />
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <p className="font-medium text-sm">{event.event}</p>
-                        <Badge variant="outline" className="text-xs">
-                          {event.impact}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                        <span>{event.date}</span>
-                        <span>{event.time} UTC</span>
-                        {event.forecast !== '-' && (
-                          <span>Forecast: {event.forecast}</span>
-                        )}
-                      </div>
-                    </div>
+            <CardContent className="space-y-3">
+              {MOCK_VOLATILITY.map((item, idx) => (
+                <div key={idx} className="flex items-center justify-between p-3 rounded-lg border">
+                  <div className="flex items-center gap-3">
+                    <span className="font-medium">{item.asset}</span>
+                    <Badge 
+                      variant="outline"
+                      className={cn(
+                        item.level === 'high' && "border-red-500 text-red-500",
+                        item.level === 'medium' && "border-yellow-500 text-yellow-500",
+                        item.level === 'low' && "border-green-500 text-green-500"
+                      )}
+                    >
+                      {item.level}
+                    </Badge>
                   </div>
-                ))}
-              </div>
-              <p className="text-xs text-muted-foreground text-center mt-4">
-                Data is for demonstration purposes. Connect to a live economic calendar API for real-time events.
-              </p>
+                  <div className="flex items-center gap-3">
+                    <Progress 
+                      value={item.value} 
+                      className={cn(
+                        "w-16 h-2",
+                        item.level === 'high' && "[&>div]:bg-red-500",
+                        item.level === 'medium' && "[&>div]:bg-yellow-500",
+                        item.level === 'low' && "[&>div]:bg-green-500"
+                      )}
+                    />
+                    <span className="text-xs text-muted-foreground w-24 text-right">{item.status}</span>
+                  </div>
+                </div>
+              ))}
             </CardContent>
           </Card>
 
-          {/* Market Analysis Placeholder */}
-          <Card className="border-dashed">
+          {/* AI Trading Opportunities */}
+          <Card>
             <CardHeader>
               <div className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-primary" />
-                <CardTitle>AI Market Sentiment</CardTitle>
-                <Badge variant="secondary">Coming Soon</Badge>
+                <Target className="h-5 w-5 text-primary" />
+                <CardTitle>Trading Opportunities</CardTitle>
               </div>
               <CardDescription>
-                AI-powered market sentiment and trend analysis
+                AI-ranked trading setups
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
-                <TrendingUp className="h-12 w-12 mb-4 opacity-50" />
-                <p>AI market sentiment analysis will be available soon.</p>
-                <p className="text-sm mt-2">
-                  Features: Sentiment scores, trend detection, volatility alerts.
-                </p>
-              </div>
+            <CardContent className="space-y-3">
+              {MOCK_OPPORTUNITIES.map((opp, idx) => (
+                <div key={idx} className="p-3 rounded-lg border">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{opp.pair}</span>
+                      <Badge 
+                        variant={opp.direction === 'LONG' ? 'default' : opp.direction === 'SHORT' ? 'destructive' : 'secondary'}
+                      >
+                        {opp.direction}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-sm font-bold">{opp.confidence}%</span>
+                      <span className="text-xs text-muted-foreground">conf.</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{opp.reason}</p>
+                </div>
+              ))}
             </CardContent>
           </Card>
         </div>
+
+        {/* Economic Calendar */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-primary" />
+              <CardTitle>Economic Calendar</CardTitle>
+            </div>
+            <CardDescription>
+              Upcoming high-impact economic events
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {UPCOMING_EVENTS.map((event, idx) => (
+                <div 
+                  key={idx}
+                  className="flex items-start gap-3 p-3 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors"
+                >
+                  <div className={cn(
+                    "w-2 h-2 rounded-full mt-2",
+                    event.impact === 'high' && "bg-red-500",
+                    event.impact === 'medium' && "bg-yellow-500",
+                    event.impact === 'low' && "bg-green-500"
+                  )} />
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <p className="font-medium text-sm">{event.event}</p>
+                      <Badge variant="outline" className="text-xs">
+                        {event.impact}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                      <span>{event.date}</span>
+                      <span>{event.time} UTC</span>
+                      {event.forecast !== '-' && (
+                        <span>Forecast: {event.forecast}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground text-center mt-4">
+              Data is for demonstration purposes. Connect to a live economic calendar API for real-time events.
+            </p>
+          </CardContent>
+        </Card>
       </div>
     </DashboardLayout>
   );
