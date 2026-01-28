@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { EmptyState } from "@/components/ui/empty-state";
+import { QuickTip } from "@/components/ui/onboarding-tooltip";
 import { Shield, Calculator, Settings, AlertTriangle, History, LayoutDashboard } from "lucide-react";
 import { DailyLossTracker } from "@/components/risk/DailyLossTracker";
 import { PositionSizeCalculator } from "@/components/risk/PositionSizeCalculator";
@@ -86,6 +87,13 @@ export default function RiskManagement() {
 
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-6">
+            {/* Contextual Help - Design Thinking inline guidance */}
+            <QuickTip storageKey="risk-daily-limit">
+              Your daily loss limit protects your capital. When you reach 100%, 
+              new trades will be blocked until the next trading day. This is your 
+              most important safeguard against overtrading.
+            </QuickTip>
+            
             {/* Daily Loss Tracker - Full Width at Top (Most Important) */}
             <DailyLossTracker />
             

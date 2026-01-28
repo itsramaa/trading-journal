@@ -12,8 +12,8 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { QuickTip } from "@/components/ui/onboarding-tooltip";
-import { EmptyState } from "@/components/ui/empty-state";
+import { QuickTip, OnboardingTooltip } from "@/components/ui/onboarding-tooltip";
+import { EmptyState, EmptyTrades } from "@/components/ui/empty-state";
 import { RiskSummaryCard } from "@/components/risk/RiskSummaryCard";
 import { AIInsightsWidget } from "@/components/dashboard/AIInsightsWidget";
 import { ActivePositionsTable } from "@/components/dashboard/ActivePositionsTable";
@@ -44,6 +44,25 @@ import {
   Trophy,
   AlertTriangle,
 } from "lucide-react";
+
+// First-time user onboarding steps (UCD + JTBD framework)
+const DASHBOARD_ONBOARDING_STEPS = [
+  {
+    id: "welcome",
+    title: "Welcome to Trading Journey",
+    description: "Track your trades, analyze patterns, and improve your trading with AI insights.",
+  },
+  {
+    id: "quick-actions",
+    title: "Quick Actions",
+    description: "Log trades, start sessions, and check your risk from the Quick Actions section below.",
+  },
+  {
+    id: "ai-insights",
+    title: "AI-Powered Analysis",
+    description: "Get personalized recommendations based on your trading history after 5+ trades.",
+  },
+];
 
 const Dashboard = () => {
   const { t } = useTranslation();
@@ -423,6 +442,12 @@ const Dashboard = () => {
           <strong>Pro tip:</strong> Press <kbd className="px-1.5 py-0.5 text-xs bg-muted rounded border">⌘K</kbd> to quickly search, or <kbd className="px-1.5 py-0.5 text-xs bg-muted rounded border">Shift+?</kbd> for all shortcuts.
         </QuickTip>
       </div>
+
+      {/* First-Time User Onboarding */}
+      <OnboardingTooltip 
+        steps={DASHBOARD_ONBOARDING_STEPS} 
+        storageKey="dashboard" 
+      />
     </DashboardLayout>
   );
 };

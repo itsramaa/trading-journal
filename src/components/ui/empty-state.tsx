@@ -1,9 +1,10 @@
 /**
  * Empty State Component for Nielsen Heuristic #1: Visibility of System Status
  * Shows meaningful empty states with actionable guidance
+ * Enhanced with JTBD (Jobs To Be Done) framework messaging
  */
 
-import { LucideIcon, Inbox, FileText, TrendingUp, Wallet, Target, BarChart3 } from "lucide-react";
+import { LucideIcon, Inbox, FileText, TrendingUp, Wallet, Target, BarChart3, BookOpen, Brain, LineChart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -120,6 +121,50 @@ export function EmptyAnalytics() {
       icon={BarChart3}
       title="Not enough data"
       description="Add more transactions to see analytics and insights about your portfolio performance."
+    />
+  );
+}
+
+// JTBD-focused empty states for Trading Journey
+export function EmptyTrades({ onAddTrade }: { onAddTrade?: () => void }) {
+  return (
+    <EmptyState
+      icon={BookOpen}
+      title="Your trading journal awaits"
+      description="Record your first trade to start uncovering patterns and improving your win rate."
+      action={onAddTrade ? { label: "Log First Trade", onClick: onAddTrade } : undefined}
+    />
+  );
+}
+
+export function EmptyInsights() {
+  return (
+    <EmptyState
+      icon={Brain}
+      title="AI insights coming soon"
+      description="Complete 5 or more trades to unlock personalized AI recommendations based on your trading patterns."
+    />
+  );
+}
+
+export function EmptySessions({ onStartSession }: { onStartSession?: () => void }) {
+  return (
+    <EmptyState
+      icon={LineChart}
+      title="No trading sessions yet"
+      description="Start your first session to track your trading performance and emotional state throughout the day."
+      action={onStartSession ? { label: "Start Session", onClick: onStartSession } : undefined}
+    />
+  );
+}
+
+export function EmptyStrategies({ onCreateStrategy }: { onCreateStrategy?: () => void }) {
+  return (
+    <EmptyState
+      icon={Target}
+      title="Define your edge"
+      description="Create your first strategy with clear entry rules and risk parameters to trade consistently."
+      action={onCreateStrategy ? { label: "Create Strategy", onClick: onCreateStrategy } : undefined}
     />
   );
 }
