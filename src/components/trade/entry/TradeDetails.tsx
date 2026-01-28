@@ -94,14 +94,19 @@ export function TradeDetails({ onNext, onBack }: TradeDetailsProps) {
             {/* Pair and Direction */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Trading Pair *</Label>
+                <Label htmlFor="pair">Trading Pair *</Label>
                 <Input
+                  id="pair"
                   {...form.register("pair")}
                   placeholder="BTC/USDT"
                   className="uppercase"
+                  aria-describedby={form.formState.errors.pair ? "pair-error" : undefined}
+                  aria-invalid={!!form.formState.errors.pair}
                 />
                 {form.formState.errors.pair && (
-                  <p className="text-xs text-destructive">{form.formState.errors.pair.message}</p>
+                  <p id="pair-error" className="text-xs text-destructive" role="alert">
+                    {form.formState.errors.pair.message}
+                  </p>
                 )}
                 {validPairs.length > 0 && (
                   <div className="flex flex-wrap gap-1 mt-2">
@@ -171,43 +176,58 @@ export function TradeDetails({ onNext, onBack }: TradeDetailsProps) {
             {/* Price Inputs */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label>Entry Price *</Label>
+                <Label htmlFor="entryPrice">Entry Price *</Label>
                 <Input
+                  id="entryPrice"
                   type="number"
                   step="any"
                   {...form.register("entryPrice")}
                   placeholder="0.00"
+                  aria-describedby={form.formState.errors.entryPrice ? "entryPrice-error" : undefined}
+                  aria-invalid={!!form.formState.errors.entryPrice}
                 />
                 {form.formState.errors.entryPrice && (
-                  <p className="text-xs text-destructive">{form.formState.errors.entryPrice.message}</p>
+                  <p id="entryPrice-error" className="text-xs text-destructive" role="alert">
+                    {form.formState.errors.entryPrice.message}
+                  </p>
                 )}
               </div>
 
               <div className="space-y-2">
-                <Label className="text-red-500">Stop Loss *</Label>
+                <Label htmlFor="stopLoss" className="text-red-500">Stop Loss *</Label>
                 <Input
+                  id="stopLoss"
                   type="number"
                   step="any"
                   {...form.register("stopLoss")}
                   placeholder="0.00"
                   className="border-red-500/30"
+                  aria-describedby={form.formState.errors.stopLoss ? "stopLoss-error" : undefined}
+                  aria-invalid={!!form.formState.errors.stopLoss}
                 />
                 {form.formState.errors.stopLoss && (
-                  <p className="text-xs text-destructive">{form.formState.errors.stopLoss.message}</p>
+                  <p id="stopLoss-error" className="text-xs text-destructive" role="alert">
+                    {form.formState.errors.stopLoss.message}
+                  </p>
                 )}
               </div>
 
               <div className="space-y-2">
-                <Label className="text-green-500">Take Profit *</Label>
+                <Label htmlFor="takeProfit" className="text-green-500">Take Profit *</Label>
                 <Input
+                  id="takeProfit"
                   type="number"
                   step="any"
                   {...form.register("takeProfit")}
                   placeholder="0.00"
                   className="border-green-500/30"
+                  aria-describedby={form.formState.errors.takeProfit ? "takeProfit-error" : undefined}
+                  aria-invalid={!!form.formState.errors.takeProfit}
                 />
                 {form.formState.errors.takeProfit && (
-                  <p className="text-xs text-destructive">{form.formState.errors.takeProfit.message}</p>
+                  <p id="takeProfit-error" className="text-xs text-destructive" role="alert">
+                    {form.formState.errors.takeProfit.message}
+                  </p>
                 )}
               </div>
             </div>

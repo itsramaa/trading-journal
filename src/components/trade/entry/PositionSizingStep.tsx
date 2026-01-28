@@ -125,18 +125,20 @@ export function PositionSizingStep({ onNext, onBack }: PositionSizingStepProps) 
             </div>
 
             <div className="space-y-2">
-              <Label className="flex items-center gap-2">
+              <Label htmlFor="leverage" className="flex items-center gap-2">
                 <TrendingUp className="h-4 w-4" />
                 Leverage
               </Label>
               <Input
+                id="leverage"
                 type="number"
                 min={1}
                 max={100}
                 value={leverage}
                 onChange={(e) => setLeverage(Number(e.target.value) || 1)}
+                aria-describedby="leverage-hint"
               />
-              <p className="text-xs text-muted-foreground">
+              <p id="leverage-hint" className="text-xs text-muted-foreground">
                 For spot trading, leave at 1x
               </p>
             </div>
