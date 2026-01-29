@@ -49,7 +49,6 @@ export interface TradingStrategy {
 
 export interface CreateTradeEntryInput {
   trading_account_id?: string;
-  session_id?: string;
   pair: string;
   direction: string;
   entry_price: number;
@@ -153,7 +152,6 @@ export function useCreateTradeEntry() {
         .insert({
           user_id: user.id,
           trading_account_id: tradeData.trading_account_id || null,
-          session_id: tradeData.session_id || null,
           pair: tradeData.pair,
           direction: tradeData.direction,
           entry_price: tradeData.entry_price,
