@@ -33,6 +33,7 @@ import { useStrategyPerformance, getQualityScoreLabel } from "@/hooks/use-strate
 import { TIMEFRAME_OPTIONS, COMMON_PAIRS, type TimeframeType, type MarketType, type EntryRule, type ExitRule, DEFAULT_ENTRY_RULES, DEFAULT_EXIT_RULES } from "@/types/strategy";
 import { EntryRulesBuilder } from "@/components/strategy/EntryRulesBuilder";
 import { ExitRulesBuilder } from "@/components/strategy/ExitRulesBuilder";
+import { useBaseAssets } from "@/hooks/use-trading-pairs";
 
 const strategyColors = [
   { name: 'Blue', value: 'blue' },
@@ -85,6 +86,10 @@ export default function StrategyManagement() {
   const createStrategy = useCreateTradingStrategy();
   const updateStrategy = useUpdateTradingStrategy();
   const deleteStrategy = useDeleteTradingStrategy();
+  
+  // Dynamic base assets from database (replaces hardcoded COMMON_PAIRS)
+  const { data: baseAssets, isLoading: assetsLoading } = useBaseAssets();
+  const availablePairs = baseAssets.length > 0 ? baseAssets : COMMON_PAIRS;
 
   const form = useForm<StrategyFormValues>({
     resolver: zodResolver(strategyFormSchema),
@@ -484,7 +489,7 @@ export default function StrategyManagement() {
                       Valid Trading Pairs
                     </Label>
                     <div className="flex flex-wrap gap-2 p-3 rounded-lg border bg-muted/30 min-h-[60px]">
-                      {COMMON_PAIRS.map((pair) => (
+                      {availablePairs.map((pair) => (
                         <Badge
                           key={pair}
                           variant={selectedValidPairs.includes(pair) ? "default" : "outline"}
