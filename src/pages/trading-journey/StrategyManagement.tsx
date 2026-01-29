@@ -20,7 +20,9 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Plus, Target, MoreVertical, Edit, Trash2, Tag, Clock, TrendingUp, Shield, Zap, ListChecks, LogOut, Brain, Star } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Plus, Target, MoreVertical, Edit, Trash2, Tag, Clock, TrendingUp, Shield, Zap, ListChecks, LogOut, Brain, Star, X, ChevronsUpDown } from "lucide-react";
 import { format } from "date-fns";
 import { 
   useTradingStrategies, 
@@ -482,32 +484,63 @@ export default function StrategyManagement() {
                     </div>
                   </div>
 
-                  {/* Valid Pairs Multi-select */}
+                  {/* Valid Pairs Multi-select with Searchable Combobox */}
                   <div className="space-y-2">
                     <Label className="flex items-center gap-2">
                       <Target className="h-4 w-4" />
                       Valid Trading Pairs
                     </Label>
-                    <div className="flex flex-wrap gap-2 p-3 rounded-lg border bg-muted/30 min-h-[60px]">
-                      {availablePairs.map((pair) => (
-                        <Badge
-                          key={pair}
-                          variant={selectedValidPairs.includes(pair) ? "default" : "outline"}
-                          className="cursor-pointer transition-all hover:scale-105"
-                          onClick={() => {
-                            setSelectedValidPairs(prev => 
-                              prev.includes(pair)
-                                ? prev.filter(p => p !== pair)
-                                : [...prev, pair]
-                            );
-                          }}
-                        >
-                          {pair}
-                        </Badge>
-                      ))}
+                    
+                    {/* Selected pairs display */}
+                    <div className="flex flex-wrap gap-2 min-h-[40px] p-2 border rounded-lg bg-muted/30">
+                      {selectedValidPairs.length === 0 ? (
+                        <span className="text-sm text-muted-foreground">No pairs selected</span>
+                      ) : (
+                        selectedValidPairs.map((pair) => (
+                          <Badge key={pair} variant="secondary" className="gap-1">
+                            {pair}
+                            <X 
+                              className="h-3 w-3 cursor-pointer hover:text-destructive" 
+                              onClick={() => setSelectedValidPairs(prev => prev.filter(p => p !== pair))}
+                            />
+                          </Badge>
+                        ))
+                      )}
                     </div>
+                    
+                    {/* Searchable Combobox to add pairs */}
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className="w-full justify-between">
+                          <span className="text-muted-foreground">Add trading pair...</span>
+                          <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-full p-0" align="start">
+                        <Command>
+                          <CommandInput placeholder="Search pairs..." />
+                          <CommandList>
+                            <CommandEmpty>No pair found.</CommandEmpty>
+                            <CommandGroup>
+                              {availablePairs
+                                .filter(pair => !selectedValidPairs.includes(pair))
+                                .map((pair) => (
+                                  <CommandItem
+                                    key={pair}
+                                    value={pair}
+                                    onSelect={() => setSelectedValidPairs(prev => [...prev, pair])}
+                                  >
+                                    {pair}
+                                  </CommandItem>
+                                ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                    
                     <p className="text-xs text-muted-foreground">
-                      Click to select pairs valid for this strategy. Selected: {selectedValidPairs.length}
+                      Search and add pairs valid for this strategy. Selected: {selectedValidPairs.length}
                     </p>
                   </div>
 

@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { Link } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,12 +21,11 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Calendar, Tag, Target, Building2, TrendingUp, TrendingDown, BookOpen, MoreVertical, Trash2, Clock, CheckCircle, Circle, DollarSign, XCircle, AlertCircle, Edit, X, Wand2, Timer, Brain, Sparkles, ArrowUpDown } from "lucide-react";
+import { Plus, Calendar, Tag, Target, Building2, TrendingUp, TrendingDown, BookOpen, MoreVertical, Trash2, Clock, CheckCircle, Circle, DollarSign, XCircle, AlertCircle, Edit, Wand2, Timer, Brain, ArrowUpDown } from "lucide-react";
 import { format } from "date-fns";
 import { useTradingAccounts } from "@/hooks/use-trading-accounts";
 import { useTradeEntries, useCreateTradeEntry, useDeleteTradeEntry, useClosePosition, useUpdateTradeEntry, TradeEntry } from "@/hooks/use-trade-entries";
-import { useTradingStrategies, useCreateTradingStrategy } from "@/hooks/use-trading-strategies";
-import { useTradingSessions } from "@/hooks/use-trading-sessions";
+import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 
 import { filterTradesByDateRange, filterTradesByStrategies } from "@/lib/trading-calculations";
 import { formatCurrency as formatCurrencyUtil } from "@/lib/formatters";
@@ -49,7 +49,6 @@ const tradeFormSchema = z.object({
   fee_type: z.enum(["maker", "taker"]).default("taker"),
   notes: z.string().optional(),
   trading_account_id: z.string().optional(),
-  session_id: z.string().optional(),
   status: z.enum(["open", "closed"]).default("closed"),
 });
 
@@ -78,8 +77,6 @@ export default function TradingJournal() {
   const [deletingTrade, setDeletingTrade] = useState<TradeEntry | null>(null);
   const [closingPosition, setClosingPosition] = useState<TradeEntry | null>(null);
   const [editingPosition, setEditingPosition] = useState<TradeEntry | null>(null);
-  const [showInlineStrategyForm, setShowInlineStrategyForm] = useState(false);
-  const [inlineStrategyName, setInlineStrategyName] = useState("");
   const [sortByAI, setSortByAI] = useState<'none' | 'asc' | 'desc'>('none');
 
   const queryClient = useQueryClient();
@@ -87,26 +84,12 @@ export default function TradingJournal() {
   const { data: tradingAccounts, isLoading: accountsLoading } = useTradingAccounts();
   const { data: trades, isLoading: tradesLoading } = useTradeEntries();
   const { data: strategies = [] } = useTradingStrategies();
-  const { data: sessions = [] } = useTradingSessions();
   
   const createTrade = useCreateTradeEntry();
   const deleteTrade = useDeleteTradeEntry();
   const closePosition = useClosePosition();
   const updateTrade = useUpdateTradeEntry();
-  const createStrategy = useCreateTradingStrategy();
   const { analyzeClosedTrade } = usePostTradeAnalysis();
-
-  // Handle inline strategy creation
-  const handleInlineStrategyCreate = async () => {
-    if (!inlineStrategyName.trim()) return;
-    try {
-      await createStrategy.mutateAsync({ name: inlineStrategyName.trim() });
-      setInlineStrategyName("");
-      setShowInlineStrategyForm(false);
-    } catch (error) {
-      // Error handled in hook
-    }
-  };
 
   // Currency conversion helper
   const displayCurrency = userSettings?.default_currency || 'USD';
@@ -203,7 +186,6 @@ export default function TradingJournal() {
         fees: calculatedFees,
         notes: values.notes,
         trading_account_id: values.trading_account_id,
-        session_id: values.session_id,
         status: values.status,
         strategy_ids: newTradeStrategies,
       });
@@ -365,30 +347,6 @@ export default function TradingJournal() {
                   </Select>
                 </div>
 
-                {/* Session Selection */}
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Clock className="h-4 w-4" />
-                    Link to Session (Optional)
-                  </Label>
-                  <Select 
-                    value={form.watch("session_id") || ""} 
-                    onValueChange={(v) => form.setValue("session_id", v === "none" ? undefined : v)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="No session" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">No session</SelectItem>
-                      {sessions.map((session) => (
-                        <SelectItem key={session.id} value={session.id}>
-                          {format(new Date(session.session_date), "MMM d, yyyy")} - {session.start_time?.slice(0, 5)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
                 {/* Trade Status */}
                 <div className="space-y-2">
                   <Label>Trade Status</Label>
@@ -516,76 +474,51 @@ export default function TradingJournal() {
                   </p>
                 </div>
 
-                {/* Strategy Selection with Inline Add */}
+                {/* Strategy Selection with Redirect */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label>Strategies Used</Label>
                     <Button
                       type="button"
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
                       className="h-7 gap-1 text-xs"
-                      onClick={() => setShowInlineStrategyForm(true)}
+                      asChild
                     >
-                      <Plus className="h-3 w-3" />
-                      Add New
+                      <Link to="/strategies">
+                        <Plus className="h-3 w-3" />
+                        Add New Strategy
+                      </Link>
                     </Button>
                   </div>
                   
-                  {showInlineStrategyForm && (
-                    <div className="flex items-center gap-2 p-2 rounded-md border bg-muted/50">
-                      <Input
-                        placeholder="Strategy name..."
-                        value={inlineStrategyName}
-                        onChange={(e) => setInlineStrategyName(e.target.value)}
-                        className="h-8 text-sm"
-                        autoFocus
-                      />
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="h-8"
-                        disabled={!inlineStrategyName.trim() || createStrategy.isPending}
-                        onClick={handleInlineStrategyCreate}
-                      >
-                        {createStrategy.isPending ? "..." : "Add"}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 px-2"
-                        onClick={() => {
-                          setShowInlineStrategyForm(false);
-                          setInlineStrategyName("");
-                        }}
-                      >
-                        <X className="h-4 w-4" />
+                  {strategies.length === 0 ? (
+                    <div className="p-4 border rounded-lg bg-muted/30 text-center">
+                      <p className="text-sm text-muted-foreground mb-2">No strategies yet</p>
+                      <Button variant="outline" size="sm" asChild>
+                        <Link to="/strategies">Create Your First Strategy</Link>
                       </Button>
                     </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {strategies.map((strategy) => (
+                        <Badge
+                          key={strategy.id}
+                          variant={newTradeStrategies.includes(strategy.id) ? "default" : "outline"}
+                          className="cursor-pointer"
+                          onClick={() => {
+                            setNewTradeStrategies(prev =>
+                              prev.includes(strategy.id)
+                                ? prev.filter(id => id !== strategy.id)
+                                : [...prev, strategy.id]
+                            );
+                          }}
+                        >
+                          {strategy.name}
+                        </Badge>
+                      ))}
+                    </div>
                   )}
-                  
-                  <div className="flex flex-wrap gap-2">
-                    {strategies.map((strategy) => (
-                      <Badge
-                        key={strategy.id}
-                        variant={newTradeStrategies.includes(strategy.id) ? "default" : "outline"}
-                        className="cursor-pointer"
-                        onClick={() => {
-                          setNewTradeStrategies(prev =>
-                            prev.includes(strategy.id)
-                              ? prev.filter(id => id !== strategy.id)
-                              : [...prev, strategy.id]
-                          );
-                        }}
-                      >
-                        {strategy.name}
-                      </Badge>
-                    ))}
-                    {strategies.length === 0 && !showInlineStrategyForm && (
-                      <p className="text-sm text-muted-foreground">No strategies yet. Click "Add New" to create one.</p>
-                    )}
-                  </div>
                 </div>
 
                 <div>
@@ -667,158 +600,30 @@ export default function TradingJournal() {
           </Card>
         </div>
 
-        {/* Tabs with badge counts */}
-        <Tabs defaultValue="open" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
-            <TabsTrigger value="open" className="gap-2">
-              <Circle className="h-4 w-4" />
-              Open Positions
-              {openPositions.length > 0 && (
-                <Badge variant="secondary" className="ml-1 px-1.5 py-0.5 text-xs">
-                  {openPositions.length}
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="history" className="gap-2">
-              <CheckCircle className="h-4 w-4" />
-              Trade History
-              {closedTrades.length > 0 && (
-                <Badge variant="secondary" className="ml-1 px-1.5 py-0.5 text-xs">
-                  {closedTrades.length}
-                </Badge>
-              )}
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="open">
-            {/* Open Positions Section */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Circle className="h-5 w-5 text-primary" />
-                  Open Positions
-                </CardTitle>
-              </CardHeader>
-          <CardContent>
-            {positionsWithPnL.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 text-center">
-                <AlertCircle className="h-10 w-10 text-muted-foreground mb-3" />
-                <h3 className="font-medium">No Open Positions</h3>
-                <p className="text-sm text-muted-foreground">
-                  Create a new trade with status "Open" to track active positions.
-                </p>
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Pair</TableHead>
-                    <TableHead>Direction</TableHead>
-                    <TableHead className="text-right">Entry</TableHead>
-                    <TableHead className="text-right">Current</TableHead>
-                    <TableHead className="text-right">Size</TableHead>
-                    <TableHead className="text-right">Unrealized P&L</TableHead>
-                    <TableHead className="text-right">SL / TP</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {positionsWithPnL.map((position) => (
-                    <TableRow key={position.id}>
-                      <TableCell className="font-medium">{position.pair}</TableCell>
-                      <TableCell>
-                        <Badge variant={position.direction === "LONG" ? "default" : "secondary"}>
-                          {position.direction}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right font-mono">
-                        {formatCurrency(position.entry_price, "USD")}
-                      </TableCell>
-                      <TableCell className="text-right font-mono">
-                        {formatCurrency(position.currentPrice, "USD")}
-                      </TableCell>
-                      <TableCell className="text-right font-mono">{position.quantity}</TableCell>
-                      <TableCell className={`text-right font-mono font-medium ${position.unrealizedPnL >= 0 ? "text-green-500" : "text-red-500"}`}>
-                        {position.unrealizedPnL >= 0 ? "+" : ""}{formatCurrency(position.unrealizedPnL, "USD")}
-                        <span className="text-xs ml-1">
-                          ({position.unrealizedPnLPercent >= 0 ? "+" : ""}{position.unrealizedPnLPercent.toFixed(2)}%)
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right text-xs">
-                        <span className="text-red-500">{position.stop_loss ? formatCurrency(position.stop_loss, "USD") : "-"}</span>
-                        {" / "}
-                        <span className="text-green-500">{position.take_profit ? formatCurrency(position.take_profit, "USD") : "-"}</span>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex gap-1 justify-end">
-                          <Button 
-                            size="sm" 
-                            variant="ghost"
-                            onClick={() => handleOpenEditDialog(position)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            onClick={() => {
-                              setClosingPosition(position);
-                              closeForm.reset();
-                            }}
-                          >
-                            <XCircle className="h-4 w-4 mr-1" />
-                            Close
-                          </Button>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => setDeletingTrade(position)}>
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-            <p className="text-xs text-muted-foreground text-center mt-4">
-              Note: Current prices are simulated. Integrate with a market data API for live prices.
-            </p>
-          </CardContent>
-        </Card>
-
-        <QuickTip storageKey="trading_journal_tip" className="mb-2">
-          <strong>Pro tip:</strong> Link your trades to sessions and track your performance over time. 
-          Focus on quality setups and document your entry signals for pattern recognition.
-        </QuickTip>
-
-        {/* Trade Logs Section with Tabs */}
+        {/* Trade Management Card with Unified Tabs */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <BookOpen className="h-5 w-5" />
-              Trade Logs
+              Trade Management
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Tabs defaultValue="history">
-              <TabsList className="grid w-full grid-cols-3 max-w-[450px]">
-                <TabsTrigger value="history" className="gap-2">
-                  <BookOpen className="h-4 w-4" />
-                  <span className="hidden sm:inline">History</span>
-                </TabsTrigger>
+            <Tabs defaultValue="open">
+              <TabsList className="grid w-full grid-cols-3 max-w-[500px]">
                 <TabsTrigger value="open" className="gap-2">
-                  <Timer className="h-4 w-4" />
+                  <Circle className="h-4 w-4" />
                   <span className="hidden sm:inline">Open</span>
-                  <Badge variant="secondary" className="ml-1 h-5 px-1.5">{openPositions.length}</Badge>
+                  {openPositions.length > 0 && (
+                    <Badge variant="secondary" className="ml-1 h-5 px-1.5">{openPositions.length}</Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="history" className="gap-2">
+                  <CheckCircle className="h-4 w-4" />
+                  <span className="hidden sm:inline">History</span>
+                  {closedTrades.length > 0 && (
+                    <Badge variant="secondary" className="ml-1 h-5 px-1.5">{closedTrades.length}</Badge>
+                  )}
                 </TabsTrigger>
                 <TabsTrigger value="pending" className="gap-2">
                   <Clock className="h-4 w-4" />
@@ -827,6 +632,105 @@ export default function TradingJournal() {
                 </TabsTrigger>
               </TabsList>
               
+              {/* Open Positions Tab */}
+              <TabsContent value="open" className="mt-4">
+                {positionsWithPnL.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-8 text-center">
+                    <AlertCircle className="h-10 w-10 text-muted-foreground mb-3" />
+                    <h3 className="font-medium">No Open Positions</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Create a new trade with status "Open" to track active positions.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Pair</TableHead>
+                          <TableHead>Direction</TableHead>
+                          <TableHead className="text-right">Entry</TableHead>
+                          <TableHead className="text-right">Current</TableHead>
+                          <TableHead className="text-right">Size</TableHead>
+                          <TableHead className="text-right">Unrealized P&L</TableHead>
+                          <TableHead className="text-right">SL / TP</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {positionsWithPnL.map((position) => (
+                          <TableRow key={position.id}>
+                            <TableCell className="font-medium">{position.pair}</TableCell>
+                            <TableCell>
+                              <Badge variant={position.direction === "LONG" ? "default" : "secondary"}>
+                                {position.direction}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right font-mono">
+                              {formatCurrency(position.entry_price, "USD")}
+                            </TableCell>
+                            <TableCell className="text-right font-mono">
+                              {formatCurrency(position.currentPrice, "USD")}
+                            </TableCell>
+                            <TableCell className="text-right font-mono">{position.quantity}</TableCell>
+                            <TableCell className={`text-right font-mono font-medium ${position.unrealizedPnL >= 0 ? "text-green-500" : "text-red-500"}`}>
+                              {position.unrealizedPnL >= 0 ? "+" : ""}{formatCurrency(position.unrealizedPnL, "USD")}
+                              <span className="text-xs ml-1">
+                                ({position.unrealizedPnLPercent >= 0 ? "+" : ""}{position.unrealizedPnLPercent.toFixed(2)}%)
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right text-xs">
+                              <span className="text-red-500">{position.stop_loss ? formatCurrency(position.stop_loss, "USD") : "-"}</span>
+                              {" / "}
+                              <span className="text-green-500">{position.take_profit ? formatCurrency(position.take_profit, "USD") : "-"}</span>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex gap-1 justify-end">
+                                <Button 
+                                  size="sm" 
+                                  variant="ghost"
+                                  onClick={() => handleOpenEditDialog(position)}
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button 
+                                  size="sm" 
+                                  variant="outline"
+                                  onClick={() => {
+                                    setClosingPosition(position);
+                                    closeForm.reset();
+                                  }}
+                                >
+                                  <XCircle className="h-4 w-4 mr-1" />
+                                  Close
+                                </Button>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                                      <MoreVertical className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={() => setDeletingTrade(position)}>
+                                      <Trash2 className="h-4 w-4 mr-2" />
+                                      Delete
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    <p className="text-xs text-muted-foreground text-center mt-4">
+                      Note: Current prices are simulated. Integrate with a market data API for live prices.
+                    </p>
+                  </>
+                )}
+              </TabsContent>
+              
+              {/* Trade History Tab */}
               <TabsContent value="history" className="mt-4">
                 {/* Filters */}
                 <div className="flex flex-col gap-4 md:flex-row md:items-center mb-4">
@@ -981,58 +885,8 @@ export default function TradingJournal() {
                   )}
                 </div>
               </TabsContent>
-              
-              <TabsContent value="open" className="mt-4">
-                {openPositions.length === 0 ? (
-                  <EmptyState
-                    icon={Timer}
-                    title="No open positions"
-                    description="You don't have any open positions. Use the Trade Entry Wizard to open a new position."
-                  />
-                ) : (
-                  <div className="space-y-3">
-                    {openPositions.map((position) => (
-                      <Card key={position.id} className="border-primary/20">
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <Badge variant={position.direction === "LONG" ? "default" : "secondary"}>
-                                {position.direction}
-                              </Badge>
-                              <span className="font-bold">{position.pair}</span>
-                              <span className="text-sm text-muted-foreground">
-                                Entry: {formatCurrency(position.entry_price, "USD")}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                  setClosingPosition(position);
-                                  closeForm.reset();
-                                }}
-                              >
-                                <XCircle className="h-4 w-4 mr-1" />
-                                Close
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handleOpenEditDialog(position)}
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                )}
-              </TabsContent>
 
-              {/* Pending Positions Tab */}
+              {/* Pending Orders Tab */}
               <TabsContent value="pending" className="mt-4">
                 <div className="text-center py-12 space-y-4">
                   <div className="flex justify-center">
@@ -1061,6 +915,12 @@ export default function TradingJournal() {
             </Tabs>
           </CardContent>
         </Card>
+
+        {/* Pro Tip - Moved to bottom */}
+        <QuickTip storageKey="trading_journal_tip" className="mb-2">
+          <strong>Pro tip:</strong> Document every trade with detailed notes and tag your strategies. 
+          Focus on quality setups and review your patterns to improve your trading edge.
+        </QuickTip>
 
         {/* Close Position Dialog */}
         <Dialog open={!!closingPosition} onOpenChange={(open) => !open && setClosingPosition(null)}>
@@ -1156,9 +1016,6 @@ export default function TradingJournal() {
             </form>
           </DialogContent>
         </Dialog>
-
-          </TabsContent>
-        </Tabs>
 
         <ConfirmDialog
           open={!!deletingTrade}

@@ -101,8 +101,6 @@ export default function SessionDetail() {
   const winRate = sessionTrades.length > 0 ? (winTrades / sessionTrades.length) * 100 : 0;
 
   const handleSubmit = async (values: TradeFormValues) => {
-    if (!sessionId) return;
-
     const feeRate = values.fee_type === 'maker' ? BINANCE_MAKER_FEE : BINANCE_TAKER_FEE;
     const calculatedFees = values.quantity * feeRate * 2;
 
@@ -117,7 +115,6 @@ export default function SessionDetail() {
         fees: calculatedFees,
         notes: values.notes,
         trading_account_id: values.trading_account_id,
-        session_id: sessionId,
         status: 'closed',
         strategy_ids: newTradeStrategies,
       });
