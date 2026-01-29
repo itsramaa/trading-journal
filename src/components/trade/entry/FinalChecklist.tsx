@@ -1,6 +1,6 @@
 /**
- * Step 6: Final Checklist
- * Emotional state, confidence, and final validation with AI verdict
+ * Step 4: Final Checklist
+ * Reordered: Emotional state, Confidence, AI verdict
  */
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -48,28 +48,29 @@ export function FinalChecklist({ onNext, onBack }: FinalChecklistProps) {
   const isConfident = confidenceLevel >= 6;
   const canProceed = followingRules && isEmotionallyReady;
 
+  // Get data from wizard
+  const { tradeDetails, priceLevels, positionSizing, confluences, strategyDetails } = wizard;
+
   // Calculate user stats for AI
   const userStats = calculateTradingStats(trades);
 
   // Request AI quality score
   const handleGetAIVerdict = async () => {
-    const { tradeDetails, positionSizing, confluences, strategyDetails } = wizard;
-    
-    if (!tradeDetails || !positionSizing || !confluences) {
+    if (!tradeDetails || !priceLevels || !positionSizing || !confluences) {
       toast.error("Missing trade data");
       return;
     }
 
-    const rr = Math.abs(tradeDetails.takeProfit - tradeDetails.entryPrice) / 
-               Math.abs(tradeDetails.entryPrice - tradeDetails.stopLoss);
+    const rr = Math.abs(priceLevels.takeProfit - priceLevels.entryPrice) / 
+               Math.abs(priceLevels.entryPrice - priceLevels.stopLoss);
 
     await getQualityScore({
       tradeSetup: {
         pair: tradeDetails.pair,
         direction: tradeDetails.direction,
-        entryPrice: tradeDetails.entryPrice,
-        stopLoss: tradeDetails.stopLoss,
-        takeProfit: tradeDetails.takeProfit,
+        entryPrice: priceLevels.entryPrice,
+        stopLoss: priceLevels.stopLoss,
+        takeProfit: priceLevels.takeProfit,
         timeframe: tradeDetails.timeframe,
         rr,
       },
@@ -102,10 +103,10 @@ export function FinalChecklist({ onNext, onBack }: FinalChecklistProps) {
 
   // Auto-request AI verdict when step loads
   useEffect(() => {
-    if (!aiResult && !aiLoading && wizard.tradeDetails && wizard.positionSizing && wizard.confluences) {
+    if (!aiResult && !aiLoading && tradeDetails && priceLevels && positionSizing && confluences) {
       handleGetAIVerdict();
     }
-  }, [wizard.tradeDetails, wizard.positionSizing, wizard.confluences]);
+  }, [tradeDetails, priceLevels, positionSizing, confluences]);
 
   const handleNext = () => {
     wizard.setFinalChecklist({
@@ -121,18 +122,14 @@ export function FinalChecklist({ onNext, onBack }: FinalChecklistProps) {
 
   // Generate auto-comment based on trade details
   const generateAutoComment = () => {
-    const details = wizard.tradeDetails;
-    const confluences = wizard.confluences;
-    const strategy = wizard.strategyDetails;
-    
-    if (!details || !confluences) return;
+    if (!tradeDetails || !priceLevels || !confluences) return;
 
     const aiPart = aiResult ? ` AI Score: ${aiResult.score}/10 (${aiResult.recommendation}).` : '';
 
-    const comment = `${details.direction} ${details.pair} at ${details.entryPrice}. ` +
-      `SL: ${details.stopLoss}, TP: ${details.takeProfit}. ` +
+    const comment = `${tradeDetails.direction} ${tradeDetails.pair} at ${priceLevels.entryPrice}. ` +
+      `SL: ${priceLevels.stopLoss}, TP: ${priceLevels.takeProfit}. ` +
       `${confluences.checkedItems.length} confluences met. ` +
-      `Strategy: ${strategy?.name || 'Manual'}. ` +
+      `Strategy: ${strategyDetails?.name || 'Manual'}. ` +
       `Feeling ${emotionalState}, confidence ${confidenceLevel}/10.${aiPart}`;
     
     setTradeComment(comment);
@@ -163,7 +160,61 @@ export function FinalChecklist({ onNext, onBack }: FinalChecklistProps) {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* AI Verdict Section */}
+          {/* 1. Emotional State - FIRST */}
+          <div className="space-y-3">
+            <Label className="flex items-center gap-2">
+              <Heart className="h-4 w-4" />
+              How are you feeling right now?
+            </Label>
+            <Select value={emotionalState} onValueChange={setEmotionalState}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {EMOTIONAL_STATES.map((state) => (
+                  <SelectItem key={state.value} value={state.value}>
+                    <span className="flex items-center gap-2">
+                      <span>{state.emoji}</span>
+                      <span>{state.label}</span>
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {!isEmotionallyReady && (
+              <p className="text-sm text-yellow-600">
+                ⚠️ Trading while anxious, fearful, or in FOMO can lead to poor decisions.
+                Consider taking a break.
+              </p>
+            )}
+          </div>
+
+          {/* 2. Confidence Level - SECOND */}
+          <div className="space-y-3">
+            <Label className="flex items-center gap-2">
+              <Brain className="h-4 w-4" />
+              Trade Confidence Level: {confidenceLevel}/10
+            </Label>
+            <Slider
+              value={[confidenceLevel]}
+              onValueChange={(v) => setConfidenceLevel(v[0])}
+              min={1}
+              max={10}
+              step={1}
+              className="w-full"
+            />
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>Uncertain</span>
+              <span>Very Confident</span>
+            </div>
+            {!isConfident && (
+              <p className="text-sm text-yellow-600">
+                ⚠️ Low confidence may indicate missing confluences or unclear setup.
+              </p>
+            )}
+          </div>
+
+          {/* 3. AI Final Verdict - THIRD */}
           <div className="p-4 rounded-lg border border-primary/20 bg-primary/5">
             <div className="flex items-start justify-between gap-3 mb-4">
               <div className="flex items-start gap-3">
@@ -255,61 +306,7 @@ export function FinalChecklist({ onNext, onBack }: FinalChecklistProps) {
             )}
           </div>
 
-          {/* Emotional State */}
-          <div className="space-y-3">
-            <Label className="flex items-center gap-2">
-              <Heart className="h-4 w-4" />
-              How are you feeling right now?
-            </Label>
-            <Select value={emotionalState} onValueChange={setEmotionalState}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {EMOTIONAL_STATES.map((state) => (
-                  <SelectItem key={state.value} value={state.value}>
-                    <span className="flex items-center gap-2">
-                      <span>{state.emoji}</span>
-                      <span>{state.label}</span>
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {!isEmotionallyReady && (
-              <p className="text-sm text-yellow-600">
-                ⚠️ Trading while anxious, fearful, or in FOMO can lead to poor decisions.
-                Consider taking a break.
-              </p>
-            )}
-          </div>
-
-          {/* Confidence Level */}
-          <div className="space-y-3">
-            <Label className="flex items-center gap-2">
-              <Brain className="h-4 w-4" />
-              Trade Confidence Level: {confidenceLevel}/10
-            </Label>
-            <Slider
-              value={[confidenceLevel]}
-              onValueChange={(v) => setConfidenceLevel(v[0])}
-              min={1}
-              max={10}
-              step={1}
-              className="w-full"
-            />
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>Uncertain</span>
-              <span>Very Confident</span>
-            </div>
-            {!isConfident && (
-              <p className="text-sm text-yellow-600">
-                ⚠️ Low confidence may indicate missing confluences or unclear setup.
-              </p>
-            )}
-          </div>
-
-          {/* Following Rules Confirmation */}
+          {/* 4. Following Rules Confirmation */}
           <div className={cn(
             "p-4 rounded-lg border transition-colors",
             followingRules ? "border-green-500/30 bg-green-500/5" : "border-yellow-500/30 bg-yellow-500/5"
@@ -330,7 +327,7 @@ export function FinalChecklist({ onNext, onBack }: FinalChecklistProps) {
             </label>
           </div>
 
-          {/* Trade Comment */}
+          {/* 5. Trade Comment */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <Label>Trade Comment / Notes</Label>
@@ -352,21 +349,21 @@ export function FinalChecklist({ onNext, onBack }: FinalChecklistProps) {
             />
           </div>
 
-          {/* Validation Summary */}
+          {/* 6. Validation Summary */}
           <div className="space-y-3">
             <h4 className="font-medium">Pre-Trade Summary</h4>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div className="p-3 rounded-lg bg-muted/50 text-center">
                 <p className="text-xs text-muted-foreground">Confluences</p>
-                <p className="font-bold">{wizard.confluences?.checkedItems.length || 0}</p>
+                <p className="font-bold">{confluences?.checkedItems.length || 0}</p>
               </div>
               <div className="p-3 rounded-lg bg-muted/50 text-center">
                 <p className="text-xs text-muted-foreground">Risk Amount</p>
-                <p className="font-bold">${wizard.positionSizing?.risk_amount.toFixed(2) || 0}</p>
+                <p className="font-bold">${positionSizing?.risk_amount.toFixed(2) || 0}</p>
               </div>
               <div className="p-3 rounded-lg bg-muted/50 text-center">
                 <p className="text-xs text-muted-foreground">Position Size</p>
-                <p className="font-bold">{wizard.positionSizing?.position_size.toFixed(4) || 0}</p>
+                <p className="font-bold">{positionSizing?.position_size.toFixed(4) || 0}</p>
               </div>
               <div className="p-3 rounded-lg bg-muted/50 text-center">
                 <p className="text-xs text-muted-foreground">AI Score</p>

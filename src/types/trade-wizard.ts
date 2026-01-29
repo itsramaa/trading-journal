@@ -1,22 +1,18 @@
 /**
- * Trade Entry Wizard Types - Per Trading Journey Markdown spec
+ * Trade Entry Wizard Types - 5-Step Structure
  */
 import type { PositionSizeResult } from "@/types/risk";
 import type { TradingStrategyEnhanced, TimeframeType } from "@/types/strategy";
 
 export type WizardStep = 
-  | 'pre-validation'    // Step 1
-  | 'strategy'          // Step 2
-  | 'details'           // Step 3
-  | 'confluence'        // Step 4
-  | 'sizing'            // Step 5
-  | 'checklist'         // Step 6
-  | 'confirmation';     // Step 7
+  | 'setup'         // Step 1: Pre-validation + Strategy + Basic Details
+  | 'confluence'    // Step 2
+  | 'sizing'        // Step 3 (includes Entry, SL, TP)
+  | 'checklist'     // Step 4
+  | 'confirmation'; // Step 5
 
 export const WIZARD_STEPS: WizardStep[] = [
-  'pre-validation',
-  'strategy',
-  'details',
+  'setup',
   'confluence',
   'sizing',
   'checklist',
@@ -24,9 +20,7 @@ export const WIZARD_STEPS: WizardStep[] = [
 ];
 
 export const STEP_LABELS: Record<WizardStep, string> = {
-  'pre-validation': 'Pre-Check',
-  'strategy': 'Strategy',
-  'details': 'Details',
+  'setup': 'Setup',
   'confluence': 'Confluence',
   'sizing': 'Sizing',
   'checklist': 'Checklist',
@@ -49,14 +43,18 @@ export interface PreValidationResult {
   overallStatus: 'pass' | 'warning' | 'fail';
 }
 
+// Setup step only has pair, direction, timeframe
 export interface TradeDetailsData {
   pair: string;
   direction: 'LONG' | 'SHORT';
   timeframe: TimeframeType;
+}
+
+// Sizing step has price levels
+export interface TradePriceLevels {
   entryPrice: number;
   stopLoss: number;
   takeProfit: number;
-  currentPrice: number;
 }
 
 export interface ConfluenceData {
@@ -79,23 +77,20 @@ export interface WizardState {
   currentStep: WizardStep;
   completedSteps: WizardStep[];
   
-  // Step 1: Pre-validation results
+  // Step 1: Setup (Pre-validation + Strategy + Basic Details)
   preValidation: PreValidationResult | null;
-  
-  // Step 2: Strategy selection
   selectedStrategyId: string | null;
   strategyDetails: TradingStrategyEnhanced | null;
-  
-  // Step 3: Trade details
   tradeDetails: TradeDetailsData | null;
   
-  // Step 4: Confluence validation
+  // Step 2: Confluence validation
   confluences: ConfluenceData | null;
   
-  // Step 5: Position sizing
+  // Step 3: Sizing & Levels
+  priceLevels: TradePriceLevels | null;
   positionSizing: PositionSizeResult | null;
   
-  // Step 6: Final checklist
+  // Step 4: Final checklist
   finalChecklist: FinalChecklistData | null;
   
   // Trading account
@@ -104,13 +99,14 @@ export interface WizardState {
 }
 
 export const INITIAL_WIZARD_STATE: WizardState = {
-  currentStep: 'pre-validation',
+  currentStep: 'setup',
   completedSteps: [],
   preValidation: null,
   selectedStrategyId: null,
   strategyDetails: null,
   tradeDetails: null,
   confluences: null,
+  priceLevels: null,
   positionSizing: null,
   finalChecklist: null,
   tradingAccountId: null,

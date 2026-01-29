@@ -1,5 +1,5 @@
 /**
- * Step 7: Trade Confirmation
+ * Step 5: Trade Confirmation
  * Final review and execute with AI summary
  */
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,7 +17,6 @@ import {
   Loader2,
   Sparkles,
   ShieldCheck,
-  AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTradeEntryWizard } from "@/features/trade/useTradeEntryWizard";
@@ -35,6 +34,7 @@ export function TradeConfirmation({ onExecute, onBack, onCancel }: TradeConfirma
   
   const { 
     tradeDetails, 
+    priceLevels,
     positionSizing, 
     confluences, 
     strategyDetails, 
@@ -42,7 +42,7 @@ export function TradeConfirmation({ onExecute, onBack, onCancel }: TradeConfirma
     isSubmitting 
   } = wizard;
 
-  if (!tradeDetails || !positionSizing) {
+  if (!tradeDetails || !priceLevels || !positionSizing) {
     return (
       <div className="text-center py-8">
         <p>Missing trade data. Please go back and complete all steps.</p>
@@ -52,8 +52,8 @@ export function TradeConfirmation({ onExecute, onBack, onCancel }: TradeConfirma
   }
 
   // Calculate R:R
-  const risk = Math.abs(tradeDetails.entryPrice - tradeDetails.stopLoss);
-  const reward = Math.abs(tradeDetails.takeProfit - tradeDetails.entryPrice);
+  const risk = Math.abs(priceLevels.entryPrice - priceLevels.stopLoss);
+  const reward = Math.abs(priceLevels.takeProfit - priceLevels.entryPrice);
   const rrRatio = risk > 0 ? (reward / risk).toFixed(2) : "0";
 
   const handleExecute = async () => {
@@ -99,7 +99,7 @@ export function TradeConfirmation({ onExecute, onBack, onCancel }: TradeConfirma
               {tradeDetails.direction} {tradeDetails.pair}
             </Badge>
             <div className="text-4xl font-bold mb-2">
-              ${tradeDetails.entryPrice.toLocaleString()}
+              ${priceLevels.entryPrice.toLocaleString()}
             </div>
             <div className="text-muted-foreground">Entry Price</div>
           </div>
@@ -109,13 +109,13 @@ export function TradeConfirmation({ onExecute, onBack, onCancel }: TradeConfirma
             <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/20 text-center">
               <p className="text-xs text-muted-foreground mb-1">Stop Loss</p>
               <p className="text-xl font-bold text-red-500">
-                ${tradeDetails.stopLoss.toLocaleString()}
+                ${priceLevels.stopLoss.toLocaleString()}
               </p>
             </div>
             <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20 text-center">
               <p className="text-xs text-muted-foreground mb-1">Take Profit</p>
               <p className="text-xl font-bold text-green-500">
-                ${tradeDetails.takeProfit.toLocaleString()}
+                ${priceLevels.takeProfit.toLocaleString()}
               </p>
             </div>
             <div className="p-4 rounded-lg bg-muted/50 text-center">
