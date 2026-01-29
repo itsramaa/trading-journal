@@ -15,7 +15,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { FileText, TrendingUp, TrendingDown, Clock, RefreshCw } from "lucide-react";
 import { useTradeEntryWizard } from "@/features/trade/useTradeEntryWizard";
 import { TIMEFRAME_OPTIONS, type TimeframeType } from "@/types/strategy";
-import { useTradingPairs, useSyncTradingPairs } from "@/hooks/use-trading-pairs";
+import { TradingPairCombobox } from "@/components/ui/trading-pair-combobox";
+import { useSyncTradingPairs } from "@/hooks/use-trading-pairs";
 
 const tradeDetailsSchema = z.object({
   pair: z.string().min(1, "Pair is required"),
@@ -37,8 +38,7 @@ export function TradeDetails({ onNext, onBack }: TradeDetailsProps) {
   const wizard = useTradeEntryWizard();
   const strategyDetails = wizard.strategyDetails;
   
-  // Fetch trading pairs from database
-  const { data: tradingPairs, isLoading: pairsLoading } = useTradingPairs();
+  // Sync helper for trading pairs
   const syncPairs = useSyncTradingPairs();
 
   const form = useForm<TradeDetailsFormValues>({
@@ -103,64 +103,13 @@ export function TradeDetails({ onNext, onBack }: TradeDetailsProps) {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="pair">Trading Pair *</Label>
-                  {tradingPairs && tradingPairs.length > 0 && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 text-xs"
-                      onClick={() => syncPairs.mutate()}
-                      disabled={syncPairs.isPending}
-                    >
-                      <RefreshCw className={`h-3 w-3 mr-1 ${syncPairs.isPending ? 'animate-spin' : ''}`} />
-                      Sync
-                    </Button>
-                  )}
                 </div>
                 
-                {pairsLoading ? (
-                  <Skeleton className="h-10 w-full" />
-                ) : tradingPairs && tradingPairs.length > 0 ? (
-                  <Select
-                    value={form.watch("pair")}
-                    onValueChange={(value) => form.setValue("pair", value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select trading pair" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[300px]">
-                      {tradingPairs.map((pair) => (
-                        <SelectItem key={pair.symbol} value={pair.symbol}>
-                          {pair.symbol}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <>
-                    <Input
-                      id="pair"
-                      {...form.register("pair")}
-                      placeholder="BTCUSDT"
-                      className="uppercase"
-                      aria-describedby={form.formState.errors.pair ? "pair-error" : undefined}
-                      aria-invalid={!!form.formState.errors.pair}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      No pairs synced yet.{" "}
-                      <Button
-                        type="button"
-                        variant="link"
-                        size="sm"
-                        className="h-auto p-0 text-xs"
-                        onClick={() => syncPairs.mutate()}
-                        disabled={syncPairs.isPending}
-                      >
-                        Sync from Binance
-                      </Button>
-                    </p>
-                  </>
-                )}
+                <TradingPairCombobox
+                  value={form.watch("pair")}
+                  onValueChange={(v) => form.setValue("pair", v)}
+                  placeholder="Select trading pair"
+                />
                 
                 {form.formState.errors.pair && (
                   <p id="pair-error" className="text-xs text-destructive" role="alert">

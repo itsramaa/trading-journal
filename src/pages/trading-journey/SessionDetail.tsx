@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { TradingPairCombobox } from "@/components/ui/trading-pair-combobox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -21,7 +22,7 @@ import { useTradeEntries, useCreateTradeEntry, useDeleteTradeEntry, TradeEntry, 
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useUserSettings } from "@/hooks/use-user-settings";
-import { useTradingPairs } from "@/hooks/use-trading-pairs";
+
 import { formatCurrency as formatCurrencyUtil } from "@/lib/formatters";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -60,7 +61,7 @@ export default function SessionDetail() {
   const { data: strategies = [] } = useTradingStrategies();
   const { data: accounts = [] } = useAccounts();
   const { data: userSettings } = useUserSettings();
-  const { data: tradingPairs, isLoading: pairsLoading } = useTradingPairs();
+  
   const createTrade = useCreateTradeEntry();
   const deleteTrade = useDeleteTradeEntry();
   
@@ -241,22 +242,11 @@ export default function SessionDetail() {
                 <div className="grid grid-cols-3 gap-4">
                   <div>
                     <Label>Pair *</Label>
-                    <Select
+                    <TradingPairCombobox
                       value={form.watch("pair") || ""}
                       onValueChange={(v) => form.setValue("pair", v)}
-                      disabled={pairsLoading}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={pairsLoading ? "Loading..." : "Select pair"} />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-[300px]">
-                        {tradingPairs?.map((pair) => (
-                          <SelectItem key={pair.symbol} value={pair.symbol}>
-                            {pair.symbol}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      placeholder="Select pair"
+                    />
                   </div>
                   <div>
                     <Label>Direction *</Label>
