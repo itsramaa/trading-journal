@@ -189,7 +189,7 @@ export function FinalChecklist({ onNext, onBack }: FinalChecklistProps) {
             )}
           </div>
 
-          {/* 2. Confidence Level - SECOND */}
+          {/* 2. Trade Confidence Level - SECOND */}
           <div className="space-y-3">
             <Label className="flex items-center gap-2">
               <Brain className="h-4 w-4" />
@@ -306,50 +306,7 @@ export function FinalChecklist({ onNext, onBack }: FinalChecklistProps) {
             )}
           </div>
 
-          {/* 4. Following Rules Confirmation */}
-          <div className={cn(
-            "p-4 rounded-lg border transition-colors",
-            followingRules ? "border-green-500/30 bg-green-500/5" : "border-yellow-500/30 bg-yellow-500/5"
-          )}>
-            <label className="flex items-start gap-3 cursor-pointer">
-              <Checkbox
-                checked={followingRules}
-                onCheckedChange={(checked) => setFollowingRules(checked === true)}
-                className="mt-0.5"
-              />
-              <div>
-                <p className="font-medium">I confirm this trade follows my strategy rules</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  By checking this, you acknowledge that this trade setup aligns with your 
-                  predefined strategy rules and is not impulsive.
-                </p>
-              </div>
-            </label>
-          </div>
-
-          {/* 5. Trade Comment */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label>Trade Comment / Notes</Label>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={generateAutoComment}
-              >
-                <Sparkles className="h-4 w-4 mr-1" />
-                Auto Generate
-              </Button>
-            </div>
-            <Textarea
-              value={tradeComment}
-              onChange={(e) => setTradeComment(e.target.value)}
-              placeholder="Document your trade setup, reasoning, and any observations..."
-              rows={4}
-            />
-          </div>
-
-          {/* 6. Validation Summary */}
+          {/* 4. Pre-Trade Summary - FOURTH */}
           <div className="space-y-3">
             <h4 className="font-medium">Pre-Trade Summary</h4>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -372,6 +329,49 @@ export function FinalChecklist({ onNext, onBack }: FinalChecklistProps) {
                 </p>
               </div>
             </div>
+          </div>
+
+          {/* 5. Trade Comment / Notes - FIFTH */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label>Trade Comment / Notes</Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={generateAutoComment}
+              >
+                <Sparkles className="h-4 w-4 mr-1" />
+                Auto Generate
+              </Button>
+            </div>
+            <Textarea
+              value={tradeComment}
+              onChange={(e) => setTradeComment(e.target.value)}
+              placeholder="Document your trade setup, reasoning, and any observations..."
+              rows={4}
+            />
+          </div>
+
+          {/* 6. Following Rules Confirmation - LAST */}
+          <div className={cn(
+            "p-4 rounded-lg border transition-colors",
+            followingRules ? "border-green-500/30 bg-green-500/5" : "border-yellow-500/30 bg-yellow-500/5"
+          )}>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <Checkbox
+                checked={followingRules}
+                onCheckedChange={(checked) => setFollowingRules(checked === true)}
+                className="mt-0.5"
+              />
+              <div>
+                <p className="font-medium">I confirm this trade follows my strategy rules</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  By checking this, you acknowledge that this trade setup aligns with your 
+                  predefined strategy rules and is not impulsive.
+                </p>
+              </div>
+            </label>
           </div>
 
           {/* Ready Status */}
