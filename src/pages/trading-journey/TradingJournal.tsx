@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { TradingPairCombobox } from "@/components/ui/trading-pair-combobox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DateRangeFilter, DateRange } from "@/components/trading/DateRangeFilter";
 import { QuickTip } from "@/components/ui/onboarding-tooltip";
@@ -25,7 +26,7 @@ import { useTradingAccounts } from "@/hooks/use-trading-accounts";
 import { useTradeEntries, useCreateTradeEntry, useDeleteTradeEntry, useClosePosition, useUpdateTradeEntry, TradeEntry } from "@/hooks/use-trade-entries";
 import { useTradingStrategies, useCreateTradingStrategy } from "@/hooks/use-trading-strategies";
 import { useTradingSessions } from "@/hooks/use-trading-sessions";
-import { useTradingPairs } from "@/hooks/use-trading-pairs";
+
 import { filterTradesByDateRange, filterTradesByStrategies } from "@/lib/trading-calculations";
 import { formatCurrency as formatCurrencyUtil } from "@/lib/formatters";
 import { useUserSettings } from "@/hooks/use-user-settings";
@@ -87,7 +88,7 @@ export default function TradingJournal() {
   const { data: trades, isLoading: tradesLoading } = useTradeEntries();
   const { data: strategies = [] } = useTradingStrategies();
   const { data: sessions = [] } = useTradingSessions();
-  const { data: tradingPairs, isLoading: pairsLoading } = useTradingPairs();
+  
   const createTrade = useCreateTradeEntry();
   const deleteTrade = useDeleteTradeEntry();
   const closePosition = useClosePosition();
@@ -430,22 +431,11 @@ export default function TradingJournal() {
                 <div className="grid grid-cols-3 gap-4">
                   <div>
                     <Label>Pair *</Label>
-                    <Select
+                    <TradingPairCombobox
                       value={form.watch("pair") || ""}
                       onValueChange={(v) => form.setValue("pair", v)}
-                      disabled={pairsLoading}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={pairsLoading ? "Loading..." : "Select pair"} />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-[300px]">
-                        {tradingPairs?.map((pair) => (
-                          <SelectItem key={pair.symbol} value={pair.symbol}>
-                            {pair.symbol}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      placeholder="Select pair"
+                    />
                     {form.formState.errors.pair && (
                       <p className="text-xs text-destructive mt-1">{form.formState.errors.pair.message}</p>
                     )}

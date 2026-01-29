@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Brain, Target, CheckCircle2, AlertCircle, TrendingUp, TrendingDown, Lightbulb } from "lucide-react";
 import { useAITradeQuality } from "@/features/ai/useAITradeQuality";
-import { useTradingPairs } from "@/hooks/use-trading-pairs";
+import { TradingPairCombobox } from "@/components/ui/trading-pair-combobox";
 import { cn } from "@/lib/utils";
 
 const AIAssistant = () => {
@@ -24,7 +24,6 @@ const AIAssistant = () => {
   const [checkerTP, setCheckerTP] = useState("");
   const [checkerTimeframe, setCheckerTimeframe] = useState("1h");
   const { getQualityScore, isLoading: qualityLoading, result: qualityResult, reset: resetQuality } = useAITradeQuality();
-  const { data: tradingPairs, isLoading: pairsLoading } = useTradingPairs();
 
   const handleCheckQuality = async () => {
     const entryPrice = parseFloat(checkerEntry);
@@ -95,22 +94,11 @@ const AIAssistant = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Trading Pair</Label>
-                  <Select 
-                    value={checkerPair} 
+                  <TradingPairCombobox
+                    value={checkerPair}
                     onValueChange={setCheckerPair}
-                    disabled={pairsLoading}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={pairsLoading ? "Loading pairs..." : "Select pair"} />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[300px]">
-                      {tradingPairs?.map((pair) => (
-                        <SelectItem key={pair.symbol} value={pair.symbol}>
-                          {pair.symbol}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    placeholder="Select pair..."
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Direction</Label>
