@@ -21,6 +21,7 @@ import { useTradeEntries, useCreateTradeEntry, useDeleteTradeEntry, TradeEntry, 
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useUserSettings } from "@/hooks/use-user-settings";
+import { useTradingPairs } from "@/hooks/use-trading-pairs";
 import { formatCurrency as formatCurrencyUtil } from "@/lib/formatters";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -59,6 +60,7 @@ export default function SessionDetail() {
   const { data: strategies = [] } = useTradingStrategies();
   const { data: accounts = [] } = useAccounts();
   const { data: userSettings } = useUserSettings();
+  const { data: tradingPairs, isLoading: pairsLoading } = useTradingPairs();
   const createTrade = useCreateTradeEntry();
   const deleteTrade = useDeleteTradeEntry();
   
@@ -239,7 +241,22 @@ export default function SessionDetail() {
                 <div className="grid grid-cols-3 gap-4">
                   <div>
                     <Label>Pair *</Label>
-                    <Input {...form.register("pair")} placeholder="BTC/USDT" />
+                    <Select
+                      value={form.watch("pair") || ""}
+                      onValueChange={(v) => form.setValue("pair", v)}
+                      disabled={pairsLoading}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={pairsLoading ? "Loading..." : "Select pair"} />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[300px]">
+                        {tradingPairs?.map((pair) => (
+                          <SelectItem key={pair.symbol} value={pair.symbol}>
+                            {pair.symbol}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div>
                     <Label>Direction *</Label>

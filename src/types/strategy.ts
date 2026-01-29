@@ -127,7 +127,10 @@ export const TIMEFRAME_OPTIONS: { value: TimeframeType; label: string }[] = [
   { value: '1w', label: '1 Week' },
 ];
 
-// Common trading pairs
+/**
+ * @deprecated Use useBaseAssets() hook instead for dynamic pairs from database
+ * This is kept as fallback when database pairs are not yet synced
+ */
 export const COMMON_PAIRS = [
   'BTC', 'ETH', 'BNB', 'SOL', 'XRP', 'ADA', 'DOGE', 'AVAX', 'DOT', 'MATIC',
   'LINK', 'UNI', 'ATOM', 'LTC', 'FIL', 'APT', 'ARB', 'OP', 'NEAR', 'INJ'

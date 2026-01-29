@@ -12,17 +12,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Brain, Target, CheckCircle2, AlertCircle, TrendingUp, TrendingDown, Lightbulb } from "lucide-react";
 import { useAITradeQuality } from "@/features/ai/useAITradeQuality";
+import { useTradingPairs } from "@/hooks/use-trading-pairs";
 import { cn } from "@/lib/utils";
 
 const AIAssistant = () => {
   // Trade Quality Checker state
-  const [checkerPair, setCheckerPair] = useState("BTC/USDT");
+  const [checkerPair, setCheckerPair] = useState("");
   const [checkerDirection, setCheckerDirection] = useState<"LONG" | "SHORT">("LONG");
   const [checkerEntry, setCheckerEntry] = useState("");
   const [checkerSL, setCheckerSL] = useState("");
   const [checkerTP, setCheckerTP] = useState("");
   const [checkerTimeframe, setCheckerTimeframe] = useState("1h");
   const { getQualityScore, isLoading: qualityLoading, result: qualityResult, reset: resetQuality } = useAITradeQuality();
+  const { data: tradingPairs, isLoading: pairsLoading } = useTradingPairs();
 
   const handleCheckQuality = async () => {
     const entryPrice = parseFloat(checkerEntry);
@@ -93,15 +95,20 @@ const AIAssistant = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Trading Pair</Label>
-                  <Select value={checkerPair} onValueChange={setCheckerPair}>
+                  <Select 
+                    value={checkerPair} 
+                    onValueChange={setCheckerPair}
+                    disabled={pairsLoading}
+                  >
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue placeholder={pairsLoading ? "Loading pairs..." : "Select pair"} />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="BTC/USDT">BTC/USDT</SelectItem>
-                      <SelectItem value="ETH/USDT">ETH/USDT</SelectItem>
-                      <SelectItem value="SOL/USDT">SOL/USDT</SelectItem>
-                      <SelectItem value="BNB/USDT">BNB/USDT</SelectItem>
+                    <SelectContent className="max-h-[300px]">
+                      {tradingPairs?.map((pair) => (
+                        <SelectItem key={pair.symbol} value={pair.symbol}>
+                          {pair.symbol}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

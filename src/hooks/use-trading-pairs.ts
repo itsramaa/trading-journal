@@ -2,6 +2,7 @@
  * Hook for managing centralized trading pairs from database
  * Pairs are synced from Binance Futures API via edge function
  */
+import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -96,4 +97,21 @@ export function usePairsSyncStatus() {
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
+}
+
+/**
+ * Hook untuk mendapatkan unique base assets (BTC, ETH, dll)
+ * Digunakan untuk Strategy valid pairs selection
+ * @deprecated COMMON_PAIRS - gunakan hook ini sebagai gantinya
+ */
+export function useBaseAssets() {
+  const { data: tradingPairs, isLoading } = useTradingPairs();
+  
+  const baseAssets = useMemo(() => {
+    if (!tradingPairs) return [];
+    const assets = [...new Set(tradingPairs.map(p => p.base_asset))];
+    return assets.sort();
+  }, [tradingPairs]);
+
+  return { data: baseAssets, isLoading };
 }
