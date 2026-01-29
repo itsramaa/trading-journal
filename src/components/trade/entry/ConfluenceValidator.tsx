@@ -1,5 +1,5 @@
 /**
- * Step 4: Confluence Validation
+ * Step 2: Confluence Validation
  * Dynamic checklist based on strategy entry rules with AI detection
  */
 import { useState, useEffect } from "react";
@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
-import { Skeleton } from "@/components/ui/skeleton";
 import { CheckCircle, Circle, Sparkles, AlertTriangle, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTradeEntryWizard } from "@/features/trade/useTradeEntryWizard";
@@ -47,19 +46,20 @@ export function ConfluenceValidator({ onNext, onBack }: ConfluenceValidatorProps
     );
   };
 
-  // AI Detection handler
+  // AI Detection handler - note: uses placeholder prices since we don't have them yet
   const handleAIDetect = async () => {
     if (!tradeDetails) {
-      toast.error("Please complete trade details first");
+      toast.error("Please complete trade setup first");
       return;
     }
 
+    // Use placeholder prices for confluence detection (actual prices set in sizing step)
     const result = await detectConfluences({
       pair: tradeDetails.pair,
       direction: tradeDetails.direction,
-      entryPrice: tradeDetails.entryPrice,
-      stopLoss: tradeDetails.stopLoss,
-      takeProfit: tradeDetails.takeProfit,
+      entryPrice: 0, // Placeholder - actual price set in sizing step
+      stopLoss: 0,
+      takeProfit: 0,
       timeframe: tradeDetails.timeframe,
       strategyRules: entryRules,
       strategyName: strategyDetails?.name || 'Manual',
@@ -272,7 +272,7 @@ export function ConfluenceValidator({ onNext, onBack }: ConfluenceValidatorProps
           Back
         </Button>
         <Button onClick={onNext} disabled={!canProceed}>
-          Next: Position Sizing
+          Next: Sizing & Levels
         </Button>
       </div>
     </div>

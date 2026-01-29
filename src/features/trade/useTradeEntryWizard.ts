@@ -1,5 +1,5 @@
 /**
- * Trade Entry Wizard State Machine Hook
+ * Trade Entry Wizard State Machine Hook - 5-Step Flow
  */
 import { create } from "zustand";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,9 +9,9 @@ import type {
   WizardState,
   PreValidationResult,
   TradeDetailsData,
+  TradePriceLevels,
   ConfluenceData,
   FinalChecklistData,
-  WIZARD_STEPS,
 } from "@/types/trade-wizard";
 import { INITIAL_WIZARD_STATE } from "@/types/trade-wizard";
 import type { PositionSizeResult } from "@/types/risk";
@@ -27,6 +27,7 @@ interface WizardStore extends WizardState {
   setPreValidation: (data: PreValidationResult) => void;
   setStrategy: (strategyId: string, details: TradingStrategyEnhanced) => void;
   setTradeDetails: (details: TradeDetailsData) => void;
+  setPriceLevels: (levels: TradePriceLevels) => void;
   setConfluences: (data: ConfluenceData) => void;
   setPositionSizing: (result: PositionSizeResult) => void;
   setFinalChecklist: (data: FinalChecklistData) => void;
@@ -39,9 +40,7 @@ interface WizardStore extends WizardState {
 }
 
 const STEPS_ORDER: WizardStep[] = [
-  'pre-validation',
-  'strategy',
-  'details',
+  'setup',
   'confluence',
   'sizing',
   'checklist',
@@ -93,6 +92,10 @@ export const useTradeEntryWizard = create<WizardStore>((set, get) => ({
     set({ tradeDetails: details });
   },
 
+  setPriceLevels: (levels) => {
+    set({ priceLevels: levels });
+  },
+
   setConfluences: (data) => {
     set({ confluences: data });
   },
@@ -118,9 +121,9 @@ export const useTradeEntryWizard = create<WizardStore>((set, get) => ({
     set({ isSubmitting: true });
 
     try {
-      const { tradeDetails, positionSizing, confluences, finalChecklist, strategyDetails, tradingAccountId } = state;
+      const { tradeDetails, priceLevels, positionSizing, confluences, finalChecklist, tradingAccountId } = state;
 
-      if (!tradeDetails || !positionSizing) {
+      if (!tradeDetails || !priceLevels || !positionSizing) {
         throw new Error("Missing required trade data");
       }
 
@@ -132,9 +135,9 @@ export const useTradeEntryWizard = create<WizardStore>((set, get) => ({
           trading_account_id: tradingAccountId || null,
           pair: tradeDetails.pair,
           direction: tradeDetails.direction,
-          entry_price: tradeDetails.entryPrice,
-          stop_loss: tradeDetails.stopLoss,
-          take_profit: tradeDetails.takeProfit,
+          entry_price: priceLevels.entryPrice,
+          stop_loss: priceLevels.stopLoss,
+          take_profit: priceLevels.takeProfit,
           quantity: positionSizing.position_size,
           trade_date: new Date().toISOString().split('T')[0],
           status: 'open',

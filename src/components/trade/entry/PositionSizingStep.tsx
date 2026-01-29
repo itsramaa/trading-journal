@@ -1,6 +1,6 @@
 /**
- * Step 5: Position Sizing
- * Integrated position size calculator
+ * Step 3: Position Sizing & Price Levels
+ * Entry, SL, TP inputs + position size calculator
  */
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,34 +27,59 @@ export function PositionSizingStep({ onNext, onBack }: PositionSizingStepProps) 
   
   const tradeDetails = wizard.tradeDetails;
   const accountBalance = wizard.accountBalance;
+  const strategyDetails = wizard.strategyDetails;
   
+  // Price levels state
+  const [entryPrice, setEntryPrice] = useState(wizard.priceLevels?.entryPrice || 0);
+  const [stopLoss, setStopLoss] = useState(wizard.priceLevels?.stopLoss || 0);
+  const [takeProfit, setTakeProfit] = useState(wizard.priceLevels?.takeProfit || 0);
+  
+  // Position sizing state
   const defaultRiskPercent = riskProfile?.risk_per_trade_percent || 2;
   const [riskPercent, setRiskPercent] = useState(defaultRiskPercent);
   const [leverage, setLeverage] = useState(1);
   const [result, setResult] = useState<PositionSizeResult | null>(null);
 
+  // Calculate R:R ratio
+  const calculateRR = () => {
+    if (!entryPrice || !stopLoss || !takeProfit) return null;
+    const risk = Math.abs(entryPrice - stopLoss);
+    const reward = Math.abs(takeProfit - entryPrice);
+    if (risk === 0) return null;
+    return (reward / risk).toFixed(2);
+  };
+  
+  const rrRatio = calculateRR();
+  const minRR = (strategyDetails as any)?.min_rr || 1.5;
+  const isRRValid = rrRatio ? parseFloat(rrRatio) >= minRR : false;
+
   // Calculate position size when inputs change
   useEffect(() => {
-    if (!tradeDetails || accountBalance <= 0) return;
+    if (!entryPrice || !stopLoss || accountBalance <= 0) {
+      setResult(null);
+      return;
+    }
 
     const calculated = calculatePositionSize({
       account_balance: accountBalance,
       risk_percent: riskPercent,
-      entry_price: tradeDetails.entryPrice,
-      stop_loss_price: tradeDetails.stopLoss,
+      entry_price: entryPrice,
+      stop_loss_price: stopLoss,
       leverage,
     });
 
     setResult(calculated);
     wizard.setPositionSizing(calculated);
-  }, [tradeDetails, accountBalance, riskPercent, leverage]);
+    wizard.setPriceLevels({ entryPrice, stopLoss, takeProfit });
+  }, [entryPrice, stopLoss, takeProfit, accountBalance, riskPercent, leverage]);
 
   // Validate against risk limits
   const riskValidation = result && riskProfile 
     ? validateRiskLimits(result, riskProfile, 0, 0, accountBalance)
     : { canTrade: true, warnings: [] };
 
-  const canProceed = result?.is_valid && riskValidation.canTrade;
+  const pricesValid = entryPrice > 0 && stopLoss > 0 && takeProfit > 0;
+  const canProceed = pricesValid && result?.is_valid && riskValidation.canTrade;
 
   const handleNext = () => {
     if (canProceed && result) {
@@ -65,7 +90,7 @@ export function PositionSizingStep({ onNext, onBack }: PositionSizingStepProps) 
   if (!tradeDetails) {
     return (
       <div className="text-center py-8">
-        <p>Trade details not found. Please go back and fill in trade details.</p>
+        <p>Trade setup not found. Please go back and complete setup.</p>
         <Button onClick={onBack} className="mt-4">Go Back</Button>
       </div>
     );
@@ -77,30 +102,95 @@ export function PositionSizingStep({ onNext, onBack }: PositionSizingStepProps) 
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Calculator className="h-5 w-5 text-primary" />
-            Position Sizing
+            Sizing & Price Levels
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Account Info */}
-          <div className="p-4 rounded-lg bg-muted/50">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-              <div>
-                <p className="text-xs text-muted-foreground">Account Balance</p>
-                <p className="text-lg font-bold">${accountBalance.toLocaleString()}</p>
+          {/* Trade Context */}
+          <div className="p-3 rounded-lg bg-muted/50 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Badge variant={tradeDetails.direction === 'LONG' ? 'default' : 'destructive'}>
+                {tradeDetails.direction}
+              </Badge>
+              <span className="font-medium">{tradeDetails.pair}</span>
+              <span className="text-sm text-muted-foreground">{tradeDetails.timeframe}</span>
+            </div>
+            <span className="text-sm text-muted-foreground">
+              Balance: ${accountBalance.toLocaleString()}
+            </span>
+          </div>
+
+          {/* Price Levels */}
+          <div className="space-y-4">
+            <h4 className="font-medium text-sm flex items-center gap-2">
+              <DollarSign className="h-4 w-4" />
+              Price Levels
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="entryPrice">Entry Price *</Label>
+                <Input
+                  id="entryPrice"
+                  type="number"
+                  step="any"
+                  value={entryPrice || ""}
+                  onChange={(e) => setEntryPrice(Number(e.target.value))}
+                  placeholder="0.00"
+                />
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Entry Price</p>
-                <p className="text-lg font-bold">${tradeDetails.entryPrice.toLocaleString()}</p>
+              <div className="space-y-2">
+                <Label htmlFor="stopLoss" className="text-red-500">Stop Loss *</Label>
+                <Input
+                  id="stopLoss"
+                  type="number"
+                  step="any"
+                  value={stopLoss || ""}
+                  onChange={(e) => setStopLoss(Number(e.target.value))}
+                  placeholder="0.00"
+                  className="border-red-500/30"
+                />
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Stop Loss</p>
-                <p className="text-lg font-bold text-red-500">${tradeDetails.stopLoss.toLocaleString()}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Take Profit</p>
-                <p className="text-lg font-bold text-green-500">${tradeDetails.takeProfit.toLocaleString()}</p>
+              <div className="space-y-2">
+                <Label htmlFor="takeProfit" className="text-green-500">Take Profit *</Label>
+                <Input
+                  id="takeProfit"
+                  type="number"
+                  step="any"
+                  value={takeProfit || ""}
+                  onChange={(e) => setTakeProfit(Number(e.target.value))}
+                  placeholder="0.00"
+                  className="border-green-500/30"
+                />
               </div>
             </div>
+
+            {/* R:R Ratio Display */}
+            {rrRatio && (
+              <div className={cn(
+                "p-3 rounded-lg border",
+                isRRValid ? "border-green-500/30 bg-green-500/5" : "border-yellow-500/30 bg-yellow-500/5"
+              )}>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Risk:Reward Ratio</span>
+                  <div className="flex items-center gap-2">
+                    <span className={cn(
+                      "text-xl font-bold",
+                      isRRValid ? "text-green-500" : "text-yellow-500"
+                    )}>
+                      1:{rrRatio}
+                    </span>
+                    <Badge variant={isRRValid ? "default" : "secondary"}>
+                      Min {minRR}:1
+                    </Badge>
+                  </div>
+                </div>
+                {!isRRValid && (
+                  <p className="text-xs text-yellow-500 mt-2">
+                    R:R is below strategy minimum. Consider adjusting your TP or SL.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Risk Settings */}
@@ -136,9 +226,8 @@ export function PositionSizingStep({ onNext, onBack }: PositionSizingStepProps) 
                 max={100}
                 value={leverage}
                 onChange={(e) => setLeverage(Number(e.target.value) || 1)}
-                aria-describedby="leverage-hint"
               />
-              <p id="leverage-hint" className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 For spot trading, leave at 1x
               </p>
             </div>

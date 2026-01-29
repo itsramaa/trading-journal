@@ -1,13 +1,11 @@
 /**
  * Trade Entry Wizard - Main Container
- * 7-step guided trade entry flow with trading gate check
+ * 5-step guided trade entry flow with trading gate check
  */
 import { useCallback } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { WizardProgress } from "./WizardProgress";
-import { PreEntryValidation } from "./PreEntryValidation";
-import { StrategySelection } from "./StrategySelection";
-import { TradeDetails } from "./TradeDetails";
+import { SetupStep } from "./SetupStep";
 import { ConfluenceValidator } from "./ConfluenceValidator";
 import { PositionSizingStep } from "./PositionSizingStep";
 import { FinalChecklist } from "./FinalChecklist";
@@ -109,25 +107,11 @@ export function TradeEntryWizard({ onClose, onComplete }: TradeEntryWizardProps)
 
   const renderStep = () => {
     switch (currentStep) {
-      case 'pre-validation':
+      case 'setup':
         return (
-          <PreEntryValidation
+          <SetupStep
             onNext={nextStep}
             onCancel={handleCancel}
-          />
-        );
-      case 'strategy':
-        return (
-          <StrategySelection
-            onNext={nextStep}
-            onBack={prevStep}
-          />
-        );
-      case 'details':
-        return (
-          <TradeDetails
-            onNext={nextStep}
-            onBack={prevStep}
           />
         );
       case 'confluence':
