@@ -1,405 +1,321 @@
 
-# Plan: Multi-Fix - Cleanup Sessions, Emergency Fund, UI Improvements
+# Plan: Restructure Trade Entry Wizard
 
 ## Overview
 
-Menerapkan beberapa perbaikan dan cleanup:
-1. **Hapus Emergency Fund** - Hapus semua referensi kode yang tersisa
-2. **Hapus Link to Session** - Hapus fitur linking trade ke session
-3. **Fix Trade History Redundancy** - Konsolidasi tampilan tabs yang duplikat
-4. **Pindah & Update Pro Tip** - Pindahkan di bawah Trade Logs dan update text
-5. **Valid Trading Pairs Combobox** - Ubah badge selection ke searchable combobox
-6. **Strategy Selection Multi-Select** - Ubah inline add ke multi-select dengan redirect
+Merestrukturisasi Trade Entry Wizard dari **7 steps** menjadi **5 steps** yang lebih streamlined:
+
+| Current (7 Steps) | New (5 Steps) |
+|-------------------|---------------|
+| 1. Pre-Check | 1. **Setup** (Pre-Check + Strategy + Pair/Direction) |
+| 2. Strategy | ↑ Combined |
+| 3. Details (Pair, Direction, Entry, SL, TP) | ↑ Combined (only Pair, Direction, Timeframe) |
+| 4. Confluence | 2. **Confluence** |
+| 5. Sizing | 3. **Sizing & Levels** (+ Entry, SL, TP moved here) |
+| 6. Checklist | 4. **Final Checklist** (reordered) |
+| 7. Execute | 5. **Execute** |
 
 ---
 
-## 1. Hapus Emergency Fund References (Kode)
+## Change 1: Consolidate Steps 1-3 into "Setup"
 
-### Temuan di Codebase
+### New Step Flow
 
-Emergency fund references sudah minimal di kode frontend, tapi ada di:
-- Database migrations (tidak perlu diubah - backward compatible)
-- Tidak ada UI components yang aktif menggunakan emergency fund
-
-**Tidak ada perubahan yang diperlukan** - emergency fund creation sudah dihapus di `use-auth.ts` sebelumnya.
-
----
-
-## 2. Hapus Link to Session dari Trade
-
-### Issue
-
-Trade entries memiliki `session_id` field yang menghubungkan ke trading sessions. Fitur ini akan dihapus untuk menyederhanakan flow.
-
-### File: `src/pages/trading-journey/TradingJournal.tsx`
-
-**Hapus dari form schema:**
-```typescript
-// REMOVE dari tradeFormSchema:
-session_id: z.string().optional(),
-```
-
-**Hapus dari handleSubmit:**
-```typescript
-// REMOVE session_id dari createTrade.mutateAsync call
-session_id: values.session_id, // DELETE THIS LINE
-```
-
-**Hapus UI component "Link to Session":**
-```tsx
-// DELETE entire block lines ~368-390:
-{/* Session Selection */}
-<div className="space-y-2">
-  <Label className="flex items-center gap-2">
-    <Clock className="h-4 w-4" />
-    Link to Session (Optional)
-  </Label>
-  <Select ...>
-    ...
-  </Select>
-</div>
-```
-
-**Hapus import `useTradingSessions`:**
-```typescript
-// REMOVE: 
-import { useTradingSessions } from "@/hooks/use-trading-sessions";
-// REMOVE:
-const { data: sessions = [] } = useTradingSessions();
-```
-
-### File: `src/hooks/use-trade-entries.ts`
-
-**Hapus session_id dari interfaces:**
-```typescript
-// In CreateTradeEntryInput - REMOVE:
-session_id?: string;
-
-// In mutationFn - REMOVE:
-session_id: tradeData.session_id || null,
-```
-
-### File: `src/pages/trading-journey/SessionDetail.tsx`
-
-**Hapus fitur add trade yang link ke session**, karena tidak ada lagi linking. Simplify to display-only atau redirect ke Trading Journal.
-
----
-
-## 3. Fix Trade History Redundancy
-
-### Issue
-
-Di TradingJournal.tsx terdapat **duplikasi UI**:
-1. **Line 670-691**: Top-level Tabs dengan "Open Positions" dan "Trade History"
-2. **Line 803-828**: Nested "Trade Logs" Card dengan tabs "History", "Open", "Pending"
-
-Ini menyebabkan UX yang confusing dan redundant.
-
-### Solution
-
-Konsolidasi ke single tab system dengan 3 tabs:
-- **Open Positions** - Active trades
-- **Trade History** - Closed trades
-- **Pending** - Future limit orders (coming soon)
-
-### Changes di `TradingJournal.tsx`:
-
-**Hapus top-level Tabs block (lines 670-796):**
-- Hapus seluruh first Tabs component dengan Open Positions dan Trade History
-- Keep only the "Trade Logs" Card yang sudah memiliki proper tab structure
-
-**Restructure flow:**
 ```text
-Before:
-├── P&L Summary Cards
-├── Tabs (Open/History) ← REMOVE
-│   ├── Open Positions Content
-│   └── (nothing for history here, jumps to Card below)
-├── QuickTip
-└── Trade Logs Card with Tabs (History/Open/Pending)
-    ├── History content
-    ├── Open content ← DUPLICATES above
-    └── Pending content
+Step 1: SETUP
+├── Trading Account Selection
+├── Pre-validation Checks (Daily Loss, Position Limit, Correlation)
+├── AI Pre-flight (optional)
+├── Strategy Selection (with AI recommendations)
+└── Basic Trade Info:
+    ├── Trading Pair (Combobox)
+    ├── Direction (LONG/SHORT)
+    └── Timeframe
 
-After:
-├── P&L Summary Cards
-├── QuickTip (moved)
-└── Trade Management Card with Tabs
-    ├── Open Positions (single, consolidated)
-    ├── Trade History
-    └── Pending Orders
+Step 2: CONFLUENCE
+└── (No changes, same as current)
+
+Step 3: SIZING & LEVELS
+├── Entry Price *         ← MOVED from Details
+├── Stop Loss *           ← MOVED from Details
+├── Take Profit *         ← MOVED from Details
+├── R:R Calculation
+├── Risk % Slider
+├── Leverage Input
+└── Position Size Results
+
+Step 4: FINAL CHECKLIST
+├── How are you feeling right now?  ← REORDERED (first)
+├── Trade Confidence Level          ← REORDERED (second)
+├── AI Final Verdict               ← REORDERED (third)
+├── Trade Comment
+└── Confirm following rules
+
+Step 5: EXECUTE
+└── (No changes, same as current)
 ```
 
 ---
 
-## 4. Pindah & Update Pro Tip
+## File Changes
 
-### Current Location
-Pro tip ada di antara Open Positions table dan Trade Logs card (line 798-801).
+### 1. `src/types/trade-wizard.ts`
 
-### New Location
-Pindahkan ke bawah Trade Logs Card, di akhir halaman.
+Update wizard steps from 7 to 5:
 
-### Update Text
-Karena session linking dihapus, update text:
-
-**Before:**
-```
-Pro tip: Link your trades to sessions and track your performance over time. 
-Focus on quality setups and document your entry signals for pattern recognition.
-```
-
-**After:**
-```
-Pro tip: Document every trade with detailed notes and tag your strategies. 
-Focus on quality setups and review your patterns to improve your trading edge.
-```
-
----
-
-## 5. Valid Trading Pairs - Searchable Combobox
-
-### Issue
-
-Di StrategyManagement.tsx, valid trading pairs menggunakan Badge click-to-toggle UI. Dengan 600+ pairs dari Binance, ini tidak praktis.
-
-### Solution
-
-Gunakan searchable multi-select Combobox component.
-
-### File: `src/pages/trading-journey/StrategyManagement.tsx`
-
-**Create new component inline or use existing pattern:**
-
-```tsx
-// Replace badge grid with:
-<div className="space-y-2">
-  <Label className="flex items-center gap-2">
-    <Target className="h-4 w-4" />
-    Valid Trading Pairs
-  </Label>
-  
-  {/* Selected pairs display */}
-  <div className="flex flex-wrap gap-2 min-h-[40px] p-2 border rounded-lg bg-muted/30">
-    {selectedValidPairs.length === 0 ? (
-      <span className="text-sm text-muted-foreground">No pairs selected</span>
-    ) : (
-      selectedValidPairs.map((pair) => (
-        <Badge key={pair} variant="secondary" className="gap-1">
-          {pair}
-          <X 
-            className="h-3 w-3 cursor-pointer hover:text-destructive" 
-            onClick={() => setSelectedValidPairs(prev => prev.filter(p => p !== pair))}
-          />
-        </Badge>
-      ))
-    )}
-  </div>
-  
-  {/* Searchable Combobox to add pairs */}
-  <Popover>
-    <PopoverTrigger asChild>
-      <Button variant="outline" className="w-full justify-between">
-        <span className="text-muted-foreground">Add trading pair...</span>
-        <ChevronsUpDown className="h-4 w-4" />
-      </Button>
-    </PopoverTrigger>
-    <PopoverContent className="w-full p-0">
-      <Command>
-        <CommandInput placeholder="Search pairs..." />
-        <CommandList>
-          <CommandEmpty>No pair found.</CommandEmpty>
-          <CommandGroup>
-            {baseAssets
-              .filter(pair => !selectedValidPairs.includes(pair))
-              .map((pair) => (
-                <CommandItem
-                  key={pair}
-                  onSelect={() => setSelectedValidPairs(prev => [...prev, pair])}
-                >
-                  {pair}
-                </CommandItem>
-              ))}
-          </CommandGroup>
-        </CommandList>
-      </Command>
-    </PopoverContent>
-  </Popover>
-</div>
-```
-
----
-
-## 6. Strategy Selection - Multi-Select with Redirect
-
-### Issue
-
-Di TradingJournal.tsx Quick Entry form, "Strategies Used" memiliki inline add form yang tidak berfungsi dengan baik. User request untuk:
-- Multiple select dari existing strategies
-- "Add New" button redirects ke Strategy Management page
-
-### Solution
-
-Ubah badge toggle selection dengan proper multi-select UI dan redirect button.
-
-### Changes di `TradingJournal.tsx`:
-
-**Remove inline strategy form:**
 ```typescript
-// DELETE state variables:
-const [showInlineStrategyForm, setShowInlineStrategyForm] = useState(false);
-const [inlineStrategyName, setInlineStrategyName] = useState("");
+export type WizardStep = 
+  | 'setup'         // Combined: Pre-validation + Strategy + Basic Details
+  | 'confluence'    // Step 2
+  | 'sizing'        // Step 3 (now includes Entry, SL, TP)
+  | 'checklist'     // Step 4
+  | 'confirmation'; // Step 5
 
-// DELETE handler:
-const handleInlineStrategyCreate = async () => { ... };
+export const WIZARD_STEPS: WizardStep[] = [
+  'setup',
+  'confluence',
+  'sizing',
+  'checklist',
+  'confirmation',
+];
+
+export const STEP_LABELS: Record<WizardStep, string> = {
+  'setup': 'Setup',
+  'confluence': 'Confluence',
+  'sizing': 'Sizing',
+  'checklist': 'Checklist',
+  'confirmation': 'Execute',
+};
+
+// Update TradeDetailsData - remove Entry/SL/TP (moved to sizing)
+export interface TradeDetailsData {
+  pair: string;
+  direction: 'LONG' | 'SHORT';
+  timeframe: TimeframeType;
+}
+
+// New interface for sizing step
+export interface TradeSizingData {
+  entryPrice: number;
+  stopLoss: number;
+  takeProfit: number;
+  riskPercent: number;
+  leverage: number;
+}
 ```
 
-**Update UI:**
-```tsx
-{/* Strategy Selection */}
-<div className="space-y-2">
-  <div className="flex items-center justify-between">
-    <Label>Strategies Used</Label>
-    <Button
-      type="button"
-      variant="outline"
-      size="sm"
-      className="h-7 gap-1 text-xs"
-      asChild
-    >
-      <Link to="/strategies">
-        <Plus className="h-3 w-3" />
-        Add New Strategy
-      </Link>
-    </Button>
-  </div>
-  
-  {strategies.length === 0 ? (
-    <div className="p-4 border rounded-lg bg-muted/30 text-center">
-      <p className="text-sm text-muted-foreground mb-2">No strategies yet</p>
-      <Button variant="outline" size="sm" asChild>
-        <Link to="/strategies">Create Your First Strategy</Link>
-      </Button>
-    </div>
-  ) : (
-    <div className="flex flex-wrap gap-2">
-      {strategies.map((strategy) => (
-        <Badge
-          key={strategy.id}
-          variant={newTradeStrategies.includes(strategy.id) ? "default" : "outline"}
-          className="cursor-pointer"
-          onClick={() => {
-            setNewTradeStrategies(prev =>
-              prev.includes(strategy.id)
-                ? prev.filter(id => id !== strategy.id)
-                : [...prev, strategy.id]
-            );
-          }}
-        >
-          {strategy.name}
-        </Badge>
-      ))}
-    </div>
-  )}
-</div>
+### 2. `src/features/trade/useTradeEntryWizard.ts`
+
+Update STEPS_ORDER:
+
+```typescript
+const STEPS_ORDER: WizardStep[] = [
+  'setup',
+  'confluence',
+  'sizing',
+  'checklist',
+  'confirmation',
+];
+```
+
+Add new setter for sizing data with prices.
+
+### 3. Create `src/components/trade/entry/SetupStep.tsx` (NEW)
+
+**Combined component** containing:
+- Trading Account Selection (from PreEntryValidation)
+- Pre-validation checks (from PreEntryValidation)
+- AI Pre-flight option (from PreEntryValidation)
+- Strategy Selection dropdown (from StrategySelection)
+- Pair selection (Combobox)
+- Direction buttons (LONG/SHORT)
+- Timeframe dropdown
+
+Layout structure:
+```text
+┌─────────────────────────────────────────────┐
+│ SETUP                                        │
+├─────────────────────────────────────────────┤
+│ 1. Trading Account: [Select v]              │
+│                                              │
+│ ─── Pre-validation ────────────────────────│
+│ ✓ Daily Loss: OK                            │
+│ ✓ Position Limit: OK                        │
+│ ✓ Correlation: OK                           │
+│ [Run AI Pre-flight]                         │
+│                                              │
+│ ─── Strategy ──────────────────────────────│
+│ AI Recommended: [Strategy Name] 85% match   │
+│ Select Strategy: [Dropdown v]               │
+│                                              │
+│ ─── Trade Setup ───────────────────────────│
+│ Pair: [Searchable Combobox]                 │
+│ Direction: [LONG] [SHORT]                   │
+│ Timeframe: [Select v]                       │
+└─────────────────────────────────────────────┘
+```
+
+### 4. Update `src/components/trade/entry/PositionSizingStep.tsx`
+
+Add Entry, SL, TP inputs at the top:
+
+```text
+┌─────────────────────────────────────────────┐
+│ SIZING & LEVELS                              │
+├─────────────────────────────────────────────┤
+│ ─── Price Levels ──────────────────────────│
+│ Entry Price: [________]                      │
+│ Stop Loss: [________] (red)                  │
+│ Take Profit: [________] (green)              │
+│                                              │
+│ R:R Ratio: 1:2.5 ✓                          │
+│                                              │
+│ ─── Position Sizing ───────────────────────│
+│ Account Balance: $10,000                    │
+│ Risk %: [Slider 2%]                         │
+│ Leverage: [1x]                              │
+│                                              │
+│ ─── Results ───────────────────────────────│
+│ Position Size: 0.05 BTC                     │
+│ Risk Amount: $200                           │
+│ Potential Outcomes: -$200 / +$200 / +$400   │
+└─────────────────────────────────────────────┘
+```
+
+### 5. Update `src/components/trade/entry/FinalChecklist.tsx`
+
+Reorder sections:
+
+**Before (current order):**
+1. AI Final Verdict
+2. Emotional State (How are you feeling)
+3. Confidence Level
+4. Following Rules
+5. Trade Comment
+
+**After (new order):**
+1. **Emotional State** (How are you feeling right now?) ← FIRST
+2. **Confidence Level** (Trade Confidence Level) ← SECOND
+3. **AI Final Verdict** ← THIRD
+4. Following Rules checkbox
+5. Trade Comment
+
+### 6. Delete Old Components
+
+- Delete `src/components/trade/entry/PreEntryValidation.tsx`
+- Delete `src/components/trade/entry/StrategySelection.tsx`
+- Delete `src/components/trade/entry/TradeDetails.tsx`
+
+### 7. Update `src/components/trade/entry/TradeEntryWizard.tsx`
+
+Update renderStep() switch:
+
+```typescript
+const renderStep = () => {
+  switch (currentStep) {
+    case 'setup':
+      return <SetupStep onNext={nextStep} onCancel={handleCancel} />;
+    case 'confluence':
+      return <ConfluenceValidator onNext={nextStep} onBack={prevStep} />;
+    case 'sizing':
+      return <PositionSizingStep onNext={nextStep} onBack={prevStep} />;
+    case 'checklist':
+      return <FinalChecklist onNext={nextStep} onBack={prevStep} />;
+    case 'confirmation':
+      return <TradeConfirmation onExecute={handleComplete} onBack={prevStep} onCancel={handleCancel} />;
+    default:
+      return null;
+  }
+};
+```
+
+---
+
+## Visual Comparison
+
+### Before (7 Steps)
+```text
+[Pre-Check] → [Strategy] → [Details] → [Confluence] → [Sizing] → [Checklist] → [Execute]
+     1            2            3            4            5           6            7
+```
+
+### After (5 Steps)
+```text
+[Setup] → [Confluence] → [Sizing] → [Checklist] → [Execute]
+   1           2            3           4            5
+```
+
+---
+
+## FinalChecklist Section Order
+
+### Current Order (FinalChecklist.tsx lines 166-389):
+```text
+1. AI Final Verdict section (lines 166-256)
+2. Emotional State (lines 258-285)
+3. Confidence Level (lines 287-310)
+4. Following Rules (lines 312-331)
+5. Trade Comment (lines 333-353)
+6. Summary (lines 355-378)
+```
+
+### New Order:
+```text
+1. Emotional State - "How are you feeling right now?"
+2. Confidence Level - "Trade Confidence Level"
+3. AI Final Verdict - AI quality assessment
+4. Following Rules checkbox
+5. Trade Comment
+6. Summary
 ```
 
 ---
 
 ## Files Summary
 
-| File | Changes |
-|------|---------|
-| `src/pages/trading-journey/TradingJournal.tsx` | Remove session linking, fix tab redundancy, update Pro Tip, fix strategy selection |
-| `src/hooks/use-trade-entries.ts` | Remove session_id from interface and mutation |
-| `src/pages/trading-journey/StrategyManagement.tsx` | Replace badge grid with searchable Combobox |
-| `src/pages/trading-journey/SessionDetail.tsx` | Remove add trade functionality (optional: keep display only) |
+| File | Action |
+|------|--------|
+| `src/types/trade-wizard.ts` | UPDATE - Reduce to 5 steps, update types |
+| `src/features/trade/useTradeEntryWizard.ts` | UPDATE - New step order |
+| `src/components/trade/entry/SetupStep.tsx` | CREATE - Combined setup step |
+| `src/components/trade/entry/PositionSizingStep.tsx` | UPDATE - Add Entry/SL/TP inputs |
+| `src/components/trade/entry/FinalChecklist.tsx` | UPDATE - Reorder sections |
+| `src/components/trade/entry/TradeEntryWizard.tsx` | UPDATE - New step rendering |
+| `src/components/trade/entry/WizardProgress.tsx` | No changes (uses WIZARD_STEPS dynamically) |
+| `src/components/trade/entry/PreEntryValidation.tsx` | DELETE |
+| `src/components/trade/entry/StrategySelection.tsx` | DELETE |
+| `src/components/trade/entry/TradeDetails.tsx` | DELETE |
 
 ---
 
 ## Technical Notes
 
-### Tab Consolidation Strategy
+### SetupStep Component Structure
+
+The new SetupStep will combine logic from 3 components:
+- Account selection & pre-validation from PreEntryValidation
+- Strategy selection with AI from StrategySelection  
+- Pair/Direction/Timeframe from TradeDetails
+
+Layout will use collapsible sections or accordion for space efficiency.
+
+### PositionSizingStep Changes
+
+Price inputs (Entry, SL, TP) akan di-add di bagian atas, sebelum position sizing calculator. R:R ratio akan dihitung real-time berdasarkan input prices.
+
+### Data Flow
 
 ```text
-Current State:
-┌─────────────────────────────────────────┐
-│ Tabs: [Open Positions] [Trade History]  │  ← First tabs
-└─────────────────────────────────────────┘
-┌─────────────────────────────────────────┐
-│ Open Positions Table                     │
-└─────────────────────────────────────────┘
-┌─────────────────────────────────────────┐
-│ Pro Tip                                  │
-└─────────────────────────────────────────┘
-┌─────────────────────────────────────────┐
-│ Trade Logs Card                          │
-│ Tabs: [History] [Open] [Pending]         │  ← Second tabs (duplicates)
-└─────────────────────────────────────────┘
+SetupStep sets:
+├── tradingAccountId, accountBalance
+├── preValidation
+├── selectedStrategyId, strategyDetails
+└── tradeDetails (pair, direction, timeframe only)
 
-After Fix:
-┌─────────────────────────────────────────┐
-│ Trade Management                         │
-│ Tabs: [Open] [History] [Pending]         │  ← Single unified tabs
-│                                          │
-│ [Tab Content based on selection]         │
-│                                          │
-└─────────────────────────────────────────┘
-┌─────────────────────────────────────────┐
-│ Pro Tip (moved to bottom)                │
-└─────────────────────────────────────────┘
+PositionSizingStep sets:
+├── tradeDetails.entryPrice, stopLoss, takeProfit (update)
+└── positionSizing (calculated)
+
+FinalChecklist sets:
+└── finalChecklist (emotional, confidence, AI verdict)
 ```
-
-### Valid Pairs Combobox Pattern
-
-```text
-┌─────────────────────────────────────────┐
-│ Valid Trading Pairs                      │
-├─────────────────────────────────────────┤
-│ ┌──────────────────────────────────────┐│
-│ │ [BTC ×] [ETH ×] [SOL ×]              ││  ← Selected pairs (removable)
-│ └──────────────────────────────────────┘│
-│ ┌──────────────────────────────────────┐│
-│ │ Add trading pair...              ▼   ││  ← Combobox trigger
-│ └──────────────────────────────────────┘│
-│        ↓ Click opens                     │
-│ ┌──────────────────────────────────────┐│
-│ │ 🔍 Search pairs...                   ││
-│ │ DOGE                                 ││
-│ │ AVAX                                 ││
-│ │ ...                                  ││
-│ └──────────────────────────────────────┘│
-└─────────────────────────────────────────┘
-```
-
-### Strategy Selection Pattern
-
-```text
-Before (broken inline add):
-┌─────────────────────────────────────────┐
-│ Strategies Used            [+ Add New]  │
-├─────────────────────────────────────────┤
-│ ┌─────────────────────────────────────┐ │
-│ │ [Input: Strategy name...] [Add] [X] │ │  ← Buggy inline form
-│ └─────────────────────────────────────┘ │
-│ [Badge1] [Badge2] [Badge3]              │
-└─────────────────────────────────────────┘
-
-After (redirect to strategies page):
-┌─────────────────────────────────────────┐
-│ Strategies Used       [+ Add New Strategy]│  ← Links to /strategies
-├─────────────────────────────────────────┤
-│ [●Strategy1] [○Strategy2] [○Strategy3]  │  ← Click to toggle
-│                                          │
-│ Selected: Strategy1                      │
-└─────────────────────────────────────────┘
-```
-
----
-
-## Tidak Perlu Diubah
-
-1. **Database migrations** - Emergency fund tables tetap ada untuk backward compatibility
-2. **TradingSessions page** - Tetap ada untuk review session history (tanpa trade linking)
-3. **SessionDetail page** - Simplify menjadi display-only tanpa add trade
-
