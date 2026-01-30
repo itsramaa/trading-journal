@@ -1,3 +1,7 @@
+/**
+ * AppSidebar Component - sidebar-08 pattern
+ * Grouped navigation with collapsible sections and mobile drawer support
+ */
 import * as React from "react";
 import {
   LayoutDashboard,
@@ -24,7 +28,9 @@ import {
   SidebarMenuItem,
   SidebarRail,
   SidebarSeparator,
+  useSidebar,
 } from "@/components/ui/sidebar";
+import { cn } from "@/lib/utils";
 
 interface NavItem {
   title: string;
@@ -72,12 +78,18 @@ const navigationGroups = [
 
 function NavItems({ items }: { items: NavItem[] }) {
   const location = useLocation();
+  const { setOpenMobile } = useSidebar();
 
   const isActive = (url: string) => {
     if (url === "/") {
       return location.pathname === "/";
     }
     return location.pathname === url || location.pathname.startsWith(url + "/");
+  };
+
+  const handleClick = () => {
+    // Close mobile sidebar on navigation
+    setOpenMobile(false);
   };
 
   return (
@@ -88,10 +100,14 @@ function NavItems({ items }: { items: NavItem[] }) {
             asChild
             isActive={isActive(item.url)}
             tooltip={item.title}
+            className={cn(
+              "transition-colors",
+              isActive(item.url) && "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+            )}
           >
-            <Link to={item.url}>
-              <item.icon />
-              <span className="flex-1">{item.title}</span>
+            <Link to={item.url} onClick={handleClick}>
+              <item.icon className="h-4 w-4 shrink-0" />
+              <span className="truncate">{item.title}</span>
             </Link>
           </SidebarMenuButton>
         </SidebarMenuItem>
@@ -101,19 +117,25 @@ function NavItems({ items }: { items: NavItem[] }) {
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const { setOpenMobile } = useSidebar();
+  
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild>
-              <Link to="/">
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+            <SidebarMenuButton
+              size="lg"
+              asChild
+              className="hover:bg-sidebar-accent"
+            >
+              <Link to="/" onClick={() => setOpenMobile(false)}>
+                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                   <CandlestickChart className="size-4" />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-semibold">Trading Journey</span>
-                  <span className="truncate text-xs text-sidebar-foreground/60">
+                  <span className="truncate text-xs text-muted-foreground">
                     Journal & Analytics
                   </span>
                 </div>
@@ -123,10 +145,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
 
-      <SidebarContent>
+      <SidebarContent className="gap-0">
         {navigationGroups.map((group, index) => (
           <React.Fragment key={group.label}>
-            {index > 0 && <SidebarSeparator className="my-1" />}
+            {index > 0 && <SidebarSeparator className="mx-2 my-2" />}
             <NavGroup
               icon={group.icon}
               label={group.label}
