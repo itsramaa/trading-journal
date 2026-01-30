@@ -89,14 +89,15 @@ export default function Accounts() {
                 variant="outline" 
                 onClick={() => refreshBinance.mutate()}
                 disabled={refreshBinance.isPending}
+                aria-label="Refresh Binance data"
               >
-                <RefreshCw className={`h-4 w-4 mr-2 ${refreshBinance.isPending ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`h-4 w-4 mr-2 ${refreshBinance.isPending ? 'animate-spin' : ''}`} aria-hidden="true" />
                 Refresh
               </Button>
             )}
             <Button variant="outline" asChild>
-              <Link to="/settings?tab=exchange">
-                <Settings className="h-4 w-4 mr-2" />
+              <Link to="/settings?tab=exchange" aria-label="Open API settings">
+                <Settings className="h-4 w-4 mr-2" aria-hidden="true" />
                 API Settings
               </Link>
             </Button>
@@ -105,23 +106,23 @@ export default function Accounts() {
 
         {/* Account Tabs */}
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
-          <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
-            <TabsTrigger value="binance" className="gap-2">
-              <CandlestickChart className="h-4 w-4" />
+          <TabsList className="grid w-full grid-cols-2 lg:w-[400px]" aria-label="Account type tabs">
+            <TabsTrigger value="binance" className="gap-2" aria-label={`Binance Futures${isConnected ? ' - Connected' : ''}`}>
+              <CandlestickChart className="h-4 w-4" aria-hidden="true" />
               <span className="hidden sm:inline">Binance Futures</span>
               <span className="sm:hidden">Binance</span>
               {isConnected && (
-                <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs bg-profit/20 text-profit">
+                <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs bg-profit/20 text-profit" aria-label="Connected">
                   Live
                 </Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="paper" className="gap-2">
-              <FlaskConical className="h-4 w-4" />
+            <TabsTrigger value="paper" className="gap-2" aria-label={`Paper Trading${backtestCount > 0 ? ` - ${backtestCount} accounts` : ''}`}>
+              <FlaskConical className="h-4 w-4" aria-hidden="true" />
               <span className="hidden sm:inline">Paper Trading</span>
               <span className="sm:hidden">Paper</span>
               {backtestCount > 0 && (
-                <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs" aria-hidden="true">
                   {backtestCount}
                 </Badge>
               )}
@@ -265,8 +266,9 @@ export default function Accounts() {
                             href="https://www.binance.com/en/futures" 
                             target="_blank" 
                             rel="noopener noreferrer"
+                            aria-label="Open Binance Futures in new tab"
                           >
-                            <ExternalLink className="h-4 w-4 mr-2" />
+                            <ExternalLink className="h-4 w-4 mr-2" aria-hidden="true" />
                             Open Binance
                           </a>
                         </Button>
