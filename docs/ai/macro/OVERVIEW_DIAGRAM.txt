@@ -1,0 +1,219 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                                                                            ║
+║                   🎯 MARKET INSIGHT SYSTEM - OVERVIEW                     ║
+║                                                                            ║
+║                    Simple Model, Powerful Results                         ║
+║                                                                            ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+
+LAYER 1: DATA COLLECTION (Multiple Free APIs)
+═════════════════════════════════════════════════════════════════════════════
+
+    CRYPTO DATA                    MACRO DATA                 SENTIMENT
+    ────────────────────────────────────────────────────────────────────
+    
+    ┌─ Binance API ──────────┐    ┌─ Yahoo Finance ────┐    ┌──────────┐
+    │  • BTC OHLCV           │    │ • DXY (Dollar)     │    │ Twitter  │
+    │  • ETH OHLCV           │    │ • S&P 500          │    │ News API │
+    │  • SOL OHLCV           │    │ • VIX              │    │ Reddit   │
+    └────────────────────────┘    └────────────────────┘    └──────────┘
+    
+    ┌─ CoinGecko API ────────┐    ┌─ FRED API ─────────┐    ┌──────────┐
+    │  • Whale moves         │    │ • 10Y Treasury     │    │alternative
+    │  • Exchange flows      │    │   Yield            │    │.me API   │
+    │  • On-chain metrics    │    └────────────────────┘    │          │
+    └────────────────────────┘                              │Fear&Greed│
+                                                            │Index     │
+                                                            └──────────┘
+
+    ┌─ Economic Calendar ────┐
+    │ • CPI release          │
+    │ • Fed meeting          │
+    │ • Job numbers          │
+    └────────────────────────┘
+
+
+LAYER 2: SCORE CALCULATION (Normalize to 0-1)
+═════════════════════════════════════════════════════════════════════════════
+
+    CRYPTO SENTIMENT              MACRO SENTIMENT
+    ───────────────────────────   ──────────────────────────
+    
+    ┌──────────────────────┐      ┌──────────────────────┐
+    │ Technical: 0-1       │      │ DXY: 0-1 (inverse)   │
+    │ (MA, RSI, MACD, Vol) │      │                      │
+    │ ├─ 0.74              │      │ S&P 500: 0-1         │
+    │                      │      │ ├─ 0.65              │
+    ├──────────────────────┤      │                      │
+    │ On-Chain: 0-1        │      ├──────────────────────┤
+    │ (Whales, Flow)       │      │ 10Y Treasury: 0-1    │
+    │ ├─ 0.70              │      │ (inverse)            │
+    │                      │      │ ├─ -0.30             │
+    ├──────────────────────┤      │                      │
+    │ Social: 0-1          │      ├──────────────────────┤
+    │ (Sentiment, Mentions)│      │ VIX: 0-1 (warning)   │
+    │ ├─ 0.68              │      │ ├─ -0.40             │
+    │                      │      │                      │
+    ├──────────────────────┤      └──────────────────────┘
+    │ Macro: 0-1 (from F&G)│
+    │ ├─ 0.60              │      WEIGHTED AVERAGE:
+    │                      │      (0.65×0.25) + (0.65×0.30)
+    └──────────────────────┘        + (-0.30×0.25) + (-0.40×0.20)
+                                  = 0.677
+    
+    WEIGHTED AVERAGE:
+    (0.74×0.30) + (0.70×0.25)
+    + (0.68×0.25) + (0.60×0.20)
+    = 0.678
+
+
+LAYER 3: AGGREGATE SCORES
+═════════════════════════════════════════════════════════════════════════════
+
+    ┌──────────────────────┐      ┌──────────────────────┐
+    │  CRYPTO SENTIMENT    │      │  MACRO SENTIMENT     │
+    │  Score: 0.678        │      │  Score: 0.677        │
+    │  Label: BULLISH      │      │  Label: CAUTIOUS     │
+    │  Confidence: 77%     │      │  Events: CPI today   │
+    └──────────────────────┘      └──────────────────────┘
+              │                           │
+              └───────────────┬───────────┘
+                              │
+                              ↓
+                    ┌──────────────────────┐
+                    │   FEAR & GREED INDEX │
+                    │   Score: 62          │
+                    │   Label: GREED       │
+                    │   Action: Take prof. │
+                    └──────────────────────┘
+
+
+LAYER 4: ALIGNMENT CHECK & DECISION
+═════════════════════════════════════════════════════════════════════════════
+
+    Are signals ALIGNED?
+    
+    Crypto: BULLISH (0.678)
+    Macro:  CAUTIOUS (0.677)      ←─── PARTIAL AGREEMENT
+    
+    Decision Logic:
+    ├─ Both bullish?  → 🟢 STRONG BUY (70% position)
+    ├─ Both bearish?  → 🔴 STRONG SELL
+    ├─ Mixed?         → 🟡 CAUTIOUS (40% position, tight stop)
+    └─ Conflicting?   → 🟡 WAIT or REDUCE SIZE
+    
+    Current Status: BULLISH but CAUTIOUS
+    ┌────────────────────────────────────────┐
+    │ Crypto bullish + Macro cautious        │
+    │ = CAUTIOUS LONG (reduce size)          │
+    │ Tight stops, monitor CPI at 14:30 UTC  │
+    └────────────────────────────────────────┘
+
+
+LAYER 5: OUTPUT & RECOMMENDATIONS
+═════════════════════════════════════════════════════════════════════════════
+
+    📊 AI MARKET SENTIMENT
+    ├─ Status: BULLISH
+    ├─ Score: 0.678
+    └─ Confidence: 77%
+    
+    🌍 AI MACRO ANALYSIS
+    ├─ Status: CAUTIOUS
+    ├─ Summary: "DXY weak bullish but yields rising..."
+    └─ Events: "CPI at 14:30 UTC may cause volatility"
+    
+    😨 FEAR & GREED INDEX
+    ├─ Index: 62
+    ├─ Label: GREED
+    └─ Action: "Take partial profits at resistance"
+    
+    💡 AI RECOMMENDATION
+    ├─ "Market FAVOR LONG with tight stops"
+    ├─ "Monitor CPI release for clarity"
+    └─ "Reduce size before high-impact event"
+    
+    📈 KEY SIGNALS
+    ├─ BTC: 🟢 "Strong uptrend, above all MAs"
+    ├─ ETH: 🟡 "Outperforming but overbought"
+    └─ SOL: 🟡 "Consolidating, await breakout"
+
+
+LAYER 6: EXECUTION & MONITORING
+═════════════════════════════════════════════════════════════════════════════
+
+    Position Management:
+    ├─ Size: 40% portfolio (cautious, not aggressive)
+    ├─ Entry: Current or dips to MA50
+    ├─ Target: BTC $46,500 (partial profit)
+    ├─ Stop: Tight, below $44,200 (ready for CPI)
+    └─ Alert: CPI release at 14:30 UTC (reduce 20% before)
+    
+    Risk Management:
+    ├─ Crypto bullish, macro cautious = conflict
+    ├─ High F&G (greed) = take profits early
+    ├─ Economic event pending = watch carefully
+    └─ Execute according to plan, manage risk
+
+
+TIMING & FREQUENCY
+═════════════════════════════════════════════════════════════════════════════
+
+    Every 5-15 minutes:
+    └─ Update crypto sentiment (fast moving)
+    
+    Every 1-2 hours:
+    └─ Update macro sentiment (slow moving)
+    
+    Before market open:
+    └─ Check economic calendar for the day
+    
+    Real-time:
+    └─ Monitor high-impact event releases
+
+
+KEY METRICS AT A GLANCE
+═════════════════════════════════════════════════════════════════════════════
+
+    Crypto Sentiment:     0.678  (BULLISH ✓)
+    Macro Sentiment:      0.677  (CAUTIOUS ⚠️)
+    Confidence:           77%    (MODERATE-HIGH)
+    Fear & Greed:         62     (GREED - take profit warnings)
+    Economic Events:      CPI at 14:30 UTC (HIGH IMPACT)
+    
+    Overall Signal:       🟡 CAUTIOUS LONG (partial agreement)
+    Position Sizing:      40% portfolio
+    Risk Management:      TIGHT STOPS
+
+
+SIMPLE DECISION MATRIX
+═════════════════════════════════════════════════════════════════════════════
+
+                    MACRO
+              RISK-ON  CAUTIOUS  RISK-OFF
+         ┌──────────┬──────────┬──────────┐
+    B    │🟢 STRONG │🟡 CAUTION│🟡 CAUTION│
+    U    │ BUY      │  LONG    │  LONG    │
+    L    │ (70%)    │ (40%)    │ (20%)    │
+    L    ├──────────┼──────────┼──────────┤
+C   I    │🔴 SKIP   │🟡 HOLD   │🔴 HOLD   │
+R   S    │ (SKIP)   │ (SKIP)   │ (FLAT)   │
+Y   H    ├──────────┼──────────┼──────────┤
+P       │🔴 SELL   │🔴 SELL   │🔴 STRONG │
+T   E   │ (SHORT)  │ (SHORT)  │ SELL     │
+O   A   │ (30%)    │ (30%)    │ (FLAT)   │
+        └──────────┴──────────┴──────────┘
+
+
+THAT'S IT! 🎯
+═════════════════════════════════════════════════════════════════════════════
+
+This entire system is:
+✓ Simple - Just weighted averages
+✓ Free - All APIs are gratis
+✓ Effective - Combines multiple signals
+✓ Actionable - Clear buy/sell recommendations
+✓ Scalable - Easy to add more data sources
+
+Now read the documentation and implement!
