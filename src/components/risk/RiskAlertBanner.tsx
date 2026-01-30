@@ -3,6 +3,7 @@
  */
 import { AlertTriangle, XCircle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { useTradingGate } from "@/hooks/use-trading-gate";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -39,8 +40,14 @@ export function RiskAlertBanner() {
           )}>
             {isDisabled ? '🔴 TRADING DISABLED' : '⚠️ RISK WARNING'}
           </span>
-          <span className="text-sm text-muted-foreground">
+          <span className="text-sm text-muted-foreground flex items-center gap-1">
             {reason || `Daily loss at ${lossUsedPercent.toFixed(0)}% of limit`}
+            <InfoTooltip 
+              content={isDisabled 
+                ? "You've hit your daily loss limit. Trading is blocked to protect your capital. Wait until tomorrow or adjust your risk settings." 
+                : "You're approaching your daily loss limit. Consider reducing position sizes or taking a break."
+              } 
+            />
           </span>
         </div>
       </div>

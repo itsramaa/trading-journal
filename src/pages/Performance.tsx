@@ -14,6 +14,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { 
   TrendingUp, 
+  TrendingDown,
   Target, 
   BarChart3, 
   AlertTriangle, 
@@ -25,6 +26,8 @@ import {
   Wallet,
   ArrowUpDown,
   Percent,
+  Flame,
+  Calendar,
 } from "lucide-react";
 import { 
   AreaChart, 
@@ -39,10 +42,13 @@ import {
   Cell,
   PieChart,
   Pie,
+  LineChart,
+  Line,
 } from "recharts";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { useBinanceDailyPnl } from "@/hooks/use-binance-daily-pnl";
+import { useBinanceWeeklyPnl } from "@/hooks/use-binance-weekly-pnl";
 import { useStrategyPerformance, getQualityScoreLabel } from "@/hooks/use-strategy-performance";
 import { TradingHeatmap } from "@/components/analytics/TradingHeatmap";
 import { DrawdownChart } from "@/components/analytics/DrawdownChart";
@@ -65,6 +71,7 @@ export default function Performance() {
   const { data: trades, isLoading: tradesLoading } = useTradeEntries();
   const { data: strategies = [] } = useTradingStrategies();
   const binanceStats = useBinanceDailyPnl();
+  const weeklyStats = useBinanceWeeklyPnl();
   const strategyPerformanceMap = useStrategyPerformance();
 
   // Filter trades
@@ -429,6 +436,119 @@ export default function Performance() {
                   </CardContent>
                 </Card>
               </div>
+
+              {/* Best/Worst Trades (24H) */}
+              {binanceStats.isConnected && weeklyStats.isConnected && (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium flex items-center gap-1">
+                        Best Trade (24H)
+                        <InfoTooltip content="Your most profitable single trade in the last 24 hours. Analyze what made it successful." />
+                      </CardTitle>
+                      <Trophy className="h-4 w-4 text-profit" />
+                    </CardHeader>
+                    <CardContent>
+                      {weeklyStats.bestTrade && weeklyStats.bestTrade.pnl > 0 ? (
+                        <>
+                          <div className="text-2xl font-bold text-profit">
+                            +{formatCurrency(weeklyStats.bestTrade.pnl)}
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {weeklyStats.bestTrade.symbol} • {format(new Date(weeklyStats.bestTrade.time), 'MMM dd HH:mm')}
+                          </p>
+                        </>
+                      ) : (
+                        <div className="text-muted-foreground">No winning trades</div>
+                      )}
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium flex items-center gap-1">
+                        Worst Trade (24H)
+                        <InfoTooltip content="Your largest losing trade in the last 24 hours. Review to identify mistakes and prevent future losses." />
+                      </CardTitle>
+                      <AlertTriangle className="h-4 w-4 text-loss" />
+                    </CardHeader>
+                    <CardContent>
+                      {weeklyStats.worstTrade && weeklyStats.worstTrade.pnl < 0 ? (
+                        <>
+                          <div className="text-2xl font-bold text-loss">
+                            {formatCurrency(weeklyStats.worstTrade.pnl)}
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {weeklyStats.worstTrade.symbol} • {format(new Date(weeklyStats.worstTrade.time), 'MMM dd HH:mm')}
+                          </p>
+                        </>
+                      ) : (
+                        <div className="text-muted-foreground">No losing trades</div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {/* 7-Day P&L Trend Chart */}
+              {binanceStats.isConnected && weeklyStats.dailyData.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Calendar className="h-5 w-5" />
+                      7-Day P&L Trend
+                    </CardTitle>
+                    <CardDescription>Daily gross and net P&L over the past week</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[250px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={weeklyStats.dailyData}>
+                          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                          <XAxis 
+                            dataKey="date" 
+                            className="text-xs"
+                            tickFormatter={(value) => format(new Date(value), 'MMM dd')}
+                          />
+                          <YAxis tickFormatter={(v) => formatCurrency(v)} className="text-xs" />
+                          <Tooltip 
+                            formatter={(value: number, name: string) => [
+                              formatCurrency(value),
+                              name === 'grossPnl' ? 'Gross P&L' : 'Net P&L'
+                            ]}
+                            labelFormatter={(label) => format(new Date(label), 'EEEE, MMM dd')}
+                          />
+                          <Bar dataKey="grossPnl" name="grossPnl" radius={[4, 4, 0, 0]}>
+                            {weeklyStats.dailyData.map((entry, index) => (
+                              <Cell 
+                                key={`cell-${index}`} 
+                                fill={entry.grossPnl >= 0 ? 'hsl(var(--chart-2))' : 'hsl(var(--destructive))'} 
+                              />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="flex items-center justify-between mt-4 pt-4 border-t text-sm">
+                      <div>
+                        <span className="text-muted-foreground">7-Day Total: </span>
+                        <span className={`font-bold ${weeklyStats.totalGross >= 0 ? 'text-profit' : 'text-loss'}`}>
+                          {weeklyStats.totalGross >= 0 ? '+' : ''}{formatCurrency(weeklyStats.totalGross)}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Net (after fees): </span>
+                        <span className={`font-bold ${weeklyStats.totalNet >= 0 ? 'text-profit' : 'text-loss'}`}>
+                          {weeklyStats.totalNet >= 0 ? '+' : ''}{formatCurrency(weeklyStats.totalNet)}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Trades: </span>
+                        <span className="font-bold">{weeklyStats.totalTrades}</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Symbol Breakdown Table */}
               {binanceStats.isConnected && Object.keys(binanceStats.bySymbol).length > 0 && (
