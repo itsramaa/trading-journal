@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { DateRangeFilter, DateRange } from "@/components/trading/DateRangeFilter";
 import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -28,6 +29,11 @@ import {
   Percent,
   Flame,
   Calendar,
+  Download,
+  FileSpreadsheet,
+  ArrowUp,
+  ArrowDown,
+  Minus,
 } from "lucide-react";
 import { 
   AreaChart, 
@@ -49,7 +55,9 @@ import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { useBinanceDailyPnl } from "@/hooks/use-binance-daily-pnl";
 import { useBinanceWeeklyPnl } from "@/hooks/use-binance-weekly-pnl";
+import { useBinanceWeekComparison } from "@/hooks/use-binance-week-comparison";
 import { useStrategyPerformance, getQualityScoreLabel } from "@/hooks/use-strategy-performance";
+import { usePerformanceExport } from "@/hooks/use-performance-export";
 import { TradingHeatmap } from "@/components/analytics/TradingHeatmap";
 import { DrawdownChart } from "@/components/analytics/DrawdownChart";
 import { AIPatternInsights } from "@/components/analytics/AIPatternInsights";
@@ -72,7 +80,9 @@ export default function Performance() {
   const { data: strategies = [] } = useTradingStrategies();
   const binanceStats = useBinanceDailyPnl();
   const weeklyStats = useBinanceWeeklyPnl();
+  const weekComparison = useBinanceWeekComparison();
   const strategyPerformanceMap = useStrategyPerformance();
+  const { exportToCSV, exportToPDF } = usePerformanceExport();
 
   // Filter trades
   const filteredTrades = useMemo(() => {
@@ -111,6 +121,86 @@ export default function Performance() {
     return `$${v.toFixed(0)}`;
   };
 
+  // Export handlers
+  const handleExportCSV = () => {
+    if (!trades) return;
+    
+    const symbolBreakdownExport = binanceStats.isConnected && binanceStats.bySymbol
+      ? Object.entries(binanceStats.bySymbol)
+          .filter(([symbol]) => symbol !== 'N/A')
+          .map(([symbol, data]) => ({
+            symbol,
+            trades: data.count,
+            pnl: data.pnl,
+            fees: data.fees,
+            funding: data.funding,
+            net: data.pnl - data.fees + data.funding + data.rebates,
+          }))
+      : undefined;
+    
+    exportToCSV({
+      trades: filteredTrades.map(t => ({
+        id: t.id,
+        pair: t.pair,
+        direction: t.direction,
+        entry_price: t.entry_price,
+        exit_price: t.exit_price,
+        quantity: t.quantity,
+        pnl: t.pnl,
+        trade_date: t.trade_date,
+        status: t.status,
+        fees: t.fees,
+      })),
+      stats,
+      dateRange,
+      symbolBreakdown: symbolBreakdownExport,
+      weeklyData: weeklyStats.dailyData,
+    });
+  };
+
+  const handleExportPDF = () => {
+    if (!trades) return;
+    
+    const symbolBreakdownExport = binanceStats.isConnected && binanceStats.bySymbol
+      ? Object.entries(binanceStats.bySymbol)
+          .filter(([symbol]) => symbol !== 'N/A')
+          .map(([symbol, data]) => ({
+            symbol,
+            trades: data.count,
+            pnl: data.pnl,
+            fees: data.fees,
+            funding: data.funding,
+            net: data.pnl - data.fees + data.funding + data.rebates,
+          }))
+      : undefined;
+    
+    exportToPDF({
+      trades: filteredTrades.map(t => ({
+        id: t.id,
+        pair: t.pair,
+        direction: t.direction,
+        entry_price: t.entry_price,
+        exit_price: t.exit_price,
+        quantity: t.quantity,
+        pnl: t.pnl,
+        trade_date: t.trade_date,
+        status: t.status,
+        fees: t.fees,
+      })),
+      stats,
+      dateRange,
+      symbolBreakdown: symbolBreakdownExport,
+      weeklyData: weeklyStats.dailyData,
+    });
+  };
+
+  // Change indicator helper
+  const ChangeIndicator = ({ value, suffix = '' }: { value: number; suffix?: string }) => {
+    if (value > 0) return <span className="text-profit flex items-center gap-1"><ArrowUp className="h-3 w-3" />+{value.toFixed(1)}{suffix}</span>;
+    if (value < 0) return <span className="text-loss flex items-center gap-1"><ArrowDown className="h-3 w-3" />{value.toFixed(1)}{suffix}</span>;
+    return <span className="text-muted-foreground flex items-center gap-1"><Minus className="h-3 w-3" />0{suffix}</span>;
+  };
+
   if (tradesLoading) {
     return (
       <DashboardLayout>
@@ -128,9 +218,21 @@ export default function Performance() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Performance Analytics</h1>
-          <p className="text-muted-foreground">Deep dive into your trading performance metrics</p>
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Performance Analytics</h1>
+            <p className="text-muted-foreground">Deep dive into your trading performance metrics</p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={handleExportCSV}>
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Export CSV
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleExportPDF}>
+              <Download className="h-4 w-4 mr-2" />
+              Export PDF
+            </Button>
+          </div>
         </div>
 
         {/* Filters */}
@@ -437,7 +539,84 @@ export default function Performance() {
                 </Card>
               </div>
 
-              {/* Best/Worst Trades (24H) */}
+              {/* Week-over-Week Comparison */}
+              {weekComparison.isConnected && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Calendar className="h-5 w-5" />
+                      Week-over-Week Comparison
+                    </CardTitle>
+                    <CardDescription>
+                      {format(weekComparison.currentWeekRange.start, 'MMM dd')} - {format(weekComparison.currentWeekRange.end, 'MMM dd')} vs {format(weekComparison.previousWeekRange.start, 'MMM dd')} - {format(weekComparison.previousWeekRange.end, 'MMM dd')}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <div className="p-4 rounded-lg border space-y-2">
+                        <div className="text-sm text-muted-foreground">Net P&L</div>
+                        <div className="flex items-baseline justify-between">
+                          <div className={`text-2xl font-bold ${weekComparison.currentWeek.netPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                            {weekComparison.currentWeek.netPnl >= 0 ? '+' : ''}{formatCurrency(weekComparison.currentWeek.netPnl)}
+                          </div>
+                          <div className="text-sm">
+                            <ChangeIndicator value={weekComparison.change.pnlPercent} suffix="%" />
+                          </div>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Last week: {formatCurrency(weekComparison.previousWeek.netPnl)}
+                        </div>
+                      </div>
+                      <div className="p-4 rounded-lg border space-y-2">
+                        <div className="text-sm text-muted-foreground">Trades</div>
+                        <div className="flex items-baseline justify-between">
+                          <div className="text-2xl font-bold">{weekComparison.currentWeek.trades}</div>
+                          <div className="text-sm">
+                            <ChangeIndicator value={weekComparison.change.tradesPercent} suffix="%" />
+                          </div>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Last week: {weekComparison.previousWeek.trades}
+                        </div>
+                      </div>
+                      <div className="p-4 rounded-lg border space-y-2">
+                        <div className="text-sm text-muted-foreground">Win Rate</div>
+                        <div className="flex items-baseline justify-between">
+                          <div className="text-2xl font-bold">{weekComparison.currentWeek.winRate.toFixed(1)}%</div>
+                          <div className="text-sm">
+                            <ChangeIndicator value={weekComparison.change.winRateChange} suffix="%" />
+                          </div>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Last week: {weekComparison.previousWeek.winRate.toFixed(1)}%
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-4 mt-4 pt-4 border-t">
+                      <div className="space-y-1">
+                        <div className="text-xs text-muted-foreground">Current Week Fees</div>
+                        <div className="font-medium text-loss">-{formatCurrency(weekComparison.currentWeek.fees)}</div>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="text-xs text-muted-foreground">Current Week Funding</div>
+                        <div className={`font-medium ${weekComparison.currentWeek.funding >= 0 ? 'text-profit' : 'text-loss'}`}>
+                          {weekComparison.currentWeek.funding >= 0 ? '+' : ''}{formatCurrency(weekComparison.currentWeek.funding)}
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="text-xs text-muted-foreground">Best Trade (This Week)</div>
+                        <div className="font-medium text-profit">+{formatCurrency(weekComparison.currentWeek.bestTrade)}</div>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="text-xs text-muted-foreground">Worst Trade (This Week)</div>
+                        <div className="font-medium text-loss">{formatCurrency(weekComparison.currentWeek.worstTrade)}</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               {binanceStats.isConnected && weeklyStats.isConnected && (
                 <div className="grid gap-4 md:grid-cols-2">
                   <Card>
