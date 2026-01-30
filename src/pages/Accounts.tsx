@@ -34,7 +34,7 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { AddAccountForm } from "@/components/accounts/AddAccountForm";
 import { AccountCardList } from "@/components/accounts/AccountCardList";
 import { AccountTransactionDialog } from "@/components/accounts/AccountTransactionDialog";
-import { BinanceTradeHistory } from "@/components/trading/BinanceTradeHistory";
+
 import { useAccounts } from "@/hooks/use-accounts";
 import { useAccountsRealtime } from "@/hooks/use-realtime";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
@@ -162,9 +162,59 @@ export default function Accounts() {
           </div>
         </div>
 
-        {/* 7-Day Stats & Portfolio Performance (above tabs) */}
+        {/* Portfolio Performance & 7-Day Stats (above tabs) */}
         {hasTrades && (
           <div className="space-y-6">
+            {/* Portfolio Performance - No title/icon */}
+            <div className="grid gap-4 md:grid-cols-3">
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground flex items-center gap-1">
+                        Win Rate
+                        <WinRateTooltip />
+                      </p>
+                      <p className="text-2xl font-bold">{tradingStats.winRate.toFixed(1)}%</p>
+                    </div>
+                    <Target className="h-8 w-8 text-primary" />
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground flex items-center gap-1">
+                        Profit Factor
+                        <ProfitFactorTooltip />
+                      </p>
+                      <p className={`text-2xl font-bold ${tradingStats.profitFactor >= 1 ? 'text-profit' : 'text-loss'}`}>
+                        {tradingStats.profitFactor.toFixed(2)}
+                      </p>
+                    </div>
+                    <TrendingUp className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground flex items-center gap-1">
+                        Expectancy
+                        <InfoTooltip content="Average expected profit per trade based on your historical performance." />
+                      </p>
+                      <p className={`text-2xl font-bold ${tradingStats.expectancy >= 0 ? 'text-profit' : 'text-loss'}`}>
+                        {tradingStats.expectancy >= 0 ? '+' : ''}{formatCurrency(tradingStats.expectancy, 'USD')}
+                      </p>
+                    </div>
+                    <ProfitLossTooltip />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
             {/* 7-Day Quick Stats */}
             <section className="space-y-4">
               <div className="flex items-center gap-2">
@@ -219,62 +269,6 @@ export default function Accounts() {
                         </p>
                       </div>
                       <AlertTriangle className="h-8 w-8 text-loss" />
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </section>
-
-            {/* Portfolio Performance */}
-            <section className="space-y-4">
-              <div className="flex items-center gap-2">
-                <BarChart3 className="h-5 w-5 text-primary" />
-                <h2 className="text-lg font-semibold">Portfolio Performance</h2>
-              </div>
-              <div className="grid gap-4 md:grid-cols-3">
-                <Card>
-                  <CardContent className="pt-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground flex items-center gap-1">
-                          Win Rate
-                          <WinRateTooltip />
-                        </p>
-                        <p className="text-2xl font-bold">{tradingStats.winRate.toFixed(1)}%</p>
-                      </div>
-                      <Target className="h-8 w-8 text-primary" />
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground flex items-center gap-1">
-                          Profit Factor
-                          <ProfitFactorTooltip />
-                        </p>
-                        <p className={`text-2xl font-bold ${tradingStats.profitFactor >= 1 ? 'text-profit' : 'text-loss'}`}>
-                          {tradingStats.profitFactor.toFixed(2)}
-                        </p>
-                      </div>
-                      <TrendingUp className="h-8 w-8 text-muted-foreground" />
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground flex items-center gap-1">
-                          Expectancy
-                          <InfoTooltip content="Average expected profit per trade based on your historical performance." />
-                        </p>
-                        <p className={`text-2xl font-bold ${tradingStats.expectancy >= 0 ? 'text-profit' : 'text-loss'}`}>
-                          {tradingStats.expectancy >= 0 ? '+' : ''}{formatCurrency(tradingStats.expectancy, 'USD')}
-                        </p>
-                      </div>
-                      <ProfitLossTooltip />
                     </div>
                   </CardContent>
                 </Card>
@@ -474,8 +468,6 @@ export default function Accounts() {
                   </Card>
                 )}
 
-                {/* Recent Trades */}
-                <BinanceTradeHistory limit={20} />
               </>
             )}
           </TabsContent>
