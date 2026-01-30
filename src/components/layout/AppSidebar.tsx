@@ -44,9 +44,9 @@ const navigationGroups = [
   {
     title: "Market",
     items: [
-      { title: "AI Analysis", url: "/market", icon: TrendingUp },
-      { title: "Economic Calendar", url: "/calendar", icon: Calendar },
       { title: "Market Data", url: "/market-data", icon: BarChart3 },
+      { title: "Economic Calendar", url: "/calendar", icon: Calendar },
+      { title: "AI Analysis", url: "/market", icon: TrendingUp },
     ],
   },
   {

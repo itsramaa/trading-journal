@@ -36,10 +36,10 @@ interface RouteInfo {
 const routeHierarchy: Record<string, RouteInfo> = {
   "/": { title: "Dashboard" },
   
-  // Market domain
-  "/market": { title: "AI Analysis", domain: "Market", domainPath: "/market" },
-  "/calendar": { title: "Economic Calendar", domain: "Market", domainPath: "/market" },
-  "/market-data": { title: "Market Data", domain: "Market", domainPath: "/market" },
+  // Market domain - Market Data is primary entry point
+  "/market-data": { title: "Market Data", domain: "Market", domainPath: "/market-data" },
+  "/calendar": { title: "Economic Calendar", domain: "Market", domainPath: "/market-data" },
+  "/market": { title: "AI Analysis", domain: "Market", domainPath: "/market-data" },
   
   // Journal domain
   "/trading": { title: "Trade Entry", domain: "Journal", domainPath: "/trading" },
