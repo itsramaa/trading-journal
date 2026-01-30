@@ -14,6 +14,10 @@ export * from './useBinanceMarketData';
 // Phase 2: Account data hooks
 export * from './useBinanceAccountData';
 
+// Phase 3: Advanced analytics types and hooks
+export * from './advanced-analytics-types';
+export * from './useBinanceAdvancedAnalytics';
+
 // Re-export commonly used account hooks for convenience
 export {
   useBinanceConnectionStatus,
@@ -57,5 +61,20 @@ export {
   getMaintMarginRatio,
 } from './useBinanceAccountData';
 
+// Re-export Phase 3 advanced analytics hooks
+export {
+  useBinanceBasis,
+  useBinanceTicker24h,
+  useBinanceTopMovers,
+  useBinanceExchangeInfo,
+  useSymbolConfig,
+  useBinanceVolatility,
+  useMultiSymbolVolatility,
+  useBinanceLiquidationHeatmap,
+  useMarketStructureAnalysis,
+  useVolatilityBasedSizing,
+} from './useBinanceAdvancedAnalytics';
+
 // Re-export utility functions
 export { getIncomeTypeCategory } from './types';
+export { getVolatilityRisk, analyzeBasisTrend, findKeyLevels } from './advanced-analytics-types';
