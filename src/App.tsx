@@ -25,6 +25,7 @@ import MarketInsight from "./pages/MarketInsight";
 import EconomicCalendar from "./pages/EconomicCalendar";
 import MarketData from "./pages/MarketData";
 import Settings from "./pages/Settings";
+import Profile from "./pages/Profile";
 import Notifications from "./pages/Notifications";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
@@ -183,6 +184,11 @@ const App = () => (
             <Route path="/settings" element={
               <ProtectedRoute>
                 <Settings />
+              </ProtectedRoute>
+            } />
+            <Route path="/profile" element={
+              <ProtectedRoute>
+                <Profile />
               </ProtectedRoute>
             } />
             <Route path="/notifications" element={
