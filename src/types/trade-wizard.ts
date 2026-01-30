@@ -73,9 +73,15 @@ export interface FinalChecklistData {
   aiConfidence?: number;
 }
 
+export type WizardMode = 'full' | 'express';
+
+export const EXPRESS_STEPS: WizardStep[] = ['setup', 'sizing', 'confirmation'];
+export const FULL_STEPS: WizardStep[] = ['setup', 'confluence', 'sizing', 'checklist', 'confirmation'];
+
 export interface WizardState {
   currentStep: WizardStep;
   completedSteps: WizardStep[];
+  mode: WizardMode;
   
   // Step 1: Setup (Pre-validation + Strategy + Basic Details)
   preValidation: PreValidationResult | null;
@@ -83,14 +89,14 @@ export interface WizardState {
   strategyDetails: TradingStrategyEnhanced | null;
   tradeDetails: TradeDetailsData | null;
   
-  // Step 2: Confluence validation
+  // Step 2: Confluence validation (skipped in express mode)
   confluences: ConfluenceData | null;
   
   // Step 3: Sizing & Levels
   priceLevels: TradePriceLevels | null;
   positionSizing: PositionSizeResult | null;
   
-  // Step 4: Final checklist
+  // Step 4: Final checklist (skipped in express mode)
   finalChecklist: FinalChecklistData | null;
   
   // Trading account
@@ -101,6 +107,7 @@ export interface WizardState {
 export const INITIAL_WIZARD_STATE: WizardState = {
   currentStep: 'setup',
   completedSteps: [],
+  mode: 'full',
   preValidation: null,
   selectedStrategyId: null,
   strategyDetails: null,
