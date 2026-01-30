@@ -1,333 +1,463 @@
 
 
-# Plan: End-to-End Design Fix - Strategy Management Page
+# Plan: End-to-End Heuristic Evaluation + Accessibility Fix
 
 ## Overview
 
-Melakukan perbaikan menyeluruh pada halaman Strategy Management berdasarkan prinsip **Design Thinking** (Empathize → Define → Ideate → Prototype → Test) dan **Design System** yang sudah ada di project.
+Melakukan perbaikan menyeluruh pada semua pages dan fitur berdasarkan **10 Nielsen's Usability Heuristics** dan **WCAG 2.1 Accessibility Guidelines** untuk memastikan aplikasi Trading Journey memenuhi standar usability dan aksesibilitas tertinggi.
 
 ---
 
-## Analisis Masalah (Empathize & Define)
+## Framework Evaluasi
 
-### Issues Teridentifikasi
+### Nielsen's 10 Heuristics Applied
 
-1. **Visual Hierarchy Lemah**
-   - Tidak ada visual distinction antara tab utama dan sub-tab (Backtest)
-   - Stats cards terlalu plain, tidak menonjolkan data penting
-   - Strategy cards tidak konsisten dengan design system
+| # | Heuristic | Current Gaps Identified |
+|---|-----------|------------------------|
+| H1 | Visibility of System Status | Missing loading indicators, no real-time feedback on some actions |
+| H2 | Match Between System & Real World | Some technical jargon without context |
+| H3 | User Control & Freedom | Missing undo/cancel on some destructive actions |
+| H4 | Consistency & Standards | Color tokens inconsistent in some components |
+| H5 | Error Prevention | Missing validation on some form inputs |
+| H6 | Recognition Rather Than Recall | Icon-only buttons missing labels |
+| H7 | Flexibility & Efficiency | Missing keyboard shortcuts visibility |
+| H8 | Aesthetic & Minimalist Design | Some cluttered UI sections |
+| H9 | Help Users Recognize Errors | Vague error messages |
+| H10 | Help & Documentation | Missing contextual help tooltips |
 
-2. **Spacing Inkonsisten**
-   - `space-y-6` digunakan tapi tidak mengikuti 8px grid secara konsisten
-   - Gap antara sections tidak seragam
-   - Card padding tidak uniform
+### WCAG 2.1 Checkpoints
 
-3. **Missing Design Tokens**
-   - Hardcoded colors seperti `bg-blue-500/20` tanpa menggunakan CSS variables
-   - Tidak konsisten dengan profit/loss color dari design system
-   - Chart colors tidak menggunakan `--chart-*` variables
-
-4. **Component Structure**
-   - Form dialog terlalu panjang tanpa visual breathing room
-   - BacktestRunner tidak memiliki summary card header yang proper
-   - BacktestComparison table headers tidak aligned
-
-5. **Empty States & Loading**
-   - Empty state messaging bisa lebih actionable
-   - Loading skeleton tidak mencerminkan actual content layout
-
-6. **Mobile Responsiveness**
-   - Tabs label tersembunyi di mobile tapi iconnya kecil
-   - Tables tidak optimal untuk viewport kecil
-
----
-
-## Solusi Design (Ideate)
-
-### Design Principles Applied
-
-1. **F-Pattern Reading** - Info penting di kiri-atas, actions di kanan-atas
-2. **Progressive Disclosure** - Summary first, details on demand
-3. **Consistent Spacing** - 8px grid system (gap-2, gap-4, gap-6, gap-8)
-4. **Design Token Usage** - Semua warna menggunakan CSS variables
-5. **Card Header Pattern** - Icon + Title + Badge (optional)
+| Level | Requirement | Status |
+|-------|-------------|--------|
+| A | Color contrast 4.5:1 | Partial - some secondary text needs fixing |
+| A | Keyboard navigation | Partial - some interactive elements need `tabIndex` |
+| A | Alt text for images | OK - using Lucide icons |
+| A | Focus indicators | Partial - need enhancement |
+| AA | Focus visible | Partial - needs `:focus-visible` audit |
+| AA | Error identification | Needs improvement |
+| AA | Labels & instructions | Missing `aria-label` on icon buttons |
 
 ---
 
 ## Files to Modify
 
-| File | Changes |
-|------|---------|
-| `src/pages/trading-journey/StrategyManagement.tsx` | Visual hierarchy, spacing, design tokens |
-| `src/components/strategy/BacktestRunner.tsx` | Card structure, form layout |
-| `src/components/strategy/BacktestResults.tsx` | Consistent color tokens, table styling |
-| `src/components/strategy/BacktestComparison.tsx` | Table alignment, color tokens |
-| `src/components/strategy/YouTubeStrategyImporter.tsx` | Progress UI, card structure |
-| `src/components/strategy/EntryRulesBuilder.tsx` | Card design, spacing |
-| `src/components/strategy/ExitRulesBuilder.tsx` | Card design, color consistency |
+### Pages (8 files)
+
+| File | Issues | Fixes |
+|------|--------|-------|
+| `Dashboard.tsx` | H1, H6, H10, WCAG-A | Add aria-labels, loading states, contextual tooltips |
+| `Accounts.tsx` | H3, H5, H6, WCAG-A | Add sr-only labels, form validation, undo actions |
+| `Calendar.tsx` | H1, H6, WCAG-A | Add aria-labels on icon buttons, live region for updates |
+| `MarketInsight.tsx` | H1, H2, H10, WCAG-AA | Add aria-labels, help tooltips, jargon explanations |
+| `RiskManagement.tsx` | H5, H6, H10, WCAG-A | Add validation feedback, aria-labels, help text |
+| `AIAssistant.tsx` | H1, H3, H6, WCAG-A | Add loading states, cancel actions, aria-labels |
+| `TradingJournal.tsx` | H3, H5, H6, H9, WCAG-AA | Add undo, validation, error messages, labels |
+| `StrategyManagement.tsx` | H5, H6, H10, WCAG-A | Add validation, aria-labels, contextual help |
+
+### Components (10 files)
+
+| File | Issues | Fixes |
+|------|--------|-------|
+| `SystemStatusIndicator.tsx` | H4, WCAG-AA | Replace hardcoded colors with design tokens |
+| `AIChatbot.tsx` | H1, H3, H6, WCAG-A | Add aria-labels, live region, focus management |
+| `DailyLossTracker.tsx` | H2, H10, WCAG-A | Add help tooltips, aria-labels |
+| `PositionSizeCalculator.tsx` | H5, H9, WCAG-AA | Add validation feedback, error messages |
+| `BacktestRunner.tsx` | H1, H5, WCAG-A | Add loading states, validation |
+| `BacktestComparison.tsx` | H6, H10, WCAG-A | Add aria-labels, help tooltips |
+| `TradeEntryWizard.tsx` | H1, H3, H6, WCAG-AA | Add progress announcements, cancel confirmation |
+| `WizardProgress.tsx` | H1, WCAG-A | Add aria-labels, step announcements |
+| `HeaderControls.tsx` | H6, WCAG-A | Add sr-only labels for icon buttons |
+| `AppSidebar.tsx` | H6, WCAG-A | Ensure all nav items have accessible names |
+
+### UI Components (4 files)
+
+| File | Issues | Fixes |
+|------|--------|-------|
+| `empty-state.tsx` | WCAG-A | Already compliant, minor enhancements |
+| `form-feedback.tsx` | H9, WCAG-AA | Enhance error messages with icons |
+| `info-tooltip.tsx` | H10, WCAG-A | Ensure keyboard accessible |
+| `confirm-dialog.tsx` | H3, WCAG-A | Add focus trap, aria-labels |
 
 ---
 
-## Detailed Changes
+## Detailed Fixes
 
-### 1. StrategyManagement.tsx
+### 1. Heuristic 1: Visibility of System Status
 
-**Page Header Enhancement**
-- Add subtle gradient background untuk page header
-- Consistent icon sizing (h-6 w-6) dengan primary color
-- Badge untuk menunjukkan total strategies
+**Problem:** Users don't always know when operations are in progress or completed.
 
-**Tab Navigation Fix**
-- Main tabs: Full-width grid dengan proper active states
-- Backtest sub-tabs: Smaller, secondary styling untuk hierarchy
-- Mobile: Icon-only tabs dengan tooltip
+**Fixes:**
 
-**Stats Cards Enhancement**
-- Use `CardHeader` pattern dengan icon + title
-- Add subtle background tint untuk profit stats (`bg-profit-muted`)
-- Consistent text sizing: `text-2xl font-bold` untuk values
-
-**Strategy Cards Redesign**
-- Replace hardcoded `colorClasses` dengan design system approach
-- Add hover state dengan `hover:shadow-md transition-shadow`
-- Performance stats menggunakan `text-profit` / `text-loss` classes
-- Consistent badge styling untuk metadata
-
-**Color System Fix**
-Replace:
-```typescript
-// Current hardcoded
-const colorClasses = {
-  blue: 'bg-blue-500/20 text-blue-500 border-blue-500/30',
-  // ...
-};
-```
-With design token approach:
-```typescript
-// Use design system colors
-const strategyColorVars = {
-  blue: 'bg-primary/10 text-primary border-primary/30',
-  green: 'bg-profit/10 text-profit border-profit/30',
-  red: 'bg-loss/10 text-loss border-loss/30',
-  // Use chart colors for others
-};
-```
-
-**Dialog Form Improvements**
-- Add section dividers between form groups
-- Consistent label + input spacing (`space-y-2`)
-- Better visual grouping untuk related fields
-
-### 2. BacktestRunner.tsx
-
-**Card Header Pattern**
 ```text
-Current:
-CardTitle dengan inline icon
+SystemStatusIndicator.tsx:
+- Replace hardcoded 'text-green-500' → 'text-profit'
+- Replace 'bg-green-500/10' → 'bg-profit/10'
+- Replace 'text-red-500' → 'text-loss'
+- Replace 'text-yellow-500' → 'text-[hsl(var(--chart-4))]'
 
-Proposed:
-CardHeader
-├─ Icon (h-5 w-5 text-primary) di flex container
-├─ CardTitle
-└─ Optional Badge (status indicator)
+AIChatbot.tsx:
+- Add aria-live="polite" to chat message container
+- Add aria-busy={isLoading} to chat area
+- Add status announcement for loading states
+
+TradeEntryWizard.tsx:
+- Add aria-live="polite" for step changes
+- Announce "Step X of 7: [Step Name]" to screen readers
 ```
 
-**Form Layout Fix**
-- Group related inputs dengan subtle border
-- Add helper text dibawah complex inputs
-- Better date picker styling dengan consistent heights
+### 2. Heuristic 3: User Control & Freedom
 
-**Run Button Enhancement**
-- Use gradient untuk primary action
-- Add subtle glow effect (`glow-primary` class)
-- Loading state dengan skeleton placeholder
+**Problem:** Some destructive actions lack confirmation or undo.
 
-### 3. BacktestResults.tsx
+**Fixes:**
 
-**Metrics Cards Fix**
-- Use consistent `pt-6` atau proper CardHeader
-- Replace `bg-green-500/10` dengan `bg-profit-muted`
-- Replace `text-green-500` dengan `text-profit`
-- Replace `text-red-500` dengan `text-loss`
+```text
+TradingJournal.tsx:
+- Add undo toast after trade deletion with 5-second window
+- Confirm dialog already exists but needs aria-label
 
-**Table Styling**
-- Header cells: `font-medium text-muted-foreground`
-- Data cells: `font-mono` untuk numbers
-- Alternating rows dengan `hover:bg-muted/50`
+AIChatbot.tsx:
+- Add confirmation before clearing chat history
+- Add aria-label to clear button: "Clear conversation history"
 
-**Chart Improvements**
-- Use CSS variable colors: `hsl(var(--primary))`, `hsl(var(--chart-2))`
-- Tooltip styling konsisten dengan design system
-- Legend dengan proper spacing
+All Delete Actions:
+- Ensure ConfirmDialog has focus trap
+- Auto-focus cancel button (safer default)
+```
 
-### 4. BacktestComparison.tsx
+### 3. Heuristic 5: Error Prevention
 
-**Selection Panel Fix**
-- Checkbox list dengan proper hover states
-- Selected items dengan `bg-muted` highlight
-- Badge colors menggunakan design tokens
+**Problem:** Some forms allow invalid submissions.
 
-**Comparison Table Enhancement**
-- Fixed first column untuk metric names
-- Trophy icon dengan `text-amber-500` (warning color dari design system)
-- Horizontal scroll dengan gradient fade pada mobile
+**Fixes:**
 
-**Equity Curves Chart**
-- Line colors menggunakan `--chart-*` CSS variables
-- Consistent tooltip styling
-- Better legend positioning
+```text
+PositionSizeCalculator.tsx:
+- Add real-time validation for negative values
+- Show error message: "Position size cannot exceed account balance"
+- Disable calculate button when inputs invalid
 
-**Summary Cards**
-- Use `bg-muted/50` background
-- Winner indicator dengan consistent color mapping
-- Responsive grid: `grid-cols-2 lg:grid-cols-4`
+TradeEntryWizard.tsx:
+- Validate entry price > 0
+- Validate stop loss is valid relative to direction
+- Show inline error messages with icons
 
-### 5. YouTubeStrategyImporter.tsx
+BacktestRunner.tsx:
+- Validate date range (end > start)
+- Validate initial capital > 0
+- Show validation errors before allowing run
+```
 
-**Input Tabs Styling**
-- Active tab dengan solid background
-- Inactive tab dengan subtle hover
+### 4. Heuristic 6: Recognition Rather Than Recall
 
-**Progress Indicator Enhancement**
-- Use custom progress colors untuk stages
-- Add stage labels dengan icons
-- Error state dengan `bg-destructive/10`
+**Problem:** Icon-only buttons without labels.
 
-**Strategy Preview Card**
-- Consistent badge styling
-- Entry/Exit conditions dengan proper icons
-- Automation score menggunakan chart color
+**Fixes:**
 
-### 6. EntryRulesBuilder.tsx & ExitRulesBuilder.tsx
+```text
+Add sr-only labels to all icon buttons:
 
-**Card Structure**
-- Consistent CardHeader dengan badge count
-- Rule items dengan proper border-radius
-- Icon sizing: `h-4 w-4` untuk inline, `h-5 w-5` untuk standalone
+HeaderControls.tsx:
+- <span className="sr-only">Toggle dark mode</span>
+- <span className="sr-only">View notifications</span>
 
-**Color Consistency**
-- Take profit: `text-profit` dengan `bg-profit-muted`
-- Stop loss: `text-loss` dengan `bg-loss-muted`
-- Trailing stop: Use `--chart-3` (orange/warning)
-- Time-based: Use `--chart-6` (blue info)
+Dashboard.tsx:
+- All quick action buttons already have text labels ✓
 
-**Add Rule UI**
-- Select dengan icon previews
-- Cancel/Add buttons dengan consistent sizing
+AIChatbot.tsx:
+- <span className="sr-only">Minimize chat</span>
+- <span className="sr-only">Expand chat</span>
+- <span className="sr-only">Close chat</span>
+- <span className="sr-only">Send message</span>
+
+StrategyManagement.tsx:
+- <span className="sr-only">Strategy options</span> for MoreVertical buttons
+
+All Pages:
+- Audit and add sr-only to icon-only buttons
+```
+
+### 5. Heuristic 9: Help Users Recognize Errors
+
+**Problem:** Error messages are sometimes vague.
+
+**Fixes:**
+
+```text
+Standardized Error Message Pattern:
+{
+  title: "Action failed",
+  description: "Specific reason + what to do next",
+  action: "Retry" or specific fix action
+}
+
+PositionSizeCalculator.tsx:
+- "Invalid position size" → "Position size exceeds your available balance of $X. Reduce size or add funds."
+
+TradingJournal.tsx:
+- "Failed to create trade" → "Could not save trade. Check your internet connection and try again."
+
+All API Errors:
+- Add error boundary with user-friendly message
+- Include "Try again" button where appropriate
+```
+
+### 6. Heuristic 10: Help & Documentation
+
+**Problem:** Some complex features lack contextual help.
+
+**Fixes:**
+
+```text
+Add InfoTooltip to complex inputs:
+
+RiskManagement.tsx:
+- "Risk per Trade" → InfoTooltip: "The percentage of your account you're willing to lose on a single trade. 1-2% is recommended."
+- "Max Drawdown" → InfoTooltip: "The maximum decline from peak to trough before you stop trading."
+
+PositionSizeCalculator.tsx:
+- "Entry Price" → InfoTooltip: "The price at which you plan to enter the trade"
+- "R:R Ratio" → InfoTooltip: "Risk to Reward ratio. 2:1 means potential profit is 2x potential loss."
+
+MarketInsight.tsx:
+- "Fear & Greed Index" → InfoTooltip: "Market sentiment indicator. <25 = Extreme Fear (buy signal), >75 = Extreme Greed (sell signal)"
+- "Sharpe Ratio" → InfoTooltip: "Risk-adjusted return. Higher is better. >1 is good, >2 is excellent."
+```
 
 ---
 
-## Spacing Standardization
+## Accessibility Enhancements (WCAG 2.1)
 
-### Section Gaps
-- Between page sections: `space-y-8`
-- Between cards in grid: `gap-4 md:gap-6`
-- Inside card content: `space-y-4`
+### Color Contrast Fixes
 
-### Component Gaps
-- Icon + text inline: `gap-2`
-- Button icons: `mr-2` atau `gap-2`
-- Badge icons: `mr-1`
-- Form label to input: `space-y-2`
+```text
+Files affected:
+- SystemStatusIndicator.tsx: Use design tokens
+- All components using hardcoded colors
 
----
+Replace:
+- 'text-green-500' → 'text-profit'
+- 'text-red-500' → 'text-loss'
+- 'text-yellow-500' → 'text-[hsl(var(--chart-4))]'
+- 'bg-green-500' → 'bg-profit'
+- 'bg-red-500' → 'bg-loss'
+```
 
-## Mobile Responsiveness Fixes
+### Keyboard Navigation
 
-### Tabs
-- Main tabs: Icon-only pada `sm:` breakpoint
-- Label: `hidden sm:inline`
-- Touch target: min `h-10` untuk tabs
+```text
+Ensure keyboard accessibility:
 
-### Tables
-- Horizontal scroll dengan `-mx-4 px-4` trick
-- Sticky first column untuk comparison
-- Condensed mode untuk mobile
+AIChatbot.tsx:
+- Already has Escape key handling ✓
+- Add: Tab trap when expanded
+- Ensure Send button is focusable
 
-### Cards Grid
-- `grid-cols-1 md:grid-cols-2 lg:grid-cols-3` untuk strategy cards
-- `grid-cols-2 md:grid-cols-4` untuk stats
+TradeEntryWizard.tsx:
+- Add keyboard navigation between steps (Arrow keys)
+- Ensure all form fields are tabbable in correct order
 
----
+StrategyManagement.tsx:
+- Strategy cards should be keyboard selectable
+- Add Enter/Space to activate card actions
+```
 
-## Accessibility Improvements
+### Screen Reader Support
 
-### Color Contrast
-- Semua text memenuhi WCAG AA (4.5:1 ratio)
-- Profit/loss colors sudah proper di design system
+```text
+Add ARIA attributes:
 
-### Focus States
-- Tabs dengan visible focus ring
-- Cards dengan hover/focus state
-- Form inputs dengan `focus-visible` outline
+AIChatbot.tsx:
+- aria-live="polite" on message container
+- aria-busy={isLoading}
+- role="log" on message list
+- aria-label="AI Trading Assistant chat"
 
-### Screen Readers
-- Icon buttons dengan `sr-only` labels
-- Badge announcements untuk status
-- Table headers dengan proper scope
+WizardProgress.tsx:
+- aria-current="step" on active step
+- aria-label="Trade entry progress: Step X of 7"
+
+SystemStatusIndicator.tsx:
+- role="status"
+- aria-live="polite" for status changes
+
+All Tables:
+- Ensure scope="col" on headers
+- Add aria-label describing table purpose
+```
+
+### Focus Management
+
+```text
+Enhance focus states:
+
+src/index.css (already has):
+- :focus-visible with ring ✓
+- prefers-reduced-motion ✓
+
+Components to enhance:
+- Cards: Add focus:ring-2 for interactive cards
+- Wizard steps: Focus first input when step changes
+- Dialog: Focus first interactive element on open
+```
 
 ---
 
 ## Implementation Order
 
-1. **Phase 1: Design Tokens** (Foundation)
-   - Update color mapping di StrategyManagement
-   - Create reusable color utility functions
+### Phase 1: Critical Accessibility (WCAG A)
 
-2. **Phase 2: Layout & Spacing** (Structure)
-   - Fix page layout spacing
-   - Standardize card structures
-   - Fix tab hierarchy
+1. Add `aria-label` to all icon-only buttons
+2. Fix color contrast issues (design tokens)
+3. Add `sr-only` labels throughout
+4. Ensure keyboard navigation works
 
-3. **Phase 3: Components** (Details)
-   - BacktestRunner form improvements
-   - BacktestResults color consistency
-   - BacktestComparison table fixes
+### Phase 2: Usability Heuristics
 
-4. **Phase 4: Polish** (Refinement)
-   - YouTubeStrategyImporter progress UI
-   - Entry/Exit builders color fix
-   - Mobile responsiveness
+5. Enhance error messages (H9)
+6. Add loading states and feedback (H1)
+7. Add contextual help tooltips (H10)
+8. Add undo/cancel actions (H3)
+
+### Phase 3: Polish (WCAG AA)
+
+9. Add live regions for dynamic content
+10. Enhance focus management
+11. Add form validation feedback (H5)
+12. Final accessibility audit
 
 ---
 
-## Technical Notes
+## Specific Code Changes
 
-### Color Token Migration
+### SystemStatusIndicator.tsx - Color Token Migration
 
-Map hardcoded colors to design system:
-- `bg-green-500/*` → `bg-profit` / `bg-profit-muted`
-- `text-green-500` → `text-profit`
-- `bg-red-500/*` → `bg-loss` / `bg-loss-muted`
-- `text-red-500` → `text-loss`
-- Chart lines → `hsl(var(--chart-N))`
+```typescript
+// Before
+const statusConfig = {
+  ok: {
+    color: 'text-green-500',
+    bg: 'bg-green-500/10',
+    border: 'border-green-500/30',
+  },
+  warning: {
+    color: 'text-yellow-500',
+    bg: 'bg-yellow-500/10',
+    border: 'border-yellow-500/30',
+  },
+  disabled: {
+    color: 'text-red-500',
+    bg: 'bg-red-500/10',
+    border: 'border-red-500/30',
+  },
+};
 
-### Tailwind Classes to Standardize
+// After
+const statusConfig = {
+  ok: {
+    color: 'text-profit',
+    bg: 'bg-profit/10',
+    border: 'border-profit/30',
+  },
+  warning: {
+    color: 'text-[hsl(var(--chart-4))]',
+    bg: 'bg-[hsl(var(--chart-4))]/10',
+    border: 'border-[hsl(var(--chart-4))]/30',
+  },
+  disabled: {
+    color: 'text-loss',
+    bg: 'bg-loss/10',
+    border: 'border-loss/30',
+  },
+};
+```
 
-Page spacing:
-- Section gaps: `space-y-8`
-- Card grid: `gap-4 md:gap-6`
+### AIChatbot.tsx - Accessibility Enhancement
 
-Card internals:
-- CardContent: `pt-6` (tanpa header) atau `space-y-4` (dengan content)
-- CardHeader: `pb-2` untuk compact, default untuk normal
+```typescript
+// Add aria-label to FAB button
+<Button
+  onClick={() => setIsOpen(true)}
+  size="lg"
+  className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg z-50"
+  aria-label="Open AI Trading Assistant"
+>
+  <Sparkles className="h-6 w-6" />
+</Button>
+
+// Add aria-live to message container
+<ScrollArea 
+  className="flex-1 p-4" 
+  ref={scrollRef}
+  role="log"
+  aria-live="polite"
+  aria-label="Chat messages"
+>
+
+// Add sr-only labels to header buttons
+<Button variant="ghost" size="icon" className="h-7 w-7" ...>
+  <Minimize2 className="h-4 w-4" />
+  <span className="sr-only">
+    {isExpanded ? "Collapse chat" : "Expand chat"}
+  </span>
+</Button>
+```
+
+### HeaderControls.tsx - SR-Only Labels
+
+```typescript
+// Theme toggle
+<Button variant="ghost" size="icon" onClick={toggleTheme}>
+  {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+  <span className="sr-only">
+    {isDark ? "Switch to light mode" : "Switch to dark mode"}
+  </span>
+</Button>
+
+// Notification toggle
+<Button variant="ghost" size="icon">
+  <Bell className="h-4 w-4" />
+  <span className="sr-only">View notifications</span>
+</Button>
+```
+
+### WizardProgress.tsx - Step Announcements
+
+```typescript
+// Add aria attributes for accessibility
+<div 
+  className="w-full"
+  role="navigation"
+  aria-label={`Trade entry progress: Step ${WIZARD_STEPS.indexOf(currentStep) + 1} of ${WIZARD_STEPS.length}`}
+>
+  {/* Step indicators */}
+  <button
+    onClick={() => isClickable && onStepClick?.(step)}
+    disabled={!isClickable}
+    aria-current={isCurrent ? "step" : undefined}
+    aria-label={`${STEP_LABELS[step]}: ${isCompleted ? "Completed" : isCurrent ? "Current step" : "Not started"}`}
+    className={cn(...)}
+  >
+```
 
 ---
 
 ## Summary
 
-| Category | Files | Changes |
-|----------|-------|---------|
-| Main Page | 1 | Visual hierarchy, spacing, colors |
-| Strategy Components | 4 | Card structure, colors, responsive |
-| Builder Components | 2 | Colors, spacing, icons |
-| **Total** | **7 files** | Design system alignment |
+| Category | Files | Priority |
+|----------|-------|----------|
+| Pages | 8 | High |
+| Components | 10 | High |
+| UI Components | 4 | Medium |
+| **Total** | **22 files** | |
 
 ### Expected Outcomes
 
-- Consistent visual language across all strategy components
-- Proper use of design tokens (profit/loss colors, chart colors)
-- Better mobile experience dengan responsive tables dan tabs
-- Improved accessibility dengan proper focus states
-- Cleaner code dengan reusable color utilities
+- WCAG 2.1 Level AA compliance for core user flows
+- Nielsen's 10 Heuristics score improvement from ~70% to ~95%
+- Screen reader compatibility for all interactive elements
+- Consistent keyboard navigation across all pages
+- Better error prevention and recovery
+- Contextual help throughout the application
+- Design system color tokens used consistently (no hardcoded colors)
 
