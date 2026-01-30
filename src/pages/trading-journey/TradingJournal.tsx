@@ -1,7 +1,7 @@
 /**
- * Trading Journal - Refactored per Trading Journey Markdown spec
- * Components extracted: TradeSummaryStats, TradeFilters, OpenPositionsTable, 
- * TradeQuickEntryForm, BinancePositionsTab, TradeHistoryTabs, PositionDialogs
+ * Trading Journal - Unified Trade Hub
+ * Components: TradeSummaryStats, TradeFilters, AllPositionsTable, 
+ * BinancePositionsTab, TradeHistoryTabs, PositionDialogs, TradeEnrichmentDrawer
  */
 import { useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
@@ -36,12 +36,14 @@ import {
   TradeSummaryStats, 
   TradeFilters, 
   OpenPositionsTable, 
-  TradeQuickEntryForm,
   BinancePositionsTab,
   TradeHistoryTabs,
   ClosePositionDialog,
   EditPositionDialog,
+  AllPositionsTable,
+  TradeEnrichmentDrawer,
 } from "@/components/journal";
+import type { UnifiedPosition } from "@/components/journal";
 
 // Binance Futures fee rates
 const BINANCE_MAKER_FEE = 0.0002;
@@ -70,6 +72,7 @@ export default function TradingJournal() {
   const [closingPosition, setClosingPosition] = useState<TradeEntry | null>(null);
   const [editingPosition, setEditingPosition] = useState<TradeEntry | null>(null);
   const [sortByAI, setSortByAI] = useState<'none' | 'asc' | 'desc'>('none');
+  const [enrichingPosition, setEnrichingPosition] = useState<UnifiedPosition | null>(null);
 
   const queryClient = useQueryClient();
   const { data: userSettings } = useUserSettings();
@@ -272,26 +275,10 @@ export default function TradingJournal() {
             </h1>
             <p className="text-muted-foreground">Document every trade for continuous improvement</p>
           </div>
-          <div className="flex gap-2">
-            <Button variant="default" onClick={() => setIsWizardOpen(true)} aria-label="Open trade entry wizard">
-              <Wand2 className="mr-2 h-4 w-4" aria-hidden="true" />
-              New Trade (Wizard)
-            </Button>
-            <TradeQuickEntryForm
-              tradingAccounts={activeTradingAccounts.map(a => ({
-                id: a.id,
-                name: a.name,
-                current_balance: Number(a.current_balance),
-                currency: a.currency,
-                is_active: a.is_active,
-              }))}
-              accountsLoading={accountsLoading}
-              strategies={strategies}
-              onSubmit={handleCreateTrade}
-              isPending={createTrade.isPending}
-              formatCurrency={formatCurrency}
-            />
-          </div>
+          <Button variant="default" onClick={() => setIsWizardOpen(true)} aria-label="Open trade entry wizard">
+            <Wand2 className="mr-2 h-4 w-4" aria-hidden="true" />
+            New Trade
+          </Button>
         </div>
         
         {/* Trade Entry Wizard Dialog */}
@@ -334,24 +321,15 @@ export default function TradingJournal() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Tabs defaultValue={isBinanceConnected ? "binance" : "open"}>
-              <TabsList className="grid w-full grid-cols-4 max-w-[600px]">
-                {isBinanceConnected && (
-                  <TabsTrigger value="binance" className="gap-2">
-                    <Wifi className="h-4 w-4" aria-hidden="true" />
-                    <span className="hidden sm:inline">Binance</span>
-                    {binancePositions.filter(p => p.positionAmt !== 0).length > 0 && (
-                      <Badge variant="secondary" className="ml-1 h-5 px-1.5">
-                        {binancePositions.filter(p => p.positionAmt !== 0).length}
-                      </Badge>
-                    )}
-                  </TabsTrigger>
-                )}
-                <TabsTrigger value="open" className="gap-2">
+            <Tabs defaultValue="active">
+              <TabsList className="grid w-full grid-cols-3 max-w-[450px]">
+                <TabsTrigger value="active" className="gap-2">
                   <Circle className="h-4 w-4" aria-hidden="true" />
-                  <span className="hidden sm:inline">Paper</span>
-                  {openPositions.length > 0 && (
-                    <Badge variant="secondary" className="ml-1 h-5 px-1.5">{openPositions.length}</Badge>
+                  <span className="hidden sm:inline">Active</span>
+                  {(openPositions.length + binancePositions.filter(p => p.positionAmt !== 0).length) > 0 && (
+                    <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                      {openPositions.length + binancePositions.filter(p => p.positionAmt !== 0).length}
+                    </Badge>
                   )}
                 </TabsTrigger>
                 <TabsTrigger value="history" className="gap-2">
@@ -367,20 +345,14 @@ export default function TradingJournal() {
                 </TabsTrigger>
               </TabsList>
               
-              {/* Binance Positions Tab */}
-              {isBinanceConnected && (
-                <TabsContent value="binance" className="mt-4">
-                  <BinancePositionsTab 
-                    positions={binancePositions}
-                    isLoading={binancePositionsLoading}
-                  />
-                </TabsContent>
-              )}
-              
-              {/* Paper Trading Open Positions Tab */}
-              <TabsContent value="open" className="mt-4">
-                <OpenPositionsTable
-                  positions={positionsWithPnL}
+              {/* Unified Active Positions Tab */}
+              <TabsContent value="active" className="mt-4">
+                <AllPositionsTable
+                  paperPositions={openPositions}
+                  binancePositions={binancePositions}
+                  isLoading={tradesLoading || binancePositionsLoading}
+                  isBinanceConnected={isBinanceConnected}
+                  onEnrich={setEnrichingPosition}
                   onEdit={handleOpenEditDialog}
                   onClose={(pos) => {
                     setClosingPosition(pos);
@@ -480,6 +452,16 @@ export default function TradingJournal() {
           onSubmit={handleEditPosition}
           isPending={updateTrade.isPending}
           formatCurrency={formatCurrency}
+        />
+
+        {/* Trade Enrichment Drawer */}
+        <TradeEnrichmentDrawer
+          position={enrichingPosition}
+          open={!!enrichingPosition}
+          onOpenChange={(open) => !open && setEnrichingPosition(null)}
+          onSaved={() => {
+            queryClient.invalidateQueries({ queryKey: ["trade-entries"] });
+          }}
         />
 
         {/* Delete Confirmation */}

@@ -9,11 +9,17 @@ interface WizardProgressProps {
   currentStep: WizardStep;
   completedSteps: WizardStep[];
   onStepClick?: (step: WizardStep) => void;
+  steps?: WizardStep[];
 }
 
-export function WizardProgress({ currentStep, completedSteps, onStepClick }: WizardProgressProps) {
-  const currentStepIndex = WIZARD_STEPS.indexOf(currentStep) + 1;
-  const totalSteps = WIZARD_STEPS.length;
+export function WizardProgress({ 
+  currentStep, 
+  completedSteps, 
+  onStepClick,
+  steps = WIZARD_STEPS,
+}: WizardProgressProps) {
+  const currentStepIndex = steps.indexOf(currentStep) + 1;
+  const totalSteps = steps.length;
   
   return (
     <nav 
@@ -23,7 +29,7 @@ export function WizardProgress({ currentStep, completedSteps, onStepClick }: Wiz
     >
       {/* Desktop view */}
       <div className="hidden md:flex items-center justify-between">
-        {WIZARD_STEPS.map((step, index) => {
+        {steps.map((step, index) => {
           const isCompleted = completedSteps.includes(step);
           const isCurrent = step === currentStep;
           const isClickable = isCompleted || isCurrent;
@@ -65,7 +71,7 @@ export function WizardProgress({ currentStep, completedSteps, onStepClick }: Wiz
               </span>
               
               {/* Connector line */}
-              {index < WIZARD_STEPS.length - 1 && (
+              {index < steps.length - 1 && (
                 <div
                   className={cn(
                     "flex-1 h-0.5 mx-3",
@@ -81,7 +87,7 @@ export function WizardProgress({ currentStep, completedSteps, onStepClick }: Wiz
       {/* Mobile view - compact */}
       <div className="md:hidden">
         <div className="flex items-center justify-center gap-2 mb-2">
-          {WIZARD_STEPS.map((step, index) => {
+          {steps.map((step, index) => {
             const isCompleted = completedSteps.includes(step);
             const isCurrent = step === currentStep;
 
@@ -100,7 +106,7 @@ export function WizardProgress({ currentStep, completedSteps, onStepClick }: Wiz
         </div>
         <div className="text-center">
           <span className="text-sm font-medium text-primary">
-            Step {WIZARD_STEPS.indexOf(currentStep) + 1}/{WIZARD_STEPS.length}: {STEP_LABELS[currentStep]}
+            Step {steps.indexOf(currentStep) + 1}/{steps.length}: {STEP_LABELS[currentStep]}
           </span>
         </div>
       </div>

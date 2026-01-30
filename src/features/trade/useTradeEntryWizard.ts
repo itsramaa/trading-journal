@@ -1,5 +1,5 @@
 /**
- * Trade Entry Wizard State Machine Hook - 5-Step Flow
+ * Trade Entry Wizard State Machine Hook - 5-Step Flow with Express Mode
  */
 import { create } from "zustand";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,13 +7,14 @@ import { toast } from "sonner";
 import type {
   WizardStep,
   WizardState,
+  WizardMode,
   PreValidationResult,
   TradeDetailsData,
   TradePriceLevels,
   ConfluenceData,
   FinalChecklistData,
 } from "@/types/trade-wizard";
-import { INITIAL_WIZARD_STATE } from "@/types/trade-wizard";
+import { INITIAL_WIZARD_STATE, EXPRESS_STEPS, FULL_STEPS } from "@/types/trade-wizard";
 import type { PositionSizeResult } from "@/types/risk";
 import type { TradingStrategyEnhanced } from "@/types/strategy";
 
@@ -22,6 +23,7 @@ interface WizardStore extends WizardState {
   goToStep: (step: WizardStep) => void;
   nextStep: () => void;
   prevStep: () => void;
+  setMode: (mode: WizardMode) => void;
   
   // Data setters
   setPreValidation: (data: PreValidationResult) => void;
@@ -39,13 +41,9 @@ interface WizardStore extends WizardState {
   submitTrade: (userId: string) => Promise<boolean>;
 }
 
-const STEPS_ORDER: WizardStep[] = [
-  'setup',
-  'confluence',
-  'sizing',
-  'checklist',
-  'confirmation',
-];
+const getStepsForMode = (mode: WizardMode): WizardStep[] => {
+  return mode === 'express' ? EXPRESS_STEPS : FULL_STEPS;
+};
 
 export const useTradeEntryWizard = create<WizardStore>((set, get) => ({
   ...INITIAL_WIZARD_STATE,
@@ -55,28 +53,34 @@ export const useTradeEntryWizard = create<WizardStore>((set, get) => ({
     set({ currentStep: step });
   },
 
+  setMode: (mode) => {
+    set({ mode, currentStep: 'setup', completedSteps: [] });
+  },
+
   nextStep: () => {
-    const { currentStep, completedSteps } = get();
-    const currentIndex = STEPS_ORDER.indexOf(currentStep);
+    const { currentStep, completedSteps, mode } = get();
+    const stepsOrder = getStepsForMode(mode);
+    const currentIndex = stepsOrder.indexOf(currentStep);
     
-    if (currentIndex < STEPS_ORDER.length - 1) {
+    if (currentIndex < stepsOrder.length - 1) {
       const newCompleted = completedSteps.includes(currentStep)
         ? completedSteps
         : [...completedSteps, currentStep];
       
       set({
-        currentStep: STEPS_ORDER[currentIndex + 1],
+        currentStep: stepsOrder[currentIndex + 1],
         completedSteps: newCompleted,
       });
     }
   },
 
   prevStep: () => {
-    const { currentStep } = get();
-    const currentIndex = STEPS_ORDER.indexOf(currentStep);
+    const { currentStep, mode } = get();
+    const stepsOrder = getStepsForMode(mode);
+    const currentIndex = stepsOrder.indexOf(currentStep);
     
     if (currentIndex > 0) {
-      set({ currentStep: STEPS_ORDER[currentIndex - 1] });
+      set({ currentStep: stepsOrder[currentIndex - 1] });
     }
   },
 
@@ -179,10 +183,13 @@ export const useTradeEntryWizard = create<WizardStore>((set, get) => ({
 
 // Selector hooks for components
 export const useWizardStep = () => useTradeEntryWizard((state) => state.currentStep);
+export const useWizardMode = () => useTradeEntryWizard((state) => state.mode);
 export const useWizardNavigation = () => useTradeEntryWizard((state) => ({
   goToStep: state.goToStep,
   nextStep: state.nextStep,
   prevStep: state.prevStep,
+  setMode: state.setMode,
   currentStep: state.currentStep,
   completedSteps: state.completedSteps,
+  mode: state.mode,
 }));

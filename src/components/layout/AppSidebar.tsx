@@ -10,7 +10,6 @@ import {
   Calendar,
   BarChart3,
   Notebook,
-  History,
   Shield,
   Calculator,
   Lightbulb,
@@ -52,8 +51,7 @@ const navigationGroups = [
   {
     title: "Journal",
     items: [
-      { title: "Trade Entry", url: "/trading", icon: Notebook },
-      { title: "Trade History", url: "/history", icon: History },
+      { title: "Trading Journal", url: "/trading", icon: Notebook },
     ],
   },
   {

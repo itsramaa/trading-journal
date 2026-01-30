@@ -1,10 +1,13 @@
 /**
  * Trade Entry Wizard - Main Container
- * 5-step guided trade entry flow with trading gate check
+ * 5-step guided trade entry flow with Express Mode option
  * Enhanced: Heuristic Evaluation + Accessibility fixes + Analytics tracking
  */
 import { useCallback, useEffect, useRef } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { WizardProgress } from "./WizardProgress";
 import { SetupStep } from "./SetupStep";
 import { ConfluenceValidator } from "./ConfluenceValidator";
@@ -15,10 +18,11 @@ import { useTradeEntryWizard } from "@/features/trade/useTradeEntryWizard";
 import { useTradingGate } from "@/hooks/use-trading-gate";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { XCircle, AlertTriangle, ShieldAlert } from "lucide-react";
+import { XCircle, AlertTriangle, ShieldAlert, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { trackEvent, ANALYTICS_EVENTS } from "@/lib/analytics";
+import { EXPRESS_STEPS, FULL_STEPS } from "@/types/trade-wizard";
 
 interface TradeEntryWizardProps {
   onClose: () => void;
@@ -96,15 +100,18 @@ function TradingBlockedState({ reason, status, onClose }: { reason: string; stat
 }
 
 export function TradeEntryWizard({ onClose, onComplete }: TradeEntryWizardProps) {
-  const { currentStep, completedSteps, goToStep, nextStep, prevStep, reset } = useTradeEntryWizard();
+  const { currentStep, completedSteps, goToStep, nextStep, prevStep, reset, mode, setMode } = useTradeEntryWizard();
   const { canTrade, reason, status } = useTradingGate();
   const startTimeRef = useRef(Date.now());
   const hasTrackedStartRef = useRef(false);
 
+  const isExpressMode = mode === 'express';
+  const activeSteps = isExpressMode ? EXPRESS_STEPS : FULL_STEPS;
+
   // Track wizard start
   useEffect(() => {
     if (!hasTrackedStartRef.current) {
-      trackEvent(ANALYTICS_EVENTS.TRADE_ENTRY_WIZARD_START, { step: currentStep });
+      trackEvent(ANALYTICS_EVENTS.TRADE_ENTRY_WIZARD_START, { step: currentStep, mode });
       hasTrackedStartRef.current = true;
     }
     
@@ -114,6 +121,7 @@ export function TradeEntryWizard({ onClose, onComplete }: TradeEntryWizardProps)
         trackEvent(ANALYTICS_EVENTS.TRADE_ENTRY_WIZARD_ABANDON, {
           lastStep: currentStep,
           duration: Date.now() - startTimeRef.current,
+          mode,
         });
       }
     };
@@ -124,24 +132,34 @@ export function TradeEntryWizard({ onClose, onComplete }: TradeEntryWizardProps)
     return <TradingBlockedState reason={reason} status={status} onClose={onClose} />;
   }
 
+  const handleModeToggle = (checked: boolean) => {
+    setMode(checked ? 'express' : 'full');
+    trackEvent(ANALYTICS_EVENTS.TRADE_ENTRY_WIZARD_START, { 
+      mode: checked ? 'express' : 'full',
+      switched: true,
+    });
+  };
+
   const handleCancel = useCallback(() => {
     trackEvent(ANALYTICS_EVENTS.TRADE_ENTRY_WIZARD_ABANDON, {
       lastStep: currentStep,
       duration: Date.now() - startTimeRef.current,
+      mode,
     });
     reset();
     onClose();
-  }, [reset, onClose, currentStep]);
+  }, [reset, onClose, currentStep, mode]);
 
   const handleComplete = useCallback(async () => {
     trackEvent(ANALYTICS_EVENTS.TRADE_ENTRY_WIZARD_COMPLETE, {
       stepsCompleted: completedSteps.length,
       duration: Date.now() - startTimeRef.current,
+      mode,
     });
     hasTrackedStartRef.current = false; // Prevent double-tracking
     reset();
     onComplete();
-  }, [reset, onComplete, completedSteps]);
+  }, [reset, onComplete, completedSteps, mode]);
 
   const handleStepClick = useCallback((step: typeof currentStep) => {
     // Only allow going back to completed steps
@@ -215,12 +233,37 @@ export function TradeEntryWizard({ onClose, onComplete }: TradeEntryWizardProps)
         </div>
       )}
       
-      {/* Progress Header */}
+      {/* Progress Header with Mode Toggle */}
       <div className="p-4 border-b bg-background sticky top-0 z-10">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Label htmlFor="express-mode" className="text-sm font-medium cursor-pointer">
+              Express Mode
+            </Label>
+            <Switch
+              id="express-mode"
+              checked={isExpressMode}
+              onCheckedChange={handleModeToggle}
+              disabled={currentStep !== 'setup'}
+            />
+            {isExpressMode && (
+              <Badge variant="secondary" className="gap-1">
+                <Zap className="h-3 w-3" />
+                {activeSteps.length} steps
+              </Badge>
+            )}
+          </div>
+          {isExpressMode && (
+            <p className="text-xs text-muted-foreground">
+              Quick entry without AI validation
+            </p>
+          )}
+        </div>
         <WizardProgress
           currentStep={currentStep}
           completedSteps={completedSteps}
           onStepClick={handleStepClick}
+          steps={activeSteps}
         />
       </div>
 

@@ -392,6 +392,7 @@ export type Database = {
           ai_quality_score: number | null
           binance_order_id: number | null
           binance_trade_id: string | null
+          chart_timeframe: string | null
           commission: number | null
           commission_asset: string | null
           confluence_score: number | null
@@ -407,6 +408,7 @@ export type Database = {
           fees: number | null
           id: string
           market_condition: string | null
+          market_context: Json | null
           notes: string | null
           pair: string
           pnl: number | null
@@ -415,6 +417,7 @@ export type Database = {
           quantity: number
           realized_pnl: number | null
           result: string | null
+          screenshots: Json | null
           session_id: string | null
           source: string | null
           status: string
@@ -431,6 +434,7 @@ export type Database = {
           ai_quality_score?: number | null
           binance_order_id?: number | null
           binance_trade_id?: string | null
+          chart_timeframe?: string | null
           commission?: number | null
           commission_asset?: string | null
           confluence_score?: number | null
@@ -446,6 +450,7 @@ export type Database = {
           fees?: number | null
           id?: string
           market_condition?: string | null
+          market_context?: Json | null
           notes?: string | null
           pair: string
           pnl?: number | null
@@ -454,6 +459,7 @@ export type Database = {
           quantity?: number
           realized_pnl?: number | null
           result?: string | null
+          screenshots?: Json | null
           session_id?: string | null
           source?: string | null
           status?: string
@@ -470,6 +476,7 @@ export type Database = {
           ai_quality_score?: number | null
           binance_order_id?: number | null
           binance_trade_id?: string | null
+          chart_timeframe?: string | null
           commission?: number | null
           commission_asset?: string | null
           confluence_score?: number | null
@@ -485,6 +492,7 @@ export type Database = {
           fees?: number | null
           id?: string
           market_condition?: string | null
+          market_context?: Json | null
           notes?: string | null
           pair?: string
           pnl?: number | null
@@ -493,6 +501,7 @@ export type Database = {
           quantity?: number
           realized_pnl?: number | null
           result?: string | null
+          screenshots?: Json | null
           session_id?: string | null
           source?: string | null
           status?: string
