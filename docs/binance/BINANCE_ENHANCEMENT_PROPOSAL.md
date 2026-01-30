@@ -2,12 +2,18 @@
 
 ## Executive Summary
 
-Dokumen ini menguraikan **15 endpoint Binance Futures** yang belum diimplementasi namun sangat applicable untuk meningkatkan akurasi dan fitur Trading Journey application.
+Dokumen ini menguraikan **19 endpoint Binance Futures** yang belum diimplementasi namun sangat applicable untuk meningkatkan akurasi dan fitur Trading Journey application.
 
 **Status Implementasi Saat Ini:**
 - ✅ 8 endpoints sudah diimplementasi
-- 🔄 15 endpoints berpotensi tinggi (proposal ini)
+- 🔄 19 endpoints berpotensi tinggi (proposal ini)
 - ⏸️ Sisanya tidak relevan untuk use case read-only
+
+**Update v2:** Ditambahkan 4 endpoint kritis yang terlewat:
+- Force Orders (Liquidation History)
+- Order Book Depth
+- Aggregate Trades
+- Position Mode
 
 ---
 
@@ -202,6 +208,156 @@ interface TakerVolume {
 
 ---
 
+#### 1.8 Order Book Depth ⭐ NEW
+```
+Endpoint: GET /fapi/v1/depth
+Permission: PUBLIC (no API key)
+```
+
+**Use Cases:**
+- ✅ **Liquidity Analysis**: Detect support/resistance from order walls
+- ✅ **Whale Detection**: Large limit orders (whale walls)
+- ✅ **Entry Timing**: Identify liquidity gaps for better entries
+- ✅ **Slippage Estimation**: Calculate expected slippage for large orders
+
+**Parameters:**
+```typescript
+interface OrderBookParams {
+  symbol: string;      // e.g., "BTCUSDT"
+  limit?: number;      // 5, 10, 20, 50, 100, 500, 1000 (default 500)
+}
+```
+
+**Response:**
+```typescript
+interface OrderBook {
+  lastUpdateId: number;
+  E: number;           // Message output time
+  T: number;           // Transaction time
+  bids: [string, string][];  // [price, quantity]
+  asks: [string, string][];  // [price, quantity]
+}
+```
+
+**Impact:** HIGH - Critical for whale tracking and liquidity analysis
+
+---
+
+#### 1.9 Aggregate Trades List ⭐ NEW
+```
+Endpoint: GET /fapi/v1/aggTrades
+Permission: PUBLIC (no API key)
+```
+
+**Use Cases:**
+- ✅ **Tick-by-Tick Analysis**: Detailed trade flow analysis
+- ✅ **Large Trade Detection**: Identify whale market orders
+- ✅ **Volume Profile**: Build accurate volume profiles
+- ✅ **AI Pattern Recognition**: Detect accumulation/distribution patterns
+
+**Parameters:**
+```typescript
+interface AggTradesParams {
+  symbol: string;
+  fromId?: number;     // Trade ID to fetch from
+  startTime?: number;  // Unix timestamp
+  endTime?: number;
+  limit?: number;      // Default 500, max 1000
+}
+```
+
+**Response:**
+```typescript
+interface AggregateTrade {
+  a: number;           // Aggregate trade ID
+  p: string;           // Price
+  q: string;           // Quantity
+  f: number;           // First trade ID
+  l: number;           // Last trade ID
+  T: number;           // Timestamp
+  m: boolean;          // Was the buyer the maker?
+}
+```
+
+**Impact:** HIGH - Essential for detailed trade flow analysis
+
+---
+
+#### 2.0 Force Orders (Liquidation History) ⭐ NEW - CRITICAL
+```
+Endpoint: GET /fapi/v1/forceOrders
+Permission: USER_DATA (Read-Only)
+```
+
+**Use Cases:**
+- ✅ **Liquidation History**: Track all forced liquidations
+- ✅ **AI Risk Learning**: Learn from liquidation patterns to prevent future ones
+- ✅ **Risk Analysis**: Identify problematic pairs/setups that led to liquidation
+- ✅ **Risk Management**: Warning system based on historical liquidations
+
+**Parameters:**
+```typescript
+interface ForceOrderParams {
+  symbol?: string;     // Optional - filter by symbol
+  autoCloseType?: 'LIQUIDATION' | 'ADL';
+  startTime?: number;
+  endTime?: number;
+  limit?: number;      // Default 50, max 100
+}
+```
+
+**Response:**
+```typescript
+interface ForceOrder {
+  orderId: number;
+  symbol: string;
+  status: string;
+  clientOrderId: string;
+  price: string;
+  avgPrice: string;
+  origQty: string;
+  executedQty: string;
+  cumQuote: string;
+  timeInForce: string;
+  type: string;
+  reduceOnly: boolean;
+  closePosition: boolean;
+  side: 'BUY' | 'SELL';
+  positionSide: string;
+  stopPrice: string;
+  workingType: string;
+  origType: string;
+  time: number;
+  updateTime: number;
+}
+```
+
+**Impact:** 🔴 CRITICAL - Essential for risk management and AI learning
+
+---
+
+#### 2.0.1 Position Mode ⭐ NEW
+```
+Endpoint: GET /fapi/v1/positionSide/dual
+Permission: USER_DATA (Read-Only)
+```
+
+**Use Cases:**
+- ✅ **Trade Entry Wizard**: Validate positionSide before placing order
+- ✅ **Settings Display**: Show current hedge/one-way mode
+- ✅ **Order Validation**: Ensure correct LONG/SHORT/BOTH parameter
+
+**Response:**
+```typescript
+interface PositionMode {
+  dualSidePosition: boolean;  // true = Hedge Mode, false = One-way Mode
+}
+```
+
+**Impact:** MEDIUM - Prevents order placement errors
+
+---
+
 ### Phase 2: Account Data Enhancement (USER_DATA - API Key Required)
 
 #### 2.1 User Commission Rate
@@ -371,10 +527,14 @@ interface Ticker24h {
 
 | Priority | Endpoint | Impact | Effort | Features Enhanced |
 |----------|----------|--------|--------|-------------------|
+| 🔴 P0 | **Force Orders (Liquidation)** ⭐ | CRITICAL | Low | Risk Management, AI Learning |
+| 🔴 P0 | **Order Book Depth** ⭐ | HIGH | Low | Whale Tracking, Liquidity |
 | 🔴 P0 | Klines | HIGH | Medium | Backtesting, Charts, AI |
 | 🔴 P0 | Top Trader Ratio | HIGH | Low | AI Confluence, Sentiment |
 | 🔴 P0 | Long/Short Ratio | HIGH | Low | AI Trade Quality |
 | 🔴 P0 | Taker Buy/Sell | HIGH | Low | Whale Tracking |
+| 🟡 P1 | **Aggregate Trades** ⭐ | HIGH | Low | Trade Flow Analysis |
+| 🟡 P1 | **Position Mode** ⭐ | MEDIUM | Low | Trade Entry Validation |
 | 🟡 P1 | Open Interest | HIGH | Low | Market Sentiment |
 | 🟡 P1 | Mark Price | MEDIUM | Low | Risk, P&L |
 | 🟡 P1 | Funding Rate | MEDIUM | Low | Cost Analysis |
@@ -387,6 +547,8 @@ interface Ticker24h {
 | 🔵 P3 | Basis | LOW | Low | Advanced |
 | 🔵 P3 | Insurance Fund | LOW | Low | Market Health |
 
+**⭐ = Newly Added Endpoints (v2)**
+
 ---
 
 ## 🏗️ Technical Implementation Plan
@@ -396,7 +558,24 @@ interface Ticker24h {
 Add new actions to `supabase/functions/binance-futures/index.ts`:
 
 ```typescript
-// New PUBLIC actions (no auth required)
+// ⭐ NEW P0 CRITICAL actions
+case 'force-orders':
+  result = await getForceOrders(apiKey, apiSecret, symbol, autoCloseType, startTime, endTime, limit);
+  break;
+  
+case 'order-book':
+  result = await getOrderBook(symbol, limit);  // PUBLIC - no auth needed
+  break;
+  
+case 'agg-trades':
+  result = await getAggTrades(symbol, startTime, endTime, limit);  // PUBLIC
+  break;
+  
+case 'position-mode':
+  result = await getPositionMode(apiKey, apiSecret);
+  break;
+
+// Existing P0 PUBLIC actions (no auth required)
 case 'klines':
   result = await getKlines(symbol, interval, startTime, endTime, limit);
   break;
@@ -449,6 +628,10 @@ New hooks in `src/features/binance/`:
 
 ```
 useBinanceFutures.ts (existing - add new hooks)
+├── useBinanceForceOrders(symbol?)           ⭐ NEW - Liquidation history
+├── useBinanceOrderBook(symbol, limit?)      ⭐ NEW - Order book depth
+├── useBinanceAggTrades(symbol, options?)    ⭐ NEW - Aggregate trades
+├── useBinancePositionMode()                 ⭐ NEW - Hedge/One-way mode
 ├── useBinanceKlines(symbol, interval, options)
 ├── useBinanceMarkPrice(symbol)
 ├── useBinanceFundingRate(symbol)
@@ -480,16 +663,20 @@ useBinanceFutures.ts (existing - add new hooks)
 - **Backtesting**: 95%+ accuracy (real klines vs mock data)
 - **P&L Calculation**: Exact fees vs estimated 0.04%
 - **Position Sizing**: Real leverage limits vs assumed 20x
+- **Risk Prevention**: Learn from liquidation history ⭐
 
 ### New Capabilities
 - **Market Sentiment Dashboard**: Real-time professional/retail positioning
 - **Funding Cost Tracking**: Holding cost visibility
 - **Enhanced AI**: Better confluence detection with market data
+- **Liquidation Tracker**: Historical liquidation analysis ⭐
+- **Order Book Analysis**: Whale wall detection ⭐
+- **Trade Flow Analysis**: Tick-by-tick market pressure ⭐
 
 ### User Experience
-- **Trade Entry Wizard**: Mark price for accurate entry
-- **Risk Management**: Real leverage brackets
-- **AI Insights**: More accurate recommendations
+- **Trade Entry Wizard**: Mark price for accurate entry + position mode validation
+- **Risk Management**: Real leverage brackets + liquidation warnings
+- **AI Insights**: More accurate recommendations with full market context
 
 ---
 
@@ -503,15 +690,17 @@ No new security risks introduced. Existing HMAC signature mechanism covers all U
 
 ---
 
-## 📅 Suggested Timeline
+## 📅 Suggested Timeline (Updated v2)
 
 | Week | Phase | Deliverables |
 |------|-------|--------------|
-| 1 | P0 Endpoints | Klines, Sentiment ratios (4 endpoints) |
-| 2 | P1 Endpoints | Open Interest, Mark Price, Funding (3 endpoints) |
-| 2 | UI Integration | Market Sentiment Dashboard |
-| 3 | P2 Endpoints | Commission, Brackets, Orders (3 endpoints) |
+| 1 | P0 Critical | Force Orders, Order Book, Aggregate Trades ⭐ |
+| 1 | P0 Sentiment | Klines, Top Trader/Long-Short Ratios, Taker Volume |
+| 2 | P1 Endpoints | Position Mode, Open Interest, Mark Price, Funding |
+| 2 | UI Integration | Liquidation Tracker, Market Sentiment Dashboard |
+| 3 | P2 Endpoints | Commission, Brackets, Orders |
 | 3 | Feature Updates | Enhanced Backtesting, Position Calculator |
+| 4 | AI Enhancement | Update confluence-detection with all new data |
 | 4 | Testing & Polish | Integration tests, documentation |
 
 ---
@@ -520,6 +709,8 @@ No new security risks introduced. Existing HMAC signature mechanism covers all U
 
 ### New Files
 ```
+src/components/risk/LiquidationTracker.tsx           ⭐ NEW
+src/components/market-insight/OrderBookAnalysis.tsx  ⭐ NEW
 src/components/market-insight/MarketSentimentWidget.tsx
 src/components/dashboard/FundingRateWidget.tsx
 src/features/binance/useBinanceMarketData.ts
@@ -528,23 +719,32 @@ docs/binance/BINANCE_MARKET_DATA_GUIDE.md
 
 ### Modified Files
 ```
-supabase/functions/binance-futures/index.ts  (add 10+ new actions)
-src/features/binance/useBinanceFutures.ts    (add new hooks)
+supabase/functions/binance-futures/index.ts  (add 19 new actions)
+src/features/binance/useBinanceFutures.ts    (add 14 new hooks)
 src/features/binance/types.ts                (add new types)
 src/pages/Dashboard.tsx                      (add sentiment widget)
+src/pages/RiskManagement.tsx                 (add liquidation tracker)
 src/components/strategy/BacktestRunner.tsx   (use real klines)
 src/components/risk/PositionSizeCalculator.tsx (use real brackets)
-supabase/functions/confluence-detection/index.ts (enhance with sentiment)
+src/components/trade/entry/SetupStep.tsx     (position mode validation)
+supabase/functions/confluence-detection/index.ts (enhance with sentiment + order book)
 ```
 
 ---
 
 ## ✅ Conclusion
 
-Implementasi 15 endpoint baru ini akan:
+Implementasi **19 endpoint baru** (termasuk 4 tambahan kritis) akan:
 1. **Meningkatkan akurasi** backtesting, P&L, dan position sizing
-2. **Menambah fitur** Market Sentiment Dashboard yang powerful
-3. **Memperkuat AI** dengan data market real-time
+2. **Menambah fitur** Market Sentiment Dashboard & Liquidation Tracker
+3. **Memperkuat AI** dengan data market real-time + order book analysis
+4. **Meningkatkan risk management** dengan liquidation history learning
+5. **Tetap aman** karena semua endpoint read-only
+
+**Recommended Next Step**: 
+1. Mulai dengan **Force Orders** untuk risk management (highest impact)
+2. Tambahkan **Order Book** untuk whale tracking enhancement
+3. Implementasi **Sentiment Ratios** untuk AI confluence improvement
 4. **Tetap aman** karena semua endpoint read-only
 
 **Recommended Next Step**: Mulai dengan Phase 1 (P0 endpoints) untuk market sentiment karena highest impact dan lowest effort.
