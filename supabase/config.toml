@@ -35,3 +35,9 @@ verify_jwt = false
 
 [functions.economic-calendar]
 verify_jwt = false
+
+[functions.youtube-strategy-import]
+verify_jwt = false
+
+[functions.backtest-strategy]
+verify_jwt = false
