@@ -1,39 +1,46 @@
 /**
  * TradeHistoryCard - Display a single trade entry in the history
- * Enhanced with accessibility: aria-labels, semantic structure
+ * Enhanced with accessibility and Enrich button for journaling
  */
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Calendar, Tag, Target, MoreVertical, Trash2, Brain, Wifi } from "lucide-react";
+import { Calendar, Tag, Target, MoreVertical, Trash2, Brain, Wifi, Edit3, ImageIcon } from "lucide-react";
 import { format } from "date-fns";
 import { TradeEntry } from "@/hooks/use-trade-entries";
 import { cn } from "@/lib/utils";
-import { RiskRewardTooltip, ConfluenceScoreTooltip, AIQualityScoreTooltip } from "@/components/ui/info-tooltip";
+import { RiskRewardTooltip, ConfluenceScoreTooltip } from "@/components/ui/info-tooltip";
 
 interface TradeHistoryCardProps {
   entry: TradeEntry;
   onDelete: (entry: TradeEntry) => void;
+  onEnrich?: (entry: TradeEntry) => void;
   calculateRR: (trade: TradeEntry) => number;
   formatCurrency: (value: number, currency?: string) => string;
   isBinance?: boolean;
+  showEnrichButton?: boolean;
 }
 
 export function TradeHistoryCard({ 
   entry, 
-  onDelete, 
+  onDelete,
+  onEnrich,
   calculateRR, 
   formatCurrency,
-  isBinance = false 
+  isBinance = false,
+  showEnrichButton = false,
 }: TradeHistoryCardProps) {
   const rr = calculateRR(entry);
+  const hasScreenshots = entry.screenshots && Array.isArray(entry.screenshots) && entry.screenshots.length > 0;
+  const screenshotCount = hasScreenshots ? entry.screenshots!.length : 0;
+  const hasNotes = entry.notes && entry.notes.length > 0;
   
   return (
     <Card className="border-muted">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <Badge variant={entry.direction === "LONG" ? "default" : "secondary"}>
               {entry.direction}
             </Badge>
@@ -64,11 +71,33 @@ export function TradeHistoryCard({
                 AI: {entry.ai_quality_score}%
               </Badge>
             )}
+            {/* Screenshot indicator */}
+            {hasScreenshots && (
+              <Badge variant="outline" className="gap-1 text-xs">
+                <ImageIcon className="h-3 w-3" />
+                {screenshotCount}
+              </Badge>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <span className={`font-bold text-lg ${(entry.realized_pnl || 0) >= 0 ? "text-profit" : "text-loss"}`}>
               {(entry.realized_pnl || 0) >= 0 ? "+" : ""}{formatCurrency(entry.realized_pnl || 0, "USD")}
             </span>
+            
+            {/* Enrich Button */}
+            {showEnrichButton && onEnrich && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onEnrich(entry)}
+                className="gap-1"
+                aria-label={`Add journal data for ${entry.pair} trade`}
+              >
+                <Edit3 className="h-3.5 w-3.5" aria-hidden="true" />
+                <span className="hidden sm:inline">Journal</span>
+              </Button>
+            )}
+            
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Options for ${entry.pair} trade`}>
@@ -77,7 +106,13 @@ export function TradeHistoryCard({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => onDelete(entry)}>
+                {onEnrich && (
+                  <DropdownMenuItem onClick={() => onEnrich(entry)}>
+                    <Edit3 className="h-4 w-4 mr-2" aria-hidden="true" />
+                    Edit Journal
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onClick={() => onDelete(entry)} className="text-destructive">
                   <Trash2 className="h-4 w-4 mr-2" aria-hidden="true" />
                   Delete
                 </DropdownMenuItem>
@@ -118,8 +153,8 @@ export function TradeHistoryCard({
           </div>
         )}
 
-        {entry.notes && (
-          <p className="text-sm text-muted-foreground">{entry.notes}</p>
+        {hasNotes && (
+          <p className="text-sm text-muted-foreground line-clamp-2">{entry.notes}</p>
         )}
 
         {entry.tags && entry.tags.length > 0 && (

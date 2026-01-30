@@ -21,6 +21,7 @@ import {
   Building2,
   Settings,
   CandlestickChart,
+  History,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { NavUser } from "./NavUser";
@@ -52,6 +53,7 @@ const navigationGroups = [
     title: "Journal",
     items: [
       { title: "Trading Journal", url: "/trading", icon: Notebook },
+      { title: "Trade History", url: "/history", icon: History },
     ],
   },
   {

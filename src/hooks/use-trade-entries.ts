@@ -3,6 +3,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 
+export interface TradeScreenshot {
+  url: string;
+  path: string;
+}
+
 export interface TradeEntry {
   id: string;
   user_id: string;
@@ -37,6 +42,10 @@ export interface TradeEntry {
   source: 'manual' | 'binance' | null;
   commission: number | null;
   commission_asset: string | null;
+  // Enrichment fields (from DB as Json, cast in runtime)
+  screenshots: TradeScreenshot[] | null;
+  chart_timeframe: string | null;
+  market_context: Record<string, unknown> | null;
   // Joined data
   strategies?: TradingStrategy[];
 }
@@ -130,6 +139,8 @@ export function useTradeEntries() {
 
       return trades.map(trade => ({
         ...trade,
+        screenshots: (trade.screenshots as unknown) as TradeScreenshot[] | null,
+        market_context: (trade.market_context as unknown) as Record<string, unknown> | null,
         strategies: strategyMap.get(trade.id) || [],
       })) as TradeEntry[];
     },

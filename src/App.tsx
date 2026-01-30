@@ -12,6 +12,7 @@ import Dashboard from "./pages/Dashboard";
 import Accounts from "./pages/Accounts";
 import AccountDetail from "./pages/AccountDetail";
 import TradingJournal from "./pages/trading-journey/TradingJournal";
+import TradeHistory from "./pages/TradeHistory";
 import StrategyManagement from "./pages/trading-journey/StrategyManagement";
 import Backtest from "./pages/Backtest";
 import Performance from "./pages/Performance";
@@ -115,8 +116,12 @@ const App = () => (
                 <TradingJournal />
               </ProtectedRoute>
             } />
-            {/* Redirect /history to /trading with history tab */}
-            <Route path="/history" element={<Navigate to="/trading?tab=history" replace />} />
+            {/* History Page - Standalone */}
+            <Route path="/history" element={
+              <ProtectedRoute>
+                <TradeHistory />
+              </ProtectedRoute>
+            } />
             
             {/* Risk Domain */}
             <Route path="/risk" element={
