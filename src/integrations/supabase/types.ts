@@ -337,6 +337,10 @@ export type Database = {
         Row: {
           ai_confidence: number | null
           ai_quality_score: number | null
+          binance_order_id: number | null
+          binance_trade_id: string | null
+          commission: number | null
+          commission_asset: string | null
           confluence_score: number | null
           confluences_met: Json | null
           created_at: string
@@ -359,6 +363,7 @@ export type Database = {
           realized_pnl: number | null
           result: string | null
           session_id: string | null
+          source: string | null
           status: string
           stop_loss: number | null
           tags: string[] | null
@@ -371,6 +376,10 @@ export type Database = {
         Insert: {
           ai_confidence?: number | null
           ai_quality_score?: number | null
+          binance_order_id?: number | null
+          binance_trade_id?: string | null
+          commission?: number | null
+          commission_asset?: string | null
           confluence_score?: number | null
           confluences_met?: Json | null
           created_at?: string
@@ -393,6 +402,7 @@ export type Database = {
           realized_pnl?: number | null
           result?: string | null
           session_id?: string | null
+          source?: string | null
           status?: string
           stop_loss?: number | null
           tags?: string[] | null
@@ -405,6 +415,10 @@ export type Database = {
         Update: {
           ai_confidence?: number | null
           ai_quality_score?: number | null
+          binance_order_id?: number | null
+          binance_trade_id?: string | null
+          commission?: number | null
+          commission_asset?: string | null
           confluence_score?: number | null
           confluences_met?: Json | null
           created_at?: string
@@ -427,6 +441,7 @@ export type Database = {
           realized_pnl?: number | null
           result?: string | null
           session_id?: string | null
+          source?: string | null
           status?: string
           stop_loss?: number | null
           tags?: string[] | null

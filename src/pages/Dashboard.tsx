@@ -2,7 +2,7 @@
  * Trading Dashboard - Main overview showing trading performance
  * Reorganized per user spec:
  * 1. Pro Tip, 2. Quick Actions, 3. System Status, 4. Market Sessions,
- * 5. Accounts (no Total Balance), 6. Today Activity, 7. Risk & AI Insights, 8. Trading Journey
+ * 5. Binance Account (REPLACED Accounts), 6. Today Activity, 7. Risk & AI Insights, 8. Trading Journey
  */
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
@@ -15,12 +15,12 @@ import { QuickTip, OnboardingTooltip } from "@/components/ui/onboarding-tooltip"
 import { EmptyState } from "@/components/ui/empty-state";
 import { RiskSummaryCard } from "@/components/risk/RiskSummaryCard";
 import { AIInsightsWidget } from "@/components/dashboard/AIInsightsWidget";
-import { ActivePositionsTable } from "@/components/dashboard/ActivePositionsTable";
+import { BinancePositionsTable } from "@/components/dashboard/BinancePositionsTable";
+import { BinanceBalanceWidget } from "@/components/dashboard/BinanceBalanceWidget";
 import { TodayPerformance } from "@/components/dashboard/TodayPerformance";
 import { SystemStatusIndicator } from "@/components/dashboard/SystemStatusIndicator";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { useUserSettings } from "@/hooks/use-user-settings";
-import { useAccounts } from "@/hooks/use-accounts";
 import { useRealtime } from "@/hooks/use-realtime";
 import { calculateTradingStats } from "@/lib/trading-calculations";
 import { formatCurrency } from "@/lib/formatters";
@@ -34,7 +34,6 @@ import {
   ChevronRight,
   LineChart,
   BookOpen,
-  Building2,
   Shield,
   Globe,
   Calendar,
@@ -68,9 +67,6 @@ const Dashboard = () => {
   const { data: settings } = useUserSettings();
   const currency = settings?.default_currency || 'USD';
   const isIDR = currency === 'IDR';
-
-  // Accounts data
-  const { data: accounts = [] } = useAccounts();
   
   // Enable realtime updates for dashboard data
   useRealtime({
@@ -183,55 +179,33 @@ const Dashboard = () => {
           <MarketSessionsWidget />
         </section>
 
-        {/* Section 5: Accounts (NO Total Balance) */}
+        {/* Section 5: Binance Account (REPLACED manual accounts) */}
         <section className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Building2 className="h-5 w-5 text-primary" />
-              <h2 className="text-lg font-semibold">Accounts</h2>
+              <Activity className="h-5 w-5 text-primary" />
+              <h2 className="text-lg font-semibold">Binance Account</h2>
             </div>
             <Button variant="ghost" size="sm" asChild>
-              <Link to="/accounts" className="flex items-center gap-1">
-                Manage <ChevronRight className="h-4 w-4" />
+              <Link to="/settings?tab=exchange" className="flex items-center gap-1">
+                Configure <ChevronRight className="h-4 w-4" />
               </Link>
             </Button>
           </div>
           
-          <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
-            {accounts.slice(0, 4).map((account) => (
-              <Card key={account.id} className="hover:border-primary/50 transition-colors">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-muted-foreground capitalize">{account.account_type}</span>
-                    <Badge variant="outline" className="text-xs">{account.currency}</Badge>
-                  </div>
-                  <p className="font-medium truncate">{account.name}</p>
-                  <p className="text-xl font-bold mt-1">
-                    {formatCurrency(Number(account.balance), account.currency)}
-                  </p>
-                </CardContent>
-              </Card>
-            ))}
-            {accounts.length === 0 && (
-              <Card className="col-span-full">
-                <CardContent className="py-6 text-center text-muted-foreground">
-                  No accounts yet. <Link to="/accounts" className="text-primary hover:underline">Add your first account</Link>
-                </CardContent>
-              </Card>
-            )}
+          <div className="grid gap-4 lg:grid-cols-2">
+            <BinanceBalanceWidget />
+            <BinancePositionsTable />
           </div>
         </section>
 
         {/* Section 6: Today's Activity */}
         <section className="space-y-4">
           <div className="flex items-center gap-2">
-            <Activity className="h-5 w-5 text-primary" />
+            <Calendar className="h-5 w-5 text-primary" />
             <h2 className="text-lg font-semibold">Today's Activity</h2>
           </div>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <TodayPerformance />
-            <ActivePositionsTable />
-          </div>
+          <TodayPerformance />
         </section>
 
         {/* Section 7: Risk & AI Insights */}

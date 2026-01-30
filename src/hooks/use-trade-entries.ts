@@ -31,6 +31,12 @@ export interface TradeEntry {
   realized_pnl: number | null;
   created_at: string;
   updated_at: string;
+  // Binance sync fields
+  binance_trade_id: string | null;
+  binance_order_id: number | null;
+  source: 'manual' | 'binance' | null;
+  commission: number | null;
+  commission_asset: string | null;
   // Joined data
   strategies?: TradingStrategy[];
 }
@@ -67,6 +73,12 @@ export interface CreateTradeEntryInput {
   tags?: string[];
   strategy_ids?: string[];
   status?: 'open' | 'closed';
+  // Binance sync fields
+  binance_trade_id?: string;
+  binance_order_id?: number;
+  source?: 'manual' | 'binance';
+  commission?: number;
+  commission_asset?: string;
 }
 
 export interface UpdateTradeEntryInput extends Partial<CreateTradeEntryInput> {
@@ -170,6 +182,12 @@ export function useCreateTradeEntry() {
           tags: tradeData.tags || [],
           status: status,
           realized_pnl: realizedPnl,
+          // Binance sync fields
+          binance_trade_id: tradeData.binance_trade_id || null,
+          binance_order_id: tradeData.binance_order_id || null,
+          source: tradeData.source || 'manual',
+          commission: tradeData.commission || 0,
+          commission_asset: tradeData.commission_asset || null,
         })
         .select()
         .single();
