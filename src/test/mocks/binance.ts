@@ -1,6 +1,7 @@
 /**
  * Mock Binance Futures API responses
  */
+import type { BinanceTrade } from "@/features/binance/types";
 
 export const mockBalanceData = {
   totalWalletBalance: 10000,
@@ -142,6 +143,63 @@ export const mockTradesData = [
     positionSide: "SHORT",
     maker: true,
     buyer: false,
+  },
+];
+
+// BinanceTrade mock matching the type
+export const mockBinanceTrade: BinanceTrade = {
+  id: 100,
+  orderId: 1000,
+  symbol: "BTCUSDT",
+  side: "BUY",
+  price: 50000,
+  qty: 0.1,
+  realizedPnl: 150,
+  marginAsset: "USDT",
+  quoteQty: 5000,
+  commission: 2.5,
+  commissionAsset: "USDT",
+  time: Date.now() - 86400000,
+  positionSide: "LONG",
+  maker: false,
+  buyer: true,
+};
+
+export const mockBinanceTradeList: BinanceTrade[] = [
+  mockBinanceTrade,
+  {
+    id: 101,
+    orderId: 1001,
+    symbol: "ETHUSDT",
+    side: "SELL",
+    price: 3200,
+    qty: 1,
+    realizedPnl: -50,
+    marginAsset: "USDT",
+    quoteQty: 3200,
+    commission: 1.6,
+    commissionAsset: "USDT",
+    time: Date.now() - 172800000,
+    positionSide: "SHORT",
+    maker: true,
+    buyer: false,
+  },
+  {
+    id: 102,
+    orderId: 1002,
+    symbol: "SOLUSDT",
+    side: "BUY",
+    price: 150,
+    qty: 10,
+    realizedPnl: 25,
+    marginAsset: "USDT",
+    quoteQty: 1500,
+    commission: 0.75,
+    commissionAsset: "USDT",
+    time: Date.now() - 259200000,
+    positionSide: "LONG",
+    maker: false,
+    buyer: true,
   },
 ];
 
