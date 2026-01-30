@@ -6,7 +6,6 @@ import { useAuth } from "@/hooks/use-auth";
 type RealtimeTable = 
   | "accounts"
   | "account_transactions"
-  | "trading_sessions"
   | "trade_entries"
   | "trading_strategies";
 
@@ -52,12 +51,8 @@ export function useRealtime({ tables, enabled = true }: UseRealtimeOptions) {
               queryClient.invalidateQueries({ queryKey: ["account-transactions"] });
               queryClient.invalidateQueries({ queryKey: ["accounts"] });
               break;
-            case "trading_sessions":
-              queryClient.invalidateQueries({ queryKey: ["trading-sessions"] });
-              break;
             case "trade_entries":
               queryClient.invalidateQueries({ queryKey: ["trade-entries"] });
-              queryClient.invalidateQueries({ queryKey: ["trading-sessions"] });
               break;
             case "trading_strategies":
               queryClient.invalidateQueries({ queryKey: ["trading-strategies"] });
@@ -95,7 +90,6 @@ export function useAccountsRealtime(enabled = true) {
 export function useTradingRealtime(enabled = true) {
   useRealtime({
     tables: [
-      "trading_sessions",
       "trade_entries",
       "trading_strategies",
       "accounts",

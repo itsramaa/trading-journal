@@ -12,8 +12,6 @@ import AccountDetail from "./pages/AccountDetail";
 import TradingJournal from "./pages/trading-journey/TradingJournal";
 import StrategyManagement from "./pages/trading-journey/StrategyManagement";
 import Performance from "./pages/trading-journey/Performance";
-import TradingSessions from "./pages/trading-journey/TradingSessions";
-import SessionDetail from "./pages/trading-journey/SessionDetail";
 import RiskManagement from "./pages/RiskManagement";
 import Calendar from "./pages/Calendar";
 import MarketInsight from "./pages/MarketInsight";
@@ -77,18 +75,6 @@ const App = () => (
             <Route path="/analytics" element={
               <ProtectedRoute>
                 <Performance />
-              </ProtectedRoute>
-            } />
-            
-            {/* Sessions (top-level) */}
-            <Route path="/sessions" element={
-              <ProtectedRoute>
-                <TradingSessions />
-              </ProtectedRoute>
-            } />
-            <Route path="/sessions/:sessionId" element={
-              <ProtectedRoute>
-                <SessionDetail />
               </ProtectedRoute>
             } />
             

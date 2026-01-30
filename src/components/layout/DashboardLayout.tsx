@@ -25,7 +25,6 @@ const routeTitles: Record<string, string> = {
   "/trading": "Trade Management",
   "/strategies": "Strategy & Rules",
   "/analytics": "Analytics",
-  "/sessions": "Sessions",
   "/risk": "Risk Management",
   "/market": "Calendar & Market",
   "/ai": "AI Assistant",
@@ -72,7 +71,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             <ThemeToggle />
           </div>
         </header>
-        <main id="main-content" className="flex flex-1 flex-col gap-4 p-4 pt-0">
+        <main id="main-content" className="flex flex-1 flex-col gap-4 p-4 pt-4">
           {children}
         </main>
       </SidebarInset>
