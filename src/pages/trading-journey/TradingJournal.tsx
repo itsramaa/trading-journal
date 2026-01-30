@@ -1,7 +1,6 @@
 /**
- * Trading Journal - Unified Trade Hub
- * Components: TradeSummaryStats, TradeFilters, AllPositionsTable, 
- * BinancePositionsTab, TradeHistoryTabs, PositionDialogs, TradeEnrichmentDrawer
+ * Trading Journal - Trade Management Hub
+ * Tabs: Pending, Active, Import
  */
 import { useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
@@ -17,27 +16,18 @@ import { QuickTip } from "@/components/ui/onboarding-tooltip";
 import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BookOpen, Wand2, Wifi, Circle, CheckCircle, Download } from "lucide-react";
-import { useTradingAccounts } from "@/hooks/use-trading-accounts";
-import { useTradeEntries, useCreateTradeEntry, useDeleteTradeEntry, useClosePosition, useUpdateTradeEntry, TradeEntry } from "@/hooks/use-trade-entries";
-import { useTradingStrategies } from "@/hooks/use-trading-strategies";
+import { BookOpen, Wand2, Wifi, Circle, Clock, Download } from "lucide-react";
+import { useTradeEntries, useDeleteTradeEntry, useClosePosition, useUpdateTradeEntry, TradeEntry } from "@/hooks/use-trade-entries";
 import { useBinancePositions, useBinanceBalance, useBinanceConnectionStatus } from "@/features/binance";
 import { BinanceTradeHistory } from "@/components/trading/BinanceTradeHistory";
 import { BinanceIncomeHistory } from "@/components/trading/BinanceIncomeHistory";
-import { useBinanceAutoSync } from "@/hooks/use-binance-auto-sync";
-import { filterTradesByDateRange, filterTradesByStrategies } from "@/lib/trading-calculations";
 import { formatCurrency as formatCurrencyUtil } from "@/lib/formatters";
 import { useUserSettings } from "@/hooks/use-user-settings";
 import { TradeEntryWizard } from "@/components/trade/entry/TradeEntryWizard";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePostTradeAnalysis } from "@/hooks/use-post-trade-analysis";
-import { DateRange } from "@/components/trading/DateRangeFilter";
 import { 
   TradeSummaryStats, 
-  TradeFilters, 
-  OpenPositionsTable, 
-  BinancePositionsTab,
-  TradeHistoryTabs,
   ClosePositionDialog,
   EditPositionDialog,
   AllPositionsTable,
@@ -45,9 +35,6 @@ import {
 } from "@/components/journal";
 import type { UnifiedPosition } from "@/components/journal";
 
-// Binance Futures fee rates
-const BINANCE_MAKER_FEE = 0.0002;
-const BINANCE_TAKER_FEE = 0.0005;
 
 const closePositionSchema = z.object({
   exit_price: z.coerce.number().positive("Exit price must be greater than zero."),
@@ -66,19 +53,14 @@ type EditPositionFormValues = z.infer<typeof editPositionSchema>;
 
 export default function TradingJournal() {
   const [isWizardOpen, setIsWizardOpen] = useState(false);
-  const [dateRange, setDateRange] = useState<DateRange>({ from: null, to: null });
-  const [selectedStrategyIds, setSelectedStrategyIds] = useState<string[]>([]);
   const [deletingTrade, setDeletingTrade] = useState<TradeEntry | null>(null);
   const [closingPosition, setClosingPosition] = useState<TradeEntry | null>(null);
   const [editingPosition, setEditingPosition] = useState<TradeEntry | null>(null);
-  const [sortByAI, setSortByAI] = useState<'none' | 'asc' | 'desc'>('none');
   const [enrichingPosition, setEnrichingPosition] = useState<UnifiedPosition | null>(null);
 
   const queryClient = useQueryClient();
   const { data: userSettings } = useUserSettings();
-  const { data: tradingAccounts, isLoading: accountsLoading } = useTradingAccounts();
   const { data: trades, isLoading: tradesLoading } = useTradeEntries();
-  const { data: strategies = [] } = useTradingStrategies();
   
   // Binance data
   const { data: connectionStatus } = useBinanceConnectionStatus();
@@ -86,14 +68,6 @@ export default function TradingJournal() {
   const { data: binanceBalance } = useBinanceBalance();
   const isBinanceConnected = connectionStatus?.isConnected ?? false;
   
-  // Auto-sync hook
-  const { syncNow, isSyncing: isAutoSyncing, lastSyncTime, pendingRecords } = useBinanceAutoSync({
-    autoSyncOnMount: true,
-    enablePeriodicSync: true,
-    syncInterval: 5 * 60 * 1000,
-  });
-  
-  const createTrade = useCreateTradeEntry();
   const deleteTrade = useDeleteTradeEntry();
   const closePosition = useClosePosition();
   const updateTrade = useUpdateTradeEntry();
@@ -115,69 +89,13 @@ export default function TradingJournal() {
     defaultValues: {},
   });
 
-  // Filter accounts suitable for trading
-  const activeTradingAccounts = tradingAccounts?.filter(a => a.is_active) || [];
-
   // Separate open and closed trades
   const openPositions = useMemo(() => trades?.filter(t => t.status === 'open') || [], [trades]);
   const closedTrades = useMemo(() => trades?.filter(t => t.status === 'closed') || [], [trades]);
-  
-  // Separate Binance trades vs Paper trades
-  const binanceTrades = useMemo(() => closedTrades.filter(t => t.source === 'binance'), [closedTrades]);
-  const paperTrades = useMemo(() => closedTrades.filter(t => t.source !== 'binance'), [closedTrades]);
-
-  // Filter and sort closed trades
-  const filterAndSortTrades = (tradesToFilter: typeof closedTrades) => {
-    let filtered = filterTradesByDateRange(tradesToFilter, dateRange.from, dateRange.to);
-    filtered = filterTradesByStrategies(filtered, selectedStrategyIds);
-    
-    if (sortByAI !== 'none') {
-      filtered = [...filtered].sort((a, b) => {
-        const scoreA = a.ai_quality_score ?? -1;
-        const scoreB = b.ai_quality_score ?? -1;
-        return sortByAI === 'asc' ? scoreA - scoreB : scoreB - scoreA;
-      });
-    }
-    
-    return filtered;
-  };
-  
-  const filteredBinanceTrades = useMemo(() => filterAndSortTrades(binanceTrades), [binanceTrades, dateRange, selectedStrategyIds, sortByAI]);
-  const filteredPaperTrades = useMemo(() => filterAndSortTrades(paperTrades), [paperTrades, dateRange, selectedStrategyIds, sortByAI]);
 
   // Calculate P&L summaries
   const totalUnrealizedPnL = useMemo(() => openPositions.reduce((sum, t) => sum + (t.pnl || 0), 0), [openPositions]);
   const totalRealizedPnL = useMemo(() => closedTrades.reduce((sum, t) => sum + (t.realized_pnl || 0), 0), [closedTrades]);
-
-  // Calculate unrealized P&L for each open position
-  // Note: Without live price feed, we show stored P&L or entry price as placeholder
-  const positionsWithPnL = useMemo(() => {
-    return openPositions.map((position) => ({
-      ...position,
-      currentPrice: position.entry_price, // Use entry as placeholder (no live feed)
-      unrealizedPnL: position.pnl || 0,   // Use stored P&L if available
-      unrealizedPnLPercent: 0,            // Cannot calculate without live price
-    }));
-  }, [openPositions]);
-
-  const handleCreateTrade = async (values: any, strategyIds: string[]) => {
-    const feeRate = values.fee_type === 'maker' ? BINANCE_MAKER_FEE : BINANCE_TAKER_FEE;
-    const calculatedFees = values.quantity * feeRate * 2;
-    
-    await createTrade.mutateAsync({
-      pair: values.pair,
-      direction: values.direction,
-      entry_price: 0,
-      trade_date: values.trade_date,
-      quantity: values.quantity,
-      pnl: values.pnl,
-      fees: calculatedFees,
-      notes: values.notes,
-      trading_account_id: values.trading_account_id,
-      status: values.status,
-      strategy_ids: strategyIds,
-    });
-  };
 
   const handleClosePosition = async (values: ClosePositionFormValues) => {
     if (!closingPosition) return;
@@ -323,20 +241,22 @@ export default function TradingJournal() {
           <CardContent className="space-y-4">
             <Tabs defaultValue="active">
               <TabsList className="grid w-full grid-cols-3 max-w-[450px]">
-                <TabsTrigger value="active" className="gap-2">
-                  <Circle className="h-4 w-4" aria-hidden="true" />
-                  <span className="hidden sm:inline">Active</span>
-                  {(openPositions.length + binancePositions.filter(p => p.positionAmt !== 0).length) > 0 && (
+                <TabsTrigger value="pending" className="gap-2">
+                  <Clock className="h-4 w-4" aria-hidden="true" />
+                  <span className="hidden sm:inline">Pending</span>
+                  {openPositions.filter(p => !p.entry_price || p.entry_price === 0).length > 0 && (
                     <Badge variant="secondary" className="ml-1 h-5 px-1.5">
-                      {openPositions.length + binancePositions.filter(p => p.positionAmt !== 0).length}
+                      {openPositions.filter(p => !p.entry_price || p.entry_price === 0).length}
                     </Badge>
                   )}
                 </TabsTrigger>
-                <TabsTrigger value="history" className="gap-2">
-                  <CheckCircle className="h-4 w-4" aria-hidden="true" />
-                  <span className="hidden sm:inline">History</span>
-                  {closedTrades.length > 0 && (
-                    <Badge variant="secondary" className="ml-1 h-5 px-1.5">{closedTrades.length}</Badge>
+                <TabsTrigger value="active" className="gap-2">
+                  <Circle className="h-4 w-4" aria-hidden="true" />
+                  <span className="hidden sm:inline">Active</span>
+                  {(openPositions.filter(p => p.entry_price && p.entry_price > 0).length + binancePositions.filter(p => p.positionAmt !== 0).length) > 0 && (
+                    <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                      {openPositions.filter(p => p.entry_price && p.entry_price > 0).length + binancePositions.filter(p => p.positionAmt !== 0).length}
+                    </Badge>
                   )}
                 </TabsTrigger>
                 <TabsTrigger value="import" className="gap-2">
@@ -345,13 +265,13 @@ export default function TradingJournal() {
                 </TabsTrigger>
               </TabsList>
               
-              {/* Unified Active Positions Tab */}
-              <TabsContent value="active" className="mt-4">
+              {/* Pending Orders Tab */}
+              <TabsContent value="pending" className="mt-4">
                 <AllPositionsTable
-                  paperPositions={openPositions}
-                  binancePositions={binancePositions}
-                  isLoading={tradesLoading || binancePositionsLoading}
-                  isBinanceConnected={isBinanceConnected}
+                  paperPositions={openPositions.filter(p => !p.entry_price || p.entry_price === 0)}
+                  binancePositions={[]}
+                  isLoading={tradesLoading}
+                  isBinanceConnected={false}
                   onEnrich={setEnrichingPosition}
                   onEdit={handleOpenEditDialog}
                   onClose={(pos) => {
@@ -363,28 +283,20 @@ export default function TradingJournal() {
                 />
               </TabsContent>
               
-              {/* Trade History Tab */}
-              <TabsContent value="history" className="mt-4">
-                <TradeFilters
-                  dateRange={dateRange}
-                  onDateRangeChange={setDateRange}
-                  sortByAI={sortByAI}
-                  onSortByAIChange={setSortByAI}
-                  strategies={strategies}
-                  selectedStrategyIds={selectedStrategyIds}
-                  onStrategyIdsChange={setSelectedStrategyIds}
-                />
-
-                <TradeHistoryTabs
-                  binanceTrades={filteredBinanceTrades}
-                  paperTrades={filteredPaperTrades}
+              {/* Active Positions Tab */}
+              <TabsContent value="active" className="mt-4">
+                <AllPositionsTable
+                  paperPositions={openPositions.filter(p => p.entry_price && p.entry_price > 0)}
+                  binancePositions={binancePositions}
+                  isLoading={tradesLoading || binancePositionsLoading}
                   isBinanceConnected={isBinanceConnected}
-                  lastSyncTime={lastSyncTime}
-                  pendingRecords={pendingRecords}
-                  isAutoSyncing={isAutoSyncing}
-                  onSyncNow={syncNow}
-                  onDeleteTrade={setDeletingTrade}
-                  calculateRR={calculateRR}
+                  onEnrich={setEnrichingPosition}
+                  onEdit={handleOpenEditDialog}
+                  onClose={(pos) => {
+                    setClosingPosition(pos);
+                    closeForm.reset();
+                  }}
+                  onDelete={setDeletingTrade}
                   formatCurrency={formatCurrency}
                 />
               </TabsContent>
