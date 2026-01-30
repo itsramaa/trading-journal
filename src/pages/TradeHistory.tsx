@@ -1,8 +1,9 @@
 /**
  * Trade History - Standalone page for closed trades with full journaling
- * Features: Comprehensive Filters, AI Sorting, Enrichment Drawer, Screenshot management
+ * Features: Comprehensive Filters, AI Sorting, Enrichment Drawer, Screenshot management, Import
  */
 import { useState, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TradeHistoryCard } from "@/components/trading/TradeHistoryCard";
-import { History, Wifi, BookOpen, RefreshCw, FileText } from "lucide-react";
+import { BinanceTradeHistory } from "@/components/trading/BinanceTradeHistory";
+import { BinanceIncomeHistory } from "@/components/trading/BinanceIncomeHistory";
+import { History, Wifi, BookOpen, RefreshCw, FileText, Download } from "lucide-react";
 import { format } from "date-fns";
 import { useTradeEntries, useDeleteTradeEntry, TradeEntry } from "@/hooks/use-trade-entries";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
@@ -250,6 +253,10 @@ export default function TradeHistory() {
                   Paper
                   <Badge variant="secondary" className="ml-1 h-5 px-1.5">{filteredPaperTrades.length}</Badge>
                 </TabsTrigger>
+                <TabsTrigger value="import" className="gap-2">
+                  <Download className="h-4 w-4" aria-hidden="true" />
+                  Import
+                </TabsTrigger>
               </TabsList>
 
               {/* All Trades */}
@@ -358,6 +365,42 @@ export default function TradeHistory() {
                     ))
                   )}
                 </div>
+              </TabsContent>
+
+              {/* Import from Binance Tab */}
+              <TabsContent value="import">
+                {isBinanceConnected ? (
+                  <div className="space-y-6">
+                    <BinanceIncomeHistory showHeader={true} limit={100} defaultFilter="pnl" />
+                    <div className="border-t pt-6">
+                      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <Download className="h-5 w-5" aria-hidden="true" />
+                        Manual Import by Symbol
+                      </h3>
+                      <BinanceTradeHistory />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-12 space-y-4">
+                    <div className="flex justify-center">
+                      <div className="rounded-full bg-muted p-4">
+                        <Wifi className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <h3 className="text-lg font-medium">Connect Binance to Import Trades</h3>
+                      <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                        Connect your Binance Futures account in Settings to import your trade history.
+                      </p>
+                    </div>
+                    <Button variant="outline" asChild>
+                      <Link to="/settings">
+                        <Wifi className="h-4 w-4 mr-2" aria-hidden="true" />
+                        Go to Settings
+                      </Link>
+                    </Button>
+                  </div>
+                )}
               </TabsContent>
             </Tabs>
           </CardContent>
