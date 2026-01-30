@@ -1,64 +1,37 @@
 /**
  * Market Insight Page - AI-powered market analysis
  * AI Sentiment, Volatility, Opportunities, Whale Tracking, Macro Analysis
+ * Integrated with real APIs: Binance, CoinGecko, Alternative.me
  */
-import { useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { TrendingUp, TrendingDown, Activity, BarChart3, Target, Zap, RefreshCw, Sparkles, Minus, DollarSign, AlertTriangle } from "lucide-react";
+import { TrendingUp, TrendingDown, Activity, BarChart3, Target, Zap, RefreshCw, Sparkles, Minus, AlertTriangle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
-
-// Mock AI Sentiment Data
-const MOCK_SENTIMENT = {
-  overall: 'bullish' as 'bullish' | 'bearish' | 'neutral',
-  confidence: 78,
-  signals: [
-    { asset: 'BTC', trend: 'Strong uptrend, above all major MAs', direction: 'up' as 'up' | 'down' | 'neutral' },
-    { asset: 'ETH', trend: 'Outperforming BTC, strong momentum', direction: 'up' as 'up' | 'down' | 'neutral' },
-    { asset: 'SOL', trend: 'Consolidating near resistance', direction: 'neutral' as 'up' | 'down' | 'neutral' },
-  ],
-  fearGreed: { value: 62, label: 'Greed' },
-  recommendation: 'Market conditions favor long positions with tight stops',
-};
-
-// Mock Volatility Data
-const MOCK_VOLATILITY = [
-  { asset: 'BTC', level: 'medium', value: 42, status: 'Normal range' },
-  { asset: 'ETH', level: 'high', value: 68, status: 'Elevated - caution' },
-  { asset: 'SOL', level: 'low', value: 28, status: 'Low volatility' },
-];
-
-// Mock Trading Opportunities
-const MOCK_OPPORTUNITIES = [
-  { pair: 'ETH/USDT', confidence: 85, direction: 'LONG', reason: 'Breakout above key resistance with volume' },
-  { pair: 'BTC/USDT', confidence: 72, direction: 'LONG', reason: 'Higher low formation, bullish structure' },
-  { pair: 'SOL/USDT', confidence: 58, direction: 'WAIT', reason: 'Awaiting confirmation at $145 level' },
-];
-
-// Mock macro conditions data
-const MACRO_CONDITIONS = {
-  overallSentiment: 'cautious' as 'bullish' | 'bearish' | 'cautious',
-  correlations: [
-    { name: 'DXY (Dollar Index)', value: 104.25, change: -0.15, impact: 'Weaker dollar supportive for risk assets' },
-    { name: 'S&P 500', value: 5234.50, change: 0.45, impact: 'Risk-on sentiment in equities' },
-    { name: '10Y Treasury', value: 4.42, change: 0.08, impact: 'Rising yields may pressure growth stocks' },
-    { name: 'VIX', value: 14.25, change: -0.85, impact: 'Low volatility, complacency risk' },
-  ],
-  aiSummary: 'Market sedang dalam fase konsolidasi dengan sentimen mixed. DXY melemah sedikit yang mendukung aset berisiko, namun yield treasury naik menandakan kekhawatiran inflasi. VIX rendah menunjukkan potensi volatilitas mendadak. Perhatikan CPI release hari ini yang bisa memicu pergerakan signifikan.',
-  lastUpdated: new Date(),
-};
+import { useMarketSentiment, useMacroAnalysis } from "@/features/market-insight";
+import type { WhaleSignal } from "@/features/market-insight/types";
 
 const MarketInsight = () => {
-  const [macroLoading, setMacroLoading] = useState(false);
-  const [macroData] = useState(MACRO_CONDITIONS);
+  const { 
+    data: sentimentData, 
+    isLoading: sentimentLoading, 
+    error: sentimentError,
+    refetch: refetchSentiment 
+  } = useMarketSentiment();
+  
+  const { 
+    data: macroData, 
+    isLoading: macroLoading, 
+    error: macroError,
+    refetch: refetchMacro 
+  } = useMacroAnalysis();
 
-  const handleRefreshMacro = () => {
-    setMacroLoading(true);
-    setTimeout(() => setMacroLoading(false), 1500);
+  const handleRefresh = () => {
+    refetchSentiment();
+    refetchMacro();
   };
 
   const getSentimentIcon = (sentiment: string) => {
@@ -85,6 +58,17 @@ const MarketInsight = () => {
     }
   };
 
+  const getWhaleSignalColor = (signal: WhaleSignal) => {
+    switch (signal) {
+      case 'ACCUMULATION': return 'bg-profit';
+      case 'DISTRIBUTION': return 'bg-loss';
+      default: return 'bg-muted-foreground';
+    }
+  };
+
+  const isLoading = sentimentLoading || macroLoading;
+  const hasError = sentimentError || macroError;
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -99,13 +83,33 @@ const MarketInsight = () => {
               AI-powered market analysis and trading opportunities
             </p>
           </div>
-          <Button variant="outline" size="sm" className="gap-2" disabled>
-            <RefreshCw className="h-4 w-4" />
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="gap-2" 
+            onClick={handleRefresh}
+            disabled={isLoading}
+          >
+            <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
             Refresh Data
           </Button>
         </div>
 
-        {/* AI Market Sentiment - Compact Summary */}
+        {/* Error State */}
+        {hasError && (
+          <Card className="border-destructive/50 bg-destructive/5">
+            <CardContent className="py-4">
+              <div className="flex items-center gap-2 text-destructive">
+                <AlertTriangle className="h-5 w-5" />
+                <p className="text-sm">
+                  Failed to load market data. Please try refreshing.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* AI Market Sentiment */}
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
@@ -113,89 +117,111 @@ const MarketInsight = () => {
                 <TrendingUp className="h-5 w-5 text-primary" />
                 <CardTitle className="text-lg">AI Market Sentiment</CardTitle>
               </div>
-              <Badge 
-                className={cn(
-                  MOCK_SENTIMENT.overall === 'bullish' && "bg-profit text-profit-foreground",
-                  MOCK_SENTIMENT.overall === 'bearish' && "bg-loss text-loss-foreground",
-                  MOCK_SENTIMENT.overall === 'neutral' && "bg-secondary text-secondary-foreground"
-                )}
-              >
-                {MOCK_SENTIMENT.overall.toUpperCase()}
-              </Badge>
+              {sentimentLoading ? (
+                <Skeleton className="h-6 w-20" />
+              ) : sentimentData && (
+                <Badge 
+                  className={cn(
+                    sentimentData.sentiment.overall === 'bullish' && "bg-profit text-profit-foreground",
+                    sentimentData.sentiment.overall === 'bearish' && "bg-loss text-loss-foreground",
+                    sentimentData.sentiment.overall === 'neutral' && "bg-secondary text-secondary-foreground"
+                  )}
+                >
+                  {sentimentData.sentiment.overall.toUpperCase()}
+                </Badge>
+              )}
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Key Metrics Row */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                <span className="text-sm font-medium">AI Confidence</span>
-                <div className="flex items-center gap-3">
-                  <Progress value={MOCK_SENTIMENT.confidence} className="w-16 h-2" />
-                  <span className="text-sm font-bold">{MOCK_SENTIMENT.confidence}%</span>
+            {sentimentLoading ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-4">
+                  <Skeleton className="h-16" />
+                  <Skeleton className="h-16" />
                 </div>
+                <Skeleton className="h-20" />
+                <Skeleton className="h-32" />
               </div>
-              <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                <span className="text-sm font-medium">Fear & Greed</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-xl font-bold">{MOCK_SENTIMENT.fearGreed.value}</span>
-                  <Badge variant="outline">{MOCK_SENTIMENT.fearGreed.label}</Badge>
-                </div>
-              </div>
-            </div>
-
-            {/* AI Recommendation */}
-            <div className="p-3 rounded-lg border border-primary/30 bg-primary/5">
-              <div className="flex items-center gap-2 mb-1">
-                <Zap className="h-4 w-4 text-primary" />
-                <span className="text-sm font-medium">AI Recommendation</span>
-              </div>
-              <p className="text-sm text-muted-foreground">{MOCK_SENTIMENT.recommendation}</p>
-            </div>
-
-            {/* Market Signals */}
-            <div className="space-y-2">
-              <h4 className="text-sm font-medium">Key Signals</h4>
-              <div className="grid gap-2">
-                {MOCK_SENTIMENT.signals.map((signal, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-2 rounded border">
-                    <div className="flex items-center gap-2">
-                      {signal.direction === 'up' ? (
-                        <TrendingUp className="h-4 w-4 text-profit" />
-                      ) : signal.direction === 'down' ? (
-                        <TrendingDown className="h-4 w-4 text-loss" />
-                      ) : (
-                        <Activity className="h-4 w-4 text-secondary" />
-                      )}
-                      <span className="font-medium">{signal.asset}</span>
+            ) : sentimentData && (
+              <>
+                {/* Key Metrics Row */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                    <span className="text-sm font-medium">AI Confidence</span>
+                    <div className="flex items-center gap-3">
+                      <Progress value={sentimentData.sentiment.confidence} className="w-16 h-2" />
+                      <span className="text-sm font-bold">{sentimentData.sentiment.confidence}%</span>
                     </div>
-                    <span className="text-sm text-muted-foreground">{signal.trend}</span>
                   </div>
-                ))}
-              </div>
-            </div>
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                    <span className="text-sm font-medium">Fear & Greed</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl font-bold">{sentimentData.sentiment.fearGreed.value}</span>
+                      <Badge variant="outline">{sentimentData.sentiment.fearGreed.label}</Badge>
+                    </div>
+                  </div>
+                </div>
+
+                {/* AI Recommendation */}
+                <div className="p-3 rounded-lg border border-primary/30 bg-primary/5">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Zap className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-medium">AI Recommendation</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{sentimentData.sentiment.recommendation}</p>
+                </div>
+
+                {/* Market Signals */}
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium">Key Signals</h4>
+                  <div className="grid gap-2">
+                    {sentimentData.sentiment.signals.map((signal, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-2 rounded border">
+                        <div className="flex items-center gap-2">
+                          {signal.direction === 'up' ? (
+                            <TrendingUp className="h-4 w-4 text-profit" />
+                          ) : signal.direction === 'down' ? (
+                            <TrendingDown className="h-4 w-4 text-loss" />
+                          ) : (
+                            <Activity className="h-4 w-4 text-secondary" />
+                          )}
+                          <span className="font-medium">{signal.asset}</span>
+                          {signal.price && (
+                            <span className="text-xs text-muted-foreground font-mono">
+                              ${signal.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-sm text-muted-foreground text-right max-w-[60%]">{signal.trend}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
-        {/* AI Macro Analysis - Moved from Calendar */}
+        {/* AI Macro Analysis */}
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-primary" />
                 <CardTitle className="text-lg">AI Macro Analysis</CardTitle>
-                <Badge variant="outline" className="text-xs">AI Powered</Badge>
+                <Badge variant="outline" className="text-xs">Live</Badge>
               </div>
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={handleRefreshMacro}
+                onClick={() => refetchMacro()}
                 disabled={macroLoading}
               >
                 <RefreshCw className={cn("h-4 w-4", macroLoading && "animate-spin")} />
               </Button>
             </div>
             <CardDescription>
-              Current macro conditions affecting crypto & forex markets
+              Real-time market conditions from Binance & CoinGecko
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -205,20 +231,20 @@ const MarketInsight = () => {
                 <Skeleton className="h-20 w-full" />
                 <Skeleton className="h-16 w-full" />
               </div>
-            ) : (
+            ) : macroData && (
               <>
                 {/* Overall Sentiment */}
                 <div className={cn(
                   "inline-flex items-center gap-2 px-4 py-2 rounded-full border font-medium",
-                  getSentimentColor(macroData.overallSentiment)
+                  getSentimentColor(macroData.macro.overallSentiment)
                 )}>
-                  {getSentimentIcon(macroData.overallSentiment)}
-                  <span>Market Sentiment: {getSentimentLabel(macroData.overallSentiment)}</span>
+                  {getSentimentIcon(macroData.macro.overallSentiment)}
+                  <span>Market Sentiment: {getSentimentLabel(macroData.macro.overallSentiment)}</span>
                 </div>
 
                 {/* Key Correlations Grid */}
                 <div className="grid gap-3 sm:grid-cols-2">
-                  {macroData.correlations.map((item, idx) => (
+                  {macroData.macro.correlations.map((item, idx) => (
                     <div 
                       key={idx}
                       className="p-3 rounded-lg border bg-muted/30"
@@ -239,7 +265,11 @@ const MarketInsight = () => {
                           </span>
                         </div>
                       </div>
-                      <p className="text-lg font-bold font-mono">{item.value.toLocaleString()}</p>
+                      <p className="text-lg font-bold font-mono">
+                        {typeof item.value === 'number' && item.value > 1000 
+                          ? item.value.toLocaleString(undefined, { maximumFractionDigits: 2 })
+                          : item.value.toFixed(2)}
+                      </p>
                       <p className="text-xs text-muted-foreground mt-1">{item.impact}</p>
                     </div>
                   ))}
@@ -251,17 +281,9 @@ const MarketInsight = () => {
                     <Sparkles className="h-5 w-5 text-primary shrink-0 mt-0.5" />
                     <div>
                       <p className="text-sm font-medium text-primary mb-1">AI Analysis Summary</p>
-                      <p className="text-sm leading-relaxed">{macroData.aiSummary}</p>
+                      <p className="text-sm leading-relaxed">{macroData.macro.aiSummary}</p>
                     </div>
                   </div>
-                </div>
-
-                {/* Warning for high-impact events */}
-                <div className="flex items-center gap-2 p-3 rounded-lg bg-secondary/10 border border-secondary/30">
-                  <AlertTriangle className="h-4 w-4 text-secondary shrink-0" />
-                  <p className="text-xs text-muted-foreground">
-                    <span className="font-medium">High-impact event today:</span> US CPI release at 14:30 UTC may cause significant volatility
-                  </p>
                 </div>
               </>
             )}
@@ -278,11 +300,17 @@ const MarketInsight = () => {
                 <CardTitle className="text-lg">Volatility Assessment</CardTitle>
               </div>
               <CardDescription>
-                Current market volatility levels
+                Real-time volatility from price data
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {MOCK_VOLATILITY.map((item, idx) => (
+              {sentimentLoading ? (
+                <div className="space-y-3">
+                  <Skeleton className="h-14" />
+                  <Skeleton className="h-14" />
+                  <Skeleton className="h-14" />
+                </div>
+              ) : sentimentData?.volatility.map((item, idx) => (
                 <div key={idx} className="flex items-center justify-between p-3 rounded-lg border">
                   <div className="flex items-center gap-3">
                     <span className="font-medium">{item.asset}</span>
@@ -322,11 +350,17 @@ const MarketInsight = () => {
                 <CardTitle className="text-lg">Trading Opportunities</CardTitle>
               </div>
               <CardDescription>
-                AI-ranked trading setups
+                AI-ranked setups based on technicals
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {MOCK_OPPORTUNITIES.map((opp, idx) => (
+              {sentimentLoading ? (
+                <div className="space-y-3">
+                  <Skeleton className="h-16" />
+                  <Skeleton className="h-16" />
+                  <Skeleton className="h-16" />
+                </div>
+              ) : sentimentData?.opportunities.map((opp, idx) => (
                 <div key={idx} className="p-3 rounded-lg border">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
@@ -357,54 +391,71 @@ const MarketInsight = () => {
                 <Activity className="h-5 w-5 text-primary" />
                 <CardTitle className="text-lg">Whale Tracking</CardTitle>
               </div>
-              <Badge variant="outline">Beta</Badge>
+              <Badge variant="outline">Volume Proxy</Badge>
             </div>
             <CardDescription>
-              Monitor large wallet movements and institutional activity
+              Volume-based whale activity detection from Binance
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {/* Mock Whale Data */}
-            {[
-              { wallet: '0x1a2b...3c4d', asset: 'BTC', amount: '1,250 BTC', action: 'Accumulated', time: '2h ago', impact: 'bullish' },
-              { wallet: '0x5e6f...7g8h', asset: 'ETH', amount: '15,000 ETH', action: 'Transferred to Exchange', time: '4h ago', impact: 'bearish' },
-              { wallet: '0x9i0j...1k2l', asset: 'SOL', amount: '500,000 SOL', action: 'Staked', time: '6h ago', impact: 'bullish' },
-            ].map((whale, idx) => (
+            {sentimentLoading ? (
+              <div className="space-y-3">
+                <Skeleton className="h-16" />
+                <Skeleton className="h-16" />
+                <Skeleton className="h-16" />
+              </div>
+            ) : sentimentData?.whaleActivity.map((whale, idx) => (
               <div key={idx} className="flex items-center justify-between p-3 rounded-lg border">
                 <div className="flex items-center gap-3">
                   <div className={cn(
                     "w-2 h-2 rounded-full",
-                    whale.impact === 'bullish' ? "bg-profit" : "bg-loss"
+                    getWhaleSignalColor(whale.signal)
                   )} />
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-sm">{whale.wallet}</span>
                       <Badge variant="outline" className="text-xs">{whale.asset}</Badge>
+                      <Badge 
+                        variant="secondary" 
+                        className={cn(
+                          "text-xs",
+                          whale.signal === 'ACCUMULATION' && "bg-profit/20 text-profit",
+                          whale.signal === 'DISTRIBUTION' && "bg-loss/20 text-loss"
+                        )}
+                      >
+                        {whale.signal}
+                      </Badge>
                     </div>
-                    <p className="text-xs text-muted-foreground">{whale.action} • {whale.time}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{whale.description}</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <span className="font-medium text-sm">{whale.amount}</span>
-                  <p className={cn(
-                    "text-xs",
-                    whale.impact === 'bullish' ? "text-profit" : "text-loss"
-                  )}>
-                    {whale.impact === 'bullish' ? '↑ Bullish Signal' : '↓ Bearish Signal'}
+                  <span className="text-sm font-medium">
+                    {whale.volumeChange24h > 0 ? '+' : ''}{whale.volumeChange24h.toFixed(1)}% vol
+                  </span>
+                  <p className="text-xs text-muted-foreground">
+                    {whale.confidence}% confidence
                   </p>
                 </div>
               </div>
             ))}
             <p className="text-xs text-muted-foreground text-center pt-2">
-              Whale tracking requires blockchain data API integration.
+              Based on 24h volume analysis from Binance API
             </p>
           </CardContent>
         </Card>
 
-        {/* Footer disclaimer */}
-        <p className="text-xs text-muted-foreground text-center">
-          Demo data shown. Connect to a live API for real-time market data.
-        </p>
+        {/* Data Quality Footer */}
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <span>
+            Data quality: {sentimentData?.dataQuality ?? '-'}% • 
+            Last updated: {sentimentData?.lastUpdated 
+              ? new Date(sentimentData.lastUpdated).toLocaleTimeString() 
+              : '-'}
+          </span>
+          <span>
+            Sources: Binance, CoinGecko, Alternative.me
+          </span>
+        </div>
       </div>
     </DashboardLayout>
   );
