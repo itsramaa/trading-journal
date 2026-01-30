@@ -44,6 +44,32 @@ Dokumen ini menguraikan **31 endpoint Binance Futures** yang belum diimplementas
 | `place-order` | `/fapi/v1/order` | Place order (TRADE permission) |
 | `cancel-order` | `/fapi/v1/order` | Cancel order (TRADE permission) |
 
+### ✅ Phase 1: IMPLEMENTED (Edge Function: `binance-market-data`)
+
+| Action | Endpoint | Purpose | Status |
+|--------|----------|---------|--------|
+| `klines` | `/fapi/v1/klines` | Candlestick/OHLCV data | ✅ Implemented |
+| `mark-price` | `/fapi/v1/premiumIndex` | Mark price, funding rate, index | ✅ Implemented |
+| `funding-rate` | `/fapi/v1/fundingRate` | Funding rate history | ✅ Implemented |
+| `open-interest` | `/futures/data/openInterestHist` | Open interest statistics | ✅ Implemented |
+| `top-trader-ratio` | `/futures/data/topLongShortPositionRatio` | Pro trader sentiment | ✅ Implemented |
+| `global-ratio` | `/futures/data/globalLongShortAccountRatio` | Retail sentiment | ✅ Implemented |
+| `taker-volume` | `/futures/data/takerlongshortRatio` | Buy/sell pressure | ✅ Implemented |
+| `order-book` | `/fapi/v1/depth` | Order book depth | ✅ Implemented |
+| `agg-trades` | `/fapi/v1/aggTrades` | Aggregate trades | ✅ Implemented |
+
+**Frontend Hooks Available:**
+- `useBinanceKlines()` - Historical candlestick data for backtesting
+- `useBinanceMarkPrice()` - Real-time mark/index prices
+- `useBinanceFundingRateHistory()` - Funding rate analysis
+- `useBinanceOpenInterest()` - OI trend analysis
+- `useBinanceTopTraderRatio()` - Professional sentiment
+- `useBinanceGlobalRatio()` - Retail sentiment (contrarian)
+- `useBinanceTakerVolume()` - Buy/sell pressure
+- `useBinanceOrderBook()` - Liquidity analysis
+- `useBinanceAggTrades()` - Tick-by-tick analysis
+- `useBinanceMarketSentiment()` - Combined sentiment score
+
 ---
 
 ## 🚀 Proposed Enhancements
