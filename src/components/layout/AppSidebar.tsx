@@ -5,27 +5,25 @@ import {
   Building2,
   Lightbulb,
   Shield,
-  Calendar,
-  Target,
-  Settings,
-  CandlestickChart,
   TrendingUp,
   LineChart,
+  Settings,
+  CandlestickChart,
   type LucideIcon,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { NavUser } from "./NavUser";
+import { NavGroup } from "./NavGroup";
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  SidebarSeparator,
 } from "@/components/ui/sidebar";
 
 interface NavItem {
@@ -34,24 +32,47 @@ interface NavItem {
   icon: LucideIcon;
 }
 
-// Navigation structure per user spec (flat 10-item menu)
-const navigationItems: NavItem[] = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Accounts", url: "/accounts", icon: Building2 },
-  { title: "Calendar", url: "/calendar", icon: Calendar },
-  { title: "Market Insight", url: "/market", icon: TrendingUp },
-  { title: "Risk Management", url: "/risk", icon: Shield },
-  { title: "Trade Quality", url: "/ai", icon: Target },
-  { title: "Trade Management", url: "/trading", icon: Notebook },
-  { title: "Strategy & Rules", url: "/strategies", icon: Lightbulb },
-  { title: "Performance", url: "/performance", icon: LineChart },
-  { title: "Settings", url: "/settings", icon: Settings },
+// Navigation structure: 4 groups with 8 items total
+const navigationGroups = [
+  {
+    icon: "📊",
+    label: "Trading Fundamentals",
+    colorClass: "text-blue-500",
+    items: [
+      { title: "Dashboard", url: "/", icon: LayoutDashboard },
+      { title: "Market Insight", url: "/market", icon: TrendingUp },
+      { title: "Accounts", url: "/accounts", icon: Building2 },
+    ],
+  },
+  {
+    icon: "🎯",
+    label: "Execution & Management",
+    colorClass: "text-green-500",
+    items: [
+      { title: "Trading Journal", url: "/trading", icon: Notebook },
+      { title: "Risk Management", url: "/risk", icon: Shield },
+    ],
+  },
+  {
+    icon: "📈",
+    label: "Strategy & Analysis",
+    colorClass: "text-purple-500",
+    items: [
+      { title: "Strategies", url: "/strategies", icon: Lightbulb },
+      { title: "Performance", url: "/performance", icon: LineChart },
+    ],
+  },
+  {
+    icon: "⚙️",
+    label: "Tools & Settings",
+    colorClass: "text-muted-foreground",
+    items: [{ title: "Settings", url: "/settings", icon: Settings }],
+  },
 ];
 
-function NavMain({ items }: { items: NavItem[] }) {
+function NavItems({ items }: { items: NavItem[] }) {
   const location = useLocation();
 
-  // Check if current path matches item or is a sub-route
   const isActive = (url: string) => {
     if (url === "/") {
       return location.pathname === "/";
@@ -60,26 +81,22 @@ function NavMain({ items }: { items: NavItem[] }) {
   };
 
   return (
-    <SidebarGroup>
-      <SidebarGroupContent>
-        <SidebarMenu>
-          {items.map((item) => (
-            <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton
-                asChild
-                isActive={isActive(item.url)}
-                tooltip={item.title}
-              >
-                <Link to={item.url}>
-                  <item.icon />
-                  <span className="flex-1">{item.title}</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
-        </SidebarMenu>
-      </SidebarGroupContent>
-    </SidebarGroup>
+    <>
+      {items.map((item) => (
+        <SidebarMenuItem key={item.title}>
+          <SidebarMenuButton
+            asChild
+            isActive={isActive(item.url)}
+            tooltip={item.title}
+          >
+            <Link to={item.url}>
+              <item.icon />
+              <span className="flex-1">{item.title}</span>
+            </Link>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      ))}
+    </>
   );
 }
 
@@ -107,7 +124,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
 
       <SidebarContent>
-        <NavMain items={navigationItems} />
+        {navigationGroups.map((group, index) => (
+          <React.Fragment key={group.label}>
+            {index > 0 && <SidebarSeparator className="my-1" />}
+            <NavGroup
+              icon={group.icon}
+              label={group.label}
+              colorClass={group.colorClass}
+              defaultOpen={true}
+            >
+              <NavItems items={group.items} />
+            </NavGroup>
+          </React.Fragment>
+        ))}
       </SidebarContent>
 
       <SidebarFooter>
