@@ -1,189 +1,46 @@
 
 
-# Plan: Implementasi Backtesting & YouTube Strategy Import
+# Plan: Backtest Comparison View
 
 ## Overview
 
-Implementasi fitur lengkap dari `docs/strategy/BACKTESTING_YOUTUBE_STRATEGY_GUIDE.md` pada halaman Strategies, mencakup:
-
-1. **YouTube Strategy Importer** - Import strategy dari video YouTube menggunakan AI Gemini
-2. **Backtesting Engine** - Jalankan backtest pada historical data
-3. **Strategy Library Enhancement** - Filter, validasi, dan perbandingan strategies
+Menambahkan fitur untuk membandingkan hasil backtest dari multiple strategies secara side-by-side. Ini memungkinkan trader untuk dengan cepat melihat strategy mana yang memiliki performa terbaik berdasarkan berbagai metrik.
 
 ---
 
-## Arsitektur Implementasi
+## Arsitektur Fitur
 
 ```text
-┌───────────────────────────────────────────────────────────────────────┐
-│                          STRATEGY MANAGEMENT                          │
-├───────────────────────────────────────────────────────────────────────┤
-│  Tabs:                                                                │
-│  [Library] [YouTube Import] [Backtest]                                │
-├───────────────────────────────────────────────────────────────────────┤
-│                                                                       │
-│  TAB 1: Library (existing + enhanced)                                 │
-│  ├─ Strategy Cards dengan validation status                          │
-│  ├─ Filter by: type, timeframe, difficulty, validation               │
-│  └─ Quick action: Edit, Delete, Backtest                              │
-│                                                                       │
-│  TAB 2: YouTube Import (NEW)                                          │
-│  ├─ URL Input                                                         │
-│  ├─ Progress indicator (4 stages)                                     │
-│  ├─ Extracted Strategy Preview                                        │
-│  ├─ Validation Status                                                 │
-│  └─ Save to Library                                                   │
-│                                                                       │
-│  TAB 3: Backtest (NEW)                                                │
-│  ├─ Strategy selector                                                 │
-│  ├─ Configuration (period, pair, capital)                             │
-│  ├─ Run Backtest                                                      │
-│  ├─ Results: Metrics Dashboard                                        │
-│  └─ Equity Curve Chart                                                │
-│                                                                       │
-└───────────────────────────────────────────────────────────────────────┘
+Backtest Tab Structure (Updated)
+├── Configuration Panel (existing)
+├── Results View (existing)
+└── Comparison View (NEW)
+    ├── Strategy Selector (multi-select)
+    ├── Side-by-Side Metrics Table
+    ├── Overlay Equity Curves Chart
+    └── Winner Indicators per Metric
 ```
 
 ---
 
-## Files to Create
+## Komponen yang Dibuat
 
-### 1. Edge Function: `supabase/functions/youtube-strategy-import/index.ts`
+### 1. `src/components/strategy/BacktestComparison.tsx`
 
-**Purpose:** Handle YouTube video transcription dan strategy extraction via Gemini AI
-
-**Flow:**
-1. Receive YouTube URL
-2. Extract video info (title, description)
-3. Download audio dan transcribe via Gemini
-4. Parse transcript untuk extract strategy rules
-5. Validate dan classify strategy
-6. Return structured strategy data
-
-**Key Features:**
-- Streaming progress updates
-- Error handling
-- Validation scoring
-- Automation scoring
-
-### 2. Edge Function: `supabase/functions/backtest-strategy/index.ts`
-
-**Purpose:** Run backtesting simulation pada historical data
-
-**Input:**
-- Strategy ID atau rules
-- Pair (e.g., BTCUSDT)
-- Time period (start/end date)
-- Initial capital
-- Commission rate
-
-**Output:**
-- Metrics: win rate, sharpe ratio, max drawdown, profit factor
-- Trade list dengan P&L per trade
-- Equity curve data points
-
-### 3. Types: `src/types/backtest.ts`
-
-```text
-- BacktestConfig: period, pair, capital, commission
-- BacktestTrade: entry/exit price, P&L, type
-- BacktestMetrics: all calculated metrics
-- BacktestResult: trades, metrics, equity_curve
-- YouTubeStrategyImport: extracted strategy from video
-- StrategyValidation: is_valid, missing_elements, score
-- StrategyClassification: type, difficulty, risk_level, automation_score
-```
-
-### 4. Hooks: `src/hooks/use-youtube-strategy-import.ts`
-
-```text
-- useYouTubeStrategyImport() - mutation untuk import
-  - loading states
-  - progress tracking
-  - error handling
-```
-
-### 5. Hooks: `src/hooks/use-backtest.ts`
-
-```text
-- useRunBacktest() - mutation untuk run backtest
-- useBacktestHistory() - query backtest results history
-```
-
-### 6. Components: `src/components/strategy/YouTubeStrategyImporter.tsx`
+**Purpose:** Komponen utama untuk comparison view
 
 **UI Elements:**
-- URL input field
-- Import button
-- Progress bar dengan 4 stages:
-  1. Downloading video (0-25%)
-  2. Transcribing audio (25-50%)
-  3. Extracting strategy (50-75%)
-  4. Validating (75-100%)
-- Extracted Strategy Preview Card:
-  - Strategy name
-  - Type, Timeframe, Difficulty badges
-  - Entry conditions list
-  - Exit conditions (TP/SL)
-  - Indicators used
-- Validation Status:
-  - Valid: Green checkmark + "Ready for Backtesting"
-  - Invalid: Red X + missing elements list
-- Classification Info:
-  - Risk level
-  - Automation score gauge
-  - Suitable pairs
-- Action buttons:
-  - Save to Library
-  - Edit before saving
-  - Start Backtest (if valid)
+- Multi-select strategy picker (pilih 2-4 backtest results)
+- Side-by-side metrics comparison table
+- Overlay equity curves (multiple lines, satu warna per strategy)
+- "Best" indicator dengan ikon crown/star untuk setiap metrik
+- Quick summary: strategy terbaik berdasarkan kriteria user
 
-### 7. Components: `src/components/strategy/BacktestRunner.tsx`
-
-**UI Elements:**
-- Strategy selector (dropdown dari library)
-- Configuration panel:
-  - Trading pair (from database)
-  - Period selector (date range)
-  - Initial capital input
-  - Commission rate input (default 0.04%)
-- Run Backtest button
-- Loading state dengan progress
-
-### 8. Components: `src/components/strategy/BacktestResults.tsx`
-
-**UI Elements:**
-- Metrics Dashboard (4 cards):
-  - Total Return (%)
-  - Win Rate (%)
-  - Max Drawdown (%)
-  - Sharpe Ratio
-- Detailed Metrics Section:
-  - Total Trades
-  - Winning/Losing trades
-  - Avg Win / Avg Loss
-  - Profit Factor
-  - Consecutive wins/losses
-  - Risk-Reward ratio
-- Equity Curve Chart (Recharts):
-  - Line chart dengan balance over time
-  - Drawdown overlay
-- Trade List Table:
-  - Entry/Exit time
-  - Entry/Exit price
-  - Direction (Long/Short)
-  - P&L ($)
-  - P&L (%)
-  - Exit type (TP/SL)
-
-### 9. Components: `src/components/strategy/StrategyValidationBadge.tsx`
-
-**Purpose:** Reusable badge showing validation status
-
-**Display:**
-- Valid: `✅ Valid` (green)
-- Incomplete: `⚠️ Incomplete (x missing)` (yellow)
-- Invalid: `❌ Invalid` (red)
+**Features:**
+- Sort by any metric
+- Highlight winner per metric
+- Color-coded equity curves
+- Export comparison report
 
 ---
 
@@ -192,181 +49,144 @@ Implementasi fitur lengkap dari `docs/strategy/BACKTESTING_YOUTUBE_STRATEGY_GUID
 ### 1. `src/pages/trading-journey/StrategyManagement.tsx`
 
 **Changes:**
-- Add top-level Tabs: `[Library] [YouTube Import] [Backtest]`
-- Move existing content ke TabsContent "library"
-- Add new TabsContent for "import" dan "backtest"
-- Add validation status ke strategy cards
-- Add "Run Backtest" action di strategy dropdown
+- Menambahkan sub-tabs di dalam Backtest tab:
+  - `[Run Backtest] [History] [Compare]`
+- Compare tab menampilkan `BacktestComparison` component
 
-### 2. `src/types/strategy.ts`
+### 2. `src/hooks/use-backtest.ts`
 
-**Additions:**
-- Add `source` field (manual | youtube)
-- Add `source_url` field (untuk youtube videos)
-- Add `validation_score` field
-- Add `automation_score` field
-- Add `difficulty_level` type
+**Changes:**
+- Memastikan `useBacktestHistory` sudah join dengan strategy name
+- Sudah cukup untuk comparison (tidak perlu perubahan signifikan)
 
-### 3. `src/hooks/use-trading-strategies.ts`
+### 3. `src/types/backtest.ts`
 
 **Additions:**
-- Add `CreateStrategyFromYouTube` mutation
-- Add filtering support by validation status
+- Type untuk comparison data tidak diperlukan (gunakan existing BacktestResult[])
 
 ---
 
-## Database Changes (Migration)
+## Detail Implementasi
 
-**Table: `trading_strategies`**
+### `BacktestComparison.tsx` Structure
 
-Add columns:
 ```text
-- source: TEXT DEFAULT 'manual' -- 'manual' | 'youtube'
-- source_url: TEXT NULL -- YouTube URL jika imported
-- validation_score: INTEGER DEFAULT 100 -- 0-100
-- automation_score: INTEGER DEFAULT 0 -- 0-100
-- difficulty_level: TEXT NULL -- 'beginner' | 'intermediate' | 'advanced'
+┌─────────────────────────────────────────────────────────────────────┐
+│  COMPARE BACKTEST RESULTS                                           │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  Select Backtests to Compare (2-4):                                 │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │ [✓] Strategy A - BTC - Dec 2025 (+15.2%)                      │  │
+│  │ [✓] Strategy B - BTC - Dec 2025 (+8.7%)                       │  │
+│  │ [✓] Strategy C - ETH - Dec 2025 (+22.1%)                      │  │
+│  │ [ ] Strategy A - ETH - Nov 2025 (+5.3%)                       │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                     │
+│  ┌─ METRICS COMPARISON ─────────────────────────────────────────┐  │
+│  │                   │ Strategy A  │ Strategy B  │ Strategy C  │  │
+│  │───────────────────│─────────────│─────────────│─────────────│  │
+│  │ Total Return      │ +15.2%      │ +8.7%       │ +22.1% 🏆   │  │
+│  │ Win Rate          │ 62% 🏆      │ 55%         │ 58%         │  │
+│  │ Max Drawdown      │ -8.5%       │ -12.3%      │ -6.2% 🏆    │  │
+│  │ Sharpe Ratio      │ 1.45 🏆     │ 0.92        │ 1.38        │  │
+│  │ Profit Factor     │ 2.1 🏆      │ 1.5         │ 1.8         │  │
+│  │ Total Trades      │ 45          │ 32          │ 28          │  │
+│  │ Avg Win           │ $85         │ $120 🏆     │ $95         │  │
+│  │ Avg Loss          │ -$40 🏆     │ -$65        │ -$52        │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                     │
+│  ┌─ EQUITY CURVES (OVERLAY) ────────────────────────────────────┐  │
+│  │                                                               │  │
+│  │  $15k ─┐                                    Strategy A ───    │  │
+│  │        │        ╭───╮                       Strategy B ---    │  │
+│  │        │    ╭──╯    ╰──╮    ╭───────╮       Strategy C ...    │  │
+│  │  $10k ─┼───╯            ╰──╯                                  │  │
+│  │        │                                                      │  │
+│  │   $5k ─┤                                                      │  │
+│  │        └────────────────────────────────────────────────────  │  │
+│  │             Dec        Jan         Feb         Mar            │  │
+│  └───────────────────────────────────────────────────────────────┘  │
+│                                                                     │
+│  [Export Comparison PDF]                                            │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
-**Table: `backtest_results` (NEW)**
+### Metric Comparison Logic
+
 ```text
-- id: UUID PRIMARY KEY
-- user_id: UUID REFERENCES auth.users
-- strategy_id: UUID REFERENCES trading_strategies
-- pair: TEXT NOT NULL
-- period_start: TIMESTAMPTZ
-- period_end: TIMESTAMPTZ
-- initial_capital: DECIMAL
-- final_capital: DECIMAL
-- metrics: JSONB -- all calculated metrics
-- trades: JSONB -- trade list
-- equity_curve: JSONB -- equity data points
-- created_at: TIMESTAMPTZ
+Untuk setiap metrik, tentukan "winner" dengan logic:
+- Total Return: highest = best
+- Win Rate: highest = best  
+- Max Drawdown: lowest (least negative) = best
+- Sharpe Ratio: highest = best
+- Profit Factor: highest = best
+- Avg Win: highest = best
+- Avg Loss: lowest (least negative) = best
+- Consecutive Losses: lowest = best
+```
+
+### Color Scheme untuk Equity Curves
+
+```text
+Strategy 1: Primary (blue)
+Strategy 2: Success (green)
+Strategy 3: Warning (orange)
+Strategy 4: Destructive (red)
 ```
 
 ---
 
-## Edge Function Details
+## Files to Create
 
-### `youtube-strategy-import/index.ts`
-
-**Approach:**
-Karena kita tidak bisa download audio di edge function, kita akan:
-1. Accept YouTube URL
-2. Gunakan YouTube API atau scraping untuk get transcript (jika available)
-3. Alternatively: User paste transcript manually
-4. Parse dengan Gemini untuk extract strategy
-
-**Gemini Prompt Structure:**
-```text
-Analyze this video content about trading strategy:
-
-TITLE: {video_title}
-CONTENT: {transcript_or_description}
-
-Extract trading strategy dengan format JSON:
-{
-  strategy_name, type, timeframe, 
-  entry_conditions[], exit_conditions{},
-  indicators_used[], position_sizing,
-  difficulty_level, confidence_score,
-  is_valid_tradeable, missing_elements[]
-}
-```
-
-### `backtest-strategy/index.ts`
-
-**Approach:**
-1. Fetch historical OHLCV data dari Binance API
-2. Loop through candles
-3. Apply entry/exit rules
-4. Track P&L dan balance
-5. Calculate all metrics
-6. Return results
-
-**Note:** Backtesting logic akan simplified untuk MVP - focusing pada TP/SL percentage-based exits.
+| File | Description |
+|------|-------------|
+| `src/components/strategy/BacktestComparison.tsx` | Main comparison component |
 
 ---
 
-## Implementation Order
+## Files to Modify
 
-1. **Phase 1: Types & Database**
-   - Create `src/types/backtest.ts`
-   - Update `src/types/strategy.ts`
-   - Database migration
-
-2. **Phase 2: Edge Functions**
-   - Create `youtube-strategy-import` edge function
-   - Create `backtest-strategy` edge function
-
-3. **Phase 3: Hooks**
-   - Create `use-youtube-strategy-import.ts`
-   - Create `use-backtest.ts`
-
-4. **Phase 4: Components**
-   - Create `YouTubeStrategyImporter.tsx`
-   - Create `BacktestRunner.tsx`
-   - Create `BacktestResults.tsx`
-   - Create `StrategyValidationBadge.tsx`
-
-5. **Phase 5: Page Integration**
-   - Update `StrategyManagement.tsx` dengan tabs
-   - Add validation badges ke strategy cards
+| File | Changes |
+|------|---------|
+| `src/pages/trading-journey/StrategyManagement.tsx` | Add sub-tabs for Backtest: Run / History / Compare |
+| `src/hooks/use-backtest.ts` | Add strategy name join in useBacktestHistory |
+| `src/hooks/use-backtest-export.ts` | Add exportComparisonToPDF function |
 
 ---
 
-## UI/UX Considerations
+## Implementation Details
 
-### YouTube Import Tab:
-- Clear progress feedback
-- Error recovery: allow manual editing
-- Preview before save
-- Confidence score indicator
+### Strategy Name Resolution
 
-### Backtest Tab:
-- Realistic defaults (2% risk, 0.04% commission)
-- Clear metric definitions (tooltips)
-- Mobile-responsive results
-- Export results option (future)
+Saat ini `useBacktestHistory` tidak menginclude strategy name. Akan ditambahkan join untuk mendapatkan nama strategy dari relasi.
 
-### Strategy Cards Enhancement:
-- Source indicator (manual vs YouTube icon)
-- Validation status badge
-- Quick backtest button
+### Chart Implementation
+
+Menggunakan Recharts `LineChart` dengan multiple `Line` components, masing-masing dengan warna berbeda. Legend akan menampilkan nama strategy dengan warna yang sesuai.
+
+### Responsive Design
+
+- Desktop: Table dengan semua kolom visible
+- Mobile: Horizontal scroll untuk table, stacked cards sebagai alternatif
 
 ---
 
-## Technical Notes
+## Export Comparison
 
-1. **Binance Historical Data:**
-   - Edge function fetch klines dari Binance API
-   - Rate limiting: max 1000 candles per request
-   - Pagination untuk long periods
-
-2. **Backtest Accuracy:**
-   - Include slippage simulation (configurable)
-   - Commission deduction per trade
-   - Next-candle execution (avoid look-ahead bias)
-
-3. **AI Model:**
-   - Menggunakan `google/gemini-2.5-flash` (supported Lovable AI)
-   - No additional API key required
-
-4. **Limitations:**
-   - YouTube transcript extraction mungkin tidak available untuk semua videos
-   - Fallback: manual transcript paste
+Menambahkan fungsi `exportComparisonToPDF` di `use-backtest-export.ts`:
+- Multi-column metrics table
+- Overlay equity curves sebagai image (simplified)
+- Winner summary di akhir
 
 ---
 
 ## Summary
 
-| Category | New Files | Modified Files |
-|----------|-----------|----------------|
-| Types | 1 | 1 |
-| Hooks | 2 | 1 |
-| Components | 4 | 0 |
-| Pages | 0 | 1 |
-| Edge Functions | 2 | 0 |
-| Database | 1 migration | 0 |
-| **Total** | **10 files** | **3 files** |
+| Category | Count |
+|----------|-------|
+| Files Created | 1 |
+| Files Modified | 3 |
+
+**Total Changes: 4 files**
 
