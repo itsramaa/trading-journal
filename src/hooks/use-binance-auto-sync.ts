@@ -1,18 +1,20 @@
 /**
  * useBinanceAutoSync - Hook for auto-syncing Binance income records to local database
  * Handles: Periodic sync, duplicate detection, background sync on mount
+ * Supports ALL income types: REALIZED_PNL, COMMISSION, FUNDING_FEE, etc.
  */
 import { useEffect, useCallback, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
-import { useBinanceIncomeHistory, useBinanceConnectionStatus, BinanceIncome } from "@/features/binance";
+import { useBinanceAllIncome, useBinanceConnectionStatus, BinanceIncome } from "@/features/binance";
 
 export interface AutoSyncResult {
   synced: number;
   skipped: number;
   errors: number;
+  byType: Record<string, number>;
 }
 
 export interface AutoSyncOptions {
@@ -22,7 +24,7 @@ export interface AutoSyncOptions {
   syncInterval?: number;
   /** Enable periodic sync */
   enablePeriodicSync?: boolean;
-  /** Income types to sync (default: ['REALIZED_PNL']) */
+  /** Income types to sync (default: ['REALIZED_PNL']) - empty means all types */
   incomeTypes?: string[];
   /** Days of history to sync (default: 7) */
   daysToSync?: number;
@@ -30,23 +32,22 @@ export interface AutoSyncOptions {
 
 /**
  * Convert BinanceIncome record to trade_entries format
+ * Only REALIZED_PNL records become trades, other types are tracked but not as separate entries
  */
 function incomeToTradeEntry(income: BinanceIncome, userId: string) {
   // Determine result based on income value
   const result = income.income > 0 ? 'win' : income.income < 0 ? 'loss' : 'breakeven';
   
-  // For REALIZED_PNL, we can infer direction from the position
-  // Positive income = closed in profit, negative = closed in loss
-  // We default to LONG but this can be enhanced with position tracking
-  const direction = 'LONG'; // Default, can be enhanced
+  // Default direction (can be enhanced with position tracking)
+  const direction = 'LONG';
 
   return {
     user_id: userId,
     pair: income.symbol,
     direction,
-    entry_price: 0, // Not available from income endpoint
-    exit_price: 0, // Not available from income endpoint
-    quantity: 0, // Not available from income endpoint
+    entry_price: 0,
+    exit_price: 0,
+    quantity: 0,
     pnl: income.income,
     realized_pnl: income.income,
     trade_date: new Date(income.time).toISOString(),
@@ -78,29 +79,22 @@ export function useBinanceAutoSync(options: AutoSyncOptions = {}) {
   const { data: connectionStatus } = useBinanceConnectionStatus();
   const isConnected = connectionStatus?.isConnected ?? false;
 
-  // Calculate start time based on daysToSync
-  const startTime = Date.now() - (daysToSync * 24 * 60 * 60 * 1000);
-
-  // Fetch income history for syncing
-  const { data: incomeData, refetch: refetchIncome } = useBinanceIncomeHistory(
-    incomeTypes.length === 1 ? incomeTypes[0] : undefined,
-    startTime,
-    1000
-  );
+  // Fetch ALL income types for comprehensive sync
+  const { data: incomeData, refetch: refetchIncome } = useBinanceAllIncome(daysToSync, 1000);
 
   // Sync mutation
   const syncMutation = useMutation({
     mutationFn: async (): Promise<AutoSyncResult> => {
       if (!user?.id || !incomeData || incomeData.length === 0) {
-        return { synced: 0, skipped: 0, errors: 0 };
+        return { synced: 0, skipped: 0, errors: 0, byType: {} };
       }
 
       setIsSyncing(true);
 
       try {
-        // Filter to only REALIZED_PNL if multiple types requested
+        // Filter to specified income types (only REALIZED_PNL becomes trade entries)
         let recordsToSync = incomeData;
-        if (incomeTypes.length > 1) {
+        if (incomeTypes.length > 0) {
           recordsToSync = incomeData.filter((r: BinanceIncome) => 
             incomeTypes.includes(r.incomeType)
           );
@@ -110,8 +104,14 @@ export function useBinanceAutoSync(options: AutoSyncOptions = {}) {
         recordsToSync = recordsToSync.filter((r: BinanceIncome) => r.income !== 0);
 
         if (recordsToSync.length === 0) {
-          return { synced: 0, skipped: 0, errors: 0 };
+          return { synced: 0, skipped: 0, errors: 0, byType: {} };
         }
+
+        // Track by type for reporting
+        const byType: Record<string, number> = {};
+        recordsToSync.forEach((r: BinanceIncome) => {
+          byType[r.incomeType] = (byType[r.incomeType] || 0) + 1;
+        });
 
         // Get existing binance_trade_ids to filter duplicates
         const incomeIds = recordsToSync.map((r: BinanceIncome) => `income_${r.tranId}`);
@@ -126,11 +126,18 @@ export function useBinanceAutoSync(options: AutoSyncOptions = {}) {
         );
 
         if (newRecords.length === 0) {
-          return { synced: 0, skipped: recordsToSync.length, errors: 0 };
+          return { synced: 0, skipped: recordsToSync.length, errors: 0, byType };
+        }
+
+        // Only sync REALIZED_PNL as trade entries (other types are for display only)
+        const pnlRecords = newRecords.filter((r: BinanceIncome) => r.incomeType === 'REALIZED_PNL');
+        
+        if (pnlRecords.length === 0) {
+          return { synced: 0, skipped: recordsToSync.length, errors: 0, byType };
         }
 
         // Convert to trade entries
-        const tradeEntries = newRecords.map((r: BinanceIncome) => 
+        const tradeEntries = pnlRecords.map((r: BinanceIncome) => 
           incomeToTradeEntry(r, user.id)
         );
 
@@ -149,6 +156,7 @@ export function useBinanceAutoSync(options: AutoSyncOptions = {}) {
           synced: inserted?.length || 0,
           skipped: recordsToSync.length - newRecords.length,
           errors: 0,
+          byType,
         };
       } finally {
         setIsSyncing(false);
@@ -226,7 +234,7 @@ export function useSyncBinanceIncome() {
       );
 
       if (validRecords.length === 0) {
-        return { synced: 0, skipped: incomeRecords.length, errors: 0 };
+        return { synced: 0, skipped: incomeRecords.length, errors: 0, byType: {} };
       }
 
       // Check for existing
@@ -240,7 +248,7 @@ export function useSyncBinanceIncome() {
       const newRecords = validRecords.filter(r => !existingIds.has(`income_${r.tranId}`));
 
       if (newRecords.length === 0) {
-        return { synced: 0, skipped: validRecords.length, errors: 0 };
+        return { synced: 0, skipped: validRecords.length, errors: 0, byType: { REALIZED_PNL: validRecords.length } };
       }
 
       // Insert
@@ -256,6 +264,7 @@ export function useSyncBinanceIncome() {
         synced: inserted?.length || 0,
         skipped: validRecords.length - newRecords.length,
         errors: 0,
+        byType: { REALIZED_PNL: inserted?.length || 0 },
       };
     },
     onSuccess: (result) => {

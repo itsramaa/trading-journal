@@ -269,6 +269,7 @@ export function useRefreshBinanceData() {
         queryClient.invalidateQueries({ queryKey: ['binance', 'positions'] }),
         queryClient.invalidateQueries({ queryKey: ['binance', 'open-orders'] }),
         queryClient.invalidateQueries({ queryKey: ['binance', 'income'] }),
+        queryClient.invalidateQueries({ queryKey: ['binance', 'all-income'] }),
       ]);
     },
   });
@@ -304,6 +305,30 @@ export function useBinanceIncomeHistory(
 }
 
 /**
+ * Hook to fetch ALL income types in a single call (no type filter)
+ * Best for comprehensive income analysis across all categories
+ */
+export function useBinanceAllIncome(daysBack = 7, limit = 1000) {
+  const startTime = Date.now() - (daysBack * 24 * 60 * 60 * 1000);
+  
+  return useQuery({
+    queryKey: ['binance', 'all-income', daysBack, limit],
+    queryFn: async () => {
+      // No incomeType filter = fetch ALL types
+      const result = await callBinanceApi<any[]>('income', { startTime, limit });
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to fetch all income');
+      }
+      
+      return result.data || [];
+    },
+    staleTime: 60 * 1000,
+    retry: 2,
+  });
+}
+
+/**
  * Hook specifically for fetching Realized P&L across all symbols
  * Convenience wrapper for income history with REALIZED_PNL filter
  */
@@ -318,4 +343,12 @@ export function useBinanceRealizedPnL(limit = 1000) {
 export function useBinanceCommissions(limit = 500) {
   const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
   return useBinanceIncomeHistory('COMMISSION', oneDayAgo, limit);
+}
+
+/**
+ * Hook specifically for fetching funding fees
+ */
+export function useBinanceFundingFees(limit = 500) {
+  const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
+  return useBinanceIncomeHistory('FUNDING_FEE', oneDayAgo, limit);
 }

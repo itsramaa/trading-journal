@@ -1,22 +1,38 @@
 /**
- * Today's Performance - 24H trading stats
- * Uses Binance income API for real trades (all symbols), falls back to local DB
+ * Today's Performance - 24H trading stats with full income breakdown
+ * Uses Binance income API for real trades (all symbols, all income types)
+ * Shows: Gross P&L, Net P&L, Fees, Funding, Rebates
  */
-import { useMemo } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { TrendingUp, TrendingDown, Target, Activity, Trophy, AlertTriangle, Zap } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { 
+  TrendingUp, 
+  TrendingDown, 
+  Target, 
+  Activity, 
+  Trophy, 
+  AlertTriangle, 
+  Zap,
+  ChevronDown,
+  Wallet,
+  ArrowUpDown
+} from "lucide-react";
 import { useDailyPnl } from "@/hooks/use-daily-pnl";
 import { useBinanceDailyPnl } from "@/hooks/use-binance-daily-pnl";
 import { useBinanceConnectionStatus } from "@/features/binance";
 import { formatCurrency } from "@/lib/formatters";
 
 export function TodayPerformance() {
+  const [isFeeBreakdownOpen, setIsFeeBreakdownOpen] = useState(false);
+  
   const { data: connectionStatus } = useBinanceConnectionStatus();
   const isConnected = connectionStatus?.isConnected;
 
-  // Use the new income-based hook that fetches ALL symbols
+  // Use the comprehensive income-based hook
   const binanceStats = useBinanceDailyPnl();
   
   // Local DB fallback
@@ -77,25 +93,34 @@ export function TodayPerformance() {
   
   const stats = useBinance ? {
     tradesCount: binanceStats.totalTrades,
-    realizedPnl: binanceStats.totalPnl,
+    grossPnl: binanceStats.grossPnl,
+    netPnl: binanceStats.netPnl,
     winRate: binanceStats.winRate,
     wins: binanceStats.wins,
     losses: binanceStats.losses,
     bestTrade: binanceBestWorst.best,
     worstTrade: binanceBestWorst.worst,
     commission: binanceStats.totalCommission,
+    funding: binanceStats.totalFunding,
+    rebates: binanceStats.totalRebates,
+    hasFeeData: true,
   } : {
     tradesCount: tradesClosed,
-    realizedPnl: localRealizedPnl,
+    grossPnl: localRealizedPnl,
+    netPnl: localRealizedPnl, // No fee data for local
     winRate: localWinRate,
     wins: localWins,
     losses: localLosses,
     bestTrade: localBestTrade,
     worstTrade: localWorstTrade,
     commission: 0,
+    funding: 0,
+    rebates: 0,
+    hasFeeData: false,
   };
 
   const hasActivity = stats.tradesCount > 0 || tradesOpened > 0;
+  const hasSignificantFees = stats.commission > 0 || stats.funding !== 0;
 
   return (
     <Card>
@@ -125,14 +150,76 @@ export function TodayPerformance() {
           </div>
         ) : (
           <div className="space-y-4">
-            {/* Main P&L */}
+            {/* Main P&L - Show Net if we have fee data */}
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">24H P&L</span>
-              <div className={`flex items-center gap-1 text-xl font-bold ${stats.realizedPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                {stats.realizedPnl >= 0 ? <TrendingUp className="h-5 w-5" /> : <TrendingDown className="h-5 w-5" />}
-                {stats.realizedPnl >= 0 ? '+' : ''}{formatCurrency(stats.realizedPnl, 'USD')}
+              <span className="text-sm text-muted-foreground">
+                {stats.hasFeeData ? 'Net P&L' : '24H P&L'}
+              </span>
+              <div className={`flex items-center gap-1 text-xl font-bold ${stats.netPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                {stats.netPnl >= 0 ? <TrendingUp className="h-5 w-5" /> : <TrendingDown className="h-5 w-5" />}
+                {stats.netPnl >= 0 ? '+' : ''}{formatCurrency(stats.netPnl, 'USD')}
               </div>
             </div>
+
+            {/* Gross vs Net comparison (only if we have fee data) */}
+            {stats.hasFeeData && hasSignificantFees && (
+              <div className="flex items-center justify-between p-2 rounded bg-muted/50">
+                <span className="text-xs text-muted-foreground">Gross P&L</span>
+                <span className={`text-sm font-semibold ${stats.grossPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                  {stats.grossPnl >= 0 ? '+' : ''}{formatCurrency(stats.grossPnl, 'USD')}
+                </span>
+              </div>
+            )}
+
+            {/* Fee Breakdown (collapsible) */}
+            {stats.hasFeeData && hasSignificantFees && (
+              <Collapsible open={isFeeBreakdownOpen} onOpenChange={setIsFeeBreakdownOpen}>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" size="sm" className="w-full justify-between p-2">
+                    <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Wallet className="h-3 w-3" />
+                      Fee Breakdown
+                    </span>
+                    <ChevronDown className={`h-4 w-4 transition-transform ${isFeeBreakdownOpen ? 'rotate-180' : ''}`} />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pt-2">
+                  <div className="space-y-2 pl-2">
+                    {/* Commission */}
+                    {stats.commission > 0 && (
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground flex items-center gap-1">
+                          <Wallet className="h-3 w-3" /> Trading Fees
+                        </span>
+                        <span className="text-loss">-{formatCurrency(stats.commission, 'USD')}</span>
+                      </div>
+                    )}
+                    
+                    {/* Funding */}
+                    {stats.funding !== 0 && (
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground flex items-center gap-1">
+                          <ArrowUpDown className="h-3 w-3" /> Funding Fees
+                        </span>
+                        <span className={stats.funding >= 0 ? 'text-profit' : 'text-loss'}>
+                          {stats.funding >= 0 ? '+' : ''}{formatCurrency(stats.funding, 'USD')}
+                        </span>
+                      </div>
+                    )}
+                    
+                    {/* Rebates */}
+                    {stats.rebates > 0 && (
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground flex items-center gap-1">
+                          <Trophy className="h-3 w-3" /> Fee Rebates
+                        </span>
+                        <span className="text-profit">+{formatCurrency(stats.rebates, 'USD')}</span>
+                      </div>
+                    )}
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            )}
 
             {/* Trade Stats */}
             <div className="grid grid-cols-2 gap-3">
@@ -142,9 +229,9 @@ export function TodayPerformance() {
               </div>
               {useBinance && stats.commission > 0 ? (
                 <div className="p-3 rounded-lg bg-muted/50">
-                  <p className="text-xs text-muted-foreground">Fees Paid</p>
+                  <p className="text-xs text-muted-foreground">Total Fees</p>
                   <p className="text-lg font-semibold text-muted-foreground">
-                    {formatCurrency(stats.commission, 'USD')}
+                    {formatCurrency(stats.commission + Math.abs(stats.funding < 0 ? stats.funding : 0), 'USD')}
                   </p>
                 </div>
               ) : (

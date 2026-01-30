@@ -17,6 +17,11 @@ export {
   useTestBinanceConnection,
   useRefreshBinanceData,
   useBinanceIncomeHistory,
+  useBinanceAllIncome,
   useBinanceRealizedPnL,
   useBinanceCommissions,
+  useBinanceFundingFees,
 } from './useBinanceFutures';
+
+// Re-export utility functions
+export { getIncomeTypeCategory } from './types';
