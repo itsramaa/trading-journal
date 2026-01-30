@@ -77,13 +77,18 @@ export function SystemStatusIndicator({ compact = false }: SystemStatusIndicator
 
   if (compact) {
     return (
-      <div className={cn(
-        "flex items-center gap-2 px-3 py-2 rounded-lg",
-        config.bg,
-        config.border,
-        "border"
-      )}>
-        <Icon className={cn("h-4 w-4", config.color)} />
+      <div 
+        className={cn(
+          "flex items-center gap-2 px-3 py-2 rounded-lg",
+          config.bg,
+          config.border,
+          "border"
+        )}
+        role="status"
+        aria-live="polite"
+        aria-label={`Trading status: ${config.label}`}
+      >
+        <Icon className={cn("h-4 w-4", config.color)} aria-hidden="true" />
         <span className={cn("text-sm font-medium", config.color)}>
           {canTrade ? '🟢' : status === 'warning' ? '🟡' : '🔴'} {config.label}
         </span>
