@@ -4,43 +4,70 @@ import { Separator } from "@/components/ui/separator";
 import {
   Breadcrumb,
   BreadcrumbItem,
+  BreadcrumbLink,
   BreadcrumbList,
   BreadcrumbPage,
+  BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
-import { useLocation } from "react-router-dom";
+import { useLocation, Link } from "react-router-dom";
 import {
   ThemeToggle,
   NotificationToggle,
 } from "./HeaderControls";
 import { CurrencyDisplay } from "./CurrencyDisplay";
 import { RiskAlertBanner } from "@/components/risk/RiskAlertBanner";
+import { useNavigationShortcuts } from "@/components/ui/keyboard-shortcut";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
 }
 
-const routeTitles: Record<string, string> = {
-  "/": "Dashboard",
-  "/market": "AI Analysis",
-  "/calendar": "Economic Calendar",
-  "/market-data": "Market Data",
-  "/trading": "Trade Entry",
-  "/history": "Trade History",
-  "/risk": "Risk Overview",
-  "/calculator": "Position Calculator",
-  "/strategies": "My Strategies",
-  "/backtest": "Backtest",
-  "/performance": "Performance Overview",
-  "/daily-pnl": "Daily P&L",
-  "/heatmap": "Heatmap",
-  "/ai-insights": "AI Insights",
-  "/accounts": "Account List",
-  "/settings": "Settings",
+// Route hierarchy: domain -> pages
+interface RouteInfo {
+  title: string;
+  domain?: string;
+  domainPath?: string;
+}
+
+const routeHierarchy: Record<string, RouteInfo> = {
+  "/": { title: "Dashboard" },
+  
+  // Market domain
+  "/market": { title: "AI Analysis", domain: "Market", domainPath: "/market" },
+  "/calendar": { title: "Economic Calendar", domain: "Market", domainPath: "/market" },
+  "/market-data": { title: "Market Data", domain: "Market", domainPath: "/market" },
+  
+  // Journal domain
+  "/trading": { title: "Trade Entry", domain: "Journal", domainPath: "/trading" },
+  "/history": { title: "Trade History", domain: "Journal", domainPath: "/trading" },
+  
+  // Risk domain
+  "/risk": { title: "Risk Overview", domain: "Risk", domainPath: "/risk" },
+  "/calculator": { title: "Position Calculator", domain: "Risk", domainPath: "/risk" },
+  
+  // Strategy domain
+  "/strategies": { title: "My Strategies", domain: "Strategy", domainPath: "/strategies" },
+  "/backtest": { title: "Backtest", domain: "Strategy", domainPath: "/strategies" },
+  
+  // Analytics domain
+  "/performance": { title: "Performance Overview", domain: "Analytics", domainPath: "/performance" },
+  "/daily-pnl": { title: "Daily P&L", domain: "Analytics", domainPath: "/performance" },
+  "/heatmap": { title: "Heatmap", domain: "Analytics", domainPath: "/performance" },
+  "/ai-insights": { title: "AI Insights", domain: "Analytics", domainPath: "/performance" },
+  
+  // Accounts domain
+  "/accounts": { title: "Account List", domain: "Accounts", domainPath: "/accounts" },
+  
+  // Settings domain
+  "/settings": { title: "Settings", domain: "Settings", domainPath: "/settings" },
 };
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const location = useLocation();
-  const pageTitle = routeTitles[location.pathname] || "Page";
+  const routeInfo = routeHierarchy[location.pathname] || { title: "Page" };
+  
+  // Enable keyboard shortcuts
+  useNavigationShortcuts();
 
   return (
     <SidebarProvider>
@@ -61,9 +88,25 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             <Separator orientation="vertical" className="mr-2 h-4" />
             <Breadcrumb>
               <BreadcrumbList>
-                <BreadcrumbItem>
-                  <BreadcrumbPage>{pageTitle}</BreadcrumbPage>
-                </BreadcrumbItem>
+                {routeInfo.domain ? (
+                  <>
+                    <BreadcrumbItem className="hidden md:block">
+                      <BreadcrumbLink asChild>
+                        <Link to={routeInfo.domainPath || "/"}>
+                          {routeInfo.domain}
+                        </Link>
+                      </BreadcrumbLink>
+                    </BreadcrumbItem>
+                    <BreadcrumbSeparator className="hidden md:block" />
+                    <BreadcrumbItem>
+                      <BreadcrumbPage>{routeInfo.title}</BreadcrumbPage>
+                    </BreadcrumbItem>
+                  </>
+                ) : (
+                  <BreadcrumbItem>
+                    <BreadcrumbPage>{routeInfo.title}</BreadcrumbPage>
+                  </BreadcrumbItem>
+                )}
               </BreadcrumbList>
             </Breadcrumb>
           </div>
