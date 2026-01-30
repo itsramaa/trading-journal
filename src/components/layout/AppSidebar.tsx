@@ -1,6 +1,7 @@
 /**
  * AppSidebar Component - Domain-based flat navigation
  * Dashboard standalone at top, 7 domain groups
+ * Includes keyboard shortcut indicators
  */
 import * as React from "react";
 import {
@@ -24,7 +25,7 @@ import {
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { NavUser } from "./NavUser";
-import { NavGroup } from "./NavGroup";
+import { NavGroup, ROUTE_SHORTCUTS } from "./NavGroup";
 import {
   Sidebar,
   SidebarContent,
@@ -36,6 +37,7 @@ import {
   SidebarRail,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { Kbd } from "@/components/ui/keyboard-shortcut";
 
 // Navigation structure: Dashboard standalone + 7 domain groups
 const navigationGroups = [
@@ -103,6 +105,20 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   };
 
   const isDashboardActive = location.pathname === "/";
+  const dashboardShortcut = ROUTE_SHORTCUTS["/"];
+
+  // Tooltip for collapsed mode with shortcut
+  const getDashboardTooltip = () => {
+    if (dashboardShortcut) {
+      return (
+        <div className="flex items-center gap-2">
+          <span>Dashboard</span>
+          <Kbd keys={["G", dashboardShortcut]} className="ml-1" />
+        </div>
+      );
+    }
+    return "Dashboard";
+  };
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -131,18 +147,26 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
 
       <SidebarContent>
-        {/* Dashboard - Standalone at top */}
+        {/* Dashboard - Standalone at top with shortcut indicator */}
         <SidebarMenu className="px-2 pt-2">
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
               isActive={isDashboardActive}
-              tooltip="Dashboard"
+              tooltip={isCollapsed ? { children: getDashboardTooltip() } : undefined}
               size="default"
+              className="group/nav-item"
             >
-              <Link to="/" onClick={handleNavClick}>
-                <LayoutDashboard className="h-4 w-4" />
-                <span>Dashboard</span>
+              <Link to="/" onClick={handleNavClick} className="flex items-center justify-between w-full">
+                <div className="flex items-center gap-2">
+                  <LayoutDashboard className="h-4 w-4" />
+                  <span>Dashboard</span>
+                </div>
+                {!isCollapsed && dashboardShortcut && (
+                  <span className="ml-auto text-[10px] font-mono text-muted-foreground opacity-0 group-hover/nav-item:opacity-100 transition-opacity">
+                    G {dashboardShortcut}
+                  </span>
+                )}
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -167,3 +191,4 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     </Sidebar>
   );
 }
+
