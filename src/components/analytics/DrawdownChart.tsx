@@ -79,7 +79,7 @@ export function DrawdownChart() {
           </div>
           <div className="text-right">
             <p className="text-sm text-muted-foreground">Max Drawdown</p>
-            <p className="text-xl font-bold text-red-500">-{maxDrawdown.toFixed(2)}%</p>
+            <p className="text-xl font-bold text-loss">-{maxDrawdown.toFixed(2)}%</p>
           </div>
         </div>
       </CardHeader>

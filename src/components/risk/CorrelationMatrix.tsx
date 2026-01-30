@@ -38,11 +38,12 @@ function getCorrelation(asset1: string, asset2: string): number {
   return CORRELATION_MAP[asset1]?.[asset2] ?? CORRELATION_MAP[asset2]?.[asset1] ?? 0.3;
 }
 
+// Design system color tokens for correlation levels
 function getCorrelationColor(value: number): string {
-  if (value >= 0.8) return "text-red-500 bg-red-500/10";
-  if (value >= 0.7) return "text-yellow-500 bg-yellow-500/10";
-  if (value >= 0.5) return "text-blue-500 bg-blue-500/10";
-  return "text-green-500 bg-green-500/10";
+  if (value >= 0.8) return "text-loss bg-loss-muted";
+  if (value >= 0.7) return "text-[hsl(var(--chart-4))] bg-[hsl(var(--chart-4))]/10";
+  if (value >= 0.5) return "text-[hsl(var(--chart-6))] bg-[hsl(var(--chart-6))]/10";
+  return "text-profit bg-profit-muted";
 }
 
 interface CorrelationPair {
@@ -197,32 +198,32 @@ export function CorrelationMatrix() {
                   {(pair.correlation * 100).toFixed(0)}%
                 </div>
                 {pair.correlation >= 0.8 && (
-                  <AlertTriangle className="h-4 w-4 text-red-500" />
+                  <AlertTriangle className="h-4 w-4 text-loss" />
                 )}
                 {pair.correlation >= 0.7 && pair.correlation < 0.8 && (
-                  <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                  <AlertTriangle className="h-4 w-4 text-[hsl(var(--chart-4))]" />
                 )}
               </div>
             </div>
           ))}
         </div>
 
-        {/* Legend */}
+        {/* Legend - Using design tokens */}
         <div className="flex flex-wrap gap-3 text-xs text-muted-foreground pt-2 border-t">
           <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded bg-red-500" />
+            <div className="w-2 h-2 rounded bg-loss" />
             <span>≥80% Very High</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded bg-yellow-500" />
+            <div className="w-2 h-2 rounded bg-[hsl(var(--chart-4))]" />
             <span>70-79% High</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded bg-blue-500" />
+            <div className="w-2 h-2 rounded bg-[hsl(var(--chart-6))]" />
             <span>50-69% Moderate</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded bg-green-500" />
+            <div className="w-2 h-2 rounded bg-profit" />
             <span>&lt;50% Low</span>
           </div>
         </div>

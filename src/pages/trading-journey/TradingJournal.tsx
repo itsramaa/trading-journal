@@ -580,7 +580,7 @@ export default function TradingJournal() {
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-1">
                 Open Positions
-                {isBinanceConnected && <Wifi className="h-3 w-3 text-green-500" />}
+                {isBinanceConnected && <Wifi className="h-3 w-3 text-profit" />}
               </CardTitle>
               <Circle className="h-4 w-4 text-primary" />
             </CardHeader>
@@ -734,7 +734,7 @@ export default function TradingJournal() {
                               </TableCell>
                               <TableCell className={cn(
                                 "text-right font-mono font-medium",
-                                position.unrealizedProfit >= 0 ? "text-green-500" : "text-red-500"
+                                position.unrealizedProfit >= 0 ? "text-profit" : "text-loss"
                               )}>
                                 {position.unrealizedProfit >= 0 ? '+' : ''}${position.unrealizedProfit.toFixed(2)}
                               </TableCell>
@@ -793,16 +793,16 @@ export default function TradingJournal() {
                               {formatCurrency(position.currentPrice, "USD")}
                             </TableCell>
                             <TableCell className="text-right font-mono">{position.quantity}</TableCell>
-                            <TableCell className={`text-right font-mono font-medium ${position.unrealizedPnL >= 0 ? "text-green-500" : "text-red-500"}`}>
+                            <TableCell className={`text-right font-mono font-medium ${position.unrealizedPnL >= 0 ? "text-profit" : "text-loss"}`}>
                               {position.unrealizedPnL >= 0 ? "+" : ""}{formatCurrency(position.unrealizedPnL, "USD")}
                               <span className="text-xs ml-1">
                                 ({position.unrealizedPnLPercent >= 0 ? "+" : ""}{position.unrealizedPnLPercent.toFixed(2)}%)
                               </span>
                             </TableCell>
                             <TableCell className="text-right text-xs">
-                              <span className="text-red-500">{position.stop_loss ? formatCurrency(position.stop_loss, "USD") : "-"}</span>
+                              <span className="text-loss">{position.stop_loss ? formatCurrency(position.stop_loss, "USD") : "-"}</span>
                               {" / "}
-                              <span className="text-green-500">{position.take_profit ? formatCurrency(position.take_profit, "USD") : "-"}</span>
+                              <span className="text-profit">{position.take_profit ? formatCurrency(position.take_profit, "USD") : "-"}</span>
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex gap-1 justify-end">

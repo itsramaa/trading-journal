@@ -69,13 +69,13 @@ export default function TradingDashboardContent() {
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">{t('trading.totalPnl')}</CardTitle>
             {stats.totalPnl >= 0 ? (
-              <TrendingUp className="h-4 w-4 text-green-500" />
+              <TrendingUp className="h-4 w-4 text-profit" />
             ) : (
-              <TrendingDown className="h-4 w-4 text-red-500" />
+              <TrendingDown className="h-4 w-4 text-loss" />
             )}
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${stats.totalPnl >= 0 ? "text-green-500" : "text-red-500"}`}>
+            <div className={`text-2xl font-bold ${stats.totalPnl >= 0 ? "text-profit" : "text-loss"}`}>
               {stats.totalPnl >= 0 ? "+" : ""}{formatCurrency(stats.totalPnl)}
             </div>
             <p className="text-xs text-muted-foreground">
@@ -133,7 +133,7 @@ export default function TradingDashboardContent() {
                   <Badge variant={trade.result === 'win' ? 'default' : trade.result === 'loss' ? 'destructive' : 'secondary'}>
                     {trade.result || 'pending'}
                   </Badge>
-                  <span className={`font-bold ${(trade.pnl || 0) >= 0 ? "text-green-500" : "text-red-500"}`}>
+                  <span className={`font-bold ${(trade.pnl || 0) >= 0 ? "text-profit" : "text-loss"}`}>
                     {(trade.pnl || 0) >= 0 ? "+" : ""}{formatCurrency(trade.pnl || 0)}
                   </span>
                 </div>

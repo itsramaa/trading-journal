@@ -29,21 +29,22 @@ export function DailyLossTracker() {
     );
   }
 
+  // Design system color tokens
   const getStatusColor = () => {
-    if (riskStatus.loss_used_percent >= 100) return 'text-red-500';
-    if (riskStatus.loss_used_percent >= RISK_THRESHOLDS.danger_percent) return 'text-red-500';
-    if (riskStatus.loss_used_percent >= RISK_THRESHOLDS.warning_percent) return 'text-yellow-500';
-    return 'text-green-500';
+    if (riskStatus.loss_used_percent >= 100) return 'text-loss';
+    if (riskStatus.loss_used_percent >= RISK_THRESHOLDS.danger_percent) return 'text-loss';
+    if (riskStatus.loss_used_percent >= RISK_THRESHOLDS.warning_percent) return 'text-[hsl(var(--chart-4))]';
+    return 'text-profit';
   };
 
   const getStatusIcon = () => {
     if (riskStatus.loss_used_percent >= 100) {
-      return <XCircle className="h-6 w-6 text-red-500" />;
+      return <XCircle className="h-6 w-6 text-loss" />;
     }
     if (riskStatus.loss_used_percent >= RISK_THRESHOLDS.warning_percent) {
-      return <AlertTriangle className="h-6 w-6 text-yellow-500" />;
+      return <AlertTriangle className="h-6 w-6 text-[hsl(var(--chart-4))]" />;
     }
-    return <CheckCircle className="h-6 w-6 text-green-500" />;
+    return <CheckCircle className="h-6 w-6 text-profit" />
   };
 
   const formatCurrency = (value: number) => `$${value.toFixed(2)}`;
@@ -85,8 +86,8 @@ export function DailyLossTracker() {
           />
           <div className="flex justify-between text-xs text-muted-foreground">
             <span>0%</span>
-            <span className="text-yellow-500">{RISK_THRESHOLDS.warning_percent}%</span>
-            <span className="text-red-500">{RISK_THRESHOLDS.danger_percent}%</span>
+            <span className="text-[hsl(var(--chart-4))]">{RISK_THRESHOLDS.warning_percent}%</span>
+            <span className="text-loss">{RISK_THRESHOLDS.danger_percent}%</span>
             <span>100%</span>
           </div>
         </div>
@@ -107,15 +108,15 @@ export function DailyLossTracker() {
               {formatCurrency(riskStatus.loss_limit)}
             </p>
           </div>
-          <div className={`p-3 rounded-lg ${riskStatus.current_pnl >= 0 ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
+          <div className={`p-3 rounded-lg ${riskStatus.current_pnl >= 0 ? 'bg-profit-muted' : 'bg-loss-muted'}`}>
             <p className="text-xs text-muted-foreground">Today's P&L</p>
-            <p className={`text-lg font-semibold ${riskStatus.current_pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+            <p className={`text-lg font-semibold ${riskStatus.current_pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
               {riskStatus.current_pnl >= 0 ? '+' : ''}{formatCurrency(riskStatus.current_pnl)}
             </p>
           </div>
           <div className="p-3 rounded-lg bg-muted/50">
             <p className="text-xs text-muted-foreground">Remaining Budget</p>
-            <p className={`text-lg font-semibold ${riskStatus.remaining_budget <= 0 ? 'text-red-500' : ''}`}>
+            <p className={`text-lg font-semibold ${riskStatus.remaining_budget <= 0 ? 'text-loss' : ''}`}>
               {formatCurrency(riskStatus.remaining_budget)}
             </p>
           </div>
@@ -124,12 +125,12 @@ export function DailyLossTracker() {
         {/* Status Badge */}
         <div className="flex items-center justify-center pt-4 border-t">
           {riskStatus.trading_allowed ? (
-            <Badge className="bg-green-500/20 text-green-500 border-green-500/30 px-4 py-2">
+            <Badge className="bg-profit-muted text-profit border-profit/30 px-4 py-2">
               <CheckCircle className="h-4 w-4 mr-2" />
               Trading Allowed
             </Badge>
           ) : (
-            <Badge className="bg-red-500/20 text-red-500 border-red-500/30 px-4 py-2">
+            <Badge className="bg-loss-muted text-loss border-loss/30 px-4 py-2">
               <XCircle className="h-4 w-4 mr-2" />
               Trading Disabled - Limit Reached
             </Badge>

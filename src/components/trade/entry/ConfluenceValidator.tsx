@@ -257,7 +257,7 @@ export function ConfluenceValidator({ onNext, onBack }: ConfluenceValidatorProps
           )}
 
           {canProceed && (
-            <div className="flex items-center gap-2 p-3 rounded-lg bg-green-500/10 border border-green-500/30 text-green-600">
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-profit-muted border border-profit/30 text-profit">
               <CheckCircle className="h-5 w-5" />
               <span className="text-sm font-medium">
                 All confluence requirements met! Ready to proceed.
