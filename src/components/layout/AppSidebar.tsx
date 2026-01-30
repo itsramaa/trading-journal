@@ -1,24 +1,28 @@
 /**
- * AppSidebar Component - shadcn sidebar-08 pattern
- * Grouped navigation with collapsible sections
+ * AppSidebar Component - Domain-based flat navigation
+ * Dashboard standalone at top, 7 domain groups
  */
 import * as React from "react";
 import {
   LayoutDashboard,
-  Notebook,
-  Building2,
-  Lightbulb,
-  Shield,
   TrendingUp,
+  Calendar,
+  BarChart3,
+  Notebook,
+  History,
+  Shield,
+  Calculator,
+  Lightbulb,
+  Play,
   LineChart,
+  DollarSign,
+  Grid3X3,
+  Brain,
+  Building2,
   Settings,
   CandlestickChart,
-  ChartBar,
-  Target,
-  Cog,
-  ChartCandlestick,
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { NavUser } from "./NavUser";
 import { NavGroup } from "./NavGroup";
 import {
@@ -33,42 +37,72 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 
-// Navigation structure: 4 groups with 8 items total
+// Navigation structure: Dashboard standalone + 7 domain groups
 const navigationGroups = [
   {
-    title: "Trading Fundamentals",
-    icon: ChartBar,
+    title: "Market",
     items: [
-      { title: "Dashboard", url: "/", icon: LayoutDashboard },
-      { title: "Market Insight", url: "/market", icon: TrendingUp },
-      { title: "Accounts", url: "/accounts", icon: Building2 },
+      { title: "AI Analysis", url: "/market", icon: TrendingUp },
+      { title: "Economic Calendar", url: "/calendar", icon: Calendar },
+      { title: "Market Data", url: "/market-data", icon: BarChart3 },
     ],
   },
   {
-    title: "Execution & Management",
-    icon: Target,
+    title: "Journal",
     items: [
-      { title: "Trading Journal", url: "/trading", icon: Notebook },
-      { title: "Risk Management", url: "/risk", icon: Shield },
+      { title: "Trade Entry", url: "/trading", icon: Notebook },
+      { title: "Trade History", url: "/history", icon: History },
     ],
   },
   {
-    title: "Strategy & Analysis",
-    icon: ChartCandlestick,
+    title: "Risk",
     items: [
-      { title: "Strategies", url: "/strategies", icon: Lightbulb },
-      { title: "Performance", url: "/performance", icon: LineChart },
+      { title: "Risk Overview", url: "/risk", icon: Shield },
+      { title: "Position Calculator", url: "/calculator", icon: Calculator },
     ],
   },
   {
-    title: "Tools & Settings",
-    icon: Cog,
-    items: [{ title: "Settings", url: "/settings", icon: Settings }],
+    title: "Strategy",
+    items: [
+      { title: "My Strategies", url: "/strategies", icon: Lightbulb },
+      { title: "Backtest", url: "/backtest", icon: Play },
+    ],
+  },
+  {
+    title: "Analytics",
+    items: [
+      { title: "Performance Overview", url: "/performance", icon: LineChart },
+      { title: "Daily P&L", url: "/daily-pnl", icon: DollarSign },
+      { title: "Heatmap", url: "/heatmap", icon: Grid3X3 },
+      { title: "AI Insights", url: "/ai-insights", icon: Brain },
+    ],
+  },
+  {
+    title: "Accounts",
+    items: [
+      { title: "Account List", url: "/accounts", icon: Building2 },
+    ],
+  },
+  {
+    title: "Settings",
+    items: [
+      { title: "Settings", url: "/settings", icon: Settings },
+    ],
   },
 ];
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const { setOpenMobile } = useSidebar();
+  const { setOpenMobile, isMobile, state } = useSidebar();
+  const location = useLocation();
+  const isCollapsed = state === "collapsed";
+
+  const handleNavClick = () => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  };
+
+  const isDashboardActive = location.pathname === "/";
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -80,7 +114,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               asChild
               tooltip="Trading Journey"
             >
-              <Link to="/" onClick={() => setOpenMobile(false)}>
+              <Link to="/" onClick={handleNavClick}>
                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                   <CandlestickChart className="size-4" />
                 </div>
@@ -97,11 +131,28 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
 
       <SidebarContent>
+        {/* Dashboard - Standalone at top */}
+        <SidebarMenu className="px-2 pt-2">
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              isActive={isDashboardActive}
+              tooltip="Dashboard"
+              size="default"
+            >
+              <Link to="/" onClick={handleNavClick}>
+                <LayoutDashboard className="h-4 w-4" />
+                <span>Dashboard</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+
+        {/* Domain Groups */}
         {navigationGroups.map((group) => (
           <NavGroup
             key={group.title}
             title={group.title}
-            icon={group.icon}
             items={group.items}
             defaultOpen={true}
           />

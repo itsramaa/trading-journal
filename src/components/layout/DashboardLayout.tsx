@@ -21,12 +21,20 @@ interface DashboardLayoutProps {
 
 const routeTitles: Record<string, string> = {
   "/": "Dashboard",
-  "/accounts": "Accounts",
-  "/trading": "Trading Journal",
-  "/strategies": "Strategies",
-  "/performance": "Performance",
-  "/risk": "Risk Management",
-  "/market": "Market Insight",
+  "/market": "AI Analysis",
+  "/calendar": "Economic Calendar",
+  "/market-data": "Market Data",
+  "/trading": "Trade Entry",
+  "/history": "Trade History",
+  "/risk": "Risk Overview",
+  "/calculator": "Position Calculator",
+  "/strategies": "My Strategies",
+  "/backtest": "Backtest",
+  "/performance": "Performance Overview",
+  "/daily-pnl": "Daily P&L",
+  "/heatmap": "Heatmap",
+  "/ai-insights": "AI Insights",
+  "/accounts": "Account List",
   "/settings": "Settings",
 };
 

@@ -1,6 +1,6 @@
 /**
- * NavGroup Component - shadcn sidebar-08 pattern
- * Collapsible navigation group with ChevronRight rotation
+ * NavGroup Component - Domain-based navigation group
+ * Simplified without group icon, just label + chevron
  */
 import * as React from "react";
 import { ChevronRight, type LucideIcon } from "lucide-react";
@@ -29,14 +29,12 @@ interface NavItem {
 
 interface NavGroupProps {
   title: string;
-  icon: LucideIcon;
   items: NavItem[];
   defaultOpen?: boolean;
 }
 
 export function NavGroup({
   title,
-  icon: GroupIcon,
   items,
   defaultOpen = true,
 }: NavGroupProps) {
@@ -96,14 +94,13 @@ export function NavGroup({
       <SidebarGroup className="py-0 min-w-0">
         <SidebarGroupLabel
           asChild
-          className="group/label h-8 text-sm text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          className="group/label h-8 text-xs uppercase tracking-wider text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
         >
-          <CollapsibleTrigger className="flex w-full items-center">
-            <GroupIcon className={cn(
-              "mr-2 h-4 w-4",
-              hasActiveItem && "text-primary"
-            )} />
-            <span className="flex-1 text-left truncate">{title}</span>
+          <CollapsibleTrigger className="flex w-full items-center px-2">
+            <span className={cn(
+              "flex-1 text-left truncate",
+              hasActiveItem && "text-primary font-medium"
+            )}>{title}</span>
             <ChevronRight
               className={cn(
                 "ml-auto h-4 w-4 shrink-0 transition-transform duration-200",
@@ -114,7 +111,7 @@ export function NavGroup({
         </SidebarGroupLabel>
         <CollapsibleContent>
           <SidebarGroupContent>
-            <SidebarMenu className="pl-4 border-l border-sidebar-border ml-3 min-w-0">
+            <SidebarMenu className="pl-2 min-w-0">
               {items.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
