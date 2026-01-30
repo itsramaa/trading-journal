@@ -104,8 +104,9 @@ const MarketInsight = () => {
             className="gap-2" 
             onClick={handleRefresh}
             disabled={isLoading}
+            aria-label="Refresh market insight data"
           >
-            <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
+            <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} aria-hidden="true" />
             Refresh Data
           </Button>
         </div>
@@ -237,8 +238,10 @@ const MarketInsight = () => {
                 size="sm"
                 onClick={() => refetchMacro()}
                 disabled={macroLoading}
+                aria-label="Refresh macro analysis"
               >
-                <RefreshCw className={cn("h-4 w-4", macroLoading && "animate-spin")} />
+                <RefreshCw className={cn("h-4 w-4", macroLoading && "animate-spin")} aria-hidden="true" />
+                <span className="sr-only">Refresh macro analysis</span>
               </Button>
             </div>
             <CardDescription>

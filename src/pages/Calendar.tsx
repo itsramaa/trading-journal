@@ -81,8 +81,9 @@ const Calendar = () => {
             size="sm"
             onClick={() => refetch()}
             disabled={isFetching}
+            aria-label="Refresh economic calendar data"
           >
-            <RefreshCw className={cn("h-4 w-4 mr-2", isFetching && "animate-spin")} />
+            <RefreshCw className={cn("h-4 w-4 mr-2", isFetching && "animate-spin")} aria-hidden="true" />
             Refresh
           </Button>
         </div>
@@ -197,7 +198,7 @@ const Calendar = () => {
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
-              <CalendarIcon className="h-5 w-5 text-primary" />
+              <CalendarIcon className="h-5 w-5 text-primary" aria-hidden="true" />
               <CardTitle className="text-lg">Upcoming Events</CardTitle>
             </div>
             <CardDescription>
@@ -219,24 +220,29 @@ const Calendar = () => {
                 </Button>
               </div>
             ) : data?.events && data.events.length > 0 ? (
-              <div className="space-y-3">
+              <div className="space-y-3" role="list" aria-label="Upcoming economic events">
                 {data.events.map((event) => (
                   <div 
                     key={event.id}
                     className="flex items-start gap-3 p-3 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors"
+                    role="listitem"
+                    aria-label={`${event.event} - ${event.importance} importance${event.cryptoImpact ? `, ${event.cryptoImpact} crypto impact` : ''}`}
                   >
-                    <div className={cn(
-                      "w-2 h-2 rounded-full mt-2 shrink-0",
-                      event.importance === 'high' && "bg-loss",
-                      event.importance === 'medium' && "bg-secondary",
-                      event.importance === 'low' && "bg-profit"
-                    )} />
+                    <div 
+                      className={cn(
+                        "w-2 h-2 rounded-full mt-2 shrink-0",
+                        event.importance === 'high' && "bg-loss",
+                        event.importance === 'medium' && "bg-secondary",
+                        event.importance === 'low' && "bg-profit"
+                      )} 
+                      aria-hidden="true"
+                    />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
                         <p className="font-medium text-sm truncate">{event.event}</p>
                         <div className="flex items-center gap-2 shrink-0">
                           {event.cryptoImpact && (
-                            <span className={cn("flex items-center gap-1", getImpactColor(event.cryptoImpact))}>
+                            <span className={cn("flex items-center gap-1", getImpactColor(event.cryptoImpact))} aria-hidden="true">
                               {getImpactIcon(event.cryptoImpact)}
                             </span>
                           )}

@@ -239,8 +239,8 @@ export default function StrategyManagement() {
             </div>
           </div>
           {activeTab === 'library' && (
-            <Button onClick={handleOpenAdd} className="shrink-0">
-              <Plus className="mr-2 h-4 w-4" />
+            <Button onClick={handleOpenAdd} className="shrink-0" aria-label="Create new trading strategy">
+              <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
               New Strategy
             </Button>
           )}
@@ -248,17 +248,17 @@ export default function StrategyManagement() {
 
         {/* Main Tabs - Enhanced with better visual hierarchy */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3 h-11">
-            <TabsTrigger value="library" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <Library className="h-4 w-4" />
+          <TabsList className="grid w-full grid-cols-3 h-11" aria-label="Strategy management sections">
+            <TabsTrigger value="library" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground" aria-label="Strategy library">
+              <Library className="h-4 w-4" aria-hidden="true" />
               <span className="hidden sm:inline">Library</span>
             </TabsTrigger>
-            <TabsTrigger value="import" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <Youtube className="h-4 w-4" />
+            <TabsTrigger value="import" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground" aria-label="Import strategy from YouTube">
+              <Youtube className="h-4 w-4" aria-hidden="true" />
               <span className="hidden sm:inline">YouTube Import</span>
             </TabsTrigger>
-            <TabsTrigger value="backtest" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <Play className="h-4 w-4" />
+            <TabsTrigger value="backtest" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground" aria-label="Run strategy backtest">
+              <Play className="h-4 w-4" aria-hidden="true" />
               <span className="hidden sm:inline">Backtest</span>
             </TabsTrigger>
           </TabsList>
@@ -365,8 +365,9 @@ export default function StrategyManagement() {
                         </TooltipProvider>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MoreVertical className="h-4 w-4" />
+                            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Options for ${strategy.name} strategy`}>
+                              <MoreVertical className="h-4 w-4" aria-hidden="true" />
+                              <span className="sr-only">Strategy options</span>
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
