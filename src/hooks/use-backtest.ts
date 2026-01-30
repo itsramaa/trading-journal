@@ -47,7 +47,7 @@ export function useRunBacktest() {
   });
 }
 
-// Get backtest history
+// Get backtest history with strategy names joined
 export function useBacktestHistory(strategyId?: string) {
   const { user } = useAuth();
 
@@ -58,7 +58,12 @@ export function useBacktestHistory(strategyId?: string) {
 
       let query = supabase
         .from("backtest_results")
-        .select("*")
+        .select(`
+          *,
+          trading_strategies (
+            name
+          )
+        `)
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
         .limit(50);
@@ -71,11 +76,11 @@ export function useBacktestHistory(strategyId?: string) {
 
       if (error) throw error;
 
-      // Transform to BacktestResult type
-      return (data || []).map((row: BacktestResultRow) => ({
+      // Transform to BacktestResult type with strategy name
+      return (data || []).map((row: BacktestResultRow & { trading_strategies?: { name: string } | null }) => ({
         id: row.id,
         strategyId: row.strategy_id,
-        strategyName: '', // Will be populated by join or lookup
+        strategyName: row.trading_strategies?.name || 'Unknown Strategy',
         pair: row.pair,
         periodStart: row.period_start,
         periodEnd: row.period_end,

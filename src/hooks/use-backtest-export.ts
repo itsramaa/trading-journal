@@ -178,5 +178,100 @@ export function useBacktestExport() {
     doc.save(`backtest_${result.strategyName}_${result.pair}_${format(new Date(), 'yyyyMMdd_HHmmss')}.pdf`);
   };
   
-  return { exportToCSV, exportToPDF };
+  const exportComparisonToPDF = (results: BacktestResult[]) => {
+    if (results.length < 2) return;
+    
+    const doc = new jsPDF();
+    
+    // Title
+    doc.setFontSize(20);
+    doc.setTextColor(40, 40, 40);
+    doc.text('Backtest Comparison Report', 105, 20, { align: 'center' });
+    
+    // Subtitle
+    doc.setFontSize(12);
+    doc.setTextColor(80, 80, 80);
+    doc.text(`Comparing ${results.length} strategies`, 105, 30, { align: 'center' });
+    doc.text(`Generated: ${format(new Date(), 'MMM d, yyyy HH:mm')}`, 105, 37, { align: 'center' });
+    
+    // Strategy list
+    doc.setFontSize(14);
+    doc.setTextColor(40, 40, 40);
+    doc.text('Strategies Compared:', 14, 50);
+    
+    results.forEach((result, idx) => {
+      doc.setFontSize(10);
+      doc.text(`${idx + 1}. ${result.strategyName} - ${result.pair}`, 20, 58 + idx * 6);
+    });
+    
+    // Metrics comparison table
+    const startY = 60 + results.length * 6 + 10;
+    doc.setFontSize(14);
+    doc.text('Performance Metrics', 14, startY);
+    
+    // Build comparison data
+    const metricsData = [
+      ['Total Return', ...results.map(r => `${r.metrics.totalReturn >= 0 ? '+' : ''}${r.metrics.totalReturn.toFixed(2)}%`)],
+      ['Win Rate', ...results.map(r => `${(r.metrics.winRate * 100).toFixed(1)}%`)],
+      ['Max Drawdown', ...results.map(r => `-${r.metrics.maxDrawdown.toFixed(2)}%`)],
+      ['Sharpe Ratio', ...results.map(r => r.metrics.sharpeRatio.toFixed(2))],
+      ['Profit Factor', ...results.map(r => r.metrics.profitFactor === Infinity ? '∞' : r.metrics.profitFactor.toFixed(2))],
+      ['Total Trades', ...results.map(r => r.metrics.totalTrades.toString())],
+      ['Avg Win', ...results.map(r => `$${r.metrics.avgWin.toFixed(2)}`)],
+      ['Avg Loss', ...results.map(r => `-$${r.metrics.avgLoss.toFixed(2)}`)],
+      ['Avg R:R', ...results.map(r => r.metrics.avgRiskReward.toFixed(2))],
+    ];
+    
+    autoTable(doc, {
+      startY: startY + 5,
+      head: [['Metric', ...results.map((r, i) => `${r.strategyName.substring(0, 15)}${r.strategyName.length > 15 ? '...' : ''}`)]],
+      body: metricsData,
+      theme: 'striped',
+      headStyles: { fillColor: [59, 130, 246] },
+      styles: { fontSize: 9 },
+      columnStyles: {
+        0: { fontStyle: 'bold' },
+      },
+    });
+    
+    // Winner summary
+    const finalY = (doc as any).lastAutoTable.finalY || 200;
+    doc.setFontSize(14);
+    doc.text('Best Performance By Metric:', 14, finalY + 15);
+    
+    // Determine winners
+    const winners = [
+      { metric: 'Total Return', winner: results.reduce((a, b) => a.metrics.totalReturn > b.metrics.totalReturn ? a : b).strategyName },
+      { metric: 'Win Rate', winner: results.reduce((a, b) => a.metrics.winRate > b.metrics.winRate ? a : b).strategyName },
+      { metric: 'Lowest Drawdown', winner: results.reduce((a, b) => a.metrics.maxDrawdown < b.metrics.maxDrawdown ? a : b).strategyName },
+      { metric: 'Sharpe Ratio', winner: results.reduce((a, b) => a.metrics.sharpeRatio > b.metrics.sharpeRatio ? a : b).strategyName },
+    ];
+    
+    autoTable(doc, {
+      startY: finalY + 20,
+      head: [['Metric', 'Best Strategy']],
+      body: winners.map(w => [w.metric, `🏆 ${w.winner}`]),
+      theme: 'grid',
+      headStyles: { fillColor: [34, 139, 34] },
+      styles: { fontSize: 10 },
+    });
+    
+    // Footer
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(150, 150, 150);
+      doc.text(
+        `Backtest Comparison Report | Page ${i} of ${pageCount}`,
+        105,
+        doc.internal.pageSize.height - 10,
+        { align: 'center' }
+      );
+    }
+    
+    doc.save(`backtest_comparison_${format(new Date(), 'yyyyMMdd_HHmmss')}.pdf`);
+  };
+  
+  return { exportToCSV, exportToPDF, exportComparisonToPDF };
 }
