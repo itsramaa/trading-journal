@@ -5,9 +5,10 @@
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { QuickTip } from "@/components/ui/onboarding-tooltip";
-import { Shield, Calculator, Settings, AlertTriangle, History, LayoutDashboard } from "lucide-react";
+import { Shield, Calculator, Settings, AlertTriangle, History, LayoutDashboard, CheckCircle } from "lucide-react";
 import { 
   DailyLossTracker, 
   PositionSizeCalculator, 
@@ -17,10 +18,13 @@ import {
   RiskSettingsForm,
 } from "@/components/risk";
 import { useRiskProfile, useUpsertRiskProfile } from "@/hooks/use-risk-profile";
+import { useRiskEvents } from "@/hooks/use-risk-events";
 import { useState, useEffect } from "react";
+import { format } from "date-fns";
 
 export default function RiskManagement() {
   const { data: riskProfile, isLoading } = useRiskProfile();
+  const { events: riskEvents } = useRiskEvents();
   const upsertProfile = useUpsertRiskProfile();
 
   // Form state
@@ -106,7 +110,7 @@ export default function RiskManagement() {
                 onConfigureClick={navigateToSettings} 
               />
 
-              {/* Risk Alerts */}
+              {/* Risk Alerts - Show recent events or All Clear */}
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-lg flex items-center gap-2">
@@ -118,11 +122,46 @@ export default function RiskManagement() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <EmptyState
-                    icon={Shield}
-                    title="All Clear"
-                    description="No active risk alerts. Your trading is within defined parameters."
-                  />
+                  {riskEvents && riskEvents.length > 0 ? (
+                    <div className="space-y-3">
+                      {riskEvents.slice(0, 3).map((event) => (
+                        <div 
+                          key={event.id} 
+                          className="flex items-start gap-3 p-2 rounded-lg bg-muted/50"
+                        >
+                          <AlertTriangle className={`h-4 w-4 mt-0.5 shrink-0 ${
+                            event.event_type.includes('limit_reached') || event.event_type.includes('disabled')
+                              ? 'text-loss' 
+                              : 'text-chart-4'
+                          }`} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{event.message}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {format(new Date(event.created_at || event.event_date), 'MMM dd, HH:mm')}
+                            </p>
+                          </div>
+                          <Badge variant="outline" className="text-xs shrink-0">
+                            {event.trigger_value.toFixed(0)}%
+                          </Badge>
+                        </div>
+                      ))}
+                      {riskEvents.length > 3 && (
+                        <p className="text-xs text-muted-foreground text-center">
+                          +{riskEvents.length - 3} more events in History tab
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3 py-4">
+                      <CheckCircle className="h-8 w-8 text-profit" />
+                      <div>
+                        <p className="font-medium">All Clear</p>
+                        <p className="text-sm text-muted-foreground">
+                          No active risk alerts. Trading within parameters.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -132,7 +171,7 @@ export default function RiskManagement() {
 
           {/* Calculator Tab */}
           <TabsContent value="calculator">
-            <PositionSizeCalculator accountBalance={10000} />
+            <PositionSizeCalculator />
           </TabsContent>
 
           {/* Settings Tab */}
