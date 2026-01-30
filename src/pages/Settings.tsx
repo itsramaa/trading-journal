@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
-import { User, Bell, Shield, Palette, LogOut, Loader2, Upload, Camera, Bot } from "lucide-react";
+import { User, Bell, Shield, Palette, LogOut, Loader2, Upload, Camera, Bot, Link } from "lucide-react";
 import { AISettingsTab } from "@/components/settings/AISettingsTab";
+import { BinanceApiSettings } from "@/components/settings/BinanceApiSettings";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -160,7 +161,7 @@ const Settings = () => {
         </div>
 
         <Tabs defaultValue="profile" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-5 lg:w-[500px]">
+          <TabsList className="grid w-full grid-cols-6 lg:w-[600px]">
             <TabsTrigger value="profile" className="gap-2">
               <User className="h-4 w-4" />
               <span className="hidden sm:inline">Profile</span>
@@ -176,6 +177,10 @@ const Settings = () => {
             <TabsTrigger value="security" className="gap-2">
               <Shield className="h-4 w-4" />
               <span className="hidden sm:inline">Security</span>
+            </TabsTrigger>
+            <TabsTrigger value="exchange" className="gap-2">
+              <Link className="h-4 w-4" />
+              <span className="hidden sm:inline">Exchange</span>
             </TabsTrigger>
             <TabsTrigger value="ai" className="gap-2">
               <Bot className="h-4 w-4" />
@@ -548,6 +553,10 @@ const Settings = () => {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="exchange" className="space-y-4">
+            <BinanceApiSettings />
           </TabsContent>
 
           <TabsContent value="ai" className="space-y-4">
