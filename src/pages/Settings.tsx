@@ -289,7 +289,8 @@ const Settings = () => {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="IDR">IDR/USD</SelectItem>
+                        <SelectItem value="USD">USD</SelectItem>
+                        <SelectItem value="IDR">IDR</SelectItem>
                         <SelectItem value="BTC_USD">BTC/USD</SelectItem>
                         <SelectItem value="BTC_IDR">BTC/IDR</SelectItem>
                       </SelectContent>
