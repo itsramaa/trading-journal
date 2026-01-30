@@ -2,7 +2,7 @@
  * Trade Quality Checker Page
  * AI-powered trade setup validator - consolidated from AI Assistant
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import { useAITradeQuality } from "@/features/ai/useAITradeQuality";
 import { TradingPairCombobox } from "@/components/ui/trading-pair-combobox";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { cn } from "@/lib/utils";
+import { trackEvent, ANALYTICS_EVENTS } from "@/lib/analytics";
 
 const AIAssistant = () => {
   // Trade Quality Checker state
@@ -25,6 +26,18 @@ const AIAssistant = () => {
   const [checkerTP, setCheckerTP] = useState("");
   const [checkerTimeframe, setCheckerTimeframe] = useState("1h");
   const { getQualityScore, isLoading: qualityLoading, result: qualityResult, reset: resetQuality } = useAITradeQuality();
+
+  // Track when AI result is received
+  useEffect(() => {
+    if (qualityResult) {
+      trackEvent(ANALYTICS_EVENTS.AI_INSIGHT_VIEW, {
+        score: qualityResult.score,
+        recommendation: qualityResult.recommendation,
+        pair: checkerPair,
+        confidence: qualityResult.confidence,
+      });
+    }
+  }, [qualityResult, checkerPair]);
 
   const handleCheckQuality = async () => {
     const entryPrice = parseFloat(checkerEntry);

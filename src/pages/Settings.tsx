@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { User, Bell, Shield, Palette, LogOut, Loader2, Upload, Camera, Bot, Link } from "lucide-react";
+import { User, Bell, Shield, Palette, LogOut, Loader2, Upload, Camera, Bot, Link, Settings as SettingsIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { AISettingsTab } from "@/components/settings/AISettingsTab";
 import { BinanceApiSettings } from "@/components/settings/BinanceApiSettings";
@@ -142,7 +142,10 @@ const Settings = () => {
       <DashboardLayout>
         <div className="space-y-6">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
+            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+              <SettingsIcon className="h-6 w-6 text-primary" />
+              Settings
+            </h1>
             <p className="text-muted-foreground">Manage your account preferences.</p>
           </div>
           <div className="space-y-4">
@@ -155,10 +158,13 @@ const Settings = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
-          <p className="text-muted-foreground">Manage your account preferences.</p>
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+              <SettingsIcon className="h-6 w-6 text-primary" />
+              Settings
+            </h1>
+            <p className="text-muted-foreground">Manage your account preferences.</p>
         </div>
 
         <Tabs defaultValue="profile" className="space-y-4">

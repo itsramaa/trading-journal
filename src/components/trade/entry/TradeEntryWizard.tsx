@@ -1,9 +1,9 @@
 /**
  * Trade Entry Wizard - Main Container
  * 5-step guided trade entry flow with trading gate check
- * Enhanced: Heuristic Evaluation + Accessibility fixes
+ * Enhanced: Heuristic Evaluation + Accessibility fixes + Analytics tracking
  */
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { WizardProgress } from "./WizardProgress";
 import { SetupStep } from "./SetupStep";
@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { XCircle, AlertTriangle, ShieldAlert } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { trackEvent, ANALYTICS_EVENTS } from "@/lib/analytics";
 
 interface TradeEntryWizardProps {
   onClose: () => void;
@@ -97,6 +98,26 @@ function TradingBlockedState({ reason, status, onClose }: { reason: string; stat
 export function TradeEntryWizard({ onClose, onComplete }: TradeEntryWizardProps) {
   const { currentStep, completedSteps, goToStep, nextStep, prevStep, reset } = useTradeEntryWizard();
   const { canTrade, reason, status } = useTradingGate();
+  const startTimeRef = useRef(Date.now());
+  const hasTrackedStartRef = useRef(false);
+
+  // Track wizard start
+  useEffect(() => {
+    if (!hasTrackedStartRef.current) {
+      trackEvent(ANALYTICS_EVENTS.TRADE_ENTRY_WIZARD_START, { step: currentStep });
+      hasTrackedStartRef.current = true;
+    }
+    
+    return () => {
+      // Track abandonment if wizard is unmounted without completion
+      if (hasTrackedStartRef.current && currentStep !== 'confirmation') {
+        trackEvent(ANALYTICS_EVENTS.TRADE_ENTRY_WIZARD_ABANDON, {
+          lastStep: currentStep,
+          duration: Date.now() - startTimeRef.current,
+        });
+      }
+    };
+  }, []);
 
   // Check if trading is blocked
   if (!canTrade && status === 'disabled') {
@@ -104,14 +125,23 @@ export function TradeEntryWizard({ onClose, onComplete }: TradeEntryWizardProps)
   }
 
   const handleCancel = useCallback(() => {
+    trackEvent(ANALYTICS_EVENTS.TRADE_ENTRY_WIZARD_ABANDON, {
+      lastStep: currentStep,
+      duration: Date.now() - startTimeRef.current,
+    });
     reset();
     onClose();
-  }, [reset, onClose]);
+  }, [reset, onClose, currentStep]);
 
   const handleComplete = useCallback(async () => {
+    trackEvent(ANALYTICS_EVENTS.TRADE_ENTRY_WIZARD_COMPLETE, {
+      stepsCompleted: completedSteps.length,
+      duration: Date.now() - startTimeRef.current,
+    });
+    hasTrackedStartRef.current = false; // Prevent double-tracking
     reset();
     onComplete();
-  }, [reset, onComplete]);
+  }, [reset, onComplete, completedSteps]);
 
   const handleStepClick = useCallback((step: typeof currentStep) => {
     // Only allow going back to completed steps
