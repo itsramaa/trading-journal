@@ -15,7 +15,6 @@ import {
   RefreshCw, 
   Shield, 
   Wallet, 
-  TrendingUp,
   AlertTriangle,
   ExternalLink,
   Loader2
@@ -24,14 +23,12 @@ import {
   useBinanceConnection, 
   useTestBinanceConnection, 
   useBinanceBalance,
-  useBinancePositions
 } from "@/features/binance";
 import { toast } from "sonner";
 
 export function BinanceApiSettings() {
   const { data: connectionStatus, isLoading: isCheckingConnection } = useBinanceConnection();
   const { data: balance, isLoading: isLoadingBalance } = useBinanceBalance();
-  const { data: positions } = useBinancePositions();
   const testConnection = useTestBinanceConnection();
   
   const handleTestConnection = async () => {
@@ -152,7 +149,7 @@ export function BinanceApiSettings() {
                 Account Overview
               </CardTitle>
               <CardDescription>
-                Real-time balance and position data from Binance Futures
+                Real-time balance data from Binance Futures
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -161,7 +158,7 @@ export function BinanceApiSettings() {
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
               ) : balance ? (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <p className="text-sm text-muted-foreground">Wallet Balance</p>
                     <p className="text-xl font-bold">
@@ -174,72 +171,9 @@ export function BinanceApiSettings() {
                       ${balance.availableBalance.toFixed(2)}
                     </p>
                   </div>
-                  <div className="space-y-1">
-                    <p className="text-sm text-muted-foreground">Unrealized P&L</p>
-                    <p className={`text-xl font-bold ${balance.totalUnrealizedProfit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                      {balance.totalUnrealizedProfit >= 0 ? '+' : ''}
-                      ${balance.totalUnrealizedProfit.toFixed(2)}
-                    </p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-sm text-muted-foreground">Margin Balance</p>
-                    <p className="text-xl font-bold">
-                      ${balance.totalMarginBalance.toFixed(2)}
-                    </p>
-                  </div>
                 </div>
               ) : (
                 <p className="text-muted-foreground">Unable to load balance data</p>
-              )}
-            </CardContent>
-          </Card>
-          
-          {/* Active Positions Summary */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5" />
-                Active Positions
-              </CardTitle>
-              <CardDescription>
-                Current open positions from Binance Futures
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {positions && positions.length > 0 ? (
-                <div className="space-y-3">
-                  {positions.map((position, index) => (
-                    <div 
-                      key={`${position.symbol}-${index}`}
-                      className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
-                    >
-                      <div className="flex items-center gap-3">
-                        <Badge variant={position.positionAmt > 0 ? "default" : "secondary"}>
-                          {position.positionAmt > 0 ? 'LONG' : 'SHORT'}
-                        </Badge>
-                        <div>
-                          <p className="font-medium">{position.symbol}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {Math.abs(position.positionAmt)} @ ${position.entryPrice.toFixed(2)}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className={`font-bold ${position.unrealizedProfit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                          {position.unrealizedProfit >= 0 ? '+' : ''}
-                          ${position.unrealizedProfit.toFixed(2)}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {position.leverage}x leverage
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-muted-foreground text-center py-4">
-                  No active positions
-                </p>
               )}
             </CardContent>
           </Card>

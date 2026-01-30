@@ -9,7 +9,7 @@ import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Target, Youtube, Play, Library, BarChart3 } from "lucide-react";
+import { Plus, Target, Youtube, Library } from "lucide-react";
 import { 
   useTradingStrategies, 
   useCreateTradingStrategy, 
@@ -24,8 +24,6 @@ import {
   StrategyStats, 
   StrategyFormDialog,
   YouTubeStrategyImporter,
-  BacktestRunner,
-  BacktestComparison 
 } from "@/components/strategy";
 import type { EntryRule, ExitRule } from "@/types/strategy";
 
@@ -159,7 +157,7 @@ export default function StrategyManagement() {
 
         {/* Main Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3 h-11" aria-label="Strategy management sections">
+          <TabsList className="grid w-full grid-cols-2 h-11" aria-label="Strategy management sections">
             <TabsTrigger value="library" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground" aria-label="Strategy library">
               <Library className="h-4 w-4" aria-hidden="true" />
               <span className="hidden sm:inline">Library</span>
@@ -167,10 +165,6 @@ export default function StrategyManagement() {
             <TabsTrigger value="import" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground" aria-label="Import strategy from YouTube">
               <Youtube className="h-4 w-4" aria-hidden="true" />
               <span className="hidden sm:inline">YouTube Import</span>
-            </TabsTrigger>
-            <TabsTrigger value="backtest" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground" aria-label="Run strategy backtest">
-              <Play className="h-4 w-4" aria-hidden="true" />
-              <span className="hidden sm:inline">Backtest</span>
             </TabsTrigger>
           </TabsList>
 
@@ -209,31 +203,6 @@ export default function StrategyManagement() {
           {/* YouTube Import Tab */}
           <TabsContent value="import" className="mt-6">
             <YouTubeStrategyImporter onStrategyImported={() => setActiveTab('library')} />
-          </TabsContent>
-
-          {/* Backtest Tab */}
-          <TabsContent value="backtest" className="mt-6">
-            <Tabs defaultValue="run" className="w-full">
-              <TabsList className="mb-6 h-9 bg-muted/50">
-                <TabsTrigger value="run" className="flex items-center gap-2 text-sm">
-                  <Play className="h-4 w-4" aria-hidden="true" />
-                  <span className="hidden sm:inline">Run Backtest</span>
-                  <span className="sm:hidden">Run</span>
-                </TabsTrigger>
-                <TabsTrigger value="compare" className="flex items-center gap-2 text-sm">
-                  <BarChart3 className="h-4 w-4" aria-hidden="true" />
-                  <span className="hidden sm:inline">Compare</span>
-                </TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="run">
-                <BacktestRunner />
-              </TabsContent>
-              
-              <TabsContent value="compare">
-                <BacktestComparison />
-              </TabsContent>
-            </Tabs>
           </TabsContent>
         </Tabs>
 
