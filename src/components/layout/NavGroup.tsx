@@ -64,7 +64,7 @@ export function NavGroup({
   // When sidebar is collapsed (icon-only mode), render flat items with tooltips
   if (isCollapsed && !isMobile) {
     return (
-      <SidebarGroup className="py-0">
+      <SidebarGroup className="py-0 min-w-0">
         <SidebarGroupContent>
           <SidebarMenu>
             {items.map((item) => (
@@ -93,7 +93,7 @@ export function NavGroup({
       onOpenChange={setIsOpen}
       className="group/collapsible"
     >
-      <SidebarGroup className="py-0">
+      <SidebarGroup className="py-0 min-w-0">
         <SidebarGroupLabel
           asChild
           className="group/label h-8 text-sm text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
@@ -114,7 +114,7 @@ export function NavGroup({
         </SidebarGroupLabel>
         <CollapsibleContent>
           <SidebarGroupContent>
-            <SidebarMenu className="pl-4 border-l border-sidebar-border ml-3">
+            <SidebarMenu className="pl-4 border-l border-sidebar-border ml-3 min-w-0">
               {items.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
