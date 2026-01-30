@@ -1,6 +1,7 @@
 /**
  * Market Insight Page - AI-powered market analysis
  * AI Sentiment, Volatility, Opportunities, Whale Tracking, Macro Analysis
+ * Combined Crypto + Macro Analysis per INTEGRATION_GUIDE.md
  * Integrated with real APIs: Binance, CoinGecko, Alternative.me
  */
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -11,7 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
-import { useMarketSentiment, useMacroAnalysis } from "@/features/market-insight";
+import { useMarketSentiment, useMacroAnalysis, useCombinedAnalysis, useMarketAlerts } from "@/features/market-insight";
+import { CombinedAnalysisCard } from "@/components/market-insight/CombinedAnalysisCard";
 import type { WhaleSignal } from "@/features/market-insight/types";
 
 const MarketInsight = () => {
@@ -28,6 +30,19 @@ const MarketInsight = () => {
     error: macroError,
     refetch: refetchMacro 
   } = useMacroAnalysis();
+
+  // Combined Crypto + Macro Analysis
+  const { 
+    data: combinedData, 
+    isLoading: combinedLoading 
+  } = useCombinedAnalysis();
+
+  // Enable market alerts for extreme conditions
+  useMarketAlerts({ 
+    enabled: true, 
+    fearGreedExtremeThreshold: { low: 25, high: 75 },
+    showConflictAlerts: true 
+  });
 
   const handleRefresh = () => {
     refetchSentiment();
@@ -108,6 +123,12 @@ const MarketInsight = () => {
             </CardContent>
           </Card>
         )}
+
+        {/* Combined Crypto + Macro Analysis - Top Priority per INTEGRATION_GUIDE */}
+        <CombinedAnalysisCard 
+          data={combinedData} 
+          isLoading={combinedLoading || sentimentLoading || macroLoading} 
+        />
 
         {/* AI Market Sentiment */}
         <Card>
