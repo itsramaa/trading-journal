@@ -1,219 +1,312 @@
 
-# Implementation Plan: Trade Quality, Trade Management, Settings UX Fixes
+# Implementation Plan: Performance Page Consolidation
 
 ## Overview
 
-Berdasarkan cross-check audit menggunakan Content Inventory, Information Architecture Review, Content Audit, Heuristic Evaluation, dan Cognitive Load Check pada halaman **Trade Quality**, **Trade Management**, dan **Settings**, berikut adalah rencana implementasi perbaikan.
+Menambahkan menu **Performance** ke sidebar (di bawah "Strategy & Rules") dan membuat Performance page yang solid dengan konsolidasi semua fitur performance-related dari seluruh aplikasi.
 
 ---
 
-## Ringkasan Temuan Audit
+## Ringkasan Perubahan
 
-| Halaman | Issue | Metode | Prioritas |
-|---------|-------|--------|-----------|
-| Trade Quality | Hardcoded confluence/position data | Content Audit | High |
-| Trade Quality | Missing InfoTooltips (score/confidence) | Heuristic (H10) | Medium |
-| Trade Quality | Form allows submit without pair | Heuristic (H9) | Medium |
-| Trade Management | Simulated P&L uses random() | Heuristic (H9) | High |
-| Trade Management | Missing InfoTooltips on P&L cards | Heuristic (H10) | Medium |
-| Settings | 2FA disabled without explanation | Heuristic (H9) | Medium |
-| Settings | AI Suggestion Style lacks descriptions | Heuristic (H10) | Low |
+| File | Action | Deskripsi |
+|------|--------|-----------|
+| `src/components/layout/AppSidebar.tsx` | Edit | Tambah menu "Performance" dengan icon `LineChart` |
+| `src/App.tsx` | Edit | Update route `/performance` (pindah dari `/analytics`) |
+| `src/pages/Performance.tsx` | Create | Buat page baru yang solid (memindahkan dari `trading-journey/`) |
+| `src/pages/trading-journey/Performance.tsx` | Delete | Hapus file lama (dipindah ke root) |
+| `src/pages/Dashboard.tsx` | Edit | Update link Analytics dari `/trading-journey/performance` ke `/performance` |
 
 ---
 
-## Phase 1: Trade Quality Page Fixes
+## Arsitektur Performance Page (Consolidated)
 
-### 1.1 Add Form Validation for Trading Pair
+### Tab Structure (5 Tabs)
 
-**Problem:** User can submit quality check without selecting a trading pair.
-
-**Decision:** `ENHANCE` - Disable submit button when pair is empty.
-
-**File:** `src/pages/AIAssistant.tsx`
-
-**Changes:**
-- Update disabled condition on Button (line 184) to include `!checkerPair`
-
-**Before:**
-```typescript
-disabled={qualityLoading || !checkerEntry || !checkerSL || !checkerTP}
+```text
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Performance Analytics                                                        │
+│ Deep dive into your trading performance metrics                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  [Overview] [Daily P&L] [Strategies] [Heatmap] [AI Insights]               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  Tab Content Area                                                           │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**After:**
-```typescript
-disabled={qualityLoading || !checkerPair || !checkerEntry || !checkerSL || !checkerTP}
-```
+### Tab 1: Overview (Enhanced)
+**Konsolidasi dari:** Dashboard Portfolio Performance + Existing Performance.tsx
 
-### 1.2 Add InfoTooltips for Score and Confidence
+**Metrics Grid (8 cards):**
+- Win Rate + Progress bar
+- Profit Factor
+- Expectancy (per trade avg)
+- Max Drawdown
+- Sharpe Ratio
+- Avg R:R
+- Total Trades
+- Total P&L
 
-**Problem:** Users may not understand what "Quality Score" and "AI Confidence" mean.
+**Charts:**
+- Equity Curve (existing)
+- Drawdown Chart (existing)
 
-**Decision:** `ENHANCE` - Add explanatory tooltips.
-
-**File:** `src/pages/AIAssistant.tsx`
-
-**Changes:**
-- Import `InfoTooltip` component
-- Add tooltip next to score display (line 211)
-- Add tooltip next to confidence display (line 220)
+### Tab 2: Daily P&L (NEW)
+**Konsolidasi dari:** TodayPerformance.tsx data + Binance income data
 
 **Content:**
-- Score: "Quality Score 1-10 berdasarkan setup, R:R, confluence, dan risk management. 8+ = Excellent, 6-7 = Good, <6 = Perlu review."
-- Confidence: "Tingkat kepercayaan AI terhadap analisis ini. Semakin tinggi, semakin yakin AI dengan rekomendasi."
+- Daily P&L Summary (Gross/Net breakdown)
+- Fee Analysis (Commission, Funding, Rebates)
+- Symbol Breakdown table (from `binanceStats.bySymbol`)
+- 7-Day P&L Chart (baru - agregasi daily)
+- Best/Worst Trades per day
 
-### 1.3 Display Calculated R:R Before Submit
-
-**Problem:** Users don't see their R:R ratio until after submitting.
-
-**Decision:** `ENHANCE` - Show R:R calculation inline as user types.
-
-**File:** `src/pages/AIAssistant.tsx`
-
-**Changes:**
-- Add calculated R:R display below price inputs
-- Use same calculation logic already in handleCheckQuality (lines 35-37)
-
----
-
-## Phase 2: Trade Management Page Fixes
-
-### 2.1 Fix Misleading Simulated P&L
-
-**Problem:** Lines 150-168 use `Math.random()` to simulate P&L for paper positions, producing random values on each render.
-
-**Decision:** `REFACTOR` - Remove randomization, show last known P&L or "N/A" if no real price data.
-
-**File:** `src/pages/trading-journey/TradingJournal.tsx`
-
-**Changes:**
-- Remove random price simulation
-- Use actual P&L from database if available, otherwise show 0 or stored value
-- Remove `simulatedPriceChange` variable entirely
-
-**Before:**
 ```typescript
-const positionsWithPnL = useMemo(() => {
-  return openPositions.map((position) => {
-    const simulatedPriceChange = (Math.random() - 0.5) * 0.1;
-    const currentPrice = position.entry_price * (1 + simulatedPriceChange);
-    // ...
-  });
-}, [openPositions]);
+// Proposed structure for Daily P&L data
+interface DailyPnLData {
+  date: string;
+  grossPnl: number;
+  netPnl: number;
+  trades: number;
+  winRate: number;
+  fees: {
+    commission: number;
+    funding: number;
+    rebates: number;
+  };
+  topSymbol: { pair: string; pnl: number };
+}
 ```
 
-**After:**
-```typescript
-const positionsWithPnL = useMemo(() => {
-  return openPositions.map((position) => ({
-    ...position,
-    currentPrice: position.entry_price, // Use entry as placeholder
-    unrealizedPnL: position.pnl || 0,   // Use stored P&L if any
-    unrealizedPnLPercent: 0,            // Cannot calculate without live price
-  }));
-}, [openPositions]);
-```
-
-### 2.2 Add InfoTooltips to P&L Summary Cards
-
-**Problem:** "Unrealized P&L" and "Realized P&L" may confuse non-financial users.
-
-**Decision:** `ENHANCE` - Add explanatory tooltips.
-
-**File:** `src/components/journal/TradeSummaryStats.tsx`
-
-**Changes:**
-- Import `InfoTooltip` component
-- Add tooltips to "Unrealized P&L" and "Realized P&L" labels
+### Tab 3: Strategies (Existing, Enhanced)
+**Konsolidasi dari:** Performance.tsx Strategies tab + StrategyManagement performance data
 
 **Content:**
-- Unrealized P&L: "Potensi profit/loss dari posisi yang masih terbuka. Nilai ini berubah sesuai harga pasar."
-- Realized P&L: "Profit/loss aktual dari trade yang sudah ditutup. Nilai final setelah posisi closed."
+- Strategy Performance Table (existing)
+- Strategy Comparison Bar Chart (existing)
+- AI Quality Score per strategy (dari `use-strategy-performance.ts`)
+- Strategy Win/Loss streak per strategy (baru)
+
+### Tab 4: Heatmap (Existing)
+**Content:**
+- TradingHeatmap component (existing)
+- Time Analysis summary (best trading hours/days)
+
+### Tab 5: AI Insights (Existing, Enhanced)
+**Konsolidasi dari:** AIPatternInsights + CryptoRanking
+
+**Content:**
+- AI Pattern Insights (winning/losing patterns)
+- Pair Performance Ranking (keep/reduce/avoid recommendations)
+- Trade Distribution by pair (pie chart - baru)
 
 ---
 
-## Phase 3: Settings Page Fixes
+## Phase 1: Sidebar & Routing Updates
 
-### 3.1 Add Explanation for Disabled 2FA
+### 1.1 Update AppSidebar
 
-**Problem:** 2FA button is disabled without any explanation, creating confusion.
-
-**Decision:** `ENHANCE` - Add tooltip explaining feature status.
-
-**File:** `src/pages/Settings.tsx`
+**File:** `src/components/layout/AppSidebar.tsx`
 
 **Changes:**
-- Wrap disabled 2FA button with tooltip explaining "Coming soon"
-- Or add "(Coming Soon)" text next to button
+- Tambah `LineChart` import dari lucide-react
+- Sisipkan menu item baru setelah "Strategy & Rules"
 
-**Before:**
+**New Navigation Order:**
 ```typescript
-<Button variant="outline" disabled>Enable 2FA</Button>
+const navigationItems: NavItem[] = [
+  { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Accounts", url: "/accounts", icon: Building2 },
+  { title: "Calendar", url: "/calendar", icon: Calendar },
+  { title: "Market Insight", url: "/market", icon: TrendingUp },
+  { title: "Risk Management", url: "/risk", icon: Shield },
+  { title: "Trade Quality", url: "/ai", icon: Target },
+  { title: "Trade Management", url: "/trading", icon: Notebook },
+  { title: "Strategy & Rules", url: "/strategies", icon: Lightbulb },
+  { title: "Performance", url: "/performance", icon: LineChart }, // NEW
+  { title: "Settings", url: "/settings", icon: Settings },
+];
 ```
 
-**After:**
-```typescript
-<div className="flex items-center gap-2">
-  <Button variant="outline" disabled>Enable 2FA</Button>
-  <Badge variant="secondary" className="text-xs">Coming Soon</Badge>
-</div>
-```
+### 1.2 Update Routes
 
-### 3.2 Add Descriptions to AI Suggestion Style Buttons
+**File:** `src/App.tsx`
 
-**Problem:** "Conservative/Balanced/Aggressive" labels lack context about what they actually do.
-
-**Decision:** Already implemented (lines 227-230 in AISettingsTab.tsx show descriptions). ✅ No change needed.
+**Changes:**
+- Ubah route `/analytics` → `/performance`
+- Ubah import path dari `./pages/trading-journey/Performance` → `./pages/Performance`
 
 ---
 
-## Technical Details
+## Phase 2: Create Consolidated Performance Page
 
-### Files Modified
+### 2.1 Create New Performance Page
 
-| File | Action | Lines Affected |
-|------|--------|----------------|
-| `src/pages/AIAssistant.tsx` | Edit | ~25 lines |
-| `src/pages/trading-journey/TradingJournal.tsx` | Refactor | ~20 lines |
-| `src/components/journal/TradeSummaryStats.tsx` | Edit | ~10 lines |
-| `src/pages/Settings.tsx` | Edit | ~5 lines |
+**File:** `src/pages/Performance.tsx` (baru, di root pages)
 
-### New Imports Required
+**Structure:**
 
-**AIAssistant.tsx:**
 ```typescript
-import { InfoTooltip } from "@/components/ui/info-tooltip";
+// Key imports
+import { useBinanceDailyPnl } from "@/hooks/use-binance-daily-pnl";
+import { TradingHeatmap } from "@/components/analytics/TradingHeatmap";
+import { DrawdownChart } from "@/components/analytics/DrawdownChart";
+import { AIPatternInsights } from "@/components/analytics/AIPatternInsights";
+import { CryptoRanking } from "@/components/analytics/CryptoRanking";
+import { useStrategyPerformance } from "@/hooks/use-strategy-performance";
+
+export default function Performance() {
+  // 5 tabs: overview, daily, strategies, heatmap, ai-insights
+  
+  // Hooks
+  const binanceStats = useBinanceDailyPnl();
+  const strategyPerformance = useStrategyPerformance();
+  
+  return (
+    <DashboardLayout>
+      <Tabs defaultValue="overview">
+        <TabsList>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="daily">Daily P&L</TabsTrigger>
+          <TabsTrigger value="strategies">Strategies</TabsTrigger>
+          <TabsTrigger value="heatmap">Heatmap</TabsTrigger>
+          <TabsTrigger value="ai-insights">AI Insights</TabsTrigger>
+        </TabsList>
+        
+        {/* Tab contents */}
+      </Tabs>
+    </DashboardLayout>
+  );
+}
 ```
 
-**TradeSummaryStats.tsx:**
+### 2.2 New: Daily P&L Tab Component
+
+**Location:** Inline in Performance.tsx atau extract ke `src/components/performance/DailyPnLTab.tsx`
+
+**Features:**
+- Use `useBinanceDailyPnl()` for 24H stats
+- Symbol breakdown table dari `bySymbol`
+- Fee breakdown cards
+- 7-day mini chart (menggunakan data dari `useBinanceAllIncome` dengan range 7 hari)
+
+---
+
+## Phase 3: Update Dashboard Links
+
+### 3.1 Fix Analytics Quick Action
+
+**File:** `src/pages/Dashboard.tsx`
+
+**Changes:**
+- Line 156: Update link dari `/trading-journey/performance` ke `/performance`
+
 ```typescript
-import { InfoTooltip } from "@/components/ui/info-tooltip";
+// Before
+<Link to="/trading-journey/performance">
+
+// After
+<Link to="/performance">
 ```
 
 ---
 
-## Implementation Order
+## Phase 4: Cleanup
 
-1. **Edit** `AIAssistant.tsx` - Add pair validation, InfoTooltips, R:R preview
-2. **Refactor** `TradingJournal.tsx` - Remove random P&L simulation
-3. **Edit** `TradeSummaryStats.tsx` - Add InfoTooltips to P&L cards
-4. **Edit** `Settings.tsx` - Add "Coming Soon" badge to 2FA button
-5. **Test** - Verify all changes work correctly
+### 4.1 Delete Old Performance File
+
+**File:** `src/pages/trading-journey/Performance.tsx`
+
+**Action:** Delete (konten sudah dipindah ke `src/pages/Performance.tsx`)
+
+---
+
+## Technical Implementation Details
+
+### File Structure After Refactor
+
+```text
+src/
+├── pages/
+│   ├── Performance.tsx          # NEW (consolidated)
+│   ├── Dashboard.tsx            # Updated links
+│   └── trading-journey/
+│       ├── TradingJournal.tsx
+│       └── StrategyManagement.tsx
+├── components/
+│   ├── analytics/               # Existing, reused
+│   │   ├── AIPatternInsights.tsx
+│   │   ├── CryptoRanking.tsx
+│   │   ├── DrawdownChart.tsx
+│   │   └── TradingHeatmap.tsx
+│   └── performance/             # NEW (optional, for extraction)
+│       └── DailyPnLTab.tsx
+└── hooks/
+    ├── use-binance-daily-pnl.ts  # Existing, reused
+    └── use-strategy-performance.ts
+```
+
+### New Hook: Extended Daily P&L (Optional Enhancement)
+
+```typescript
+// Extend useBinanceDailyPnl to support multi-day range
+export function useBinanceWeeklyPnl() {
+  const { data: allIncomeData } = useBinanceAllIncome(7, 1000); // 7 days
+  
+  // Group by day and calculate daily aggregates
+  const dailyData = useMemo(() => {
+    // ... aggregate logic per day
+  }, [allIncomeData]);
+  
+  return dailyData;
+}
+```
+
+---
+
+## UI/UX Improvements
+
+### Consistent Patterns
+- Semua tabs gunakan pattern icon + hidden label pada mobile
+- Loading state menggunakan `MetricsGridSkeleton`
+- Empty state menggunakan `EmptyState` component
+- InfoTooltips pada metric yang kompleks
+
+### Responsive Design
+- Grid 4 cols pada desktop → 2 cols pada tablet → 1 col pada mobile
+- Charts height 300px dengan ResponsiveContainer
+- Tab labels hidden pada mobile (icon only)
 
 ---
 
 ## Expected Outcomes
 
-### Error Prevention (H9)
-- **Before:** Form submits without pair, random P&L confuses users, 2FA appears broken
-- **After:** Proper validation, accurate P&L display, clear feature status
+### Consolidation Benefits
+- **Single Source of Truth:** Semua analytics di satu tempat
+- **Reduced Navigation:** User tidak perlu cari-cari fitur performance
+- **Binance Integration:** Daily P&L tab memanfaatkan real-time data
 
-### Help & Documentation (H10)
-- **Before:** Score/confidence unexplained, P&L terminology unclear
-- **After:** InfoTooltips provide contextual help
+### Information Architecture
+- **Before:** Performance scattered (Dashboard 7-day, Today Performance, Performance page)
+- **After:** Unified Performance hub dengan 5 focused tabs
 
-### Visibility of System Status (H1)
-- **Before:** R:R only shown after submit
-- **After:** R:R calculated and displayed in real-time
+### Code Cleanup
+- Remove 1 file (`trading-journey/Performance.tsx`)
+- Centralize all performance logic
+- Reuse existing analytics components
+
+---
+
+## Implementation Order
+
+1. **Update** `AppSidebar.tsx` - Add Performance menu item
+2. **Update** `App.tsx` - Change route to `/performance` 
+3. **Create** `src/pages/Performance.tsx` - New consolidated page with 5 tabs
+4. **Update** `Dashboard.tsx` - Fix Analytics quick action link
+5. **Delete** `src/pages/trading-journey/Performance.tsx` - Remove old file
+6. **Test** - Verify navigation, tabs, and data display
 
 ---
 
@@ -221,7 +314,6 @@ import { InfoTooltip } from "@/components/ui/info-tooltip";
 
 | Item | Reason |
 |------|--------|
-| Hardcoded confluence data in Trade Quality | Would require significant form expansion; current approach provides useful estimate |
-| 6 tabs in Settings | Already responsive with hidden labels; splitting would reduce discoverability |
-| Static tips in Trade Quality | Dynamic tips would require trade history analysis - out of scope |
-| 509 lines in TradingJournal | Already well-organized with extracted components; further splitting may hurt readability |
+| Dashboard 7-Day Stats & Portfolio Performance | Serves as quick summary; detailed version in Performance page |
+| TodayPerformance component | Used as quick widget in Dashboard |
+| Analytics components (`analytics/`) | Reused as-is, no need to move |
