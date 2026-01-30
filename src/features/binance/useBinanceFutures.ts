@@ -268,7 +268,54 @@ export function useRefreshBinanceData() {
         queryClient.invalidateQueries({ queryKey: ['binance', 'balance'] }),
         queryClient.invalidateQueries({ queryKey: ['binance', 'positions'] }),
         queryClient.invalidateQueries({ queryKey: ['binance', 'open-orders'] }),
+        queryClient.invalidateQueries({ queryKey: ['binance', 'income'] }),
       ]);
     },
   });
+}
+
+/**
+ * Hook to fetch income history (realized PnL, commissions, funding fees) across ALL symbols
+ * This is the preferred endpoint for getting trade history without symbol restrictions
+ */
+export function useBinanceIncomeHistory(
+  incomeType?: string,
+  startTime?: number,
+  limit = 1000
+) {
+  return useQuery({
+    queryKey: ['binance', 'income', incomeType, startTime, limit],
+    queryFn: async () => {
+      const result = await callBinanceApi<any[]>('income', { 
+        incomeType, 
+        startTime,
+        limit 
+      });
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to fetch income history');
+      }
+      
+      return result.data || [];
+    },
+    staleTime: 60 * 1000, // 1 minute
+    retry: 2,
+  });
+}
+
+/**
+ * Hook specifically for fetching Realized P&L across all symbols
+ * Convenience wrapper for income history with REALIZED_PNL filter
+ */
+export function useBinanceRealizedPnL(limit = 1000) {
+  const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
+  return useBinanceIncomeHistory('REALIZED_PNL', oneDayAgo, limit);
+}
+
+/**
+ * Hook specifically for fetching commissions/fees
+ */
+export function useBinanceCommissions(limit = 500) {
+  const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
+  return useBinanceIncomeHistory('COMMISSION', oneDayAgo, limit);
 }

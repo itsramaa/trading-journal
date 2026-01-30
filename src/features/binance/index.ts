@@ -16,4 +16,7 @@ export {
   useBinanceOpenOrders,
   useTestBinanceConnection,
   useRefreshBinanceData,
+  useBinanceIncomeHistory,
+  useBinanceRealizedPnL,
+  useBinanceCommissions,
 } from './useBinanceFutures';

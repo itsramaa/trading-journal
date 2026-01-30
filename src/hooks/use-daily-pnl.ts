@@ -119,7 +119,7 @@ export function useDailyPnl() {
 
   return {
     ...stats,
-    trades: binancePnl.isConnected ? binancePnl.trades : localTrades,
+    trades: binancePnl.isConnected ? binancePnl.incomeData : localTrades,
     isLoading: binancePnl.isLoading || localLoading,
     today,
   };

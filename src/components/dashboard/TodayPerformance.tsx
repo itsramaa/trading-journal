@@ -1,6 +1,6 @@
 /**
  * Today's Performance - 24H trading stats
- * Uses Binance API for real trades when connected, falls back to local DB
+ * Uses Binance income API for real trades (all symbols), falls back to local DB
  */
 import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,16 +8,16 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TrendingUp, TrendingDown, Target, Activity, Trophy, AlertTriangle, Zap } from "lucide-react";
 import { useDailyPnl } from "@/hooks/use-daily-pnl";
-import { useBinanceTrades, useBinanceConnectionStatus } from "@/features/binance";
+import { useBinanceDailyPnl } from "@/hooks/use-binance-daily-pnl";
+import { useBinanceConnectionStatus } from "@/features/binance";
 import { formatCurrency } from "@/lib/formatters";
 
 export function TodayPerformance() {
   const { data: connectionStatus } = useBinanceConnectionStatus();
   const isConnected = connectionStatus?.isConnected;
 
-  // Fetch Binance trades for multiple popular symbols (last 24h approximation)
-  const { data: btcTrades } = useBinanceTrades("BTCUSDT", 100);
-  const { data: ethTrades } = useBinanceTrades("ETHUSDT", 100);
+  // Use the new income-based hook that fetches ALL symbols
+  const binanceStats = useBinanceDailyPnl();
   
   // Local DB fallback
   const {
@@ -32,42 +32,25 @@ export function TodayPerformance() {
     isLoading: localLoading,
   } = useDailyPnl();
 
-  // Calculate Binance 24H stats
-  const binanceStats = useMemo(() => {
-    if (!isConnected) return null;
+  // Calculate best/worst from bySymbol data
+  const binanceBestWorst = useMemo(() => {
+    if (!binanceStats.bySymbol || Object.keys(binanceStats.bySymbol).length === 0) {
+      return { best: null, worst: null };
+    }
     
-    const now = Date.now();
-    const oneDayAgo = now - 24 * 60 * 60 * 1000;
+    const symbolEntries = Object.entries(binanceStats.bySymbol);
+    const sortedByPnl = symbolEntries.sort((a, b) => b[1].pnl - a[1].pnl);
     
-    // Combine all trades and filter to last 24h
-    const allTrades = [...(btcTrades || []), ...(ethTrades || [])];
-    const todayTrades = allTrades.filter(t => t.time >= oneDayAgo);
-    
-    if (todayTrades.length === 0) return null;
-    
-    const totalPnl = todayTrades.reduce((sum, t) => sum + t.realizedPnl, 0);
-    const totalCommission = todayTrades.reduce((sum, t) => sum + t.commission, 0);
-    const wins = todayTrades.filter(t => t.realizedPnl > 0).length;
-    const losses = todayTrades.filter(t => t.realizedPnl < 0).length;
-    const winRate = todayTrades.length > 0 ? (wins / todayTrades.length) * 100 : 0;
-    
-    const sortedByPnl = [...todayTrades].sort((a, b) => b.realizedPnl - a.realizedPnl);
-    const bestTrade = sortedByPnl[0];
-    const worstTrade = sortedByPnl[sortedByPnl.length - 1];
+    const best = sortedByPnl[0];
+    const worst = sortedByPnl[sortedByPnl.length - 1];
     
     return {
-      totalTrades: todayTrades.length,
-      totalPnl,
-      totalCommission,
-      wins,
-      losses,
-      winRate,
-      bestTrade: bestTrade ? { pair: bestTrade.symbol, pnl: bestTrade.realizedPnl } : null,
-      worstTrade: worstTrade ? { pair: worstTrade.symbol, pnl: worstTrade.realizedPnl } : null,
+      best: best && best[1].pnl > 0 ? { pair: best[0], pnl: best[1].pnl } : null,
+      worst: worst && worst[1].pnl < 0 ? { pair: worst[0], pnl: worst[1].pnl } : null,
     };
-  }, [isConnected, btcTrades, ethTrades]);
+  }, [binanceStats.bySymbol]);
 
-  const isLoading = localLoading;
+  const isLoading = localLoading || binanceStats.isLoading;
 
   if (isLoading) {
     return (
@@ -90,7 +73,7 @@ export function TodayPerformance() {
   }
 
   // Use Binance stats if connected and has trades, otherwise local
-  const useBinance = isConnected && binanceStats && binanceStats.totalTrades > 0;
+  const useBinance = isConnected && binanceStats.isConnected && binanceStats.totalTrades > 0;
   
   const stats = useBinance ? {
     tradesCount: binanceStats.totalTrades,
@@ -98,8 +81,8 @@ export function TodayPerformance() {
     winRate: binanceStats.winRate,
     wins: binanceStats.wins,
     losses: binanceStats.losses,
-    bestTrade: binanceStats.bestTrade,
-    worstTrade: binanceStats.worstTrade,
+    bestTrade: binanceBestWorst.best,
+    worstTrade: binanceBestWorst.worst,
     commission: binanceStats.totalCommission,
   } : {
     tradesCount: tradesClosed,

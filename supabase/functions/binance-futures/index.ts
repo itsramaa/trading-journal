@@ -351,6 +351,51 @@ async function cancelOrder(apiKey: string, apiSecret: string, params: any) {
   }
 }
 
+/**
+ * Get income history - fetches all realized PnL, commissions, funding fees across all symbols
+ * This endpoint does NOT require a symbol parameter, making it ideal for aggregated stats
+ */
+async function getIncomeHistory(
+  apiKey: string, 
+  apiSecret: string, 
+  incomeType?: string,
+  startTime?: number,
+  endTime?: number,
+  limit = 1000
+) {
+  try {
+    const params: Record<string, any> = { limit };
+    if (incomeType) params.incomeType = incomeType;
+    if (startTime) params.startTime = startTime;
+    if (endTime) params.endTime = endTime;
+    
+    const response = await binanceRequest('/fapi/v1/income', 'GET', params, apiKey, apiSecret);
+    const data = await response.json();
+    
+    if (data.code && data.code < 0) {
+      return { success: false, error: data.msg, code: data.code };
+    }
+    
+    const incomeRecords = data.map((item: any) => ({
+      symbol: item.symbol,
+      incomeType: item.incomeType,
+      income: parseFloat(item.income),
+      asset: item.asset,
+      time: item.time,
+      tranId: item.tranId,
+      tradeId: item.tradeId || null,
+      info: item.info || '',
+    }));
+    
+    return { success: true, data: incomeRecords };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch income history',
+    };
+  }
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -374,7 +419,7 @@ Deno.serve(async (req) => {
     
     // Parse request body
     const body = await req.json().catch(() => ({}));
-    const { action, symbol, limit, orderParams } = body;
+    const { action, symbol, limit, orderParams, incomeType, startTime, endTime } = body;
     
     let result;
     
@@ -407,10 +452,14 @@ Deno.serve(async (req) => {
         result = await cancelOrder(apiKey, apiSecret, orderParams);
         break;
         
+      case 'income':
+        result = await getIncomeHistory(apiKey, apiSecret, incomeType, startTime, endTime, limit || 1000);
+        break;
+        
       default:
         result = {
           success: false,
-          error: `Unknown action: ${action}. Valid actions: validate, balance, positions, trades, open-orders, place-order, cancel-order`,
+          error: `Unknown action: ${action}. Valid actions: validate, balance, positions, trades, open-orders, place-order, cancel-order, income`,
         };
     }
     
