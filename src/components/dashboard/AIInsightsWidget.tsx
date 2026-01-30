@@ -135,11 +135,11 @@ export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
   const getSentimentIcon = (sentiment: string) => {
     switch (sentiment) {
       case 'bullish':
-        return <TrendingUp className="h-4 w-4 text-green-500" />;
+        return <TrendingUp className="h-4 w-4 text-profit" />;
       case 'bearish':
-        return <TrendingDown className="h-4 w-4 text-red-500" />;
+        return <TrendingDown className="h-4 w-4 text-loss" />;
       case 'cautious':
-        return <AlertTriangle className="h-4 w-4 text-yellow-500" />;
+        return <AlertTriangle className="h-4 w-4 text-[hsl(var(--chart-4))]" />;
       default:
         return <Target className="h-4 w-4 text-muted-foreground" />;
     }
@@ -147,9 +147,9 @@ export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
 
   const getSentimentColor = (sentiment: string) => {
     switch (sentiment) {
-      case 'bullish': return 'text-green-500 bg-green-500/10 border-green-500/30';
-      case 'bearish': return 'text-red-500 bg-red-500/10 border-red-500/30';
-      case 'cautious': return 'text-yellow-500 bg-yellow-500/10 border-yellow-500/30';
+      case 'bullish': return 'text-profit bg-profit/10 border-profit/30';
+      case 'bearish': return 'text-loss bg-loss/10 border-loss/30';
+      case 'cautious': return 'text-[hsl(var(--chart-4))] bg-[hsl(var(--chart-4))]/10 border-[hsl(var(--chart-4))]/30';
       default: return 'text-muted-foreground bg-muted/50 border-border';
     }
   };
@@ -222,13 +222,13 @@ export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
             {/* Risk Alerts */}
             {insights.riskAlerts.length > 0 && (
               <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm font-medium text-yellow-600">
+                <div className="flex items-center gap-2 text-sm font-medium text-[hsl(var(--chart-4))]">
                   <AlertTriangle className="h-4 w-4" />
                   Risk Alerts
                 </div>
                 <div className="space-y-1">
                   {insights.riskAlerts.map((alert, i) => (
-                    <p key={i} className="text-sm text-yellow-600/90 pl-6">
+                    <p key={i} className="text-sm text-[hsl(var(--chart-4))]/90 pl-6">
                       • {alert}
                     </p>
                   ))}
@@ -304,7 +304,7 @@ export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
             {/* Focus pairs */}
             {pairRecommendations.focus.length > 0 && (
               <div className="space-y-1.5">
-                <div className="flex items-center gap-1.5 text-xs text-green-600">
+                <div className="flex items-center gap-1.5 text-xs text-profit">
                   <ThumbsUp className="h-3 w-3" />
                   <span>Focus on (High Win Rate)</span>
                 </div>
@@ -313,7 +313,7 @@ export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
                     <Badge 
                       key={item.pair} 
                       variant="outline"
-                      className="text-xs bg-green-500/10 text-green-600 border-green-500/30"
+                      className="text-xs bg-profit/10 text-profit border-profit/30"
                     >
                       {item.pair} ({item.winRate.toFixed(0)}%)
                     </Badge>
@@ -325,7 +325,7 @@ export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
             {/* Avoid pairs */}
             {pairRecommendations.avoid.length > 0 && (
               <div className="space-y-1.5">
-                <div className="flex items-center gap-1.5 text-xs text-red-600">
+                <div className="flex items-center gap-1.5 text-xs text-loss">
                   <ThumbsDown className="h-3 w-3" />
                   <span>Consider Avoiding (Low Win Rate)</span>
                 </div>
@@ -334,7 +334,7 @@ export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
                     <Badge 
                       key={item.pair} 
                       variant="outline"
-                      className="text-xs bg-red-500/10 text-red-600 border-red-500/30"
+                      className="text-xs bg-loss/10 text-loss border-loss/30"
                     >
                       {item.pair} ({item.winRate.toFixed(0)}%)
                     </Badge>
