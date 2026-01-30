@@ -1012,7 +1012,7 @@ export default function TradingJournal() {
                 {isBinanceConnected ? (
                   <div className="space-y-6">
                     {/* Live Income History - Shows ALL trades from Binance API */}
-                    <BinanceIncomeHistory showHeader={true} limit={100} defaultFilter="REALIZED_PNL" />
+                    <BinanceIncomeHistory showHeader={true} limit={100} defaultFilter="pnl" />
                     
                     {/* Manual Import from specific symbol trades */}
                     <div className="border-t pt-6">

@@ -131,7 +131,7 @@ export interface CancelOrderParams {
  */
 export interface BinanceIncome {
   symbol: string;
-  incomeType: 'REALIZED_PNL' | 'COMMISSION' | 'FUNDING_FEE' | 'TRANSFER' | 'WELCOME_BONUS' | 'INSURANCE_CLEAR' | 'REFERRAL_KICKBACK' | 'COIN_SWAP_DEPOSIT' | 'COIN_SWAP_WITHDRAW' | 'INTERNAL_TRANSFER' | string;
+  incomeType: BinanceIncomeType | string;
   income: number;
   asset: string;
   time: number;
@@ -140,8 +140,70 @@ export interface BinanceIncome {
   info: string;
 }
 
+/**
+ * All supported Binance Income Types from API with "Enable Reading" permission
+ */
 export type BinanceIncomeType = 
-  | 'REALIZED_PNL'
-  | 'COMMISSION' 
-  | 'FUNDING_FEE'
-  | 'TRANSFER';
+  | 'REALIZED_PNL'      // P&L from closed positions
+  | 'COMMISSION'        // Trading fees (maker/taker)
+  | 'FUNDING_FEE'       // Funding rate payments
+  | 'TRANSFER'          // Deposit/Withdrawal to Futures
+  | 'WELCOME_BONUS'     // Promo bonus
+  | 'INSURANCE_CLEAR'   // Insurance fund clearance
+  | 'REFERRAL_KICKBACK' // Referral rewards
+  | 'COMMISSION_REBATE' // Fee rebates
+  | 'API_REBATE'        // API trading rebates
+  | 'CONTEST_REWARD'    // Trading contest prizes
+  | 'COIN_SWAP_DEPOSIT' // Asset conversion in
+  | 'COIN_SWAP_WITHDRAW'// Asset conversion out
+  | 'INTERNAL_TRANSFER' // Internal wallet transfer
+  | 'DELIVERED_SETTELMENT' // Delivery settlement
+  | 'AUTO_EXCHANGE';    // Auto exchange
+
+/**
+ * Income type categories for UI filtering
+ */
+export type IncomeTypeCategory = 'pnl' | 'fees' | 'funding' | 'transfers' | 'rewards' | 'other';
+
+/**
+ * Map income type to category
+ */
+export function getIncomeTypeCategory(type: string): IncomeTypeCategory {
+  switch (type) {
+    case 'REALIZED_PNL':
+      return 'pnl';
+    case 'COMMISSION':
+      return 'fees';
+    case 'FUNDING_FEE':
+      return 'funding';
+    case 'TRANSFER':
+    case 'INTERNAL_TRANSFER':
+    case 'COIN_SWAP_DEPOSIT':
+    case 'COIN_SWAP_WITHDRAW':
+      return 'transfers';
+    case 'WELCOME_BONUS':
+    case 'REFERRAL_KICKBACK':
+    case 'COMMISSION_REBATE':
+    case 'API_REBATE':
+    case 'CONTEST_REWARD':
+      return 'rewards';
+    default:
+      return 'other';
+  }
+}
+
+/**
+ * Aggregated income statistics
+ */
+export interface BinanceIncomeAggregated {
+  byType: Record<string, { total: number; count: number }>;
+  bySymbol: Record<string, { pnl: number; fees: number; funding: number; rebates: number }>;
+  summary: {
+    grossPnl: number;      // Raw REALIZED_PNL total
+    totalFees: number;     // COMMISSION (negative)
+    totalFunding: number;  // FUNDING_FEE (can be +/-)
+    totalRebates: number;  // COMMISSION_REBATE + API_REBATE (positive)
+    totalTransfers: number;// TRANSFER totals
+    netPnl: number;        // grossPnl - fees - funding + rebates
+  };
+}

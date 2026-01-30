@@ -1,6 +1,6 @@
 /**
- * BinanceIncomeHistory - Display income/P&L history from Binance Futures API
- * Uses /fapi/v1/income endpoint to fetch ALL trades across ALL symbols
+ * BinanceIncomeHistory - Full-featured income display from Binance Futures API
+ * Supports ALL income types: P&L, Fees, Funding, Transfers, Rebates, etc.
  */
 import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Table,
   TableBody,
@@ -23,44 +24,72 @@ import {
   TrendingDown,
   AlertCircle,
   Zap,
-  Filter
+  Filter,
+  ChevronDown,
+  Wallet,
+  Gift,
+  ArrowUpDown,
+  DollarSign
 } from "lucide-react";
 import { format } from "date-fns";
-import { useBinanceIncomeHistory, useBinanceConnectionStatus, BinanceIncome } from "@/features/binance";
+import { 
+  useBinanceAllIncome, 
+  useBinanceConnectionStatus, 
+  BinanceIncome,
+  getIncomeTypeCategory,
+  IncomeTypeCategory
+} from "@/features/binance";
 import { formatCurrency } from "@/lib/formatters";
 
-type IncomeFilter = 'REALIZED_PNL' | 'COMMISSION' | 'FUNDING_FEE' | 'ALL';
+type IncomeFilterType = 'ALL' | 'pnl' | 'fees' | 'funding' | 'transfers' | 'rewards' | 'other';
 
 interface BinanceIncomeHistoryProps {
   showHeader?: boolean;
   limit?: number;
-  defaultFilter?: IncomeFilter;
+  defaultFilter?: IncomeFilterType;
+  daysBack?: number;
 }
+
+// Income type display configuration
+const incomeTypeConfig: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
+  REALIZED_PNL: { label: 'P&L', color: 'default', icon: <DollarSign className="h-3 w-3" /> },
+  COMMISSION: { label: 'Fee', color: 'secondary', icon: <Wallet className="h-3 w-3" /> },
+  FUNDING_FEE: { label: 'Funding', color: 'outline', icon: <ArrowUpDown className="h-3 w-3" /> },
+  TRANSFER: { label: 'Transfer', color: 'outline', icon: <Wallet className="h-3 w-3" /> },
+  INTERNAL_TRANSFER: { label: 'Internal', color: 'outline', icon: <Wallet className="h-3 w-3" /> },
+  COMMISSION_REBATE: { label: 'Rebate', color: 'default', icon: <Gift className="h-3 w-3" /> },
+  API_REBATE: { label: 'API Rebate', color: 'default', icon: <Gift className="h-3 w-3" /> },
+  REFERRAL_KICKBACK: { label: 'Referral', color: 'default', icon: <Gift className="h-3 w-3" /> },
+  WELCOME_BONUS: { label: 'Bonus', color: 'default', icon: <Gift className="h-3 w-3" /> },
+  CONTEST_REWARD: { label: 'Contest', color: 'default', icon: <Gift className="h-3 w-3" /> },
+  INSURANCE_CLEAR: { label: 'Insurance', color: 'secondary', icon: <AlertCircle className="h-3 w-3" /> },
+  COIN_SWAP_DEPOSIT: { label: 'Swap In', color: 'outline', icon: <Wallet className="h-3 w-3" /> },
+  COIN_SWAP_WITHDRAW: { label: 'Swap Out', color: 'outline', icon: <Wallet className="h-3 w-3" /> },
+  DELIVERED_SETTELMENT: { label: 'Settlement', color: 'secondary', icon: <Wallet className="h-3 w-3" /> },
+  AUTO_EXCHANGE: { label: 'Exchange', color: 'secondary', icon: <Wallet className="h-3 w-3" /> },
+};
 
 export function BinanceIncomeHistory({ 
   showHeader = true, 
-  limit = 100,
-  defaultFilter = 'REALIZED_PNL'
+  limit = 200,
+  defaultFilter = 'ALL',
+  daysBack = 1
 }: BinanceIncomeHistoryProps) {
-  const [incomeFilter, setIncomeFilter] = useState<IncomeFilter>(defaultFilter);
+  const [categoryFilter, setCategoryFilter] = useState<IncomeFilterType>(defaultFilter);
   const [symbolFilter, setSymbolFilter] = useState<string>('ALL');
+  const [isBreakdownOpen, setIsBreakdownOpen] = useState(false);
   
   const { data: connectionStatus } = useBinanceConnectionStatus();
   const isConnected = connectionStatus?.isConnected;
   
-  // Fetch income with optional type filter
-  const oneDayAgo = useMemo(() => Date.now() - (24 * 60 * 60 * 1000), []);
+  // Fetch ALL income types in one call
   const { 
     data: incomeData, 
     isLoading, 
     error,
     refetch,
     isFetching
-  } = useBinanceIncomeHistory(
-    incomeFilter === 'ALL' ? undefined : incomeFilter,
-    oneDayAgo,
-    limit
-  );
+  } = useBinanceAllIncome(daysBack, limit);
 
   // Get unique symbols for filter dropdown
   const uniqueSymbols = useMemo(() => {
@@ -69,11 +98,80 @@ export function BinanceIncomeHistory({
     return Array.from(symbols).sort();
   }, [incomeData]);
 
-  // Filter by symbol if selected
+  // Calculate comprehensive summary
+  const summary = useMemo(() => {
+    if (!incomeData || incomeData.length === 0) return null;
+    
+    const byType: Record<string, { total: number; count: number }> = {};
+    let grossPnl = 0;
+    let totalFees = 0;
+    let totalFunding = 0;
+    let totalRebates = 0;
+    let totalTransfers = 0;
+    let wins = 0;
+    let losses = 0;
+    
+    incomeData.forEach((item: BinanceIncome) => {
+      const type = item.incomeType;
+      
+      if (!byType[type]) {
+        byType[type] = { total: 0, count: 0 };
+      }
+      byType[type].total += item.income;
+      byType[type].count += 1;
+      
+      switch (type) {
+        case 'REALIZED_PNL':
+          grossPnl += item.income;
+          if (item.income > 0) wins++;
+          if (item.income < 0) losses++;
+          break;
+        case 'COMMISSION':
+          totalFees += Math.abs(item.income);
+          break;
+        case 'FUNDING_FEE':
+          totalFunding += item.income;
+          break;
+        case 'COMMISSION_REBATE':
+        case 'API_REBATE':
+          totalRebates += item.income;
+          break;
+        case 'TRANSFER':
+        case 'INTERNAL_TRANSFER':
+          totalTransfers += item.income;
+          break;
+      }
+    });
+    
+    const netPnl = grossPnl - totalFees + totalFunding + totalRebates;
+    
+    return { 
+      grossPnl,
+      netPnl,
+      totalFees,
+      totalFunding,
+      totalRebates,
+      totalTransfers,
+      wins,
+      losses,
+      count: incomeData.length,
+      byType 
+    };
+  }, [incomeData]);
+
+  // Filter data by category and symbol
   const filteredData = useMemo(() => {
     if (!incomeData) return [];
     let filtered = incomeData;
     
+    // Filter by category
+    if (categoryFilter !== 'ALL') {
+      filtered = filtered.filter((item: BinanceIncome) => 
+        getIncomeTypeCategory(item.incomeType) === categoryFilter
+      );
+    }
+    
+    // Filter by symbol
     if (symbolFilter !== 'ALL') {
       filtered = filtered.filter((item: BinanceIncome) => item.symbol === symbolFilter);
     }
@@ -82,18 +180,7 @@ export function BinanceIncomeHistory({
     filtered = filtered.filter((item: BinanceIncome) => item.income !== 0);
     
     return filtered.sort((a: BinanceIncome, b: BinanceIncome) => b.time - a.time);
-  }, [incomeData, symbolFilter]);
-
-  // Calculate summary stats
-  const summary = useMemo(() => {
-    if (!filteredData.length) return null;
-    
-    const totalIncome = filteredData.reduce((sum: number, item: BinanceIncome) => sum + item.income, 0);
-    const positive = filteredData.filter((item: BinanceIncome) => item.income > 0).length;
-    const negative = filteredData.filter((item: BinanceIncome) => item.income < 0).length;
-    
-    return { totalIncome, positive, negative, count: filteredData.length };
-  }, [filteredData]);
+  }, [incomeData, categoryFilter, symbolFilter]);
 
   // Not connected state
   if (!isConnected) {
@@ -129,20 +216,23 @@ export function BinanceIncomeHistory({
               Binance Income History
               <Badge variant="outline" className="text-xs text-profit ml-2">
                 <Zap className="h-3 w-3 mr-1" />
-                All Symbols
+                Full Data
               </Badge>
             </CardTitle>
             <div className="flex items-center gap-2 flex-wrap">
-              <Select value={incomeFilter} onValueChange={(v) => setIncomeFilter(v as IncomeFilter)}>
-                <SelectTrigger className="w-[140px]">
+              <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v as IncomeFilterType)}>
+                <SelectTrigger className="w-[120px]">
                   <Filter className="h-3 w-3 mr-1" />
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="REALIZED_PNL">P&L Only</SelectItem>
-                  <SelectItem value="COMMISSION">Fees Only</SelectItem>
-                  <SelectItem value="FUNDING_FEE">Funding</SelectItem>
                   <SelectItem value="ALL">All Types</SelectItem>
+                  <SelectItem value="pnl">P&L</SelectItem>
+                  <SelectItem value="fees">Fees</SelectItem>
+                  <SelectItem value="funding">Funding</SelectItem>
+                  <SelectItem value="transfers">Transfers</SelectItem>
+                  <SelectItem value="rewards">Rewards</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
                 </SelectContent>
               </Select>
               {uniqueSymbols.length > 0 && (
@@ -171,23 +261,66 @@ export function BinanceIncomeHistory({
         </CardHeader>
       )}
       <CardContent>
-        {/* Summary Stats */}
+        {/* Summary Cards */}
         {summary && (
-          <div className="grid grid-cols-3 gap-3 mb-4">
-            <div className={`p-3 rounded-lg ${summary.totalIncome >= 0 ? 'bg-profit/10' : 'bg-loss/10'}`}>
-              <p className="text-xs text-muted-foreground">Total</p>
-              <p className={`font-semibold ${summary.totalIncome >= 0 ? 'text-profit' : 'text-loss'}`}>
-                {summary.totalIncome >= 0 ? '+' : ''}{formatCurrency(summary.totalIncome, 'USD')}
-              </p>
+          <div className="space-y-3 mb-4">
+            {/* Main summary row */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className={`p-3 rounded-lg ${summary.netPnl >= 0 ? 'bg-profit/10 border border-profit/20' : 'bg-loss/10 border border-loss/20'}`}>
+                <p className="text-xs text-muted-foreground">Net P&L</p>
+                <p className={`text-lg font-bold ${summary.netPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                  {summary.netPnl >= 0 ? '+' : ''}{formatCurrency(summary.netPnl, 'USD')}
+                </p>
+              </div>
+              <div className="p-3 rounded-lg bg-loss/10">
+                <p className="text-xs text-muted-foreground">Total Fees</p>
+                <p className="font-semibold text-loss">-{formatCurrency(summary.totalFees, 'USD')}</p>
+              </div>
+              <div className={`p-3 rounded-lg ${summary.totalFunding >= 0 ? 'bg-profit/10' : 'bg-loss/10'}`}>
+                <p className="text-xs text-muted-foreground">Funding</p>
+                <p className={`font-semibold ${summary.totalFunding >= 0 ? 'text-profit' : 'text-loss'}`}>
+                  {summary.totalFunding >= 0 ? '+' : ''}{formatCurrency(summary.totalFunding, 'USD')}
+                </p>
+              </div>
+              <div className="p-3 rounded-lg bg-profit/10">
+                <p className="text-xs text-muted-foreground">Rebates</p>
+                <p className="font-semibold text-profit">+{formatCurrency(summary.totalRebates, 'USD')}</p>
+              </div>
             </div>
-            <div className="p-3 rounded-lg bg-profit/10">
-              <p className="text-xs text-muted-foreground">Wins</p>
-              <p className="font-semibold text-profit">{summary.positive}</p>
-            </div>
-            <div className="p-3 rounded-lg bg-loss/10">
-              <p className="text-xs text-muted-foreground">Losses</p>
-              <p className="font-semibold text-loss">{summary.negative}</p>
-            </div>
+            
+            {/* Collapsible breakdown */}
+            <Collapsible open={isBreakdownOpen} onOpenChange={setIsBreakdownOpen}>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" size="sm" className="w-full justify-between">
+                  <span className="text-xs text-muted-foreground">
+                    View breakdown by income type ({Object.keys(summary.byType).length} types)
+                  </span>
+                  <ChevronDown className={`h-4 w-4 transition-transform ${isBreakdownOpen ? 'rotate-180' : ''}`} />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pt-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                  {Object.entries(summary.byType)
+                    .sort((a, b) => Math.abs(b[1].total) - Math.abs(a[1].total))
+                    .map(([type, data]) => {
+                      const config = incomeTypeConfig[type] || { label: type, color: 'secondary' };
+                      return (
+                        <div key={type} className="p-2 rounded bg-muted/50 text-xs">
+                          <div className="flex items-center gap-1 mb-1">
+                            <Badge variant={config.color as any} className="text-[10px]">
+                              {config.label}
+                            </Badge>
+                            <span className="text-muted-foreground">×{data.count}</span>
+                          </div>
+                          <p className={`font-mono ${data.total >= 0 ? 'text-profit' : 'text-loss'}`}>
+                            {data.total >= 0 ? '+' : ''}{formatCurrency(data.total, 'USD')}
+                          </p>
+                        </div>
+                      );
+                    })}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
           </div>
         )}
 
@@ -217,43 +350,43 @@ export function BinanceIncomeHistory({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredData.map((item: BinanceIncome) => (
-                  <TableRow key={`${item.tranId}-${item.time}`}>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {format(new Date(item.time), "MM/dd HH:mm:ss")}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="text-xs font-mono">
-                        {item.symbol || 'N/A'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge 
-                        variant={item.incomeType === 'REALIZED_PNL' ? 'default' : 'secondary'}
-                        className="text-xs"
-                      >
-                        {item.incomeType === 'REALIZED_PNL' ? 'P&L' : 
-                         item.incomeType === 'COMMISSION' ? 'Fee' :
-                         item.incomeType === 'FUNDING_FEE' ? 'Funding' :
-                         item.incomeType}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <span className={`font-mono-numbers flex items-center justify-end gap-1 ${item.income >= 0 ? 'text-profit' : 'text-loss'}`}>
-                        {item.income >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                        {item.income >= 0 ? '+' : ''}{formatCurrency(item.income, 'USD')}
-                      </span>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {filteredData.map((item: BinanceIncome, index: number) => {
+                  const config = incomeTypeConfig[item.incomeType] || { label: item.incomeType, color: 'secondary' };
+                  return (
+                    <TableRow key={`${item.tranId}-${item.time}-${index}`}>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {format(new Date(item.time), "MM/dd HH:mm:ss")}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-xs font-mono">
+                          {item.symbol || 'N/A'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge 
+                          variant={config.color as any}
+                          className="text-xs"
+                        >
+                          {config.label}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <span className={`font-mono flex items-center justify-end gap-1 ${item.income >= 0 ? 'text-profit' : 'text-loss'}`}>
+                          {item.income >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                          {item.income >= 0 ? '+' : ''}{formatCurrency(item.income, 'USD')}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
         ) : (
           <div className="text-center py-8 text-muted-foreground">
             <History className="h-8 w-8 mx-auto mb-2 opacity-50" />
-            <p className="text-sm">No income records found in the last 24 hours</p>
-            <p className="text-xs">Trades will appear here after you close positions</p>
+            <p className="text-sm">No income records found</p>
+            <p className="text-xs">Trades will appear here after activity</p>
           </div>
         )}
       </CardContent>
