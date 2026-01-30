@@ -40,9 +40,9 @@ const navigationItems: NavItem[] = [
   { title: "Calendar", url: "/calendar", icon: Calendar },
   { title: "Market Insight", url: "/market", icon: TrendingUp },
   { title: "Risk Management", url: "/risk", icon: Shield },
+  { title: "Trade Quality", url: "/ai", icon: Target },
   { title: "Trade Management", url: "/trading", icon: Notebook },
   { title: "Strategy & Rules", url: "/strategies", icon: Lightbulb },
-  { title: "Trade Quality", url: "/ai", icon: Target },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 
