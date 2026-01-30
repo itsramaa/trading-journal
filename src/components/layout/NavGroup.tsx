@@ -1,9 +1,9 @@
 /**
- * NavGroup Component - Collapsible group with emoji icons
- * Fixed overflow-x with proper width constraints
+ * NavGroup Component - shadcn sidebar-08 pattern
+ * Collapsible navigation group with ChevronRight rotation
  */
 import * as React from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronRight, type LucideIcon } from "lucide-react";
 import {
   Collapsible,
   CollapsibleContent,
@@ -14,35 +14,74 @@ import {
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
+import { Link, useLocation } from "react-router-dom";
+
+interface NavItem {
+  title: string;
+  url: string;
+  icon: LucideIcon;
+}
 
 interface NavGroupProps {
-  icon: string;
-  label: string;
-  colorClass?: string;
-  children: React.ReactNode;
+  title: string;
+  icon: LucideIcon;
+  items: NavItem[];
   defaultOpen?: boolean;
 }
 
 export function NavGroup({
-  icon,
-  label,
-  colorClass = "text-muted-foreground",
-  children,
+  title,
+  icon: GroupIcon,
+  items,
   defaultOpen = true,
 }: NavGroupProps) {
   const [isOpen, setIsOpen] = React.useState(defaultOpen);
-  const { state, isMobile } = useSidebar();
+  const { state, setOpenMobile, isMobile } = useSidebar();
+  const location = useLocation();
   const isCollapsed = state === "collapsed";
 
-  // When sidebar is collapsed (icon-only mode), show items without group wrapper
+  const isActive = (url: string) => {
+    if (url === "/") {
+      return location.pathname === "/";
+    }
+    return location.pathname === url || location.pathname.startsWith(url + "/");
+  };
+
+  // Check if any item in this group is active
+  const hasActiveItem = items.some((item) => isActive(item.url));
+
+  const handleNavClick = () => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  };
+
+  // When sidebar is collapsed (icon-only mode), render flat items with tooltips
   if (isCollapsed && !isMobile) {
     return (
-      <SidebarGroup className="py-1">
+      <SidebarGroup className="py-0">
         <SidebarGroupContent>
-          <SidebarMenu>{children}</SidebarMenu>
+          <SidebarMenu>
+            {items.map((item) => (
+              <SidebarMenuItem key={item.title}>
+                <SidebarMenuButton
+                  asChild
+                  tooltip={item.title}
+                  isActive={isActive(item.url)}
+                >
+                  <Link to={item.url} onClick={handleNavClick}>
+                    <item.icon className="h-4 w-4" />
+                    <span>{item.title}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ))}
+          </SidebarMenu>
         </SidebarGroupContent>
       </SidebarGroup>
     );
@@ -59,25 +98,38 @@ export function NavGroup({
           asChild
           className="group/label h-8 text-sm text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
         >
-          <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-md px-2 py-2 transition-colors overflow-hidden">
-            <span className={cn("text-base leading-none shrink-0", colorClass)} aria-hidden="true">
-              {icon}
-            </span>
-            <span className="flex-1 min-w-0 text-left text-xs font-semibold uppercase tracking-wider truncate">
-              {label}
-            </span>
-            <ChevronDown
+          <CollapsibleTrigger className="flex w-full items-center">
+            <GroupIcon className={cn(
+              "mr-2 h-4 w-4",
+              hasActiveItem && "text-primary"
+            )} />
+            <span className="flex-1 text-left truncate">{title}</span>
+            <ChevronRight
               className={cn(
-                "h-4 w-4 shrink-0 text-muted-foreground/70 transition-transform duration-200",
-                isOpen && "rotate-180"
+                "ml-auto h-4 w-4 shrink-0 transition-transform duration-200",
+                isOpen && "rotate-90"
               )}
-              aria-hidden="true"
             />
           </CollapsibleTrigger>
         </SidebarGroupLabel>
         <CollapsibleContent>
-          <SidebarGroupContent className="pl-1">
-            <SidebarMenu>{children}</SidebarMenu>
+          <SidebarGroupContent>
+            <SidebarMenu className="pl-4 border-l border-sidebar-border ml-3">
+              {items.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={isActive(item.url)}
+                    className="h-8"
+                  >
+                    <Link to={item.url} onClick={handleNavClick}>
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
           </SidebarGroupContent>
         </CollapsibleContent>
       </SidebarGroup>

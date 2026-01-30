@@ -1,6 +1,6 @@
 /**
- * AppSidebar Component - Grouped navigation with emoji icons
- * Fixed overflow with proper width constraints
+ * AppSidebar Component - shadcn sidebar-08 pattern
+ * Grouped navigation with collapsible sections
  */
 import * as React from "react";
 import {
@@ -13,9 +13,12 @@ import {
   LineChart,
   Settings,
   CandlestickChart,
-  type LucideIcon,
+  ChartBar,
+  Target,
+  Cog,
+  ChartCandlestick,
 } from "lucide-react";
-import { Link, useLocation } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { NavUser } from "./NavUser";
 import { NavGroup } from "./NavGroup";
 import {
@@ -27,22 +30,14 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
-  SidebarSeparator,
   useSidebar,
 } from "@/components/ui/sidebar";
-
-interface NavItem {
-  title: string;
-  url: string;
-  icon: LucideIcon;
-}
 
 // Navigation structure: 4 groups with 8 items total
 const navigationGroups = [
   {
-    icon: "📊",
-    label: "Trading Fundamentals",
-    colorClass: "text-blue-500",
+    title: "Trading Fundamentals",
+    icon: ChartBar,
     items: [
       { title: "Dashboard", url: "/", icon: LayoutDashboard },
       { title: "Market Insight", url: "/market", icon: TrendingUp },
@@ -50,76 +45,30 @@ const navigationGroups = [
     ],
   },
   {
-    icon: "🎯",
-    label: "Execution & Management",
-    colorClass: "text-green-500",
+    title: "Execution & Management",
+    icon: Target,
     items: [
       { title: "Trading Journal", url: "/trading", icon: Notebook },
       { title: "Risk Management", url: "/risk", icon: Shield },
     ],
   },
   {
-    icon: "📈",
-    label: "Strategy & Analysis",
-    colorClass: "text-purple-500",
+    title: "Strategy & Analysis",
+    icon: ChartCandlestick,
     items: [
       { title: "Strategies", url: "/strategies", icon: Lightbulb },
       { title: "Performance", url: "/performance", icon: LineChart },
     ],
   },
   {
-    icon: "⚙️",
-    label: "Tools & Settings",
-    colorClass: "text-muted-foreground",
+    title: "Tools & Settings",
+    icon: Cog,
     items: [{ title: "Settings", url: "/settings", icon: Settings }],
   },
 ];
 
-function NavItems({ items }: { items: NavItem[] }) {
-  const location = useLocation();
-  const { setOpenMobile, isMobile } = useSidebar();
-
-  const isActive = (url: string) => {
-    if (url === "/") {
-      return location.pathname === "/";
-    }
-    return location.pathname === url || location.pathname.startsWith(url + "/");
-  };
-
-  const handleClick = () => {
-    if (isMobile) {
-      setOpenMobile(false);
-    }
-  };
-
-  return (
-    <>
-      {items.map((item) => (
-        <SidebarMenuItem key={item.title}>
-          <SidebarMenuButton
-            asChild
-            isActive={isActive(item.url)}
-            tooltip={item.title}
-          >
-            <Link to={item.url} onClick={handleClick} className="overflow-hidden">
-              <item.icon className="h-4 w-4 shrink-0" />
-              <span className="truncate">{item.title}</span>
-            </Link>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-      ))}
-    </>
-  );
-}
-
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const { setOpenMobile, isMobile } = useSidebar();
-
-  const handleLogoClick = () => {
-    if (isMobile) {
-      setOpenMobile(false);
-    }
-  };
+  const { setOpenMobile } = useSidebar();
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -131,11 +80,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               asChild
               tooltip="Trading Journey"
             >
-              <Link to="/" onClick={handleLogoClick} className="overflow-hidden">
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shrink-0">
+              <Link to="/" onClick={() => setOpenMobile(false)}>
+                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                   <CandlestickChart className="size-4" />
                 </div>
-                <div className="grid flex-1 min-w-0 text-left text-sm leading-tight">
+                <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-semibold">Trading Journey</span>
                   <span className="truncate text-xs text-muted-foreground">
                     Journal & Analytics
@@ -147,19 +96,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
 
-      <SidebarContent className="overflow-x-hidden">
-        {navigationGroups.map((group, index) => (
-          <React.Fragment key={group.label}>
-            {index > 0 && <SidebarSeparator className="mx-2 my-2" />}
-            <NavGroup
-              icon={group.icon}
-              label={group.label}
-              colorClass={group.colorClass}
-              defaultOpen={true}
-            >
-              <NavItems items={group.items} />
-            </NavGroup>
-          </React.Fragment>
+      <SidebarContent>
+        {navigationGroups.map((group) => (
+          <NavGroup
+            key={group.title}
+            title={group.title}
+            icon={group.icon}
+            items={group.items}
+            defaultOpen={true}
+          />
         ))}
       </SidebarContent>
 
