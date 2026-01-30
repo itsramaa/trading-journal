@@ -1,321 +1,267 @@
 
-# Plan: Restructure Trade Entry Wizard
+# AI System Gap Analysis & Implementation Plan
 
-## Overview
+## 📊 Executive Summary
 
-Merestrukturisasi Trade Entry Wizard dari **7 steps** menjadi **5 steps** yang lebih streamlined:
-
-| Current (7 Steps) | New (5 Steps) |
-|-------------------|---------------|
-| 1. Pre-Check | 1. **Setup** (Pre-Check + Strategy + Pair/Direction) |
-| 2. Strategy | ↑ Combined |
-| 3. Details (Pair, Direction, Entry, SL, TP) | ↑ Combined (only Pair, Direction, Timeframe) |
-| 4. Confluence | 2. **Confluence** |
-| 5. Sizing | 3. **Sizing & Levels** (+ Entry, SL, TP moved here) |
-| 6. Checklist | 4. **Final Checklist** (reordered) |
-| 7. Execute | 5. **Execute** |
+Berdasarkan analisis menyeluruh terhadap dokumentasi di `docs/ai/` dan implementasi saat ini, ditemukan **signifikan gap** antara spesifikasi dan implementasi. Sementara project sudah memiliki AI edge functions untuk trade workflow, **Market Insight page** masih menggunakan **MOCK DATA** dan belum terintegrasi dengan API eksternal atau AI analysis sesuai dokumentasi.
 
 ---
 
-## Change 1: Consolidate Steps 1-3 into "Setup"
+## 📋 Gap Analysis Matrix
 
-### New Step Flow
+### ✅ Already Implemented (Match)
 
-```text
-Step 1: SETUP
-├── Trading Account Selection
-├── Pre-validation Checks (Daily Loss, Position Limit, Correlation)
-├── AI Pre-flight (optional)
-├── Strategy Selection (with AI recommendations)
-└── Basic Trade Info:
-    ├── Trading Pair (Combobox)
-    ├── Direction (LONG/SHORT)
-    └── Timeframe
+| Component | Location | Status |
+|-----------|----------|--------|
+| AI Preflight Check | `supabase/functions/ai-preflight/` | ✅ Functional |
+| AI Confluence Detection | `supabase/functions/confluence-detection/` | ✅ Functional |
+| AI Trade Quality Scoring | `supabase/functions/trade-quality/` | ✅ Functional |
+| AI Dashboard Insights | `supabase/functions/dashboard-insights/` | ✅ Functional |
+| AI Post-Trade Analysis | `supabase/functions/post-trade-analysis/` | ✅ Functional |
+| React Hooks for AI | `src/features/ai/` | ✅ Functional |
 
-Step 2: CONFLUENCE
-└── (No changes, same as current)
+### ❌ Not Implemented (Mismatch)
 
-Step 3: SIZING & LEVELS
-├── Entry Price *         ← MOVED from Details
-├── Stop Loss *           ← MOVED from Details
-├── Take Profit *         ← MOVED from Details
-├── R:R Calculation
-├── Risk % Slider
-├── Leverage Input
-└── Position Size Results
-
-Step 4: FINAL CHECKLIST
-├── How are you feeling right now?  ← REORDERED (first)
-├── Trade Confidence Level          ← REORDERED (second)
-├── AI Final Verdict               ← REORDERED (third)
-├── Trade Comment
-└── Confirm following rules
-
-Step 5: EXECUTE
-└── (No changes, same as current)
-```
+| Component | Documentation | Current State | Priority |
+|-----------|--------------|---------------|----------|
+| **AI Market Sentiment** | Real-time analysis via Binance, CoinGecko, Alternative.me APIs | **MOCK DATA** in `MarketInsight.tsx` | 🔴 Critical |
+| **AI Macro Analysis** | DXY, S&P 500, Treasury, VIX via Yahoo Finance/FRED | **MOCK DATA** hardcoded | 🔴 Critical |
+| **Fear & Greed Index** | Live fetch from `alternative.me/fng/` | **MOCK DATA** (value: 62 hardcoded) | 🔴 Critical |
+| **Whale Tracking** | Volume proxy + exchange flow analysis | **MOCK DATA** with fake wallet addresses | 🟡 Medium |
+| **Key Signals (BTC/ETH/SOL)** | Technical analysis with MA, RSI, MACD | **MOCK DATA** static strings | 🔴 Critical |
+| **AI Recommendation Engine** | Logic-based from Sentiment + Macro + F&G | **Static text** hardcoded | 🔴 Critical |
+| **Trading Opportunities** | AI-ranked from pattern recognition | **MOCK DATA** static array | 🟡 Medium |
+| **Volatility Assessment** | Real volatility calculation per asset | **MOCK DATA** static values | 🟡 Medium |
+| **Economic Calendar Integration** | Trading Economics API | **Static warning** text only | 🟠 Low |
 
 ---
 
-## File Changes
+## 🔧 Technical Gap Details
 
-### 1. `src/types/trade-wizard.ts`
+### 1. Market Insight Edge Function (MISSING)
 
-Update wizard steps from 7 to 5:
+**Dokumentasi mengharuskan:**
+- Fetch dari 5+ API gratis (Binance, CoinGecko, Alternative.me, Yahoo Finance, FRED)
+- Calculate weighted sentiment score: `(Tech×0.30) + (OnChain×0.25) + (Social×0.25) + (Macro×0.20)`
+- Calculate confidence dari agreement + distance + quality
+- Generate AI summary text
+- Update setiap 5-15 menit
 
+**Current State:**
 ```typescript
-export type WizardStep = 
-  | 'setup'         // Combined: Pre-validation + Strategy + Basic Details
-  | 'confluence'    // Step 2
-  | 'sizing'        // Step 3 (now includes Entry, SL, TP)
-  | 'checklist'     // Step 4
-  | 'confirmation'; // Step 5
-
-export const WIZARD_STEPS: WizardStep[] = [
-  'setup',
-  'confluence',
-  'sizing',
-  'checklist',
-  'confirmation',
-];
-
-export const STEP_LABELS: Record<WizardStep, string> = {
-  'setup': 'Setup',
-  'confluence': 'Confluence',
-  'sizing': 'Sizing',
-  'checklist': 'Checklist',
-  'confirmation': 'Execute',
-};
-
-// Update TradeDetailsData - remove Entry/SL/TP (moved to sizing)
-export interface TradeDetailsData {
-  pair: string;
-  direction: 'LONG' | 'SHORT';
-  timeframe: TimeframeType;
-}
-
-// New interface for sizing step
-export interface TradeSizingData {
-  entryPrice: number;
-  stopLoss: number;
-  takeProfit: number;
-  riskPercent: number;
-  leverage: number;
-}
-```
-
-### 2. `src/features/trade/useTradeEntryWizard.ts`
-
-Update STEPS_ORDER:
-
-```typescript
-const STEPS_ORDER: WizardStep[] = [
-  'setup',
-  'confluence',
-  'sizing',
-  'checklist',
-  'confirmation',
-];
-```
-
-Add new setter for sizing data with prices.
-
-### 3. Create `src/components/trade/entry/SetupStep.tsx` (NEW)
-
-**Combined component** containing:
-- Trading Account Selection (from PreEntryValidation)
-- Pre-validation checks (from PreEntryValidation)
-- AI Pre-flight option (from PreEntryValidation)
-- Strategy Selection dropdown (from StrategySelection)
-- Pair selection (Combobox)
-- Direction buttons (LONG/SHORT)
-- Timeframe dropdown
-
-Layout structure:
-```text
-┌─────────────────────────────────────────────┐
-│ SETUP                                        │
-├─────────────────────────────────────────────┤
-│ 1. Trading Account: [Select v]              │
-│                                              │
-│ ─── Pre-validation ────────────────────────│
-│ ✓ Daily Loss: OK                            │
-│ ✓ Position Limit: OK                        │
-│ ✓ Correlation: OK                           │
-│ [Run AI Pre-flight]                         │
-│                                              │
-│ ─── Strategy ──────────────────────────────│
-│ AI Recommended: [Strategy Name] 85% match   │
-│ Select Strategy: [Dropdown v]               │
-│                                              │
-│ ─── Trade Setup ───────────────────────────│
-│ Pair: [Searchable Combobox]                 │
-│ Direction: [LONG] [SHORT]                   │
-│ Timeframe: [Select v]                       │
-└─────────────────────────────────────────────┘
-```
-
-### 4. Update `src/components/trade/entry/PositionSizingStep.tsx`
-
-Add Entry, SL, TP inputs at the top:
-
-```text
-┌─────────────────────────────────────────────┐
-│ SIZING & LEVELS                              │
-├─────────────────────────────────────────────┤
-│ ─── Price Levels ──────────────────────────│
-│ Entry Price: [________]                      │
-│ Stop Loss: [________] (red)                  │
-│ Take Profit: [________] (green)              │
-│                                              │
-│ R:R Ratio: 1:2.5 ✓                          │
-│                                              │
-│ ─── Position Sizing ───────────────────────│
-│ Account Balance: $10,000                    │
-│ Risk %: [Slider 2%]                         │
-│ Leverage: [1x]                              │
-│                                              │
-│ ─── Results ───────────────────────────────│
-│ Position Size: 0.05 BTC                     │
-│ Risk Amount: $200                           │
-│ Potential Outcomes: -$200 / +$200 / +$400   │
-└─────────────────────────────────────────────┘
-```
-
-### 5. Update `src/components/trade/entry/FinalChecklist.tsx`
-
-Reorder sections:
-
-**Before (current order):**
-1. AI Final Verdict
-2. Emotional State (How are you feeling)
-3. Confidence Level
-4. Following Rules
-5. Trade Comment
-
-**After (new order):**
-1. **Emotional State** (How are you feeling right now?) ← FIRST
-2. **Confidence Level** (Trade Confidence Level) ← SECOND
-3. **AI Final Verdict** ← THIRD
-4. Following Rules checkbox
-5. Trade Comment
-
-### 6. Delete Old Components
-
-- Delete `src/components/trade/entry/PreEntryValidation.tsx`
-- Delete `src/components/trade/entry/StrategySelection.tsx`
-- Delete `src/components/trade/entry/TradeDetails.tsx`
-
-### 7. Update `src/components/trade/entry/TradeEntryWizard.tsx`
-
-Update renderStep() switch:
-
-```typescript
-const renderStep = () => {
-  switch (currentStep) {
-    case 'setup':
-      return <SetupStep onNext={nextStep} onCancel={handleCancel} />;
-    case 'confluence':
-      return <ConfluenceValidator onNext={nextStep} onBack={prevStep} />;
-    case 'sizing':
-      return <PositionSizingStep onNext={nextStep} onBack={prevStep} />;
-    case 'checklist':
-      return <FinalChecklist onNext={nextStep} onBack={prevStep} />;
-    case 'confirmation':
-      return <TradeConfirmation onExecute={handleComplete} onBack={prevStep} onCancel={handleCancel} />;
-    default:
-      return null;
-  }
+// MarketInsight.tsx - Line 16-26
+const MOCK_SENTIMENT = {
+  overall: 'bullish' as 'bullish' | 'bearish' | 'neutral',
+  confidence: 78,
+  // ... semua data HARDCODED
 };
 ```
 
----
+### 2. Macro Analysis Data (MISSING)
 
-## Visual Comparison
+**Dokumentasi mengharuskan:**
+- DXY dari Yahoo Finance (real-time)
+- S&P 500 dari Yahoo Finance (real-time)
+- 10Y Treasury dari FRED API (hourly)
+- VIX dari Yahoo Finance (real-time)
+- Calculate macro sentiment: `(DXY×0.25) + (SPX×0.30) + (Treasury×0.25) + (VIX×0.20)`
 
-### Before (7 Steps)
-```text
-[Pre-Check] → [Strategy] → [Details] → [Confluence] → [Sizing] → [Checklist] → [Execute]
-     1            2            3            4            5           6            7
+**Current State:**
+```typescript
+// MarketInsight.tsx - Line 43-53
+const MACRO_CONDITIONS = {
+  overallSentiment: 'cautious' as 'bullish' | 'bearish' | 'cautious',
+  correlations: [
+    { name: 'DXY (Dollar Index)', value: 104.25, change: -0.15, ... }, // HARDCODED
+  ],
+  // ...
+};
 ```
 
-### After (5 Steps)
-```text
-[Setup] → [Confluence] → [Sizing] → [Checklist] → [Execute]
-   1           2            3           4            5
-```
+### 3. Whale Tracking (MISSING)
 
----
+**Dokumentasi menyarankan:**
+- Gunakan Volume Proxy dari Binance API (gratis)
+- Gunakan Exchange Flow estimation
+- Calculate whale signal: ACCUMULATION/DISTRIBUTION/NONE
 
-## FinalChecklist Section Order
-
-### Current Order (FinalChecklist.tsx lines 166-389):
-```text
-1. AI Final Verdict section (lines 166-256)
-2. Emotional State (lines 258-285)
-3. Confidence Level (lines 287-310)
-4. Following Rules (lines 312-331)
-5. Trade Comment (lines 333-353)
-6. Summary (lines 355-378)
-```
-
-### New Order:
-```text
-1. Emotional State - "How are you feeling right now?"
-2. Confidence Level - "Trade Confidence Level"
-3. AI Final Verdict - AI quality assessment
-4. Following Rules checkbox
-5. Trade Comment
-6. Summary
-```
+**Current State:**
+- Menggunakan fake wallet addresses
+- Tidak ada real data integration
 
 ---
 
-## Files Summary
+## 📁 Implementation Plan
 
-| File | Action |
-|------|--------|
-| `src/types/trade-wizard.ts` | UPDATE - Reduce to 5 steps, update types |
-| `src/features/trade/useTradeEntryWizard.ts` | UPDATE - New step order |
-| `src/components/trade/entry/SetupStep.tsx` | CREATE - Combined setup step |
-| `src/components/trade/entry/PositionSizingStep.tsx` | UPDATE - Add Entry/SL/TP inputs |
-| `src/components/trade/entry/FinalChecklist.tsx` | UPDATE - Reorder sections |
-| `src/components/trade/entry/TradeEntryWizard.tsx` | UPDATE - New step rendering |
-| `src/components/trade/entry/WizardProgress.tsx` | No changes (uses WIZARD_STEPS dynamically) |
-| `src/components/trade/entry/PreEntryValidation.tsx` | DELETE |
-| `src/components/trade/entry/StrategySelection.tsx` | DELETE |
-| `src/components/trade/entry/TradeDetails.tsx` | DELETE |
+### Phase 1: Create Market Insight Edge Function
+
+**File baru:** `supabase/functions/market-insight/index.ts`
+
+**Fungsi:**
+1. Fetch Fear & Greed Index dari `https://api.alternative.me/fng/`
+2. Fetch BTC/ETH/SOL OHLCV dari Binance API
+3. Fetch Global Market Data dari CoinGecko
+4. Calculate technical indicators (MA, RSI simplified)
+5. Calculate sentiment scores dengan weighted average
+6. Generate AI summary menggunakan Lovable AI
+7. Return structured response
+
+**API Calls (FREE, NO KEY NEEDED):**
+```
+- https://api.alternative.me/fng/
+- https://api.binance.com/api/v3/klines
+- https://api.coingecko.com/api/v3/global
+- https://api.coingecko.com/api/v3/coins/bitcoin
+```
+
+### Phase 2: Create Macro Analysis Edge Function
+
+**File baru:** `supabase/functions/macro-analysis/index.ts`
+
+**Fungsi:**
+1. Proxy fetch DXY, S&P 500, VIX (via yfinance atau alternative)
+2. Fetch 10Y Treasury yield
+3. Calculate macro sentiment score
+4. Generate AI summary
+5. Check economic calendar events
+
+**Note:** Yahoo Finance tidak memiliki public API resmi. Alternatif:
+- Gunakan CoinGecko global data untuk market cap trend
+- Gunakan Binance funding rates sebagai proxy
+- Atau gunakan AI untuk generate analysis berdasarkan known data
+
+### Phase 3: Create React Hooks
+
+**Files baru:**
+```
+src/features/market-insight/
+├── useMarketSentiment.ts      # Hook untuk fetch sentiment data
+├── useMacroAnalysis.ts        # Hook untuk fetch macro data
+├── useFearGreedIndex.ts       # Hook khusus F&G
+├── useWhaleTracking.ts        # Hook untuk whale proxy
+└── types.ts                   # Type definitions
+```
+
+### Phase 4: Refactor MarketInsight Page
+
+**Modify:** `src/pages/MarketInsight.tsx`
+
+**Changes:**
+1. Replace all `MOCK_*` constants dengan real hooks
+2. Add loading states dan error handling
+3. Add refresh functionality (saat ini disabled)
+4. Implement auto-refresh setiap 5-15 menit
+5. Add caching layer untuk menghindari excessive API calls
+
+### Phase 5: Add Whale Tracking Logic
+
+**Modify edge function untuk include:**
+1. Volume spike detection dari Binance
+2. Exchange flow estimation
+3. Funding rate analysis
+4. Generate whale signal: ACCUMULATION/DISTRIBUTION/NONE
 
 ---
 
-## Technical Notes
+## 📄 Files to Create
 
-### SetupStep Component Structure
+| File | Purpose |
+|------|---------|
+| `supabase/functions/market-insight/index.ts` | Main edge function untuk Market Insight |
+| `supabase/functions/macro-analysis/index.ts` | Macro analysis edge function |
+| `src/features/market-insight/useMarketSentiment.ts` | React hook untuk sentiment |
+| `src/features/market-insight/useMacroAnalysis.ts` | React hook untuk macro |
+| `src/features/market-insight/useFearGreedIndex.ts` | React hook untuk F&G |
+| `src/features/market-insight/useWhaleTracking.ts` | React hook untuk whale |
+| `src/features/market-insight/types.ts` | TypeScript types |
 
-The new SetupStep will combine logic from 3 components:
-- Account selection & pre-validation from PreEntryValidation
-- Strategy selection with AI from StrategySelection  
-- Pair/Direction/Timeframe from TradeDetails
+## 📄 Files to Modify
 
-Layout will use collapsible sections or accordion for space efficiency.
+| File | Changes |
+|------|---------|
+| `src/pages/MarketInsight.tsx` | Remove MOCK data, integrate real hooks |
+| `src/types/ai.ts` | Add Market Insight related types |
+| `supabase/config.toml` | Add new edge functions |
 
-### PositionSizingStep Changes
+---
 
-Price inputs (Entry, SL, TP) akan di-add di bagian atas, sebelum position sizing calculator. R:R ratio akan dihitung real-time berdasarkan input prices.
+## ⚠️ Technical Considerations
 
-### Data Flow
+### API Rate Limits
+- **Binance:** 1200 req/min (cukup)
+- **CoinGecko:** 10-50 req/min (perlu caching)
+- **Alternative.me:** Unlimited (sangat ringan)
 
-```text
-SetupStep sets:
-├── tradingAccountId, accountBalance
-├── preValidation
-├── selectedStrategyId, strategyDetails
-└── tradeDetails (pair, direction, timeframe only)
+### Caching Strategy
+- Cache sentiment data selama 5 menit
+- Cache macro data selama 1 jam
+- Cache F&G index selama 1 jam (hanya update daily)
 
-PositionSizingStep sets:
-├── tradeDetails.entryPrice, stopLoss, takeProfit (update)
-└── positionSizing (calculated)
+### Error Handling
+- Fallback ke cached data jika API gagal
+- Graceful degradation dengan partial data
+- Clear error messages di UI
 
-FinalChecklist sets:
-└── finalChecklist (emotional, confidence, AI verdict)
+### CORS Considerations
+- Semua external API calls HARUS melalui edge function (CORS)
+- Tidak boleh call langsung dari browser
+
+---
+
+## 🎯 Prioritization
+
+### Must Have (Phase 1-2)
+1. Market Insight Edge Function
+2. Fear & Greed Index integration
+3. Real BTC/ETH/SOL signals
+
+### Should Have (Phase 3-4)
+1. Macro Analysis integration
+2. Whale Tracking proxy
+3. Auto-refresh mechanism
+
+### Nice to Have (Phase 5)
+1. Economic Calendar integration
+2. Historical data charting
+3. Alert system untuk extreme conditions
+
+---
+
+## 📝 Documentation Output
+
+Setelah implementasi selesai, buat file:
+
+**`docs/ai_plan.md`** berisi:
+1. Gap analysis summary
+2. Implementation checklist
+3. API integration details
+4. Testing procedures
+5. Maintenance guidelines
+
+---
+
+## 🔄 Migration Path
+
 ```
+Current State                    Target State
+─────────────────────────────────────────────────────
+MOCK_SENTIMENT (hardcoded)  →   useMarketSentiment() hook
+MOCK_VOLATILITY (hardcoded) →   Real volatility calculation
+MOCK_OPPORTUNITIES (hardcoded) → AI-generated opportunities
+MACRO_CONDITIONS (hardcoded) →  useMacroAnalysis() hook
+Fake whale addresses        →   Volume proxy analysis
+Static F&G (62)            →   Live alternative.me API
+```
+
+---
+
+## ✅ Success Criteria
+
+1. Market Insight page menampilkan **real-time data** dari API
+2. Fear & Greed Index ter-update dari alternative.me
+3. AI Sentiment score dihitung dengan formula yang benar
+4. Macro analysis menampilkan data terkini (atau estimate)
+5. Whale tracking menunjukkan volume-based signals
+6. Auto-refresh berfungsi setiap 5-15 menit
+7. Proper error handling dan loading states
+8. `docs/ai_plan.md` terdokumentasi lengkap
