@@ -396,7 +396,7 @@ interface PositionMode {
 
 ---
 
-### Phase 2: Account Data Enhancement (USER_DATA - API Key Required)
+### ✅ Phase 2: IMPLEMENTED (Edge Function: `binance-futures`)
 
 #### 2.1 User Commission Rate
 ```

@@ -396,6 +396,235 @@ async function getIncomeHistory(
   }
 }
 
+/**
+ * Get user commission rate for accurate fee calculation
+ * Phase 2: Account Data Enhancement
+ */
+async function getCommissionRate(apiKey: string, apiSecret: string, symbol: string) {
+  try {
+    if (!symbol) {
+      return { success: false, error: 'Symbol is required for commission rate' };
+    }
+    
+    const response = await binanceRequest('/fapi/v1/commissionRate', 'GET', { symbol }, apiKey, apiSecret);
+    const data = await response.json();
+    
+    if (data.code && data.code < 0) {
+      return { success: false, error: data.msg, code: data.code };
+    }
+    
+    return {
+      success: true,
+      data: {
+        symbol: data.symbol,
+        makerCommissionRate: parseFloat(data.makerCommissionRate),
+        takerCommissionRate: parseFloat(data.takerCommissionRate),
+      },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch commission rate',
+    };
+  }
+}
+
+/**
+ * Get leverage brackets for position sizing limits
+ * Phase 2: Account Data Enhancement
+ */
+async function getLeverageBrackets(apiKey: string, apiSecret: string, symbol?: string) {
+  try {
+    const params: Record<string, string> = {};
+    if (symbol) params.symbol = symbol;
+    
+    const response = await binanceRequest('/fapi/v1/leverageBracket', 'GET', params, apiKey, apiSecret);
+    const data = await response.json();
+    
+    if (data.code && data.code < 0) {
+      return { success: false, error: data.msg, code: data.code };
+    }
+    
+    // Handle single symbol vs all symbols response
+    const brackets = Array.isArray(data) ? data : [data];
+    
+    const formattedBrackets = brackets.map((item: any) => ({
+      symbol: item.symbol,
+      notionalCoef: item.notionalCoef || 0,
+      brackets: (item.brackets || []).map((b: any) => ({
+        bracket: b.bracket,
+        initialLeverage: b.initialLeverage,
+        notionalCap: parseFloat(b.notionalCap),
+        notionalFloor: parseFloat(b.notionalFloor),
+        maintMarginRatio: parseFloat(b.maintMarginRatio),
+        cum: parseFloat(b.cum),
+      })),
+    }));
+    
+    return { success: true, data: symbol ? formattedBrackets[0] : formattedBrackets };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch leverage brackets',
+    };
+  }
+}
+
+/**
+ * Get force orders (liquidation history) - CRITICAL for risk management
+ * Phase 2: Account Data Enhancement
+ */
+async function getForceOrders(
+  apiKey: string, 
+  apiSecret: string, 
+  params: {
+    symbol?: string;
+    autoCloseType?: 'LIQUIDATION' | 'ADL';
+    startTime?: number;
+    endTime?: number;
+    limit?: number;
+  } = {}
+) {
+  try {
+    const queryParams: Record<string, any> = {};
+    if (params.symbol) queryParams.symbol = params.symbol;
+    if (params.autoCloseType) queryParams.autoCloseType = params.autoCloseType;
+    if (params.startTime) queryParams.startTime = params.startTime;
+    if (params.endTime) queryParams.endTime = params.endTime;
+    queryParams.limit = params.limit || 50;
+    
+    const response = await binanceRequest('/fapi/v1/forceOrders', 'GET', queryParams, apiKey, apiSecret);
+    const data = await response.json();
+    
+    if (data.code && data.code < 0) {
+      return { success: false, error: data.msg, code: data.code };
+    }
+    
+    const forceOrders = data.map((order: any) => ({
+      orderId: order.orderId,
+      symbol: order.symbol,
+      status: order.status,
+      clientOrderId: order.clientOrderId,
+      price: parseFloat(order.price),
+      avgPrice: parseFloat(order.avgPrice),
+      origQty: parseFloat(order.origQty),
+      executedQty: parseFloat(order.executedQty),
+      cumQuote: parseFloat(order.cumQuote),
+      timeInForce: order.timeInForce,
+      type: order.type,
+      reduceOnly: order.reduceOnly,
+      closePosition: order.closePosition,
+      side: order.side,
+      positionSide: order.positionSide,
+      stopPrice: parseFloat(order.stopPrice),
+      workingType: order.workingType,
+      origType: order.origType,
+      time: order.time,
+      updateTime: order.updateTime,
+    }));
+    
+    return { success: true, data: forceOrders };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch force orders',
+    };
+  }
+}
+
+/**
+ * Get position mode (hedge vs one-way)
+ * Phase 2: Account Data Enhancement
+ */
+async function getPositionMode(apiKey: string, apiSecret: string) {
+  try {
+    const response = await binanceRequest('/fapi/v1/positionSide/dual', 'GET', {}, apiKey, apiSecret);
+    const data = await response.json();
+    
+    if (data.code && data.code < 0) {
+      return { success: false, error: data.msg, code: data.code };
+    }
+    
+    return {
+      success: true,
+      data: {
+        dualSidePosition: data.dualSidePosition,
+      },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch position mode',
+    };
+  }
+}
+
+/**
+ * Get all orders history (not just trades)
+ * Phase 2: Account Data Enhancement
+ */
+async function getAllOrders(
+  apiKey: string, 
+  apiSecret: string, 
+  symbol: string,
+  params: {
+    orderId?: number;
+    startTime?: number;
+    endTime?: number;
+    limit?: number;
+  } = {}
+) {
+  try {
+    if (!symbol) {
+      return { success: false, error: 'Symbol is required for all orders history' };
+    }
+    
+    const queryParams: Record<string, any> = { symbol };
+    if (params.orderId) queryParams.orderId = params.orderId;
+    if (params.startTime) queryParams.startTime = params.startTime;
+    if (params.endTime) queryParams.endTime = params.endTime;
+    queryParams.limit = params.limit || 500;
+    
+    const response = await binanceRequest('/fapi/v1/allOrders', 'GET', queryParams, apiKey, apiSecret);
+    const data = await response.json();
+    
+    if (data.code && data.code < 0) {
+      return { success: false, error: data.msg, code: data.code };
+    }
+    
+    const orders = data.map((o: any) => ({
+      orderId: o.orderId,
+      symbol: o.symbol,
+      status: o.status,
+      clientOrderId: o.clientOrderId,
+      price: parseFloat(o.price),
+      avgPrice: parseFloat(o.avgPrice),
+      origQty: parseFloat(o.origQty),
+      executedQty: parseFloat(o.executedQty),
+      cumQuote: parseFloat(o.cumQuote),
+      timeInForce: o.timeInForce,
+      type: o.type,
+      reduceOnly: o.reduceOnly,
+      closePosition: o.closePosition,
+      side: o.side,
+      positionSide: o.positionSide,
+      stopPrice: parseFloat(o.stopPrice),
+      workingType: o.workingType,
+      priceProtect: o.priceProtect,
+      origType: o.origType,
+      time: o.time,
+      updateTime: o.updateTime,
+    }));
+    
+    return { success: true, data: orders };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch all orders',
+    };
+  }
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -456,10 +685,31 @@ Deno.serve(async (req) => {
         result = await getIncomeHistory(apiKey, apiSecret, incomeType, startTime, endTime, limit || 1000);
         break;
         
+      // Phase 2: Account Data Enhancement
+      case 'commission-rate':
+        result = await getCommissionRate(apiKey, apiSecret, symbol);
+        break;
+        
+      case 'leverage-brackets':
+        result = await getLeverageBrackets(apiKey, apiSecret, symbol);
+        break;
+        
+      case 'force-orders':
+        result = await getForceOrders(apiKey, apiSecret, body.params || {});
+        break;
+        
+      case 'position-mode':
+        result = await getPositionMode(apiKey, apiSecret);
+        break;
+        
+      case 'all-orders':
+        result = await getAllOrders(apiKey, apiSecret, symbol, body.params || {});
+        break;
+        
       default:
         result = {
           success: false,
-          error: `Unknown action: ${action}. Valid actions: validate, balance, positions, trades, open-orders, place-order, cancel-order, income`,
+          error: `Unknown action: ${action}. Valid actions: validate, balance, positions, trades, open-orders, place-order, cancel-order, income, commission-rate, leverage-brackets, force-orders, position-mode, all-orders`,
         };
     }
     
