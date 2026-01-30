@@ -30,5 +30,8 @@ verify_jwt = false
 [functions.ai-preflight]
 verify_jwt = false
 
+[functions.binance-futures]
+verify_jwt = false
+
 [functions.economic-calendar]
 verify_jwt = false
