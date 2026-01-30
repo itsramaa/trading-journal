@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { trackEvent, ANALYTICS_EVENTS } from "@/lib/analytics";
 
@@ -15,9 +15,7 @@ import TradingJournal from "./pages/trading-journey/TradingJournal";
 import StrategyManagement from "./pages/trading-journey/StrategyManagement";
 import Performance from "./pages/Performance";
 import RiskManagement from "./pages/RiskManagement";
-import Calendar from "./pages/Calendar";
 import MarketInsight from "./pages/MarketInsight";
-import AIAssistant from "./pages/AIAssistant";
 import Settings from "./pages/Settings";
 import Notifications from "./pages/Notifications";
 import Auth from "./pages/Auth";
@@ -126,12 +124,8 @@ const App = () => (
               </ProtectedRoute>
             } />
             
-            {/* Calendar */}
-            <Route path="/calendar" element={
-              <ProtectedRoute>
-                <Calendar />
-              </ProtectedRoute>
-            } />
+            {/* Calendar - Redirect to Market Insight */}
+            <Route path="/calendar" element={<Navigate to="/market?tab=calendar" replace />} />
             
             {/* Market Insight */}
             <Route path="/market" element={
@@ -140,12 +134,8 @@ const App = () => (
               </ProtectedRoute>
             } />
             
-            {/* AI Assistant */}
-            <Route path="/ai" element={
-              <ProtectedRoute>
-                <AIAssistant />
-              </ProtectedRoute>
-            } />
+            {/* AI Assistant - Redirect to Trading Journal (Phase 3 will add Quality tab) */}
+            <Route path="/ai" element={<Navigate to="/trading?tab=quality" replace />} />
             
             {/* Settings */}
             <Route path="/settings" element={
