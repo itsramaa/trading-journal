@@ -21,14 +21,16 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Calendar, Tag, Target, Building2, TrendingUp, TrendingDown, BookOpen, MoreVertical, Trash2, Clock, CheckCircle, Circle, DollarSign, XCircle, AlertCircle, Edit, Wand2, Timer, Brain, ArrowUpDown, Wifi, RefreshCw, Download } from "lucide-react";
+import { Plus, Calendar, Tag, Target, Building2, TrendingUp, TrendingDown, BookOpen, MoreVertical, Trash2, Clock, CheckCircle, Circle, DollarSign, XCircle, AlertCircle, Edit, Wand2, Timer, Brain, ArrowUpDown, Wifi, RefreshCw, Download, History } from "lucide-react";
 import { format } from "date-fns";
 import { useTradingAccounts } from "@/hooks/use-trading-accounts";
 import { useTradeEntries, useCreateTradeEntry, useDeleteTradeEntry, useClosePosition, useUpdateTradeEntry, TradeEntry } from "@/hooks/use-trade-entries";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { useBinancePositions, useBinanceBalance, useBinanceConnectionStatus } from "@/features/binance";
 import { BinanceTradeHistory } from "@/components/trading/BinanceTradeHistory";
+import { BinanceIncomeHistory } from "@/components/trading/BinanceIncomeHistory";
 import { TradeHistoryCard } from "@/components/trading/TradeHistoryCard";
+import { useBinanceAutoSync } from "@/hooks/use-binance-auto-sync";
 
 import { filterTradesByDateRange, filterTradesByStrategies } from "@/lib/trading-calculations";
 import { formatCurrency as formatCurrencyUtil } from "@/lib/formatters";
@@ -93,6 +95,13 @@ export default function TradingJournal() {
   const { data: binancePositions = [], isLoading: binancePositionsLoading } = useBinancePositions();
   const { data: binanceBalance } = useBinanceBalance();
   const isBinanceConnected = connectionStatus?.isConnected ?? false;
+  
+  // Auto-sync hook
+  const { syncNow, isSyncing: isAutoSyncing, lastSyncTime, pendingRecords } = useBinanceAutoSync({
+    autoSyncOnMount: true,
+    enablePeriodicSync: true,
+    syncInterval: 5 * 60 * 1000, // 5 minutes
+  });
   
   const createTrade = useCreateTradeEntry();
   const deleteTrade = useDeleteTradeEntry();
@@ -910,14 +919,45 @@ export default function TradingJournal() {
                   {/* Binance History Sub-Tab (Priority) */}
                   <TabsContent value="binance-history">
                     <div className="space-y-4">
+                      {/* Auto-sync status bar */}
+                      {isBinanceConnected && (
+                        <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border">
+                          <div className="flex items-center gap-2 text-sm">
+                            <History className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-muted-foreground">
+                              {lastSyncTime 
+                                ? `Last sync: ${format(lastSyncTime, 'HH:mm:ss')}`
+                                : 'Auto-sync enabled'}
+                            </span>
+                            {pendingRecords > 0 && (
+                              <Badge variant="secondary" className="text-xs">
+                                {pendingRecords} pending
+                              </Badge>
+                            )}
+                          </div>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={syncNow}
+                            disabled={isAutoSyncing}
+                          >
+                            <RefreshCw className={`h-4 w-4 mr-2 ${isAutoSyncing ? 'animate-spin' : ''}`} />
+                            {isAutoSyncing ? 'Syncing...' : 'Sync Now'}
+                          </Button>
+                        </div>
+                      )}
+                      
                       {filteredBinanceTrades.length === 0 ? (
                         <EmptyState
                           icon={Wifi}
                           title="No Binance trades found"
                           description={isBinanceConnected 
-                            ? "Import trades from your Binance account using the Import tab." 
+                            ? "Trades will auto-sync from Binance. Click 'Sync Now' to fetch the latest." 
                             : "Connect your Binance account to import trade history."}
-                          action={isBinanceConnected ? undefined : {
+                          action={isBinanceConnected ? {
+                            label: "Sync Now",
+                            onClick: syncNow,
+                          } : {
                             label: "Go to Settings",
                             onClick: () => window.location.href = '/settings',
                           }}
@@ -970,7 +1010,19 @@ export default function TradingJournal() {
               {/* Import from Binance Tab */}
               <TabsContent value="import" className="mt-4">
                 {isBinanceConnected ? (
-                  <BinanceTradeHistory />
+                  <div className="space-y-6">
+                    {/* Live Income History - Shows ALL trades from Binance API */}
+                    <BinanceIncomeHistory showHeader={true} limit={100} defaultFilter="REALIZED_PNL" />
+                    
+                    {/* Manual Import from specific symbol trades */}
+                    <div className="border-t pt-6">
+                      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <Download className="h-5 w-5" />
+                        Manual Import by Symbol
+                      </h3>
+                      <BinanceTradeHistory />
+                    </div>
+                  </div>
                 ) : (
                   <div className="text-center py-12 space-y-4">
                     <div className="flex justify-center">
