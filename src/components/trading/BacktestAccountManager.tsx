@@ -210,8 +210,8 @@ export function BacktestAccountManager() {
                         <span className="text-sm text-muted-foreground">P&L</span>
                         <span className={`text-sm font-medium ${
                           account.current_balance >= account.initial_balance 
-                            ? "text-green-500" 
-                            : "text-destructive"
+                            ? "text-profit" 
+                            : "text-loss"
                         }`}>
                           {account.current_balance >= account.initial_balance ? "+" : ""}
                           {formatCurrency(

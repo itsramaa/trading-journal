@@ -195,7 +195,7 @@ export function PositionSizeCalculator({
                 onClick={() => setDirection('long')}
                 className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-md border transition-colors ${
                   direction === 'long'
-                    ? 'bg-green-500/20 border-green-500/50 text-green-500'
+                    ? 'bg-profit-muted border-profit/50 text-profit'
                     : 'border-border hover:bg-accent'
                 }`}
               >
@@ -207,7 +207,7 @@ export function PositionSizeCalculator({
                 onClick={() => setDirection('short')}
                 className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-md border transition-colors ${
                   direction === 'short'
-                    ? 'bg-red-500/20 border-red-500/50 text-red-500'
+                    ? 'bg-loss-muted border-loss/50 text-loss'
                     : 'border-border hover:bg-accent'
                 }`}
               >
@@ -254,9 +254,9 @@ export function PositionSizeCalculator({
               </p>
             </div>
             
-            <div className="p-4 rounded-lg bg-red-500/10">
+            <div className="p-4 rounded-lg bg-loss-muted">
               <p className="text-sm text-muted-foreground">Risk Amount (1R)</p>
-              <p className="text-2xl font-bold text-red-500">
+              <p className="text-2xl font-bold text-loss">
                 -{formatCurrency(result.potential_loss)}
               </p>
               <p className="text-sm text-muted-foreground">
@@ -264,9 +264,9 @@ export function PositionSizeCalculator({
               </p>
             </div>
             
-            <div className="p-4 rounded-lg bg-green-500/10">
+            <div className="p-4 rounded-lg bg-profit-muted">
               <p className="text-sm text-muted-foreground">Potential Profit (2R)</p>
-              <p className="text-2xl font-bold text-green-500">
+              <p className="text-2xl font-bold text-profit">
                 +{formatCurrency(result.potential_profit_2r)}
               </p>
               <p className="text-sm text-muted-foreground">
@@ -291,8 +291,8 @@ export function PositionSizeCalculator({
 
           {result.is_valid && result.warnings.length === 0 && (
             <Alert>
-              <CheckCircle className="h-4 w-4 text-green-500" />
-              <AlertDescription className="text-green-500">
+              <CheckCircle className="h-4 w-4 text-profit" />
+              <AlertDescription className="text-profit">
                 Position size is within acceptable risk parameters
               </AlertDescription>
             </Alert>
