@@ -1,8 +1,10 @@
 import React, { ReactElement, ReactNode } from "react";
-import { render, RenderOptions, RenderResult } from "@testing-library/react";
+import { render, RenderOptions, RenderResult, renderHook, cleanup } from "@testing-library/react";
+import { waitFor, screen, fireEvent, within, waitForElementToBeRemoved } from "@testing-library/dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, MemoryRouter } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
+import { act } from "react";
 
 // Create a fresh QueryClient for each test
 export function createTestQueryClient(): QueryClient {
@@ -250,6 +252,13 @@ export function createMockUserSettings(overrides = {}) {
 }
 
 // Re-export testing library utilities
-export * from "@testing-library/react";
+export { 
+  waitFor, 
+  screen, 
+  fireEvent, 
+  within,
+  waitForElementToBeRemoved,
+};
+export { act, cleanup, renderHook };
 export { userEvent };
 export { renderWithProviders as render };
