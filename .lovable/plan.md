@@ -1,352 +1,229 @@
 
+# Refactor: Binance-Centered System (Complete)
 
-# Refactor: Binance-Centered Trading Journal
+## Ringkasan
 
-## Overview
-
-Refactoring project dari sistem manual (local DB + simulasi) menjadi **Binance Futures-centered** dimana data akun, posisi, balance, dan trade history bersumber langsung dari Binance API.
+Melanjutkan refactor yang sudah dimulai untuk menjadikan **Binance Futures API** sebagai sumber kebenaran utama untuk semua data trading. Berdasarkan review kode, ada beberapa area yang masih menggunakan data lokal (simulated) dan perlu di-align ke Binance.
 
 ---
 
-## Current vs Target Architecture
+## Status Saat Ini vs Target
 
 ```text
-CURRENT STATE:
-┌─────────────────────────────────────────────────────────────┐
-│  Local DB (Supabase)                                        │
-│  ├─ accounts table → manual balance tracking                │
-│  ├─ trade_entries → manually logged trades                  │
-│  ├─ trading_sessions → manual session management            │
-│  └─ Simulated P&L calculations                             │
-└─────────────────────────────────────────────────────────────┘
+SUDAH BINANCE-CENTERED (✅):
+├─ Dashboard > Binance Balance Widget
+├─ Dashboard > Binance Positions Table  
+├─ Dashboard > Today Performance (fallback to local)
+├─ Accounts Page > Binance Tab
+├─ trade_entries table > binance_trade_id column
+└─ use-binance-sync hook
 
-TARGET STATE:
-┌─────────────────────────────────────────────────────────────┐
-│  Binance Futures API (PRIMARY SOURCE)                       │
-│  ├─ Balance & Margin → Real-time from Binance               │
-│  ├─ Positions → Live positions from Binance                 │
-│  ├─ Trade History → Synced from Binance                     │
-│  └─ Unrealized P&L → Calculated by Binance                 │
-├─────────────────────────────────────────────────────────────┤
-│  Local DB (SECONDARY - Journal Metadata Only)               │
-│  ├─ trade_entries → Enhanced with Binance trade ID link     │
-│  ├─ trading_strategies → User-defined strategies            │
-│  ├─ AI analysis data → Post-trade analysis                  │
-│  └─ Notes, emotions, confluence scores                      │
-└─────────────────────────────────────────────────────────────┘
+MASIH PERLU REFACTOR (❌):
+├─ Trading Journal > Open Positions (masih simulated)
+├─ Trading Journal > P&L Summary Cards (dari local DB)
+├─ Performance Page > Equity Curve (dari local trades)
+├─ Risk Management > Daily Loss (dari local snapshot)
+├─ Trade Entry Wizard > Account Selection (masih ke trading_accounts)
+├─ Risk Profile > Starting Balance (manual input)
+└─ Position Size Calculator > Balance (dari local account)
 ```
 
 ---
 
-## Files to Create
+## Files yang Akan Dimodifikasi
 
-### 1. `src/components/dashboard/BinancePositionsTable.tsx`
+### 1. `src/pages/trading-journey/TradingJournal.tsx`
 
-**Purpose:** Replace `ActivePositionsTable` with real Binance positions
+**Perubahan:**
+- Tambahkan tab baru "Binance Positions" untuk menampilkan posisi langsung dari Binance
+- Tab "Open Positions" yang existing dipertahankan untuk Paper Trading
+- P&L Summary Cards mengambil data dari Binance jika connected
+- Import button untuk sync Binance trades ke journal
 
-**Features:**
-- Fetch live positions from `useBinancePositions()`
-- Display: Symbol, Direction, Entry Price, Mark Price, Unrealized P&L, Leverage, Liquidation Price
-- Real-time polling (15s interval)
-- "Sync to Journal" button untuk log trade ke local DB
-
----
-
-### 2. `src/components/dashboard/BinanceBalanceWidget.tsx`
-
-**Purpose:** Real-time Binance wallet balance widget untuk Dashboard
-
-**Features:**
-- Total Wallet Balance
-- Available Balance
-- Unrealized P&L
-- Margin Balance
-- Auto-refresh setiap 30 detik
+**Struktur Tab Baru:**
+```text
+Tabs:
+├─ Binance Positions (NEW - live dari API)
+├─ Open (Paper Trading - local DB)
+├─ History (merged: Binance + local dengan metadata)
+├─ Pending (future feature)
+└─ Import from Binance (bulk sync)
+```
 
 ---
 
-### 3. `src/components/trading/BinanceTradeHistory.tsx`
+### 2. `src/components/trade/entry/SetupStep.tsx`
 
-**Purpose:** Display trade history langsung dari Binance
+**Perubahan:**
+- Menambahkan opsi untuk memilih "Binance Account" sebagai trading account
+- Jika Binance connected, balance diambil dari API real-time
+- Jika tidak connected atau memilih Paper account, fallback ke trading_accounts
+- Pre-validation menggunakan Binance balance untuk perhitungan
 
-**Features:**
-- Symbol filter dropdown
-- Recent trades dengan realized P&L
-- Commission/fees display
-- "Import to Journal" action per trade
-- Pagination via limit param
-
----
-
-### 4. `src/components/trading/BinanceSyncButton.tsx`
-
-**Purpose:** Bulk sync trades dari Binance ke local journal
-
-**Features:**
-- Select date range
-- Select symbols
-- Preview trades to import
-- Map to existing strategies
-- Avoid duplicate imports (check by Binance trade ID)
+**Logic:**
+```typescript
+const accountBalance = useMemo(() => {
+  if (selectedAccountType === 'binance' && binanceBalance) {
+    return binanceBalance.availableBalance;
+  }
+  return Number(selectedAccount?.current_balance) || 0;
+}, [selectedAccountType, binanceBalance, selectedAccount]);
+```
 
 ---
 
-### 5. `src/hooks/use-binance-sync.ts`
+### 3. `src/hooks/use-daily-pnl.ts`
 
-**Purpose:** Hook untuk sync Binance data ke local DB
-
-**Features:**
-- `syncTradeToJournal(binanceTrade, metadata)` - Import single trade
-- `bulkSyncTrades(trades[], strategyId)` - Bulk import
-- Duplicate detection via `binance_trade_id` field
-- Auto-map direction (BUY = LONG, SELL = SHORT)
+**Perubahan:**
+- Prioritaskan data dari Binance 24H trades jika connected
+- Fallback ke local DB untuk Paper Trading
+- Tambahkan source indicator ("binance" | "local")
 
 ---
 
-## Files to Modify
+### 4. `src/hooks/use-trading-gate.ts`
 
-### 1. `src/pages/Dashboard.tsx`
-
-**Changes:**
-- Replace Accounts section dengan `BinanceBalanceWidget`
-- Replace `ActivePositionsTable` dengan `BinancePositionsTable`
-- Add connection status indicator untuk Binance
-- Portfolio Performance metrics dari Binance balance
+**Perubahan:**
+- `startingBalance` diambil dari Binance wallet balance (bukan manual)
+- `currentPnl` dihitung dari Binance 24H realized P&L
+- Daily risk snapshot di-update otomatis dari Binance data
 
 ---
 
-### 2. `src/pages/Accounts.tsx`
+### 5. `src/hooks/use-risk-profile.ts`
 
-**Changes:**
-- Simplify ke single "Binance Account" view
-- Remove manual account creation for Real accounts
-- Keep Paper Trading accounts untuk backtesting
-- Show Binance connection status
-- Quick link ke Settings untuk API configuration
+**Perubahan:**
+- `useDailyRiskStatus` mengambil starting balance dari Binance
+- Current P&L dihitung dari Binance trades dalam 24 jam terakhir
+- Jika Binance tidak connected, fallback ke local calculation
 
 ---
 
-### 3. `src/pages/trading-journey/TradingJournal.tsx`
+### 6. `src/components/risk/RiskSummaryCard.tsx` & `src/components/risk/DailyLossTracker.tsx`
 
-**Changes:**
-- Add "Import from Binance" tab/section
-- Trade History tab: Option untuk view Binance history vs local journal
-- Open Positions: Fetch dari Binance langsung
-- Closed Trades: Merge Binance trades dengan journal metadata (notes, strategies, AI scores)
-
----
-
-### 4. `src/components/dashboard/ActivePositionsTable.tsx`
-
-**Changes:**
-- Rename to `LocalPositionsTable` (untuk Paper Trading)
-- Add conditional: Show Binance data jika connected, else show local
-- Add "Source" badge: "Binance" vs "Paper Trading"
+**Perubahan:**
+- Menampilkan badge "Binance" jika menggunakan data real
+- Metriks diambil dari Binance P&L untuk akurasi
+- Loss limit dihitung berdasarkan Binance wallet balance
 
 ---
 
-### 5. `src/components/accounts/TradingAccountsDashboard.tsx`
+### 7. `src/components/risk/PositionSizeCalculator.tsx`
 
-**Changes:**
-- Primary metrics dari Binance (jika connected)
-- Fallback ke local calculation (untuk Paper Trading)
-- Add Binance sync status indicator
-
----
-
-### 6. `src/components/dashboard/TodayPerformance.tsx`
-
-**Changes:**
-- Fetch 24H trades dari Binance API
-- Calculate 24H P&L dari Binance realized P&L
-- Calculate win rate dari Binance trade results
-- Display commission/fees paid today
-
----
-
-### 7. `src/hooks/use-trade-entries.ts`
-
-**Add fields:**
-- `binance_trade_id: string | null` - Link ke Binance trade
-- `binance_order_id: number | null` - Link ke Binance order
-- `source: 'manual' | 'binance'` - Data source
-
-**Changes:**
-- Add `useMergedTradeHistory()` hook: Combine Binance + local journal data
-- Update create mutation: Accept Binance trade data for import
+**Perubahan:**
+- Default balance diambil dari Binance available balance
+- Option untuk manual input tetap ada untuk paper trading
 
 ---
 
 ### 8. `src/pages/trading-journey/Performance.tsx`
 
-**Changes:**
-- Equity curve: Calculate dari Binance realized P&L history
-- Add data source toggle: "Binance" vs "Journal Only"
-- Win rate, profit factor: Derive dari Binance trades
+**Perubahan:**
+- Equity curve bisa toggle antara "Binance Data" dan "Journal Only"
+- Menambahkan hook `useBinanceEquityCurve` untuk menghitung dari trade history
+- Default ke Binance data jika connected
 
 ---
 
-### 9. `src/features/binance/useBinanceFutures.ts`
+### 9. Buat Hook Baru: `src/hooks/use-binance-daily-pnl.ts`
 
-**Add hooks:**
-- `useBinance24HTrades()` - Trades dalam 24 jam terakhir
-- `useBinanceAllSymbolsTrades()` - Aggregate trades dari all symbols
-- `useBinanceTotalPnL()` - Total realized P&L
+**Purpose:** Dedicated hook untuk menghitung daily P&L dari Binance trades
 
----
-
-### 10. `src/components/settings/BinanceApiSettings.tsx`
-
-**Enhancements:**
-- Add "Sync Settings" section: Auto-sync interval, symbols to track
-- Add "Data Management" section: Clear synced data, re-sync all
-- Add permission check display: Ensure Read + Futures enabled
-
----
-
-## Database Migration
-
-**New columns for `trade_entries`:**
-
-```sql
-ALTER TABLE trade_entries ADD COLUMN IF NOT EXISTS binance_trade_id TEXT;
-ALTER TABLE trade_entries ADD COLUMN IF NOT EXISTS binance_order_id BIGINT;
-ALTER TABLE trade_entries ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'manual';
-ALTER TABLE trade_entries ADD COLUMN IF NOT EXISTS commission NUMERIC DEFAULT 0;
-ALTER TABLE trade_entries ADD COLUMN IF NOT EXISTS commission_asset TEXT;
-
--- Index untuk prevent duplicates
-CREATE UNIQUE INDEX IF NOT EXISTS idx_trade_entries_binance_trade_id 
-ON trade_entries(binance_trade_id) WHERE binance_trade_id IS NOT NULL;
+**Exports:**
+```typescript
+export function useBinanceDailyPnl() {
+  // Aggregate realized P&L dari semua symbol dalam 24 jam
+  // Return: { totalPnl, trades, wins, losses, winRate }
+}
 ```
 
 ---
 
-## UI Flow Changes
+### 10. Buat Hook Baru: `src/hooks/use-combined-balance.ts`
 
-### Dashboard (New Flow)
-```text
-Dashboard
-├─ Pro Tip
-├─ Quick Actions
-├─ System Status + Binance Connection Status (NEW)
-├─ Market Sessions
-├─ Binance Account Overview (REPLACED Accounts section)
-│   ├─ Wallet Balance
-│   ├─ Available Balance
-│   ├─ Unrealized P&L
-│   └─ Margin Balance
-├─ Today's Activity
-│   ├─ TodayPerformance (from Binance 24H trades)
-│   └─ BinancePositionsTable (live positions)
-├─ Risk & AI Insights
-└─ Trading Journey (7-day stats from Binance)
+**Purpose:** Single source untuk account balance yang bisa switch antara Binance dan Paper
+
+**Exports:**
+```typescript
+export function useCombinedBalance(accountType: 'binance' | 'paper', paperId?: string) {
+  // Jika binance: return useBinanceBalance().availableBalance
+  // Jika paper: return local account balance
+}
 ```
 
-### Accounts Page (New Flow)
-```text
-Accounts
-├─ Binance Connection Card (PRIMARY)
-│   ├─ Connection Status
-│   ├─ Balance Overview
-│   ├─ Positions Summary
-│   └─ "Configure API" button
-├─ Paper Trading Accounts (for backtesting)
-│   └─ Manual accounts for practice
-└─ Sync Status
-    ├─ Last sync time
-    ├─ Trades synced count
-    └─ "Sync Now" button
-```
+---
 
-### Trading Journal (New Flow)
-```text
-Trading Journal
-├─ Tabs:
-│   ├─ Open Positions (from Binance)
-│   ├─ Trade History (merged: Binance + Journal metadata)
-│   ├─ Import from Binance (NEW)
-│   └─ Paper Trades (local only)
-├─ Import from Binance:
-│   ├─ Symbol filter
-│   ├─ Date range
-│   ├─ Preview trades
-│   ├─ Assign strategy
-│   └─ Bulk import
-└─ Trade Detail
-    ├─ Binance data (price, qty, fees)
-    ├─ Journal data (notes, emotions, confluences)
-    └─ AI analysis
-```
+## Database Changes
+
+**Tidak ada perubahan schema** - Kolom `binance_trade_id`, `source`, `commission` sudah ada.
 
 ---
 
 ## Implementation Order
 
-### Phase 1: Core Binance Integration (Priority)
-1. Database migration - Add Binance ID columns
-2. Create `BinanceBalanceWidget`
-3. Create `BinancePositionsTable`
-4. Update Dashboard dengan Binance widgets
-5. Add Binance connection status ke System Status
+### Phase 1: Core Hooks (Priority)
+1. Buat `src/hooks/use-binance-daily-pnl.ts`
+2. Buat `src/hooks/use-combined-balance.ts`
+3. Update `src/hooks/use-daily-pnl.ts` dengan Binance integration
+4. Update `src/hooks/use-trading-gate.ts` dengan Binance balance
 
-### Phase 2: Trade Sync
-6. Create `use-binance-sync.ts` hook
-7. Create `BinanceTradeHistory` component
-8. Create `BinanceSyncButton` untuk bulk import
-9. Update `useTradeEntries` dengan source field
-10. Update Trading Journal dengan Import tab
+### Phase 2: Risk Management
+5. Update `src/hooks/use-risk-profile.ts`
+6. Update `src/components/risk/RiskSummaryCard.tsx`
+7. Update `src/components/risk/DailyLossTracker.tsx`
+8. Update `src/components/risk/PositionSizeCalculator.tsx`
 
-### Phase 3: Analytics Integration
-11. Update Performance page dengan Binance data toggle
-12. Update TodayPerformance dengan Binance 24H trades
-13. Update TradingAccountsDashboard dengan Binance primary
-14. Merge equity curve calculation (Binance + local)
+### Phase 3: Trade Entry & Journal
+9. Update `src/components/trade/entry/SetupStep.tsx`
+10. Update `src/pages/trading-journey/TradingJournal.tsx` dengan Binance tab
+11. Update P&L summary cards di Journal
 
-### Phase 4: Accounts Simplification
-15. Simplify Accounts page (Binance primary + Paper secondary)
-16. Remove manual Real account creation
-17. Update account selection flows
+### Phase 4: Performance Analytics
+12. Update `src/pages/trading-journey/Performance.tsx`
+13. Add data source toggle untuk Binance vs Journal
 
 ---
 
 ## Fallback Strategy
 
-Jika Binance tidak connected:
-- Show Paper Trading data only
-- Display "Connect Binance" CTA
-- Allow manual trade logging
-- All existing functionality tetap berjalan
+Setiap komponen HARUS memiliki fallback:
+```typescript
+if (isConnected && binanceData) {
+  // Use Binance data
+} else {
+  // Fallback to local Paper Trading data
+}
+```
+
+Paper Trading accounts tetap sepenuhnya functional untuk:
+- Backtesting strategies
+- Practice trading tanpa risiko
+- Learning platform
 
 ---
 
-## Technical Considerations
+## Technical Notes
 
-### API Rate Limits
-- Binance limit: 2400 requests/minute
-- Polling intervals: Balance 30s, Positions 15s, Trades 60s
-- Cache aggressively dengan TanStack Query
+### Yang Sengaja Tidak Diubah
+1. **Paper Trading flow** - Tetap menggunakan local DB sepenuhnya
+2. **Strategy management** - Metadata lokal, tidak terkait Binance
+3. **AI analysis** - Enrichment layer tetap di local DB
+4. **Trading Sessions** - Feature lokal untuk journaling
 
-### Data Consistency
-- Binance = source of truth untuk balance & positions
-- Local DB = enrichment layer (notes, strategies, AI)
-- Merge via `binance_trade_id` foreign key
-
-### Security
-- API keys tetap di Supabase secrets
-- Edge function sebagai secure proxy
-- No secrets exposed ke frontend
+### Trade-offs
+1. **Polling vs Real-time**: Binance data di-poll setiap 15-30 detik (Edge Function limitation)
+2. **Rate Limits**: Batasi parallel requests ke Binance API
+3. **Data Merge**: Binance trade = source of truth, local = enrichment only
 
 ---
 
-## Success Criteria
+## Success Metrics
 
-| Feature | Metric |
-|---------|--------|
-| Real-time balance | Update setiap 30s |
-| Live positions | Update setiap 15s |
-| Trade import | Bulk sync working |
-| No duplicates | Unique constraint enforced |
-| Fallback working | Paper trading tetap functional |
-| Performance data | Equity curve dari Binance |
-
+| Area | Metric |
+|------|--------|
+| Balance | Real-time dari Binance |
+| Daily P&L | Calculated dari Binance trades |
+| Open Positions | Live dari Binance API |
+| Risk Calculation | Based on Binance wallet |
+| Trade History | Synced dengan local metadata |
+| Paper Trading | Tetap 100% functional |
