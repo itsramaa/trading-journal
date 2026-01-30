@@ -1,12 +1,11 @@
 /**
  * Trading Journal - Trade Management Hub
- * Tabs: Pending, Active, Import
+ * Tabs: Pending, Active
  */
 import { useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Link } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,11 +15,10 @@ import { QuickTip } from "@/components/ui/onboarding-tooltip";
 import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BookOpen, Wand2, Wifi, Circle, Clock, Download } from "lucide-react";
+import { BookOpen, Wand2, Wifi, Circle, Clock } from "lucide-react";
 import { useTradeEntries, useDeleteTradeEntry, useClosePosition, useUpdateTradeEntry, TradeEntry } from "@/hooks/use-trade-entries";
 import { useBinancePositions, useBinanceBalance, useBinanceConnectionStatus } from "@/features/binance";
-import { BinanceTradeHistory } from "@/components/trading/BinanceTradeHistory";
-import { BinanceIncomeHistory } from "@/components/trading/BinanceIncomeHistory";
+
 import { formatCurrency as formatCurrencyUtil } from "@/lib/formatters";
 import { useUserSettings } from "@/hooks/use-user-settings";
 import { TradeEntryWizard } from "@/components/trade/entry/TradeEntryWizard";
@@ -240,7 +238,7 @@ export default function TradingJournal() {
           </CardHeader>
           <CardContent className="space-y-4">
             <Tabs defaultValue="active">
-              <TabsList className="grid w-full grid-cols-3 max-w-[450px]">
+              <TabsList className="grid w-full grid-cols-2 max-w-[300px]">
                 <TabsTrigger value="pending" className="gap-2">
                   <Clock className="h-4 w-4" aria-hidden="true" />
                   <span className="hidden sm:inline">Pending</span>
@@ -258,10 +256,6 @@ export default function TradingJournal() {
                       {openPositions.filter(p => p.entry_price && p.entry_price > 0).length + binancePositions.filter(p => p.positionAmt !== 0).length}
                     </Badge>
                   )}
-                </TabsTrigger>
-                <TabsTrigger value="import" className="gap-2">
-                  <Download className="h-4 w-4" aria-hidden="true" />
-                  <span className="hidden sm:inline">Import</span>
                 </TabsTrigger>
               </TabsList>
               
@@ -299,42 +293,6 @@ export default function TradingJournal() {
                   onDelete={setDeletingTrade}
                   formatCurrency={formatCurrency}
                 />
-              </TabsContent>
-
-              {/* Import from Binance Tab */}
-              <TabsContent value="import" className="mt-4">
-                {isBinanceConnected ? (
-                  <div className="space-y-6">
-                    <BinanceIncomeHistory showHeader={true} limit={100} defaultFilter="pnl" />
-                    <div className="border-t pt-6">
-                      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                        <Download className="h-5 w-5" aria-hidden="true" />
-                        Manual Import by Symbol
-                      </h3>
-                      <BinanceTradeHistory />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-12 space-y-4">
-                    <div className="flex justify-center">
-                      <div className="rounded-full bg-muted p-4">
-                        <Wifi className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <h3 className="text-lg font-medium">Connect Binance to Import Trades</h3>
-                      <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                        Connect your Binance Futures account in Settings to import your trade history.
-                      </p>
-                    </div>
-                    <Button variant="outline" asChild>
-                      <Link to="/settings">
-                        <Wifi className="h-4 w-4 mr-2" aria-hidden="true" />
-                        Go to Settings
-                      </Link>
-                    </Button>
-                  </div>
-                )}
               </TabsContent>
             </Tabs>
           </CardContent>
