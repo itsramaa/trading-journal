@@ -161,6 +161,31 @@
     @apply border-border;
   }
 
+  /* Remove all focus rings globally */
+  *:focus,
+  *:focus-visible,
+  *:focus-within {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+
+  /* Specifically target cmdk and radix elements */
+  [cmdk-input]:focus,
+  [cmdk-input]:focus-visible,
+  [data-radix-focus-guard],
+  input:focus,
+  input:focus-visible,
+  textarea:focus,
+  textarea:focus-visible,
+  select:focus,
+  select:focus-visible,
+  button:focus,
+  button:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+    --tw-ring-shadow: none !important;
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
