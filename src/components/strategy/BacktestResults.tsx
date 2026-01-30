@@ -1,5 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
@@ -10,8 +11,12 @@ import {
   BarChart3,
   Clock,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  Download,
+  FileText,
+  FileSpreadsheet
 } from "lucide-react";
+import { useBacktestExport } from "@/hooks/use-backtest-export";
 import { format } from "date-fns";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, ComposedChart } from "recharts";
 import type { BacktestResult } from "@/types/backtest";
@@ -24,6 +29,7 @@ interface BacktestResultsProps {
 export function BacktestResults({ result }: BacktestResultsProps) {
   const { metrics, trades, equityCurve } = result;
   const isProfit = metrics.totalReturn > 0;
+  const { exportToCSV, exportToPDF } = useBacktestExport();
 
   // Format equity curve for chart
   const chartData = equityCurve.map((point, i) => ({
@@ -37,7 +43,7 @@ export function BacktestResults({ result }: BacktestResultsProps) {
       {/* Summary Card */}
       <Card>
         <CardHeader>
-          <div className="flex items-start justify-between">
+          <div className="flex items-start justify-between flex-wrap gap-4">
             <div>
               <CardTitle className="flex items-center gap-2">
                 <BarChart3 className="h-5 w-5" />
@@ -47,16 +53,38 @@ export function BacktestResults({ result }: BacktestResultsProps) {
                 {result.pair}/USDT • {format(new Date(result.periodStart), 'MMM d, yyyy')} - {format(new Date(result.periodEnd), 'MMM d, yyyy')}
               </CardDescription>
             </div>
-            <Badge 
-              variant={isProfit ? "default" : "destructive"}
-              className={cn(
-                "text-lg px-3 py-1",
-                isProfit ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500"
-              )}
-            >
-              {isProfit ? <TrendingUp className="h-4 w-4 mr-1" /> : <TrendingDown className="h-4 w-4 mr-1" />}
-              {metrics.totalReturn >= 0 ? '+' : ''}{metrics.totalReturn.toFixed(2)}%
-            </Badge>
+            <div className="flex items-center gap-2">
+              <div className="flex gap-1">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => exportToCSV(result)}
+                  className="gap-1"
+                >
+                  <FileSpreadsheet className="h-4 w-4" />
+                  CSV
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => exportToPDF(result)}
+                  className="gap-1"
+                >
+                  <FileText className="h-4 w-4" />
+                  PDF
+                </Button>
+              </div>
+              <Badge 
+                variant={isProfit ? "default" : "destructive"}
+                className={cn(
+                  "text-lg px-3 py-1",
+                  isProfit ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500"
+                )}
+              >
+                {isProfit ? <TrendingUp className="h-4 w-4 mr-1" /> : <TrendingDown className="h-4 w-4 mr-1" />}
+                {metrics.totalReturn >= 0 ? '+' : ''}{metrics.totalReturn.toFixed(2)}%
+              </Badge>
+            </div>
           </div>
         </CardHeader>
       </Card>
