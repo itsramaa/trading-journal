@@ -1,6 +1,7 @@
 /**
  * Step 3: Position Sizing & Price Levels
  * Entry, SL, TP inputs + position size calculator
+ * Includes leverage tier warnings from Binance API
  */
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,11 +10,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
-import { Calculator, AlertTriangle, CheckCircle, DollarSign, Percent, TrendingUp } from "lucide-react";
+import { Calculator, AlertTriangle, CheckCircle, DollarSign, Percent, TrendingUp, Gauge } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTradeEntryWizard } from "@/features/trade/useTradeEntryWizard";
 import { useRiskProfile } from "@/hooks/use-risk-profile";
 import { calculatePositionSize, validateRiskLimits } from "@/lib/calculations/position-sizing";
+import { useBinanceLeverageBrackets, getMaxLeverageForNotional } from "@/features/binance";
 import type { PositionSizeResult } from "@/types/risk";
 
 interface PositionSizingStepProps {
@@ -29,6 +31,10 @@ export function PositionSizingStep({ onNext, onBack }: PositionSizingStepProps) 
   const accountBalance = wizard.accountBalance;
   const strategyDetails = wizard.strategyDetails;
   
+  // Fetch leverage brackets for the trading pair
+  const symbol = tradeDetails?.pair || "BTCUSDT";
+  const { data: leverageBrackets, isLoading: bracketsLoading } = useBinanceLeverageBrackets(symbol);
+  
   // Price levels state
   const [entryPrice, setEntryPrice] = useState(wizard.priceLevels?.entryPrice || 0);
   const [stopLoss, setStopLoss] = useState(wizard.priceLevels?.stopLoss || 0);
@@ -39,6 +45,15 @@ export function PositionSizingStep({ onNext, onBack }: PositionSizingStepProps) 
   const [riskPercent, setRiskPercent] = useState(defaultRiskPercent);
   const [leverage, setLeverage] = useState(1);
   const [result, setResult] = useState<PositionSizeResult | null>(null);
+  
+  // Calculate max allowed leverage based on position notional value
+  const notionalValue = result?.position_value || 0;
+  const maxAllowedLeverage = leverageBrackets && 'brackets' in leverageBrackets
+    ? getMaxLeverageForNotional(leverageBrackets, notionalValue)
+    : 125;
+  
+  // Leverage tier warning
+  const isLeverageExceeded = leverage > maxAllowedLeverage;
 
   // Calculate R:R ratio
   const calculateRR = () => {
@@ -218,18 +233,44 @@ export function PositionSizingStep({ onNext, onBack }: PositionSizingStepProps) 
               <Label htmlFor="leverage" className="flex items-center gap-2">
                 <TrendingUp className="h-4 w-4" />
                 Leverage
+                {!bracketsLoading && leverageBrackets && (
+                  <Badge variant="outline" className="text-xs">
+                    Max: {maxAllowedLeverage}x
+                  </Badge>
+                )}
               </Label>
               <Input
                 id="leverage"
                 type="number"
                 min={1}
-                max={100}
+                max={maxAllowedLeverage}
                 value={leverage}
-                onChange={(e) => setLeverage(Number(e.target.value) || 1)}
+                onChange={(e) => setLeverage(Math.min(Number(e.target.value) || 1, maxAllowedLeverage))}
+                className={cn(isLeverageExceeded && "border-red-500")}
               />
               <p className="text-xs text-muted-foreground">
                 For spot trading, leave at 1x
               </p>
+              
+              {/* Leverage Tier Warning */}
+              {isLeverageExceeded && (
+                <div className="flex items-center gap-2 p-2 rounded bg-red-500/10 border border-red-500/30 text-red-500">
+                  <Gauge className="h-4 w-4 shrink-0" />
+                  <span className="text-xs">
+                    Leverage {leverage}x exceeds max {maxAllowedLeverage}x for ${notionalValue.toLocaleString()} notional
+                  </span>
+                </div>
+              )}
+              
+              {/* Dynamic leverage tier info */}
+              {!isLeverageExceeded && leverageBrackets && 'brackets' in leverageBrackets && notionalValue > 0 && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Gauge className="h-3 w-3" />
+                  <span>
+                    Tier allows up to {maxAllowedLeverage}x for current position size
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
