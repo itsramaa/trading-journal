@@ -1,269 +1,154 @@
 
+# Plan: Resizable Sidebar dengan Navigasi Domain-Based
 
-# Plan: Simplifikasi Navigasi & UX Trading Journey
+## Ringkasan Perubahan
 
-## Ringkasan
-
-Refaktorisasi navigasi dari **10 flat items → 8 items dalam 4 groups** dengan progressive disclosure pattern untuk mengurangi cognitive load tanpa menghilangkan fitur apapun.
+Mengubah arsitektur navigasi dari "grouped dengan banyak tabs" menjadi "flat domain-based dengan sidebar resizable". Dashboard akan berada di paling atas tanpa grouping, dan item-item yang sebelumnya di dalam tabs akan dipindahkan ke sidebar sebagai menu level pertama.
 
 ---
 
-## Perbandingan: Sebelum vs Sesudah
+## Perubahan Struktur Navigasi
+
+### Struktur Sidebar Baru (Flat, Domain-Based)
 
 ```text
-SEBELUM (10 flat items - bingung!)          SESUDAH (4 groups - organized!)
-┌────────────────────────────────┐          ┌────────────────────────────────────┐
-│ Dashboard                      │          │ 📊 TRADING FUNDAMENTALS            │
-│ Accounts                       │          │ ├─ Dashboard                       │
-│ Calendar           ← redundant │    →     │ ├─ Market Insight (+ Calendar)     │
-│ Market Insight                 │          │ └─ Accounts                        │
-│ Risk Management                │          │                                    │
-│ Trade Quality      ← confusing │          │ 🎯 EXECUTION & MANAGEMENT          │
-│ Trade Management               │          │ ├─ Trading Journal (+ Trade Quality)│
-│ Strategy & Rules               │          │ └─ Risk Management                 │
-│ Performance                    │          │                                    │
-│ Settings                       │          │ 📈 STRATEGY & ANALYSIS             │
-└────────────────────────────────┘          │ ├─ Strategies                      │
-                                            │ └─ Performance                     │
-                                            │                                    │
-                                            │ ⚙️ TOOLS & SETTINGS                │
-                                            │ └─ Settings                        │
-                                            └────────────────────────────────────┘
-```
-
-**Hasil:**
-- Sidebar items: 10 → 8 (-20%)
-- Routes: 10 → 7 (Calendar & Trade Quality di-merge)
-- Cognitive load: berkurang ~60%
-- Fitur: 100% tetap ada
-
----
-
-## Fase Implementasi
-
-### Phase 1: Sidebar Group-Based Navigation (Quick Win)
-
-**Durasi estimasi:** 2-3 hari  
-**Impact:** Visual organization, no routing changes
-
-**Perubahan:**
-1. Buat `NavGroup.tsx` component (container untuk group navigasi)
-2. Refactor `AppSidebar.tsx` dengan 4 groups + separators
-3. Tambahkan color coding per group
-4. Gunakan emoji/icon untuk group headers
-
-**Files yang dibuat:**
-- `src/components/layout/NavGroup.tsx`
-
-**Files yang diubah:**
-- `src/components/layout/AppSidebar.tsx`
-
-**Struktur sidebar baru:**
-```
-📊 TRADING FUNDAMENTALS (Blue)
-├─ Dashboard
-├─ Market Insight
-└─ Accounts
-
-🎯 EXECUTION & MANAGEMENT (Green)
-├─ Trading Journal
-└─ Risk Management
-
-📈 STRATEGY & ANALYSIS (Purple)
-├─ Strategies
-└─ Performance
-
-⚙️ TOOLS & SETTINGS (Gray)
-└─ Settings
++------------------------------------------+
+| Trading Journey (Logo)                   |
++------------------------------------------+
+| Dashboard                 /              |  <-- Standalone, tidak dalam group
++------------------------------------------+
+| MARKET                                   |  <-- Group Header
+|   AI Analysis             /market        |
+|   Economic Calendar       /calendar      |
+|   Market Data             /market-data   |
++------------------------------------------+
+| JOURNAL                                  |
+|   Trade Entry             /trading       |
+|   Trade History           /history       |
++------------------------------------------+
+| RISK                                     |
+|   Risk Overview           /risk          |
+|   Position Calculator     /calculator    |
++------------------------------------------+
+| STRATEGY                                 |
+|   My Strategies           /strategies    |
+|   Backtest                /backtest      |
++------------------------------------------+
+| ANALYTICS                                |
+|   Performance Overview    /performance   |
+|   Daily P&L               /daily-pnl     |
+|   Heatmap                 /heatmap       |
+|   AI Insights             /ai-insights   |
++------------------------------------------+
+| ACCOUNTS                                 |
+|   Account List            /accounts      |
++------------------------------------------+
+| SETTINGS                                 |
+|   Settings                /settings      |
++------------------------------------------+
+| User Profile                             |
++------------------------------------------+
 ```
 
 ---
 
-### Phase 2: Merge Calendar → Market Insight
+## Perubahan Teknis
 
-**Durasi estimasi:** 1-2 hari  
-**Impact:** Route consolidation, progressive disclosure
+### 1. Resizable Sidebar
 
-**Perubahan:**
-1. Tambahkan Tabs ke `MarketInsight.tsx`:
-   - **AI Analysis** (existing content)
-   - **Calendar** (content dari `Calendar.tsx`)
-   - **Market Data** (existing volatility + opportunities)
-2. Hapus route `/calendar` (redirect ke `/market?tab=calendar`)
-3. Hapus navigasi ke Calendar di sidebar (sudah ada di Market Insight)
+**File:** `src/components/layout/DashboardLayout.tsx`
 
-**Files yang diubah:**
-- `src/pages/MarketInsight.tsx` (add tabs)
-- `src/App.tsx` (remove /calendar route, add redirect)
-- `src/components/layout/AppSidebar.tsx` (remove Calendar item)
-
-**Files yang dihapus:**
-- `src/pages/Calendar.tsx` (optional - bisa keep untuk backward compat)
-
----
-
-### Phase 3: Merge Trade Quality → Trading Journal
-
-**Durasi estimasi:** 1-2 hari  
-**Impact:** Route consolidation
-
-**Perubahan:**
-1. Tambahkan tab **"Quality Check"** di `TradingJournal.tsx`
-2. Pindahkan content dari `AIAssistant.tsx` ke tab baru
-3. Hapus route `/ai` (redirect ke `/trading?tab=quality`)
-4. Hapus navigasi ke Trade Quality di sidebar
-
-**Files yang diubah:**
-- `src/pages/trading-journey/TradingJournal.tsx` (add Quality Check tab)
-- `src/App.tsx` (remove /ai route, add redirect)
-- `src/components/layout/AppSidebar.tsx` (remove Trade Quality item)
-
-**Files yang dihapus:**
-- `src/pages/AIAssistant.tsx` (optional - bisa keep untuk backward compat)
-
----
-
-### Phase 4: Route Redirects & Cleanup
-
-**Durasi estimasi:** 1 hari  
-**Impact:** Backward compatibility
-
-**Perubahan:**
-1. Buat redirect routes untuk URL lama:
-   - `/calendar` → `/market?tab=calendar`
-   - `/ai` → `/trading?tab=quality`
-2. Update semua internal links yang masih mengarah ke route lama
-3. Update navigation documentation
-
-**Files yang diubah:**
-- `src/App.tsx` (add redirect components)
-- Any components with `<Link to="/calendar">` or `<Link to="/ai">`
-
----
-
-### Phase 5: Polish & Testing
-
-**Durasi estimasi:** 2-3 hari  
-**Impact:** UX refinement
-
-**Perubahan:**
-1. Mobile responsiveness testing
-2. Keyboard navigation verification
-3. Active state highlighting untuk sub-tabs
-4. URL sync dengan tab state (`?tab=xxx`)
-5. Update dokumentasi `docs/NAVIGATION_AND_COMPONENTS.md`
-
-**Files yang diubah:**
-- Various component files for polish
-- `docs/NAVIGATION_AND_COMPONENTS.md`
-
----
-
-## Detail Teknis
-
-### NavGroup Component (Phase 1)
-
-```tsx
-// src/components/layout/NavGroup.tsx
-interface NavGroupProps {
-  icon: string;           // emoji "📊"
-  label: string;          // "TRADING FUNDAMENTALS"
-  colorClass?: string;    // "text-blue-500"
-  children: React.ReactNode;
-  defaultOpen?: boolean;
-}
-```
-
-### Market Insight Tabs (Phase 2)
+Menggunakan `ResizablePanelGroup` dari `react-resizable-panels` untuk membuat sidebar yang bisa di-resize secara horizontal.
 
 ```text
-┌─────────────────────────────────────────────────────┐
-│ [AI Analysis] [Calendar] [Market Data]              │
-├─────────────────────────────────────────────────────┤
-│                                                     │
-│  Tab content appears here                           │
-│  - AI Analysis: Sentiment, Macro Analysis           │
-│  - Calendar: Economic Events, Today's Release       │
-│  - Market Data: Volatility, Opportunities, Whale    │
-│                                                     │
-└─────────────────────────────────────────────────────┘
++----------------+---------------------------+
+|                |                           |
+|   Sidebar      |      Main Content         |
+|   (resizable)  |                           |
+|   min: 200px   |                           |
+|   max: 320px   |                           |
+|   default: 260px|                          |
+|                |                           |
++----------------+---------------------------+
 ```
 
-### Trading Journal Tabs (Phase 3)
+### 2. Struktur Navigasi Baru
 
-```text
-Current tabs:
-[Binance] [Paper] [History] [Import]
+**File:** `src/components/layout/AppSidebar.tsx`
 
-After merge:
-[Binance] [Paper] [History] [Import] [Quality Check]
+- Dashboard di paling atas sebagai item standalone (tidak dalam group)
+- 7 groups terpisah tanpa ampersand (&):
+  - MARKET (3 items)
+  - JOURNAL (2 items)
+  - RISK (2 items)
+  - STRATEGY (2 items)
+  - ANALYTICS (4 items)
+  - ACCOUNTS (1 item)
+  - SETTINGS (1 item)
 
-Quality Check tab = content dari AIAssistant.tsx
-```
+### 3. Halaman Baru (Pecahan dari Tabs)
 
----
+Beberapa halaman baru yang dipecah dari tabs:
 
-## Yang TIDAK Berubah
+| Route Baru | Asal | Konten |
+|------------|------|--------|
+| `/calendar` | Market Insight tab | CalendarTab component |
+| `/market-data` | Market Insight tab | MarketDataTab component |
+| `/history` | Trading Journal tab | Trade History content |
+| `/calculator` | Risk Management tab | PositionSizeCalculator |
+| `/backtest` | Strategies tab | Backtest runner |
+| `/daily-pnl` | Performance tab | Daily P&L content |
+| `/heatmap` | Performance tab | TradingHeatmap |
+| `/ai-insights` | Performance tab | AIPatternInsights |
 
-- Semua fitur tetap 100% ada
-- Floating AI Chatbot (bottom-right)
-- Data & API integrations
-- Dashboard content
-- Performance analytics
-- Risk Management (tetap separate page)
-- Strategies page
-- Settings page
-- Dark/Light theme
-- All backend functionality
+### 4. Halaman yang Tetap Menggunakan Tabs (Minimal)
 
----
+Beberapa halaman tetap menggunakan tabs karena konteksnya sangat terkait:
 
-## Risiko & Mitigasi
-
-| Risiko | Mitigasi |
-|--------|----------|
-| User terbiasa dengan URL lama | Redirect routes + backward compat |
-| Mobile sidebar terlalu panjang | Group collapsible + icon-only mode |
-| Bookmarks rusak | Redirect URLs otomatis |
-| SEO impact | Keep old routes as redirects |
+- **Trading Journal (`/trading`):** Tetap ada tabs untuk Binance/Paper positions karena ini adalah real-time data yang saling terkait
+- **Market Insight (`/market`):** Menjadi AI Analysis saja, Calendar dan Market Data jadi halaman terpisah
 
 ---
 
-## Validasi Checklist
+## File yang Diubah
 
-**Navigation:**
-- [ ] 4 groups dengan label & icon
-- [ ] Separators antar groups
-- [ ] Active state highlight
-- [ ] Mobile collapse works
+1. `src/components/layout/DashboardLayout.tsx` - Tambah ResizablePanelGroup
+2. `src/components/layout/AppSidebar.tsx` - Struktur navigasi baru
+3. `src/components/layout/NavGroup.tsx` - Penyesuaian untuk layout baru
+4. `src/App.tsx` - Tambah routes baru
 
-**Market Insight Page:**
-- [ ] 3 tabs: AI Analysis, Calendar, Market Data
-- [ ] Tab switching smooth
-- [ ] URL sync dengan tab (`?tab=xxx`)
-- [ ] All original content accessible
+## File Baru
 
-**Trading Journal Page:**
-- [ ] 5 tabs total (+ Quality Check)
-- [ ] Trade Quality Checker works
-- [ ] Tab state persists
-
-**Backward Compatibility:**
-- [ ] `/calendar` redirects to `/market?tab=calendar`
-- [ ] `/ai` redirects to `/trading?tab=quality`
-- [ ] No broken links
+1. `src/pages/EconomicCalendar.tsx` - Halaman Calendar standalone
+2. `src/pages/MarketData.tsx` - Halaman Market Data standalone
+3. `src/pages/TradeHistory.tsx` - Halaman Trade History standalone
+4. `src/pages/PositionCalculator.tsx` - Halaman Calculator standalone
+5. `src/pages/Backtest.tsx` - Halaman Backtest standalone
+6. `src/pages/DailyPnL.tsx` - Halaman Daily P&L standalone
+7. `src/pages/TradingHeatmap.tsx` - Halaman Heatmap standalone
+8. `src/pages/AIInsights.tsx` - Halaman AI Insights standalone
 
 ---
 
-## Timeline Estimasi
+## Catatan Teknis
 
-| Phase | Durasi | Kumulatif |
-|-------|--------|-----------|
-| Phase 1: Sidebar Groups | 2-3 hari | 2-3 hari |
-| Phase 2: Merge Calendar | 1-2 hari | 3-5 hari |
-| Phase 3: Merge Trade Quality | 1-2 hari | 4-7 hari |
-| Phase 4: Redirects | 1 hari | 5-8 hari |
-| Phase 5: Polish | 2-3 hari | 7-11 hari |
+### Trade-offs
 
-**Total: ~1-2 minggu**
+1. **Pro:** Navigasi lebih jelas, setiap fitur punya domain sendiri
+2. **Pro:** Sidebar resizable memberikan kontrol kepada user
+3. **Con:** Jumlah routes bertambah (dari 8 menjadi 16)
+4. **Con:** Beberapa komponen perlu di-extract dari halaman yang ada
 
+### Asumsi
+
+1. Groups tidak menggunakan ampersand (&) - menggunakan nama domain tunggal
+2. Dashboard standalone di paling atas
+3. Sidebar width: min 200px, max 320px, default 260px
+4. Resize handle visible dengan grip indicator
+
+### Yang Tidak Diubah
+
+- Floating AI Chatbot tetap ada
+- Semua fitur dan fungsionalitas tetap sama
+- Struktur komponen dalam `src/components/` tetap sama
+- Hooks dan services tidak berubah
