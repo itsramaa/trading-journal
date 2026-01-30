@@ -11,7 +11,7 @@ import Accounts from "./pages/Accounts";
 import AccountDetail from "./pages/AccountDetail";
 import TradingJournal from "./pages/trading-journey/TradingJournal";
 import StrategyManagement from "./pages/trading-journey/StrategyManagement";
-import Performance from "./pages/trading-journey/Performance";
+import Performance from "./pages/Performance";
 import RiskManagement from "./pages/RiskManagement";
 import Calendar from "./pages/Calendar";
 import MarketInsight from "./pages/MarketInsight";
@@ -71,8 +71,8 @@ const App = () => (
               </ProtectedRoute>
             } />
             
-            {/* Analytics (top-level) */}
-            <Route path="/analytics" element={
+            {/* Performance (consolidated analytics hub) */}
+            <Route path="/performance" element={
               <ProtectedRoute>
                 <Performance />
               </ProtectedRoute>

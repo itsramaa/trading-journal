@@ -153,7 +153,7 @@ const Dashboard = () => {
               </Link>
             </Button>
             <Button variant="outline" className="h-auto py-4 flex flex-col gap-2" asChild>
-              <Link to="/trading-journey/performance">
+              <Link to="/performance">
                 <LineChart className="h-5 w-5 text-primary" />
                 <span className="text-sm">Analytics</span>
               </Link>
