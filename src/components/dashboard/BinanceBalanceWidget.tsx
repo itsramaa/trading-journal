@@ -19,6 +19,7 @@ import {
 import { Link } from "react-router-dom";
 import { useBinanceBalance, useBinanceConnectionStatus } from "@/features/binance";
 import { formatCurrency } from "@/lib/formatters";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 
 export function BinanceBalanceWidget() {
   const { data: connectionStatus } = useBinanceConnectionStatus();
@@ -149,7 +150,10 @@ export function BinanceBalanceWidget() {
         <div className="space-y-4">
           {/* Main Balance */}
           <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Wallet Balance</span>
+            <span className="text-sm text-muted-foreground flex items-center gap-1">
+              Wallet Balance
+              <InfoTooltip content="Total value of your Binance Futures wallet including all realized profits and deposits, minus withdrawals." />
+            </span>
             <span className="text-2xl font-bold font-mono-numbers">
               {formatCurrency(totalBalance, 'USD')}
             </span>
@@ -158,13 +162,19 @@ export function BinanceBalanceWidget() {
           {/* Secondary Stats */}
           <div className="grid grid-cols-2 gap-3">
             <div className="p-3 rounded-lg bg-muted/50">
-              <p className="text-xs text-muted-foreground mb-1">Available</p>
+              <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                Available
+                <InfoTooltip content="Funds available for opening new positions. This excludes margin currently locked in open positions." />
+              </p>
               <p className="text-lg font-semibold font-mono-numbers">
                 {formatCurrency(availableBalance, 'USD')}
               </p>
             </div>
             <div className="p-3 rounded-lg bg-muted/50">
-              <p className="text-xs text-muted-foreground mb-1">Margin Balance</p>
+              <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                Margin Balance
+                <InfoTooltip content="Wallet balance plus unrealized P&L. This is the collateral value Binance uses for margin calculations and liquidation." />
+              </p>
               <p className="text-lg font-semibold font-mono-numbers">
                 {formatCurrency(marginBalance, 'USD')}
               </p>
@@ -180,11 +190,12 @@ export function BinanceBalanceWidget() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 {unrealizedPnL >= 0 ? (
-                  <TrendingUp className="h-4 w-4 text-profit" />
+                  <TrendingUp className="h-4 w-4 text-profit" aria-hidden="true" />
                 ) : (
-                  <TrendingDown className="h-4 w-4 text-loss" />
+                  <TrendingDown className="h-4 w-4 text-loss" aria-hidden="true" />
                 )}
                 <span className="text-sm">Unrealized P&L</span>
+                <InfoTooltip content="Profit or loss from your currently open positions. This value fluctuates with market prices and only becomes 'realized' when you close the position." />
               </div>
               <span className={`text-lg font-bold font-mono-numbers ${
                 unrealizedPnL >= 0 ? 'text-profit' : 'text-loss'
