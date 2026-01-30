@@ -78,7 +78,7 @@ export function BacktestResults({ result }: BacktestResultsProps) {
                 variant={isProfit ? "default" : "destructive"}
                 className={cn(
                   "text-lg px-3 py-1",
-                  isProfit ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500"
+                  isProfit ? "bg-profit-muted text-profit" : "bg-loss-muted text-loss"
                 )}
               >
                 {isProfit ? <TrendingUp className="h-4 w-4 mr-1" /> : <TrendingDown className="h-4 w-4 mr-1" />}
@@ -89,36 +89,36 @@ export function BacktestResults({ result }: BacktestResultsProps) {
         </CardHeader>
       </Card>
 
-      {/* Metrics Grid */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
+      {/* Metrics Grid - Using design system tokens */}
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+        <Card className="hover:shadow-md transition-shadow">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Total Return</p>
                 <p className={cn(
-                  "text-2xl font-bold",
-                  isProfit ? "text-green-500" : "text-red-500"
+                  "text-2xl font-bold font-mono",
+                  isProfit ? "text-profit" : "text-loss"
                 )}>
                   ${metrics.totalReturnAmount.toFixed(2)}
                 </p>
               </div>
               <div className={cn(
                 "p-2 rounded-full",
-                isProfit ? "bg-green-500/10" : "bg-red-500/10"
+                isProfit ? "bg-profit-muted" : "bg-loss-muted"
               )}>
-                {isProfit ? <TrendingUp className="h-5 w-5 text-green-500" /> : <TrendingDown className="h-5 w-5 text-red-500" />}
+                {isProfit ? <TrendingUp className="h-5 w-5 text-profit" /> : <TrendingDown className="h-5 w-5 text-loss" />}
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="hover:shadow-md transition-shadow">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Win Rate</p>
-                <p className="text-2xl font-bold">
+                <p className="text-2xl font-bold font-mono">
                   {(metrics.winRate * 100).toFixed(1)}%
                 </p>
               </div>
@@ -132,17 +132,17 @@ export function BacktestResults({ result }: BacktestResultsProps) {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="hover:shadow-md transition-shadow">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Max Drawdown</p>
-                <p className="text-2xl font-bold text-red-500">
+                <p className="text-2xl font-bold font-mono text-loss">
                   {metrics.maxDrawdown.toFixed(2)}%
                 </p>
               </div>
-              <div className="p-2 rounded-full bg-red-500/10">
-                <TrendingDown className="h-5 w-5 text-red-500" />
+              <div className="p-2 rounded-full bg-loss-muted">
+                <TrendingDown className="h-5 w-5 text-loss" />
               </div>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -151,12 +151,12 @@ export function BacktestResults({ result }: BacktestResultsProps) {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="hover:shadow-md transition-shadow">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Sharpe Ratio</p>
-                <p className="text-2xl font-bold">
+                <p className="text-2xl font-bold font-mono">
                   {metrics.sharpeRatio.toFixed(2)}
                 </p>
               </div>
@@ -177,47 +177,47 @@ export function BacktestResults({ result }: BacktestResultsProps) {
           <CardTitle className="text-lg">Detailed Metrics</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-6 md:grid-cols-3">
             <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Total Trades</span>
-                <span className="font-medium">{metrics.totalTrades}</span>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground text-sm">Total Trades</span>
+                <span className="font-medium font-mono">{metrics.totalTrades}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Avg Win</span>
-                <span className="font-medium text-green-500">${metrics.avgWin.toFixed(2)}</span>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground text-sm">Avg Win</span>
+                <span className="font-medium font-mono text-profit">${metrics.avgWin.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Avg Loss</span>
-                <span className="font-medium text-red-500">-${metrics.avgLoss.toFixed(2)}</span>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground text-sm">Avg Loss</span>
+                <span className="font-medium font-mono text-loss">-${metrics.avgLoss.toFixed(2)}</span>
               </div>
             </div>
             <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Profit Factor</span>
-                <span className="font-medium">{metrics.profitFactor === Infinity ? '∞' : metrics.profitFactor.toFixed(2)}</span>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground text-sm">Profit Factor</span>
+                <span className="font-medium font-mono">{metrics.profitFactor === Infinity ? '∞' : metrics.profitFactor.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Avg Win %</span>
-                <span className="font-medium text-green-500">+{metrics.avgWinPercent.toFixed(2)}%</span>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground text-sm">Avg Win %</span>
+                <span className="font-medium font-mono text-profit">+{metrics.avgWinPercent.toFixed(2)}%</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Avg Loss %</span>
-                <span className="font-medium text-red-500">-{metrics.avgLossPercent.toFixed(2)}%</span>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground text-sm">Avg Loss %</span>
+                <span className="font-medium font-mono text-loss">-{metrics.avgLossPercent.toFixed(2)}%</span>
               </div>
             </div>
             <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Consec. Wins</span>
-                <span className="font-medium">{metrics.consecutiveWins}</span>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground text-sm">Consec. Wins</span>
+                <span className="font-medium font-mono text-profit">{metrics.consecutiveWins}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Consec. Losses</span>
-                <span className="font-medium">{metrics.consecutiveLosses}</span>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground text-sm">Consec. Losses</span>
+                <span className="font-medium font-mono text-loss">{metrics.consecutiveLosses}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Avg Holding</span>
-                <span className="font-medium">{metrics.holdingPeriodAvg.toFixed(1)}h</span>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground text-sm">Avg Holding</span>
+                <span className="font-medium font-mono">{metrics.holdingPeriodAvg.toFixed(1)}h</span>
               </div>
             </div>
           </div>
@@ -320,8 +320,8 @@ export function BacktestResults({ result }: BacktestResultsProps) {
                           <Badge 
                             variant="outline"
                             className={trade.direction === 'long' 
-                              ? 'bg-green-500/10 text-green-500' 
-                              : 'bg-red-500/10 text-red-500'
+                              ? 'bg-profit-muted text-profit border-profit/30' 
+                              : 'bg-loss-muted text-loss border-loss/30'
                             }
                           >
                             {trade.direction === 'long' ? (
@@ -340,7 +340,7 @@ export function BacktestResults({ result }: BacktestResultsProps) {
                         </TableCell>
                         <TableCell className={cn(
                           "text-right font-mono text-sm font-medium",
-                          trade.pnl >= 0 ? "text-green-500" : "text-red-500"
+                          trade.pnl >= 0 ? "text-profit" : "text-loss"
                         )}>
                           {trade.pnl >= 0 ? '+' : ''}{trade.pnl.toFixed(2)}
                           <span className="text-xs text-muted-foreground ml-1">

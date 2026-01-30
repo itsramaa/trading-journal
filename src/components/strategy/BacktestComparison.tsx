@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { EmptyState } from '@/components/ui/empty-state';
+import { cn } from '@/lib/utils';
 import {
   Table,
   TableBody,
@@ -208,7 +209,7 @@ export function BacktestComparison() {
                         {format(new Date(result.periodStart), 'MMM d, yyyy')} - {format(new Date(result.periodEnd), 'MMM d, yyyy')}
                       </div>
                     </div>
-                    <Badge className={isProfit ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}>
+                    <Badge className={isProfit ? 'bg-profit-muted text-profit' : 'bg-loss-muted text-loss'}>
                       {isProfit ? '+' : ''}{returnValue.toFixed(2)}%
                     </Badge>
                   </div>
@@ -247,13 +248,13 @@ export function BacktestComparison() {
             ))}
           </div>
 
-          {/* Metrics Comparison Table */}
+          {/* Metrics Comparison Table - Enhanced with better styling */}
           <Card>
-            <CardHeader>
-              <CardTitle>Metrics Comparison</CardTitle>
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg">Metrics Comparison</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto -mx-6 px-6">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -289,11 +290,14 @@ export function BacktestComparison() {
                             return (
                               <TableCell key={result.id} className="text-center">
                                 <div className="flex items-center justify-center gap-1">
-                                  <span className={isWinner ? 'font-bold' : ''}>
+                                  <span className={cn(
+                                    "font-mono",
+                                    isWinner && "font-bold text-primary"
+                                  )}>
                                     {metric.format(value)}
                                   </span>
                                   {isWinner && (
-                                    <Trophy className="h-4 w-4 text-yellow-500" />
+                                    <Trophy className="h-4 w-4 text-[hsl(var(--chart-4))]" />
                                   )}
                                 </div>
                               </TableCell>
@@ -366,11 +370,11 @@ export function BacktestComparison() {
             </CardContent>
           </Card>
 
-          {/* Winner Summary */}
+          {/* Winner Summary - Enhanced with design tokens */}
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Trophy className="h-5 w-5 text-yellow-500" />
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Trophy className="h-5 w-5 text-[hsl(var(--chart-4))]" />
                 Performance Summary
               </CardTitle>
             </CardHeader>

@@ -96,8 +96,8 @@ export function EntryRulesBuilder({ rules, onChange }: EntryRulesBuilderProps) {
                 <div
                   key={rule.id}
                   className={cn(
-                    "flex items-start gap-3 p-3 rounded-lg border transition-colors",
-                    rule.is_mandatory ? "border-primary/30 bg-primary/5" : "border-border bg-muted/30"
+                    "flex items-start gap-3 p-3 rounded-lg border transition-all hover:shadow-sm",
+                    rule.is_mandatory ? "border-primary/30 bg-primary/5" : "border-border bg-muted/30 hover:border-muted-foreground/20"
                   )}
                 >
                   <GripVertical className="h-4 w-4 text-muted-foreground mt-1 shrink-0 cursor-move" />
