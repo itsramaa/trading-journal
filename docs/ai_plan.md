@@ -29,7 +29,32 @@ Dokumen ini mendokumentasikan integrasi AI di Trading Journey project, termasuk 
   - Funding rates
   - AI-generated summary (Gemini 3 Flash)
 
-### 2. Trading AI Edge Functions
+### 2. Combined Crypto + Macro Analysis ✅ NEW
+
+#### useCombinedAnalysis Hook
+- **Location:** `src/features/market-insight/useCombinedAnalysis.ts`
+- **Per:** INTEGRATION_GUIDE.md specification
+- **Features:**
+  - Crypto + Macro alignment scoring (0-100%)
+  - STRONG_BUY / STRONG_SELL / CAUTIOUS / WAIT recommendations
+  - Position size adjustment suggestions
+  - Conflict detection between crypto and macro sentiment
+
+#### CombinedAnalysisCard Component
+- **Location:** `src/components/market-insight/CombinedAnalysisCard.tsx`
+- **Displays:** Alignment status, recommendation, position adjustment
+
+### 3. Market Alerts System ✅ NEW
+
+#### useMarketAlerts Hook
+- **Location:** `src/features/market-insight/useMarketAlerts.ts`
+- **Features:**
+  - Extreme Fear alert (F&G < 25)
+  - Extreme Greed alert (F&G > 75)
+  - Crypto/Macro conflict notifications
+  - Rate-limited to prevent spam (1x per hour/30min)
+
+### 4. Trading AI Edge Functions
 
 | Function | Purpose |
 |----------|---------|
@@ -175,7 +200,12 @@ src/features/market-insight/
 ├── types.ts
 ├── useMarketSentiment.ts
 ├── useMacroAnalysis.ts
+├── useCombinedAnalysis.ts    # NEW - Combined Crypto+Macro alignment
+├── useMarketAlerts.ts        # NEW - Alert system for extremes
 └── index.ts
+
+src/components/market-insight/
+└── CombinedAnalysisCard.tsx  # NEW - UI for combined analysis
 
 supabase/functions/
 ├── market-insight/index.ts
@@ -188,7 +218,7 @@ supabase/functions/
 └── session-analysis/index.ts
 
 src/pages/
-└── MarketInsight.tsx
+└── MarketInsight.tsx         # Updated with Combined Analysis
 ```
 
 ---
