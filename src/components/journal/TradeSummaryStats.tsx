@@ -3,6 +3,7 @@
  */
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Circle, TrendingUp, TrendingDown, CheckCircle, DollarSign, Wifi } from "lucide-react";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 
 interface TradeSummaryStatsProps {
   openPositionsCount: number;
@@ -53,7 +54,12 @@ export function TradeSummaryStats({
       
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Unrealized P&L</CardTitle>
+          <CardTitle className="text-sm font-medium flex items-center gap-1">
+            Unrealized P&L
+            <InfoTooltip 
+              content="Potensi profit/loss dari posisi yang masih terbuka. Nilai ini berubah sesuai harga pasar."
+            />
+          </CardTitle>
           {displayUnrealizedPnL >= 0 ? (
             <TrendingUp className="h-4 w-4 text-profit" aria-hidden="true" />
           ) : (
@@ -83,7 +89,12 @@ export function TradeSummaryStats({
       
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Realized P&L</CardTitle>
+          <CardTitle className="text-sm font-medium flex items-center gap-1">
+            Realized P&L
+            <InfoTooltip 
+              content="Profit/loss aktual dari trade yang sudah ditutup. Nilai final setelah posisi closed."
+            />
+          </CardTitle>
           <DollarSign className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
         </CardHeader>
         <CardContent>

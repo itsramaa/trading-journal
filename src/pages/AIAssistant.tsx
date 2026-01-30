@@ -2,7 +2,7 @@
  * Trade Quality Checker Page
  * AI-powered trade setup validator - consolidated from AI Assistant
  */
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Brain, Target, CheckCircle2, AlertCircle, TrendingUp, TrendingDown, Lightbulb } from "lucide-react";
 import { useAITradeQuality } from "@/features/ai/useAITradeQuality";
 import { TradingPairCombobox } from "@/components/ui/trading-pair-combobox";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { cn } from "@/lib/utils";
 
 const AIAssistant = () => {
@@ -162,6 +163,25 @@ const AIAssistant = () => {
                 </div>
               </div>
 
+              {/* Real-time R:R Preview */}
+              {checkerEntry && checkerSL && checkerTP && (
+                <div className="rounded-lg bg-muted/50 p-3 flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Calculated R:R Ratio</span>
+                  <Badge variant="outline" className="text-base font-semibold">
+                    {(() => {
+                      const entry = parseFloat(checkerEntry);
+                      const sl = parseFloat(checkerSL);
+                      const tp = parseFloat(checkerTP);
+                      if (!entry || !sl || !tp) return "—";
+                      const risk = Math.abs(entry - sl);
+                      const reward = Math.abs(tp - entry);
+                      const rr = risk > 0 ? (reward / risk).toFixed(2) : "0";
+                      return `1:${rr}`;
+                    })()}
+                  </Badge>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label>Timeframe</Label>
                 <Select value={checkerTimeframe} onValueChange={setCheckerTimeframe}>
@@ -181,7 +201,7 @@ const AIAssistant = () => {
 
               <Button 
                 onClick={handleCheckQuality} 
-                disabled={qualityLoading || !checkerEntry || !checkerSL || !checkerTP}
+                disabled={qualityLoading || !checkerPair || !checkerEntry || !checkerSL || !checkerTP}
                 className="w-full"
               >
                 {qualityLoading ? (
@@ -202,13 +222,18 @@ const AIAssistant = () => {
                 <div className="border-t pt-6 mt-6 space-y-6">
                   {/* Score Display */}
                   <div className="text-center space-y-2">
-                    <div className={cn(
-                      "text-5xl font-bold",
-                      qualityResult.score >= 8 && "text-profit",
-                      qualityResult.score >= 6 && qualityResult.score < 8 && "text-yellow-500",
-                      qualityResult.score < 6 && "text-loss"
-                    )}>
-                      {qualityResult.score}/10
+                    <div className="flex items-center justify-center gap-2">
+                      <div className={cn(
+                        "text-5xl font-bold",
+                        qualityResult.score >= 8 && "text-profit",
+                        qualityResult.score >= 6 && qualityResult.score < 8 && "text-yellow-500",
+                        qualityResult.score < 6 && "text-loss"
+                      )}>
+                        {qualityResult.score}/10
+                      </div>
+                      <InfoTooltip 
+                        content="Quality Score 1-10 berdasarkan setup, R:R, confluence, dan risk management. 8+ = Excellent, 6-7 = Good, <6 = Perlu review."
+                      />
                     </div>
                     <Badge 
                       variant={qualityResult.recommendation === "execute" ? "default" : qualityResult.recommendation === "wait" ? "secondary" : "destructive"}
@@ -216,8 +241,11 @@ const AIAssistant = () => {
                     >
                       {qualityResult.recommendation}
                     </Badge>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm text-muted-foreground flex items-center justify-center gap-1">
                       AI Confidence: {qualityResult.confidence}%
+                      <InfoTooltip 
+                        content="Tingkat kepercayaan AI terhadap analisis ini. Semakin tinggi, semakin yakin AI dengan rekomendasi."
+                      />
                     </p>
                   </div>
 

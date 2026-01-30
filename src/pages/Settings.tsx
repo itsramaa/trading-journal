@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { User, Bell, Shield, Palette, LogOut, Loader2, Upload, Camera, Bot, Link } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { AISettingsTab } from "@/components/settings/AISettingsTab";
 import { BinanceApiSettings } from "@/components/settings/BinanceApiSettings";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -516,7 +517,10 @@ const Settings = () => {
                     <Label>Two-Factor Authentication</Label>
                     <p className="text-sm text-muted-foreground">Add extra security to your account.</p>
                   </div>
-                  <Button variant="outline" disabled>Enable 2FA</Button>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" disabled>Enable 2FA</Button>
+                    <Badge variant="secondary" className="text-xs">Coming Soon</Badge>
+                  </div>
                 </div>
 
                 <Separator />
