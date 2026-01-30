@@ -1,22 +1,21 @@
 /**
  * Risk Management Page - Per Trading Journey Markdown spec
- * Improved: Clearer tab labels, better layout hierarchy
- * Enhanced: Heuristic Evaluation + Accessibility fixes
+ * Refactored: Extracted RiskProfileSummaryCard and RiskSettingsForm
  */
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Label } from "@/components/ui/label";
-import { Slider } from "@/components/ui/slider";
 import { EmptyState } from "@/components/ui/empty-state";
 import { QuickTip } from "@/components/ui/onboarding-tooltip";
-import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Shield, Calculator, Settings, AlertTriangle, History, LayoutDashboard } from "lucide-react";
-import { DailyLossTracker } from "@/components/risk/DailyLossTracker";
-import { PositionSizeCalculator } from "@/components/risk/PositionSizeCalculator";
-import { RiskEventLog } from "@/components/risk/RiskEventLog";
-import { CorrelationMatrix } from "@/components/risk/CorrelationMatrix";
+import { 
+  DailyLossTracker, 
+  PositionSizeCalculator, 
+  RiskEventLog, 
+  CorrelationMatrix,
+  RiskProfileSummaryCard,
+  RiskSettingsForm,
+} from "@/components/risk";
 import { useRiskProfile, useUpsertRiskProfile } from "@/hooks/use-risk-profile";
 import { useState, useEffect } from "react";
 
@@ -52,6 +51,10 @@ export default function RiskManagement() {
     });
   };
 
+  const navigateToSettings = () => {
+    document.querySelector('[value="settings"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -66,7 +69,7 @@ export default function RiskManagement() {
           </p>
         </div>
 
-        {/* Tabs with clearer labels */}
+        {/* Tabs */}
         <Tabs defaultValue="overview" className="space-y-6">
           <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-flex">
             <TabsTrigger value="overview" className="gap-2">
@@ -89,61 +92,19 @@ export default function RiskManagement() {
 
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-6">
-            {/* Contextual Help - Design Thinking inline guidance */}
             <QuickTip storageKey="risk-daily-limit">
               Your daily loss limit protects your capital. When you reach 100%, 
               new trades will be blocked until the next trading day. This is your 
               most important safeguard against overtrading.
             </QuickTip>
             
-            {/* Daily Loss Tracker - Full Width at Top (Most Important) */}
             <DailyLossTracker />
             
             <div className="grid gap-6 lg:grid-cols-2">
-              {/* Risk Profile Summary */}
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Shield className="h-5 w-5 text-primary" />
-                    Risk Profile
-                  </CardTitle>
-                  <CardDescription>
-                    Your current risk management parameters
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {riskProfile ? (
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="p-3 rounded-lg bg-muted/50">
-                        <p className="text-xs text-muted-foreground">Risk per Trade</p>
-                        <p className="text-lg font-semibold">{riskProfile.risk_per_trade_percent}%</p>
-                      </div>
-                      <div className="p-3 rounded-lg bg-muted/50">
-                        <p className="text-xs text-muted-foreground">Max Daily Loss</p>
-                        <p className="text-lg font-semibold">{riskProfile.max_daily_loss_percent}%</p>
-                      </div>
-                      <div className="p-3 rounded-lg bg-muted/50">
-                        <p className="text-xs text-muted-foreground">Max Position Size</p>
-                        <p className="text-lg font-semibold">{riskProfile.max_position_size_percent}%</p>
-                      </div>
-                      <div className="p-3 rounded-lg bg-muted/50">
-                        <p className="text-xs text-muted-foreground">Max Positions</p>
-                        <p className="text-lg font-semibold">{riskProfile.max_concurrent_positions}</p>
-                      </div>
-                    </div>
-                  ) : (
-                    <EmptyState
-                      icon={AlertTriangle}
-                      title="No risk profile configured"
-                      description="Set up your risk parameters to protect your capital."
-                      action={{
-                        label: "Configure Now",
-                        onClick: () => document.querySelector('[value="settings"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true })),
-                      }}
-                    />
-                  )}
-                </CardContent>
-              </Card>
+              <RiskProfileSummaryCard 
+                riskProfile={riskProfile} 
+                onConfigureClick={navigateToSettings} 
+              />
 
               {/* Risk Alerts */}
               <Card>
@@ -166,7 +127,6 @@ export default function RiskManagement() {
               </Card>
             </div>
 
-            {/* Correlation Matrix */}
             <CorrelationMatrix />
           </TabsContent>
 
@@ -177,139 +137,20 @@ export default function RiskManagement() {
 
           {/* Settings Tab */}
           <TabsContent value="settings" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Settings className="h-5 w-5 text-primary" />
-                  Risk Profile Settings
-                </CardTitle>
-                <CardDescription>
-                  Configure your risk management parameters. These will be used for position sizing and trade validation.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Risk per Trade */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label className="flex items-center gap-2">
-                      Risk per Trade
-                      <InfoTooltip 
-                        content="The percentage of your account you're willing to lose on a single trade. 1-2% is recommended for most traders."
-                        variant="help"
-                      />
-                    </Label>
-                    <span className="font-medium text-primary">{riskPerTrade}%</span>
-                  </div>
-                  <Slider
-                    value={[riskPerTrade]}
-                    onValueChange={([value]) => setRiskPerTrade(value)}
-                    min={0.5}
-                    max={10}
-                    step={0.5}
-                    aria-label={`Risk per trade: ${riskPerTrade}%`}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Maximum percentage of account to risk on a single trade
-                  </p>
-                </div>
-
-                {/* Max Daily Loss */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label className="flex items-center gap-2">
-                      Max Daily Loss
-                      <InfoTooltip 
-                        content="When you hit this limit, trading is disabled for the day. This protects you from revenge trading and emotional decisions."
-                        variant="warning"
-                      />
-                    </Label>
-                    <span className="font-medium text-primary">{maxDailyLoss}%</span>
-                  </div>
-                  <Slider
-                    value={[maxDailyLoss]}
-                    onValueChange={([value]) => setMaxDailyLoss(value)}
-                    min={1}
-                    max={20}
-                    step={1}
-                    aria-label={`Max daily loss: ${maxDailyLoss}%`}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Stop trading for the day when this loss limit is reached
-                  </p>
-                </div>
-
-                {/* Max Weekly Drawdown */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label className="flex items-center gap-2">
-                      Max Weekly Drawdown
-                      <InfoTooltip 
-                        content="The maximum decline from your weekly peak before you should reduce position sizes. Helps prevent catastrophic losses."
-                        variant="help"
-                      />
-                    </Label>
-                    <span className="font-medium text-primary">{maxWeeklyDrawdown}%</span>
-                  </div>
-                  <Slider
-                    value={[maxWeeklyDrawdown]}
-                    onValueChange={([value]) => setMaxWeeklyDrawdown(value)}
-                    min={5}
-                    max={30}
-                    step={1}
-                    aria-label={`Max weekly drawdown: ${maxWeeklyDrawdown}%`}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Maximum drawdown allowed per week before reducing position sizes
-                  </p>
-                </div>
-
-                {/* Max Position Size */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label>Max Position Size</Label>
-                    <span className="font-medium text-primary">{maxPositionSize}%</span>
-                  </div>
-                  <Slider
-                    value={[maxPositionSize]}
-                    onValueChange={([value]) => setMaxPositionSize(value)}
-                    min={10}
-                    max={100}
-                    step={5}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Maximum percentage of capital to deploy in a single position
-                  </p>
-                </div>
-
-                {/* Max Concurrent Positions */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label>Max Concurrent Positions</Label>
-                    <span className="font-medium text-primary">{maxConcurrentPositions}</span>
-                  </div>
-                  <Slider
-                    value={[maxConcurrentPositions]}
-                    onValueChange={([value]) => setMaxConcurrentPositions(value)}
-                    min={1}
-                    max={10}
-                    step={1}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Maximum number of open positions allowed at the same time
-                  </p>
-                </div>
-
-                <div className="pt-4 border-t">
-                  <Button 
-                    onClick={handleSaveProfile}
-                    disabled={upsertProfile.isPending}
-                    className="w-full sm:w-auto"
-                  >
-                    {upsertProfile.isPending ? 'Saving...' : 'Save Risk Profile'}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+            <RiskSettingsForm
+              riskPerTrade={riskPerTrade}
+              maxDailyLoss={maxDailyLoss}
+              maxWeeklyDrawdown={maxWeeklyDrawdown}
+              maxPositionSize={maxPositionSize}
+              maxConcurrentPositions={maxConcurrentPositions}
+              onRiskPerTradeChange={setRiskPerTrade}
+              onMaxDailyLossChange={setMaxDailyLoss}
+              onMaxWeeklyDrawdownChange={setMaxWeeklyDrawdown}
+              onMaxPositionSizeChange={setMaxPositionSize}
+              onMaxConcurrentPositionsChange={setMaxConcurrentPositions}
+              onSave={handleSaveProfile}
+              isSaving={upsertProfile.isPending}
+            />
           </TabsContent>
 
           {/* History Tab */}
