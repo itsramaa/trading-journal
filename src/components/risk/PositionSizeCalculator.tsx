@@ -1,15 +1,18 @@
 /**
  * Position Size Calculator Component - Per Trading Journey Markdown spec
  * Refactored into smaller focused components for maintainability
+ * Now integrates real commission rates from Binance API (Phase 2)
  */
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Calculator } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Calculator, Percent } from "lucide-react";
 import { calculatePositionSize } from "@/lib/calculations/position-sizing";
 import { useRiskProfile } from "@/hooks/use-risk-profile";
 import { useBestAvailableBalance } from "@/hooks/use-combined-balance";
+import { useBinanceCommissionRate, useBinanceLeverageBrackets, getMaxLeverageForNotional } from "@/features/binance";
 import { CalculatorInputs, CalculatorResults, QuickReferenceR } from "./calculator";
 import { trackEvent, ANALYTICS_EVENTS } from "@/lib/analytics";
 
@@ -25,6 +28,13 @@ export function PositionSizeCalculator({
   const { data: riskProfile, isLoading: profileLoading } = useRiskProfile();
   const { balance: combinedBalance, source, isLoading: balanceLoading } = useBestAvailableBalance();
   
+  // State for symbol to fetch commission rates
+  const [selectedSymbol, setSelectedSymbol] = useState("BTCUSDT");
+  
+  // Fetch real commission rates from Binance API (Phase 2)
+  const { data: commissionRate, isLoading: commissionLoading } = useBinanceCommissionRate(selectedSymbol);
+  const { data: leverageBrackets } = useBinanceLeverageBrackets(selectedSymbol);
+  
   // Use combined balance (Binance if connected, else Paper accounts)
   const defaultBalance = useMemo(() => {
     if (initialBalance && initialBalance > 0) return initialBalance;
@@ -38,6 +48,12 @@ export function PositionSizeCalculator({
   const [stopLossPrice, setStopLossPrice] = useState(49000);
   const [direction, setDirection] = useState<'long' | 'short'>('long');
   const [leverage, setLeverage] = useState(1);
+  
+  // Calculate max leverage based on position value
+  const estimatedNotional = (accountBalance * riskPercent / 100) / (Math.abs(entryPrice - stopLossPrice) / entryPrice) * entryPrice;
+  const maxAllowedLeverage = leverageBrackets && 'brackets' in leverageBrackets
+    ? getMaxLeverageForNotional(leverageBrackets, estimatedNotional)
+    : 125;
 
   // Update when risk profile loads
   useEffect(() => {
@@ -79,6 +95,14 @@ export function PositionSizeCalculator({
     
     return calc;
   }, [accountBalance, riskPercent, entryPrice, stopLossPrice, leverage, onCalculate]);
+
+  // Calculate estimated fees using real commission rates
+  const estimatedFees = useMemo(() => {
+    if (!commissionRate || !result) return null;
+    const takerFee = result.position_value * commissionRate.takerCommissionRate;
+    const makerFee = result.position_value * commissionRate.makerCommissionRate;
+    return { takerFee, makerFee };
+  }, [commissionRate, result]);
 
   const isLoading = profileLoading || balanceLoading;
 
@@ -140,6 +164,47 @@ export function PositionSizeCalculator({
         <Separator />
 
         <CalculatorResults result={result} />
+        
+        {/* Commission Rate Display (Phase 2) */}
+        {commissionRate && estimatedFees && (
+          <div className="p-4 rounded-lg bg-muted/50 space-y-2">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <Percent className="h-4 w-4" />
+              Commission Rates (Real-time from Binance)
+            </div>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-muted-foreground">Maker Fee:</span>
+                <span className="ml-2 font-medium">
+                  {(commissionRate.makerCommissionRate * 100).toFixed(3)}%
+                </span>
+                <span className="text-xs text-muted-foreground ml-1">
+                  (${estimatedFees.makerFee.toFixed(2)})
+                </span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Taker Fee:</span>
+                <span className="ml-2 font-medium">
+                  {(commissionRate.takerCommissionRate * 100).toFixed(3)}%
+                </span>
+                <span className="text-xs text-muted-foreground ml-1">
+                  (${estimatedFees.takerFee.toFixed(2)})
+                </span>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Market orders use taker fee, limit orders use maker fee
+            </p>
+          </div>
+        )}
+        
+        {/* Max Leverage Info */}
+        {leverageBrackets && 'brackets' in leverageBrackets && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground p-2 rounded bg-muted/30">
+            <Badge variant="outline" className="text-xs">Max Leverage</Badge>
+            <span>{maxAllowedLeverage}x for ~${Math.round(estimatedNotional).toLocaleString()} notional</span>
+          </div>
+        )}
 
         <QuickReferenceR 
           potential1R={result.potential_profit_1r}
