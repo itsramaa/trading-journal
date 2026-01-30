@@ -1,3 +1,7 @@
+/**
+ * Trading Journal - Refactored per Trading Journey Markdown spec
+ * Components extracted: TradeSummaryStats, TradeFilters, OpenPositionsTable, TradeQuickEntryForm
+ */
 import { useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -10,18 +14,14 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { TradingPairCombobox } from "@/components/ui/trading-pair-combobox";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { DateRangeFilter, DateRange } from "@/components/trading/DateRangeFilter";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { QuickTip } from "@/components/ui/onboarding-tooltip";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Calendar, Tag, Target, Building2, TrendingUp, TrendingDown, BookOpen, MoreVertical, Trash2, Clock, CheckCircle, Circle, DollarSign, XCircle, AlertCircle, Edit, Wand2, Timer, Brain, ArrowUpDown, Wifi, RefreshCw, Download, History } from "lucide-react";
+import { BookOpen, Wand2, RefreshCw, Wifi, Circle, CheckCircle, Download, History, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
 import { useTradingAccounts } from "@/hooks/use-trading-accounts";
 import { useTradeEntries, useCreateTradeEntry, useDeleteTradeEntry, useClosePosition, useUpdateTradeEntry, TradeEntry } from "@/hooks/use-trade-entries";
@@ -31,7 +31,6 @@ import { BinanceTradeHistory } from "@/components/trading/BinanceTradeHistory";
 import { BinanceIncomeHistory } from "@/components/trading/BinanceIncomeHistory";
 import { TradeHistoryCard } from "@/components/trading/TradeHistoryCard";
 import { useBinanceAutoSync } from "@/hooks/use-binance-auto-sync";
-
 import { filterTradesByDateRange, filterTradesByStrategies } from "@/lib/trading-calculations";
 import { formatCurrency as formatCurrencyUtil } from "@/lib/formatters";
 import { useUserSettings } from "@/hooks/use-user-settings";
@@ -39,30 +38,20 @@ import { TradeEntryWizard } from "@/components/trade/entry/TradeEntryWizard";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePostTradeAnalysis } from "@/hooks/use-post-trade-analysis";
 import { cn } from "@/lib/utils";
+import { DateRange } from "@/components/trading/DateRangeFilter";
+import { 
+  TradeSummaryStats, 
+  TradeFilters, 
+  OpenPositionsTable, 
+  TradeQuickEntryForm 
+} from "@/components/journal";
 
 // Binance Futures fee rates
-const BINANCE_MAKER_FEE = 0.0002; // 0.02%
-const BINANCE_TAKER_FEE = 0.0005; // 0.05%
-
-// Enhanced form schemas with H9-compliant descriptive error messages
-const tradeFormSchema = z.object({
-  pair: z.string().min(1, "Trading pair is required. Select a pair like BTCUSDT or ETHUSDT."),
-  direction: z.enum(["LONG", "SHORT"]),
-  trade_date: z.string().min(1, "Trade date is required. Select the date when this trade was executed."),
-  quantity: z.coerce.number()
-    .positive("Position size must be greater than zero. Enter the number of contracts or units.")
-    .default(1),
-  pnl: z.coerce.number().optional(),
-  rr_achieved: z.coerce.number().optional(),
-  fee_type: z.enum(["maker", "taker"]).default("taker"),
-  notes: z.string().optional(),
-  trading_account_id: z.string().optional(),
-  status: z.enum(["open", "closed"]).default("closed"),
-});
+const BINANCE_MAKER_FEE = 0.0002;
+const BINANCE_TAKER_FEE = 0.0005;
 
 const closePositionSchema = z.object({
-  exit_price: z.coerce.number()
-    .positive("Exit price must be greater than zero. Enter the price at which you closed the position."),
+  exit_price: z.coerce.number().positive("Exit price must be greater than zero."),
   fees: z.coerce.number().optional(),
   notes: z.string().optional(),
 });
@@ -73,16 +62,13 @@ const editPositionSchema = z.object({
   notes: z.string().optional(),
 });
 
-type TradeFormValues = z.infer<typeof tradeFormSchema>;
 type ClosePositionFormValues = z.infer<typeof closePositionSchema>;
 type EditPositionFormValues = z.infer<typeof editPositionSchema>;
 
 export default function TradingJournal() {
-  const [isAddOpen, setIsAddOpen] = useState(false);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange>({ from: null, to: null });
   const [selectedStrategyIds, setSelectedStrategyIds] = useState<string[]>([]);
-  const [newTradeStrategies, setNewTradeStrategies] = useState<string[]>([]);
   const [deletingTrade, setDeletingTrade] = useState<TradeEntry | null>(null);
   const [closingPosition, setClosingPosition] = useState<TradeEntry | null>(null);
   const [editingPosition, setEditingPosition] = useState<TradeEntry | null>(null);
@@ -104,7 +90,7 @@ export default function TradingJournal() {
   const { syncNow, isSyncing: isAutoSyncing, lastSyncTime, pendingRecords } = useBinanceAutoSync({
     autoSyncOnMount: true,
     enablePeriodicSync: true,
-    syncInterval: 5 * 60 * 1000, // 5 minutes
+    syncInterval: 5 * 60 * 1000,
   });
   
   const createTrade = useCreateTradeEntry();
@@ -115,21 +101,9 @@ export default function TradingJournal() {
 
   // Currency conversion helper
   const displayCurrency = userSettings?.default_currency || 'USD';
-
   const formatCurrency = (value: number, currency: string = 'USD') => {
     return formatCurrencyUtil(value, displayCurrency);
   };
-
-  const form = useForm<TradeFormValues>({
-    resolver: zodResolver(tradeFormSchema),
-    defaultValues: {
-      direction: "LONG",
-      quantity: 1,
-      trade_date: new Date().toISOString().split('T')[0],
-      status: "closed",
-      fee_type: "taker",
-    },
-  });
 
   const closeForm = useForm<ClosePositionFormValues>({
     resolver: zodResolver(closePositionSchema),
@@ -141,10 +115,10 @@ export default function TradingJournal() {
     defaultValues: {},
   });
 
-  // Filter accounts suitable for trading (from trading_accounts table)
+  // Filter accounts suitable for trading
   const activeTradingAccounts = tradingAccounts?.filter(a => a.is_active) || [];
 
-  // Separate open and closed trades (pending not currently in DB schema, but prepared for future)
+  // Separate open and closed trades
   const openPositions = useMemo(() => trades?.filter(t => t.status === 'open') || [], [trades]);
   const closedTrades = useMemo(() => trades?.filter(t => t.status === 'closed') || [], [trades]);
   
@@ -152,12 +126,11 @@ export default function TradingJournal() {
   const binanceTrades = useMemo(() => closedTrades.filter(t => t.source === 'binance'), [closedTrades]);
   const paperTrades = useMemo(() => closedTrades.filter(t => t.source !== 'binance'), [closedTrades]);
 
-  // Filter and sort closed trades by date/strategy/AI score
+  // Filter and sort closed trades
   const filterAndSortTrades = (tradesToFilter: typeof closedTrades) => {
     let filtered = filterTradesByDateRange(tradesToFilter, dateRange.from, dateRange.to);
     filtered = filterTradesByStrategies(filtered, selectedStrategyIds);
     
-    // AI Quality Score sorting
     if (sortByAI !== 'none') {
       filtered = [...filtered].sort((a, b) => {
         const scoreA = a.ai_quality_score ?? -1;
@@ -171,16 +144,14 @@ export default function TradingJournal() {
   
   const filteredBinanceTrades = useMemo(() => filterAndSortTrades(binanceTrades), [binanceTrades, dateRange, selectedStrategyIds, sortByAI]);
   const filteredPaperTrades = useMemo(() => filterAndSortTrades(paperTrades), [paperTrades, dateRange, selectedStrategyIds, sortByAI]);
-  const filteredClosedTrades = useMemo(() => filterAndSortTrades(closedTrades), [closedTrades, dateRange, selectedStrategyIds, sortByAI]);
 
   // Calculate P&L summaries
   const totalUnrealizedPnL = useMemo(() => openPositions.reduce((sum, t) => sum + (t.pnl || 0), 0), [openPositions]);
   const totalRealizedPnL = useMemo(() => closedTrades.reduce((sum, t) => sum + (t.realized_pnl || 0), 0), [closedTrades]);
 
-  // Calculate unrealized P&L for each open position (simulated current price)
+  // Calculate unrealized P&L for each open position (simulated)
   const positionsWithPnL = useMemo(() => {
     return openPositions.map((position) => {
-      // Simulate current price change for demo
       const simulatedPriceChange = (Math.random() - 0.5) * 0.1;
       const currentPrice = position.entry_price * (1 + simulatedPriceChange);
       
@@ -200,37 +171,28 @@ export default function TradingJournal() {
     });
   }, [openPositions]);
 
-  const handleSubmit = async (values: TradeFormValues) => {
-    // Calculate fees based on position size and fee type
+  const handleCreateTrade = async (values: any, strategyIds: string[]) => {
     const feeRate = values.fee_type === 'maker' ? BINANCE_MAKER_FEE : BINANCE_TAKER_FEE;
-    const calculatedFees = values.quantity * feeRate * 2; // Entry + Exit fees
+    const calculatedFees = values.quantity * feeRate * 2;
     
-    try {
-      await createTrade.mutateAsync({
-        pair: values.pair,
-        direction: values.direction,
-        entry_price: 0, // No longer used but required by DB
-        trade_date: values.trade_date,
-        quantity: values.quantity,
-        pnl: values.pnl,
-        fees: calculatedFees,
-        notes: values.notes,
-        trading_account_id: values.trading_account_id,
-        status: values.status,
-        strategy_ids: newTradeStrategies,
-      });
-      setIsAddOpen(false);
-      form.reset();
-      setNewTradeStrategies([]);
-    } catch (error) {
-      // Error handled by mutation
-    }
+    await createTrade.mutateAsync({
+      pair: values.pair,
+      direction: values.direction,
+      entry_price: 0,
+      trade_date: values.trade_date,
+      quantity: values.quantity,
+      pnl: values.pnl,
+      fees: calculatedFees,
+      notes: values.notes,
+      trading_account_id: values.trading_account_id,
+      status: values.status,
+      strategy_ids: strategyIds,
+    });
   };
 
   const handleClosePosition = async (values: ClosePositionFormValues) => {
     if (!closingPosition) return;
     
-    // Calculate P&L based on direction
     const priceDiff = closingPosition.direction === "LONG"
       ? values.exit_price - closingPosition.entry_price
       : closingPosition.entry_price - values.exit_price;
@@ -248,8 +210,6 @@ export default function TradingJournal() {
       });
       setClosingPosition(null);
       closeForm.reset();
-      
-      // Trigger async AI post-trade analysis (non-blocking)
       analyzeClosedTrade(tradeId).catch(console.error);
     } catch (error) {
       // Error handled by mutation
@@ -327,244 +287,24 @@ export default function TradingJournal() {
             <p className="text-muted-foreground">Document every trade for continuous improvement</p>
           </div>
           <div className="flex gap-2">
-            {/* Wizard Entry Button */}
             <Button variant="default" onClick={() => setIsWizardOpen(true)} aria-label="Open trade entry wizard">
               <Wand2 className="mr-2 h-4 w-4" aria-hidden="true" />
               New Trade (Wizard)
             </Button>
-            
-            {/* Quick Entry Dialog */}
-            <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" aria-label="Open quick trade entry form">
-                  <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                  Quick Entry
-                </Button>
-              </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby="trade-form-description">
-              <DialogHeader>
-                <DialogTitle>New Trade Entry</DialogTitle>
-              </DialogHeader>
-              <form onSubmit={form.handleSubmit(handleSubmit)} className="grid gap-4 py-4">
-                {/* Trading Account Selection */}
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Building2 className="h-4 w-4" />
-                    Trading Account
-                  </Label>
-                  <Select 
-                    value={form.watch("trading_account_id") || ""} 
-                    onValueChange={(v) => form.setValue("trading_account_id", v)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={accountsLoading ? "Loading..." : "Select trading account"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {activeTradingAccounts.length === 0 && (
-                        <div className="px-2 py-4 text-center text-sm text-muted-foreground">
-                          No trading accounts found. Create a trading account first.
-                        </div>
-                      )}
-                      {activeTradingAccounts.map((account) => (
-                        <SelectItem key={account.id} value={account.id}>
-                          <div className="flex items-center gap-2">
-                            <TrendingUp className="h-4 w-4" />
-                            <span>{account.name}</span>
-                            <span className="text-xs text-muted-foreground ml-2">
-                              {formatCurrency(Number(account.current_balance), account.currency)}
-                            </span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Trade Status */}
-                <div className="space-y-2">
-                  <Label>Trade Status</Label>
-                  <div className="flex gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        checked={form.watch("status") === "open"}
-                        onChange={() => form.setValue("status", "open")}
-                        className="sr-only"
-                      />
-                      <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
-                        form.watch("status") === "open" 
-                          ? "border-primary bg-primary/10" 
-                          : "border-border hover:border-muted-foreground"
-                      }`}>
-                        <Circle className="h-4 w-4" />
-                        <span>Open Position</span>
-                      </div>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        checked={form.watch("status") === "closed"}
-                        onChange={() => form.setValue("status", "closed")}
-                        className="sr-only"
-                      />
-                      <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
-                        form.watch("status") === "closed" 
-                          ? "border-primary bg-primary/10" 
-                          : "border-border hover:border-muted-foreground"
-                      }`}>
-                        <CheckCircle className="h-4 w-4" />
-                        <span>Closed Trade</span>
-                      </div>
-                    </label>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <Label>Pair *</Label>
-                    <TradingPairCombobox
-                      value={form.watch("pair") || ""}
-                      onValueChange={(v) => form.setValue("pair", v)}
-                      placeholder="Select pair"
-                    />
-                    {form.formState.errors.pair && (
-                      <p className="text-xs text-destructive mt-1">{form.formState.errors.pair.message}</p>
-                    )}
-                  </div>
-                  <div>
-                    <Label>Direction *</Label>
-                    <Select 
-                      value={form.watch("direction")} 
-                      onValueChange={(v) => form.setValue("direction", v as "LONG" | "SHORT")}
-                    >
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="LONG">LONG</SelectItem>
-                        <SelectItem value="SHORT">SHORT</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Date *</Label>
-                    <Input type="date" {...form.register("trade_date")} />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <Label>Position Size *</Label>
-                    <Input type="number" step="any" {...form.register("quantity")} placeholder="1000" />
-                    {form.formState.errors.quantity && (
-                      <p className="text-xs text-destructive mt-1">{form.formState.errors.quantity.message}</p>
-                    )}
-                  </div>
-                  <div>
-                    <Label>P&L *</Label>
-                    <Input type="number" step="any" {...form.register("pnl")} placeholder="0.00" />
-                  </div>
-                  <div>
-                    <Label>R:R Achieved</Label>
-                    <Input type="number" step="any" {...form.register("rr_achieved")} placeholder="1.5" />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Fee Type (Binance Futures)</Label>
-                  <div className="flex gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        checked={form.watch("fee_type") === "maker"}
-                        onChange={() => form.setValue("fee_type", "maker")}
-                        className="sr-only"
-                      />
-                      <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
-                        form.watch("fee_type") === "maker" 
-                          ? "border-primary bg-primary/10" 
-                          : "border-border hover:border-muted-foreground"
-                      }`}>
-                        <span>Maker (0.02%)</span>
-                      </div>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        checked={form.watch("fee_type") === "taker"}
-                        onChange={() => form.setValue("fee_type", "taker")}
-                        className="sr-only"
-                      />
-                      <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
-                        form.watch("fee_type") === "taker" 
-                          ? "border-primary bg-primary/10" 
-                          : "border-border hover:border-muted-foreground"
-                      }`}>
-                        <span>Taker (0.05%)</span>
-                      </div>
-                    </label>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Estimated fee: ${((form.watch("quantity") || 0) * (form.watch("fee_type") === "maker" ? BINANCE_MAKER_FEE : BINANCE_TAKER_FEE) * 2).toFixed(4)}
-                  </p>
-                </div>
-
-                {/* Strategy Selection with Redirect */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label>Strategies Used</Label>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-7 gap-1 text-xs"
-                      asChild
-                    >
-                      <Link to="/strategies">
-                        <Plus className="h-3 w-3" />
-                        Add New Strategy
-                      </Link>
-                    </Button>
-                  </div>
-                  
-                  {strategies.length === 0 ? (
-                    <div className="p-4 border rounded-lg bg-muted/30 text-center">
-                      <p className="text-sm text-muted-foreground mb-2">No strategies yet</p>
-                      <Button variant="outline" size="sm" asChild>
-                        <Link to="/strategies">Create Your First Strategy</Link>
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="flex flex-wrap gap-2">
-                      {strategies.map((strategy) => (
-                        <Badge
-                          key={strategy.id}
-                          variant={newTradeStrategies.includes(strategy.id) ? "default" : "outline"}
-                          className="cursor-pointer"
-                          onClick={() => {
-                            setNewTradeStrategies(prev =>
-                              prev.includes(strategy.id)
-                                ? prev.filter(id => id !== strategy.id)
-                                : [...prev, strategy.id]
-                            );
-                          }}
-                        >
-                          {strategy.name}
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <Label>Notes</Label>
-                  <Textarea {...form.register("notes")} placeholder="Trade analysis and lessons learned..." />
-                </div>
-
-                <Button type="submit" disabled={createTrade.isPending}>
-                  {createTrade.isPending ? "Saving..." : "Save Entry"}
-                </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
+            <TradeQuickEntryForm
+              tradingAccounts={activeTradingAccounts.map(a => ({
+                id: a.id,
+                name: a.name,
+                current_balance: Number(a.current_balance),
+                currency: a.currency,
+                is_active: a.is_active,
+              }))}
+              accountsLoading={accountsLoading}
+              strategies={strategies}
+              onSubmit={handleCreateTrade}
+              isPending={createTrade.isPending}
+              formatCurrency={formatCurrency}
+            />
           </div>
         </div>
         
@@ -581,76 +321,27 @@ export default function TradingJournal() {
           </DialogContent>
         </Dialog>
 
-        {/* P&L Summary Cards - Binance Centered */}
-        <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium flex items-center gap-1">
-                Open Positions
-                {isBinanceConnected && <Wifi className="h-3 w-3 text-profit" />}
-              </CardTitle>
-              <Circle className="h-4 w-4 text-primary" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {isBinanceConnected ? binancePositions.filter(p => p.positionAmt !== 0).length : openPositions.length}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {isBinanceConnected ? 'From Binance' : 'Paper Trading'}
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Unrealized P&L</CardTitle>
-              {(binanceBalance?.totalUnrealizedProfit ?? totalUnrealizedPnL) >= 0 ? (
-                <TrendingUp className="h-4 w-4 text-profit" />
-              ) : (
-                <TrendingDown className="h-4 w-4 text-loss" />
-              )}
-            </CardHeader>
-            <CardContent>
-              <div className={`text-2xl font-bold ${(binanceBalance?.totalUnrealizedProfit ?? totalUnrealizedPnL) >= 0 ? "text-profit" : "text-loss"}`}>
-                {formatCurrency(isBinanceConnected ? (binanceBalance?.totalUnrealizedProfit ?? 0) : totalUnrealizedPnL, "USD")}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {isBinanceConnected ? 'Live from Binance' : 'From paper positions'}
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Closed Trades</CardTitle>
-              <CheckCircle className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{closedTrades.length}</div>
-              <p className="text-xs text-muted-foreground">Completed trades</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Realized P&L</CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className={`text-2xl font-bold ${totalRealizedPnL >= 0 ? "text-profit" : "text-loss"}`}>
-                {formatCurrency(totalRealizedPnL, "USD")}
-              </div>
-              <p className="text-xs text-muted-foreground">From closed trades</p>
-            </CardContent>
-          </Card>
-        </div>
+        {/* P&L Summary Cards */}
+        <TradeSummaryStats
+          openPositionsCount={openPositions.length}
+          binancePositionsCount={binancePositions.filter(p => p.positionAmt !== 0).length}
+          unrealizedPnL={totalUnrealizedPnL}
+          binanceUnrealizedPnL={binanceBalance?.totalUnrealizedProfit}
+          closedTradesCount={closedTrades.length}
+          realizedPnL={totalRealizedPnL}
+          isBinanceConnected={isBinanceConnected}
+          formatCurrency={formatCurrency}
+        />
 
-        {/* Trade Management Card with Unified Tabs */}
+        {/* Trade Management Card */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <BookOpen className="h-5 w-5" />
+              <BookOpen className="h-5 w-5" aria-hidden="true" />
               Trade Management
               {isBinanceConnected && (
                 <Badge variant="outline" className="text-xs gap-1 ml-2">
-                  <Wifi className="h-3 w-3 text-green-500" />
+                  <Wifi className="h-3 w-3 text-green-500" aria-hidden="true" />
                   Binance Connected
                 </Badge>
               )}
@@ -661,7 +352,7 @@ export default function TradingJournal() {
               <TabsList className="grid w-full grid-cols-4 max-w-[600px]">
                 {isBinanceConnected && (
                   <TabsTrigger value="binance" className="gap-2">
-                    <Wifi className="h-4 w-4" />
+                    <Wifi className="h-4 w-4" aria-hidden="true" />
                     <span className="hidden sm:inline">Binance</span>
                     {binancePositions.filter(p => p.positionAmt !== 0).length > 0 && (
                       <Badge variant="secondary" className="ml-1 h-5 px-1.5">
@@ -671,21 +362,21 @@ export default function TradingJournal() {
                   </TabsTrigger>
                 )}
                 <TabsTrigger value="open" className="gap-2">
-                  <Circle className="h-4 w-4" />
+                  <Circle className="h-4 w-4" aria-hidden="true" />
                   <span className="hidden sm:inline">Paper</span>
                   {openPositions.length > 0 && (
                     <Badge variant="secondary" className="ml-1 h-5 px-1.5">{openPositions.length}</Badge>
                   )}
                 </TabsTrigger>
                 <TabsTrigger value="history" className="gap-2">
-                  <CheckCircle className="h-4 w-4" />
+                  <CheckCircle className="h-4 w-4" aria-hidden="true" />
                   <span className="hidden sm:inline">History</span>
                   {closedTrades.length > 0 && (
                     <Badge variant="secondary" className="ml-1 h-5 px-1.5">{closedTrades.length}</Badge>
                   )}
                 </TabsTrigger>
                 <TabsTrigger value="import" className="gap-2">
-                  <Download className="h-4 w-4" />
+                  <Download className="h-4 w-4" aria-hidden="true" />
                   <span className="hidden sm:inline">Import</span>
                 </TabsTrigger>
               </TabsList>
@@ -695,11 +386,11 @@ export default function TradingJournal() {
                 <TabsContent value="binance" className="mt-4">
                   {binancePositionsLoading ? (
                     <div className="flex items-center justify-center py-8">
-                      <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+                      <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" aria-hidden="true" />
                     </div>
                   ) : binancePositions.filter(p => p.positionAmt !== 0).length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-8 text-center">
-                      <AlertCircle className="h-10 w-10 text-muted-foreground mb-3" />
+                      <AlertCircle className="h-10 w-10 text-muted-foreground mb-3" aria-hidden="true" />
                       <h3 className="font-medium">No Active Positions on Binance</h3>
                       <p className="text-sm text-muted-foreground">
                         Open a position on Binance Futures to see it here.
@@ -761,161 +452,42 @@ export default function TradingJournal() {
               
               {/* Paper Trading Open Positions Tab */}
               <TabsContent value="open" className="mt-4">
-                {positionsWithPnL.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-8 text-center">
-                    <AlertCircle className="h-10 w-10 text-muted-foreground mb-3" />
-                    <h3 className="font-medium">No Open Positions</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Create a new trade with status "Open" to track active positions.
-                    </p>
-                  </div>
-                ) : (
-                  <>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Pair</TableHead>
-                          <TableHead>Direction</TableHead>
-                          <TableHead className="text-right">Entry</TableHead>
-                          <TableHead className="text-right">Current</TableHead>
-                          <TableHead className="text-right">Size</TableHead>
-                          <TableHead className="text-right">Unrealized P&L</TableHead>
-                          <TableHead className="text-right">SL / TP</TableHead>
-                          <TableHead className="text-right">Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {positionsWithPnL.map((position) => (
-                          <TableRow key={position.id}>
-                            <TableCell className="font-medium">{position.pair}</TableCell>
-                            <TableCell>
-                              <Badge variant={position.direction === "LONG" ? "default" : "secondary"}>
-                                {position.direction}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-right font-mono">
-                              {formatCurrency(position.entry_price, "USD")}
-                            </TableCell>
-                            <TableCell className="text-right font-mono">
-                              {formatCurrency(position.currentPrice, "USD")}
-                            </TableCell>
-                            <TableCell className="text-right font-mono">{position.quantity}</TableCell>
-                            <TableCell className={`text-right font-mono font-medium ${position.unrealizedPnL >= 0 ? "text-profit" : "text-loss"}`}>
-                              {position.unrealizedPnL >= 0 ? "+" : ""}{formatCurrency(position.unrealizedPnL, "USD")}
-                              <span className="text-xs ml-1">
-                                ({position.unrealizedPnLPercent >= 0 ? "+" : ""}{position.unrealizedPnLPercent.toFixed(2)}%)
-                              </span>
-                            </TableCell>
-                            <TableCell className="text-right text-xs">
-                              <span className="text-loss">{position.stop_loss ? formatCurrency(position.stop_loss, "USD") : "-"}</span>
-                              {" / "}
-                              <span className="text-profit">{position.take_profit ? formatCurrency(position.take_profit, "USD") : "-"}</span>
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <div className="flex gap-1 justify-end">
-                                <Button 
-                                  size="sm" 
-                                  variant="ghost"
-                                  onClick={() => handleOpenEditDialog(position)}
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                                <Button 
-                                  size="sm" 
-                                  variant="outline"
-                                  onClick={() => {
-                                    setClosingPosition(position);
-                                    closeForm.reset();
-                                  }}
-                                >
-                                  <XCircle className="h-4 w-4 mr-1" />
-                                  Close
-                                </Button>
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                                      <MoreVertical className="h-4 w-4" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                                    <DropdownMenuItem onClick={() => setDeletingTrade(position)}>
-                                      <Trash2 className="h-4 w-4 mr-2" />
-                                      Delete
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                    <p className="text-xs text-muted-foreground text-center mt-4">
-                      Note: Current prices are simulated. Integrate with a market data API for live prices.
-                    </p>
-                  </>
-                )}
+                <OpenPositionsTable
+                  positions={positionsWithPnL}
+                  onEdit={handleOpenEditDialog}
+                  onClose={(pos) => {
+                    setClosingPosition(pos);
+                    closeForm.reset();
+                  }}
+                  onDelete={setDeletingTrade}
+                  formatCurrency={formatCurrency}
+                />
               </TabsContent>
               
-              {/* Trade History Tab - With Sub-tabs for Binance (priority) and Paper */}
+              {/* Trade History Tab */}
               <TabsContent value="history" className="mt-4">
-                {/* Filters */}
-                <div className="flex flex-col gap-4 md:flex-row md:items-center mb-4">
-                  <DateRangeFilter value={dateRange} onChange={setDateRange} />
-                  
-                  {/* AI Score Sort Button */}
-                  <Button 
-                    variant={sortByAI !== 'none' ? 'default' : 'outline'} 
-                    size="sm"
-                    onClick={() => setSortByAI(prev => prev === 'none' ? 'desc' : prev === 'desc' ? 'asc' : 'none')}
-                    className="gap-1"
-                  >
-                    <Brain className="h-4 w-4" />
-                    AI Score {sortByAI === 'desc' ? '↓' : sortByAI === 'asc' ? '↑' : ''}
-                    {sortByAI !== 'none' && (
-                      <ArrowUpDown className="h-3 w-3 ml-1" />
-                    )}
-                  </Button>
-                  
-                  {strategies.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {strategies.map((strategy) => (
-                        <Badge
-                          key={strategy.id}
-                          variant={selectedStrategyIds.includes(strategy.id) ? "default" : "outline"}
-                          className="cursor-pointer"
-                          onClick={() => {
-                            setSelectedStrategyIds(prev =>
-                              prev.includes(strategy.id)
-                                ? prev.filter(id => id !== strategy.id)
-                                : [...prev, strategy.id]
-                            );
-                          }}
-                        >
-                          {strategy.name}
-                        </Badge>
-                      ))}
-                      {selectedStrategyIds.length > 0 && (
-                        <Button variant="ghost" size="sm" onClick={() => setSelectedStrategyIds([])}>
-                          Clear
-                        </Button>
-                      )}
-                    </div>
-                  )}
-                </div>
+                <TradeFilters
+                  dateRange={dateRange}
+                  onDateRangeChange={setDateRange}
+                  sortByAI={sortByAI}
+                  onSortByAIChange={setSortByAI}
+                  strategies={strategies}
+                  selectedStrategyIds={selectedStrategyIds}
+                  onStrategyIdsChange={setSelectedStrategyIds}
+                />
 
-                {/* Sub-tabs: Binance History (priority) and Paper History */}
+                {/* Sub-tabs: Binance History and Paper History */}
                 <Tabs defaultValue="binance-history" className="w-full">
                   <TabsList className="mb-4">
                     <TabsTrigger value="binance-history" className="gap-2">
-                      <Wifi className="h-4 w-4" />
+                      <Wifi className="h-4 w-4" aria-hidden="true" />
                       Binance
                       {filteredBinanceTrades.length > 0 && (
                         <Badge variant="secondary" className="ml-1 h-5 px-1.5">{filteredBinanceTrades.length}</Badge>
                       )}
                     </TabsTrigger>
                     <TabsTrigger value="paper-history" className="gap-2">
-                      <BookOpen className="h-4 w-4" />
+                      <BookOpen className="h-4 w-4" aria-hidden="true" />
                       Paper
                       {filteredPaperTrades.length > 0 && (
                         <Badge variant="secondary" className="ml-1 h-5 px-1.5">{filteredPaperTrades.length}</Badge>
@@ -923,14 +495,13 @@ export default function TradingJournal() {
                     </TabsTrigger>
                   </TabsList>
                   
-                  {/* Binance History Sub-Tab (Priority) */}
+                  {/* Binance History Sub-Tab */}
                   <TabsContent value="binance-history">
                     <div className="space-y-4">
-                      {/* Auto-sync status bar */}
                       {isBinanceConnected && (
                         <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border">
                           <div className="flex items-center gap-2 text-sm">
-                            <History className="h-4 w-4 text-muted-foreground" />
+                            <History className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                             <span className="text-muted-foreground">
                               {lastSyncTime 
                                 ? `Last sync: ${format(lastSyncTime, 'HH:mm:ss')}`
@@ -947,8 +518,9 @@ export default function TradingJournal() {
                             size="sm" 
                             onClick={syncNow}
                             disabled={isAutoSyncing}
+                            aria-label="Sync trades from Binance"
                           >
-                            <RefreshCw className={`h-4 w-4 mr-2 ${isAutoSyncing ? 'animate-spin' : ''}`} />
+                            <RefreshCw className={`h-4 w-4 mr-2 ${isAutoSyncing ? 'animate-spin' : ''}`} aria-hidden="true" />
                             {isAutoSyncing ? 'Syncing...' : 'Sync Now'}
                           </Button>
                         </div>
@@ -991,11 +563,7 @@ export default function TradingJournal() {
                         <EmptyState
                           icon={BookOpen}
                           title="No paper trades found"
-                          description="No paper trades match your current filters. Try adjusting the date range or strategy filters."
-                          action={{
-                            label: "Add Paper Trade",
-                            onClick: () => setIsAddOpen(true),
-                          }}
+                          description="No paper trades match your current filters."
                         />
                       ) : (
                         filteredPaperTrades.map((entry) => (
@@ -1018,13 +586,10 @@ export default function TradingJournal() {
               <TabsContent value="import" className="mt-4">
                 {isBinanceConnected ? (
                   <div className="space-y-6">
-                    {/* Live Income History - Shows ALL trades from Binance API */}
                     <BinanceIncomeHistory showHeader={true} limit={100} defaultFilter="pnl" />
-                    
-                    {/* Manual Import from specific symbol trades */}
                     <div className="border-t pt-6">
                       <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                        <Download className="h-5 w-5" />
+                        <Download className="h-5 w-5" aria-hidden="true" />
                         Manual Import by Symbol
                       </h3>
                       <BinanceTradeHistory />
@@ -1034,18 +599,18 @@ export default function TradingJournal() {
                   <div className="text-center py-12 space-y-4">
                     <div className="flex justify-center">
                       <div className="rounded-full bg-muted p-4">
-                        <Wifi className="h-8 w-8 text-muted-foreground" />
+                        <Wifi className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
                       </div>
                     </div>
                     <div className="space-y-2">
                       <h3 className="text-lg font-medium">Connect Binance to Import Trades</h3>
                       <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                        Connect your Binance Futures account in Settings to import your trade history and sync positions.
+                        Connect your Binance Futures account in Settings to import your trade history.
                       </p>
                     </div>
                     <Button variant="outline" asChild>
                       <Link to="/settings">
-                        <Wifi className="h-4 w-4 mr-2" />
+                        <Wifi className="h-4 w-4 mr-2" aria-hidden="true" />
                         Go to Settings
                       </Link>
                     </Button>
@@ -1056,7 +621,7 @@ export default function TradingJournal() {
           </CardContent>
         </Card>
 
-        {/* Pro Tip - Moved to bottom */}
+        {/* Pro Tip */}
         <QuickTip storageKey="trading_journal_tip" className="mb-2">
           <strong>Pro tip:</strong> Document every trade with detailed notes and tag your strategies. 
           Focus on quality setups and review your patterns to improve your trading edge.
@@ -1157,6 +722,7 @@ export default function TradingJournal() {
           </DialogContent>
         </Dialog>
 
+        {/* Delete Confirmation */}
         <ConfirmDialog
           open={!!deletingTrade}
           onOpenChange={(open) => !open && setDeletingTrade(null)}
