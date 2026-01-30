@@ -75,8 +75,8 @@ export function NavGroup({
                   isActive={isActive(item.url)}
                 >
                   <Link to={item.url} onClick={handleNavClick}>
-                    <item.icon className="h-4 w-4" />
-                    <span>{item.title}</span>
+                    <item.icon className="h-4 w-4 shrink-0" />
+                    <span className="truncate">{item.title}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -98,12 +98,12 @@ export function NavGroup({
           asChild
           className="group/label h-8 text-sm text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
         >
-          <CollapsibleTrigger className="flex w-full items-center">
+          <CollapsibleTrigger className="flex w-full min-w-0 items-center overflow-hidden">
             <GroupIcon className={cn(
-              "mr-2 h-4 w-4",
+              "mr-2 h-4 w-4 shrink-0",
               hasActiveItem && "text-primary"
             )} />
-            <span className="flex-1 text-left truncate">{title}</span>
+            <span className="flex-1 min-w-0 text-left truncate">{title}</span>
             <ChevronRight
               className={cn(
                 "ml-auto h-4 w-4 shrink-0 transition-transform duration-200",
@@ -114,7 +114,7 @@ export function NavGroup({
         </SidebarGroupLabel>
         <CollapsibleContent>
           <SidebarGroupContent>
-            <SidebarMenu className="pl-4 border-l border-sidebar-border ml-3">
+            <SidebarMenu className="mt-1">
               {items.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
@@ -123,8 +123,8 @@ export function NavGroup({
                     className="h-8"
                   >
                     <Link to={item.url} onClick={handleNavClick}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
+                      <item.icon className="h-4 w-4 shrink-0" />
+                      <span className="truncate">{item.title}</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
