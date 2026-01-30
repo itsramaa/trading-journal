@@ -216,37 +216,51 @@ export function PositionSizeCalculator({
           </div>
 
           <div className="space-y-2">
-            <Label>Direction</Label>
-            <div className="flex gap-2">
+            <Label className="flex items-center gap-2">
+              Direction
+              <InfoTooltip 
+                content="Long: profit when price goes up. Short: profit when price goes down. Choose based on your market analysis."
+                variant="info"
+              />
+            </Label>
+            <div className="flex gap-2" role="group" aria-label="Trade direction">
               <button
                 type="button"
                 onClick={() => setDirection('long')}
+                aria-pressed={direction === 'long'}
                 className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-md border transition-colors ${
                   direction === 'long'
                     ? 'bg-profit-muted border-profit/50 text-profit'
                     : 'border-border hover:bg-accent'
                 }`}
               >
-                <TrendingUp className="h-4 w-4" />
+                <TrendingUp className="h-4 w-4" aria-hidden="true" />
                 Long
               </button>
               <button
                 type="button"
                 onClick={() => setDirection('short')}
+                aria-pressed={direction === 'short'}
                 className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-md border transition-colors ${
                   direction === 'short'
                     ? 'bg-loss-muted border-loss/50 text-loss'
                     : 'border-border hover:bg-accent'
                 }`}
               >
-                <TrendingDown className="h-4 w-4" />
+                <TrendingDown className="h-4 w-4" aria-hidden="true" />
                 Short
               </button>
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label>Leverage</Label>
+            <Label className="flex items-center gap-2">
+              Leverage
+              <InfoTooltip 
+                content="Multiplies both gains and losses. 10x leverage means 1% price move = 10% account change. Higher leverage = higher liquidation risk."
+                variant="warning"
+              />
+            </Label>
             <div className="flex items-center gap-3">
               <Slider
                 value={[leverage]}
@@ -255,6 +269,7 @@ export function PositionSizeCalculator({
                 max={20}
                 step={1}
                 className="flex-1"
+                aria-label={`Leverage: ${leverage}x`}
               />
               <span className="w-12 text-right font-medium">{leverage}x</span>
             </div>
