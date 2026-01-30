@@ -21,11 +21,13 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Calendar, Tag, Target, Building2, TrendingUp, TrendingDown, BookOpen, MoreVertical, Trash2, Clock, CheckCircle, Circle, DollarSign, XCircle, AlertCircle, Edit, Wand2, Timer, Brain, ArrowUpDown } from "lucide-react";
+import { Plus, Calendar, Tag, Target, Building2, TrendingUp, TrendingDown, BookOpen, MoreVertical, Trash2, Clock, CheckCircle, Circle, DollarSign, XCircle, AlertCircle, Edit, Wand2, Timer, Brain, ArrowUpDown, Wifi, RefreshCw, Download } from "lucide-react";
 import { format } from "date-fns";
 import { useTradingAccounts } from "@/hooks/use-trading-accounts";
 import { useTradeEntries, useCreateTradeEntry, useDeleteTradeEntry, useClosePosition, useUpdateTradeEntry, TradeEntry } from "@/hooks/use-trade-entries";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
+import { useBinancePositions, useBinanceBalance, useBinanceConnectionStatus } from "@/features/binance";
+import { BinanceTradeHistory } from "@/components/trading/BinanceTradeHistory";
 
 import { filterTradesByDateRange, filterTradesByStrategies } from "@/lib/trading-calculations";
 import { formatCurrency as formatCurrencyUtil } from "@/lib/formatters";
@@ -84,6 +86,12 @@ export default function TradingJournal() {
   const { data: tradingAccounts, isLoading: accountsLoading } = useTradingAccounts();
   const { data: trades, isLoading: tradesLoading } = useTradeEntries();
   const { data: strategies = [] } = useTradingStrategies();
+  
+  // Binance data
+  const { data: connectionStatus } = useBinanceConnectionStatus();
+  const { data: binancePositions = [], isLoading: binancePositionsLoading } = useBinancePositions();
+  const { data: binanceBalance } = useBinanceBalance();
+  const isBinanceConnected = connectionStatus?.isConnected ?? false;
   
   const createTrade = useCreateTradeEntry();
   const deleteTrade = useDeleteTradeEntry();
@@ -548,32 +556,41 @@ export default function TradingJournal() {
           </DialogContent>
         </Dialog>
 
-        {/* P&L Summary Cards */}
+        {/* P&L Summary Cards - Binance Centered */}
         <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Open Positions</CardTitle>
+              <CardTitle className="text-sm font-medium flex items-center gap-1">
+                Open Positions
+                {isBinanceConnected && <Wifi className="h-3 w-3 text-green-500" />}
+              </CardTitle>
               <Circle className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{openPositions.length}</div>
-              <p className="text-xs text-muted-foreground">Active trades</p>
+              <div className="text-2xl font-bold">
+                {isBinanceConnected ? binancePositions.filter(p => p.positionAmt !== 0).length : openPositions.length}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {isBinanceConnected ? 'From Binance' : 'Paper Trading'}
+              </p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Unrealized P&L</CardTitle>
-              {totalUnrealizedPnL >= 0 ? (
+              {(binanceBalance?.totalUnrealizedProfit ?? totalUnrealizedPnL) >= 0 ? (
                 <TrendingUp className="h-4 w-4 text-profit" />
               ) : (
                 <TrendingDown className="h-4 w-4 text-loss" />
               )}
             </CardHeader>
             <CardContent>
-              <div className={`text-2xl font-bold ${totalUnrealizedPnL >= 0 ? "text-profit" : "text-loss"}`}>
-                {formatCurrency(totalUnrealizedPnL, "USD")}
+              <div className={`text-2xl font-bold ${(binanceBalance?.totalUnrealizedProfit ?? totalUnrealizedPnL) >= 0 ? "text-profit" : "text-loss"}`}>
+                {formatCurrency(isBinanceConnected ? (binanceBalance?.totalUnrealizedProfit ?? 0) : totalUnrealizedPnL, "USD")}
               </div>
-              <p className="text-xs text-muted-foreground">From open positions</p>
+              <p className="text-xs text-muted-foreground">
+                {isBinanceConnected ? 'Live from Binance' : 'From paper positions'}
+              </p>
             </CardContent>
           </Card>
           <Card>
@@ -606,14 +623,31 @@ export default function TradingJournal() {
             <CardTitle className="flex items-center gap-2">
               <BookOpen className="h-5 w-5" />
               Trade Management
+              {isBinanceConnected && (
+                <Badge variant="outline" className="text-xs gap-1 ml-2">
+                  <Wifi className="h-3 w-3 text-green-500" />
+                  Binance Connected
+                </Badge>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Tabs defaultValue="open">
-              <TabsList className="grid w-full grid-cols-3 max-w-[500px]">
+            <Tabs defaultValue={isBinanceConnected ? "binance" : "open"}>
+              <TabsList className="grid w-full grid-cols-4 max-w-[600px]">
+                {isBinanceConnected && (
+                  <TabsTrigger value="binance" className="gap-2">
+                    <Wifi className="h-4 w-4" />
+                    <span className="hidden sm:inline">Binance</span>
+                    {binancePositions.filter(p => p.positionAmt !== 0).length > 0 && (
+                      <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                        {binancePositions.filter(p => p.positionAmt !== 0).length}
+                      </Badge>
+                    )}
+                  </TabsTrigger>
+                )}
                 <TabsTrigger value="open" className="gap-2">
                   <Circle className="h-4 w-4" />
-                  <span className="hidden sm:inline">Open</span>
+                  <span className="hidden sm:inline">Paper</span>
                   {openPositions.length > 0 && (
                     <Badge variant="secondary" className="ml-1 h-5 px-1.5">{openPositions.length}</Badge>
                   )}
@@ -625,14 +659,82 @@ export default function TradingJournal() {
                     <Badge variant="secondary" className="ml-1 h-5 px-1.5">{closedTrades.length}</Badge>
                   )}
                 </TabsTrigger>
-                <TabsTrigger value="pending" className="gap-2">
-                  <Clock className="h-4 w-4" />
-                  <span className="hidden sm:inline">Pending</span>
-                  <Badge variant="outline" className="ml-1 h-5 px-1.5">0</Badge>
+                <TabsTrigger value="import" className="gap-2">
+                  <Download className="h-4 w-4" />
+                  <span className="hidden sm:inline">Import</span>
                 </TabsTrigger>
               </TabsList>
               
-              {/* Open Positions Tab */}
+              {/* Binance Positions Tab */}
+              {isBinanceConnected && (
+                <TabsContent value="binance" className="mt-4">
+                  {binancePositionsLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : binancePositions.filter(p => p.positionAmt !== 0).length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-8 text-center">
+                      <AlertCircle className="h-10 w-10 text-muted-foreground mb-3" />
+                      <h3 className="font-medium">No Active Positions on Binance</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Open a position on Binance Futures to see it here.
+                      </p>
+                    </div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Symbol</TableHead>
+                          <TableHead>Side</TableHead>
+                          <TableHead className="text-right">Size</TableHead>
+                          <TableHead className="text-right">Entry</TableHead>
+                          <TableHead className="text-right">Mark</TableHead>
+                          <TableHead className="text-right">PNL</TableHead>
+                          <TableHead className="text-right">Liq. Price</TableHead>
+                          <TableHead className="text-right">Leverage</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {binancePositions
+                          .filter(p => p.positionAmt !== 0)
+                          .map((position) => (
+                            <TableRow key={position.symbol}>
+                              <TableCell className="font-medium">{position.symbol}</TableCell>
+                              <TableCell>
+                                <Badge variant={position.positionAmt > 0 ? "default" : "secondary"}>
+                                  {position.positionAmt > 0 ? 'LONG' : 'SHORT'}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-right font-mono">
+                                {Math.abs(position.positionAmt).toFixed(4)}
+                              </TableCell>
+                              <TableCell className="text-right font-mono">
+                                ${position.entryPrice.toFixed(2)}
+                              </TableCell>
+                              <TableCell className="text-right font-mono">
+                                ${position.markPrice.toFixed(2)}
+                              </TableCell>
+                              <TableCell className={cn(
+                                "text-right font-mono font-medium",
+                                position.unrealizedProfit >= 0 ? "text-green-500" : "text-red-500"
+                              )}>
+                                {position.unrealizedProfit >= 0 ? '+' : ''}${position.unrealizedProfit.toFixed(2)}
+                              </TableCell>
+                              <TableCell className="text-right font-mono text-muted-foreground">
+                                ${position.liquidationPrice.toFixed(2)}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Badge variant="outline">{position.leverage}x</Badge>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </TabsContent>
+              )}
+              
+              {/* Paper Trading Open Positions Tab */}
               <TabsContent value="open" className="mt-4">
                 {positionsWithPnL.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-8 text-center">
@@ -886,31 +988,31 @@ export default function TradingJournal() {
                 </div>
               </TabsContent>
 
-              {/* Pending Orders Tab */}
-              <TabsContent value="pending" className="mt-4">
-                <div className="text-center py-12 space-y-4">
-                  <div className="flex justify-center">
-                    <div className="rounded-full bg-muted p-4">
-                      <Clock className="h-8 w-8 text-muted-foreground" />
+              {/* Import from Binance Tab */}
+              <TabsContent value="import" className="mt-4">
+                {isBinanceConnected ? (
+                  <BinanceTradeHistory />
+                ) : (
+                  <div className="text-center py-12 space-y-4">
+                    <div className="flex justify-center">
+                      <div className="rounded-full bg-muted p-4">
+                        <Wifi className="h-8 w-8 text-muted-foreground" />
+                      </div>
                     </div>
+                    <div className="space-y-2">
+                      <h3 className="text-lg font-medium">Connect Binance to Import Trades</h3>
+                      <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                        Connect your Binance Futures account in Settings to import your trade history and sync positions.
+                      </p>
+                    </div>
+                    <Button variant="outline" asChild>
+                      <Link to="/settings">
+                        <Wifi className="h-4 w-4 mr-2" />
+                        Go to Settings
+                      </Link>
+                    </Button>
                   </div>
-                  <div className="space-y-2">
-                    <h3 className="text-lg font-medium">No Pending Orders</h3>
-                    <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                      Pending orders are limit orders that haven't been filled yet. 
-                      When you set a limit order entry through the wizard, it will appear here until filled.
-                    </p>
-                  </div>
-                  <div className="flex flex-col items-center gap-2 pt-4">
-                    <Badge variant="outline" className="gap-1">
-                      <AlertCircle className="h-3 w-3" />
-                      Coming Soon
-                    </Badge>
-                    <p className="text-xs text-muted-foreground">
-                      Limit order tracking will be available in a future update.
-                    </p>
-                  </div>
-                </div>
+                )}
               </TabsContent>
             </Tabs>
           </CardContent>

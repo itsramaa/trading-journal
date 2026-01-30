@@ -1,14 +1,15 @@
 /**
  * Risk Summary Card - Shows daily risk status on dashboard
+ * Now displays Binance badge when using real data
  */
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Shield, AlertTriangle, XCircle, CheckCircle } from "lucide-react";
+import { Shield, AlertTriangle, XCircle, CheckCircle, Wifi } from "lucide-react";
 import { useDailyRiskStatus } from "@/hooks/use-risk-profile";
 
 export function RiskSummaryCard() {
-  const { data: riskStatus, riskProfile } = useDailyRiskStatus();
+  const { data: riskStatus, riskProfile, isBinanceConnected } = useDailyRiskStatus();
 
   if (!riskProfile) {
     return (
@@ -68,12 +69,6 @@ export function RiskSummaryCard() {
     }
   };
 
-  const progressColor = () => {
-    if (riskStatus.loss_used_percent >= 90) return 'bg-red-500';
-    if (riskStatus.loss_used_percent >= 70) return 'bg-yellow-500';
-    return 'bg-green-500';
-  };
-
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -81,6 +76,12 @@ export function RiskSummaryCard() {
           <CardTitle className="text-sm font-medium flex items-center gap-2">
             <Shield className="h-4 w-4" />
             Risk Status
+            {isBinanceConnected && (
+              <Badge variant="outline" className="text-xs gap-1 ml-1">
+                <Wifi className="h-3 w-3" />
+                Binance
+              </Badge>
+            )}
           </CardTitle>
           {getStatusBadge()}
         </div>

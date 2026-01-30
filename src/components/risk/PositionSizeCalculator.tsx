@@ -1,6 +1,6 @@
 /**
  * Position Size Calculator Component - Per Trading Journey Markdown spec
- * Now uses risk profile settings and account balances as defaults
+ * Now uses Binance balance as primary source when connected
  */
 import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,10 +11,10 @@ import { Slider } from "@/components/ui/slider";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Calculator, AlertTriangle, CheckCircle, TrendingUp, TrendingDown } from "lucide-react";
+import { Calculator, AlertTriangle, CheckCircle, TrendingUp, TrendingDown, Wifi } from "lucide-react";
 import { calculatePositionSize } from "@/lib/calculations/position-sizing";
 import { useRiskProfile } from "@/hooks/use-risk-profile";
-import { useAccounts } from "@/hooks/use-accounts";
+import { useBestAvailableBalance } from "@/hooks/use-combined-balance";
 
 interface PositionSizeCalculatorProps {
   accountBalance?: number;
@@ -26,19 +26,16 @@ export function PositionSizeCalculator({
   onCalculate 
 }: PositionSizeCalculatorProps) {
   const { data: riskProfile, isLoading: profileLoading } = useRiskProfile();
-  const { data: accounts, isLoading: accountsLoading } = useAccounts();
+  const { balance: combinedBalance, source, isLoading: balanceLoading } = useBestAvailableBalance();
   
-  // Get total trading account balance
-  const tradingBalance = useMemo(() => {
-    if (!accounts) return initialBalance || 10000;
-    const tradingAccounts = accounts.filter(a => 
-      a.account_type === 'trading' && a.is_active
-    );
-    const total = tradingAccounts.reduce((sum, a) => sum + (a.balance || 0), 0);
-    return total > 0 ? total : (initialBalance || 10000);
-  }, [accounts, initialBalance]);
+  // Use combined balance (Binance if connected, else Paper accounts)
+  const defaultBalance = useMemo(() => {
+    if (initialBalance && initialBalance > 0) return initialBalance;
+    if (combinedBalance > 0) return combinedBalance;
+    return 10000;
+  }, [combinedBalance, initialBalance]);
   
-  const [accountBalance, setAccountBalance] = useState(tradingBalance);
+  const [accountBalance, setAccountBalance] = useState(defaultBalance);
   const [riskPercent, setRiskPercent] = useState(2);
   const [entryPrice, setEntryPrice] = useState(50000);
   const [stopLossPrice, setStopLossPrice] = useState(49000);
@@ -52,12 +49,12 @@ export function PositionSizeCalculator({
     }
   }, [riskProfile]);
   
-  // Update when trading balance changes
+  // Update when combined balance changes
   useEffect(() => {
-    if (tradingBalance > 0) {
-      setAccountBalance(tradingBalance);
+    if (defaultBalance > 0) {
+      setAccountBalance(defaultBalance);
     }
-  }, [tradingBalance]);
+  }, [defaultBalance]);
 
   const result = useMemo(() => {
     const calc = calculatePositionSize({
@@ -85,7 +82,7 @@ export function PositionSizeCalculator({
     return value.toFixed(8);
   };
 
-  const isLoading = profileLoading || accountsLoading;
+  const isLoading = profileLoading || balanceLoading;
 
   if (isLoading) {
     return (
@@ -128,18 +125,24 @@ export function PositionSizeCalculator({
         {/* Input Section */}
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
-            <Label>Account Balance ($)</Label>
+            <Label className="flex items-center gap-2">
+              Account Balance ($)
+              {source === 'binance' && (
+                <Badge variant="outline" className="text-xs gap-1">
+                  <Wifi className="h-3 w-3" />
+                  Binance
+                </Badge>
+              )}
+            </Label>
             <Input
               type="number"
               value={accountBalance}
               onChange={(e) => setAccountBalance(Number(e.target.value))}
               min={0}
             />
-            {accounts && accounts.length > 0 && (
-              <p className="text-xs text-muted-foreground">
-                From {accounts.filter(a => a.account_type === 'trading' && a.is_active).length} active trading account(s)
-              </p>
-            )}
+            <p className="text-xs text-muted-foreground">
+              {source === 'binance' ? 'From Binance wallet' : 'From paper trading account(s)'}
+            </p>
           </div>
           
           <div className="space-y-2">

@@ -1,15 +1,16 @@
 /**
  * Daily Loss Tracker - Visual gauge for daily loss limit
+ * Now Binance-centered with badge indicator
  */
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { TrendingDown, AlertTriangle, CheckCircle, XCircle } from "lucide-react";
+import { TrendingDown, AlertTriangle, CheckCircle, XCircle, Wifi } from "lucide-react";
 import { useDailyRiskStatus, useRiskProfile } from "@/hooks/use-risk-profile";
 import { RISK_THRESHOLDS } from "@/types/risk";
 
 export function DailyLossTracker() {
-  const { data: riskStatus } = useDailyRiskStatus();
+  const { data: riskStatus, isBinanceConnected } = useDailyRiskStatus();
   const { data: riskProfile } = useRiskProfile();
 
   if (!riskProfile || !riskStatus) {
@@ -35,13 +36,6 @@ export function DailyLossTracker() {
     return 'text-green-500';
   };
 
-  const getProgressColor = () => {
-    if (riskStatus.loss_used_percent >= 100) return 'bg-red-500';
-    if (riskStatus.loss_used_percent >= RISK_THRESHOLDS.danger_percent) return 'bg-red-500';
-    if (riskStatus.loss_used_percent >= RISK_THRESHOLDS.warning_percent) return 'bg-yellow-500';
-    return 'bg-green-500';
-  };
-
   const getStatusIcon = () => {
     if (riskStatus.loss_used_percent >= 100) {
       return <XCircle className="h-6 w-6 text-red-500" />;
@@ -62,6 +56,12 @@ export function DailyLossTracker() {
             <CardTitle className="flex items-center gap-2">
               <TrendingDown className="h-5 w-5" />
               Daily Loss Tracker
+              {isBinanceConnected && (
+                <Badge variant="outline" className="text-xs gap-1 ml-1">
+                  <Wifi className="h-3 w-3" />
+                  Live
+                </Badge>
+              )}
             </CardTitle>
             <CardDescription>
               {riskProfile.max_daily_loss_percent}% max daily loss limit
@@ -94,7 +94,9 @@ export function DailyLossTracker() {
         {/* Stats Grid */}
         <div className="grid grid-cols-2 gap-4">
           <div className="p-3 rounded-lg bg-muted/50">
-            <p className="text-xs text-muted-foreground">Starting Balance</p>
+            <p className="text-xs text-muted-foreground">
+              {isBinanceConnected ? 'Wallet Balance' : 'Starting Balance'}
+            </p>
             <p className="text-lg font-semibold">
               {formatCurrency(riskStatus.starting_balance)}
             </p>

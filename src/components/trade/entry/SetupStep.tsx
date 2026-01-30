@@ -1,7 +1,8 @@
 /**
  * Step 1: Setup (Combined Pre-validation + Strategy + Basic Details)
+ * Now supports Binance account selection when connected
  */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +12,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { 
   CheckCircle, XCircle, AlertTriangle, Loader2, ShieldCheck, 
   Building2, Brain, Sparkles, TrendingUp, TrendingDown, Target, 
-  Clock, ChevronDown, Layers
+  Clock, ChevronDown, Layers, Wifi
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePreTradeValidation } from "@/features/trade/usePreTradeValidation";
@@ -21,6 +22,7 @@ import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { useAIPreflight } from "@/features/ai/useAIPreflight";
 import { TradingPairCombobox } from "@/components/ui/trading-pair-combobox";
 import { TIMEFRAME_OPTIONS, type TimeframeType } from "@/types/strategy";
+import { useBinanceBalance, useBinanceConnectionStatus } from "@/features/binance";
 import type { ValidationResult } from "@/types/trade-wizard";
 
 interface SetupStepProps {
@@ -65,12 +67,26 @@ function ValidationItem({ result, label }: { result: ValidationResult; label: st
 }
 
 export function SetupStep({ onNext, onCancel }: SetupStepProps) {
-  // Account state
-  const [selectedAccountId, setSelectedAccountId] = useState<string>("");
+  // Account type: 'binance' or paper account ID
+  const [selectedAccountType, setSelectedAccountType] = useState<'binance' | string>('');
+  
+  // Binance connection
+  const { data: connectionStatus } = useBinanceConnectionStatus();
+  const { data: binanceBalance } = useBinanceBalance();
+  const isBinanceConnected = connectionStatus?.isConnected ?? false;
+  
+  // Paper trading accounts
   const { data: tradingAccounts, isLoading: accountsLoading } = useTradingAccounts();
   const activeTradingAccounts = tradingAccounts?.filter(a => a.is_active) || [];
-  const selectedAccount = activeTradingAccounts.find(a => a.id === selectedAccountId);
-  const accountBalance = selectedAccount ? Number(selectedAccount.current_balance) : 0;
+  
+  // Get balance based on selection
+  const accountBalance = useMemo(() => {
+    if (selectedAccountType === 'binance' && binanceBalance) {
+      return binanceBalance.availableBalance;
+    }
+    const paperAccount = activeTradingAccounts.find(a => a.id === selectedAccountType);
+    return paperAccount ? Number(paperAccount.current_balance) : 0;
+  }, [selectedAccountType, binanceBalance, activeTradingAccounts]);
 
   // Strategy state
   const { data: strategies = [], isLoading: strategiesLoading } = useTradingStrategies();
@@ -91,9 +107,16 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
   const [hasRunValidation, setHasRunValidation] = useState(false);
   const [sectionsOpen, setSectionsOpen] = useState({ validation: true, strategy: true, trade: true });
 
+  // Auto-select Binance if connected
+  useEffect(() => {
+    if (isBinanceConnected && !selectedAccountType) {
+      setSelectedAccountType('binance');
+    }
+  }, [isBinanceConnected]);
+
   // Initialize from wizard state
   useEffect(() => {
-    if (wizard.tradingAccountId) setSelectedAccountId(wizard.tradingAccountId);
+    if (wizard.tradingAccountId) setSelectedAccountType(wizard.tradingAccountId);
     if (wizard.selectedStrategyId) setSelectedStrategyId(wizard.selectedStrategyId);
     if (wizard.tradeDetails) {
       setPair(wizard.tradeDetails.pair);
@@ -104,14 +127,14 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
 
   // Run validation when account changes
   useEffect(() => {
-    if (selectedAccountId && accountBalance > 0) {
+    if (selectedAccountType && accountBalance > 0) {
       const result = runAllChecks();
       setValidationResult(result);
       setHasRunValidation(true);
       wizard.setPreValidation(result);
-      wizard.setTradingAccount(selectedAccountId, accountBalance);
+      wizard.setTradingAccount(selectedAccountType, accountBalance);
     }
-  }, [selectedAccountId, accountBalance]);
+  }, [selectedAccountType, accountBalance]);
 
   // Update wizard when strategy changes
   useEffect(() => {
@@ -126,7 +149,7 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
   }, [selectedStrategyId, selectedStrategy]);
 
   // Check if can proceed
-  const isAccountSelected = !!selectedAccountId;
+  const isAccountSelected = !!selectedAccountType;
   const isValidationPassed = validationResult?.canProceed ?? false;
   const isStrategySelected = !!selectedStrategyId;
   const isPairSelected = !!pair;
@@ -183,16 +206,32 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
               <Building2 className="h-4 w-4" />
               Trading Account
             </Label>
-            <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
+            <Select value={selectedAccountType} onValueChange={setSelectedAccountType}>
               <SelectTrigger>
                 <SelectValue placeholder={accountsLoading ? "Loading..." : "Select account"} />
               </SelectTrigger>
               <SelectContent>
-                {activeTradingAccounts.length === 0 && (
-                  <div className="px-2 py-4 text-center text-sm text-muted-foreground">
-                    No trading accounts found
+                {/* Binance Account Option (if connected) */}
+                {isBinanceConnected && binanceBalance && (
+                  <SelectItem value="binance">
+                    <div className="flex items-center gap-2">
+                      <Wifi className="h-4 w-4 text-green-500" />
+                      <span>Binance Futures</span>
+                      <span className="text-xs text-muted-foreground">
+                        ${binanceBalance.availableBalance.toLocaleString()}
+                      </span>
+                    </div>
+                  </SelectItem>
+                )}
+                
+                {/* Separator if both options exist */}
+                {isBinanceConnected && activeTradingAccounts.length > 0 && (
+                  <div className="px-2 py-1 text-xs text-muted-foreground border-t mt-1 pt-2">
+                    Paper Trading
                   </div>
                 )}
+                
+                {/* Paper Trading Accounts */}
                 {activeTradingAccounts.map((account) => (
                   <SelectItem key={account.id} value={account.id}>
                     <div className="flex items-center gap-2">
@@ -203,12 +242,25 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
                     </div>
                   </SelectItem>
                 ))}
+                
+                {!isBinanceConnected && activeTradingAccounts.length === 0 && (
+                  <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+                    No trading accounts found
+                  </div>
+                )}
               </SelectContent>
             </Select>
+            
+            {selectedAccountType === 'binance' && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <Wifi className="h-3 w-3 text-green-500" />
+                Using live Binance Futures account
+              </p>
+            )}
           </div>
 
           {/* Pre-validation Section */}
-          {selectedAccountId && (
+          {selectedAccountType && (
             <Collapsible open={sectionsOpen.validation} onOpenChange={(open) => setSectionsOpen(p => ({ ...p, validation: open }))}>
               <CollapsibleTrigger asChild>
                 <Button variant="ghost" className="w-full justify-between p-2 h-auto">
