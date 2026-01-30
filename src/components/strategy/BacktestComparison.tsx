@@ -1,0 +1,415 @@
+/**
+ * BacktestComparison - Compare multiple backtest results side-by-side
+ * Per plan for Strategy Management enhancement
+ */
+import { useState, useMemo } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { EmptyState } from '@/components/ui/empty-state';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts';
+import { Trophy, BarChart3, FileDown, Check, AlertCircle } from 'lucide-react';
+import { format } from 'date-fns';
+import { useBacktestHistory } from '@/hooks/use-backtest';
+import { useBacktestExport } from '@/hooks/use-backtest-export';
+import type { BacktestResult } from '@/types/backtest';
+
+const CHART_COLORS = [
+  'hsl(var(--primary))',      // Blue
+  'hsl(var(--chart-2))',      // Green  
+  'hsl(var(--chart-3))',      // Orange
+  'hsl(var(--chart-4))',      // Red
+];
+
+const COLOR_CLASSES = [
+  'bg-primary text-primary-foreground',
+  'bg-chart-2 text-primary-foreground',
+  'bg-chart-3 text-primary-foreground',
+  'bg-chart-4 text-primary-foreground',
+];
+
+interface MetricConfig {
+  key: keyof BacktestResult['metrics'] | 'finalCapital';
+  label: string;
+  format: (value: number) => string;
+  higherIsBetter: boolean;
+}
+
+const METRICS_CONFIG: MetricConfig[] = [
+  { key: 'totalReturn', label: 'Total Return', format: (v) => `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`, higherIsBetter: true },
+  { key: 'winRate', label: 'Win Rate', format: (v) => `${(v * 100).toFixed(1)}%`, higherIsBetter: true },
+  { key: 'maxDrawdown', label: 'Max Drawdown', format: (v) => `-${v.toFixed(2)}%`, higherIsBetter: false },
+  { key: 'sharpeRatio', label: 'Sharpe Ratio', format: (v) => v.toFixed(2), higherIsBetter: true },
+  { key: 'profitFactor', label: 'Profit Factor', format: (v) => v === Infinity ? '∞' : v.toFixed(2), higherIsBetter: true },
+  { key: 'totalTrades', label: 'Total Trades', format: (v) => v.toString(), higherIsBetter: true },
+  { key: 'avgWin', label: 'Avg Win', format: (v) => `$${v.toFixed(2)}`, higherIsBetter: true },
+  { key: 'avgLoss', label: 'Avg Loss', format: (v) => `-$${v.toFixed(2)}`, higherIsBetter: false },
+  { key: 'avgRiskReward', label: 'Avg R:R', format: (v) => v.toFixed(2), higherIsBetter: true },
+  { key: 'consecutiveWins', label: 'Max Consec. Wins', format: (v) => v.toString(), higherIsBetter: true },
+  { key: 'consecutiveLosses', label: 'Max Consec. Losses', format: (v) => v.toString(), higherIsBetter: false },
+];
+
+export function BacktestComparison() {
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const { data: backtestHistory, isLoading } = useBacktestHistory();
+  const { exportComparisonToPDF } = useBacktestExport();
+
+  const selectedResults = useMemo(() => {
+    return (backtestHistory || []).filter((r) => selectedIds.includes(r.id));
+  }, [backtestHistory, selectedIds]);
+
+  const toggleSelection = (id: string) => {
+    setSelectedIds((prev) => {
+      if (prev.includes(id)) {
+        return prev.filter((i) => i !== id);
+      }
+      if (prev.length >= 4) {
+        return prev; // Max 4 selections
+      }
+      return [...prev, id];
+    });
+  };
+
+  const getWinnerIndex = (metricConfig: MetricConfig): number => {
+    if (selectedResults.length < 2) return -1;
+    
+    let bestIdx = 0;
+    let bestValue = metricConfig.key === 'finalCapital' 
+      ? selectedResults[0].finalCapital 
+      : selectedResults[0].metrics[metricConfig.key as keyof BacktestResult['metrics']] as number;
+    
+    for (let i = 1; i < selectedResults.length; i++) {
+      const value = metricConfig.key === 'finalCapital'
+        ? selectedResults[i].finalCapital
+        : selectedResults[i].metrics[metricConfig.key as keyof BacktestResult['metrics']] as number;
+      
+      const isBetter = metricConfig.higherIsBetter 
+        ? value > bestValue 
+        : value < bestValue;
+      
+      if (isBetter) {
+        bestIdx = i;
+        bestValue = value;
+      }
+    }
+    
+    return bestIdx;
+  };
+
+  // Build overlay equity curve data
+  const equityCurveData = useMemo(() => {
+    if (selectedResults.length === 0) return [];
+    
+    // Get all unique timestamps
+    const allTimestamps = new Set<string>();
+    selectedResults.forEach((r) => {
+      r.equityCurve.forEach((p) => allTimestamps.add(p.timestamp));
+    });
+    
+    const sortedTimestamps = Array.from(allTimestamps).sort();
+    
+    return sortedTimestamps.map((ts) => {
+      const point: Record<string, number | string> = { timestamp: ts };
+      selectedResults.forEach((r, idx) => {
+        const match = r.equityCurve.find((p) => p.timestamp === ts);
+        if (match) {
+          point[`strategy${idx}`] = match.balance;
+        }
+      });
+      return point;
+    });
+  }, [selectedResults]);
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="py-8">
+          <div className="flex items-center justify-center">
+            <div className="animate-pulse text-muted-foreground">Loading backtest history...</div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!backtestHistory || backtestHistory.length === 0) {
+    return (
+      <EmptyState
+        icon={BarChart3}
+        title="No backtest results"
+        description="Run some backtests first to compare their performance."
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Selection Panel */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BarChart3 className="h-5 w-5" />
+            Compare Backtest Results
+          </CardTitle>
+          <CardDescription>
+            Select 2-4 backtest results to compare their performance metrics side-by-side
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ScrollArea className="h-[200px] rounded-md border p-4">
+            <div className="space-y-2">
+              {backtestHistory.map((result) => {
+                const isSelected = selectedIds.includes(result.id);
+                const returnValue = result.metrics.totalReturn;
+                const isProfit = returnValue >= 0;
+                
+                return (
+                  <div
+                    key={result.id}
+                    className={`flex items-center gap-3 p-2 rounded-md cursor-pointer hover:bg-muted/50 transition-colors ${
+                      isSelected ? 'bg-muted' : ''
+                    }`}
+                    onClick={() => toggleSelection(result.id)}
+                  >
+                    <Checkbox
+                      checked={isSelected}
+                      disabled={!isSelected && selectedIds.length >= 4}
+                      onCheckedChange={() => toggleSelection(result.id)}
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">
+                          {result.strategyName || 'Unknown Strategy'}
+                        </span>
+                        <Badge variant="outline" className="text-xs">
+                          {result.pair}
+                        </Badge>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {format(new Date(result.periodStart), 'MMM d, yyyy')} - {format(new Date(result.periodEnd), 'MMM d, yyyy')}
+                      </div>
+                    </div>
+                    <Badge className={isProfit ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}>
+                      {isProfit ? '+' : ''}{returnValue.toFixed(2)}%
+                    </Badge>
+                  </div>
+                );
+              })}
+            </div>
+          </ScrollArea>
+          
+          <div className="flex items-center justify-between mt-4">
+            <div className="text-sm text-muted-foreground">
+              {selectedIds.length} of 4 selected
+            </div>
+            {selectedIds.length >= 2 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => exportComparisonToPDF(selectedResults)}
+              >
+                <FileDown className="h-4 w-4 mr-2" />
+                Export Comparison
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Comparison Results */}
+      {selectedResults.length >= 2 ? (
+        <>
+          {/* Strategy Legend */}
+          <div className="flex flex-wrap gap-2">
+            {selectedResults.map((result, idx) => (
+              <Badge key={result.id} className={COLOR_CLASSES[idx]}>
+                {result.strategyName || `Strategy ${idx + 1}`} - {result.pair}
+              </Badge>
+            ))}
+          </div>
+
+          {/* Metrics Comparison Table */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Metrics Comparison</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[180px]">Metric</TableHead>
+                      {selectedResults.map((result, idx) => (
+                        <TableHead key={result.id} className="text-center min-w-[120px]">
+                          <div className="flex items-center justify-center gap-1">
+                            <div 
+                              className="w-3 h-3 rounded-full" 
+                              style={{ backgroundColor: CHART_COLORS[idx] }}
+                            />
+                            <span className="truncate max-w-[100px]">
+                              {result.strategyName || `Strategy ${idx + 1}`}
+                            </span>
+                          </div>
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {METRICS_CONFIG.map((metric) => {
+                      const winnerIdx = getWinnerIndex(metric);
+                      
+                      return (
+                        <TableRow key={metric.key}>
+                          <TableCell className="font-medium">{metric.label}</TableCell>
+                          {selectedResults.map((result, idx) => {
+                            const value = metric.key === 'finalCapital'
+                              ? result.finalCapital
+                              : result.metrics[metric.key as keyof BacktestResult['metrics']] as number;
+                            const isWinner = idx === winnerIdx;
+                            
+                            return (
+                              <TableCell key={result.id} className="text-center">
+                                <div className="flex items-center justify-center gap-1">
+                                  <span className={isWinner ? 'font-bold' : ''}>
+                                    {metric.format(value)}
+                                  </span>
+                                  {isWinner && (
+                                    <Trophy className="h-4 w-4 text-yellow-500" />
+                                  )}
+                                </div>
+                              </TableCell>
+                            );
+                          })}
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Equity Curves Overlay Chart */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Equity Curves Comparison</CardTitle>
+              <CardDescription>
+                Overlay of portfolio balance over time for each strategy
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[350px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={equityCurveData}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis 
+                      dataKey="timestamp" 
+                      tickFormatter={(ts) => format(new Date(ts), 'MMM d')}
+                      className="text-muted-foreground"
+                    />
+                    <YAxis 
+                      tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
+                      className="text-muted-foreground"
+                    />
+                    <Tooltip 
+                      formatter={(value: number, name: string) => {
+                        const idx = parseInt(name.replace('strategy', ''));
+                        const strategyName = selectedResults[idx]?.strategyName || `Strategy ${idx + 1}`;
+                        return [`$${value.toFixed(2)}`, strategyName];
+                      }}
+                      labelFormatter={(ts) => format(new Date(ts as string), 'MMM d, yyyy')}
+                      contentStyle={{ 
+                        backgroundColor: 'hsl(var(--card))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '8px',
+                      }}
+                    />
+                    <Legend 
+                      formatter={(value: string) => {
+                        const idx = parseInt(value.replace('strategy', ''));
+                        return selectedResults[idx]?.strategyName || `Strategy ${idx + 1}`;
+                      }}
+                    />
+                    {selectedResults.map((_, idx) => (
+                      <Line
+                        key={idx}
+                        type="monotone"
+                        dataKey={`strategy${idx}`}
+                        stroke={CHART_COLORS[idx]}
+                        strokeWidth={2}
+                        dot={false}
+                        activeDot={{ r: 4 }}
+                      />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Winner Summary */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Trophy className="h-5 w-5 text-yellow-500" />
+                Performance Summary
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                {['totalReturn', 'winRate', 'sharpeRatio', 'maxDrawdown'].map((key) => {
+                  const metric = METRICS_CONFIG.find((m) => m.key === key)!;
+                  const winnerIdx = getWinnerIndex(metric);
+                  const winner = selectedResults[winnerIdx];
+                  const value = winner?.metrics[key as keyof BacktestResult['metrics']] as number;
+                  
+                  return (
+                    <div key={key} className="p-4 rounded-lg bg-muted/50 space-y-2">
+                      <div className="text-sm text-muted-foreground">{metric.label}</div>
+                      <div className="flex items-center gap-2">
+                        <div 
+                          className="w-3 h-3 rounded-full" 
+                          style={{ backgroundColor: CHART_COLORS[winnerIdx] }}
+                        />
+                        <span className="font-bold">{winner?.strategyName}</span>
+                      </div>
+                      <div className="text-xl font-bold">{metric.format(value)}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      ) : selectedIds.length === 1 ? (
+        <Card>
+          <CardContent className="py-8">
+            <div className="flex items-center justify-center gap-2 text-muted-foreground">
+              <AlertCircle className="h-5 w-5" />
+              <span>Select at least 2 backtest results to compare</span>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+    </div>
+  );
+}

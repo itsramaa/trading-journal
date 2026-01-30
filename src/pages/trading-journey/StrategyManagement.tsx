@@ -23,7 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Plus, Target, MoreVertical, Edit, Trash2, Tag, Clock, TrendingUp, Shield, Zap, ListChecks, LogOut, Brain, Star, X, ChevronsUpDown, Youtube, Play, Library } from "lucide-react";
+import { Plus, Target, MoreVertical, Edit, Trash2, Tag, Clock, TrendingUp, Shield, Zap, ListChecks, LogOut, Brain, Star, X, ChevronsUpDown, Youtube, Play, Library, History, BarChart3 } from "lucide-react";
 import { format } from "date-fns";
 import { 
   useTradingStrategies, 
@@ -38,6 +38,7 @@ import { EntryRulesBuilder } from "@/components/strategy/EntryRulesBuilder";
 import { ExitRulesBuilder } from "@/components/strategy/ExitRulesBuilder";
 import { YouTubeStrategyImporter } from "@/components/strategy/YouTubeStrategyImporter";
 import { BacktestRunner } from "@/components/strategy/BacktestRunner";
+import { BacktestComparison } from "@/components/strategy/BacktestComparison";
 import { StrategyValidationBadge } from "@/components/strategy/StrategyValidationBadge";
 import { useBaseAssets } from "@/hooks/use-trading-pairs";
 
@@ -453,9 +454,29 @@ export default function StrategyManagement() {
             <YouTubeStrategyImporter onStrategyImported={() => setActiveTab('library')} />
           </TabsContent>
 
-          {/* Backtest Tab */}
+          {/* Backtest Tab with Sub-tabs */}
           <TabsContent value="backtest" className="mt-6">
-            <BacktestRunner />
+            <Tabs defaultValue="run" className="w-full">
+              <TabsList className="mb-4">
+                <TabsTrigger value="run" className="flex items-center gap-2">
+                  <Play className="h-4 w-4" />
+                  <span className="hidden sm:inline">Run Backtest</span>
+                  <span className="sm:hidden">Run</span>
+                </TabsTrigger>
+                <TabsTrigger value="compare" className="flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4" />
+                  <span className="hidden sm:inline">Compare</span>
+                </TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="run">
+                <BacktestRunner />
+              </TabsContent>
+              
+              <TabsContent value="compare">
+                <BacktestComparison />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
         </Tabs>
 
