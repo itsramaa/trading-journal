@@ -1,316 +1,339 @@
 
-# Economic Calendar API Implementation Plan
+# Binance Futures API Implementation Plan
 
 ## Executive Summary
 
-Berdasarkan dokumentasi `ECONOMIC_CALENDAR_API_FREE.md`, akan diimplementasikan integrasi dengan **Trading Economics API** (BEST FREE OPTION) untuk menggantikan mock data di `Calendar.tsx`. API ini gratis, tanpa API key, dan real-time.
+Dokumentasi di `docs/binance/` menjelaskan implementasi menggunakan **Python/Flask backend**. Namun, project ini adalah **React + Vite + Supabase** yang tidak dapat menjalankan Python. Implementasi akan diadaptasi menggunakan **Supabase Edge Functions** (Deno/TypeScript) untuk menyediakan Binance Futures API integration.
 
 ---
 
-## Current State vs Target
+## Architecture Adaptation
 
-| Aspect | Current | Target |
-|--------|---------|--------|
-| Calendar Data | MOCK_DATA hardcoded | Real-time Trading Economics API |
-| Events Source | Static array 6 items | Live API dengan filter high-impact |
-| AI Predictions | Static text | AI-generated predictions per event |
-| Refresh | Fake delay | Real API call |
-
----
-
-## Implementation Architecture
-
+### Original (Documentation)
 ```text
-┌─────────────────────────────────────────────────────────────┐
-│                      Calendar Page                           │
-└──────────────────────────┬──────────────────────────────────┘
-                           │
-                           ▼
-              ┌─────────────────────────┐
-              │  useEconomicCalendar()  │  ← NEW React Hook
-              └────────────┬────────────┘
-                           │
-                           ▼
-              ┌─────────────────────────┐
-              │  economic-calendar      │  ← NEW Edge Function
-              │  Edge Function          │
-              └────────────┬────────────┘
-                           │
-            ┌──────────────┼──────────────┐
-            ▼              ▼              ▼
-   ┌──────────────┐ ┌──────────────┐ ┌───────────────┐
-   │Trading Econ  │ │Lovable AI    │ │Filter & Sort  │
-   │API (FREE)    │ │(Predictions) │ │Logic          │
-   └──────────────┘ └──────────────┘ └───────────────┘
+Frontend (HTML/JS) → Flask Backend → Binance API
 ```
+
+### Adapted (This Project)
+```text
+React Frontend → Supabase Edge Function → Binance API
+                         ↓
+                  Secrets: BINANCE_API_KEY
+                          BINANCE_API_SECRET
+```
+
+---
+
+## Implementation Scope
+
+### What Will Be Implemented
+
+| Feature | Edge Function Endpoint | Frontend Hook |
+|---------|----------------------|---------------|
+| Validate API Keys | POST `/binance-futures` action: `validate` | `useBinanceConnection` |
+| Get Account Balance | GET `/binance-futures` action: `balance` | `useBinanceBalance` |
+| Get Positions | GET `/binance-futures` action: `positions` | `useBinancePositions` |
+| Get Trade History | GET `/binance-futures` action: `trades` | `useBinanceTrades` |
+| Get Open Orders | GET `/binance-futures` action: `open-orders` | `useBinanceOrders` |
+| Place Order | POST `/binance-futures` action: `place-order` | `usePlaceBinanceOrder` |
+| Cancel Order | POST `/binance-futures` action: `cancel-order` | `useCancelBinanceOrder` |
+
+### What Will NOT Be Implemented
+
+1. **Order Execution from App** - Safety concern: Traders should execute orders directly on Binance
+2. **Real-time Position Sync** - Can poll periodically instead
+3. **WebSocket Streams** - Edge functions don't support persistent connections
 
 ---
 
 ## Files to Create
 
-### 1. Edge Function: `supabase/functions/economic-calendar/index.ts`
+### 1. Edge Function: `supabase/functions/binance-futures/index.ts`
 
-**Purpose:** Fetch data dari Trading Economics API dan generate AI predictions
-
-**API Call:**
-```
-GET https://api.tradingeconomics.com/calendar?c=ALL
-```
+**Purpose:** Unified Binance Futures API wrapper
 
 **Features:**
-- Fetch semua events dari Trading Economics
-- Filter high-impact events saja
-- Get US-focused events (most impactful untuk crypto)
-- Generate AI predictions untuk setiap event menggunakan Lovable AI (Gemini)
-- Format response untuk frontend consumption
+- HMAC SHA256 signature generation for authenticated endpoints
+- Multiple actions via single function (validate, balance, positions, trades, orders)
+- Rate limiting awareness
+- Proper error handling
 
-**Response Structure:**
+**Binance Futures Base URL:** `https://fapi.binance.com`
+
+**Required Endpoints:**
+```text
+GET  /fapi/v2/balance       → Account balance
+GET  /fapi/v2/positionRisk  → Current positions
+GET  /fapi/v1/userTrades    → Trade history
+GET  /fapi/v1/openOrders    → Open orders
+POST /fapi/v1/order         → Place order
+DELETE /fapi/v1/order       → Cancel order
+```
+
+---
+
+### 2. Feature Types: `src/features/binance/types.ts`
+
+**Types:**
 ```typescript
-{
-  events: [
-    {
-      date: "2026-01-30T14:30:00Z",
-      event: "Core CPI m/m",
-      country: "United States",
-      importance: "high",
-      forecast: "0.3%",
-      previous: "0.2%",
-      actual: "0.4%" | null,
-      aiPrediction: "AI-generated prediction...",
-      cryptoImpact: "bullish" | "bearish" | "neutral"
-    }
-  ],
-  todayHighlight: { ... },  // Most important event today
-  impactSummary: {
-    hasHighImpact: true,
-    eventCount: 5,
-    riskLevel: "HIGH" | "MODERATE" | "LOW",
-    positionAdjustment: "reduce_30%" | "normal" | "reduce_50%"
-  },
-  lastUpdated: "2026-01-30T10:00:00Z"
+interface BinanceCredentials {
+  apiKey: string;
+  apiSecret: string;
+}
+
+interface BinanceBalance {
+  totalWalletBalance: number;
+  availableBalance: number;
+  totalUnrealizedProfit: number;
+  totalMarginRequired: number;
+}
+
+interface BinancePosition {
+  symbol: string;
+  positionAmt: number;
+  entryPrice: number;
+  markPrice: number;
+  unrealizedProfit: number;
+  leverage: number;
+  side: 'LONG' | 'SHORT';
+}
+
+interface BinanceTrade {
+  id: string;
+  symbol: string;
+  side: 'BUY' | 'SELL';
+  price: number;
+  qty: number;
+  realizedPnl: number;
+  commission: number;
+  time: string;
+}
+
+interface BinanceOrder {
+  orderId: number;
+  symbol: string;
+  side: 'BUY' | 'SELL';
+  type: 'LIMIT' | 'MARKET';
+  price: number;
+  origQty: number;
+  executedQty: number;
+  status: string;
+  time: string;
 }
 ```
 
 ---
 
-### 2. React Hook: `src/features/calendar/useEconomicCalendar.ts`
+### 3. React Hooks: `src/features/binance/useBinanceFutures.ts`
 
-**Purpose:** Fetch dan cache economic calendar data
+**Hooks:**
+- `useBinanceConnection()` - Validate & store API keys
+- `useBinanceBalance()` - Get account balance
+- `useBinancePositions(symbol?)` - Get current positions
+- `useBinanceTrades(symbol, limit)` - Get trade history
+- `useBinanceOpenOrders(symbol?)` - Get open orders
+
+---
+
+### 4. Feature Index: `src/features/binance/index.ts`
+
+**Purpose:** Export all binance feature modules
+
+---
+
+### 5. Settings Integration: Update `src/pages/Settings.tsx`
+
+**Add new tab:** "Binance API" under Security tab
+
+**UI Components:**
+- API Key input (password masked)
+- API Secret input (password masked)
+- Validate & Save button
+- Connection status indicator
+- Last connected timestamp
+- Test connection button
+
+---
+
+### 6. Active Positions Enhancement
+
+**Update:** `src/components/dashboard/ActivePositionsTable.tsx`
 
 **Features:**
-- TanStack Query integration
-- 15-minute cache (events don't change frequently)
-- Auto-refresh
-- Error handling
+- Add option to fetch real positions from Binance
+- Display real-time unrealized P&L from Binance
+- Sync button to refresh data
 
 ---
 
-### 3. Type Definitions: `src/features/calendar/types.ts`
+## Edge Function Implementation Detail
 
-**Purpose:** TypeScript interfaces untuk Economic Calendar
+### HMAC Signature Generation (Binance Requirement)
 
-**Types:**
-- `EconomicEvent`
-- `EconomicCalendarResponse`
-- `TodayHighlight`
-- `ImpactSummary`
+```typescript
+async function createSignature(
+  queryString: string, 
+  secret: string
+): Promise<string> {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  
+  const signature = await crypto.subtle.sign(
+    'HMAC',
+    key,
+    encoder.encode(queryString)
+  );
+  
+  return Array.from(new Uint8Array(signature))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+```
+
+### Request Flow
+
+```text
+1. Frontend sends action + params to Edge Function
+2. Edge Function adds timestamp
+3. Creates query string with all params
+4. Generates HMAC signature
+5. Calls Binance API with signature
+6. Returns formatted response
+```
 
 ---
 
-### 4. Feature Index: `src/features/calendar/index.ts`
+## Security Considerations
 
-**Purpose:** Export all calendar feature modules
+### API Key Storage
+
+**Option A: Environment Secrets (Recommended)**
+- Store in Supabase secrets via settings UI
+- Edge function reads from `Deno.env.get()`
+- Single user setup
+
+**Option B: Per-User Database Storage**
+- Encrypt API keys before storing
+- Store in user_settings.metadata
+- Multi-user support
+- Requires encryption key management
+
+**Decision:** Start with Option A (secrets), can migrate to Option B later
+
+---
+
+### Permission Validation
+
+Edge function will validate API key has ONLY:
+- Futures trading permission
+- Read-only access
+- NO withdrawal permission
+
+```typescript
+// Test API key by calling account info
+const accountInfo = await fetch('/fapi/v2/account');
+// If successful, key is valid
+```
 
 ---
 
 ## Files to Modify
 
-### 1. `src/pages/Calendar.tsx`
-
-**Changes:**
-- Remove `UPCOMING_EVENTS` mock data
-- Remove `UPCOMING_NEWS_PREDICTIONS` mock data
-- Import `useEconomicCalendar` hook
-- Display real events dengan loading states
-- Display AI predictions dari edge function
-- Update Today's Key Release section dengan real data
-- Add proper error handling
-
----
-
-### 2. `supabase/config.toml`
+### 1. `supabase/config.toml`
 
 **Add:**
 ```toml
-[functions.economic-calendar]
+[functions.binance-futures]
 verify_jwt = false
 ```
 
 ---
 
+### 2. `src/pages/Settings.tsx`
+
+**Add:** New "Exchange" tab with Binance API configuration
+
+---
+
 ### 3. `docs/ai_plan.md`
 
-**Update:** Add Economic Calendar implementation status
-
----
-
-### 4. Copy documentation file
-
-**Action:** Copy `user-uploads://ECONOMIC_CALENDAR_API_FREE.md` → `docs/ECONOMIC_CALENDAR_API_FREE.md`
-
----
-
-## Edge Function Logic Detail
-
-### Trading Economics API Integration
-
-```typescript
-// 1. Fetch all events
-const response = await fetch('https://api.tradingeconomics.com/calendar?c=ALL');
-const allEvents = await response.json();
-
-// 2. Filter high-impact only
-const highImpact = allEvents.filter(e => e.importance === 'high');
-
-// 3. Filter US events (most impactful for crypto)
-const usEvents = highImpact.filter(e => 
-  e.country === 'United States' || 
-  e.event.includes('Fed') ||
-  e.event.includes('FOMC')
-);
-
-// 4. Get today's events
-const today = new Date().toISOString().split('T')[0];
-const todayEvents = usEvents.filter(e => e.date.startsWith(today));
-
-// 5. Get this week's events
-const weekEvents = usEvents.filter(e => isThisWeek(e.date));
-```
-
-### AI Prediction Generation
-
-```typescript
-// Use Lovable AI (Gemini) untuk generate predictions
-const prompt = `Analyze this economic event for crypto impact:
-Event: ${event.event}
-Country: ${event.country}
-Forecast: ${event.forecast}
-Previous: ${event.previous}
-
-Provide:
-1. Brief prediction (1-2 sentences)
-2. Crypto impact: bullish/bearish/neutral
-3. Reasoning`;
-
-const aiResponse = await generateAI(prompt);
-```
-
----
-
-## Risk Adjustment Logic (Per Documentation)
-
-```typescript
-function calculateRiskAdjustment(events: EconomicEvent[]): ImpactSummary {
-  const highImpactCount = events.filter(e => e.importance === 'high').length;
-  
-  if (highImpactCount >= 2) {
-    return {
-      hasHighImpact: true,
-      eventCount: highImpactCount,
-      riskLevel: 'VERY_HIGH',
-      positionAdjustment: 'reduce_50%'
-    };
-  } else if (highImpactCount === 1) {
-    return {
-      hasHighImpact: true,
-      eventCount: highImpactCount,
-      riskLevel: 'HIGH',
-      positionAdjustment: 'reduce_30%'
-    };
-  }
-  
-  return {
-    hasHighImpact: false,
-    eventCount: 0,
-    riskLevel: 'LOW',
-    positionAdjustment: 'normal'
-  };
-}
-```
-
----
-
-## Calendar Page New Structure
-
-```text
-Calendar.tsx
-├── Page Header (unchanged)
-│
-├── Impact Alert Banner (NEW)
-│   └── Show if high-impact event today with position adjustment advice
-│
-├── Today's Key Release Card (UPDATED)
-│   ├── Real event data from API
-│   ├── Forecast vs Previous
-│   ├── AI Prediction (from edge function)
-│   └── Crypto Impact Badges (bullish/bearish)
-│
-├── Upcoming Events List (UPDATED)
-│   ├── Real events from Trading Economics
-│   ├── Filter by importance
-│   └── Country & time info
-│
-├── AI Economic News Analysis (UPDATED)
-│   ├── AI predictions per event
-│   └── Crypto impact analysis
-│
-└── Footer Disclaimer (unchanged)
-```
-
----
-
-## API Rate Limiting & Caching Strategy
-
-| Aspect | Value | Rationale |
-|--------|-------|-----------|
-| Cache Time | 15 minutes | Events don't change frequently |
-| Refetch Interval | 30 minutes | Reduce API calls |
-| Error Retry | 2 attempts | Handle temporary failures |
-| Fallback | Show cached data | Graceful degradation |
-
----
-
-## Important Considerations
-
-### Trading Economics API Notes
-- **Free & No Key**: Documented as unlimited requests without API key
-- **Response Format**: JSON array of events
-- **Reliability**: Most reliable free option per documentation
-- **Scraping-based**: Unofficial API, may occasionally fail
-
-### AI Predictions
-- Generated via Lovable AI (Gemini 2.5 Flash)
-- Focused on crypto market impact
-- Actionable recommendations
-
-### Error Handling
-- If Trading Economics fails → show cached data or friendly error
-- If AI generation fails → show event without prediction
-- Rate limit hit → use cached data
+**Update:** Add Binance Futures implementation status
 
 ---
 
 ## Implementation Order
 
-1. **Copy documentation file** to `docs/`
-2. **Create types** (`src/features/calendar/types.ts`)
-3. **Create edge function** (`supabase/functions/economic-calendar/index.ts`)
-4. **Register edge function** in `supabase/config.toml`
-5. **Create React hook** (`src/features/calendar/useEconomicCalendar.ts`)
-6. **Create feature index** (`src/features/calendar/index.ts`)
-7. **Update Calendar.tsx** dengan real data integration
-8. **Update documentation** (`docs/ai_plan.md`)
-9. **Deploy & test** edge function
+1. **Create types** - `src/features/binance/types.ts`
+2. **Create edge function** - `supabase/functions/binance-futures/index.ts`
+3. **Register in config.toml**
+4. **Create React hooks** - `src/features/binance/useBinanceFutures.ts`
+5. **Create feature index** - `src/features/binance/index.ts`
+6. **Update Settings.tsx** - Add Exchange API tab
+7. **Create Settings component** - `src/components/settings/BinanceApiSettings.tsx`
+8. **Update documentation** - `docs/ai_plan.md`
+
+---
+
+## API Key Configuration
+
+Since the edge function needs Binance API credentials, users will need to add secrets:
+
+**Required Secrets:**
+- `BINANCE_API_KEY` - User's Binance API key
+- `BINANCE_API_SECRET` - User's Binance API secret
+
+The Settings page will provide a UI to:
+1. Input API key and secret
+2. Test connection
+3. Save to Supabase secrets (via edge function)
+
+---
+
+## Testing Strategy
+
+### Manual Testing
+1. Configure API key in Settings
+2. Verify connection status shows "Connected"
+3. Check Dashboard shows real positions (if any)
+4. Verify trade history displays correctly
+
+### Edge Function Testing
+```bash
+# Test validate action
+curl -X POST [EDGE_FUNCTION_URL]/binance-futures \
+  -H "Content-Type: application/json" \
+  -d '{"action": "validate"}'
+
+# Test balance action
+curl -X POST [EDGE_FUNCTION_URL]/binance-futures \
+  -H "Content-Type: application/json" \
+  -d '{"action": "balance"}'
+```
+
+---
+
+## Limitations & Trade-offs
+
+### Trade-off 1: No Real-time WebSocket
+**Problem:** Edge functions can't maintain persistent connections
+**Solution:** Use polling with 30-second intervals for position updates
+**Impact:** Slight delay in position data, acceptable for journaling
+
+### Trade-off 2: Order Execution
+**Problem:** Executing orders from journal app adds risk
+**Solution:** Initially read-only, order placement optional
+**Impact:** Users manually execute on Binance, sync to journal
+
+### Trade-off 3: Single User API Key
+**Problem:** Secrets are project-wide, not per-user
+**Solution:** Store encrypted in user_settings for multi-user later
+**Impact:** V1 works for single trader, upgrade path exists
 
 ---
 
@@ -318,10 +341,24 @@ Calendar.tsx
 
 | Criteria | Target |
 |----------|--------|
-| Real events display | ✅ From Trading Economics API |
-| AI predictions work | ✅ Generated per event |
-| Today's highlight accurate | ✅ Real-time data |
-| Loading states | ✅ Skeleton UI |
-| Error handling | ✅ Graceful fallback |
-| Position adjustment advice | ✅ Based on event count |
-| Documentation complete | ✅ In docs/ folder |
+| API key validation works | Connection status shows "Connected" |
+| Balance displays correctly | Real USDT balance from Binance |
+| Positions sync | Active positions from Binance visible |
+| Trade history | Recent trades displayed with P&L |
+| Error handling | Clear error messages for invalid keys |
+| Secure storage | API keys never exposed in frontend |
+
+---
+
+## Notes
+
+### Yang Sengaja Tidak Diubah
+1. **Python code dari dokumentasi** - Tidak applicable untuk project ini
+2. **Flask endpoints** - Diganti dengan Supabase Edge Functions
+3. **HTML templates** - Sudah ada React components
+
+### Adaptasi yang Dibuat
+1. **Python → TypeScript (Deno)** - Edge function runtime
+2. **Flask routes → Single edge function with actions** - Simpler deployment
+3. **Environment variables → Supabase secrets** - Managed secrets
+4. **localStorage → Supabase secrets** - Secure storage
