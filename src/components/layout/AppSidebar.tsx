@@ -10,6 +10,7 @@ import {
   Settings,
   CandlestickChart,
   TrendingUp,
+  LineChart,
   type LucideIcon,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
@@ -33,7 +34,7 @@ interface NavItem {
   icon: LucideIcon;
 }
 
-// Navigation structure per user spec (flat 9-item menu)
+// Navigation structure per user spec (flat 10-item menu)
 const navigationItems: NavItem[] = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Accounts", url: "/accounts", icon: Building2 },
@@ -43,6 +44,7 @@ const navigationItems: NavItem[] = [
   { title: "Trade Quality", url: "/ai", icon: Target },
   { title: "Trade Management", url: "/trading", icon: Notebook },
   { title: "Strategy & Rules", url: "/strategies", icon: Lightbulb },
+  { title: "Performance", url: "/performance", icon: LineChart },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 
