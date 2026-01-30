@@ -179,19 +179,19 @@ export function BinancePositionsTable() {
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
-          <Table>
+          <Table aria-label="Active trading positions">
             <TableHeader>
               <TableRow>
-                <TableHead>Symbol</TableHead>
-                <TableHead>Side</TableHead>
-                <TableHead className="text-right">Size</TableHead>
-                <TableHead className="text-right">Entry</TableHead>
-                <TableHead className="text-right">Mark</TableHead>
-                <TableHead className="text-right">PnL</TableHead>
-                <TableHead className="text-center">Lev</TableHead>
+                <TableHead scope="col">Symbol</TableHead>
+                <TableHead scope="col">Side</TableHead>
+                <TableHead scope="col" className="text-right">Size</TableHead>
+                <TableHead scope="col" className="text-right">Entry</TableHead>
+                <TableHead scope="col" className="text-right">Mark</TableHead>
+                <TableHead scope="col" className="text-right">PnL</TableHead>
+                <TableHead scope="col" className="text-center">Lev</TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody>
+            <TableBody aria-live="polite" aria-atomic="false">
               {activePositions.map((position) => (
                 <PositionRow key={position.symbol} position={position} />
               ))}

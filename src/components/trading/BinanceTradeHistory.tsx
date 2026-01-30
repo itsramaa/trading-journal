@@ -134,19 +134,19 @@ export function BinanceTradeHistory({ showHeader = true, limit = 50 }: BinanceTr
           </div>
         ) : trades && trades.length > 0 ? (
           <div className="overflow-x-auto">
-            <Table>
+            <Table aria-label={`Trade history for ${symbol}`}>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Time</TableHead>
-                  <TableHead>Side</TableHead>
-                  <TableHead className="text-right">Price</TableHead>
-                  <TableHead className="text-right">Qty</TableHead>
-                  <TableHead className="text-right">PnL</TableHead>
-                  <TableHead className="text-right">Fee</TableHead>
-                  <TableHead className="text-center">Action</TableHead>
+                  <TableHead scope="col">Time</TableHead>
+                  <TableHead scope="col">Side</TableHead>
+                  <TableHead scope="col" className="text-right">Price</TableHead>
+                  <TableHead scope="col" className="text-right">Qty</TableHead>
+                  <TableHead scope="col" className="text-right">PnL</TableHead>
+                  <TableHead scope="col" className="text-right">Fee</TableHead>
+                  <TableHead scope="col" className="text-center">Action</TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody>
+              <TableBody aria-live="polite" aria-atomic="false">
                 {trades.map((trade) => (
                   <TradeRow key={trade.id} trade={trade} />
                 ))}

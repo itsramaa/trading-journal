@@ -65,15 +65,26 @@ const colorClasses: Record<string, string> = {
   yellow: 'bg-[hsl(var(--chart-4))]/15 text-[hsl(var(--chart-4))] border-[hsl(var(--chart-4))]/30',
 };
 
+// Enhanced with H9-compliant descriptive error messages
 const strategyFormSchema = z.object({
-  name: z.string().min(1, "Name is required").max(50, "Name must be 50 characters or less"),
-  description: z.string().max(500, "Description must be 500 characters or less").optional(),
+  name: z.string()
+    .min(1, "Strategy name is required. Give your strategy a memorable name like 'Breakout Scalper' or 'Trend Following'.")
+    .max(50, "Strategy name is too long. Please use 50 characters or less."),
+  description: z.string()
+    .max(500, "Description is too long. Please use 500 characters or less.")
+    .optional(),
   tags: z.string().optional(),
   color: z.string().default('blue'),
   timeframe: z.string().optional(),
   market_type: z.string().default('spot'),
-  min_confluences: z.number().min(1).max(10).default(4),
-  min_rr: z.number().min(0.5).max(10).default(1.5),
+  min_confluences: z.number()
+    .min(1, "Minimum confluences must be at least 1. This sets how many conditions must align before entering a trade.")
+    .max(10, "Maximum confluences is 10. Consider using fewer rules for simpler execution.")
+    .default(4),
+  min_rr: z.number()
+    .min(0.5, "Minimum R:R should be at least 0.5. Higher ratios protect your capital.")
+    .max(10, "Maximum R:R is 10. Very high ratios may be difficult to achieve consistently.")
+    .default(1.5),
 });
 
 type StrategyFormValues = z.infer<typeof strategyFormSchema>;
