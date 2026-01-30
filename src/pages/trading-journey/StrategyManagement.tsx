@@ -53,15 +53,16 @@ const strategyColors = [
   { name: 'Yellow', value: 'yellow' },
 ];
 
+// Design system color tokens - using chart colors and semantic tokens
 const colorClasses: Record<string, string> = {
-  blue: 'bg-blue-500/20 text-blue-500 border-blue-500/30',
-  green: 'bg-green-500/20 text-green-500 border-green-500/30',
-  purple: 'bg-purple-500/20 text-purple-500 border-purple-500/30',
-  orange: 'bg-orange-500/20 text-orange-500 border-orange-500/30',
-  red: 'bg-red-500/20 text-red-500 border-red-500/30',
-  teal: 'bg-teal-500/20 text-teal-500 border-teal-500/30',
-  pink: 'bg-pink-500/20 text-pink-500 border-pink-500/30',
-  yellow: 'bg-yellow-500/20 text-yellow-500 border-yellow-500/30',
+  blue: 'bg-primary/10 text-primary border-primary/30',
+  green: 'bg-profit/10 text-profit border-profit/30',
+  purple: 'bg-[hsl(var(--chart-3))]/10 text-[hsl(var(--chart-3))] border-[hsl(var(--chart-3))]/30',
+  orange: 'bg-[hsl(var(--chart-4))]/10 text-[hsl(var(--chart-4))] border-[hsl(var(--chart-4))]/30',
+  red: 'bg-loss/10 text-loss border-loss/30',
+  teal: 'bg-[hsl(var(--chart-1))]/10 text-[hsl(var(--chart-1))] border-[hsl(var(--chart-1))]/30',
+  pink: 'bg-[hsl(var(--chart-6))]/10 text-[hsl(var(--chart-6))] border-[hsl(var(--chart-6))]/30',
+  yellow: 'bg-[hsl(var(--chart-4))]/15 text-[hsl(var(--chart-4))] border-[hsl(var(--chart-4))]/30',
 };
 
 const strategyFormSchema = z.object({
@@ -223,69 +224,73 @@ export default function StrategyManagement() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        {/* Page Header */}
+      <div className="space-y-8">
+        {/* Page Header - Enhanced with proper hierarchy */}
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-              <Target className="h-6 w-6 text-primary" />
-              Strategy & Rules
-            </h1>
-            <p className="text-muted-foreground">Create, import, and backtest your trading strategies</p>
+          <div className="space-y-1">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Target className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight">Strategy & Rules</h1>
+                <p className="text-muted-foreground text-sm">Create, import, and backtest your trading strategies</p>
+              </div>
+            </div>
           </div>
           {activeTab === 'library' && (
-            <Button onClick={handleOpenAdd}>
+            <Button onClick={handleOpenAdd} className="shrink-0">
               <Plus className="mr-2 h-4 w-4" />
               New Strategy
             </Button>
           )}
         </div>
 
-        {/* Main Tabs */}
+        {/* Main Tabs - Enhanced with better visual hierarchy */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="library" className="flex items-center gap-2">
+          <TabsList className="grid w-full grid-cols-3 h-11">
+            <TabsTrigger value="library" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Library className="h-4 w-4" />
-              Library
+              <span className="hidden sm:inline">Library</span>
             </TabsTrigger>
-            <TabsTrigger value="import" className="flex items-center gap-2">
+            <TabsTrigger value="import" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Youtube className="h-4 w-4" />
-              YouTube Import
+              <span className="hidden sm:inline">YouTube Import</span>
             </TabsTrigger>
-            <TabsTrigger value="backtest" className="flex items-center gap-2">
+            <TabsTrigger value="backtest" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Play className="h-4 w-4" />
-              Backtest
+              <span className="hidden sm:inline">Backtest</span>
             </TabsTrigger>
           </TabsList>
 
           {/* Library Tab */}
           <TabsContent value="library" className="space-y-6 mt-6">
-            {/* Stats */}
-            <div className="grid gap-4 md:grid-cols-4">
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium">Total Strategies</CardTitle>
+            {/* Stats - Enhanced with icons and better visual hierarchy */}
+            <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+              <Card className="hover:shadow-md transition-shadow">
+                <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Total Strategies</CardTitle>
+                  <Library className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{strategies?.length || 0}</div>
                 </CardContent>
               </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <Zap className="h-4 w-4 text-primary" />
-                    Active
-                  </CardTitle>
+              <Card className="hover:shadow-md transition-shadow">
+                <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Active</CardTitle>
+                  <Zap className="h-4 w-4 text-primary" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">
+                  <div className="text-2xl font-bold text-primary">
                     {strategies?.filter(s => s.is_active).length || 0}
                   </div>
                 </CardContent>
               </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium">Spot Strategies</CardTitle>
+              <Card className="hover:shadow-md transition-shadow">
+                <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Spot</CardTitle>
+                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">
@@ -293,9 +298,10 @@ export default function StrategyManagement() {
                   </div>
                 </CardContent>
               </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium">Futures Strategies</CardTitle>
+              <Card className="hover:shadow-md transition-shadow">
+                <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Futures</CardTitle>
+                  <BarChart3 className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">
@@ -414,14 +420,14 @@ export default function StrategyManagement() {
                       </div>
 
                       {/* Performance stats if available */}
-                      {performance && performance.totalTrades > 0 && (
+                       {performance && performance.totalTrades > 0 && (
                         <div className="flex items-center gap-3 text-xs text-muted-foreground bg-muted/50 rounded-md px-2 py-1.5">
                           <span className="flex items-center gap-1">
                             <Star className="h-3 w-3" />
                             {performance.wins}W / {performance.losses}L
                           </span>
                           <span>|</span>
-                          <span className={performance.winRate >= 0.5 ? 'text-green-500' : 'text-red-500'}>
+                          <span className={performance.winRate >= 0.5 ? 'text-profit' : 'text-loss'}>
                             {(performance.winRate * 100).toFixed(0)}% WR
                           </span>
                         </div>
@@ -454,16 +460,16 @@ export default function StrategyManagement() {
             <YouTubeStrategyImporter onStrategyImported={() => setActiveTab('library')} />
           </TabsContent>
 
-          {/* Backtest Tab with Sub-tabs */}
+          {/* Backtest Tab with Sub-tabs - Secondary hierarchy styling */}
           <TabsContent value="backtest" className="mt-6">
             <Tabs defaultValue="run" className="w-full">
-              <TabsList className="mb-4">
-                <TabsTrigger value="run" className="flex items-center gap-2">
+              <TabsList className="mb-6 h-9 bg-muted/50">
+                <TabsTrigger value="run" className="flex items-center gap-2 text-sm">
                   <Play className="h-4 w-4" />
                   <span className="hidden sm:inline">Run Backtest</span>
                   <span className="sm:hidden">Run</span>
                 </TabsTrigger>
-                <TabsTrigger value="compare" className="flex items-center gap-2">
+                <TabsTrigger value="compare" className="flex items-center gap-2 text-sm">
                   <BarChart3 className="h-4 w-4" />
                   <span className="hidden sm:inline">Compare</span>
                 </TabsTrigger>

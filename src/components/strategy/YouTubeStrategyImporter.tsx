@@ -232,10 +232,10 @@ export function YouTubeStrategyImporter({
                 </Badge>
               </div>
 
-              {/* Entry Conditions */}
+              {/* Entry Conditions - Using design tokens */}
               <div className="space-y-2">
                 <h4 className="font-medium flex items-center gap-2">
-                  <Target className="h-4 w-4 text-green-500" />
+                  <Target className="h-4 w-4 text-profit" />
                   Entry Conditions
                 </h4>
                 <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
@@ -245,20 +245,20 @@ export function YouTubeStrategyImporter({
                 </ul>
               </div>
 
-              {/* Exit Conditions */}
+              {/* Exit Conditions - Using design tokens */}
               <div className="space-y-2">
                 <h4 className="font-medium flex items-center gap-2">
-                  <Zap className="h-4 w-4 text-red-500" />
+                  <Zap className="h-4 w-4 text-loss" />
                   Exit Conditions
                 </h4>
                 <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div className="p-3 rounded-md bg-green-500/10 border border-green-500/20">
-                    <div className="text-green-500 font-medium">Take Profit</div>
-                    <div>{importedStrategy.exitConditions.takeProfit}{importedStrategy.exitConditions.takeProfitUnit === 'percent' ? '%' : ` ${importedStrategy.exitConditions.takeProfitUnit}`}</div>
+                  <div className="p-3 rounded-md bg-profit-muted border border-profit/20">
+                    <div className="text-profit font-medium">Take Profit</div>
+                    <div className="font-mono">{importedStrategy.exitConditions.takeProfit}{importedStrategy.exitConditions.takeProfitUnit === 'percent' ? '%' : ` ${importedStrategy.exitConditions.takeProfitUnit}`}</div>
                   </div>
-                  <div className="p-3 rounded-md bg-red-500/10 border border-red-500/20">
-                    <div className="text-red-500 font-medium">Stop Loss</div>
-                    <div>{importedStrategy.exitConditions.stopLoss}{importedStrategy.exitConditions.stopLossUnit === 'percent' ? '%' : ` ${importedStrategy.exitConditions.stopLossUnit}`}</div>
+                  <div className="p-3 rounded-md bg-loss-muted border border-loss/20">
+                    <div className="text-loss font-medium">Stop Loss</div>
+                    <div className="font-mono">{importedStrategy.exitConditions.stopLoss}{importedStrategy.exitConditions.stopLossUnit === 'percent' ? '%' : ` ${importedStrategy.exitConditions.stopLossUnit}`}</div>
                   </div>
                 </div>
               </div>

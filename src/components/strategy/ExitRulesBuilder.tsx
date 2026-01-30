@@ -76,12 +76,13 @@ export function ExitRulesBuilder({ rules, onChange }: ExitRulesBuilderProps) {
     return option?.label || unit;
   };
 
+  // Using design system tokens for consistent colors
   const getRuleColor = (type: ExitRuleType) => {
     switch (type) {
-      case 'take_profit': return 'text-green-500 border-green-500/30 bg-green-500/5';
-      case 'stop_loss': return 'text-red-500 border-red-500/30 bg-red-500/5';
-      case 'trailing_stop': return 'text-yellow-500 border-yellow-500/30 bg-yellow-500/5';
-      case 'time_based': return 'text-blue-500 border-blue-500/30 bg-blue-500/5';
+      case 'take_profit': return 'text-profit border-profit/30 bg-profit-muted';
+      case 'stop_loss': return 'text-loss border-loss/30 bg-loss-muted';
+      case 'trailing_stop': return 'text-[hsl(var(--chart-4))] border-[hsl(var(--chart-4))]/30 bg-[hsl(var(--chart-4))]/5';
+      case 'time_based': return 'text-[hsl(var(--chart-6))] border-[hsl(var(--chart-6))]/30 bg-[hsl(var(--chart-6))]/5';
       default: return 'border-border bg-muted/30';
     }
   };
