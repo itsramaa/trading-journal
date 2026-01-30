@@ -25,6 +25,7 @@ import {
   StrategyFormDialog,
   YouTubeStrategyImporter,
 } from "@/components/strategy";
+import { MarketSentimentWidget } from "@/components/market";
 import type { EntryRule, ExitRule } from "@/types/strategy";
 
 export default function StrategyManagement() {
@@ -170,8 +171,15 @@ export default function StrategyManagement() {
 
           {/* Library Tab */}
           <TabsContent value="library" className="space-y-6 mt-6">
-            {/* Stats */}
-            <StrategyStats strategies={strategies} />
+            {/* Stats + Sentiment Widget Row */}
+            <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+              <StrategyStats strategies={strategies} />
+              <MarketSentimentWidget 
+                defaultSymbol="BTCUSDT" 
+                showSymbolSelector={true}
+                className="h-fit"
+              />
+            </div>
 
             {/* Strategies List */}
             {!strategies || strategies.length === 0 ? (

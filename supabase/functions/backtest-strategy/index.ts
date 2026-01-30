@@ -159,6 +159,10 @@ function mapTimeframe(tf: string): string {
   return map[tf] || '1h';
 }
 
+/**
+ * Fetch historical klines from Binance Futures API
+ * Handles pagination for large date ranges (max 1000 candles per request)
+ */
 async function fetchBinanceKlines(
   symbol: string, 
   interval: string, 
@@ -168,9 +172,13 @@ async function fetchBinanceKlines(
   const allCandles: Candle[] = [];
   let currentStart = startTime;
   
-  // Binance limits to 1000 candles per request
+  console.log(`Fetching klines for ${symbol} (${interval}) from ${new Date(startTime).toISOString()} to ${new Date(endTime).toISOString()}`);
+  
+  // Binance limits to 1500 candles per request for futures
+  const BATCH_SIZE = 1500;
+  
   while (currentStart < endTime) {
-    const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${interval}&startTime=${currentStart}&endTime=${endTime}&limit=1000`;
+    const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${interval}&startTime=${currentStart}&endTime=${endTime}&limit=${BATCH_SIZE}`;
     
     try {
       const response = await fetch(url);
@@ -180,7 +188,14 @@ async function fetchBinanceKlines(
       }
       
       const data = await response.json();
-      if (!data.length) break;
+      
+      // Check for Binance error response
+      if (data.code && data.code < 0) {
+        console.error(`Binance API error: ${data.msg}`);
+        break;
+      }
+      
+      if (!Array.isArray(data) || data.length === 0) break;
       
       for (const k of data) {
         allCandles.push({
@@ -193,17 +208,20 @@ async function fetchBinanceKlines(
         });
       }
       
-      // Move to next batch
+      console.log(`Fetched ${data.length} candles, total: ${allCandles.length}`);
+      
+      // Move to next batch (last candle openTime + 1ms)
       currentStart = data[data.length - 1][0] + 1;
       
-      // Rate limiting
-      await new Promise(r => setTimeout(r, 100));
+      // Rate limiting - Binance allows 2400 requests/min
+      await new Promise(r => setTimeout(r, 50));
     } catch (e) {
       console.error("Error fetching candles:", e);
       break;
     }
   }
   
+  console.log(`Total candles fetched: ${allCandles.length}`);
   return allCandles;
 }
 
