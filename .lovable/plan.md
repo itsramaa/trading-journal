@@ -1,137 +1,114 @@
 
-# AI System Gap Analysis & Implementation Plan
 
-## 📊 Executive Summary
+# Implementation Status & Next Steps
 
-✅ **IMPLEMENTED** - Per 30 Jan 2026
+## Status Implementasi Saat Ini
 
-Market Insight page sekarang terintegrasi dengan API real-time:
-- **Binance API**: OHLCV data, funding rates, volume analysis
-- **CoinGecko API**: Global market data, BTC dominance
-- **Alternative.me API**: Fear & Greed Index
+### ✅ COMPLETED - Semua Fase Sudah Terimplementasi
 
----
+| Component | Status | Evidence |
+|-----------|--------|----------|
+| `market-insight` Edge Function | ✅ Working | Tested via curl - returns real-time BTC/ETH/SOL data |
+| `macro-analysis` Edge Function | ✅ Working | Tested via curl - returns BTC dominance, F&G, AI summary |
+| `useMarketSentiment` Hook | ✅ Implemented | Located at `src/features/market-insight/useMarketSentiment.ts` |
+| `useMacroAnalysis` Hook | ✅ Implemented | Located at `src/features/market-insight/useMacroAnalysis.ts` |
+| `types.ts` | ✅ Implemented | Full TypeScript definitions |
+| `MarketInsight.tsx` Page | ✅ Refactored | Using real hooks instead of MOCK data |
 
-## 📋 Implementation Status
+### Real-Time Data Verified
 
-### ✅ Fully Implemented
-
-| Component | Location | Status |
-|-----------|----------|--------|
-| AI Preflight Check | `supabase/functions/ai-preflight/` | ✅ Deployed |
-| AI Confluence Detection | `supabase/functions/confluence-detection/` | ✅ Deployed |
-| AI Trade Quality Scoring | `supabase/functions/trade-quality/` | ✅ Deployed |
-| AI Dashboard Insights | `supabase/functions/dashboard-insights/` | ✅ Deployed |
-| AI Post-Trade Analysis | `supabase/functions/post-trade-analysis/` | ✅ Deployed |
-| **AI Market Insight** | `supabase/functions/market-insight/` | ✅ **NEW - Deployed** |
-| **AI Macro Analysis** | `supabase/functions/macro-analysis/` | ✅ **NEW - Deployed** |
-| React Hooks for AI | `src/features/ai/` | ✅ Functional |
-| **Market Insight Hooks** | `src/features/market-insight/` | ✅ **NEW** |
+Edge function responses menunjukkan data live:
+- **Fear & Greed Index**: 16 (Extreme Fear)
+- **BTC Price**: $82,326.56 (-6.78%)
+- **ETH Price**: $2,717.18 (-8.09%)
+- **SOL Price**: $113.86 (-7.90%)
+- **BTC Dominance**: 57.03%
+- **AI Summary**: Generated in Indonesian language
 
 ---
 
-## 🔧 New Edge Functions
+## Remaining Tasks
 
-### 1. market-insight (NEW)
+### 1. Update supabase/config.toml
 
-**File:** `supabase/functions/market-insight/index.ts`
+Perlu menambahkan entry untuk `market-insight` dan `macro-analysis` agar terdaftar dengan benar:
 
-**Features:**
-- Fear & Greed Index dari `https://api.alternative.me/fng/`
-- BTC/ETH/SOL OHLCV dari Binance API
-- Technical indicators: MA, RSI
-- Weighted sentiment calculation: `(Tech×0.30) + (OnChain×0.25) + (Social×0.25) + (Macro×0.20)`
-- Volume-based whale detection
-- Trading opportunities ranking
+```toml
+[functions.market-insight]
+verify_jwt = false
 
-### 2. macro-analysis (NEW)
-
-**File:** `supabase/functions/macro-analysis/index.ts`
-
-**Features:**
-- CoinGecko global market data
-- Binance funding rates
-- AI summary generation via Lovable AI
-- Macro sentiment calculation
-
----
-
-## 📁 New Files Created
-
-| File | Purpose |
-|------|---------|
-| `supabase/functions/market-insight/index.ts` | Real-time market sentiment edge function |
-| `supabase/functions/macro-analysis/index.ts` | Macro analysis edge function |
-| `src/features/market-insight/types.ts` | TypeScript types for market insight |
-| `src/features/market-insight/useMarketSentiment.ts` | Hook untuk fetch sentiment data |
-| `src/features/market-insight/useMacroAnalysis.ts` | Hook untuk fetch macro data |
-| `src/features/market-insight/index.ts` | Feature exports |
-
----
-
-## 📄 Refactored Files
-
-| File | Changes |
-|------|---------|
-| `src/pages/MarketInsight.tsx` | Removed MOCK data, integrated real hooks with loading/error states |
-
----
-
-## ⚙️ Technical Details
-
-### API Rate Limits
-- **Binance:** 1200 req/min (well within limits)
-- **CoinGecko:** 10-50 req/min (using caching)
-- **Alternative.me:** Unlimited
-
-### Caching Strategy
-- `useMarketSentiment`: 5 min staleTime, 5 min refetchInterval
-- `useMacroAnalysis`: 15 min staleTime, 15 min refetchInterval
-
-### Error Handling
-- Graceful fallback jika API gagal
-- Loading states di UI
-- Error banner di halaman
-
----
-
-## 🔄 Migration Complete
-
-```
-Previous State                   Current State
-─────────────────────────────────────────────────────
-MOCK_SENTIMENT (hardcoded)  →   useMarketSentiment() hook ✅
-MOCK_VOLATILITY (hardcoded) →   Real volatility calculation ✅
-MOCK_OPPORTUNITIES (hardcoded) → AI-generated opportunities ✅
-MACRO_CONDITIONS (hardcoded) →  useMacroAnalysis() hook ✅
-Fake whale addresses        →   Volume proxy analysis ✅
-Static F&G (62)            →   Live alternative.me API ✅
+[functions.macro-analysis]
+verify_jwt = false
 ```
 
----
+### 2. Update Documentation
 
-## ✅ Success Criteria Met
-
-1. ✅ Market Insight page menampilkan **real-time data** dari API
-2. ✅ Fear & Greed Index ter-update dari alternative.me
-3. ✅ AI Sentiment score dihitung dengan formula yang benar
-4. ✅ Macro analysis menampilkan data terkini
-5. ✅ Whale tracking menunjukkan volume-based signals
-6. ✅ Auto-refresh berfungsi (5 min sentiment, 15 min macro)
-7. ✅ Proper error handling dan loading states
-8. ✅ Documentation updated
+Update `docs/ai_plan.md` dengan status terkini dan testing results.
 
 ---
 
-## 🚀 Future Enhancements (Optional)
+## Technical Summary
 
-### Nice to Have
-1. Economic Calendar integration (Trading Economics API)
-2. Historical data charting
-3. Alert system untuk extreme conditions
-4. Social sentiment dari Twitter/X API
+### Edge Functions Architecture
 
-### Notes
-- DXY, S&P 500, VIX memerlukan paid API (Yahoo Finance tidak gratis)
-- Saat ini menggunakan crypto-native indicators sebagai proxy
-- AI summary menggunakan Lovable AI (Gemini 3 Flash)
+```text
+┌─────────────────────────────────────────────────────────────┐
+│                     Market Insight Page                      │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+           ┌───────────────┼───────────────┐
+           ▼               ▼               ▼
+   useMarketSentiment  useMacroAnalysis  (auto-refresh)
+           │               │
+           ▼               ▼
+   ┌───────────────┐ ┌─────────────────┐
+   │market-insight │ │ macro-analysis  │
+   │ Edge Function │ │ Edge Function   │
+   └───────────────┘ └─────────────────┘
+           │               │
+           ▼               ▼
+   ┌─────────────────────────────────────┐
+   │         External APIs               │
+   │  - Alternative.me (Fear & Greed)    │
+   │  - Binance (OHLCV, Ticker, Funding) │
+   │  - CoinGecko (Global Data)          │
+   │  - Lovable AI (Gemini 3 Flash)      │
+   └─────────────────────────────────────┘
+```
+
+### API Response Times
+
+| Function | Response Time | Data Points |
+|----------|--------------|-------------|
+| market-insight | ~1.5s | 15+ data points |
+| macro-analysis | ~3s | 6+ data points + AI summary |
+
+---
+
+## Implementation Actions
+
+### Files to Modify
+
+1. **`supabase/config.toml`**
+   - Add `[functions.market-insight]` with `verify_jwt = false`
+   - Add `[functions.macro-analysis]` with `verify_jwt = false`
+
+2. **`docs/ai_plan.md`**
+   - Mark all phases as completed
+   - Add testing results and verification notes
+
+---
+
+## Success Criteria Verification
+
+| Criteria | Status |
+|----------|--------|
+| Market Insight page menampilkan real-time data | ✅ Verified |
+| Fear & Greed Index ter-update dari alternative.me | ✅ Verified (value: 16) |
+| AI Sentiment score dihitung dengan formula | ✅ Verified (weighted calc) |
+| Macro analysis menampilkan data terkini | ✅ Verified (BTC Dom 57%) |
+| Whale tracking menggunakan volume proxy | ✅ Verified |
+| Auto-refresh berfungsi (5-15 min) | ✅ Configured |
+| Proper error handling | ✅ Implemented |
+| Documentation updated | 🔄 Pending |
+
