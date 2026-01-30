@@ -150,6 +150,59 @@ export type Database = {
         }
         Relationships: []
       }
+      backtest_results: {
+        Row: {
+          created_at: string
+          equity_curve: Json
+          final_capital: number
+          id: string
+          initial_capital: number
+          metrics: Json
+          pair: string
+          period_end: string
+          period_start: string
+          strategy_id: string | null
+          trades: Json
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          equity_curve?: Json
+          final_capital?: number
+          id?: string
+          initial_capital?: number
+          metrics?: Json
+          pair: string
+          period_end: string
+          period_start: string
+          strategy_id?: string | null
+          trades?: Json
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          equity_curve?: Json
+          final_capital?: number
+          id?: string
+          initial_capital?: number
+          metrics?: Json
+          pair?: string
+          period_end?: string
+          period_start?: string
+          strategy_id?: string | null
+          trades?: Json
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "backtest_results_strategy_id_fkey"
+            columns: ["strategy_id"]
+            isOneToOne: false
+            referencedRelation: "trading_strategies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       daily_risk_snapshots: {
         Row: {
           capital_deployed_percent: number | null
@@ -596,9 +649,11 @@ export type Database = {
       }
       trading_strategies: {
         Row: {
+          automation_score: number | null
           color: string | null
           created_at: string
           description: string | null
+          difficulty_level: string | null
           entry_rules: Json | null
           exit_rules: Json | null
           id: string
@@ -607,18 +662,23 @@ export type Database = {
           min_confluences: number | null
           min_rr: number | null
           name: string
+          source: string | null
+          source_url: string | null
           status: string | null
           tags: string[] | null
           timeframe: string | null
           updated_at: string
           user_id: string
           valid_pairs: string[] | null
+          validation_score: number | null
           version: number | null
         }
         Insert: {
+          automation_score?: number | null
           color?: string | null
           created_at?: string
           description?: string | null
+          difficulty_level?: string | null
           entry_rules?: Json | null
           exit_rules?: Json | null
           id?: string
@@ -627,18 +687,23 @@ export type Database = {
           min_confluences?: number | null
           min_rr?: number | null
           name: string
+          source?: string | null
+          source_url?: string | null
           status?: string | null
           tags?: string[] | null
           timeframe?: string | null
           updated_at?: string
           user_id: string
           valid_pairs?: string[] | null
+          validation_score?: number | null
           version?: number | null
         }
         Update: {
+          automation_score?: number | null
           color?: string | null
           created_at?: string
           description?: string | null
+          difficulty_level?: string | null
           entry_rules?: Json | null
           exit_rules?: Json | null
           id?: string
@@ -647,12 +712,15 @@ export type Database = {
           min_confluences?: number | null
           min_rr?: number | null
           name?: string
+          source?: string | null
+          source_url?: string | null
           status?: string | null
           tags?: string[] | null
           timeframe?: string | null
           updated_at?: string
           user_id?: string
           valid_pairs?: string[] | null
+          validation_score?: number | null
           version?: number | null
         }
         Relationships: []

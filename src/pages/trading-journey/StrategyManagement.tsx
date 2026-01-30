@@ -1,5 +1,6 @@
 /**
  * Strategy Management - Enhanced per Trading Journey Markdown spec
+ * Includes: Library, YouTube Import, Backtesting
  */
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -22,7 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Plus, Target, MoreVertical, Edit, Trash2, Tag, Clock, TrendingUp, Shield, Zap, ListChecks, LogOut, Brain, Star, X, ChevronsUpDown } from "lucide-react";
+import { Plus, Target, MoreVertical, Edit, Trash2, Tag, Clock, TrendingUp, Shield, Zap, ListChecks, LogOut, Brain, Star, X, ChevronsUpDown, Youtube, Play, Library } from "lucide-react";
 import { format } from "date-fns";
 import { 
   useTradingStrategies, 
@@ -35,6 +36,9 @@ import { useStrategyPerformance, getQualityScoreLabel } from "@/hooks/use-strate
 import { TIMEFRAME_OPTIONS, COMMON_PAIRS, type TimeframeType, type MarketType, type EntryRule, type ExitRule, DEFAULT_ENTRY_RULES, DEFAULT_EXIT_RULES } from "@/types/strategy";
 import { EntryRulesBuilder } from "@/components/strategy/EntryRulesBuilder";
 import { ExitRulesBuilder } from "@/components/strategy/ExitRulesBuilder";
+import { YouTubeStrategyImporter } from "@/components/strategy/YouTubeStrategyImporter";
+import { BacktestRunner } from "@/components/strategy/BacktestRunner";
+import { StrategyValidationBadge } from "@/components/strategy/StrategyValidationBadge";
 import { useBaseAssets } from "@/hooks/use-trading-pairs";
 
 const strategyColors = [
@@ -73,6 +77,7 @@ const strategyFormSchema = z.object({
 type StrategyFormValues = z.infer<typeof strategyFormSchema>;
 
 export default function StrategyManagement() {
+  const [activeTab, setActiveTab] = useState('library');
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingStrategy, setEditingStrategy] = useState<TradingStrategy | null>(null);
   const [deletingStrategy, setDeletingStrategy] = useState<TradingStrategy | null>(null);
@@ -225,72 +230,95 @@ export default function StrategyManagement() {
               <Target className="h-6 w-6 text-primary" />
               Strategy & Rules
             </h1>
-            <p className="text-muted-foreground">Create and manage your trading strategies with entry/exit rules</p>
+            <p className="text-muted-foreground">Create, import, and backtest your trading strategies</p>
           </div>
-          <Button onClick={handleOpenAdd}>
-            <Plus className="mr-2 h-4 w-4" />
-            New Strategy
-          </Button>
+          {activeTab === 'library' && (
+            <Button onClick={handleOpenAdd}>
+              <Plus className="mr-2 h-4 w-4" />
+              New Strategy
+            </Button>
+          )}
         </div>
 
-        {/* Stats */}
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Total Strategies</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{strategies?.length || 0}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <Zap className="h-4 w-4 text-primary" />
-                Active
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {strategies?.filter(s => s.is_active).length || 0}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Spot Strategies</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {strategies?.length || 0}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Futures Strategies</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">0</div>
-            </CardContent>
-          </Card>
-        </div>
+        {/* Main Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="library" className="flex items-center gap-2">
+              <Library className="h-4 w-4" />
+              Library
+            </TabsTrigger>
+            <TabsTrigger value="import" className="flex items-center gap-2">
+              <Youtube className="h-4 w-4" />
+              YouTube Import
+            </TabsTrigger>
+            <TabsTrigger value="backtest" className="flex items-center gap-2">
+              <Play className="h-4 w-4" />
+              Backtest
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Strategies List */}
-        {!strategies || strategies.length === 0 ? (
-          <EmptyState
-            icon={Target}
-            title="No strategies created"
-            description="Create your first trading strategy to track and analyze your setups."
-            action={{
-              label: "Create Strategy",
-              onClick: handleOpenAdd,
-            }}
-          />
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {strategies.map((strategy) => {
-              const performance = strategyPerformance.get(strategy.id);
+          {/* Library Tab */}
+          <TabsContent value="library" className="space-y-6 mt-6">
+            {/* Stats */}
+            <div className="grid gap-4 md:grid-cols-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium">Total Strategies</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{strategies?.length || 0}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <Zap className="h-4 w-4 text-primary" />
+                    Active
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {strategies?.filter(s => s.is_active).length || 0}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium">Spot Strategies</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {strategies?.filter(s => s.market_type === 'spot' || !s.market_type).length || 0}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium">Futures Strategies</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {strategies?.filter(s => s.market_type === 'futures').length || 0}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Strategies List */}
+            {!strategies || strategies.length === 0 ? (
+              <EmptyState
+                icon={Target}
+                title="No strategies created"
+                description="Create your first trading strategy to track and analyze your setups."
+                action={{
+                  label: "Create Strategy",
+                  onClick: handleOpenAdd,
+                }}
+              />
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {strategies.map((strategy) => {
+                  const performance = strategyPerformance.get(strategy.id);
               const qualityScore = performance?.aiQualityScore || 0;
               const scoreInfo = getQualityScoreLabel(qualityScore);
               
@@ -338,6 +366,12 @@ export default function StrategyManagement() {
                             <DropdownMenuItem onClick={() => handleOpenEdit(strategy)}>
                               <Edit className="h-4 w-4 mr-2" />
                               Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => {
+                              setActiveTab('backtest');
+                            }}>
+                              <Play className="h-4 w-4 mr-2" />
+                              Run Backtest
                             </DropdownMenuItem>
                             <DropdownMenuItem 
                               onClick={() => setDeletingStrategy(strategy)}
@@ -409,9 +443,21 @@ export default function StrategyManagement() {
                   </CardContent>
                 </Card>
               );
-            })}
-          </div>
-        )}
+                })}
+              </div>
+            )}
+          </TabsContent>
+
+          {/* YouTube Import Tab */}
+          <TabsContent value="import" className="mt-6">
+            <YouTubeStrategyImporter onStrategyImported={() => setActiveTab('library')} />
+          </TabsContent>
+
+          {/* Backtest Tab */}
+          <TabsContent value="backtest" className="mt-6">
+            <BacktestRunner />
+          </TabsContent>
+        </Tabs>
 
         {/* Add/Edit Dialog */}
         <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
