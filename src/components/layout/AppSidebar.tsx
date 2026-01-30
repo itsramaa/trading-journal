@@ -22,6 +22,7 @@ import {
   Settings,
   CandlestickChart,
   History,
+  Flame,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { NavUser } from "./NavUser";
@@ -45,6 +46,7 @@ const navigationGroups = [
     title: "Market",
     items: [
       { title: "Market Data", url: "/market-data", icon: BarChart3 },
+      { title: "Top Movers", url: "/top-movers", icon: Flame },
       { title: "Economic Calendar", url: "/calendar", icon: Calendar },
       { title: "AI Analysis", url: "/market", icon: TrendingUp },
     ],
