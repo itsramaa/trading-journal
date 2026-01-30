@@ -153,7 +153,7 @@ const Dashboard = () => {
               </Link>
             </Button>
             <Button variant="outline" className="h-auto py-4 flex flex-col gap-2" asChild>
-              <Link to="/analytics">
+              <Link to="/trading-journey/performance">
                 <LineChart className="h-5 w-5 text-primary" />
                 <span className="text-sm">Analytics</span>
               </Link>
@@ -212,7 +212,7 @@ const Dashboard = () => {
         <section className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Shield className="h-5 w-5 text-primary" />
+              <AlertTriangle className="h-5 w-5 text-primary" />
               <h2 className="text-lg font-semibold">Risk & AI Insights</h2>
             </div>
             <Button variant="ghost" size="sm" asChild>
