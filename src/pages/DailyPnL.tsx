@@ -148,42 +148,7 @@ export default function DailyPnL() {
           </Card>
         </div>
 
-        {/* 7-Day Trend Chart */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">7-Day P&L Trend</CardTitle>
-            <CardDescription>Daily profit/loss over the past week</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={weeklyStats.dailyData}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis 
-                    dataKey="date" 
-                    tickFormatter={(v) => format(new Date(v), 'EEE')}
-                    className="text-xs"
-                  />
-                  <YAxis tickFormatter={formatCurrency} className="text-xs" />
-                  <Tooltip 
-                    formatter={(v: number) => [formatCurrency(v), 'P&L']}
-                    labelFormatter={(v) => format(new Date(v), 'MMM dd, yyyy')}
-                  />
-                  <Bar dataKey="netPnl" radius={[4, 4, 0, 0]}>
-                    {weeklyStats.dailyData.map((entry, index) => (
-                      <Cell 
-                        key={`cell-${index}`} 
-                        className={entry.netPnl >= 0 ? 'fill-profit' : 'fill-loss'}
-                      />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Best/Worst Trades */}
+        {/* Best/Worst Trades - Above Chart */}
         <div className="grid gap-4 md:grid-cols-2">
           <Card className="border-profit/20">
             <CardHeader className="pb-3">
@@ -227,6 +192,41 @@ export default function DailyPnL() {
             </CardContent>
           </Card>
         </div>
+
+        {/* 7-Day Trend Chart */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">7-Day P&L Trend</CardTitle>
+            <CardDescription>Daily profit/loss over the past week</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={weeklyStats.dailyData}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis 
+                    dataKey="date" 
+                    tickFormatter={(v) => format(new Date(v), 'EEE')}
+                    className="text-xs"
+                  />
+                  <YAxis tickFormatter={formatCurrency} className="text-xs" />
+                  <Tooltip 
+                    formatter={(v: number) => [formatCurrency(v), 'P&L']}
+                    labelFormatter={(v) => format(new Date(v), 'MMM dd, yyyy')}
+                  />
+                  <Bar dataKey="netPnl" radius={[4, 4, 0, 0]}>
+                    {weeklyStats.dailyData.map((entry, index) => (
+                      <Cell 
+                        key={`cell-${index}`} 
+                        className={entry.netPnl >= 0 ? 'fill-profit' : 'fill-loss'}
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </DashboardLayout>
   );

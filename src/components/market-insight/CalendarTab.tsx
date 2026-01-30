@@ -29,7 +29,11 @@ import { cn } from "@/lib/utils";
 import { useEconomicCalendar } from "@/features/calendar";
 import { format } from "date-fns";
 
-export function CalendarTab() {
+interface CalendarTabProps {
+  hideTitle?: boolean;
+}
+
+export function CalendarTab({ hideTitle = false }: CalendarTabProps) {
   const { data, isLoading, isError, refetch, isFetching } = useEconomicCalendar();
 
   const formatEventDate = (dateString: string) => {
@@ -60,23 +64,41 @@ export function CalendarTab() {
 
   return (
     <div className="space-y-6">
-      {/* Header with Refresh */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <CalendarIcon className="h-5 w-5 text-primary" />
-          <h2 className="text-lg font-semibold">Economic Calendar</h2>
+      {/* Header with Refresh - conditionally show title */}
+      {!hideTitle && (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CalendarIcon className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-semibold">Economic Calendar</h2>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            aria-label="Refresh economic calendar data"
+          >
+            <RefreshCw className={cn("h-4 w-4 mr-2", isFetching && "animate-spin")} aria-hidden="true" />
+            Refresh
+          </Button>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => refetch()}
-          disabled={isFetching}
-          aria-label="Refresh economic calendar data"
-        >
-          <RefreshCw className={cn("h-4 w-4 mr-2", isFetching && "animate-spin")} aria-hidden="true" />
-          Refresh
-        </Button>
-      </div>
+      )}
+      
+      {/* Refresh button when title hidden */}
+      {hideTitle && (
+        <div className="flex justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            aria-label="Refresh economic calendar data"
+          >
+            <RefreshCw className={cn("h-4 w-4 mr-2", isFetching && "animate-spin")} aria-hidden="true" />
+            Refresh
+          </Button>
+        </div>
+      )}
 
       {/* Impact Alert Banner */}
       {data?.impactSummary?.hasHighImpact && data.impactSummary.riskLevel !== 'LOW' && (
