@@ -17,6 +17,7 @@ import { AIInsightsWidget } from "@/components/dashboard/AIInsightsWidget";
 import { TodayPerformance } from "@/components/dashboard/TodayPerformance";
 import { SystemStatusIndicator } from "@/components/dashboard/SystemStatusIndicator";
 import { MarketSessionsWidget } from "@/components/dashboard/MarketSessionsWidget";
+import { VolatilityMeterWidget } from "@/components/dashboard/VolatilityMeterWidget";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { useRealtime } from "@/hooks/use-realtime";
 import { 
@@ -203,9 +204,10 @@ const Dashboard = () => {
               </Link>
             </Button>
           </div>
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid gap-4 lg:grid-cols-3">
             <RiskSummaryCard />
             <AIInsightsWidget />
+            <VolatilityMeterWidget />
           </div>
         </section>
 

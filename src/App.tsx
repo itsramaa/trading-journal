@@ -24,6 +24,7 @@ import PositionCalculator from "./pages/PositionCalculator";
 import MarketInsight from "./pages/MarketInsight";
 import EconomicCalendar from "./pages/EconomicCalendar";
 import MarketData from "./pages/MarketData";
+import TopMovers from "./pages/TopMovers";
 import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
 import Notifications from "./pages/Notifications";
@@ -107,6 +108,11 @@ const App = () => (
             <Route path="/market-data" element={
               <ProtectedRoute>
                 <MarketData />
+              </ProtectedRoute>
+            } />
+            <Route path="/top-movers" element={
+              <ProtectedRoute>
+                <TopMovers />
               </ProtectedRoute>
             } />
             
