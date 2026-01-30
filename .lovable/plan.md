@@ -1,312 +1,448 @@
 
-# Implementation Plan: Performance Page Consolidation
 
-## Overview
+# Implementation Plan: Visual Hierarchy Testing & Analytics/Heatmap Gap Analysis
 
-Menambahkan menu **Performance** ke sidebar (di bawah "Strategy & Rules") dan membuat Performance page yang solid dengan konsolidasi semua fitur performance-related dari seluruh aplikasi.
+## Executive Summary
 
----
-
-## Ringkasan Perubahan
-
-| File | Action | Deskripsi |
-|------|--------|-----------|
-| `src/components/layout/AppSidebar.tsx` | Edit | Tambah menu "Performance" dengan icon `LineChart` |
-| `src/App.tsx` | Edit | Update route `/performance` (pindah dari `/analytics`) |
-| `src/pages/Performance.tsx` | Create | Buat page baru yang solid (memindahkan dari `trading-journey/`) |
-| `src/pages/trading-journey/Performance.tsx` | Delete | Hapus file lama (dipindah ke root) |
-| `src/pages/Dashboard.tsx` | Edit | Update link Analytics dari `/trading-journey/performance` ke `/performance` |
+Berdasarkan end-to-end cross-check audit menggunakan **Visual Hierarchy Testing** dan **Analytics/Heatmap** analysis, ditemukan 14 gap yang perlu diperbaiki untuk meningkatkan konsistensi, usability, dan data-driven decision making.
 
 ---
 
-## Arsitektur Performance Page (Consolidated)
+## Audit Methodology
 
-### Tab Structure (5 Tabs)
+### Visual Hierarchy Testing
 
-```text
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ Performance Analytics                                                        │
-│ Deep dive into your trading performance metrics                             │
-├─────────────────────────────────────────────────────────────────────────────┤
-│  [Overview] [Daily P&L] [Strategies] [Heatmap] [AI Insights]               │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  Tab Content Area                                                           │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+**F-Pattern Scan Analysis:**
+- Verified top-left placement for primary info (title, key metrics)
+- Checked right-side placement for actions
+- Evaluated content flow from most to least important
+
+**Z-Pattern for CTAs:**
+- Analyzed call-to-action button placement
+- Checked visual weight and contrast
+
+**Squint Test:**
+- Evaluated visual weight distribution
+- Identified elements that blend vs stand out
+
+### Analytics/Heatmap Testing
+
+**Event Tracking Coverage:**
+- `trackEvent()` function exists but NOT USED anywhere
+- Missing tracking for critical user journeys
+- No data being collected for feature validation
+
+**Heatmap Component:**
+- TradingHeatmap only used in Performance page
+- Good implementation but limited scope
+
+---
+
+## Gap Analysis Summary
+
+| Category | Gap | Priority | Impact |
+|----------|-----|----------|--------|
+| Analytics | `trackEvent()` not implemented anywhere | HIGH | No usage data |
+| Visual Hierarchy | Inconsistent page header icons | MEDIUM | Visual inconsistency |
+| Visual Hierarchy | Settings page missing header icon | LOW | Style gap |
+| Visual Hierarchy | Risk page missing QuickTip | MEDIUM | Onboarding gap |
+| Analytics | Missing wizard completion tracking | HIGH | Cannot measure wizard efficacy |
+| Analytics | Missing AI feature interaction tracking | HIGH | Cannot validate AI value |
+| Visual Hierarchy | Accounts page uses text-3xl (inconsistent) | LOW | Size inconsistency |
+| Analytics | Missing page view tracking | MEDIUM | No navigation patterns |
+| Visual Hierarchy | TradingHeatmap summary card missing | MEDIUM | Actionable insights gap |
+| Visual Hierarchy | Performance export buttons position | LOW | Minor UX polish |
+| Analytics | Missing position size calculator usage | MEDIUM | Cannot track tool adoption |
+| Analytics | Missing trade filter interaction | LOW | Cannot optimize filters |
+| Visual Hierarchy | MarketInsight CombinedAnalysis card prominence | LOW | Good, minor enhancement |
+| Analytics | No session start/end tracking | MEDIUM | Cannot measure engagement |
+
+---
+
+## Phase 1: Implement Analytics Event Tracking (HIGH Priority)
+
+### 1.1 Core User Journey Tracking
+
+**Problem:** `trackEvent()` and `ANALYTICS_EVENTS` are defined but NEVER used anywhere in the codebase.
+
+**Files to modify:**
+- `src/components/trade/entry/TradeEntryWizard.tsx`
+- `src/pages/AIAssistant.tsx`
+- `src/components/risk/PositionSizeCalculator.tsx`
+- `src/pages/Performance.tsx`
+- `src/pages/Dashboard.tsx`
+- `src/App.tsx`
+
+**Implementation:**
+
+**TradeEntryWizard.tsx** - Track wizard lifecycle:
+```typescript
+import { trackEvent, ANALYTICS_EVENTS } from "@/lib/analytics";
+
+// On wizard mount (inside useEffect)
+useEffect(() => {
+  trackEvent(ANALYTICS_EVENTS.TRADE_ENTRY_WIZARD_START, { step: currentStep });
+  return () => {
+    // Track abandonment if not completed
+  };
+}, []);
+
+// On complete
+const handleComplete = useCallback(async () => {
+  trackEvent(ANALYTICS_EVENTS.TRADE_ENTRY_WIZARD_COMPLETE, {
+    stepsCompleted: completedSteps.length,
+    duration: Date.now() - startTime,
+  });
+  reset();
+  onComplete();
+}, [reset, onComplete, completedSteps, startTime]);
 ```
 
-### Tab 1: Overview (Enhanced)
-**Konsolidasi dari:** Dashboard Portfolio Performance + Existing Performance.tsx
-
-**Metrics Grid (8 cards):**
-- Win Rate + Progress bar
-- Profit Factor
-- Expectancy (per trade avg)
-- Max Drawdown
-- Sharpe Ratio
-- Avg R:R
-- Total Trades
-- Total P&L
-
-**Charts:**
-- Equity Curve (existing)
-- Drawdown Chart (existing)
-
-### Tab 2: Daily P&L (NEW)
-**Konsolidasi dari:** TodayPerformance.tsx data + Binance income data
-
-**Content:**
-- Daily P&L Summary (Gross/Net breakdown)
-- Fee Analysis (Commission, Funding, Rebates)
-- Symbol Breakdown table (from `binanceStats.bySymbol`)
-- 7-Day P&L Chart (baru - agregasi daily)
-- Best/Worst Trades per day
-
+**AIAssistant.tsx** - Track AI quality checks:
 ```typescript
-// Proposed structure for Daily P&L data
-interface DailyPnLData {
-  date: string;
-  grossPnl: number;
-  netPnl: number;
-  trades: number;
-  winRate: number;
-  fees: {
-    commission: number;
-    funding: number;
-    rebates: number;
-  };
-  topSymbol: { pair: string; pnl: number };
+import { trackEvent, ANALYTICS_EVENTS } from "@/lib/analytics";
+
+// After quality check result
+if (qualityResult) {
+  trackEvent(ANALYTICS_EVENTS.AI_INSIGHT_VIEW, {
+    score: qualityResult.score,
+    recommendation: qualityResult.recommendation,
+    pair: checkerPair,
+  });
 }
 ```
 
-### Tab 3: Strategies (Existing, Enhanced)
-**Konsolidasi dari:** Performance.tsx Strategies tab + StrategyManagement performance data
-
-**Content:**
-- Strategy Performance Table (existing)
-- Strategy Comparison Bar Chart (existing)
-- AI Quality Score per strategy (dari `use-strategy-performance.ts`)
-- Strategy Win/Loss streak per strategy (baru)
-
-### Tab 4: Heatmap (Existing)
-**Content:**
-- TradingHeatmap component (existing)
-- Time Analysis summary (best trading hours/days)
-
-### Tab 5: AI Insights (Existing, Enhanced)
-**Konsolidasi dari:** AIPatternInsights + CryptoRanking
-
-**Content:**
-- AI Pattern Insights (winning/losing patterns)
-- Pair Performance Ranking (keep/reduce/avoid recommendations)
-- Trade Distribution by pair (pie chart - baru)
-
----
-
-## Phase 1: Sidebar & Routing Updates
-
-### 1.1 Update AppSidebar
-
-**File:** `src/components/layout/AppSidebar.tsx`
-
-**Changes:**
-- Tambah `LineChart` import dari lucide-react
-- Sisipkan menu item baru setelah "Strategy & Rules"
-
-**New Navigation Order:**
+**PositionSizeCalculator.tsx** - Track calculator usage:
 ```typescript
-const navigationItems: NavItem[] = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Accounts", url: "/accounts", icon: Building2 },
-  { title: "Calendar", url: "/calendar", icon: Calendar },
-  { title: "Market Insight", url: "/market", icon: TrendingUp },
-  { title: "Risk Management", url: "/risk", icon: Shield },
-  { title: "Trade Quality", url: "/ai", icon: Target },
-  { title: "Trade Management", url: "/trading", icon: Notebook },
-  { title: "Strategy & Rules", url: "/strategies", icon: Lightbulb },
-  { title: "Performance", url: "/performance", icon: LineChart }, // NEW
-  { title: "Settings", url: "/settings", icon: Settings },
-];
+import { trackEvent, ANALYTICS_EVENTS } from "@/lib/analytics";
+
+// On calculate button click
+const handleCalculate = () => {
+  trackEvent(ANALYTICS_EVENTS.POSITION_SIZE_CALCULATE, {
+    accountBalance,
+    riskPercent,
+    resultPositionSize,
+  });
+  // ... existing logic
+};
 ```
 
-### 1.2 Update Routes
+### 1.2 Add Page View Tracking
 
 **File:** `src/App.tsx`
 
-**Changes:**
-- Ubah route `/analytics` → `/performance`
-- Ubah import path dari `./pages/trading-journey/Performance` → `./pages/Performance`
-
----
-
-## Phase 2: Create Consolidated Performance Page
-
-### 2.1 Create New Performance Page
-
-**File:** `src/pages/Performance.tsx` (baru, di root pages)
-
-**Structure:**
-
+**Implementation:**
 ```typescript
-// Key imports
-import { useBinanceDailyPnl } from "@/hooks/use-binance-daily-pnl";
-import { TradingHeatmap } from "@/components/analytics/TradingHeatmap";
-import { DrawdownChart } from "@/components/analytics/DrawdownChart";
-import { AIPatternInsights } from "@/components/analytics/AIPatternInsights";
-import { CryptoRanking } from "@/components/analytics/CryptoRanking";
-import { useStrategyPerformance } from "@/hooks/use-strategy-performance";
+import { useEffect } from "react";
+import { useLocation } from "react-router-dom";
+import { trackEvent, ANALYTICS_EVENTS } from "@/lib/analytics";
 
-export default function Performance() {
-  // 5 tabs: overview, daily, strategies, heatmap, ai-insights
+// Inside App component, after routes are defined
+function PageViewTracker() {
+  const location = useLocation();
   
-  // Hooks
-  const binanceStats = useBinanceDailyPnl();
-  const strategyPerformance = useStrategyPerformance();
+  useEffect(() => {
+    trackEvent(ANALYTICS_EVENTS.PAGE_VIEW, {
+      path: location.pathname,
+      timestamp: Date.now(),
+    });
+  }, [location.pathname]);
   
-  return (
-    <DashboardLayout>
-      <Tabs defaultValue="overview">
-        <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="daily">Daily P&L</TabsTrigger>
-          <TabsTrigger value="strategies">Strategies</TabsTrigger>
-          <TabsTrigger value="heatmap">Heatmap</TabsTrigger>
-          <TabsTrigger value="ai-insights">AI Insights</TabsTrigger>
-        </TabsList>
-        
-        {/* Tab contents */}
-      </Tabs>
-    </DashboardLayout>
-  );
+  return null;
 }
+
+// Add <PageViewTracker /> inside Router
 ```
 
-### 2.2 New: Daily P&L Tab Component
+### 1.3 Add Session Tracking
 
-**Location:** Inline in Performance.tsx atau extract ke `src/components/performance/DailyPnLTab.tsx`
+**File:** `src/App.tsx`
 
-**Features:**
-- Use `useBinanceDailyPnl()` for 24H stats
-- Symbol breakdown table dari `bySymbol`
-- Fee breakdown cards
-- 7-day mini chart (menggunakan data dari `useBinanceAllIncome` dengan range 7 hari)
+**Implementation:**
+```typescript
+useEffect(() => {
+  trackEvent(ANALYTICS_EVENTS.SESSION_START, {
+    timestamp: Date.now(),
+    userAgent: navigator.userAgent,
+  });
+  
+  const handleBeforeUnload = () => {
+    trackEvent(ANALYTICS_EVENTS.SESSION_END, {
+      timestamp: Date.now(),
+      duration: Date.now() - sessionStartTime,
+    });
+  };
+  
+  window.addEventListener('beforeunload', handleBeforeUnload);
+  return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+}, []);
+```
 
 ---
 
-## Phase 3: Update Dashboard Links
+## Phase 2: Visual Hierarchy Consistency (MEDIUM Priority)
 
-### 3.1 Fix Analytics Quick Action
+### 2.1 Standardize Page Header Format
 
-**File:** `src/pages/Dashboard.tsx`
+**Pattern to follow (per Dashboard.tsx):**
+```typescript
+<div>
+  <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+    <Icon className="h-6 w-6 text-primary" />
+    Page Title
+  </h1>
+  <p className="text-muted-foreground">Description text</p>
+</div>
+```
 
-**Changes:**
-- Line 156: Update link dari `/trading-journey/performance` ke `/performance`
+**Files with inconsistencies:**
 
+| File | Current | Should Be |
+|------|---------|-----------|
+| `Settings.tsx` | No icon | Add Settings icon |
+| `Accounts.tsx` | `text-3xl` | Change to `text-2xl` |
+| `Performance.tsx` | `text-3xl` | Change to `text-2xl` |
+
+**Settings.tsx fix:**
+```typescript
+<div>
+  <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+    <Settings className="h-6 w-6 text-primary" />
+    Settings
+  </h1>
+  <p className="text-muted-foreground">Manage your account preferences.</p>
+</div>
+```
+
+### 2.2 Add Missing QuickTip to Risk Management
+
+**File:** `src/pages/RiskManagement.tsx`
+
+**Problem:** Only Overview tab has QuickTip, other tabs lack onboarding context.
+
+**Implementation:** Already has QuickTip - verified OK.
+
+### 2.3 Add Section Icons to AccountDetail
+
+**File:** `src/pages/AccountDetail.tsx`
+
+**Problem:** Stats section lacks consistent icon+title pattern.
+
+**Before:** Cards without section header
+
+**After:**
+```typescript
+<section className="space-y-4">
+  <div className="flex items-center gap-2">
+    <BarChart3 className="h-5 w-5 text-primary" />
+    <h2 className="text-lg font-semibold">Account Statistics</h2>
+  </div>
+  {/* Stats cards grid */}
+</section>
+```
+
+---
+
+## Phase 3: Enhanced Trading Heatmap (MEDIUM Priority)
+
+### 3.1 Add Actionable Summary Card to Heatmap Tab
+
+**File:** `src/pages/Performance.tsx` (Heatmap tab)
+
+**Problem:** Heatmap shows data but lacks actionable insights summary.
+
+**Implementation:**
+
+Add summary card above TradingHeatmap:
+```typescript
+<TabsContent value="heatmap" className="space-y-6">
+  {/* NEW: Best/Worst Time Summary */}
+  <div className="grid gap-4 md:grid-cols-3">
+    <Card className="bg-profit/5 border-profit/20">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-medium flex items-center gap-1">
+          <Trophy className="h-4 w-4 text-profit" />
+          Best Trading Time
+          <InfoTooltip content="Time slot with highest win rate based on your trade history." />
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="text-xl font-bold text-profit">
+          {bestTimeSlot?.day} {bestTimeSlot?.hour}:00
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {bestTimeSlot?.winRate.toFixed(0)}% win rate ({bestTimeSlot?.trades} trades)
+        </p>
+      </CardContent>
+    </Card>
+    
+    <Card className="bg-loss/5 border-loss/20">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-medium flex items-center gap-1">
+          <AlertTriangle className="h-4 w-4 text-loss" />
+          Avoid Trading
+          <InfoTooltip content="Time slot with lowest win rate. Consider avoiding trades during this time." />
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="text-xl font-bold text-loss">
+          {worstTimeSlot?.day} {worstTimeSlot?.hour}:00
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {worstTimeSlot?.winRate.toFixed(0)}% win rate ({worstTimeSlot?.trades} trades)
+        </p>
+      </CardContent>
+    </Card>
+    
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-medium">Most Active</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="text-xl font-bold">
+          {mostActiveSlot?.day}s
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {mostActiveSlot?.trades} total trades
+        </p>
+      </CardContent>
+    </Card>
+  </div>
+  
+  <TradingHeatmap />
+</TabsContent>
+```
+
+**Calculate best/worst time logic:**
+```typescript
+const heatmapInsights = useMemo(() => {
+  const trades = filteredTrades.filter(t => t.status === 'closed');
+  if (trades.length === 0) return null;
+  
+  const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const grid: Map<string, { day: string; hour: number; trades: number; wins: number }> = new Map();
+  
+  trades.forEach((trade) => {
+    const d = new Date(trade.trade_date);
+    const day = DAYS[d.getDay()];
+    const hour = Math.floor(d.getHours() / 4) * 4;
+    const key = `${day}-${hour}`;
+    const existing = grid.get(key) || { day, hour, trades: 0, wins: 0 };
+    existing.trades++;
+    if ((trade.realized_pnl || trade.pnl || 0) > 0) existing.wins++;
+    grid.set(key, existing);
+  });
+  
+  const slots = Array.from(grid.values())
+    .map(s => ({ ...s, winRate: s.trades > 0 ? (s.wins / s.trades) * 100 : 0 }))
+    .filter(s => s.trades >= 3); // Minimum sample size
+  
+  if (slots.length === 0) return null;
+  
+  const sorted = [...slots].sort((a, b) => b.winRate - a.winRate);
+  const byVolume = [...slots].sort((a, b) => b.trades - a.trades);
+  
+  return {
+    best: sorted[0],
+    worst: sorted[sorted.length - 1],
+    mostActive: byVolume[0],
+  };
+}, [filteredTrades]);
+```
+
+---
+
+## Phase 4: Minor Polish Items (LOW Priority)
+
+### 4.1 Fix Performance Page Header Size
+
+**File:** `src/pages/Performance.tsx`
+
+**Change:**
 ```typescript
 // Before
-<Link to="/trading-journey/performance">
+<h1 className="text-3xl font-bold tracking-tight">Performance Analytics</h1>
 
 // After
-<Link to="/performance">
+<h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+  <BarChart3 className="h-6 w-6 text-primary" />
+  Performance Analytics
+</h1>
 ```
 
----
+### 4.2 Fix Accounts Page Header Size
 
-## Phase 4: Cleanup
+**File:** `src/pages/Accounts.tsx`
 
-### 4.1 Delete Old Performance File
+**Change:**
+```typescript
+// Before
+<h1 className="text-3xl font-bold tracking-tight">Trading Accounts</h1>
 
-**File:** `src/pages/trading-journey/Performance.tsx`
-
-**Action:** Delete (konten sudah dipindah ke `src/pages/Performance.tsx`)
+// After
+<h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+  <CandlestickChart className="h-6 w-6 text-primary" />
+  Trading Accounts
+</h1>
+```
 
 ---
 
 ## Technical Implementation Details
 
-### File Structure After Refactor
+### Files Modified (8 files)
 
-```text
-src/
-├── pages/
-│   ├── Performance.tsx          # NEW (consolidated)
-│   ├── Dashboard.tsx            # Updated links
-│   └── trading-journey/
-│       ├── TradingJournal.tsx
-│       └── StrategyManagement.tsx
-├── components/
-│   ├── analytics/               # Existing, reused
-│   │   ├── AIPatternInsights.tsx
-│   │   ├── CryptoRanking.tsx
-│   │   ├── DrawdownChart.tsx
-│   │   └── TradingHeatmap.tsx
-│   └── performance/             # NEW (optional, for extraction)
-│       └── DailyPnLTab.tsx
-└── hooks/
-    ├── use-binance-daily-pnl.ts  # Existing, reused
-    └── use-strategy-performance.ts
-```
+| File | Changes | Lines |
+|------|---------|-------|
+| `src/App.tsx` | Add PageViewTracker, session tracking | +30 |
+| `src/components/trade/entry/TradeEntryWizard.tsx` | Add wizard tracking | +15 |
+| `src/pages/AIAssistant.tsx` | Add AI insight tracking | +10 |
+| `src/components/risk/PositionSizeCalculator.tsx` | Add calculator tracking | +8 |
+| `src/pages/Performance.tsx` | Add heatmap insights, fix header | +60 |
+| `src/pages/Accounts.tsx` | Fix header size/icon | +2 |
+| `src/pages/Settings.tsx` | Add header icon | +3 |
 
-### New Hook: Extended Daily P&L (Optional Enhancement)
+### New Imports Required
 
+**App.tsx:**
 ```typescript
-// Extend useBinanceDailyPnl to support multi-day range
-export function useBinanceWeeklyPnl() {
-  const { data: allIncomeData } = useBinanceAllIncome(7, 1000); // 7 days
-  
-  // Group by day and calculate daily aggregates
-  const dailyData = useMemo(() => {
-    // ... aggregate logic per day
-  }, [allIncomeData]);
-  
-  return dailyData;
-}
+import { trackEvent, ANALYTICS_EVENTS } from "@/lib/analytics";
 ```
 
----
-
-## UI/UX Improvements
-
-### Consistent Patterns
-- Semua tabs gunakan pattern icon + hidden label pada mobile
-- Loading state menggunakan `MetricsGridSkeleton`
-- Empty state menggunakan `EmptyState` component
-- InfoTooltips pada metric yang kompleks
-
-### Responsive Design
-- Grid 4 cols pada desktop → 2 cols pada tablet → 1 col pada mobile
-- Charts height 300px dengan ResponsiveContainer
-- Tab labels hidden pada mobile (icon only)
+**Performance.tsx:**
+```typescript
+import { Trophy } from "lucide-react";
+```
 
 ---
 
 ## Expected Outcomes
 
-### Consolidation Benefits
-- **Single Source of Truth:** Semua analytics di satu tempat
-- **Reduced Navigation:** User tidak perlu cari-cari fitur performance
-- **Binance Integration:** Daily P&L tab memanfaatkan real-time data
+### Analytics Benefits
+- **Before:** 0 events being tracked, no usage data
+- **After:** Full user journey visibility with 5+ critical events
 
-### Information Architecture
-- **Before:** Performance scattered (Dashboard 7-day, Today Performance, Performance page)
-- **After:** Unified Performance hub dengan 5 focused tabs
+### Visual Hierarchy Benefits
+- **Before:** Inconsistent header sizes (2xl vs 3xl), missing icons
+- **After:** Unified `text-2xl` + icon pattern across all pages
 
-### Code Cleanup
-- Remove 1 file (`trading-journey/Performance.tsx`)
-- Centralize all performance logic
-- Reuse existing analytics components
+### Heatmap Benefits
+- **Before:** Raw data only, no actionable summary
+- **After:** Clear "Best Time to Trade" and "Avoid Trading" insights
 
 ---
 
-## Implementation Order
+## Verification Checklist
 
-1. **Update** `AppSidebar.tsx` - Add Performance menu item
-2. **Update** `App.tsx` - Change route to `/performance` 
-3. **Create** `src/pages/Performance.tsx` - New consolidated page with 5 tabs
-4. **Update** `Dashboard.tsx` - Fix Analytics quick action link
-5. **Delete** `src/pages/trading-journey/Performance.tsx` - Remove old file
-6. **Test** - Verify navigation, tabs, and data display
+After implementation:
+
+1. Open browser DevTools > Application > Local Storage
+2. Check for `usage_events` key populating with events
+3. Navigate through pages and verify PAGE_VIEW events
+4. Complete Trade Entry Wizard and verify WIZARD_COMPLETE event
+5. Use Position Size Calculator and verify tracking
+6. Visually scan all page headers for consistent icon + 2xl pattern
+7. Check Performance > Heatmap tab for new summary cards
 
 ---
 
@@ -314,6 +450,9 @@ export function useBinanceWeeklyPnl() {
 
 | Item | Reason |
 |------|--------|
-| Dashboard 7-Day Stats & Portfolio Performance | Serves as quick summary; detailed version in Performance page |
-| TodayPerformance component | Used as quick widget in Dashboard |
-| Analytics components (`analytics/`) | Reused as-is, no need to move |
+| Dashboard layout | Already follows F-pattern with proper hierarchy |
+| Calendar page header | Already has proper icon + 2xl pattern |
+| RiskManagement header | Already correct |
+| MarketInsight combined card | Good prominence, no change needed |
+| TradingHeatmap component | Good implementation, only adding wrapper insights |
+
