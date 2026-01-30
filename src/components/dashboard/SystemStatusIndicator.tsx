@@ -16,6 +16,7 @@ import {
 import { useTradingGate } from "@/hooks/use-trading-gate";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 
 interface SystemStatusIndicatorProps {
   compact?: boolean;
@@ -127,7 +128,10 @@ export function SystemStatusIndicator({ compact = false }: SystemStatusIndicator
         {/* Progress bar showing loss limit usage */}
         <div className="mt-4 space-y-2">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Daily Loss Limit Usage</span>
+            <span className="text-muted-foreground flex items-center gap-1">
+              Daily Loss Limit Usage
+              <InfoTooltip content="Percentage of your daily loss limit that has been used. At 70% you'll see a warning, at 100% trading is disabled to protect your capital." />
+            </span>
             <span className={cn("font-medium", config.color)}>
               {lossUsedPercent.toFixed(1)}%
             </span>
@@ -143,13 +147,15 @@ export function SystemStatusIndicator({ compact = false }: SystemStatusIndicator
             aria-label={`Daily loss limit usage: ${lossUsedPercent.toFixed(1)}%`}
           />
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>
+            <span className="flex items-center gap-1">
               Today's P&L: <span className={currentPnl >= 0 ? 'text-profit' : 'text-loss'}>
                 {currentPnl >= 0 ? '+' : ''}${currentPnl.toFixed(2)}
               </span>
+              <InfoTooltip content="Your realized profit or loss for today. Negative values count against your daily loss limit." />
             </span>
-            <span>
+            <span className="flex items-center gap-1">
               Remaining: ${remainingBudget.toFixed(2)} of ${dailyLossLimit.toFixed(2)}
+              <InfoTooltip content="How much more you can lose today before hitting your limit and having trading disabled." />
             </span>
           </div>
         </div>
