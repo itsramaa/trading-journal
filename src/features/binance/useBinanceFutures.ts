@@ -41,6 +41,36 @@ async function callBinanceApi<T>(
 }
 
 /**
+ * Hook to get Binance connection status (cached)
+ * Use this for UI components that need to check if connected
+ */
+export function useBinanceConnectionStatus() {
+  return useQuery<BinanceConnectionStatus>({
+    queryKey: ['binance', 'connection-status'],
+    queryFn: async () => {
+      const result = await callBinanceApi<{ canTrade: boolean; permissions: string[] }>('validate');
+      
+      if (result.success && result.data) {
+        return {
+          isConnected: true,
+          lastChecked: new Date().toISOString(),
+          permissions: result.data.permissions || [],
+        };
+      }
+      
+      return {
+        isConnected: false,
+        lastChecked: new Date().toISOString(),
+        permissions: [],
+        error: result.error || 'Connection failed',
+      };
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    retry: 1,
+  });
+}
+
+/**
  * Hook to validate and check Binance connection
  */
 export function useBinanceConnection() {

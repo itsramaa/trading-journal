@@ -5,3 +5,15 @@
 
 export * from './types';
 export * from './useBinanceFutures';
+
+// Re-export commonly used hooks for convenience
+export {
+  useBinanceConnectionStatus,
+  useBinanceConnection,
+  useBinanceBalance,
+  useBinancePositions,
+  useBinanceTrades,
+  useBinanceOpenOrders,
+  useTestBinanceConnection,
+  useRefreshBinanceData,
+} from './useBinanceFutures';
