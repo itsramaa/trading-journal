@@ -1,230 +1,166 @@
 
-# Plan: Unified Trade Management with Journal Enrichment
 
-## Problem Analysis
+# Plan: Reorganize Market Domain Navigation
 
-### Identified Duplications
-1. **Trade History Tab vs Trade History Page**: Closed trades ditampilkan di 2 tempat (`/trading` tab History dan `/history` standalone page) dengan logic filtering yang identik
-2. **Two Entry Methods**: `TradeQuickEntryForm` dan `TradeEntryWizard` memberikan pengalaman berbeda tanpa guideline kapan menggunakan yang mana
-3. **Separated Position Views**: Binance positions dan Paper positions tidak bisa di-enrich dengan data journaling (strategies, screenshots, notes)
-4. **Missing Screenshot/Attachment**: Tidak ada kemampuan untuk attach screenshot chart ke trade entries
+## Current State
 
-### Current Flow Issues
-- User bingung: "Mana yang harus saya gunakan untuk entry trade?"
-- Binance trades tidak bisa ditambahkan strategies/notes setelah sync
-- Tidak bisa attach screenshot chart untuk journaling
+### Sidebar Market Group Order (Current)
+1. AI Analysis (`/market`)
+2. Economic Calendar (`/calendar`)
+3. Market Data (`/market-data`)
+
+### Issues
+1. **Market Sentiment Widget salah tempat** - Widget berada di halaman Strategy, seharusnya di Market Data
+2. **Urutan navigasi tidak logis** - Market Data (raw data) seharusnya pertama, baru Calendar, lalu AI Analysis (yang membutuhkan data)
 
 ---
 
-## Proposed Solution: Unified Trade Hub
+## Changes Required
 
-### Architecture: Single Source, Enrichment Layer
+### 1. Update Sidebar Navigation Order
 
+**File:** `src/components/layout/AppSidebar.tsx`
+
+Ubah urutan items di Market group:
 ```text
-+----------------------------------+
-|       BINANCE FUTURES API        |
-|   (Source of Truth: Positions)   |
-+----------------------------------+
-              |
-              v
-+----------------------------------+
-|       LOCAL DATABASE             |
-|   (Enrichment: Strategies,       |
-|    Notes, Screenshots, Tags)     |
-+----------------------------------+
-              |
-              v
-+----------------------------------+
-|    UNIFIED TRADE JOURNAL UI      |
-|   - All positions in one view    |
-|   - Enrichment drawer for any    |
-|   - Single entry point           |
-+----------------------------------+
+Before:
+1. AI Analysis → /market
+2. Economic Calendar → /calendar  
+3. Market Data → /market-data
+
+After:
+1. Market Data → /market-data
+2. Economic Calendar → /calendar
+3. AI Analysis → /market
 ```
 
----
+### 2. Update Breadcrumb Domain Path
 
-## Implementation Strategy
+**File:** `src/components/layout/DashboardLayout.tsx`
 
-### Phase 1: Remove Duplication
+Update `routeHierarchy` agar `domainPath` mengarah ke `/market-data` sebagai primary entry point Market domain:
 
-**1.1 Eliminate `/history` standalone page**
-- Delete `src/pages/TradeHistory.tsx`
-- Remove route from `App.tsx`
-- Redirect `/history` to `/trading?tab=history`
-
-**1.2 Merge Position Views**
-- Create unified `AllPositionsTable` component
-- Columns: Source (Binance/Paper badge), Symbol, Direction, Entry, Current, PNL, Duration, Actions
-- Single view for both live Binance and Paper positions
-- "Enrich" button on each row to add journal data
-
-### Phase 2: Unified Entry Experience
-
-**2.1 Remove Quick Entry Form**
-- Delete `TradeQuickEntryForm` component (too basic, causes confusion)
-- Keep only `TradeEntryWizard` as the guided entry method
-- Add "Express Mode" toggle inside wizard (skips AI checks for quick entry)
-
-**2.2 Simplified Wizard Modes**
-- **Full Mode (Default)**: All 5 steps with AI validation
-- **Express Mode**: 2 steps only (Setup + Execute) - for quick paper trades
-
-### Phase 3: Trade Enrichment System
-
-**3.1 Database Schema Update**
-Add new columns to `trade_entries`:
-- `screenshots` (JSONB array of image URLs)
-- `chart_timeframe` (string: '1m', '5m', '15m', etc.)
-- `market_context` (JSONB: sentiment, funding rate at entry)
-
-**3.2 Trade Enrichment Drawer**
-New `TradeEnrichmentDrawer` component:
-- Triggered by clicking any trade row (Binance or Paper)
-- Sections:
-  - **Strategy Tags**: Multi-select badges
-  - **Screenshot Upload**: Drag-drop image upload to storage
-  - **Notes**: Rich text area
-  - **Emotional State**: Quick emoji picker
-  - **Tags**: Custom tags
-  - **AI Analysis**: Request post-trade AI analysis
-
-**3.3 Screenshot Storage Integration**
-- Use Lovable Cloud Storage for image uploads
-- Create `trade-screenshots` bucket
-- Max 3 screenshots per trade (to limit storage)
-- Auto-compress images before upload
-
-### Phase 4: Simplified Navigation
-
-**4.1 New Trading Journal Structure**
-```text
-Trading Journal (/trading)
-├── Tab: Active Positions
-│   └── Unified table: Binance + Paper (with source badge)
-├── Tab: Trade History
-│   └── All closed trades (previously duplicated page)
-├── Tab: Import
-│   └── Binance sync controls
+```typescript
+// Market domain - Market Data is now primary
+"/market-data": { title: "Market Data", domain: "Market", domainPath: "/market-data" },
+"/calendar": { title: "Economic Calendar", domain: "Market", domainPath: "/market-data" },
+"/market": { title: "AI Analysis", domain: "Market", domainPath: "/market-data" },
 ```
 
-**4.2 Updated Sidebar**
-- Remove "Trade History" menu item
-- "Trading Journal" becomes single entry point for all trade management
+### 3. Move Market Sentiment Widget to Market Data Page
+
+**File:** `src/pages/MarketData.tsx`
+
+Add `MarketSentimentWidget` sebagai bagian dari Market Data page:
+- Positioned at the top after page header
+- Full width layout dengan symbol selector enabled
+
+### 4. Remove Market Sentiment Widget from Strategy Page
+
+**File:** `src/pages/trading-journey/StrategyManagement.tsx`
+
+Remove widget dari Strategy Management page:
+- Hapus import `MarketSentimentWidget`
+- Ubah layout grid kembali ke single column untuk `StrategyStats`
 
 ---
 
-## Detailed Implementation
-
-### Files to Delete
-- `src/pages/TradeHistory.tsx`
-- `src/components/journal/TradeQuickEntryForm.tsx`
-
-### Files to Create
-1. `src/components/journal/AllPositionsTable.tsx` - Unified positions view
-2. `src/components/journal/TradeEnrichmentDrawer.tsx` - Enrichment panel
-3. `src/components/journal/ScreenshotUploader.tsx` - Image upload component
-4. `src/hooks/use-trade-screenshots.ts` - Storage integration hook
+## Technical Implementation
 
 ### Files to Modify
-1. `src/App.tsx` - Remove /history route, add redirect
-2. `src/pages/trading-journey/TradingJournal.tsx` - Refactor tab structure
-3. `src/components/layout/AppSidebar.tsx` - Remove "Trade History" menu
-4. `src/components/trade/entry/TradeEntryWizard.tsx` - Add Express Mode
-5. Database migration - Add new columns
 
-### Database Migration
-```sql
--- Add enrichment columns to trade_entries
-ALTER TABLE trade_entries
-ADD COLUMN IF NOT EXISTS screenshots jsonb DEFAULT '[]',
-ADD COLUMN IF NOT EXISTS chart_timeframe text,
-ADD COLUMN IF NOT EXISTS market_context jsonb;
+| File | Change |
+|------|--------|
+| `src/components/layout/AppSidebar.tsx` | Reorder Market group items |
+| `src/components/layout/DashboardLayout.tsx` | Update route hierarchy domain paths |
+| `src/pages/MarketData.tsx` | Add MarketSentimentWidget |
+| `src/pages/trading-journey/StrategyManagement.tsx` | Remove MarketSentimentWidget |
 
--- Create storage bucket for screenshots
--- (handled via Supabase Storage API)
+### Code Changes
+
+**AppSidebar.tsx - Market Group Reorder:**
+```typescript
+{
+  title: "Market",
+  items: [
+    { title: "Market Data", url: "/market-data", icon: BarChart3 },
+    { title: "Economic Calendar", url: "/calendar", icon: Calendar },
+    { title: "AI Analysis", url: "/market", icon: TrendingUp },
+  ],
+},
+```
+
+**MarketData.tsx - Add Sentiment Widget:**
+```tsx
+import { MarketSentimentWidget } from "@/components/market";
+
+// In render:
+<div className="space-y-6">
+  {/* Header */}
+  
+  {/* Market Sentiment Widget - Full width at top */}
+  <MarketSentimentWidget 
+    defaultSymbol="BTCUSDT" 
+    showSymbolSelector={true}
+  />
+
+  {/* Existing MarketDataTab content */}
+  <MarketDataTab ... />
+</div>
+```
+
+**StrategyManagement.tsx - Remove Sentiment Widget:**
+```tsx
+// Remove import:
+// import { MarketSentimentWidget } from "@/components/market";
+
+// Change grid layout from:
+<div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+  <StrategyStats strategies={strategies} />
+  <MarketSentimentWidget ... />
+</div>
+
+// To:
+<StrategyStats strategies={strategies} />
 ```
 
 ---
 
-## UI/UX Flow
+## Visual Result
 
-### New Trade Entry Flow
+### New Sidebar Order
 ```text
-User clicks "New Trade" button
-         |
-         v
-   +---------------+
-   | TradeWizard   |
-   |  [Express]    | <-- Toggle for quick mode
-   +---------------+
-         |
-    +----+----+
-    |         |
-Express     Full
-(2 steps)  (5 steps)
+MARKET
+├── Market Data        ← Primary (raw market data + sentiment)
+├── Economic Calendar  ← Context (upcoming events)
+└── AI Analysis        ← Intelligence (AI-driven insights)
 ```
 
-### Trade Enrichment Flow
+### Market Data Page Layout
 ```text
-User clicks any trade row
-         |
-         v
-   +-------------------+
-   | Enrichment Drawer |
-   | - Strategies      |
-   | - Screenshots     |
-   | - Notes           |
-   | - Tags            |
-   +-------------------+
-         |
-         v
-   Auto-save on close
+┌────────────────────────────────────────┐
+│ [BarChart3] Market Data          [Refresh]
+│ Volatility analysis, trading opportunities...
+├────────────────────────────────────────┤
+│                                        │
+│  ┌──────────────────────────────────┐  │
+│  │     MARKET SENTIMENT WIDGET     │  │
+│  │  [BTCUSDT ▼]   Bullish: 65%     │  │
+│  │  Pro Traders / Retail / OI...   │  │
+│  └──────────────────────────────────┘  │
+│                                        │
+│  ┌──────────────────────────────────┐  │
+│  │       EXISTING MARKET DATA      │  │
+│  │   (Volatility, Opportunities)   │  │
+│  └──────────────────────────────────┘  │
+└────────────────────────────────────────┘
 ```
-
----
-
-## Technical Notes
-
-### Screenshot Upload Implementation
-- Use `supabase.storage.from('trade-screenshots').upload()`
-- Generate unique path: `{user_id}/{trade_id}/{timestamp}.webp`
-- Client-side compression before upload (max 500KB)
-- Display as thumbnail gallery in enrichment drawer
-
-### Express Mode Logic
-- Skip pre-validation API call
-- Skip confluence validation
-- Keep only: Pair, Direction, Entry Price, SL, TP, Size
-- Direct submit without AI checks
-
-### Backward Compatibility
-- Existing trades retain all current data
-- New enrichment fields are nullable
-- Old routes redirect seamlessly
 
 ---
 
 ## Benefits
 
-1. **Reduced Confusion**: Single entry point for all trade management
-2. **No Duplication**: One place to view history, one method to enter trades
-3. **Full Journaling**: Any trade (Binance or manual) can be enriched with strategies, screenshots, notes
-4. **Flexibility**: Express mode for quick entries, Full mode for disciplined trading
-5. **Better Analysis**: Screenshots provide visual context for post-trade review
+1. **Logical Flow**: Data → Context → Intelligence
+2. **Domain Cohesion**: Sentiment widget belongs with market data, not strategy
+3. **Consistent Navigation**: Market Data as primary entry untuk domain Market
 
----
-
-## Estimated Effort
-
-| Task | Complexity | Est. Time |
-|------|------------|-----------|
-| Delete duplicated files | Low | 5 min |
-| Create AllPositionsTable | Medium | 20 min |
-| Create TradeEnrichmentDrawer | High | 30 min |
-| Screenshot upload system | Medium | 25 min |
-| Express mode in wizard | Medium | 15 min |
-| Database migration | Low | 5 min |
-| Sidebar/routing cleanup | Low | 10 min |
-
-**Total: ~2 hours of implementation**
