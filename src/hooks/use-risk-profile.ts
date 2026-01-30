@@ -1,10 +1,12 @@
 /**
  * Risk Profile Hook - Manages user's risk management settings
+ * Now uses Binance data as primary source when connected
  */
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
+import { useBinanceDailyPnl, useBinanceTotalBalance } from "@/hooks/use-binance-daily-pnl";
 import type { RiskProfile, DailyRiskSnapshot, DailyRiskStatus, DEFAULT_RISK_PROFILE } from "@/types/risk";
 
 // Fetch risk profile
@@ -92,7 +94,7 @@ export function useUpsertRiskProfile() {
   });
 }
 
-// Get today's risk snapshot
+// Get today's risk snapshot (for Paper Trading fallback)
 export function useDailyRiskSnapshot() {
   const { user } = useAuth();
   const today = new Date().toISOString().split('T')[0];
@@ -175,15 +177,53 @@ export function useUpdateDailyRiskSnapshot() {
   });
 }
 
-// Calculate daily risk status
+// Calculate daily risk status - Now Binance-centered
 export function useDailyRiskStatus() {
   const { data: riskProfile } = useRiskProfile();
   const { data: snapshot } = useDailyRiskSnapshot();
+  
+  // Binance data
+  const { totalBalance: binanceBalance, isConnected: isBinanceConnected } = useBinanceTotalBalance();
+  const binancePnl = useBinanceDailyPnl();
 
   const calculateStatus = (): DailyRiskStatus | null => {
-    if (!riskProfile || !snapshot) return null;
+    if (!riskProfile) return null;
+    
+    const maxDailyLossPercent = riskProfile.max_daily_loss_percent || 5;
+    
+    // Use Binance data if connected
+    if (isBinanceConnected && binanceBalance > 0) {
+      const startingBalance = binanceBalance;
+      const currentPnl = binancePnl.totalPnl;
+      const lossLimit = startingBalance * (maxDailyLossPercent / 100);
+      const lossUsedPercent = currentPnl < 0 
+        ? (Math.abs(currentPnl) / lossLimit) * 100 
+        : 0;
+      const remainingBudget = lossLimit + Math.min(0, currentPnl);
+      
+      let status: 'ok' | 'warning' | 'disabled' = 'ok';
+      if (lossUsedPercent >= 100) {
+        status = 'disabled';
+      } else if (lossUsedPercent >= 70) {
+        status = 'warning';
+      }
 
-    const lossLimit = snapshot.starting_balance * (riskProfile.max_daily_loss_percent / 100);
+      return {
+        date: new Date().toISOString().split('T')[0],
+        starting_balance: startingBalance,
+        current_pnl: currentPnl,
+        loss_limit: lossLimit,
+        loss_used_percent: lossUsedPercent,
+        remaining_budget: Math.max(0, remainingBudget),
+        trading_allowed: status !== 'disabled',
+        status,
+      };
+    }
+    
+    // Fallback to local snapshot (Paper Trading)
+    if (!snapshot) return null;
+
+    const lossLimit = snapshot.starting_balance * (maxDailyLossPercent / 100);
     const lossUsedPercent = snapshot.starting_balance > 0 
       ? (Math.abs(Math.min(0, snapshot.current_pnl)) / lossLimit) * 100 
       : 0;
@@ -212,5 +252,6 @@ export function useDailyRiskStatus() {
     data: calculateStatus(),
     riskProfile,
     snapshot,
+    isBinanceConnected,
   };
 }

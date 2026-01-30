@@ -1,11 +1,13 @@
 /**
  * Trading Gate Hook - Central control for trading permissions
  * Checks daily loss limits and determines if trading is allowed
+ * Now uses Binance balance as primary source when connected
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { useRiskProfile } from '@/hooks/use-risk-profile';
+import { useBinanceDailyPnl, useBinanceTotalBalance } from '@/hooks/use-binance-daily-pnl';
 import { useMemo } from 'react';
 
 export interface TradingGateState {
@@ -17,6 +19,7 @@ export interface TradingGateState {
   dailyLossLimit: number;
   currentPnl: number;
   startingBalance: number;
+  source: 'binance' | 'local';
 }
 
 const THRESHOLDS = {
@@ -29,9 +32,13 @@ export function useTradingGate() {
   const { user } = useAuth();
   const { data: riskProfile } = useRiskProfile();
   const queryClient = useQueryClient();
+  
+  // Binance data
+  const { totalBalance: binanceBalance, isConnected: isBinanceConnected } = useBinanceTotalBalance();
+  const binancePnl = useBinanceDailyPnl();
 
-  // Get today's risk snapshot
-  const { data: snapshot, isLoading } = useQuery({
+  // Get today's risk snapshot (for Paper Trading fallback)
+  const { data: snapshot, isLoading: snapshotLoading } = useQuery({
     queryKey: ['daily-risk-snapshot', user?.id],
     queryFn: async () => {
       if (!user?.id) throw new Error('Not authenticated');
@@ -48,14 +55,52 @@ export function useTradingGate() {
       if (error) throw error;
       return data;
     },
-    enabled: !!user?.id,
-    staleTime: 30 * 1000, // 30 seconds
-    refetchInterval: 60 * 1000, // Refetch every minute
+    enabled: !!user?.id && !isBinanceConnected,
+    staleTime: 30 * 1000,
+    refetchInterval: 60 * 1000,
   });
 
   // Calculate trading gate state
   const gateState = useMemo((): TradingGateState => {
     const maxDailyLossPercent = riskProfile?.max_daily_loss_percent || 5;
+    
+    // Use Binance data if connected
+    if (isBinanceConnected && binanceBalance > 0) {
+      const startingBalance = binanceBalance; // Use current balance as starting
+      const currentPnl = binancePnl.totalPnl;
+      const dailyLossLimit = (startingBalance * maxDailyLossPercent) / 100;
+      const lossUsedPercent = currentPnl < 0 
+        ? Math.min((Math.abs(currentPnl) / dailyLossLimit) * 100, 100)
+        : 0;
+      const remainingBudget = dailyLossLimit - Math.abs(Math.min(currentPnl, 0));
+
+      let status: 'ok' | 'warning' | 'disabled' = 'ok';
+      let canTrade = true;
+      let reason: string | null = null;
+
+      if (lossUsedPercent >= THRESHOLDS.disabled) {
+        status = 'disabled';
+        canTrade = false;
+        reason = 'Daily loss limit reached. Trading disabled for today.';
+      } else if (lossUsedPercent >= THRESHOLDS.warning) {
+        status = 'warning';
+        reason = `Warning: ${lossUsedPercent.toFixed(0)}% of daily loss limit used.`;
+      }
+
+      return {
+        canTrade,
+        reason,
+        status,
+        lossUsedPercent,
+        remainingBudget: Math.max(0, remainingBudget),
+        dailyLossLimit,
+        currentPnl,
+        startingBalance,
+        source: 'binance',
+      };
+    }
+    
+    // Fallback to local snapshot (Paper Trading)
     const startingBalance = snapshot?.starting_balance || 10000;
     const currentPnl = snapshot?.current_pnl || 0;
     
@@ -90,14 +135,15 @@ export function useTradingGate() {
       reason,
       status,
       lossUsedPercent,
-      remainingBudget,
+      remainingBudget: Math.max(0, remainingBudget),
       dailyLossLimit,
       currentPnl,
       startingBalance,
+      source: 'local',
     };
-  }, [snapshot, riskProfile]);
+  }, [snapshot, riskProfile, isBinanceConnected, binanceBalance, binancePnl]);
 
-  // Create or update today's snapshot
+  // Create or update today's snapshot (for Paper Trading)
   const initializeSnapshot = useMutation({
     mutationFn: async (startingBalance: number) => {
       if (!user?.id) throw new Error('Not authenticated');
@@ -129,7 +175,7 @@ export function useTradingGate() {
     },
   });
 
-  // Update current P&L
+  // Update current P&L (for Paper Trading)
   const updatePnl = useMutation({
     mutationFn: async (pnlChange: number) => {
       if (!user?.id || !snapshot) throw new Error('No snapshot to update');
@@ -160,10 +206,11 @@ export function useTradingGate() {
 
   return {
     ...gateState,
-    isLoading,
+    isLoading: snapshotLoading || binancePnl.isLoading,
     snapshot,
     initializeSnapshot,
     updatePnl,
     thresholds: THRESHOLDS,
+    isBinanceConnected,
   };
 }
