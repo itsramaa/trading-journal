@@ -260,8 +260,9 @@ export function AIChatbot() {
         onClick={() => setIsOpen(true)}
         size="lg"
         className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg z-50"
+        aria-label="Open AI Trading Assistant"
       >
-        <Sparkles className="h-6 w-6" />
+        <Sparkles className="h-6 w-6" aria-hidden="true" />
       </Button>
     );
   }
@@ -300,9 +301,10 @@ export function AIChatbot() {
               setIsExpanded(!isExpanded);
               if (!isExpanded) setIsMinimized(false);
             }}
-            title={isExpanded ? "Compact mode" : "Expand"}
+            aria-label={isExpanded ? "Compact mode" : "Expand chat"}
           >
-            {isExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            {isExpanded ? <Minimize2 className="h-4 w-4" aria-hidden="true" /> : <Maximize2 className="h-4 w-4" aria-hidden="true" />}
+            <span className="sr-only">{isExpanded ? "Collapse to compact view" : "Expand to full view"}</span>
           </Button>
           
           {/* Minimize (only in compact mode) */}
@@ -312,8 +314,10 @@ export function AIChatbot() {
               size="icon"
               className="h-7 w-7"
               onClick={() => setIsMinimized(!isMinimized)}
+              aria-label={isMinimized ? "Expand chat" : "Minimize chat"}
             >
-              {isMinimized ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              {isMinimized ? <ChevronUp className="h-4 w-4" aria-hidden="true" /> : <ChevronDown className="h-4 w-4" aria-hidden="true" />}
+              <span className="sr-only">{isMinimized ? "Show chat" : "Minimize chat"}</span>
             </Button>
           )}
           
@@ -326,8 +330,10 @@ export function AIChatbot() {
               setIsOpen(false); 
               setIsExpanded(false); 
             }}
+            aria-label="Close AI chat"
           >
-            <X className="h-4 w-4" />
+            <X className="h-4 w-4" aria-hidden="true" />
+            <span className="sr-only">Close chat</span>
           </Button>
         </div>
       </div>
@@ -351,12 +357,18 @@ export function AIChatbot() {
 
             {/* Center - Chat Area */}
             <div className="flex-1 flex flex-col min-w-0">
-              <ScrollArea className="flex-1 p-4" ref={scrollRef}>
+              <ScrollArea 
+                className="flex-1 p-4" 
+                ref={scrollRef}
+                role="log"
+                aria-live="polite"
+                aria-label="Chat messages"
+              >
                 {messages.length === 0 ? (
                   <div className="space-y-4">
                     <div className="flex gap-3">
                       <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                        <ModeIcon className="h-4 w-4 text-primary" />
+                        <ModeIcon className="h-4 w-4 text-primary" aria-hidden="true" />
                       </div>
                       <div className="flex-1 bg-muted rounded-lg p-3">
                         <p className="text-sm">{currentMode.greeting}</p>
@@ -387,14 +399,14 @@ export function AIChatbot() {
                     )}
                   </div>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="space-y-4" aria-busy={isLoading}>
                     {messages.map((message, i) => (
                       <ChatMessage key={i} {...message} ModeIcon={ModeIcon} />
                     ))}
                     {isLoading && messages[messages.length - 1]?.content === '' && (
-                      <div className="flex gap-3">
+                      <div className="flex gap-3" role="status" aria-label="AI is thinking">
                         <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                          <Loader2 className="h-4 w-4 text-primary animate-spin" />
+                          <Loader2 className="h-4 w-4 text-primary animate-spin" aria-hidden="true" />
                         </div>
                         <div className="bg-muted rounded-lg p-3">
                           <p className="text-sm text-muted-foreground">Thinking...</p>
@@ -413,10 +425,10 @@ export function AIChatbot() {
                       variant="outline" 
                       size="icon"
                       onClick={clearChat}
-                      title="Clear conversation"
+                      aria-label="Clear conversation history"
                       className="shrink-0"
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
                     </Button>
                   )}
                   <Input
@@ -427,16 +439,18 @@ export function AIChatbot() {
                     placeholder={currentMode.placeholder}
                     disabled={isLoading}
                     className="flex-1"
+                    aria-label="Type your message"
                   />
                   <Button 
                     size="icon" 
                     onClick={() => sendMessage()} 
                     disabled={!input.trim() || isLoading}
+                    aria-label={isLoading ? "Sending message" : "Send message"}
                   >
                     {isLoading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                     ) : (
-                      <Send className="h-4 w-4" />
+                      <Send className="h-4 w-4" aria-hidden="true" />
                     )}
                   </Button>
                 </div>

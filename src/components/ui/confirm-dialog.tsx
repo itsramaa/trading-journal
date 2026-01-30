@@ -49,14 +49,18 @@ const ConfirmDialog = React.forwardRef<HTMLDivElement, ConfirmDialogProps>(
     
     return (
       <AlertDialog open={open} onOpenChange={onOpenChange}>
-        <AlertDialogContent ref={ref}>
+        <AlertDialogContent 
+          ref={ref}
+          aria-labelledby="confirm-dialog-title"
+          aria-describedby="confirm-dialog-description"
+        >
           <AlertDialogHeader>
             <div className="flex items-center gap-3">
               <div
                 className={cn(
                   "flex h-10 w-10 items-center justify-center rounded-full",
                   variant === "destructive" && "bg-destructive/10",
-                  variant === "warning" && "bg-yellow-500/10",
+                  variant === "warning" && "bg-[hsl(var(--chart-4))]/10",
                   variant === "default" && "bg-primary/10"
                 )}
               >
@@ -64,19 +68,22 @@ const ConfirmDialog = React.forwardRef<HTMLDivElement, ConfirmDialogProps>(
                   className={cn(
                     "h-5 w-5",
                     variant === "destructive" && "text-destructive",
-                    variant === "warning" && "text-yellow-500",
+                    variant === "warning" && "text-[hsl(var(--chart-4))]",
                     variant === "default" && "text-primary"
                   )}
+                  aria-hidden="true"
                 />
               </div>
-              <AlertDialogTitle>{title}</AlertDialogTitle>
+              <AlertDialogTitle id="confirm-dialog-title">{title}</AlertDialogTitle>
             </div>
-            <AlertDialogDescription className="pl-[52px]">
+            <AlertDialogDescription id="confirm-dialog-description" className="pl-[52px]">
               {description}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isLoading}>{cancelLabel}</AlertDialogCancel>
+            <AlertDialogCancel disabled={isLoading} autoFocus>
+              {cancelLabel}
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={onConfirm}
               disabled={isLoading}

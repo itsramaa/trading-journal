@@ -12,8 +12,15 @@ interface WizardProgressProps {
 }
 
 export function WizardProgress({ currentStep, completedSteps, onStepClick }: WizardProgressProps) {
+  const currentStepIndex = WIZARD_STEPS.indexOf(currentStep) + 1;
+  const totalSteps = WIZARD_STEPS.length;
+  
   return (
-    <div className="w-full">
+    <nav 
+      className="w-full"
+      role="navigation"
+      aria-label={`Trade entry progress: Step ${currentStepIndex} of ${totalSteps}, ${STEP_LABELS[currentStep]}`}
+    >
       {/* Desktop view */}
       <div className="hidden md:flex items-center justify-between">
         {WIZARD_STEPS.map((step, index) => {
@@ -27,19 +34,21 @@ export function WizardProgress({ currentStep, completedSteps, onStepClick }: Wiz
               <button
                 onClick={() => isClickable && onStepClick?.(step)}
                 disabled={!isClickable}
+                aria-current={isCurrent ? "step" : undefined}
+                aria-label={`${STEP_LABELS[step]}: ${isCompleted ? "Completed" : isCurrent ? "Current step" : "Not started"}`}
                 className={cn(
                   "flex items-center justify-center w-8 h-8 rounded-full border-2 text-sm font-medium transition-all",
                   isCompleted && "bg-primary border-primary text-primary-foreground",
                   isCurrent && !isCompleted && "border-primary text-primary bg-primary/10",
                   !isCompleted && !isCurrent && "border-muted-foreground/30 text-muted-foreground bg-background",
-                  isClickable && "cursor-pointer hover:scale-105",
+                  isClickable && "cursor-pointer hover:scale-105 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                   !isClickable && "cursor-not-allowed opacity-50"
                 )}
               >
                 {isCompleted ? (
-                  <Check className="w-4 h-4" />
+                  <Check className="w-4 h-4" aria-hidden="true" />
                 ) : (
-                  <span>{index + 1}</span>
+                  <span aria-hidden="true">{index + 1}</span>
                 )}
               </button>
               
@@ -95,6 +104,6 @@ export function WizardProgress({ currentStep, completedSteps, onStepClick }: Wiz
           </span>
         </div>
       </div>
-    </div>
+    </nav>
   );
 }

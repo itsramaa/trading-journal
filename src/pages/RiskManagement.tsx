@@ -1,6 +1,7 @@
 /**
  * Risk Management Page - Per Trading Journey Markdown spec
  * Improved: Clearer tab labels, better layout hierarchy
+ * Enhanced: Heuristic Evaluation + Accessibility fixes
  */
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { EmptyState } from "@/components/ui/empty-state";
 import { QuickTip } from "@/components/ui/onboarding-tooltip";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Shield, Calculator, Settings, AlertTriangle, History, LayoutDashboard } from "lucide-react";
 import { DailyLossTracker } from "@/components/risk/DailyLossTracker";
 import { PositionSizeCalculator } from "@/components/risk/PositionSizeCalculator";
@@ -189,7 +191,13 @@ export default function RiskManagement() {
                 {/* Risk per Trade */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <Label>Risk per Trade</Label>
+                    <Label className="flex items-center gap-2">
+                      Risk per Trade
+                      <InfoTooltip 
+                        content="The percentage of your account you're willing to lose on a single trade. 1-2% is recommended for most traders."
+                        variant="help"
+                      />
+                    </Label>
                     <span className="font-medium text-primary">{riskPerTrade}%</span>
                   </div>
                   <Slider
@@ -198,6 +206,7 @@ export default function RiskManagement() {
                     min={0.5}
                     max={10}
                     step={0.5}
+                    aria-label={`Risk per trade: ${riskPerTrade}%`}
                   />
                   <p className="text-xs text-muted-foreground">
                     Maximum percentage of account to risk on a single trade
@@ -207,7 +216,13 @@ export default function RiskManagement() {
                 {/* Max Daily Loss */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <Label>Max Daily Loss</Label>
+                    <Label className="flex items-center gap-2">
+                      Max Daily Loss
+                      <InfoTooltip 
+                        content="When you hit this limit, trading is disabled for the day. This protects you from revenge trading and emotional decisions."
+                        variant="warning"
+                      />
+                    </Label>
                     <span className="font-medium text-primary">{maxDailyLoss}%</span>
                   </div>
                   <Slider
@@ -216,6 +231,7 @@ export default function RiskManagement() {
                     min={1}
                     max={20}
                     step={1}
+                    aria-label={`Max daily loss: ${maxDailyLoss}%`}
                   />
                   <p className="text-xs text-muted-foreground">
                     Stop trading for the day when this loss limit is reached
@@ -225,7 +241,13 @@ export default function RiskManagement() {
                 {/* Max Weekly Drawdown */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <Label>Max Weekly Drawdown</Label>
+                    <Label className="flex items-center gap-2">
+                      Max Weekly Drawdown
+                      <InfoTooltip 
+                        content="The maximum decline from your weekly peak before you should reduce position sizes. Helps prevent catastrophic losses."
+                        variant="help"
+                      />
+                    </Label>
                     <span className="font-medium text-primary">{maxWeeklyDrawdown}%</span>
                   </div>
                   <Slider
@@ -234,6 +256,7 @@ export default function RiskManagement() {
                     min={5}
                     max={30}
                     step={1}
+                    aria-label={`Max weekly drawdown: ${maxWeeklyDrawdown}%`}
                   />
                   <p className="text-xs text-muted-foreground">
                     Maximum drawdown allowed per week before reducing position sizes
