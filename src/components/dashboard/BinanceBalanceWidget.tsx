@@ -140,8 +140,9 @@ export function BinanceBalanceWidget() {
               className="h-7 w-7"
               onClick={() => refetch()}
               disabled={isFetching}
+              aria-label="Refresh Binance balance data"
             >
-              <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} aria-hidden="true" />
             </Button>
           </div>
         </div>

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Shield, AlertTriangle, XCircle, CheckCircle, Wifi } from "lucide-react";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { useDailyRiskStatus } from "@/hooks/use-risk-profile";
 
 export function RiskSummaryCard() {
@@ -90,7 +91,10 @@ export function RiskSummaryCard() {
         {/* Daily Loss Progress */}
         <div className="space-y-2">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Daily Loss Limit</span>
+            <span className="text-muted-foreground flex items-center gap-1">
+              Daily Loss Limit
+              <InfoTooltip content="Maximum amount you're allowed to lose in a single trading day, based on your risk profile percentage of total capital." />
+            </span>
             <span className="font-medium">
               {riskStatus.loss_used_percent.toFixed(1)}% used
             </span>
@@ -100,15 +104,21 @@ export function RiskSummaryCard() {
             className="h-2"
           />
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>Remaining: ${riskStatus.remaining_budget.toFixed(2)}</span>
+            <span className="flex items-center gap-1">
+              Remaining: ${riskStatus.remaining_budget.toFixed(2)}
+              <InfoTooltip content="How much more you can lose today before hitting your daily loss limit. When this reaches $0, trading should stop." />
+            </span>
             <span>Limit: ${riskStatus.loss_limit.toFixed(2)}</span>
           </div>
         </div>
 
         {/* Today's P&L */}
         <div className="flex items-center justify-between pt-2 border-t">
-          <span className="text-sm text-muted-foreground">Today's P&L</span>
-          <span className={`font-bold ${riskStatus.current_pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+          <span className="text-sm text-muted-foreground flex items-center gap-1">
+            Today's P&L
+            <InfoTooltip content="Your total realized profit or loss for today. Negative values count against your daily loss limit." />
+          </span>
+          <span className={`font-bold ${riskStatus.current_pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
             {riskStatus.current_pnl >= 0 ? '+' : ''}${riskStatus.current_pnl.toFixed(2)}
           </span>
         </div>
@@ -116,10 +126,11 @@ export function RiskSummaryCard() {
         {/* Trading Status */}
         <div className="flex items-center gap-2 pt-2 border-t">
           {getStatusIcon()}
-          <span className="text-sm">
+          <span className="text-sm flex items-center gap-1">
             {riskStatus.trading_allowed 
               ? 'Trading allowed' 
               : 'Trading disabled - limit reached'}
+            <InfoTooltip content="Your trading status based on daily loss limit. Trading is disabled when you've used 100% of your allowed daily loss to protect your capital." />
           </span>
         </div>
       </CardContent>
