@@ -124,3 +124,24 @@ export interface CancelOrderParams {
   orderId?: number;
   origClientOrderId?: string;
 }
+
+/**
+ * Income record from /fapi/v1/income endpoint
+ * Used for fetching realized PnL, commissions, and funding fees across ALL symbols
+ */
+export interface BinanceIncome {
+  symbol: string;
+  incomeType: 'REALIZED_PNL' | 'COMMISSION' | 'FUNDING_FEE' | 'TRANSFER' | 'WELCOME_BONUS' | 'INSURANCE_CLEAR' | 'REFERRAL_KICKBACK' | 'COIN_SWAP_DEPOSIT' | 'COIN_SWAP_WITHDRAW' | 'INTERNAL_TRANSFER' | string;
+  income: number;
+  asset: string;
+  time: number;
+  tranId: number;
+  tradeId: string | null;
+  info: string;
+}
+
+export type BinanceIncomeType = 
+  | 'REALIZED_PNL'
+  | 'COMMISSION' 
+  | 'FUNDING_FEE'
+  | 'TRANSFER';
