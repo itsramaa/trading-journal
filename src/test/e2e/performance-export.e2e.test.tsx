@@ -70,8 +70,8 @@ describe("E2E: Performance Export", () => {
     });
 
     // Mock URL methods
-    global.URL.createObjectURL = vi.fn(() => "blob:mock-url");
-    global.URL.revokeObjectURL = vi.fn();
+    (globalThis as any).URL.createObjectURL = vi.fn(() => "blob:mock-url");
+    (globalThis as any).URL.revokeObjectURL = vi.fn();
   });
 
   describe("Export Hook Initialization", () => {

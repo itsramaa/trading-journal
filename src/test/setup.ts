@@ -65,14 +65,14 @@ Object.defineProperty(window, "localStorage", { value: localStorageMock });
 Object.defineProperty(window, "sessionStorage", { value: localStorageMock });
 
 // Mock ResizeObserver
-global.ResizeObserver = vi.fn().mockImplementation(() => ({
+(globalThis as any).ResizeObserver = vi.fn().mockImplementation(() => ({
   observe: vi.fn(),
   unobserve: vi.fn(),
   disconnect: vi.fn(),
 }));
 
 // Mock IntersectionObserver
-global.IntersectionObserver = vi.fn().mockImplementation(() => ({
+(globalThis as any).IntersectionObserver = vi.fn().mockImplementation(() => ({
   observe: vi.fn(),
   unobserve: vi.fn(),
   disconnect: vi.fn(),
@@ -84,18 +84,19 @@ global.IntersectionObserver = vi.fn().mockImplementation(() => ({
 // Mock scrollTo
 window.scrollTo = vi.fn();
 
-// Mock navigator.clipboard
+// Mock navigator.clipboard with configurable: true for userEvent compatibility
 Object.defineProperty(navigator, "clipboard", {
   value: {
     writeText: vi.fn().mockResolvedValue(undefined),
     readText: vi.fn().mockResolvedValue(""),
   },
   writable: true,
+  configurable: true,
 });
 
 // Mock URL.createObjectURL
-global.URL.createObjectURL = vi.fn(() => "blob:mock-url");
-global.URL.revokeObjectURL = vi.fn();
+(globalThis as any).URL.createObjectURL = vi.fn(() => "blob:mock-url");
+(globalThis as any).URL.revokeObjectURL = vi.fn();
 
 // Suppress console errors in tests (optional, can be removed for debugging)
 const originalConsoleError = console.error;
