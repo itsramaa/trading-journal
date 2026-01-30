@@ -1,6 +1,7 @@
 /**
  * Trade Entry Wizard - Main Container
  * 5-step guided trade entry flow with trading gate check
+ * Enhanced: Heuristic Evaluation + Accessibility fixes
  */
 import { useCallback } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -16,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { XCircle, AlertTriangle, ShieldAlert } from "lucide-react";
 import { Link } from "react-router-dom";
+import { cn } from "@/lib/utils";
 
 interface TradeEntryWizardProps {
   onClose: () => void;
@@ -26,25 +28,38 @@ function TradingBlockedState({ reason, status, onClose }: { reason: string; stat
   const isDisabled = status === 'disabled';
   
   return (
-    <div className="flex flex-col h-full min-h-[400px]">
-      <div className="p-4 border-b bg-background">
+    <div 
+      className="flex flex-col h-full min-h-[400px]"
+      role="alert"
+      aria-live="assertive"
+    >
+      <div className={cn(
+        "p-4 border-b bg-background",
+        isDisabled ? "border-loss/30" : "border-[hsl(var(--chart-4))]/30"
+      )}>
         <div className="flex items-center gap-2">
-          <ShieldAlert className={isDisabled ? "h-5 w-5 text-red-500" : "h-5 w-5 text-yellow-500"} />
+          <ShieldAlert className={cn("h-5 w-5", isDisabled ? "text-loss" : "text-[hsl(var(--chart-4))]")} aria-hidden="true" />
           <span className="font-semibold">Trade Entry Wizard</span>
         </div>
       </div>
       
       <div className="flex-1 flex items-center justify-center p-6">
-        <Card className={isDisabled ? "border-red-500/30 bg-red-500/5 max-w-md" : "border-yellow-500/30 bg-yellow-500/5 max-w-md"}>
+        <Card className={cn(
+          "max-w-md",
+          isDisabled ? "border-loss/30 bg-loss/5" : "border-[hsl(var(--chart-4))]/30 bg-[hsl(var(--chart-4))]/5"
+        )}>
           <CardHeader className="text-center">
-            <div className={isDisabled ? "mx-auto mb-4 p-4 rounded-full bg-red-500/10" : "mx-auto mb-4 p-4 rounded-full bg-yellow-500/10"}>
+            <div className={cn(
+              "mx-auto mb-4 p-4 rounded-full",
+              isDisabled ? "bg-loss/10" : "bg-[hsl(var(--chart-4))]/10"
+            )}>
               {isDisabled ? (
-                <XCircle className="h-12 w-12 text-red-500" />
+                <XCircle className="h-12 w-12 text-loss" aria-hidden="true" />
               ) : (
-                <AlertTriangle className="h-12 w-12 text-yellow-500" />
+                <AlertTriangle className="h-12 w-12 text-[hsl(var(--chart-4))]" aria-hidden="true" />
               )}
             </div>
-            <CardTitle className={isDisabled ? "text-red-500" : "text-yellow-500"}>
+            <CardTitle className={cn(isDisabled ? "text-loss" : "text-[hsl(var(--chart-4))]")}>
               {isDisabled ? "Trading Disabled" : "Trading Warning"}
             </CardTitle>
           </CardHeader>
@@ -63,7 +78,7 @@ function TradingBlockedState({ reason, status, onClose }: { reason: string; stat
               <div className="flex flex-col gap-2 pt-4">
                 <Button variant="outline" asChild>
                   <Link to="/risk">
-                    <ShieldAlert className="h-4 w-4 mr-2" />
+                    <ShieldAlert className="h-4 w-4 mr-2" aria-hidden="true" />
                     View Risk Dashboard
                   </Link>
                 </Button>
@@ -149,12 +164,24 @@ export function TradeEntryWizard({ onClose, onComplete }: TradeEntryWizardProps)
   };
 
   return (
-    <div className="flex flex-col h-full max-h-[85vh]">
+    <div 
+      className="flex flex-col h-full max-h-[85vh]"
+      role="dialog"
+      aria-label="Trade Entry Wizard"
+      aria-describedby="wizard-description"
+    >
+      <span id="wizard-description" className="sr-only">
+        A step-by-step wizard to help you enter trades with proper risk management and validation.
+      </span>
+      
       {/* Warning banner if in warning state */}
       {status === 'warning' && (
-        <div className="px-4 py-2 bg-yellow-500/10 border-b border-yellow-500/30 flex items-center gap-2">
-          <AlertTriangle className="h-4 w-4 text-yellow-500" />
-          <span className="text-sm text-yellow-500">{reason}</span>
+        <div 
+          className="px-4 py-2 bg-[hsl(var(--chart-4))]/10 border-b border-[hsl(var(--chart-4))]/30 flex items-center gap-2"
+          role="alert"
+        >
+          <AlertTriangle className="h-4 w-4 text-[hsl(var(--chart-4))]" aria-hidden="true" />
+          <span className="text-sm text-[hsl(var(--chart-4))]">{reason}</span>
         </div>
       )}
       

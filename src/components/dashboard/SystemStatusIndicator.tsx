@@ -47,25 +47,25 @@ export function SystemStatusIndicator({ compact = false }: SystemStatusIndicator
   const statusConfig = {
     ok: {
       icon: CheckCircle,
-      color: 'text-green-500',
-      bg: 'bg-green-500/10',
-      border: 'border-green-500/30',
+      color: 'text-profit',
+      bg: 'bg-profit/10',
+      border: 'border-profit/30',
       label: 'ALL SYSTEMS NORMAL',
       description: 'You are clear to trade',
     },
     warning: {
       icon: AlertTriangle,
-      color: 'text-yellow-500',
-      bg: 'bg-yellow-500/10',
-      border: 'border-yellow-500/30',
+      color: 'text-[hsl(var(--chart-4))]',
+      bg: 'bg-[hsl(var(--chart-4))]/10',
+      border: 'border-[hsl(var(--chart-4))]/30',
       label: 'CAUTION',
       description: reason || `${lossUsedPercent.toFixed(0)}% of daily limit used`,
     },
     disabled: {
       icon: XCircle,
-      color: 'text-red-500',
-      bg: 'bg-red-500/10',
-      border: 'border-red-500/30',
+      color: 'text-loss',
+      bg: 'bg-loss/10',
+      border: 'border-loss/30',
       label: 'TRADING DISABLED',
       description: reason || 'Daily loss limit reached',
     },
@@ -91,12 +91,17 @@ export function SystemStatusIndicator({ compact = false }: SystemStatusIndicator
   }
 
   return (
-    <Card className={cn("border-2", config.border, config.bg)}>
+    <Card 
+      className={cn("border-2", config.border, config.bg)}
+      role="status"
+      aria-live="polite"
+      aria-label={`Trading status: ${config.label}. ${config.description}`}
+    >
       <CardContent className="p-4">
         <div className="flex items-start justify-between">
           <div className="flex items-start gap-3">
             <div className={cn("p-2 rounded-full", config.bg)}>
-              <Icon className={cn("h-6 w-6", config.color)} />
+              <Icon className={cn("h-6 w-6", config.color)} aria-hidden="true" />
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -111,9 +116,10 @@ export function SystemStatusIndicator({ compact = false }: SystemStatusIndicator
           </div>
           <Button variant="ghost" size="sm" asChild>
             <Link to="/risk" className="flex items-center gap-1">
-              <Shield className="h-4 w-4" />
+              <Shield className="h-4 w-4" aria-hidden="true" />
               <span className="hidden md:inline">Details</span>
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+              <span className="sr-only">View risk management details</span>
             </Link>
           </Button>
         </div>
@@ -130,14 +136,15 @@ export function SystemStatusIndicator({ compact = false }: SystemStatusIndicator
             value={lossUsedPercent} 
             className={cn(
               "h-2",
-              status === 'ok' && "[&>div]:bg-green-500",
-              status === 'warning' && "[&>div]:bg-yellow-500",
-              status === 'disabled' && "[&>div]:bg-red-500"
+              status === 'ok' && "[&>div]:bg-profit",
+              status === 'warning' && "[&>div]:bg-[hsl(var(--chart-4))]",
+              status === 'disabled' && "[&>div]:bg-loss"
             )}
+            aria-label={`Daily loss limit usage: ${lossUsedPercent.toFixed(1)}%`}
           />
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span>
-              Today's P&L: <span className={currentPnl >= 0 ? 'text-green-500' : 'text-red-500'}>
+              Today's P&L: <span className={currentPnl >= 0 ? 'text-profit' : 'text-loss'}>
                 {currentPnl >= 0 ? '+' : ''}${currentPnl.toFixed(2)}
               </span>
             </span>

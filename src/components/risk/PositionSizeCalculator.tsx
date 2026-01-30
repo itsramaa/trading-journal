@@ -1,6 +1,7 @@
 /**
  * Position Size Calculator Component - Per Trading Journey Markdown spec
  * Now uses Binance balance as primary source when connected
+ * Enhanced: Heuristic Evaluation + Accessibility fixes
  */
 import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +12,7 @@ import { Slider } from "@/components/ui/slider";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Calculator, AlertTriangle, CheckCircle, TrendingUp, TrendingDown, Wifi } from "lucide-react";
 import { calculatePositionSize } from "@/lib/calculations/position-sizing";
 import { useRiskProfile } from "@/hooks/use-risk-profile";
@@ -129,16 +131,21 @@ export function PositionSizeCalculator({
               Account Balance ($)
               {source === 'binance' && (
                 <Badge variant="outline" className="text-xs gap-1">
-                  <Wifi className="h-3 w-3" />
+                  <Wifi className="h-3 w-3" aria-hidden="true" />
                   Binance
                 </Badge>
               )}
+              <InfoTooltip 
+                content="Your total trading capital. Uses Binance wallet balance when connected."
+                variant="info"
+              />
             </Label>
             <Input
               type="number"
               value={accountBalance}
               onChange={(e) => setAccountBalance(Number(e.target.value))}
               min={0}
+              aria-label="Account balance in USD"
             />
             <p className="text-xs text-muted-foreground">
               {source === 'binance' ? 'From Binance wallet' : 'From paper trading account(s)'}
@@ -146,7 +153,13 @@ export function PositionSizeCalculator({
           </div>
           
           <div className="space-y-2">
-            <Label>Risk per Trade (%)</Label>
+            <Label className="flex items-center gap-2">
+              Risk per Trade (%)
+              <InfoTooltip 
+                content="The percentage of your account you're willing to lose if this trade hits stop loss. 1-2% is recommended."
+                variant="help"
+              />
+            </Label>
             <div className="flex items-center gap-3">
               <Slider
                 value={[riskPercent]}
@@ -155,6 +168,7 @@ export function PositionSizeCalculator({
                 max={5}
                 step={0.5}
                 className="flex-1"
+                aria-label={`Risk per trade: ${riskPercent}%`}
               />
               <span className="w-12 text-right font-medium">{riskPercent}%</span>
             </div>
@@ -166,24 +180,38 @@ export function PositionSizeCalculator({
           </div>
 
           <div className="space-y-2">
-            <Label>Entry Price ($)</Label>
+            <Label className="flex items-center gap-2">
+              Entry Price ($)
+              <InfoTooltip 
+                content="The price at which you plan to enter the trade."
+                variant="info"
+              />
+            </Label>
             <Input
               type="number"
               value={entryPrice}
               onChange={(e) => setEntryPrice(Number(e.target.value))}
               min={0}
               step={0.01}
+              aria-label="Entry price in USD"
             />
           </div>
 
           <div className="space-y-2">
-            <Label>Stop Loss Price ($)</Label>
+            <Label className="flex items-center gap-2">
+              Stop Loss Price ($)
+              <InfoTooltip 
+                content="The price at which you will exit the trade to limit losses. Must be below entry for longs, above for shorts."
+                variant="warning"
+              />
+            </Label>
             <Input
               type="number"
               value={stopLossPrice}
               onChange={(e) => setStopLossPrice(Number(e.target.value))}
               min={0}
               step={0.01}
+              aria-label="Stop loss price in USD"
             />
           </div>
 

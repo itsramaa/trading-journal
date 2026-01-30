@@ -22,8 +22,10 @@ export function SuccessFeedback({ className, children }: FeedbackProps) {
         "flex items-center gap-2 rounded-lg bg-profit/10 p-3 text-sm text-profit",
         className
       )}
+      role="status"
+      aria-live="polite"
     >
-      <CheckCircle2 className="h-4 w-4 shrink-0" />
+      <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
       <span>{children}</span>
     </div>
   );
@@ -44,9 +46,11 @@ export function ErrorFeedback({ className, message, suggestion, onRetry }: Error
         "rounded-lg bg-destructive/10 p-3 text-sm",
         className
       )}
+      role="alert"
+      aria-live="assertive"
     >
       <div className="flex items-center gap-2 text-destructive">
-        <XCircle className="h-4 w-4 shrink-0" />
+        <XCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
         <span className="font-medium">{message}</span>
       </div>
       {suggestion && (
@@ -55,7 +59,8 @@ export function ErrorFeedback({ className, message, suggestion, onRetry }: Error
       {onRetry && (
         <button
           onClick={onRetry}
-          className="mt-2 pl-6 text-sm font-medium text-destructive underline-offset-4 hover:underline"
+          className="mt-2 pl-6 text-sm font-medium text-destructive underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          type="button"
         >
           Try again
         </button>
@@ -64,16 +69,18 @@ export function ErrorFeedback({ className, message, suggestion, onRetry }: Error
   );
 }
 
-// Warning feedback
+// Warning feedback - using design system tokens
 export function WarningFeedback({ className, children }: FeedbackProps) {
   return (
     <div
       className={cn(
-        "flex items-center gap-2 rounded-lg bg-yellow-500/10 p-3 text-sm text-yellow-600 dark:text-yellow-500",
+        "flex items-center gap-2 rounded-lg bg-[hsl(var(--chart-4))]/10 p-3 text-sm text-[hsl(var(--chart-4))]",
         className
       )}
+      role="alert"
+      aria-live="polite"
     >
-      <AlertCircle className="h-4 w-4 shrink-0" />
+      <AlertCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
       <span>{children}</span>
     </div>
   );
@@ -87,8 +94,10 @@ export function InfoFeedback({ className, children }: FeedbackProps) {
         "flex items-center gap-2 rounded-lg bg-primary/10 p-3 text-sm text-primary",
         className
       )}
+      role="status"
+      aria-live="polite"
     >
-      <Info className="h-4 w-4 shrink-0" />
+      <Info className="h-4 w-4 shrink-0" aria-hidden="true" />
       <span>{children}</span>
     </div>
   );
@@ -103,11 +112,16 @@ interface LoadingIndicatorProps {
 
 export function LoadingIndicator({ className, message = "Loading...", progress }: LoadingIndicatorProps) {
   return (
-    <div className={cn("flex flex-col items-center justify-center gap-3 py-8", className)}>
-      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+    <div 
+      className={cn("flex flex-col items-center justify-center gap-3 py-8", className)}
+      role="status"
+      aria-live="polite"
+      aria-label={message}
+    >
+      <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden="true" />
       <p className="text-sm text-muted-foreground">{message}</p>
       {typeof progress === "number" && (
-        <Progress value={progress} className="w-48" />
+        <Progress value={progress} className="w-48" aria-label={`Loading progress: ${progress}%`} />
       )}
     </div>
   );
@@ -136,11 +150,13 @@ export function FieldValidation({
         isValid ? "text-profit" : "text-destructive",
         className
       )}
+      role="status"
+      aria-live="polite"
     >
       {isValid ? (
-        <CheckCircle2 className="h-3 w-3" />
+        <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
       ) : (
-        <XCircle className="h-3 w-3" />
+        <XCircle className="h-3 w-3" aria-hidden="true" />
       )}
       <span>{isValid ? validMessage : invalidMessage}</span>
     </div>

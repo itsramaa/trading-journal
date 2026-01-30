@@ -15,17 +15,19 @@ import { formatDistanceToNow } from "date-fns";
 
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
+  const isDark = theme === "dark";
 
   return (
     <Button
       variant="ghost"
       size="icon"
-      onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+      onClick={() => setTheme(isDark ? "light" : "dark")}
       className="h-9 w-9"
+      aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
     >
-      <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-      <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-      <span className="sr-only">Toggle theme</span>
+      <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" aria-hidden="true" />
+      <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" aria-hidden="true" />
+      <span className="sr-only">{isDark ? "Switch to light mode" : "Switch to dark mode"}</span>
     </Button>
   );
 }
@@ -39,20 +41,26 @@ export function NotificationToggle() {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-9 w-9 relative">
-          <Bell className="h-4 w-4" />
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="h-9 w-9 relative"
+          aria-label={count > 0 ? `View ${count} notifications` : "View notifications"}
+        >
+          <Bell className="h-4 w-4" aria-hidden="true" />
           {count > 0 && (
             <Badge
               variant="destructive"
               className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-xs"
+              aria-hidden="true"
             >
               {count > 9 ? "9+" : count}
             </Badge>
           )}
-          <span className="sr-only">Notifications</span>
+          <span className="sr-only">{count > 0 ? `${count} unread notifications` : "No notifications"}</span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-80 p-0 bg-popover" align="end">
+      <PopoverContent className="w-80 p-0 bg-popover" align="end" aria-label="Notifications panel">
         <div className="flex items-center justify-between border-b px-4 py-3">
           <h4 className="font-semibold">Notifications</h4>
           {count > 0 && (
