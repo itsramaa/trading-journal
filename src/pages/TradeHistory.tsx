@@ -1,6 +1,6 @@
 /**
  * Trade History - Standalone page for closed trades with full journaling
- * Features: Filters, AI Sorting, Enrichment Drawer, Screenshot management
+ * Features: Comprehensive Filters, AI Sorting, Enrichment Drawer, Screenshot management
  */
 import { useState, useMemo } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -22,13 +22,19 @@ import { formatCurrency as formatCurrencyUtil } from "@/lib/formatters";
 import { useUserSettings } from "@/hooks/use-user-settings";
 import { useQueryClient } from "@tanstack/react-query";
 import { DateRange } from "@/components/trading/DateRangeFilter";
-import { TradeFilters, TradeEnrichmentDrawer } from "@/components/journal";
+import { TradeHistoryFilters, TradeEnrichmentDrawer, type ResultFilter, type DirectionFilter } from "@/components/journal";
 import type { UnifiedPosition } from "@/components/journal";
 
 export default function TradeHistory() {
+  // Filter states
   const [dateRange, setDateRange] = useState<DateRange>({ from: null, to: null });
+  const [resultFilter, setResultFilter] = useState<ResultFilter>('all');
+  const [directionFilter, setDirectionFilter] = useState<DirectionFilter>('all');
   const [selectedStrategyIds, setSelectedStrategyIds] = useState<string[]>([]);
+  const [selectedPairs, setSelectedPairs] = useState<string[]>([]);
   const [sortByAI, setSortByAI] = useState<'none' | 'asc' | 'desc'>('none');
+  
+  // UI states
   const [deletingTrade, setDeletingTrade] = useState<TradeEntry | null>(null);
   const [enrichingPosition, setEnrichingPosition] = useState<UnifiedPosition | null>(null);
 
@@ -57,11 +63,42 @@ export default function TradeHistory() {
   const binanceTrades = useMemo(() => closedTrades.filter(t => t.source === 'binance'), [closedTrades]);
   const paperTrades = useMemo(() => closedTrades.filter(t => t.source !== 'binance'), [closedTrades]);
 
-  // Filter and sort
+  // Get unique pairs from closed trades for filter
+  const availablePairs = useMemo(() => {
+    const pairs = new Set(closedTrades.map(t => t.pair));
+    return Array.from(pairs).sort();
+  }, [closedTrades]);
+
+  // Comprehensive filter and sort function
   const filterAndSortTrades = (tradesToFilter: typeof closedTrades) => {
-    let filtered = filterTradesByDateRange(tradesToFilter, dateRange.from, dateRange.to);
+    let filtered = tradesToFilter;
+
+    // Date range filter
+    filtered = filterTradesByDateRange(filtered, dateRange.from, dateRange.to);
+    
+    // Strategy filter
     filtered = filterTradesByStrategies(filtered, selectedStrategyIds);
     
+    // Result filter (profit/loss/breakeven)
+    if (resultFilter === 'profit') {
+      filtered = filtered.filter(t => (t.realized_pnl || 0) > 0);
+    } else if (resultFilter === 'loss') {
+      filtered = filtered.filter(t => (t.realized_pnl || 0) < 0);
+    } else if (resultFilter === 'breakeven') {
+      filtered = filtered.filter(t => (t.realized_pnl || 0) === 0);
+    }
+
+    // Direction filter
+    if (directionFilter !== 'all') {
+      filtered = filtered.filter(t => t.direction === directionFilter);
+    }
+
+    // Pair filter
+    if (selectedPairs.length > 0) {
+      filtered = filtered.filter(t => selectedPairs.includes(t.pair));
+    }
+    
+    // AI score sort
     if (sortByAI !== 'none') {
       filtered = [...filtered].sort((a, b) => {
         const scoreA = a.ai_quality_score ?? -1;
@@ -73,8 +110,18 @@ export default function TradeHistory() {
     return filtered;
   };
   
-  const filteredBinanceTrades = useMemo(() => filterAndSortTrades(binanceTrades), [binanceTrades, dateRange, selectedStrategyIds, sortByAI]);
-  const filteredPaperTrades = useMemo(() => filterAndSortTrades(paperTrades), [paperTrades, dateRange, selectedStrategyIds, sortByAI]);
+  const filteredAllTrades = useMemo(
+    () => filterAndSortTrades(closedTrades), 
+    [closedTrades, dateRange, selectedStrategyIds, resultFilter, directionFilter, selectedPairs, sortByAI]
+  );
+  const filteredBinanceTrades = useMemo(
+    () => filterAndSortTrades(binanceTrades), 
+    [binanceTrades, dateRange, selectedStrategyIds, resultFilter, directionFilter, selectedPairs, sortByAI]
+  );
+  const filteredPaperTrades = useMemo(
+    () => filterAndSortTrades(paperTrades), 
+    [paperTrades, dateRange, selectedStrategyIds, resultFilter, directionFilter, selectedPairs, sortByAI]
+  );
 
   // Calculate R:R
   const calculateRR = (trade: TradeEntry): number => {
@@ -111,10 +158,10 @@ export default function TradeHistory() {
     setEnrichingPosition(unified);
   };
 
-  // Stats
-  const totalPnL = closedTrades.reduce((sum, t) => sum + (t.realized_pnl || 0), 0);
-  const winCount = closedTrades.filter(t => (t.realized_pnl || 0) > 0).length;
-  const winRate = closedTrades.length > 0 ? (winCount / closedTrades.length) * 100 : 0;
+  // Stats based on filtered trades
+  const totalPnL = filteredAllTrades.reduce((sum, t) => sum + (t.realized_pnl || 0), 0);
+  const winCount = filteredAllTrades.filter(t => (t.realized_pnl || 0) > 0).length;
+  const winRate = filteredAllTrades.length > 0 ? (winCount / filteredAllTrades.length) * 100 : 0;
 
   return (
     <DashboardLayout>
@@ -132,14 +179,14 @@ export default function TradeHistory() {
           {/* Stats Summary */}
           <div className="flex gap-4 text-sm">
             <div className="text-center">
-              <div className="text-2xl font-bold">{closedTrades.length}</div>
-              <div className="text-muted-foreground">Total Trades</div>
+              <div className="text-2xl font-bold">{filteredAllTrades.length}</div>
+              <div className="text-muted-foreground">Trades</div>
             </div>
             <div className="text-center">
               <div className={`text-2xl font-bold ${totalPnL >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                 {formatCurrency(totalPnL)}
               </div>
-              <div className="text-muted-foreground">Total P&L</div>
+              <div className="text-muted-foreground">P&L</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold">{winRate.toFixed(1)}%</div>
@@ -148,17 +195,26 @@ export default function TradeHistory() {
           </div>
         </div>
 
-        {/* Filters */}
+        {/* Comprehensive Filters */}
         <Card>
           <CardContent className="pt-6">
-            <TradeFilters
+            <TradeHistoryFilters
               dateRange={dateRange}
               onDateRangeChange={setDateRange}
-              sortByAI={sortByAI}
-              onSortByAIChange={setSortByAI}
+              resultFilter={resultFilter}
+              onResultFilterChange={setResultFilter}
+              directionFilter={directionFilter}
+              onDirectionFilterChange={setDirectionFilter}
               strategies={strategies}
               selectedStrategyIds={selectedStrategyIds}
               onStrategyIdsChange={setSelectedStrategyIds}
+              availablePairs={availablePairs}
+              selectedPairs={selectedPairs}
+              onPairsChange={setSelectedPairs}
+              sortByAI={sortByAI}
+              onSortByAIChange={setSortByAI}
+              totalCount={closedTrades.length}
+              filteredCount={filteredAllTrades.length}
             />
           </CardContent>
         </Card>
@@ -182,35 +238,31 @@ export default function TradeHistory() {
               <TabsList className="mb-4">
                 <TabsTrigger value="all" className="gap-2">
                   All
-                  <Badge variant="secondary" className="ml-1 h-5 px-1.5">{closedTrades.length}</Badge>
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5">{filteredAllTrades.length}</Badge>
                 </TabsTrigger>
                 <TabsTrigger value="binance" className="gap-2">
                   <Wifi className="h-4 w-4" aria-hidden="true" />
                   Binance
-                  {binanceTrades.length > 0 && (
-                    <Badge variant="secondary" className="ml-1 h-5 px-1.5">{filteredBinanceTrades.length}</Badge>
-                  )}
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5">{filteredBinanceTrades.length}</Badge>
                 </TabsTrigger>
                 <TabsTrigger value="paper" className="gap-2">
                   <BookOpen className="h-4 w-4" aria-hidden="true" />
                   Paper
-                  {paperTrades.length > 0 && (
-                    <Badge variant="secondary" className="ml-1 h-5 px-1.5">{filteredPaperTrades.length}</Badge>
-                  )}
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5">{filteredPaperTrades.length}</Badge>
                 </TabsTrigger>
               </TabsList>
 
               {/* All Trades */}
               <TabsContent value="all">
                 <div className="space-y-4">
-                  {filterAndSortTrades(closedTrades).length === 0 ? (
+                  {filteredAllTrades.length === 0 ? (
                     <EmptyState
                       icon={History}
-                      title="No trade history"
-                      description="Closed trades will appear here. Start trading to build your history."
+                      title="No trades found"
+                      description="No trades match your current filters. Try adjusting the filters above."
                     />
                   ) : (
-                    filterAndSortTrades(closedTrades).map((entry) => (
+                    filteredAllTrades.map((entry) => (
                       <TradeHistoryCard 
                         key={entry.id} 
                         entry={entry} 
@@ -289,7 +341,7 @@ export default function TradeHistory() {
                     <EmptyState
                       icon={BookOpen}
                       title="No paper trades"
-                      description="Paper trades you close will appear here."
+                      description="No paper trades match your filters."
                     />
                   ) : (
                     filteredPaperTrades.map((entry) => (
