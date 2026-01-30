@@ -247,7 +247,10 @@ const Dashboard = () => {
                   <CardContent className="pt-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-muted-foreground">Current Streak</p>
+                        <p className="text-sm text-muted-foreground flex items-center gap-1">
+                          Current Streak
+                          <InfoTooltip content="Consecutive wins or losses from your most recent trades. A win streak shows momentum; a loss streak may signal time to pause and review your strategy." />
+                        </p>
                         <p className={`text-xl font-bold ${sevenDayStats.streak.type === 'win' ? 'text-profit' : 'text-loss'}`}>
                           {sevenDayStats.streak.count > 0 ? (
                             sevenDayStats.streak.type === 'win' 
@@ -256,7 +259,7 @@ const Dashboard = () => {
                           ) : 'No streak'}
                         </p>
                       </div>
-                      <Flame className={`h-8 w-8 ${sevenDayStats.streak.type === 'win' ? 'text-profit/50' : 'text-loss/50'}`} />
+                      <Flame className={`h-8 w-8 ${sevenDayStats.streak.type === 'win' ? 'text-profit/50' : 'text-loss/50'}`} aria-hidden="true" />
                     </div>
                   </CardContent>
                 </Card>
@@ -264,7 +267,10 @@ const Dashboard = () => {
                   <CardContent className="pt-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-muted-foreground">Best Day (7d)</p>
+                        <p className="text-sm text-muted-foreground flex items-center gap-1">
+                          Best Day (7d)
+                          <InfoTooltip content="Your highest single-day profit in the last 7 days. Analyze what made this day successful to replicate it." />
+                        </p>
                         <p className="text-xl font-bold text-profit">
                           {sevenDayStats.bestDay.pnl > 0 ? `+$${sevenDayStats.bestDay.pnl.toFixed(2)}` : '-'}
                         </p>
@@ -272,7 +278,7 @@ const Dashboard = () => {
                           <p className="text-xs text-muted-foreground">{sevenDayStats.bestDay.date}</p>
                         )}
                       </div>
-                      <Trophy className="h-8 w-8 text-profit/50" />
+                      <Trophy className="h-8 w-8 text-profit/50" aria-hidden="true" />
                     </div>
                   </CardContent>
                 </Card>
@@ -280,7 +286,10 @@ const Dashboard = () => {
                   <CardContent className="pt-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-muted-foreground">Worst Day (7d)</p>
+                        <p className="text-sm text-muted-foreground flex items-center gap-1">
+                          Worst Day (7d)
+                          <InfoTooltip content="Your largest single-day loss in the last 7 days. Review these trades to identify mistakes and prevent future losses." />
+                        </p>
                         <p className="text-xl font-bold text-loss">
                           {sevenDayStats.worstDay.pnl < 0 ? `$${sevenDayStats.worstDay.pnl.toFixed(2)}` : '-'}
                         </p>
@@ -288,7 +297,7 @@ const Dashboard = () => {
                           <p className="text-xs text-muted-foreground">{sevenDayStats.worstDay.date}</p>
                         )}
                       </div>
-                      <AlertTriangle className="h-8 w-8 text-loss/50" />
+                      <AlertTriangle className="h-8 w-8 text-loss/50" aria-hidden="true" />
                     </div>
                   </CardContent>
                 </Card>
