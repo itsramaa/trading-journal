@@ -97,7 +97,95 @@ export type BinanceAction =
   | 'trades'
   | 'open-orders'
   | 'place-order'
-  | 'cancel-order';
+  | 'cancel-order'
+  | 'income'
+  // Phase 2: Account Data Enhancement
+  | 'commission-rate'
+  | 'leverage-brackets'
+  | 'force-orders'
+  | 'position-mode'
+  | 'all-orders';
+
+/**
+ * Phase 2: Commission Rate for accurate fee calculation
+ */
+export interface CommissionRate {
+  symbol: string;
+  makerCommissionRate: number;  // e.g., 0.0002 (0.02%)
+  takerCommissionRate: number;  // e.g., 0.0004 (0.04%)
+}
+
+/**
+ * Phase 2: Leverage Bracket for position sizing limits
+ */
+export interface LeverageBracket {
+  symbol: string;
+  notionalCoef: number;
+  brackets: LeverageBracketTier[];
+}
+
+export interface LeverageBracketTier {
+  bracket: number;
+  initialLeverage: number;
+  notionalCap: number;
+  notionalFloor: number;
+  maintMarginRatio: number;
+  cum: number;
+}
+
+/**
+ * Phase 2: Force Order (Liquidation) for risk management
+ */
+export interface ForceOrder {
+  orderId: number;
+  symbol: string;
+  status: string;
+  clientOrderId: string;
+  price: number;
+  avgPrice: number;
+  origQty: number;
+  executedQty: number;
+  cumQuote: number;
+  timeInForce: string;
+  type: string;
+  reduceOnly: boolean;
+  closePosition: boolean;
+  side: 'BUY' | 'SELL';
+  positionSide: 'LONG' | 'SHORT' | 'BOTH';
+  stopPrice: number;
+  workingType: string;
+  origType: string;
+  time: number;
+  updateTime: number;
+}
+
+/**
+ * Phase 2: Position Mode (Hedge vs One-way)
+ */
+export interface PositionMode {
+  dualSidePosition: boolean;  // true = Hedge Mode, false = One-way Mode
+}
+
+/**
+ * Phase 2: Force Order Query Parameters
+ */
+export interface ForceOrderParams {
+  symbol?: string;
+  autoCloseType?: 'LIQUIDATION' | 'ADL';
+  startTime?: number;
+  endTime?: number;
+  limit?: number;
+}
+
+/**
+ * Phase 2: All Orders Query Parameters
+ */
+export interface AllOrdersParams {
+  orderId?: number;
+  startTime?: number;
+  endTime?: number;
+  limit?: number;
+}
 
 export interface BinanceConnectionStatus {
   isConnected: boolean;

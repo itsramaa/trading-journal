@@ -11,6 +11,9 @@ export * from './useBinanceFutures';
 export * from './market-data-types';
 export * from './useBinanceMarketData';
 
+// Phase 2: Account data hooks
+export * from './useBinanceAccountData';
+
 // Re-export commonly used account hooks for convenience
 export {
   useBinanceConnectionStatus,
@@ -41,6 +44,18 @@ export {
   useBinanceAggTrades,
   useBinanceMarketSentiment,
 } from './useBinanceMarketData';
+
+// Re-export Phase 2 account data hooks
+export {
+  useBinanceCommissionRate,
+  useBinanceLeverageBrackets,
+  useBinanceForceOrders,
+  useBinancePositionMode,
+  useBinanceAllOrders,
+  usePositionSizingData,
+  getMaxLeverageForNotional,
+  getMaintMarginRatio,
+} from './useBinanceAccountData';
 
 // Re-export utility functions
 export { getIncomeTypeCategory } from './types';
