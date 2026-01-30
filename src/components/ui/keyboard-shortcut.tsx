@@ -1,9 +1,9 @@
 /**
  * Keyboard Shortcuts for Nielsen Heuristic #7: Flexibility and efficiency of use
- * Provides shortcuts for power users while remaining invisible to novices
+ * Uses G+key pattern (like GitHub) for navigation
  */
 
-import { useEffect, useCallback } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -29,20 +29,142 @@ export function Kbd({ keys, className }: KbdProps) {
   );
 }
 
-// Hook for registering keyboard shortcuts
-type ShortcutHandler = (e: KeyboardEvent) => void;
+// Navigation shortcuts using G+key pattern
+const NAVIGATION_SHORTCUTS: Record<string, { path: string; label: string; domain: string }> = {
+  // Dashboard (standalone)
+  'd': { path: '/', label: 'Dashboard', domain: '' },
+  
+  // Market domain
+  'm': { path: '/market', label: 'AI Analysis', domain: 'Market' },
+  'c': { path: '/calendar', label: 'Economic Calendar', domain: 'Market' },
+  'v': { path: '/market-data', label: 'Market Data', domain: 'Market' },
+  
+  // Journal domain  
+  't': { path: '/trading', label: 'Trade Entry', domain: 'Journal' },
+  'h': { path: '/history', label: 'Trade History', domain: 'Journal' },
+  
+  // Risk domain
+  'r': { path: '/risk', label: 'Risk Overview', domain: 'Risk' },
+  'x': { path: '/calculator', label: 'Position Calculator', domain: 'Risk' },
+  
+  // Strategy domain
+  's': { path: '/strategies', label: 'My Strategies', domain: 'Strategy' },
+  'b': { path: '/backtest', label: 'Backtest', domain: 'Strategy' },
+  
+  // Analytics domain
+  'p': { path: '/performance', label: 'Performance', domain: 'Analytics' },
+  'l': { path: '/daily-pnl', label: 'Daily P&L', domain: 'Analytics' },
+  'e': { path: '/heatmap', label: 'Heatmap', domain: 'Analytics' },
+  'i': { path: '/ai-insights', label: 'AI Insights', domain: 'Analytics' },
+  
+  // Accounts domain
+  'a': { path: '/accounts', label: 'Accounts', domain: 'Accounts' },
+  
+  // Settings domain
+  ',': { path: '/settings', label: 'Settings', domain: 'Settings' },
+};
 
-interface Shortcut {
+/**
+ * Hook for G+key navigation pattern
+ * Press G, then within 1 second press a letter to navigate
+ */
+export function useNavigationShortcuts() {
+  const navigate = useNavigate();
+  const gPressedRef = useRef(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger if user is typing in an input
+      if (
+        document.activeElement?.tagName === "INPUT" ||
+        document.activeElement?.tagName === "TEXTAREA" ||
+        (document.activeElement as HTMLElement)?.isContentEditable
+      ) {
+        return;
+      }
+
+      const key = e.key.toLowerCase();
+
+      // First press: G to activate
+      if (key === 'g' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        gPressedRef.current = true;
+        
+        // Reset after 1 second
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        timeoutRef.current = setTimeout(() => {
+          gPressedRef.current = false;
+        }, 1000);
+        return;
+      }
+
+      // Second press: navigate
+      if (gPressedRef.current && NAVIGATION_SHORTCUTS[key]) {
+        e.preventDefault();
+        const { path, label } = NAVIGATION_SHORTCUTS[key];
+        navigate(path);
+        toast.success(`Navigated to ${label}`, { duration: 1500 });
+        gPressedRef.current = false;
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        return;
+      }
+
+      // Show help with ?
+      if (key === '?' || (e.shiftKey && key === '/')) {
+        e.preventDefault();
+        showShortcutsHelp();
+        return;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, [navigate]);
+}
+
+function showShortcutsHelp() {
+  const groupedShortcuts = Object.entries(NAVIGATION_SHORTCUTS).reduce((acc, [key, value]) => {
+    const domain = value.domain || 'Main';
+    if (!acc[domain]) acc[domain] = [];
+    acc[domain].push({ key, ...value });
+    return acc;
+  }, {} as Record<string, Array<{ key: string; path: string; label: string }>>);
+
+  toast.info(
+    <div className="space-y-3 max-h-[400px] overflow-y-auto">
+      <p className="font-semibold text-sm">Keyboard Shortcuts (G + key)</p>
+      {Object.entries(groupedShortcuts).map(([domain, shortcuts]) => (
+        <div key={domain} className="space-y-1">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider">{domain}</p>
+          <div className="grid gap-0.5 text-xs">
+            {shortcuts.map(({ key, label }) => (
+              <div key={key} className="flex justify-between items-center">
+                <span>{label}</span>
+                <Kbd keys={["G", key.toUpperCase()]} />
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+      <p className="text-xs text-muted-foreground pt-1 border-t">Press ? to show this help</p>
+    </div>,
+    { duration: 8000 }
+  );
+}
+
+// Legacy export for backward compatibility
+export function useKeyboardShortcuts(shortcuts: Array<{
   key: string;
   ctrl?: boolean;
   meta?: boolean;
   shift?: boolean;
   alt?: boolean;
-  handler: ShortcutHandler;
+  handler: (e: KeyboardEvent) => void;
   description: string;
-}
-
-export function useKeyboardShortcuts(shortcuts: Shortcut[]) {
+}>) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       for (const shortcut of shortcuts) {
@@ -58,7 +180,6 @@ export function useKeyboardShortcuts(shortcuts: Shortcut[]) {
           shiftMatch &&
           altMatch
         ) {
-          // Don't trigger if user is typing in an input
           if (
             document.activeElement?.tagName === "INPUT" ||
             document.activeElement?.tagName === "TEXTAREA" ||
@@ -79,68 +200,7 @@ export function useKeyboardShortcuts(shortcuts: Shortcut[]) {
   }, [shortcuts]);
 }
 
-// Global navigation shortcuts
+// Deprecated - use useNavigationShortcuts instead
 export function useGlobalShortcuts() {
-  const navigate = useNavigate();
-  
-  const shortcuts: Shortcut[] = [
-    {
-      key: "d",
-      meta: true,
-      handler: () => navigate("/"),
-      description: "Go to Dashboard",
-    },
-    {
-      key: "p",
-      meta: true,
-      handler: () => navigate("/portfolio"),
-      description: "Go to Portfolio",
-    },
-    {
-      key: "t",
-      meta: true,
-      handler: () => navigate("/transactions"),
-      description: "Go to Transactions",
-    },
-    {
-      key: "a",
-      meta: true,
-      handler: () => navigate("/accounts"),
-      description: "Go to Accounts",
-    },
-    {
-      key: "k",
-      meta: true,
-      handler: () => {
-        // Trigger global search
-        const searchInput = document.querySelector('[data-global-search]') as HTMLInputElement;
-        if (searchInput) {
-          searchInput.focus();
-        }
-      },
-      description: "Open Search",
-    },
-    {
-      key: "?",
-      shift: true,
-      handler: () => {
-        toast.info(
-          <div className="space-y-2">
-            <p className="font-semibold">Keyboard Shortcuts</p>
-            <div className="grid gap-1 text-sm">
-              <div className="flex justify-between"><span>Dashboard</span><Kbd keys={["⌘", "D"]} /></div>
-              <div className="flex justify-between"><span>Portfolio</span><Kbd keys={["⌘", "P"]} /></div>
-              <div className="flex justify-between"><span>Transactions</span><Kbd keys={["⌘", "T"]} /></div>
-              <div className="flex justify-between"><span>Accounts</span><Kbd keys={["⌘", "A"]} /></div>
-              <div className="flex justify-between"><span>Search</span><Kbd keys={["⌘", "K"]} /></div>
-            </div>
-          </div>,
-          { duration: 5000 }
-        );
-      },
-      description: "Show shortcuts",
-    },
-  ];
-
-  useKeyboardShortcuts(shortcuts);
+  useNavigationShortcuts();
 }
