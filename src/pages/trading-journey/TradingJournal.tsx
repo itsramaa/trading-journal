@@ -146,26 +146,15 @@ export default function TradingJournal() {
   const totalUnrealizedPnL = useMemo(() => openPositions.reduce((sum, t) => sum + (t.pnl || 0), 0), [openPositions]);
   const totalRealizedPnL = useMemo(() => closedTrades.reduce((sum, t) => sum + (t.realized_pnl || 0), 0), [closedTrades]);
 
-  // Calculate unrealized P&L for each open position (simulated)
+  // Calculate unrealized P&L for each open position
+  // Note: Without live price feed, we show stored P&L or entry price as placeholder
   const positionsWithPnL = useMemo(() => {
-    return openPositions.map((position) => {
-      const simulatedPriceChange = (Math.random() - 0.5) * 0.1;
-      const currentPrice = position.entry_price * (1 + simulatedPriceChange);
-      
-      const priceDiff = position.direction === "LONG" 
-        ? currentPrice - position.entry_price 
-        : position.entry_price - currentPrice;
-      
-      const unrealizedPnL = priceDiff * position.quantity;
-      const unrealizedPnLPercent = (priceDiff / position.entry_price) * 100;
-
-      return {
-        ...position,
-        currentPrice,
-        unrealizedPnL,
-        unrealizedPnLPercent,
-      };
-    });
+    return openPositions.map((position) => ({
+      ...position,
+      currentPrice: position.entry_price, // Use entry as placeholder (no live feed)
+      unrealizedPnL: position.pnl || 0,   // Use stored P&L if available
+      unrealizedPnLPercent: 0,            // Cannot calculate without live price
+    }));
   }, [openPositions]);
 
   const handleCreateTrade = async (values: any, strategyIds: string[]) => {
