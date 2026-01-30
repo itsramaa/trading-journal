@@ -1,83 +1,147 @@
 
-# Plan: Resizable Sidebar dengan Navigasi Domain-Based
+# Refactor Plan: Enhance Standalone Pages & Cleanup Unused Components
 
-## ✅ STATUS: COMPLETED
-
-## Ringkasan Perubahan
-
-Mengubah arsitektur navigasi dari "grouped dengan banyak tabs" menjadi "flat domain-based". Dashboard berada di paling atas tanpa grouping, dan item-item yang sebelumnya di dalam tabs dipindahkan ke sidebar sebagai menu level pertama.
+## Overview
+This plan addresses two main objectives:
+1. Enhance the **Daily P&L** and **AI Insights** standalone pages to match the features previously available in the Performance Overview tabs
+2. Perform a comprehensive cleanup of all unused components across the project
 
 ---
 
-## Perubahan Struktur Navigasi
+## Part 1: Enhance Standalone Pages
 
-### Struktur Sidebar Baru (Flat, Domain-Based)
+### 1.1 Daily P&L Page Enhancement (`src/pages/DailyPnL.tsx`)
+
+**Current Features:**
+- Week comparison cards (This Week P&L, Net After Fees, Trades This Week, Win Rate)
+- Best/Worst Trade (7 Days) cards
+- 7-Day P&L Trend chart
+
+**Features to Add:**
+- Export buttons (CSV & PDF) for the weekly data
+- Symbol breakdown section showing P&L by trading pair
+- Today's P&L summary card at the top
+
+**Implementation:**
+- Add `usePerformanceExport` hook for export functionality
+- Add export buttons in the header area
+- Add a "Today's P&L" summary card using `useBinanceDailyPnl` data
+- Add symbol breakdown table/cards showing per-pair performance
+
+### 1.2 AI Insights Page Enhancement (`src/pages/AIInsights.tsx`)
+
+**Current Features:**
+- AI Pattern Insights (winning/losing patterns by pair)
+- Crypto Ranking (pair performance with recommendations)
+
+**Features to Add (if applicable):**
+The AI Insights page already contains the core features. No additional features are required as the Pattern Insights and Crypto Ranking components provide comprehensive AI-powered analysis.
+
+---
+
+## Part 2: Comprehensive Unused Components Cleanup
+
+### 2.1 Unused Dashboard Components (DELETE)
+
+| File | Reason |
+|------|--------|
+| `src/components/dashboard/TradingDashboardContent.tsx` | Not imported anywhere |
+| `src/components/dashboard/ActivePositionsTable.tsx` | Replaced by `BinancePositionsTable`, not imported |
+| `src/components/dashboard/BinanceBalanceWidget.tsx` | Removed from Dashboard, not imported |
+| `src/components/dashboard/BinancePositionsTable.tsx` | Removed from Dashboard, not imported |
+
+### 2.2 Unused Trading Components (DELETE)
+
+| File | Reason |
+|------|--------|
+| `src/components/trading/BacktestAccountManager.tsx` | Not imported anywhere, backtest tab removed |
+| `src/components/trading/FundingRateTracker.tsx` | Not imported anywhere |
+
+### 2.3 Potential Unused Hooks (REVIEW)
+
+These hooks may need review but are likely still used:
+- `src/hooks/use-daily-pnl.ts` - Used by `TodayPerformance` component (KEEP)
+
+---
+
+## Technical Implementation Details
+
+### Step 1: Enhance Daily P&L Page
 
 ```text
-+------------------------------------------+
-| Trading Journey (Logo)                   |
-+------------------------------------------+
-| Dashboard                 /              |  <-- Standalone, tidak dalam group
-+------------------------------------------+
-| MARKET                                   |  <-- Group Header
-|   AI Analysis             /market        |
-|   Economic Calendar       /calendar      |
-|   Market Data             /market-data   |
-+------------------------------------------+
-| JOURNAL                                  |
-|   Trade Entry             /trading       |
-|   Trade History           /history       |
-+------------------------------------------+
-| RISK                                     |
-|   Risk Overview           /risk          |
-|   Position Calculator     /calculator    |
-+------------------------------------------+
-| STRATEGY                                 |
-|   My Strategies           /strategies    |
-|   Backtest                /backtest      |
-+------------------------------------------+
-| ANALYTICS                                |
-|   Performance Overview    /performance   |
-|   Daily P&L               /daily-pnl     |
-|   Heatmap                 /heatmap       |
-|   AI Insights             /ai-insights   |
-+------------------------------------------+
-| ACCOUNTS                                 |
-|   Account List            /accounts      |
-+------------------------------------------+
-| SETTINGS                                 |
-|   Settings                /settings      |
-+------------------------------------------+
-| User Profile                             |
-+------------------------------------------+
+src/pages/DailyPnL.tsx
+├── Add import: usePerformanceExport
+├── Add import: useBinanceDailyPnl (already present)
+├── Add header export buttons (CSV/PDF)
+├── Add Today's P&L summary card
+└── Add Symbol Breakdown section (if bySymbol data available)
 ```
 
+**New UI Layout:**
+```text
+┌─────────────────────────────────────────────────────┐
+│ Daily P&L                    [Export CSV] [PDF]     │
+├─────────────────────────────────────────────────────┤
+│ ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────┐ │
+│ │This Week  │ │Net Fees   │ │Trades     │ │WinRate│ │
+│ │P&L        │ │           │ │This Week  │ │       │ │
+│ └───────────┘ └───────────┘ └───────────┘ └───────┘ │
+├─────────────────────────────────────────────────────┤
+│ ┌─────────────────────┐ ┌─────────────────────────┐ │
+│ │Best Trade (7 Days)  │ │Worst Trade (7 Days)     │ │
+│ └─────────────────────┘ └─────────────────────────┘ │
+├─────────────────────────────────────────────────────┤
+│ ┌─────────────────────────────────────────────────┐ │
+│ │ 7-Day P&L Trend Chart                           │ │
+│ └─────────────────────────────────────────────────┘ │
+├─────────────────────────────────────────────────────┤
+│ ┌─────────────────────────────────────────────────┐ │
+│ │ Symbol Breakdown (P&L by Pair)                  │ │
+│ └─────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────┘
+```
+
+### Step 2: Delete Unused Files
+
+Files to be deleted:
+1. `src/components/dashboard/TradingDashboardContent.tsx`
+2. `src/components/dashboard/ActivePositionsTable.tsx`
+3. `src/components/dashboard/BinanceBalanceWidget.tsx`
+4. `src/components/dashboard/BinancePositionsTable.tsx`
+5. `src/components/trading/BacktestAccountManager.tsx`
+6. `src/components/trading/FundingRateTracker.tsx`
+
+### Step 3: Verify No Import Errors
+
+After deletion, run a project-wide search to ensure no broken imports exist.
+
 ---
 
-## File yang Diubah
+## Files to Modify
 
-1. ✅ `src/components/layout/DashboardLayout.tsx` - Updated route titles
-2. ✅ `src/components/layout/AppSidebar.tsx` - New domain-based navigation structure
-3. ✅ `src/components/layout/NavGroup.tsx` - Simplified without group icons
-4. ✅ `src/App.tsx` - Added all new routes
-
-## File Baru
-
-1. ✅ `src/pages/EconomicCalendar.tsx` - Halaman Calendar standalone
-2. ✅ `src/pages/MarketData.tsx` - Halaman Market Data standalone
-3. ✅ `src/pages/TradeHistory.tsx` - Halaman Trade History standalone
-4. ✅ `src/pages/PositionCalculator.tsx` - Halaman Calculator standalone
-5. ✅ `src/pages/Backtest.tsx` - Halaman Backtest standalone
-6. ✅ `src/pages/DailyPnL.tsx` - Halaman Daily P&L standalone
-7. ✅ `src/pages/TradingHeatmap.tsx` - Halaman Heatmap standalone
-8. ✅ `src/pages/AIInsights.tsx` - Halaman AI Insights standalone
+| File | Action |
+|------|--------|
+| `src/pages/DailyPnL.tsx` | Enhance with export buttons and symbol breakdown |
+| `src/components/dashboard/TradingDashboardContent.tsx` | DELETE |
+| `src/components/dashboard/ActivePositionsTable.tsx` | DELETE |
+| `src/components/dashboard/BinanceBalanceWidget.tsx` | DELETE |
+| `src/components/dashboard/BinancePositionsTable.tsx` | DELETE |
+| `src/components/trading/BacktestAccountManager.tsx` | DELETE |
+| `src/components/trading/FundingRateTracker.tsx` | DELETE |
 
 ---
 
-## Catatan Implementasi
+## Expected Outcome
 
-- Dashboard standalone di paling atas (tidak dalam group)
-- 7 groups terpisah tanpa ampersand (&): MARKET, JOURNAL, RISK, STRATEGY, ANALYTICS, ACCOUNTS, SETTINGS
-- Group labels menggunakan uppercase, compact styling
-- Collapsible groups dengan chevron rotation
-- Existing shadcn sidebar tetap digunakan (tidak resizable, menggunakan icon collapse mode)
+1. **Daily P&L Page**: Full-featured with export capability and symbol breakdown
+2. **AI Insights Page**: Already complete with Pattern Insights and Crypto Ranking
+3. **Codebase**: Cleaner with 6 unused component files removed
+4. **Bundle Size**: Reduced by removing dead code
+
+---
+
+## Risk Assessment
+
+- **Low Risk**: Deleting unused components that have no imports
+- **Testing Required**: Verify all pages still load correctly after cleanup
+- **No Breaking Changes**: Only removing dead code and enhancing existing features
