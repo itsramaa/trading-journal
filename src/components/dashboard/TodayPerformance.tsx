@@ -25,6 +25,7 @@ import { useDailyPnl } from "@/hooks/use-daily-pnl";
 import { useBinanceDailyPnl } from "@/hooks/use-binance-daily-pnl";
 import { useBinanceConnectionStatus } from "@/features/binance";
 import { formatCurrency } from "@/lib/formatters";
+import { WinRateTooltip, InfoTooltip } from "@/components/ui/info-tooltip";
 
 export function TodayPerformance() {
   const [isFeeBreakdownOpen, setIsFeeBreakdownOpen] = useState(false);
@@ -152,11 +153,15 @@ export function TodayPerformance() {
           <div className="space-y-4">
             {/* Main P&L - Show Net if we have fee data */}
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">
+              <span className="text-sm text-muted-foreground flex items-center gap-1">
                 {stats.hasFeeData ? 'Net P&L' : '24H P&L'}
+                <InfoTooltip content={stats.hasFeeData 
+                  ? "Net Profit & Loss after deducting all trading fees, funding costs, and adding rebates. This is your true take-home profit." 
+                  : "Today's realized profit or loss from closed trades in the last 24 hours."} 
+                />
               </span>
               <div className={`flex items-center gap-1 text-xl font-bold ${stats.netPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                {stats.netPnl >= 0 ? <TrendingUp className="h-5 w-5" /> : <TrendingDown className="h-5 w-5" />}
+                {stats.netPnl >= 0 ? <TrendingUp className="h-5 w-5" aria-hidden="true" /> : <TrendingDown className="h-5 w-5" aria-hidden="true" />}
                 {stats.netPnl >= 0 ? '+' : ''}{formatCurrency(stats.netPnl, 'USD')}
               </div>
             </div>
@@ -246,8 +251,9 @@ export function TodayPerformance() {
             {stats.tradesCount > 0 && (
               <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
                 <div className="flex items-center gap-2">
-                  <Target className="h-4 w-4 text-primary" />
+                  <Target className="h-4 w-4 text-primary" aria-hidden="true" />
                   <span className="text-sm">Win Rate</span>
+                  <WinRateTooltip />
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="font-semibold">{stats.winRate.toFixed(0)}%</span>

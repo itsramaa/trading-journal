@@ -26,6 +26,12 @@ import { calculateTradingStats } from "@/lib/trading-calculations";
 import { formatCurrency } from "@/lib/formatters";
 import { MarketSessionsWidget } from "@/components/dashboard/MarketSessionsWidget";
 import { 
+  WinRateTooltip, 
+  ProfitFactorTooltip, 
+  ProfitLossTooltip,
+  InfoTooltip 
+} from "@/components/ui/info-tooltip";
+import { 
   TrendingUp, 
   TrendingDown,
   Target, 
@@ -311,10 +317,12 @@ const Dashboard = () => {
                   <CardContent className="pt-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-muted-foreground">Win Rate</p>
+                        <p className="text-sm text-muted-foreground flex items-center gap-1">
+                          Win Rate <WinRateTooltip />
+                        </p>
                         <p className="text-2xl font-bold">{tradingStats.winRate.toFixed(1)}%</p>
                       </div>
-                      <Target className="h-8 w-8 text-primary/50" />
+                      <Target className="h-8 w-8 text-primary/50" aria-hidden="true" />
                     </div>
                   </CardContent>
                 </Card>
@@ -322,12 +330,14 @@ const Dashboard = () => {
                   <CardContent className="pt-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-muted-foreground">Profit Factor</p>
+                        <p className="text-sm text-muted-foreground flex items-center gap-1">
+                          Profit Factor <ProfitFactorTooltip />
+                        </p>
                         <p className="text-2xl font-bold">
                           {tradingStats.profitFactor === Infinity ? '∞' : tradingStats.profitFactor.toFixed(2)}
                         </p>
                       </div>
-                      <TrendingUp className="h-8 w-8 text-primary/50" />
+                      <TrendingUp className="h-8 w-8 text-primary/50" aria-hidden="true" />
                     </div>
                   </CardContent>
                 </Card>
@@ -335,15 +345,17 @@ const Dashboard = () => {
                   <CardContent className="pt-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-muted-foreground">Total P&L</p>
+                        <p className="text-sm text-muted-foreground flex items-center gap-1">
+                          Total P&L <ProfitLossTooltip />
+                        </p>
                         <p className={`text-2xl font-bold ${tradingStats.totalPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
                           {tradingStats.totalPnl >= 0 ? '+' : ''}${tradingStats.totalPnl.toFixed(2)}
                         </p>
                       </div>
                       {tradingStats.totalPnl >= 0 ? (
-                        <TrendingUp className="h-8 w-8 text-profit/50" />
+                        <TrendingUp className="h-8 w-8 text-profit/50" aria-hidden="true" />
                       ) : (
-                        <TrendingDown className="h-8 w-8 text-loss/50" />
+                        <TrendingDown className="h-8 w-8 text-loss/50" aria-hidden="true" />
                       )}
                     </div>
                   </CardContent>
@@ -352,10 +364,13 @@ const Dashboard = () => {
                   <CardContent className="pt-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-muted-foreground">Expectancy</p>
+                        <p className="text-sm text-muted-foreground flex items-center gap-1">
+                          Expectancy 
+                          <InfoTooltip content="Expected average profit per trade based on your win rate and average win/loss sizes. Positive expectancy means profitable over time." />
+                        </p>
                         <p className="text-2xl font-bold">${tradingStats.expectancy.toFixed(2)}</p>
                       </div>
-                      <Activity className="h-8 w-8 text-muted-foreground/50" />
+                      <Activity className="h-8 w-8 text-muted-foreground/50" aria-hidden="true" />
                     </div>
                   </CardContent>
                 </Card>
