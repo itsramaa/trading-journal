@@ -20,8 +20,8 @@ export default function EconomicCalendar() {
           </p>
         </div>
 
-        {/* Calendar Content */}
-        <CalendarTab />
+        {/* Calendar Content - without duplicate title */}
+        <CalendarTab hideTitle />
       </div>
     </DashboardLayout>
   );

@@ -1,7 +1,7 @@
 /**
  * Trading Dashboard - Main overview showing trading performance
  * Reorganized per user spec:
- * 1. Pro Tip, 2. Quick Actions, 3. System Status, 4. Market Sessions,
+ * 1. System Status, 2. Quick Actions (Add), 3. Pro Tip, 4. Market Sessions,
  * 5. Today Activity, 6. Risk & AI Insights, 7. Trading Journey CTA
  */
 import { useTranslation } from "react-i18next";
@@ -27,6 +27,7 @@ import {
   Calendar,
   AlertTriangle,
   Activity,
+  CandlestickChart,
 } from "lucide-react";
 
 // First-time user onboarding steps (UCD + JTBD framework)
@@ -68,19 +69,29 @@ const Dashboard = () => {
           <p className="text-muted-foreground">{t('dashboard.welcome')}</p>
         </div>
 
-        {/* Section 1: Pro Tip */}
-        <QuickTip storageKey="dashboard_intro" className="mb-2">
-          <strong>Pro tip:</strong> Press <kbd className="px-1.5 py-0.5 text-xs bg-muted rounded border">⌘K</kbd> to quickly search, or <kbd className="px-1.5 py-0.5 text-xs bg-muted rounded border">Shift+?</kbd> for all shortcuts.
-        </QuickTip>
+        {/* System Status - Right after welcome, no title */}
+        <SystemStatusIndicator />
 
-        {/* Section 2: Quick Actions */}
+        {/* Quick Actions - Add something */}
         <section className="space-y-4">
           <h2 className="text-lg font-semibold">Quick Actions</h2>
-          <div className="grid gap-3 grid-cols-2 md:grid-cols-3">
+          <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
             <Button variant="outline" className="h-auto py-4 flex flex-col gap-2" asChild>
               <Link to="/trading">
                 <BookOpen className="h-5 w-5 text-primary" />
-                <span className="text-sm">Log Trade</span>
+                <span className="text-sm">Add Trade</span>
+              </Link>
+            </Button>
+            <Button variant="outline" className="h-auto py-4 flex flex-col gap-2" asChild>
+              <Link to="/accounts">
+                <CandlestickChart className="h-5 w-5 text-primary" />
+                <span className="text-sm">Add Account</span>
+              </Link>
+            </Button>
+            <Button variant="outline" className="h-auto py-4 flex flex-col gap-2" asChild>
+              <Link to="/strategies">
+                <LineChart className="h-5 w-5 text-primary" />
+                <span className="text-sm">Add Strategy</span>
               </Link>
             </Button>
             <Button variant="outline" className="h-auto py-4 flex flex-col gap-2" asChild>
@@ -89,25 +100,15 @@ const Dashboard = () => {
                 <span className="text-sm">Risk Check</span>
               </Link>
             </Button>
-            <Button variant="outline" className="h-auto py-4 flex flex-col gap-2" asChild>
-              <Link to="/performance">
-                <LineChart className="h-5 w-5 text-primary" />
-                <span className="text-sm">Analytics</span>
-              </Link>
-            </Button>
           </div>
         </section>
 
-        {/* Section 3: System Status (ALL SYSTEMS NORMAL) */}
-        <section className="space-y-4">
-          <div className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-semibold">System Status</h2>
-          </div>
-          <SystemStatusIndicator />
-        </section>
+        {/* Pro Tip */}
+        <QuickTip storageKey="dashboard_intro" className="mb-2">
+          <strong>Pro tip:</strong> Press <kbd className="px-1.5 py-0.5 text-xs bg-muted rounded border">⌘K</kbd> to quickly search, or <kbd className="px-1.5 py-0.5 text-xs bg-muted rounded border">Shift+?</kbd> for all shortcuts.
+        </QuickTip>
 
-        {/* Section 4: Market Sessions */}
+        {/* Market Sessions */}
         <section className="space-y-4">
           <div className="flex items-center gap-2">
             <Globe className="h-5 w-5 text-primary" />
@@ -116,7 +117,7 @@ const Dashboard = () => {
           <MarketSessionsWidget />
         </section>
 
-        {/* Section 5: Today's Activity */}
+        {/* Today's Activity */}
         <section className="space-y-4">
           <div className="flex items-center gap-2">
             <Calendar className="h-5 w-5 text-primary" />

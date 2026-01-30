@@ -162,6 +162,127 @@ export default function Accounts() {
           </div>
         </div>
 
+        {/* 7-Day Stats & Portfolio Performance (above tabs) */}
+        {hasTrades && (
+          <div className="space-y-6">
+            {/* 7-Day Quick Stats */}
+            <section className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-primary" />
+                <h2 className="text-lg font-semibold">7-Day Stats</h2>
+              </div>
+              <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Current Streak</p>
+                        <p className={`text-2xl font-bold ${sevenDayStats.streak.type === 'win' ? 'text-profit' : 'text-loss'}`}>
+                          {sevenDayStats.streak.count} {sevenDayStats.streak.type === 'win' ? 'W' : 'L'}
+                        </p>
+                      </div>
+                      <Flame className={`h-8 w-8 ${sevenDayStats.streak.type === 'win' ? 'text-profit' : 'text-loss'}`} />
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Trades (7D)</p>
+                        <p className="text-2xl font-bold">{sevenDayStats.trades7d}</p>
+                      </div>
+                      <Activity className="h-8 w-8 text-muted-foreground" />
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Best Day</p>
+                        <p className={`text-2xl font-bold ${sevenDayStats.bestDay.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                          {sevenDayStats.bestDay.pnl >= 0 ? '+' : ''}{formatCurrency(sevenDayStats.bestDay.pnl, 'USD')}
+                        </p>
+                      </div>
+                      <Trophy className="h-8 w-8 text-profit" />
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Worst Day</p>
+                        <p className={`text-2xl font-bold ${sevenDayStats.worstDay.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                          {sevenDayStats.worstDay.pnl >= 0 ? '+' : ''}{formatCurrency(sevenDayStats.worstDay.pnl, 'USD')}
+                        </p>
+                      </div>
+                      <AlertTriangle className="h-8 w-8 text-loss" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </section>
+
+            {/* Portfolio Performance */}
+            <section className="space-y-4">
+              <div className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-primary" />
+                <h2 className="text-lg font-semibold">Portfolio Performance</h2>
+              </div>
+              <div className="grid gap-4 md:grid-cols-3">
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-muted-foreground flex items-center gap-1">
+                          Win Rate
+                          <WinRateTooltip />
+                        </p>
+                        <p className="text-2xl font-bold">{tradingStats.winRate.toFixed(1)}%</p>
+                      </div>
+                      <Target className="h-8 w-8 text-primary" />
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-muted-foreground flex items-center gap-1">
+                          Profit Factor
+                          <ProfitFactorTooltip />
+                        </p>
+                        <p className={`text-2xl font-bold ${tradingStats.profitFactor >= 1 ? 'text-profit' : 'text-loss'}`}>
+                          {tradingStats.profitFactor.toFixed(2)}
+                        </p>
+                      </div>
+                      <TrendingUp className="h-8 w-8 text-muted-foreground" />
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-muted-foreground flex items-center gap-1">
+                          Expectancy
+                          <InfoTooltip content="Average expected profit per trade based on your historical performance." />
+                        </p>
+                        <p className={`text-2xl font-bold ${tradingStats.expectancy >= 0 ? 'text-profit' : 'text-loss'}`}>
+                          {tradingStats.expectancy >= 0 ? '+' : ''}{formatCurrency(tradingStats.expectancy, 'USD')}
+                        </p>
+                      </div>
+                      <ProfitLossTooltip />
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </section>
+          </div>
+        )}
+
         {/* Account Tabs */}
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
           <TabsList className="grid w-full grid-cols-2 lg:w-[400px]" aria-label="Account type tabs">
@@ -384,161 +505,6 @@ export default function Accounts() {
             </div>
           </TabsContent>
         </Tabs>
-
-        {/* 7-Day Stats & Portfolio Performance (only show if trades exist) */}
-        {hasTrades && (
-          <div className="space-y-6">
-            {/* 7-Day Quick Stats */}
-            <section className="space-y-4">
-              <div className="flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-primary" />
-                <h2 className="text-lg font-semibold">7-Day Stats</h2>
-              </div>
-              <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
-                <Card>
-                  <CardContent className="pt-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground flex items-center gap-1">
-                          Current Streak
-                          <InfoTooltip content="Consecutive wins or losses from your most recent trades. A win streak shows momentum; a loss streak may signal time to pause and review your strategy." />
-                        </p>
-                        <p className={`text-xl font-bold ${sevenDayStats.streak.type === 'win' ? 'text-profit' : 'text-loss'}`}>
-                          {sevenDayStats.streak.count > 0 ? (
-                            sevenDayStats.streak.type === 'win' 
-                              ? `${sevenDayStats.streak.count} Win${sevenDayStats.streak.count > 1 ? 's' : ''}` 
-                              : `${sevenDayStats.streak.count} Loss${sevenDayStats.streak.count > 1 ? 'es' : ''}`
-                          ) : 'No streak'}
-                        </p>
-                      </div>
-                      <Flame className={`h-8 w-8 ${sevenDayStats.streak.type === 'win' ? 'text-profit/50' : 'text-loss/50'}`} aria-hidden="true" />
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground flex items-center gap-1">
-                          Best Day (7d)
-                          <InfoTooltip content="Your highest single-day profit in the last 7 days. Analyze what made this day successful to replicate it." />
-                        </p>
-                        <p className="text-xl font-bold text-profit">
-                          {sevenDayStats.bestDay.pnl > 0 ? `+$${sevenDayStats.bestDay.pnl.toFixed(2)}` : '-'}
-                        </p>
-                        {sevenDayStats.bestDay.date && (
-                          <p className="text-xs text-muted-foreground">{sevenDayStats.bestDay.date}</p>
-                        )}
-                      </div>
-                      <Trophy className="h-8 w-8 text-profit/50" aria-hidden="true" />
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground flex items-center gap-1">
-                          Worst Day (7d)
-                          <InfoTooltip content="Your largest single-day loss in the last 7 days. Review these trades to identify mistakes and prevent future losses." />
-                        </p>
-                        <p className="text-xl font-bold text-loss">
-                          {sevenDayStats.worstDay.pnl < 0 ? `$${sevenDayStats.worstDay.pnl.toFixed(2)}` : '-'}
-                        </p>
-                        {sevenDayStats.worstDay.date && (
-                          <p className="text-xs text-muted-foreground">{sevenDayStats.worstDay.date}</p>
-                        )}
-                      </div>
-                      <AlertTriangle className="h-8 w-8 text-loss/50" aria-hidden="true" />
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground">Trades (7d)</p>
-                        <p className="text-xl font-bold">{sevenDayStats.trades7d}</p>
-                      </div>
-                      <Activity className="h-8 w-8 text-muted-foreground/50" />
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </section>
-
-            {/* Portfolio Performance Overview */}
-            <section className="space-y-4">
-              <div className="flex items-center gap-2">
-                <BarChart3 className="h-5 w-5 text-primary" />
-                <h2 className="text-lg font-semibold">Portfolio Performance</h2>
-              </div>
-              <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
-                <Card className="bg-primary/5 border-primary/20">
-                  <CardContent className="pt-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground flex items-center gap-1">
-                          Win Rate <WinRateTooltip />
-                        </p>
-                        <p className="text-2xl font-bold">{tradingStats.winRate.toFixed(1)}%</p>
-                      </div>
-                      <Target className="h-8 w-8 text-primary/50" aria-hidden="true" />
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card className="bg-primary/5 border-primary/20">
-                  <CardContent className="pt-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground flex items-center gap-1">
-                          Profit Factor <ProfitFactorTooltip />
-                        </p>
-                        <p className="text-2xl font-bold">
-                          {tradingStats.profitFactor === Infinity ? '∞' : tradingStats.profitFactor.toFixed(2)}
-                        </p>
-                      </div>
-                      <TrendingUp className="h-8 w-8 text-primary/50" aria-hidden="true" />
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card className={tradingStats.totalPnl >= 0 ? 'bg-profit-muted border-profit/20' : 'bg-loss-muted border-loss/20'}>
-                  <CardContent className="pt-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground flex items-center gap-1">
-                          Total P&L <ProfitLossTooltip />
-                        </p>
-                        <p className={`text-2xl font-bold ${tradingStats.totalPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                          {tradingStats.totalPnl >= 0 ? '+' : ''}${tradingStats.totalPnl.toFixed(2)}
-                        </p>
-                      </div>
-                      {tradingStats.totalPnl >= 0 ? (
-                        <TrendingUp className="h-8 w-8 text-profit/50" aria-hidden="true" />
-                      ) : (
-                        <TrendingDown className="h-8 w-8 text-loss/50" aria-hidden="true" />
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card className="bg-muted/30">
-                  <CardContent className="pt-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground flex items-center gap-1">
-                          Expectancy 
-                          <InfoTooltip content="Expected average profit per trade based on your win rate and average win/loss sizes. Positive expectancy means profitable over time." />
-                        </p>
-                        <p className="text-2xl font-bold">${tradingStats.expectancy.toFixed(2)}</p>
-                      </div>
-                      <Activity className="h-8 w-8 text-muted-foreground/50" aria-hidden="true" />
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </section>
-          </div>
-        )}
       </div>
 
       {/* Transaction Dialog */}
