@@ -8,10 +8,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { QuickTip } from "@/components/ui/onboarding-tooltip";
-import { Shield, Calculator, Settings, AlertTriangle, History, LayoutDashboard, CheckCircle } from "lucide-react";
+import { Shield, Settings, AlertTriangle, History, LayoutDashboard, CheckCircle } from "lucide-react";
 import { 
   DailyLossTracker, 
-  PositionSizeCalculator, 
   RiskEventLog, 
   CorrelationMatrix,
   RiskProfileSummaryCard,
@@ -75,14 +74,10 @@ export default function RiskManagement() {
 
         {/* Tabs */}
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-flex">
+          <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:inline-flex">
             <TabsTrigger value="overview" className="gap-2">
               <LayoutDashboard className="h-4 w-4" />
               <span className="hidden sm:inline">Overview</span>
-            </TabsTrigger>
-            <TabsTrigger value="calculator" className="gap-2">
-              <Calculator className="h-4 w-4" />
-              <span className="hidden sm:inline">Calculator</span>
             </TabsTrigger>
             <TabsTrigger value="settings" className="gap-2">
               <Settings className="h-4 w-4" />
@@ -167,11 +162,6 @@ export default function RiskManagement() {
             </div>
 
             <CorrelationMatrix />
-          </TabsContent>
-
-          {/* Calculator Tab */}
-          <TabsContent value="calculator">
-            <PositionSizeCalculator />
           </TabsContent>
 
           {/* Settings Tab */}
