@@ -1,12 +1,9 @@
 import { useState } from "react";
-import { Bell, BellOff, Check, Trash2, Settings2 } from "lucide-react";
+import { Bell, BellOff, Check, Trash2 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface Notification {
@@ -125,10 +122,6 @@ export default function Notifications() {
                 <Badge className="ml-2">{unreadCount}</Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="settings">
-              <Settings2 className="mr-2 h-4 w-4" />
-              Settings
-            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="all" className="space-y-4">
@@ -239,117 +232,6 @@ export default function Notifications() {
             )}
           </TabsContent>
 
-          <TabsContent value="settings" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Notification Preferences</CardTitle>
-                <CardDescription>
-                  Choose what notifications you want to receive
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-4">
-                  <h4 className="text-sm font-medium">Alerts</h4>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="price-alerts" className="flex flex-col">
-                      <span>Price Alerts</span>
-                      <span className="text-sm font-normal text-muted-foreground">
-                        Get notified when your price targets are hit
-                      </span>
-                    </Label>
-                    <Switch
-                      id="price-alerts"
-                      checked={settings.priceAlerts}
-                      onCheckedChange={(checked) =>
-                        setSettings((prev) => ({ ...prev, priceAlerts: checked }))
-                      }
-                    />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="portfolio-updates" className="flex flex-col">
-                      <span>Portfolio Updates</span>
-                      <span className="text-sm font-normal text-muted-foreground">
-                        Daily and weekly portfolio summaries
-                      </span>
-                    </Label>
-                    <Switch
-                      id="portfolio-updates"
-                      checked={settings.portfolioUpdates}
-                      onCheckedChange={(checked) =>
-                        setSettings((prev) => ({ ...prev, portfolioUpdates: checked }))
-                      }
-                    />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="market-news" className="flex flex-col">
-                      <span>Market News</span>
-                      <span className="text-sm font-normal text-muted-foreground">
-                        Breaking news and market updates
-                      </span>
-                    </Label>
-                    <Switch
-                      id="market-news"
-                      checked={settings.marketNews}
-                      onCheckedChange={(checked) =>
-                        setSettings((prev) => ({ ...prev, marketNews: checked }))
-                      }
-                    />
-                  </div>
-                </div>
-
-                <Separator />
-
-                <div className="space-y-4">
-                  <h4 className="text-sm font-medium">Delivery</h4>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="email-notifications" className="flex flex-col">
-                      <span>Email Notifications</span>
-                      <span className="text-sm font-normal text-muted-foreground">
-                        Receive notifications via email
-                      </span>
-                    </Label>
-                    <Switch
-                      id="email-notifications"
-                      checked={settings.emailNotifications}
-                      onCheckedChange={(checked) =>
-                        setSettings((prev) => ({ ...prev, emailNotifications: checked }))
-                      }
-                    />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="push-notifications" className="flex flex-col">
-                      <span>Push Notifications</span>
-                      <span className="text-sm font-normal text-muted-foreground">
-                        Receive push notifications on your device
-                      </span>
-                    </Label>
-                    <Switch
-                      id="push-notifications"
-                      checked={settings.pushNotifications}
-                      onCheckedChange={(checked) =>
-                        setSettings((prev) => ({ ...prev, pushNotifications: checked }))
-                      }
-                    />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="weekly-digest" className="flex flex-col">
-                      <span>Weekly Digest</span>
-                      <span className="text-sm font-normal text-muted-foreground">
-                        Weekly summary of your portfolio performance
-                      </span>
-                    </Label>
-                    <Switch
-                      id="weekly-digest"
-                      checked={settings.weeklyDigest}
-                      onCheckedChange={(checked) =>
-                        setSettings((prev) => ({ ...prev, weeklyDigest: checked }))
-                      }
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
         </Tabs>
       </div>
     </DashboardLayout>
