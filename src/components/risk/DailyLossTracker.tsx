@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { TrendingDown, AlertTriangle, CheckCircle, XCircle, Wifi } from "lucide-react";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { useDailyRiskStatus, useRiskProfile } from "@/hooks/use-risk-profile";
 import { RISK_THRESHOLDS } from "@/types/risk";
 
@@ -75,7 +76,10 @@ export function DailyLossTracker() {
         {/* Main Gauge */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Loss Limit Used</span>
+            <span className="text-sm text-muted-foreground flex items-center gap-1">
+              Loss Limit Used
+              <InfoTooltip content="Percentage of your daily loss limit consumed. Trading is disabled at 100% to protect your capital." />
+            </span>
             <span className={`text-2xl font-bold ${getStatusColor()}`}>
               {riskStatus.loss_used_percent.toFixed(1)}%
             </span>
@@ -95,27 +99,37 @@ export function DailyLossTracker() {
         {/* Stats Grid */}
         <div className="grid grid-cols-2 gap-4">
           <div className="p-3 rounded-lg bg-muted/50">
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground flex items-center gap-1">
               {isBinanceConnected ? 'Wallet Balance' : 'Starting Balance'}
+              <InfoTooltip content={isBinanceConnected ? "Your current Binance Futures wallet balance used as the base for daily loss calculations." : "Your starting balance for today, used as the base for daily loss limit calculations."} />
             </p>
             <p className="text-lg font-semibold">
               {formatCurrency(riskStatus.starting_balance)}
             </p>
           </div>
           <div className="p-3 rounded-lg bg-muted/50">
-            <p className="text-xs text-muted-foreground">Loss Limit</p>
+            <p className="text-xs text-muted-foreground flex items-center gap-1">
+              Loss Limit
+              <InfoTooltip content="Maximum dollar amount you can lose today based on your risk profile percentage. Calculated from your starting balance." />
+            </p>
             <p className="text-lg font-semibold">
               {formatCurrency(riskStatus.loss_limit)}
             </p>
           </div>
           <div className={`p-3 rounded-lg ${riskStatus.current_pnl >= 0 ? 'bg-profit-muted' : 'bg-loss-muted'}`}>
-            <p className="text-xs text-muted-foreground">Today's P&L</p>
+            <p className="text-xs text-muted-foreground flex items-center gap-1">
+              Today's P&L
+              <InfoTooltip content="Your total realized profit or loss for today. Negative values count against your daily loss limit." />
+            </p>
             <p className={`text-lg font-semibold ${riskStatus.current_pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
               {riskStatus.current_pnl >= 0 ? '+' : ''}{formatCurrency(riskStatus.current_pnl)}
             </p>
           </div>
           <div className="p-3 rounded-lg bg-muted/50">
-            <p className="text-xs text-muted-foreground">Remaining Budget</p>
+            <p className="text-xs text-muted-foreground flex items-center gap-1">
+              Remaining Budget
+              <InfoTooltip content="How much more you can lose today before hitting your daily loss limit. When this reaches $0, trading should stop." />
+            </p>
             <p className={`text-lg font-semibold ${riskStatus.remaining_budget <= 0 ? 'text-loss' : ''}`}>
               {formatCurrency(riskStatus.remaining_budget)}
             </p>
