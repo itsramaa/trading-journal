@@ -2,18 +2,30 @@
 
 ## Executive Summary
 
-Dokumen ini menguraikan **19 endpoint Binance Futures** yang belum diimplementasi namun sangat applicable untuk meningkatkan akurasi dan fitur Trading Journey application.
+Dokumen ini menguraikan **31 endpoint Binance Futures** yang belum diimplementasi namun sangat applicable untuk meningkatkan akurasi dan fitur Trading Journey application.
 
 **Status Implementasi Saat Ini:**
 - ✅ 8 endpoints sudah diimplementasi
-- 🔄 19 endpoints berpotensi tinggi (proposal ini)
+- 🔄 31 endpoints berpotensi tinggi (proposal ini)
 - ⏸️ Sisanya tidak relevan untuk use case read-only
 
-**Update v2:** Ditambahkan 4 endpoint kritis yang terlewat:
+**Update v2:** Ditambahkan 4 endpoint kritis:
 - Force Orders (Liquidation History)
 - Order Book Depth
 - Aggregate Trades
 - Position Mode
+
+**Update v3:** Ditambahkan 12 endpoint untuk coverage lengkap:
+- Trading Schedule
+- Symbol Configuration
+- Multi Assets Mode
+- Algo Orders (3 endpoints)
+- Position Margin Change History
+- Account Transaction History
+- Order Rate Limit
+- ADL Risk Rating
+- BNB Burn Status
+- Download History (6 endpoints)
 
 ---
 
@@ -523,6 +535,283 @@ interface Ticker24h {
 
 ---
 
+#### 3.4 Trading Schedule 🆕
+```
+Endpoint: GET /fapi/v1/tradingSchedule
+Permission: PUBLIC
+```
+
+**Use Cases:**
+- ✅ **Market Sessions Widget**: Real trading hours from Binance
+- ✅ **Maintenance Alerts**: Show planned maintenance windows
+- ✅ **Trading Halts**: Warn users about halted symbols
+
+**Response:**
+```typescript
+interface TradingSchedule {
+  symbol: string;
+  tradingSchedule: {
+    dayOfWeek: string;
+    openTime: string;
+    closeTime: string;
+  }[];
+  maintenanceWindows?: {
+    startTime: number;
+    endTime: number;
+    reason: string;
+  }[];
+}
+```
+
+**Impact:** MEDIUM - Enhance Market Sessions accuracy
+
+---
+
+#### 3.5 ADL Risk Rating 🆕
+```
+Endpoint: GET /fapi/v1/adlRiskRating
+Permission: PUBLIC
+```
+
+**Use Cases:**
+- ✅ **System Risk Indicator**: Exchange-wide ADL risk level
+- ✅ **Dashboard Warning**: Alert during high ADL risk periods
+- ✅ **Risk Analysis**: Avoid trading during high system risk
+
+**Impact:** LOW - System-wide risk awareness
+
+---
+
+### Phase 4: Extended Account Data (USER_DATA) 🆕
+
+#### 4.1 Symbol Configuration 🆕
+```
+Endpoint: GET /fapi/v1/symbolConfig
+Permission: USER_DATA (Read-Only)
+```
+
+**Use Cases:**
+- ✅ **Position Size Calculator**: Accurate tick size, min qty
+- ✅ **Order Validation**: Check filters before placing orders
+- ✅ **Trade Entry Wizard**: Dynamic validation based on symbol rules
+
+**Response:**
+```typescript
+interface SymbolConfig {
+  symbol: string;
+  tickSize: string;           // e.g., "0.10"
+  minQty: string;             // e.g., "0.001"
+  maxQty: string;
+  stepSize: string;
+  minNotional: string;
+  maxLeverage: number;
+  marginType: string;
+  filters: {
+    filterType: string;
+    // ... filter specific fields
+  }[];
+}
+```
+
+**Impact:** HIGH - Critical for position sizing accuracy
+
+---
+
+#### 4.2 Multi Assets Mode 🆕
+```
+Endpoint: GET /fapi/v1/multiAssetsMargin
+Permission: USER_DATA (Read-Only)
+```
+
+**Use Cases:**
+- ✅ **Collateral Display**: Show if multi-asset collateral is active
+- ✅ **Risk Calculation**: Affects margin calculations
+- ✅ **Position Calculator**: Adjust for multi-asset mode
+
+**Response:**
+```typescript
+interface MultiAssetsMode {
+  multiAssetsMargin: boolean;  // true = multi-asset mode enabled
+}
+```
+
+**Impact:** MEDIUM - Affects risk calculations
+
+---
+
+#### 4.3 Position Margin Change History 🆕
+```
+Endpoint: GET /fapi/v1/positionMargin/history
+Permission: USER_DATA (Read-Only)
+```
+
+**Use Cases:**
+- ✅ **Risk Audit Log**: Track margin adjustments
+- ✅ **Position Analysis**: Understand margin changes over time
+- ✅ **Risk Events**: Log margin additions/removals
+
+**Response:**
+```typescript
+interface MarginChange {
+  symbol: string;
+  type: 'ADD' | 'REDUCE';
+  amount: string;
+  asset: string;
+  time: number;
+  positionSide: string;
+}
+```
+
+**Impact:** MEDIUM - Risk audit trail
+
+---
+
+#### 4.4 Account Transaction History 🆕
+```
+Endpoint: GET /fapi/v1/transactionHistory
+Permission: USER_DATA (Read-Only)
+```
+
+**Use Cases:**
+- ✅ **Full Transaction Log**: Deposits, withdrawals, transfers
+- ✅ **Account History Page**: Complete account activity
+- ✅ **Tax Reporting**: All transactions for reporting
+
+**Response:**
+```typescript
+interface Transaction {
+  asset: string;
+  tranId: number;
+  amount: string;
+  type: string;       // 'DEPOSIT' | 'WITHDRAW' | 'TRANSFER' etc.
+  status: string;
+  time: number;
+}
+```
+
+**Impact:** MEDIUM - Complete account history
+
+---
+
+#### 4.5 Algo Orders History (3 endpoints) 🆕
+```
+Endpoints:
+  GET /fapi/v1/algoOrders           - All algo orders (historical)
+  GET /fapi/v1/algoOpenOrders       - Current open algo orders
+  GET /fapi/v1/algoOrder            - Specific algo order by ID
+Permission: USER_DATA (Read-Only)
+```
+
+**Use Cases:**
+- ✅ **TP/SL Order Tracking**: Track conditional orders
+- ✅ **Strategy Analysis**: Review algo order execution
+- ✅ **Trade Journal**: Include algo orders in trade history
+
+**Response:**
+```typescript
+interface AlgoOrder {
+  algoId: number;
+  symbol: string;
+  orderId: number;
+  side: 'BUY' | 'SELL';
+  positionSide: string;
+  totalQty: string;
+  executedQty: string;
+  avgPrice: string;
+  status: string;
+  triggerPrice: string;
+  algoType: string;     // 'VP' | 'TWAP' etc.
+  createTime: number;
+  updateTime: number;
+}
+```
+
+**Impact:** MEDIUM - Complete order tracking
+
+---
+
+#### 4.6 Order Rate Limit 🆕
+```
+Endpoint: GET /fapi/v1/rateLimit/order
+Permission: USER_DATA (Read-Only)
+```
+
+**Use Cases:**
+- ✅ **Rate Limit Warnings**: Show orders remaining
+- ✅ **Throttling**: Prevent rate limit errors
+- ✅ **Status Display**: Current rate limit status
+
+**Response:**
+```typescript
+interface RateLimitInfo {
+  rateLimitType: string;
+  interval: string;
+  intervalNum: number;
+  limit: number;
+  count: number;        // Current usage
+}
+```
+
+**Impact:** LOW - Prevent rate limit errors
+
+---
+
+#### 4.7 BNB Burn Status 🆕
+```
+Endpoint: GET /fapi/v1/bnbBurn
+Permission: USER_DATA (Read-Only)
+```
+
+**Use Cases:**
+- ✅ **Fee Discount Display**: Show if BNB burn is active
+- ✅ **P&L Accuracy**: Calculate exact fees with discount
+- ✅ **Settings Display**: Current BNB burn setting
+
+**Response:**
+```typescript
+interface BnbBurnStatus {
+  feeBurn: boolean;     // true = BNB is used for fees
+}
+```
+
+**Impact:** LOW - Fee calculation accuracy
+
+---
+
+### Phase 5: Bulk Export (USER_DATA) 🆕
+
+#### 5.1 Download History Endpoints (6 total) 🆕
+```
+Endpoints:
+  Transaction History:
+    GET /fapi/v1/downloadId/transaction
+    GET /fapi/v1/download/transaction
+  
+  Order History:
+    GET /fapi/v1/downloadId/order
+    GET /fapi/v1/download/order
+  
+  Trade History:
+    GET /fapi/v1/downloadId/trade
+    GET /fapi/v1/download/trade
+    
+Permission: USER_DATA (Read-Only)
+```
+
+**Use Cases:**
+- ✅ **Tax Reporting**: Bulk export for accounting
+- ✅ **Data Analysis**: Download large datasets
+- ✅ **Backup**: Archive trading history
+
+**Workflow:**
+1. Request download ID (async)
+2. Poll for completion
+3. Download CSV file
+
+**Impact:** LOW - Bulk export for tax/reporting
+
+---
+
 ## 📋 Implementation Priority Matrix
 
 | Priority | Endpoint | Impact | Effort | Features Enhanced |
@@ -535,19 +824,31 @@ interface Ticker24h {
 | 🔴 P0 | Taker Buy/Sell | HIGH | Low | Whale Tracking |
 | 🟡 P1 | **Aggregate Trades** ⭐ | HIGH | Low | Trade Flow Analysis |
 | 🟡 P1 | **Position Mode** ⭐ | MEDIUM | Low | Trade Entry Validation |
+| 🟡 P1 | **Symbol Configuration** 🆕 | HIGH | Low | Position Sizing Accuracy |
 | 🟡 P1 | Open Interest | HIGH | Low | Market Sentiment |
 | 🟡 P1 | Mark Price | MEDIUM | Low | Risk, P&L |
 | 🟡 P1 | Funding Rate | MEDIUM | Low | Cost Analysis |
 | 🟡 P1 | 24h Ticker | MEDIUM | Low | Dashboard |
+| 🟢 P2 | **Multi Assets Mode** 🆕 | MEDIUM | Low | Risk Calculations |
+| 🟢 P2 | **Trading Schedule** 🆕 | MEDIUM | Low | Market Sessions |
+| 🟢 P2 | **Algo Orders** (3) 🆕 | MEDIUM | Medium | Complete Order Tracking |
+| 🟢 P2 | **Margin Change History** 🆕 | MEDIUM | Low | Risk Audit |
 | 🟢 P2 | Commission Rate | MEDIUM | Low | P&L Accuracy |
 | 🟢 P2 | Leverage Brackets | MEDIUM | Low | Position Sizing |
 | 🟢 P2 | All Orders | MEDIUM | Medium | Trade History |
 | 🟢 P2 | Account Config | LOW | Low | Settings |
+| 🔵 P3 | **Transaction History** 🆕 | MEDIUM | Low | Account History |
+| 🔵 P3 | **Order Rate Limit** 🆕 | LOW | Low | Rate Limit Warnings |
+| 🔵 P3 | **ADL Risk Rating** 🆕 | LOW | Low | System Risk |
+| 🔵 P3 | **BNB Burn Status** 🆕 | LOW | Low | Fee Accuracy |
 | 🔵 P3 | ADL Quantile | LOW | Low | Risk |
 | 🔵 P3 | Basis | LOW | Low | Advanced |
 | 🔵 P3 | Insurance Fund | LOW | Low | Market Health |
+| 🔵 P4 | **Download History** (6) 🆕 | LOW | Medium | Tax Reporting |
 
-**⭐ = Newly Added Endpoints (v2)**
+**Legend:**
+- ⭐ = Added in v2
+- 🆕 = Added in v3
 
 ---
 
@@ -632,6 +933,11 @@ useBinanceFutures.ts (existing - add new hooks)
 ├── useBinanceOrderBook(symbol, limit?)      ⭐ NEW - Order book depth
 ├── useBinanceAggTrades(symbol, options?)    ⭐ NEW - Aggregate trades
 ├── useBinancePositionMode()                 ⭐ NEW - Hedge/One-way mode
+├── useBinanceSymbolConfig(symbol)           🆕 NEW - Symbol configuration
+├── useBinanceMultiAssetsMode()              🆕 NEW - Multi-asset status
+├── useBinanceTradingSchedule(symbol?)       🆕 NEW - Trading hours
+├── useBinanceAlgoOrders(symbol?, options?)  🆕 NEW - Algo orders history
+├── useBinanceMarginHistory(symbol?)         🆕 NEW - Margin change history
 ├── useBinanceKlines(symbol, interval, options)
 ├── useBinanceMarkPrice(symbol)
 ├── useBinanceFundingRate(symbol)
@@ -641,7 +947,11 @@ useBinanceFutures.ts (existing - add new hooks)
 ├── useBinanceTakerVolume(symbol, period)
 ├── useBinanceTicker24h(symbol)
 ├── useBinanceCommissionRate(symbol)
-└── useBinanceLeverageBrackets(symbol)
+├── useBinanceLeverageBrackets(symbol)
+├── useBinanceTransactionHistory(options?)   🆕 NEW - Transaction log
+├── useBinanceRateLimit()                    🆕 NEW - Rate limit status
+├── useBinanceBnbBurnStatus()                🆕 NEW - BNB burn status
+└── useBinanceAdlRiskRating(symbol?)         🆕 NEW - ADL risk rating
 ```
 
 ### Step 3: UI Integration
@@ -651,9 +961,12 @@ useBinanceFutures.ts (existing - add new hooks)
 | Market Sentiment Dashboard | Top Trader + Long/Short + Taker | NEW: `MarketSentimentWidget.tsx` |
 | Enhanced Backtesting | Klines | UPDATE: `BacktestRunner.tsx` |
 | Funding Rate Tracker | Funding Rate | NEW: `FundingRateWidget.tsx` |
-| Position Calculator | Leverage Brackets + Commission | UPDATE: `PositionSizeCalculator.tsx` |
+| Position Calculator | Leverage Brackets + Commission + Symbol Config 🆕 | UPDATE: `PositionSizeCalculator.tsx` |
 | AI Confluence | All sentiment data | UPDATE: `confluence-detection` edge function |
 | Daily P&L | Commission Rate | UPDATE: `DailyPnL.tsx` |
+| Market Sessions | Trading Schedule 🆕 | UPDATE: `MarketSessionsWidget.tsx` |
+| Algo Order History | Algo Orders 🆕 | NEW: `AlgoOrdersTable.tsx` |
+| Account Activity | Transaction History 🆕 | NEW: `AccountActivityLog.tsx` |
 
 ---
 
@@ -662,8 +975,9 @@ useBinanceFutures.ts (existing - add new hooks)
 ### Accuracy Improvements
 - **Backtesting**: 95%+ accuracy (real klines vs mock data)
 - **P&L Calculation**: Exact fees vs estimated 0.04%
-- **Position Sizing**: Real leverage limits vs assumed 20x
+- **Position Sizing**: Real leverage limits + tick size + min qty 🆕
 - **Risk Prevention**: Learn from liquidation history ⭐
+- **Market Sessions**: Real trading hours from Binance 🆕
 
 ### New Capabilities
 - **Market Sentiment Dashboard**: Real-time professional/retail positioning
@@ -672,11 +986,14 @@ useBinanceFutures.ts (existing - add new hooks)
 - **Liquidation Tracker**: Historical liquidation analysis ⭐
 - **Order Book Analysis**: Whale wall detection ⭐
 - **Trade Flow Analysis**: Tick-by-tick market pressure ⭐
+- **Algo Order Tracking**: Complete conditional order history 🆕
+- **Account Activity Log**: Full transaction visibility 🆕
 
 ### User Experience
-- **Trade Entry Wizard**: Mark price for accurate entry + position mode validation
-- **Risk Management**: Real leverage brackets + liquidation warnings
+- **Trade Entry Wizard**: Mark price + position mode + symbol config validation
+- **Risk Management**: Real leverage brackets + liquidation warnings + ADL risk
 - **AI Insights**: More accurate recommendations with full market context
+- **Settings**: Multi-asset mode, BNB burn status visibility 🆕
 
 ---
 
@@ -690,18 +1007,20 @@ No new security risks introduced. Existing HMAC signature mechanism covers all U
 
 ---
 
-## 📅 Suggested Timeline (Updated v2)
+## 📅 Suggested Timeline (Updated v3)
 
 | Week | Phase | Deliverables |
 |------|-------|--------------|
 | 1 | P0 Critical | Force Orders, Order Book, Aggregate Trades ⭐ |
 | 1 | P0 Sentiment | Klines, Top Trader/Long-Short Ratios, Taker Volume |
-| 2 | P1 Endpoints | Position Mode, Open Interest, Mark Price, Funding |
+| 2 | P1 Endpoints | Position Mode, Symbol Config 🆕, Open Interest, Mark Price, Funding |
 | 2 | UI Integration | Liquidation Tracker, Market Sentiment Dashboard |
-| 3 | P2 Endpoints | Commission, Brackets, Orders |
-| 3 | Feature Updates | Enhanced Backtesting, Position Calculator |
+| 3 | P2 Endpoints | Multi Assets Mode 🆕, Trading Schedule 🆕, Algo Orders 🆕 |
+| 3 | Feature Updates | Enhanced Backtesting, Position Calculator, Market Sessions |
+| 4 | P2-P3 Endpoints | Commission, Brackets, Margin History 🆕, Transaction History 🆕 |
 | 4 | AI Enhancement | Update confluence-detection with all new data |
-| 4 | Testing & Polish | Integration tests, documentation |
+| 5 | P3-P4 Endpoints | Rate Limit, BNB Burn, ADL Risk Rating, Download History |
+| 5 | Testing & Polish | Integration tests, documentation |
 
 ---
 
@@ -713,38 +1032,52 @@ src/components/risk/LiquidationTracker.tsx           ⭐ NEW
 src/components/market-insight/OrderBookAnalysis.tsx  ⭐ NEW
 src/components/market-insight/MarketSentimentWidget.tsx
 src/components/dashboard/FundingRateWidget.tsx
+src/components/trading/AlgoOrdersTable.tsx           🆕 NEW
+src/components/accounts/AccountActivityLog.tsx       🆕 NEW
 src/features/binance/useBinanceMarketData.ts
 docs/binance/BINANCE_MARKET_DATA_GUIDE.md
 ```
 
 ### Modified Files
 ```
-supabase/functions/binance-futures/index.ts  (add 19 new actions)
-src/features/binance/useBinanceFutures.ts    (add 14 new hooks)
+supabase/functions/binance-futures/index.ts  (add 31 new actions)
+src/features/binance/useBinanceFutures.ts    (add 23 new hooks)
 src/features/binance/types.ts                (add new types)
 src/pages/Dashboard.tsx                      (add sentiment widget)
 src/pages/RiskManagement.tsx                 (add liquidation tracker)
 src/components/strategy/BacktestRunner.tsx   (use real klines)
-src/components/risk/PositionSizeCalculator.tsx (use real brackets)
-src/components/trade/entry/SetupStep.tsx     (position mode validation)
+src/components/risk/PositionSizeCalculator.tsx (use real brackets + symbol config)
+src/components/trade/entry/SetupStep.tsx     (position mode + symbol validation)
+src/components/dashboard/MarketSessionsWidget.tsx (use trading schedule)
 supabase/functions/confluence-detection/index.ts (enhance with sentiment + order book)
 ```
 
 ---
 
+## 📊 Endpoint Summary by Category
+
+| Category | Count | Permission |
+|----------|-------|------------|
+| Market Data (PUBLIC) | 14 | No API key |
+| Account Data (USER_DATA) | 17 | Read-Only API key |
+| **Total** | **31** | |
+
+---
+
 ## ✅ Conclusion
 
-Implementasi **19 endpoint baru** (termasuk 4 tambahan kritis) akan:
-1. **Meningkatkan akurasi** backtesting, P&L, dan position sizing
-2. **Menambah fitur** Market Sentiment Dashboard & Liquidation Tracker
-3. **Memperkuat AI** dengan data market real-time + order book analysis
-4. **Meningkatkan risk management** dengan liquidation history learning
-5. **Tetap aman** karena semua endpoint read-only
+Implementasi **31 endpoint** (8 existing + 23 new) akan:
+1. **Meningkatkan akurasi** backtesting, P&L, dan position sizing dengan data real
+2. **Menambah fitur** Market Sentiment Dashboard, Liquidation Tracker, Algo Order History
+3. **Memperkuat AI** dengan sentiment ratios, order book, dan trade flow data
+4. **Meningkatkan risk management** dengan liquidation history + ADL risk rating
+5. **Melengkapi account visibility** dengan transaction history + margin changes
+6. **Tetap aman** karena semua endpoint read-only
 
-**Recommended Next Step**: 
-1. Mulai dengan **Force Orders** untuk risk management (highest impact)
-2. Tambahkan **Order Book** untuk whale tracking enhancement
-3. Implementasi **Sentiment Ratios** untuk AI confluence improvement
-4. **Tetap aman** karena semua endpoint read-only
+**Recommended Implementation Order:**
+1. **Week 1-2**: P0 endpoints (highest impact)
+2. **Week 3**: P1 endpoints + UI components
+3. **Week 4**: P2 endpoints + feature updates
+4. **Week 5**: P3-P4 endpoints + polish
 
-**Recommended Next Step**: Mulai dengan Phase 1 (P0 endpoints) untuk market sentiment karena highest impact dan lowest effort.
+**Ready to start implementation!**
