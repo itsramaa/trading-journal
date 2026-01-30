@@ -1,18 +1,9 @@
 
-# Implementation Plan: Accounts & Calendar UX Fixes ✅ COMPLETED
+# Implementation Plan: Trade Quality, Trade Management, Settings UX Fixes
 
-## Status: All phases implemented
+## Overview
 
-### Completed Changes:
-1. ✅ Deleted orphaned `TradingAccountsDashboard.tsx` (102 lines removed)
-2. ✅ Removed redundant "Status" card from Accounts page, grid now 3 columns
-3. ✅ Added InfoTooltip to "Net Flow" in AccountDetail for clarity
-4. ✅ Merged AI Analysis section into Upcoming Events with Collapsible
-5. ✅ Standardized cryptoImpact styling (Icon + Badge pattern)
-
----
-
-## Overview (Reference)
+Berdasarkan cross-check audit menggunakan Content Inventory, Information Architecture Review, Content Audit, Heuristic Evaluation, dan Cognitive Load Check pada halaman **Trade Quality**, **Trade Management**, dan **Settings**, berikut adalah rencana implementasi perbaikan.
 
 ---
 
@@ -20,123 +11,158 @@
 
 | Halaman | Issue | Metode | Prioritas |
 |---------|-------|--------|-----------|
-| Accounts | "Status" card redundant dengan "Live" badge | Content Audit | High |
-| Accounts | "Net Flow" tanpa penjelasan (H10) | Heuristic | Medium |
-| Accounts | `TradingAccountsDashboard.tsx` orphaned | Content Audit | High |
-| Calendar | AI Analysis duplikat Upcoming Events | Cognitive Load | High |
-| Calendar | Inkonsistensi styling `cryptoImpact` | Heuristic (H4) | Medium |
+| Trade Quality | Hardcoded confluence/position data | Content Audit | High |
+| Trade Quality | Missing InfoTooltips (score/confidence) | Heuristic (H10) | Medium |
+| Trade Quality | Form allows submit without pair | Heuristic (H9) | Medium |
+| Trade Management | Simulated P&L uses random() | Heuristic (H9) | High |
+| Trade Management | Missing InfoTooltips on P&L cards | Heuristic (H10) | Medium |
+| Settings | 2FA disabled without explanation | Heuristic (H9) | Medium |
+| Settings | AI Suggestion Style lacks descriptions | Heuristic (H10) | Low |
 
 ---
 
-## Phase 1: Accounts Page Fixes
+## Phase 1: Trade Quality Page Fixes
 
-### 1.1 Remove Redundant "Status" Card
+### 1.1 Add Form Validation for Trading Pair
 
-**Problem:** Card "Status" di grid overview (lines 230-247) menampilkan informasi yang sama dengan "Live" badge pada TabsTrigger (line 114-117).
+**Problem:** User can submit quality check without selecting a trading pair.
 
-**Decision:** `REMOVE` - Badge sudah cukup sebagai status indicator.
+**Decision:** `ENHANCE` - Disable submit button when pair is empty.
 
-**File:** `src/pages/Accounts.tsx`
+**File:** `src/pages/AIAssistant.tsx`
 
 **Changes:**
-- Hapus card "Connection Status" (lines 230-247)
-- Ubah grid dari `lg:grid-cols-4` menjadi `lg:grid-cols-3`
+- Update disabled condition on Button (line 184) to include `!checkerPair`
 
 **Before:**
-```
-4 cards: Wallet Balance | Available | Unrealized P&L | Status
+```typescript
+disabled={qualityLoading || !checkerEntry || !checkerSL || !checkerTP}
 ```
 
 **After:**
+```typescript
+disabled={qualityLoading || !checkerPair || !checkerEntry || !checkerSL || !checkerTP}
 ```
-3 cards: Wallet Balance | Available | Unrealized P&L
-```
 
-### 1.2 Add InfoTooltip to "Net Flow"
+### 1.2 Add InfoTooltips for Score and Confidence
 
-**Problem:** Label "Net Flow" tidak jelas bagi user non-finansial.
+**Problem:** Users may not understand what "Quality Score" and "AI Confidence" mean.
 
-**Decision:** `ENHANCE` - Tambah tooltip penjelasan.
+**Decision:** `ENHANCE` - Add explanatory tooltips.
 
-**File:** `src/pages/AccountDetail.tsx`
+**File:** `src/pages/AIAssistant.tsx`
 
 **Changes:**
-- Import `InfoTooltip` dari `@/components/ui/info-tooltip`
-- Tambah tooltip di samping label "Net Flow" (line 243)
+- Import `InfoTooltip` component
+- Add tooltip next to score display (line 211)
+- Add tooltip next to confidence display (line 220)
 
 **Content:**
-```
-"Net Flow adalah selisih antara total Deposit dan Withdrawal. 
-Positif = lebih banyak dana masuk, Negatif = lebih banyak dana keluar."
-```
+- Score: "Quality Score 1-10 berdasarkan setup, R:R, confluence, dan risk management. 8+ = Excellent, 6-7 = Good, <6 = Perlu review."
+- Confidence: "Tingkat kepercayaan AI terhadap analisis ini. Semakin tinggi, semakin yakin AI dengan rekomendasi."
 
-### 1.3 Delete Orphaned Component
+### 1.3 Display Calculated R:R Before Submit
 
-**Problem:** `TradingAccountsDashboard.tsx` tidak diimport di manapun (konfirmasi via search).
+**Problem:** Users don't see their R:R ratio until after submitting.
 
-**Decision:** `REMOVE` - Dead code, tidak digunakan.
+**Decision:** `ENHANCE` - Show R:R calculation inline as user types.
 
-**File:** `src/components/accounts/TradingAccountsDashboard.tsx`
+**File:** `src/pages/AIAssistant.tsx`
 
-**Action:** Delete file
+**Changes:**
+- Add calculated R:R display below price inputs
+- Use same calculation logic already in handleCheckQuality (lines 35-37)
 
 ---
 
-## Phase 2: Calendar Page Fixes
+## Phase 2: Trade Management Page Fixes
 
-### 2.1 Merge AI Analysis into Event List
+### 2.1 Fix Misleading Simulated P&L
 
-**Problem:** "AI Economic News Analysis" section (lines 271-326) menampilkan ulang event yang sudah ada di "Upcoming Events" (lines 197-268). User harus scan data yang sama 2x (cognitive load).
+**Problem:** Lines 150-168 use `Math.random()` to simulate P&L for paper positions, producing random values on each render.
 
-**Decision:** `MERGE` - Integrasikan AI prediction sebagai expandable detail dalam event list.
+**Decision:** `REFACTOR` - Remove randomization, show last known P&L or "N/A" if no real price data.
 
-**File:** `src/pages/Calendar.tsx`
-
-**Implementation Approach:**
-
-Ubah arsitektur dari:
-```
-[Today's Key Release]
-[Upcoming Events - list only]
-[AI Analysis - same events with AI text]
-```
-
-Menjadi:
-```
-[Today's Key Release - with AI inline]
-[Upcoming Events - with expandable AI predictions]
-```
+**File:** `src/pages/trading-journey/TradingJournal.tsx`
 
 **Changes:**
-1. Hapus section "AI Economic News Analysis" (lines 271-326)
-2. Modifikasi Upcoming Events list untuk include AI prediction sebagai collapsible/expandable
-3. Gunakan `Collapsible` dari Radix UI untuk expand/collapse
+- Remove random price simulation
+- Use actual P&L from database if available, otherwise show 0 or stored value
+- Remove `simulatedPriceChange` variable entirely
 
-**New Event Item Structure:**
-```
-┌──────────────────────────────────────────────────┐
-│ 🔴 CPI Release              [bullish] [high]     │
-│ Today 14:30 UTC • Forecast: 2.5%                 │
-├──────────────────────────────────────────────────┤
-│ ▼ AI Prediction (click to expand)               │
-│ ┌────────────────────────────────────────────┐  │
-│ │ Based on recent Fed commentary and labor   │  │
-│ │ market data, CPI is likely to come in...   │  │
-│ └────────────────────────────────────────────┘  │
-└──────────────────────────────────────────────────┘
+**Before:**
+```typescript
+const positionsWithPnL = useMemo(() => {
+  return openPositions.map((position) => {
+    const simulatedPriceChange = (Math.random() - 0.5) * 0.1;
+    const currentPrice = position.entry_price * (1 + simulatedPriceChange);
+    // ...
+  });
+}, [openPositions]);
 ```
 
-### 2.2 Standardize cryptoImpact Styling
+**After:**
+```typescript
+const positionsWithPnL = useMemo(() => {
+  return openPositions.map((position) => ({
+    ...position,
+    currentPrice: position.entry_price, // Use entry as placeholder
+    unrealizedPnL: position.pnl || 0,   // Use stored P&L if any
+    unrealizedPnLPercent: 0,            // Cannot calculate without live price
+  }));
+}, [openPositions]);
+```
 
-**Problem:** `cryptoImpact` ditampilkan dengan cara berbeda:
-- Di event list: Icon only (lines 244-247)
-- Di AI section: Badge dengan text (lines 299-309)
+### 2.2 Add InfoTooltips to P&L Summary Cards
 
-**Decision:** `STANDARDIZE` - Gunakan format konsisten: Icon + Badge
+**Problem:** "Unrealized P&L" and "Realized P&L" may confuse non-financial users.
 
-**Implementation:**
-- Semua `cryptoImpact` gunakan pattern: `[Icon] [Badge: bullish/bearish/neutral]`
-- Warna sesuai semantic: bullish=profit, bearish=loss, neutral=muted
+**Decision:** `ENHANCE` - Add explanatory tooltips.
+
+**File:** `src/components/journal/TradeSummaryStats.tsx`
+
+**Changes:**
+- Import `InfoTooltip` component
+- Add tooltips to "Unrealized P&L" and "Realized P&L" labels
+
+**Content:**
+- Unrealized P&L: "Potensi profit/loss dari posisi yang masih terbuka. Nilai ini berubah sesuai harga pasar."
+- Realized P&L: "Profit/loss aktual dari trade yang sudah ditutup. Nilai final setelah posisi closed."
+
+---
+
+## Phase 3: Settings Page Fixes
+
+### 3.1 Add Explanation for Disabled 2FA
+
+**Problem:** 2FA button is disabled without any explanation, creating confusion.
+
+**Decision:** `ENHANCE` - Add tooltip explaining feature status.
+
+**File:** `src/pages/Settings.tsx`
+
+**Changes:**
+- Wrap disabled 2FA button with tooltip explaining "Coming soon"
+- Or add "(Coming Soon)" text next to button
+
+**Before:**
+```typescript
+<Button variant="outline" disabled>Enable 2FA</Button>
+```
+
+**After:**
+```typescript
+<div className="flex items-center gap-2">
+  <Button variant="outline" disabled>Enable 2FA</Button>
+  <Badge variant="secondary" className="text-xs">Coming Soon</Badge>
+</div>
+```
+
+### 3.2 Add Descriptions to AI Suggestion Style Buttons
+
+**Problem:** "Conservative/Balanced/Aggressive" labels lack context about what they actually do.
+
+**Decision:** Already implemented (lines 227-230 in AISettingsTab.tsx show descriptions). ✅ No change needed.
 
 ---
 
@@ -146,113 +172,48 @@ Menjadi:
 
 | File | Action | Lines Affected |
 |------|--------|----------------|
-| `src/pages/Accounts.tsx` | Edit | ~20 lines |
-| `src/pages/AccountDetail.tsx` | Edit | ~5 lines |
-| `src/pages/Calendar.tsx` | Refactor | ~100 lines |
-| `src/components/accounts/TradingAccountsDashboard.tsx` | Delete | 102 lines |
+| `src/pages/AIAssistant.tsx` | Edit | ~25 lines |
+| `src/pages/trading-journey/TradingJournal.tsx` | Refactor | ~20 lines |
+| `src/components/journal/TradeSummaryStats.tsx` | Edit | ~10 lines |
+| `src/pages/Settings.tsx` | Edit | ~5 lines |
 
 ### New Imports Required
 
-**AccountDetail.tsx:**
+**AIAssistant.tsx:**
 ```typescript
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 ```
 
-**Calendar.tsx:**
+**TradeSummaryStats.tsx:**
 ```typescript
-import { 
-  Collapsible, 
-  CollapsibleContent, 
-  CollapsibleTrigger 
-} from "@/components/ui/collapsible";
-import { ChevronDown } from "lucide-react";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 ```
-
-### Component Structure (Calendar Refactor)
-
-```typescript
-// New EventCard with expandable AI
-{data.events.map((event) => (
-  <Collapsible key={event.id}>
-    <div className="p-3 rounded-lg border">
-      {/* Event header - always visible */}
-      <div className="flex items-center justify-between">
-        <span className="font-medium">{event.event}</span>
-        <div className="flex items-center gap-2">
-          {/* Standardized cryptoImpact */}
-          {event.cryptoImpact && (
-            <Badge variant="outline" className={cn(...)}>
-              {getImpactIcon(event.cryptoImpact)}
-              <span className="ml-1">{event.cryptoImpact}</span>
-            </Badge>
-          )}
-        </div>
-      </div>
-      
-      {/* Event details */}
-      <div className="mt-1 text-xs text-muted-foreground">
-        {formatEventDate(event.date)} {formatEventTime(event.date)}
-      </div>
-      
-      {/* AI Prediction - collapsible */}
-      {event.aiPrediction && (
-        <>
-          <CollapsibleTrigger className="flex items-center gap-1 mt-2 text-sm text-primary">
-            <Sparkles className="h-3 w-3" />
-            AI Prediction
-            <ChevronDown className="h-3 w-3 transition-transform" />
-          </CollapsibleTrigger>
-          <CollapsibleContent className="pt-2">
-            <p className="text-sm text-muted-foreground">
-              {event.aiPrediction}
-            </p>
-          </CollapsibleContent>
-        </>
-      )}
-    </div>
-  </Collapsible>
-))}
-```
-
----
-
-## Expected Outcomes
-
-### Cognitive Load Reduction
-- **Before:** User scan 2 sections dengan data sama
-- **After:** Single unified list, AI detail on-demand
-
-### Information Hierarchy Improvement
-- **Before:** Status info redundant (badge + card)
-- **After:** Single source of truth (badge only)
-
-### Consistency (H4)
-- **Before:** Mixed icon/badge styling untuk cryptoImpact
-- **After:** Unified Icon+Badge pattern everywhere
-
-### Code Cleanup
-- Remove 102 lines of orphaned code (`TradingAccountsDashboard.tsx`)
-- Net reduction ~30 lines total setelah refactor
 
 ---
 
 ## Implementation Order
 
-1. **Delete** `TradingAccountsDashboard.tsx` (orphaned code)
-2. **Edit** `Accounts.tsx` - remove Status card, fix grid
-3. **Edit** `AccountDetail.tsx` - add Net Flow InfoTooltip
-4. **Refactor** `Calendar.tsx` - merge AI section into event list with Collapsible
-5. **Test** - verify all changes work correctly
+1. **Edit** `AIAssistant.tsx` - Add pair validation, InfoTooltips, R:R preview
+2. **Refactor** `TradingJournal.tsx` - Remove random P&L simulation
+3. **Edit** `TradeSummaryStats.tsx` - Add InfoTooltips to P&L cards
+4. **Edit** `Settings.tsx` - Add "Coming Soon" badge to 2FA button
+5. **Test** - Verify all changes work correctly
 
 ---
 
-## Potential Risks & Mitigations
+## Expected Outcomes
 
-| Risk | Mitigation |
-|------|------------|
-| Calendar refactor breaking event display | Preserve existing event data structure, only change presentation |
-| User confusion about missing Status card | "Live" badge is more prominent and always visible on tab |
-| Collapsible not keyboard accessible | Radix Collapsible has built-in keyboard support |
+### Error Prevention (H9)
+- **Before:** Form submits without pair, random P&L confuses users, 2FA appears broken
+- **After:** Proper validation, accurate P&L display, clear feature status
+
+### Help & Documentation (H10)
+- **Before:** Score/confidence unexplained, P&L terminology unclear
+- **After:** InfoTooltips provide contextual help
+
+### Visibility of System Status (H1)
+- **Before:** R:R only shown after submit
+- **After:** R:R calculated and displayed in real-time
 
 ---
 
@@ -260,6 +221,7 @@ import { ChevronDown } from "lucide-react";
 
 | Item | Reason |
 |------|--------|
-| "Today's Key Release" section | Serves distinct purpose (highlight, countdown) |
-| Impact Alert Banner | Safety-critical, justified redundancy |
-| Balance metrics in Accounts | Each shows different data (Wallet/Available/Unrealized) |
+| Hardcoded confluence data in Trade Quality | Would require significant form expansion; current approach provides useful estimate |
+| 6 tabs in Settings | Already responsive with hidden labels; splitting would reduce discoverability |
+| Static tips in Trade Quality | Dynamic tips would require trade history analysis - out of scope |
+| 509 lines in TradingJournal | Already well-organized with extracted components; further splitting may hurt readability |
