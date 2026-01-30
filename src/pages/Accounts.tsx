@@ -11,7 +11,6 @@ import {
   FlaskConical, 
   Settings, 
   RefreshCw, 
-  CheckCircle2, 
   XCircle,
   Wallet,
   TrendingUp,
@@ -153,7 +152,7 @@ export default function Accounts() {
             ) : (
               <>
                 {/* Binance Account Overview */}
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <div className="grid gap-4 md:grid-cols-3">
                   {/* Wallet Balance */}
                   <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -224,25 +223,6 @@ export default function Accounts() {
                           </p>
                         </>
                       )}
-                    </CardContent>
-                  </Card>
-
-                  {/* Connection Status */}
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Status</CardTitle>
-                      <CheckCircle2 className="h-4 w-4 text-profit" />
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-profit border-profit/30">
-                          <CheckCircle2 className="h-3 w-3 mr-1" />
-                          Connected
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-2">
-                        {connectionStatus?.permissions?.length || 0} permissions
-                      </p>
                     </CardContent>
                   </Card>
                 </div>

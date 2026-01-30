@@ -7,7 +7,6 @@ import {
   FlaskConical,
   ArrowDownCircle,
   ArrowUpCircle,
-  Calendar,
   RefreshCw,
   Search,
   Filter,
@@ -32,6 +31,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { useAccounts, useAccountTransactions } from "@/hooks/use-accounts";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { formatCurrency } from "@/lib/formatters";
@@ -239,7 +239,12 @@ export default function AccountDetail() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Net Flow</p>
+                  <p className="text-sm text-muted-foreground flex items-center gap-1">
+                    Net Flow
+                    <InfoTooltip 
+                      content="Net Flow adalah selisih antara total Deposit dan Withdrawal. Positif = lebih banyak dana masuk, Negatif = lebih banyak dana keluar."
+                    />
+                  </p>
                   <p className={`text-xl font-bold ${(stats?.netFlow || 0) >= 0 ? "text-profit" : "text-loss"}`}>
                     {formatCurrency(stats?.netFlow || 0, account.currency)}
                   </p>

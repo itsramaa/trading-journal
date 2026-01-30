@@ -10,16 +10,21 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { 
+  Collapsible, 
+  CollapsibleContent, 
+  CollapsibleTrigger 
+} from "@/components/ui/collapsible";
+import { 
   Calendar as CalendarIcon, 
   TrendingUp, 
   TrendingDown, 
   RefreshCw,
   Sparkles,
-  Newspaper,
   AlertTriangle,
   Shield,
   Clock,
-  Minus
+  Minus,
+  ChevronDown
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEconomicCalendar } from "@/features/calendar";
@@ -46,13 +51,6 @@ const Calendar = () => {
     return format(new Date(dateString), 'HH:mm');
   };
 
-  const getImpactColor = (impact: 'bullish' | 'bearish' | 'neutral' | null) => {
-    switch (impact) {
-      case 'bullish': return 'text-profit';
-      case 'bearish': return 'text-loss';
-      default: return 'text-muted-foreground';
-    }
-  };
 
   const getImpactIcon = (impact: 'bullish' | 'bearish' | 'neutral' | null) => {
     switch (impact) {
@@ -194,22 +192,23 @@ const Calendar = () => {
           </Card>
         )}
 
-        {/* Upcoming Events */}
+        {/* Upcoming Events with Integrated AI Predictions */}
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
               <CalendarIcon className="h-5 w-5 text-primary" aria-hidden="true" />
               <CardTitle className="text-lg">Upcoming Events</CardTitle>
+              <Badge variant="outline" className="text-xs">AI Powered</Badge>
             </div>
             <CardDescription>
-              High-impact economic events affecting market volatility
+              High-impact economic events with AI predictions
             </CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading ? (
               <div className="space-y-3">
                 {Array.from({ length: 5 }).map((_, idx) => (
-                  <Skeleton key={idx} className="h-16 w-full" />
+                  <Skeleton key={idx} className="h-20 w-full" />
                 ))}
               </div>
             ) : isError ? (
@@ -222,105 +221,79 @@ const Calendar = () => {
             ) : data?.events && data.events.length > 0 ? (
               <div className="space-y-3" role="list" aria-label="Upcoming economic events">
                 {data.events.map((event) => (
-                  <div 
-                    key={event.id}
-                    className="flex items-start gap-3 p-3 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors"
-                    role="listitem"
-                    aria-label={`${event.event} - ${event.importance} importance${event.cryptoImpact ? `, ${event.cryptoImpact} crypto impact` : ''}`}
-                  >
+                  <Collapsible key={event.id}>
                     <div 
-                      className={cn(
-                        "w-2 h-2 rounded-full mt-2 shrink-0",
-                        event.importance === 'high' && "bg-loss",
-                        event.importance === 'medium' && "bg-secondary",
-                        event.importance === 'low' && "bg-profit"
-                      )} 
-                      aria-hidden="true"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="font-medium text-sm truncate">{event.event}</p>
-                        <div className="flex items-center gap-2 shrink-0">
-                          {event.cryptoImpact && (
-                            <span className={cn("flex items-center gap-1", getImpactColor(event.cryptoImpact))} aria-hidden="true">
-                              {getImpactIcon(event.cryptoImpact)}
-                            </span>
+                      className="p-3 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors"
+                      role="listitem"
+                      aria-label={`${event.event} - ${event.importance} importance${event.cryptoImpact ? `, ${event.cryptoImpact} crypto impact` : ''}`}
+                    >
+                      {/* Event Header - Always Visible */}
+                      <div className="flex items-start gap-3">
+                        <div 
+                          className={cn(
+                            "w-2 h-2 rounded-full mt-2 shrink-0",
+                            event.importance === 'high' && "bg-loss",
+                            event.importance === 'medium' && "bg-secondary",
+                            event.importance === 'low' && "bg-profit"
+                          )} 
+                          aria-hidden="true"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="font-medium text-sm truncate">{event.event}</p>
+                            <div className="flex items-center gap-2 shrink-0">
+                              {/* Standardized cryptoImpact: Icon + Badge */}
+                              {event.cryptoImpact && (
+                                <Badge 
+                                  variant="outline" 
+                                  className={cn(
+                                    "text-xs flex items-center gap-1",
+                                    event.cryptoImpact === 'bullish' && "bg-profit/10 text-profit border-profit/30",
+                                    event.cryptoImpact === 'bearish' && "bg-loss/10 text-loss border-loss/30",
+                                    event.cryptoImpact === 'neutral' && "bg-muted text-muted-foreground"
+                                  )}
+                                >
+                                  {getImpactIcon(event.cryptoImpact)}
+                                  <span>{event.cryptoImpact}</span>
+                                </Badge>
+                              )}
+                              <Badge variant="outline" className="text-xs">
+                                {event.importance}
+                              </Badge>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                            <span>{formatEventDate(event.date)}</span>
+                            <span>{formatEventTime(event.date)} UTC</span>
+                            {event.forecast && <span>Forecast: {event.forecast}</span>}
+                          </div>
+                          
+                          {/* AI Prediction - Collapsible */}
+                          {event.aiPrediction && (
+                            <div className="mt-2">
+                              <CollapsibleTrigger className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors group">
+                                <Sparkles className="h-3 w-3" />
+                                <span>AI Prediction</span>
+                                <ChevronDown className="h-3 w-3 transition-transform group-data-[state=open]:rotate-180" />
+                              </CollapsibleTrigger>
+                              <CollapsibleContent className="pt-2">
+                                <div className="pl-4 border-l-2 border-primary/30">
+                                  <p className="text-sm text-muted-foreground leading-relaxed">
+                                    {event.aiPrediction}
+                                  </p>
+                                </div>
+                              </CollapsibleContent>
+                            </div>
                           )}
-                          <Badge variant="outline" className="text-xs">
-                            {event.importance}
-                          </Badge>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                        <span>{formatEventDate(event.date)}</span>
-                        <span>{formatEventTime(event.date)} UTC</span>
-                        {event.forecast && <span>Forecast: {event.forecast}</span>}
-                      </div>
                     </div>
-                  </div>
+                  </Collapsible>
                 ))}
               </div>
             ) : (
               <div className="py-8 text-center text-muted-foreground">
                 No upcoming events this week.
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* AI Economic News Analysis */}
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-2">
-              <Newspaper className="h-5 w-5 text-primary" />
-              <CardTitle className="text-lg">AI Economic News Analysis</CardTitle>
-              <Badge variant="outline" className="text-xs">AI Powered</Badge>
-            </div>
-            <CardDescription>
-              AI predictions based on upcoming economic data releases
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {isLoading ? (
-              <div className="space-y-3">
-                <Skeleton className="h-24 w-full" />
-                <Skeleton className="h-20 w-full" />
-                <Skeleton className="h-20 w-full" />
-              </div>
-            ) : data?.events?.filter(e => e.aiPrediction).length ? (
-              <div className="space-y-3">
-                {data.events
-                  .filter(e => e.aiPrediction)
-                  .map((event) => (
-                    <div key={event.id} className="p-3 rounded-lg border hover:bg-muted/30 transition-colors">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-medium">{event.event}</span>
-                        <div className="flex items-center gap-2">
-                          {event.cryptoImpact && (
-                            <Badge 
-                              variant="outline" 
-                              className={cn(
-                                "text-xs",
-                                event.cryptoImpact === 'bullish' && "bg-profit/10 text-profit border-profit/30",
-                                event.cryptoImpact === 'bearish' && "bg-loss/10 text-loss border-loss/30"
-                              )}
-                            >
-                              {event.cryptoImpact}
-                            </Badge>
-                          )}
-                          <span className="text-xs text-muted-foreground">
-                            {formatEventDate(event.date)} {formatEventTime(event.date)}
-                          </span>
-                        </div>
-                      </div>
-                      <p className="text-sm text-muted-foreground">{event.aiPrediction}</p>
-                    </div>
-                  ))}
-              </div>
-            ) : (
-              <div className="py-6 text-center text-muted-foreground">
-                <Sparkles className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p>AI predictions will appear for high-impact events.</p>
               </div>
             )}
           </CardContent>
