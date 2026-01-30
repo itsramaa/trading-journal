@@ -139,17 +139,11 @@ const Dashboard = () => {
         {/* Section 2: Quick Actions */}
         <section className="space-y-4">
           <h2 className="text-lg font-semibold">Quick Actions</h2>
-          <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+          <div className="grid gap-3 grid-cols-2 md:grid-cols-3">
             <Button variant="outline" className="h-auto py-4 flex flex-col gap-2" asChild>
               <Link to="/trading">
                 <BookOpen className="h-5 w-5 text-primary" />
                 <span className="text-sm">Log Trade</span>
-              </Link>
-            </Button>
-            <Button variant="outline" className="h-auto py-4 flex flex-col gap-2" asChild>
-              <Link to="/sessions">
-                <Activity className="h-5 w-5 text-primary" />
-                <span className="text-sm">New Session</span>
               </Link>
             </Button>
             <Button variant="outline" className="h-auto py-4 flex flex-col gap-2" asChild>

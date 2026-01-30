@@ -106,21 +106,10 @@ export function RiskSummaryCard() {
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
               Remaining: ${riskStatus.remaining_budget.toFixed(2)}
-              <InfoTooltip content="How much more you can lose today before hitting your daily loss limit. When this reaches $0, trading should stop." />
+              <InfoTooltip content="How much more you can lose today before hitting your daily loss limit." />
             </span>
             <span>Limit: ${riskStatus.loss_limit.toFixed(2)}</span>
           </div>
-        </div>
-
-        {/* Today's P&L */}
-        <div className="flex items-center justify-between pt-2 border-t">
-          <span className="text-sm text-muted-foreground flex items-center gap-1">
-            Today's P&L
-            <InfoTooltip content="Your total realized profit or loss for today. Negative values count against your daily loss limit." />
-          </span>
-          <span className={`font-bold ${riskStatus.current_pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-            {riskStatus.current_pnl >= 0 ? '+' : ''}${riskStatus.current_pnl.toFixed(2)}
-          </span>
         </div>
 
         {/* Trading Status */}
@@ -130,7 +119,7 @@ export function RiskSummaryCard() {
             {riskStatus.trading_allowed 
               ? 'Trading allowed' 
               : 'Trading disabled - limit reached'}
-            <InfoTooltip content="Your trading status based on daily loss limit. Trading is disabled when you've used 100% of your allowed daily loss to protect your capital." />
+            <InfoTooltip content="Your trading status based on daily loss limit. Trading is disabled when you've used 100% of your allowed daily loss." />
           </span>
         </div>
       </CardContent>
