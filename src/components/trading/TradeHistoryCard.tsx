@@ -1,5 +1,6 @@
 /**
  * TradeHistoryCard - Display a single trade entry in the history
+ * Enhanced with accessibility: aria-labels, semantic structure
  */
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +10,7 @@ import { Calendar, Tag, Target, MoreVertical, Trash2, Brain, Wifi } from "lucide
 import { format } from "date-fns";
 import { TradeEntry } from "@/hooks/use-trade-entries";
 import { cn } from "@/lib/utils";
+import { RiskRewardTooltip, ConfluenceScoreTooltip, AIQualityScoreTooltip } from "@/components/ui/info-tooltip";
 
 interface TradeHistoryCardProps {
   entry: TradeEntry;
@@ -69,13 +71,14 @@ export function TradeHistoryCard({
             </span>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <MoreVertical className="h-4 w-4" />
+                <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Options for ${entry.pair} trade`}>
+                  <MoreVertical className="h-4 w-4" aria-hidden="true" />
+                  <span className="sr-only">Trade options</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => onDelete(entry)}>
-                  <Trash2 className="h-4 w-4 mr-2" />
+                  <Trash2 className="h-4 w-4 mr-2" aria-hidden="true" />
                   Delete
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -87,9 +90,14 @@ export function TradeHistoryCard({
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
           <div><span className="text-muted-foreground">Entry:</span> {formatCurrency(entry.entry_price, "USD")}</div>
           <div><span className="text-muted-foreground">Exit:</span> {entry.exit_price ? formatCurrency(entry.exit_price, "USD") : '-'}</div>
-          <div><span className="text-muted-foreground">R:R:</span> {rr > 0 ? `${rr.toFixed(2)}:1` : '-'}</div>
           <div className="flex items-center gap-1">
-            <span className="text-muted-foreground">Confluence:</span> 
+            <span className="text-muted-foreground">R:R:</span> 
+            <RiskRewardTooltip />
+            <span>{rr > 0 ? `${rr.toFixed(2)}:1` : '-'}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-muted-foreground">Confluence:</span>
+            <ConfluenceScoreTooltip />
             {entry.confluence_score !== null && entry.confluence_score !== undefined ? (
               <Badge variant="outline" className="text-xs">{entry.confluence_score}/5</Badge>
             ) : '-'}

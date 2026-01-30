@@ -1,6 +1,7 @@
 /**
  * Combined Crypto + Macro Analysis Card
  * Displays alignment status and actionable recommendation per INTEGRATION_GUIDE.md
+ * Enhanced with accessibility: aria-live, InfoTooltips for complex terms
  */
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +17,7 @@ import {
   Target
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import type { CombinedAnalysis, CombinedRecommendation, AlignmentStatus } from "@/features/market-insight/useCombinedAnalysis";
 
 interface CombinedAnalysisCardProps {
@@ -154,12 +156,15 @@ export function CombinedAnalysisCard({ data, isLoading }: CombinedAnalysisCardPr
         </div>
 
         {/* Score Comparison */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-4" role="region" aria-label="Sentiment scores">
           {/* Crypto Score */}
           <div className="p-3 rounded-lg border bg-muted/30">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium">Crypto Sentiment</span>
-              <span className="text-lg font-bold">
+              <span className="text-sm font-medium flex items-center gap-1">
+                Crypto Sentiment
+                <InfoTooltip content="Aggregated sentiment from Fear & Greed Index, BTC dominance, and market volume. Higher = more bullish market." />
+              </span>
+              <span className="text-lg font-bold" aria-label={`Crypto sentiment ${Math.round(data.cryptoScore * 100)} percent`}>
                 {Math.round(data.cryptoScore * 100)}%
               </span>
             </div>
@@ -170,6 +175,7 @@ export function CombinedAnalysisCard({ data, isLoading }: CombinedAnalysisCardPr
                 data.cryptoScore > 0.6 && "[&>div]:bg-profit",
                 data.cryptoScore < 0.4 && "[&>div]:bg-loss"
               )}
+              aria-label={`Crypto sentiment progress: ${Math.round(data.cryptoScore * 100)}%`}
             />
             <p className="text-xs text-muted-foreground mt-1">
               {data.cryptoScore > 0.6 ? 'Bullish' : data.cryptoScore < 0.4 ? 'Bearish' : 'Neutral'}
@@ -179,8 +185,11 @@ export function CombinedAnalysisCard({ data, isLoading }: CombinedAnalysisCardPr
           {/* Macro Score */}
           <div className="p-3 rounded-lg border bg-muted/30">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium">Macro Sentiment</span>
-              <span className="text-lg font-bold">
+              <span className="text-sm font-medium flex items-center gap-1">
+                Macro Sentiment
+                <InfoTooltip content="Global market conditions including DXY strength, equity markets, and volatility indices. Affects risk-on/risk-off flows." />
+              </span>
+              <span className="text-lg font-bold" aria-label={`Macro sentiment ${Math.round(data.macroScore * 100)} percent`}>
                 {Math.round(data.macroScore * 100)}%
               </span>
             </div>
@@ -191,6 +200,7 @@ export function CombinedAnalysisCard({ data, isLoading }: CombinedAnalysisCardPr
                 data.macroScore > 0.6 && "[&>div]:bg-profit",
                 data.macroScore < 0.4 && "[&>div]:bg-loss"
               )}
+              aria-label={`Macro sentiment progress: ${Math.round(data.macroScore * 100)}%`}
             />
             <p className="text-xs text-muted-foreground mt-1">
               {data.macroScore > 0.6 ? 'Bullish' : data.macroScore < 0.4 ? 'Bearish' : 'Cautious'}
@@ -199,13 +209,14 @@ export function CombinedAnalysisCard({ data, isLoading }: CombinedAnalysisCardPr
         </div>
 
         {/* Alignment Status */}
-        <div className="flex items-center justify-between p-3 rounded-lg border">
+        <div className="flex items-center justify-between p-3 rounded-lg border" aria-live="polite">
           <div className="flex items-center gap-2">
             {getAlignmentIcon(data.alignmentStatus)}
             <span className="text-sm font-medium">Alignment Status</span>
+            <InfoTooltip content="When Crypto and Macro sentiment align (both bullish or both bearish), trade with confidence. Conflict suggests caution." />
           </div>
           <div className="flex items-center gap-3">
-            <Progress value={data.alignmentPercent} className="w-20 h-2" />
+            <Progress value={data.alignmentPercent} className="w-20 h-2" aria-label={`Alignment ${data.alignmentPercent}%`} />
             <span className="text-sm font-bold">{data.alignmentPercent}%</span>
             <Badge variant="outline">{getAlignmentLabel(data.alignmentStatus)}</Badge>
           </div>
@@ -213,7 +224,10 @@ export function CombinedAnalysisCard({ data, isLoading }: CombinedAnalysisCardPr
 
         {/* Position Size Adjustment */}
         <div className="flex items-center justify-between text-sm p-2 rounded bg-muted/50">
-          <span className="text-muted-foreground">Suggested Position Size:</span>
+          <span className="text-muted-foreground flex items-center gap-1">
+            Suggested Position Size:
+            <InfoTooltip content="Recommended position size adjustment based on market conditions. Reduce size during uncertainty, increase when signals align strongly." />
+          </span>
           <span className={cn(
             "font-semibold",
             data.positionSizeAdjustment < 1 && "text-loss",

@@ -44,11 +44,14 @@ import { cn } from "@/lib/utils";
 const BINANCE_MAKER_FEE = 0.0002; // 0.02%
 const BINANCE_TAKER_FEE = 0.0005; // 0.05%
 
+// Enhanced form schemas with H9-compliant descriptive error messages
 const tradeFormSchema = z.object({
-  pair: z.string().min(1, "Pair is required"),
+  pair: z.string().min(1, "Trading pair is required. Select a pair like BTCUSDT or ETHUSDT."),
   direction: z.enum(["LONG", "SHORT"]),
-  trade_date: z.string().min(1, "Date is required"),
-  quantity: z.coerce.number().positive("Position size must be positive").default(1),
+  trade_date: z.string().min(1, "Trade date is required. Select the date when this trade was executed."),
+  quantity: z.coerce.number()
+    .positive("Position size must be greater than zero. Enter the number of contracts or units.")
+    .default(1),
   pnl: z.coerce.number().optional(),
   rr_achieved: z.coerce.number().optional(),
   fee_type: z.enum(["maker", "taker"]).default("taker"),
@@ -58,7 +61,8 @@ const tradeFormSchema = z.object({
 });
 
 const closePositionSchema = z.object({
-  exit_price: z.coerce.number().positive("Exit price must be positive"),
+  exit_price: z.coerce.number()
+    .positive("Exit price must be greater than zero. Enter the price at which you closed the position."),
   fees: z.coerce.number().optional(),
   notes: z.string().optional(),
 });

@@ -28,11 +28,17 @@ import { useCreateAccount } from "@/hooks/use-accounts";
 import { useUserSettings } from "@/hooks/use-user-settings";
 import type { AccountType } from "@/types/account";
 
-// Simplified schema - removed currency select and account_number
+// Enhanced schema with descriptive H9-compliant error messages
 const accountSchema = z.object({
-  name: z.string().min(1, "Name is required").max(100, "Name too long"),
-  broker: z.string().max(100, "Broker name too long").optional(),
-  initial_balance: z.coerce.number().min(0, "Balance cannot be negative").default(0),
+  name: z.string()
+    .min(1, "Account name is required. Enter a descriptive name like 'Binance Main' or 'Paper Trading 1'.")
+    .max(100, "Account name is too long. Please use 100 characters or less."),
+  broker: z.string()
+    .max(100, "Broker name is too long. Please use 100 characters or less.")
+    .optional(),
+  initial_balance: z.coerce.number()
+    .min(0, "Balance cannot be negative. Enter 0 or a positive amount as your starting capital.")
+    .default(0),
   is_backtest: z.boolean().default(false),
 });
 
