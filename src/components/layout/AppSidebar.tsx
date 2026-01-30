@@ -39,7 +39,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Kbd } from "@/components/ui/keyboard-shortcut";
 
-// Navigation structure: Dashboard standalone + 7 domain groups
+// Navigation structure: Dashboard & Accounts standalone at top, then domain groups
 const navigationGroups = [
   {
     title: "Market",
@@ -77,12 +77,6 @@ const navigationGroups = [
       { title: "Daily P&L", url: "/daily-pnl", icon: DollarSign },
       { title: "Heatmap", url: "/heatmap", icon: Grid3X3 },
       { title: "AI Insights", url: "/ai-insights", icon: Brain },
-    ],
-  },
-  {
-    title: "Accounts",
-    items: [
-      { title: "Account List", url: "/accounts", icon: Building2 },
     ],
   },
   {
@@ -147,7 +141,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
 
       <SidebarContent>
-        {/* Dashboard - Standalone at top with shortcut indicator */}
+        {/* Dashboard & Accounts - Standalone at top with shortcut indicators */}
         <SidebarMenu className="px-2 pt-2">
           <SidebarMenuItem>
             <SidebarMenuButton
@@ -165,6 +159,32 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 {!isCollapsed && dashboardShortcut && (
                   <span className="ml-auto text-[10px] font-mono text-muted-foreground opacity-0 group-hover/nav-item:opacity-100 transition-opacity">
                     G {dashboardShortcut}
+                  </span>
+                )}
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              isActive={location.pathname === "/accounts" || location.pathname.startsWith("/accounts/")}
+              tooltip={isCollapsed ? { children: (
+                <div className="flex items-center gap-2">
+                  <span>Accounts</span>
+                  <Kbd keys={["G", "A"]} className="ml-1" />
+                </div>
+              ) } : undefined}
+              size="default"
+              className="group/nav-item"
+            >
+              <Link to="/accounts" onClick={handleNavClick} className="flex items-center justify-between w-full">
+                <div className="flex items-center gap-2">
+                  <Building2 className="h-4 w-4" />
+                  <span>Accounts</span>
+                </div>
+                {!isCollapsed && (
+                  <span className="ml-auto text-[10px] font-mono text-muted-foreground opacity-0 group-hover/nav-item:opacity-100 transition-opacity">
+                    G A
                   </span>
                 )}
               </Link>

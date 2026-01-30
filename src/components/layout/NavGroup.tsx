@@ -131,12 +131,14 @@ export function NavGroup({
       <SidebarGroup className="py-0 min-w-0">
         <SidebarGroupLabel
           asChild
-          className="group/label h-8 text-xs uppercase tracking-wider text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          className="group/label h-8 text-xs uppercase tracking-wider text-muted-foreground hover:bg-sidebar-accent"
         >
           <CollapsibleTrigger className="flex w-full items-center px-2">
             <span className={cn(
-              "flex-1 text-left truncate",
-              hasActiveItem && "text-primary font-medium"
+              "flex-1 text-left truncate transition-colors",
+              hasActiveItem 
+                ? "text-primary font-medium group-hover/label:text-primary" 
+                : "group-hover/label:text-sidebar-accent-foreground"
             )}>{title}</span>
             <ChevronRight
               className={cn(
