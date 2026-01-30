@@ -18,6 +18,9 @@ export * from './useBinanceAccountData';
 export * from './advanced-analytics-types';
 export * from './useBinanceAdvancedAnalytics';
 
+// Phase 4: Extended account data hooks
+export * from './useBinanceExtendedData';
+
 // Re-export commonly used account hooks for convenience
 export {
   useBinanceConnectionStatus,
@@ -74,6 +77,22 @@ export {
   useMarketStructureAnalysis,
   useVolatilityBasedSizing,
 } from './useBinanceAdvancedAnalytics';
+
+// Re-export Phase 4 extended account data hooks
+export {
+  useBinanceSymbolConfig,
+  useBinanceMultiAssetsMode,
+  useBinanceMarginHistory,
+  useBinanceAccountConfig,
+  useBinanceBnbBurn,
+  useBinanceAdlQuantile,
+  useBinanceOrderRateLimit,
+  useExtendedAccountData,
+  getAdlRiskLevel,
+  calculateFeeWithDiscount,
+  getRateLimitUsage,
+  isRateLimitWarning,
+} from './useBinanceExtendedData';
 
 // Re-export utility functions
 export { getIncomeTypeCategory } from './types';

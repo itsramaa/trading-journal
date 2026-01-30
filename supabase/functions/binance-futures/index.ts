@@ -625,6 +625,251 @@ async function getAllOrders(
   }
 }
 
+// =============================================================================
+// Phase 4: Extended Account Data
+// =============================================================================
+
+/**
+ * Get user symbol configuration with trading rules
+ * Phase 4: Extended Account Data
+ */
+async function getSymbolConfig(apiKey: string, apiSecret: string, symbol?: string) {
+  try {
+    const params: Record<string, string> = {};
+    if (symbol) params.symbol = symbol;
+    
+    const response = await binanceRequest('/fapi/v1/symbolConfig', 'GET', params, apiKey, apiSecret);
+    const data = await response.json();
+    
+    if (data.code && data.code < 0) {
+      return { success: false, error: data.msg, code: data.code };
+    }
+    
+    // Handle array response
+    const configs = Array.isArray(data) ? data : [data];
+    
+    const formattedConfigs = configs.map((c: any) => ({
+      symbol: c.symbol,
+      marginType: c.marginType,
+      isAutoAddMargin: c.isAutoAddMargin,
+      leverage: parseInt(c.leverage),
+      maxNotionalValue: parseFloat(c.maxNotionalValue),
+    }));
+    
+    return { success: true, data: symbol ? formattedConfigs[0] : formattedConfigs };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch symbol config',
+    };
+  }
+}
+
+/**
+ * Get multi-assets margin mode status
+ * Phase 4: Extended Account Data
+ */
+async function getMultiAssetsMode(apiKey: string, apiSecret: string) {
+  try {
+    const response = await binanceRequest('/fapi/v1/multiAssetsMargin', 'GET', {}, apiKey, apiSecret);
+    const data = await response.json();
+    
+    if (data.code && data.code < 0) {
+      return { success: false, error: data.msg, code: data.code };
+    }
+    
+    return {
+      success: true,
+      data: {
+        multiAssetsMargin: data.multiAssetsMargin,
+      },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch multi-assets mode',
+    };
+  }
+}
+
+/**
+ * Get position margin change history
+ * Phase 4: Extended Account Data
+ */
+async function getPositionMarginHistory(
+  apiKey: string, 
+  apiSecret: string, 
+  symbol: string,
+  params: {
+    type?: number;  // 1: Add margin, 2: Reduce margin
+    startTime?: number;
+    endTime?: number;
+    limit?: number;
+  } = {}
+) {
+  try {
+    if (!symbol) {
+      return { success: false, error: 'Symbol is required for margin history' };
+    }
+    
+    const queryParams: Record<string, any> = { symbol };
+    if (params.type) queryParams.type = params.type;
+    if (params.startTime) queryParams.startTime = params.startTime;
+    if (params.endTime) queryParams.endTime = params.endTime;
+    queryParams.limit = params.limit || 100;
+    
+    const response = await binanceRequest('/fapi/v1/positionMargin/history', 'GET', queryParams, apiKey, apiSecret);
+    const data = await response.json();
+    
+    if (data.code && data.code < 0) {
+      return { success: false, error: data.msg, code: data.code };
+    }
+    
+    const history = data.map((h: any) => ({
+      symbol: h.symbol,
+      type: h.type === 1 ? 'ADD' : 'REDUCE',
+      amount: parseFloat(h.amount),
+      asset: h.asset,
+      time: h.time,
+      positionSide: h.positionSide,
+    }));
+    
+    return { success: true, data: history };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch position margin history',
+    };
+  }
+}
+
+/**
+ * Get account configuration (margin mode, position mode)
+ * Phase 4: Extended Account Data
+ */
+async function getAccountConfig(apiKey: string, apiSecret: string) {
+  try {
+    const response = await binanceRequest('/fapi/v1/accountConfig', 'GET', {}, apiKey, apiSecret);
+    const data = await response.json();
+    
+    if (data.code && data.code < 0) {
+      return { success: false, error: data.msg, code: data.code };
+    }
+    
+    return {
+      success: true,
+      data: {
+        feeTier: data.feeTier,
+        canTrade: data.canTrade,
+        canDeposit: data.canDeposit,
+        canWithdraw: data.canWithdraw,
+        dualSidePosition: data.dualSidePosition,
+        multiAssetsMargin: data.multiAssetsMargin,
+        tradeGroupId: data.tradeGroupId,
+      },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch account config',
+    };
+  }
+}
+
+/**
+ * Get BNB burn status for fee discount
+ * Phase 4: Extended Account Data
+ */
+async function getBnbBurnStatus(apiKey: string, apiSecret: string) {
+  try {
+    const response = await binanceRequest('/fapi/v1/feeBurn', 'GET', {}, apiKey, apiSecret);
+    const data = await response.json();
+    
+    if (data.code && data.code < 0) {
+      return { success: false, error: data.msg, code: data.code };
+    }
+    
+    return {
+      success: true,
+      data: {
+        feeBurn: data.feeBurn,
+      },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch BNB burn status',
+    };
+  }
+}
+
+/**
+ * Get ADL quantile for position risk assessment
+ * Phase 4: Extended Account Data
+ */
+async function getAdlQuantile(apiKey: string, apiSecret: string, symbol?: string) {
+  try {
+    const params: Record<string, string> = {};
+    if (symbol) params.symbol = symbol;
+    
+    const response = await binanceRequest('/fapi/v1/adlQuantile', 'GET', params, apiKey, apiSecret);
+    const data = await response.json();
+    
+    if (data.code && data.code < 0) {
+      return { success: false, error: data.msg, code: data.code };
+    }
+    
+    const quantiles = Array.isArray(data) ? data : [data];
+    
+    const formattedQuantiles = quantiles.map((q: any) => ({
+      symbol: q.symbol,
+      adlQuantile: {
+        LONG: q.adlQuantile?.LONG || 0,
+        SHORT: q.adlQuantile?.SHORT || 0,
+        BOTH: q.adlQuantile?.BOTH || 0,
+        HEDGE: q.adlQuantile?.HEDGE || 0,
+      },
+    }));
+    
+    return { success: true, data: symbol ? formattedQuantiles[0] : formattedQuantiles };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch ADL quantile',
+    };
+  }
+}
+
+/**
+ * Get order rate limit status
+ * Phase 4: Extended Account Data
+ */
+async function getOrderRateLimit(apiKey: string, apiSecret: string) {
+  try {
+    const response = await binanceRequest('/fapi/v1/rateLimit/order', 'GET', {}, apiKey, apiSecret);
+    const data = await response.json();
+    
+    if (data.code && data.code < 0) {
+      return { success: false, error: data.msg, code: data.code };
+    }
+    
+    const rateLimits = data.map((r: any) => ({
+      rateLimitType: r.rateLimitType,
+      interval: r.interval,
+      intervalNum: r.intervalNum,
+      limit: r.limit,
+      count: r.count,
+    }));
+    
+    return { success: true, data: rateLimits };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch order rate limit',
+    };
+  }
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -706,10 +951,39 @@ Deno.serve(async (req) => {
         result = await getAllOrders(apiKey, apiSecret, symbol, body.params || {});
         break;
         
+      // Phase 4: Extended Account Data
+      case 'symbol-config':
+        result = await getSymbolConfig(apiKey, apiSecret, symbol);
+        break;
+        
+      case 'multi-assets-mode':
+        result = await getMultiAssetsMode(apiKey, apiSecret);
+        break;
+        
+      case 'position-margin-history':
+        result = await getPositionMarginHistory(apiKey, apiSecret, symbol, body.params || {});
+        break;
+        
+      case 'account-config':
+        result = await getAccountConfig(apiKey, apiSecret);
+        break;
+        
+      case 'bnb-burn':
+        result = await getBnbBurnStatus(apiKey, apiSecret);
+        break;
+        
+      case 'adl-quantile':
+        result = await getAdlQuantile(apiKey, apiSecret, symbol);
+        break;
+        
+      case 'order-rate-limit':
+        result = await getOrderRateLimit(apiKey, apiSecret);
+        break;
+        
       default:
         result = {
           success: false,
-          error: `Unknown action: ${action}. Valid actions: validate, balance, positions, trades, open-orders, place-order, cancel-order, income, commission-rate, leverage-brackets, force-orders, position-mode, all-orders`,
+          error: `Unknown action: ${action}. Valid actions: validate, balance, positions, trades, open-orders, place-order, cancel-order, income, commission-rate, leverage-brackets, force-orders, position-mode, all-orders, symbol-config, multi-assets-mode, position-margin-history, account-config, bnb-burn, adl-quantile, order-rate-limit`,
         };
     }
     

@@ -104,7 +104,15 @@ export type BinanceAction =
   | 'leverage-brackets'
   | 'force-orders'
   | 'position-mode'
-  | 'all-orders';
+  | 'all-orders'
+  // Phase 4: Extended Account Data
+  | 'symbol-config'
+  | 'multi-assets-mode'
+  | 'position-margin-history'
+  | 'account-config'
+  | 'bnb-burn'
+  | 'adl-quantile'
+  | 'order-rate-limit';
 
 /**
  * Phase 2: Commission Rate for accurate fee calculation
@@ -294,4 +302,92 @@ export interface BinanceIncomeAggregated {
     totalTransfers: number;// TRANSFER totals
     netPnl: number;        // grossPnl - fees - funding + rebates
   };
+}
+
+// =============================================================================
+// Phase 4: Extended Account Data Types
+// =============================================================================
+
+/**
+ * Phase 4: User Symbol Configuration
+ */
+export interface SymbolAccountConfig {
+  symbol: string;
+  marginType: 'isolated' | 'cross';
+  isAutoAddMargin: boolean;
+  leverage: number;
+  maxNotionalValue: number;
+}
+
+/**
+ * Phase 4: Multi-Assets Mode Status
+ */
+export interface MultiAssetsMode {
+  multiAssetsMargin: boolean;
+}
+
+/**
+ * Phase 4: Position Margin Change History Entry
+ */
+export interface MarginChangeHistory {
+  symbol: string;
+  type: 'ADD' | 'REDUCE';
+  amount: number;
+  asset: string;
+  time: number;
+  positionSide: 'LONG' | 'SHORT' | 'BOTH';
+}
+
+/**
+ * Phase 4: Position Margin History Query Parameters
+ */
+export interface MarginHistoryParams {
+  type?: 1 | 2;  // 1: Add margin, 2: Reduce margin
+  startTime?: number;
+  endTime?: number;
+  limit?: number;
+}
+
+/**
+ * Phase 4: Account Configuration
+ */
+export interface AccountConfig {
+  feeTier: number;
+  canTrade: boolean;
+  canDeposit: boolean;
+  canWithdraw: boolean;
+  dualSidePosition: boolean;
+  multiAssetsMargin: boolean;
+  tradeGroupId: number;
+}
+
+/**
+ * Phase 4: BNB Burn Status for Fee Discount
+ */
+export interface BnbBurnStatus {
+  feeBurn: boolean;
+}
+
+/**
+ * Phase 4: ADL Quantile for Position Risk
+ */
+export interface AdlQuantile {
+  symbol: string;
+  adlQuantile: {
+    LONG: number;
+    SHORT: number;
+    BOTH: number;
+    HEDGE: number;
+  };
+}
+
+/**
+ * Phase 4: Order Rate Limit Status
+ */
+export interface OrderRateLimit {
+  rateLimitType: string;
+  interval: string;
+  intervalNum: number;
+  limit: number;
+  count: number;
 }

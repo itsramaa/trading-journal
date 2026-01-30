@@ -673,7 +673,7 @@ Permission: PUBLIC
 
 ---
 
-### Phase 4: Extended Account Data (USER_DATA) 🆕
+### ✅ Phase 4: IMPLEMENTED (Edge Function: `binance-futures`)
 
 #### 4.1 Symbol Configuration 🆕
 ```
