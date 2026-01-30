@@ -1,6 +1,6 @@
 /**
  * NavGroup Component - Domain-based navigation group
- * Simplified without group icon, just label + chevron
+ * Includes keyboard shortcut indicators in tooltips
  */
 import * as React from "react";
 import { ChevronRight, type LucideIcon } from "lucide-react";
@@ -20,6 +20,27 @@ import {
 } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 import { Link, useLocation } from "react-router-dom";
+import { Kbd } from "@/components/ui/keyboard-shortcut";
+
+// Keyboard shortcut mapping for each route
+const ROUTE_SHORTCUTS: Record<string, string> = {
+  "/": "D",
+  "/market": "M",
+  "/calendar": "C",
+  "/market-data": "V",
+  "/trading": "T",
+  "/history": "H",
+  "/risk": "R",
+  "/calculator": "X",
+  "/strategies": "S",
+  "/backtest": "B",
+  "/performance": "P",
+  "/daily-pnl": "L",
+  "/heatmap": "E",
+  "/ai-insights": "I",
+  "/accounts": "A",
+  "/settings": ",",
+};
 
 interface NavItem {
   title: string;
@@ -59,6 +80,20 @@ export function NavGroup({
     }
   };
 
+  // Get tooltip content with shortcut
+  const getTooltip = (item: NavItem) => {
+    const shortcut = ROUTE_SHORTCUTS[item.url];
+    if (shortcut) {
+      return (
+        <div className="flex items-center gap-2">
+          <span>{item.title}</span>
+          <Kbd keys={["G", shortcut]} className="ml-1" />
+        </div>
+      );
+    }
+    return item.title;
+  };
+
   // When sidebar is collapsed (icon-only mode), render flat items with tooltips
   if (isCollapsed && !isMobile) {
     return (
@@ -69,7 +104,9 @@ export function NavGroup({
               <SidebarMenuItem key={item.title}>
                 <SidebarMenuButton
                   asChild
-                  tooltip={item.title}
+                  tooltip={{
+                    children: getTooltip(item),
+                  }}
                   isActive={isActive(item.url)}
                 >
                   <Link to={item.url} onClick={handleNavClick}>
@@ -112,20 +149,30 @@ export function NavGroup({
         <CollapsibleContent>
           <SidebarGroupContent>
             <SidebarMenu className="pl-2 min-w-0">
-              {items.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActive(item.url)}
-                    className="h-8"
-                  >
-                    <Link to={item.url} onClick={handleNavClick}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {items.map((item) => {
+                const shortcut = ROUTE_SHORTCUTS[item.url];
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isActive(item.url)}
+                      className="h-8 group/nav-item"
+                    >
+                      <Link to={item.url} onClick={handleNavClick} className="flex items-center justify-between w-full">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <item.icon className="h-4 w-4 shrink-0" />
+                          <span className="truncate">{item.title}</span>
+                        </div>
+                        {shortcut && (
+                          <span className="ml-auto text-[10px] font-mono text-muted-foreground opacity-0 group-hover/nav-item:opacity-100 transition-opacity shrink-0">
+                            G {shortcut}
+                          </span>
+                        )}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </CollapsibleContent>
@@ -133,3 +180,6 @@ export function NavGroup({
     </Collapsible>
   );
 }
+
+export { ROUTE_SHORTCUTS };
+
