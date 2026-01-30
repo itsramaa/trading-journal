@@ -1,9 +1,11 @@
+import { useEffect, useRef } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
+import { trackEvent, ANALYTICS_EVENTS } from "@/lib/analytics";
 
 // Pages
 import Dashboard from "./pages/Dashboard";
@@ -27,6 +29,43 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
+// Analytics: Page View Tracker
+function PageViewTracker() {
+  const location = useLocation();
+  
+  useEffect(() => {
+    trackEvent(ANALYTICS_EVENTS.PAGE_VIEW, {
+      path: location.pathname,
+      timestamp: Date.now(),
+    });
+  }, [location.pathname]);
+  
+  return null;
+}
+
+// Analytics: Session Tracker
+function SessionTracker() {
+  const sessionStartRef = useRef(Date.now());
+  
+  useEffect(() => {
+    trackEvent(ANALYTICS_EVENTS.SESSION_START, {
+      timestamp: sessionStartRef.current,
+    });
+    
+    const handleBeforeUnload = () => {
+      trackEvent(ANALYTICS_EVENTS.SESSION_END, {
+        timestamp: Date.now(),
+        duration: Date.now() - sessionStartRef.current,
+      });
+    };
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
+  
+  return null;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
@@ -34,6 +73,8 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
+          <PageViewTracker />
+          <SessionTracker />
           <Routes>
             {/* Public routes */}
             <Route path="/auth" element={<Auth />} />

@@ -201,12 +201,50 @@ export default function Performance() {
     return <span className="text-muted-foreground flex items-center gap-1"><Minus className="h-3 w-3" />0{suffix}</span>;
   };
 
+  // Calculate heatmap insights for the Heatmap tab
+  const heatmapInsights = useMemo(() => {
+    const closedTrades = filteredTrades.filter(t => t.status === 'closed');
+    if (closedTrades.length === 0) return null;
+    
+    const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const grid: Map<string, { day: string; hour: number; trades: number; wins: number }> = new Map();
+    
+    closedTrades.forEach((trade) => {
+      const d = new Date(trade.trade_date);
+      const day = DAYS[d.getDay()];
+      const hour = Math.floor(d.getHours() / 4) * 4;
+      const key = `${day}-${hour}`;
+      const existing = grid.get(key) || { day, hour, trades: 0, wins: 0 };
+      existing.trades++;
+      if ((trade.realized_pnl || trade.pnl || 0) > 0) existing.wins++;
+      grid.set(key, existing);
+    });
+    
+    const slots = Array.from(grid.values())
+      .map(s => ({ ...s, winRate: s.trades > 0 ? (s.wins / s.trades) * 100 : 0 }))
+      .filter(s => s.trades >= 3); // Minimum sample size
+    
+    if (slots.length === 0) return null;
+    
+    const sorted = [...slots].sort((a, b) => b.winRate - a.winRate);
+    const byVolume = [...slots].sort((a, b) => b.trades - a.trades);
+    
+    return {
+      best: sorted[0],
+      worst: sorted[sorted.length - 1],
+      mostActive: byVolume[0],
+    };
+  }, [filteredTrades]);
+
   if (tradesLoading) {
     return (
       <DashboardLayout>
         <div className="space-y-6">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Performance Analytics</h1>
+            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+              <BarChart3 className="h-6 w-6 text-primary" />
+              Performance Analytics
+            </h1>
             <p className="text-muted-foreground">Deep dive into your trading performance metrics</p>
           </div>
           <MetricsGridSkeleton />
@@ -220,7 +258,10 @@ export default function Performance() {
       <div className="space-y-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Performance Analytics</h1>
+            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+              <BarChart3 className="h-6 w-6 text-primary" />
+              Performance Analytics
+            </h1>
             <p className="text-muted-foreground">Deep dive into your trading performance metrics</p>
           </div>
           <div className="flex gap-2">
@@ -922,6 +963,65 @@ export default function Performance() {
 
             {/* Tab 4: Heatmap */}
             <TabsContent value="heatmap" className="space-y-6">
+              {/* Actionable Heatmap Insights Summary */}
+              {heatmapInsights && (
+                <div className="grid gap-4 md:grid-cols-3">
+                  <Card className="bg-profit/5 border-profit/20">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium flex items-center gap-1">
+                        <Trophy className="h-4 w-4 text-profit" />
+                        Best Trading Time
+                        <InfoTooltip content="Time slot with highest win rate based on your trade history." />
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-xl font-bold text-profit">
+                        {heatmapInsights.best.day} {heatmapInsights.best.hour.toString().padStart(2, '0')}:00
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {heatmapInsights.best.winRate.toFixed(0)}% win rate ({heatmapInsights.best.trades} trades)
+                      </p>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card className="bg-loss/5 border-loss/20">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium flex items-center gap-1">
+                        <AlertTriangle className="h-4 w-4 text-loss" />
+                        Avoid Trading
+                        <InfoTooltip content="Time slot with lowest win rate. Consider avoiding trades during this time." />
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-xl font-bold text-loss">
+                        {heatmapInsights.worst.day} {heatmapInsights.worst.hour.toString().padStart(2, '0')}:00
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {heatmapInsights.worst.winRate.toFixed(0)}% win rate ({heatmapInsights.worst.trades} trades)
+                      </p>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium flex items-center gap-1">
+                        <Flame className="h-4 w-4 text-primary" />
+                        Most Active
+                        <InfoTooltip content="Time slot where you trade the most. Good for consistency tracking." />
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-xl font-bold">
+                        {heatmapInsights.mostActive.day}s
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {heatmapInsights.mostActive.trades} total trades at {heatmapInsights.mostActive.hour.toString().padStart(2, '0')}:00
+                      </p>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+              
               <TradingHeatmap />
             </TabsContent>
 

@@ -77,7 +77,10 @@ export default function Accounts() {
         {/* Page Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Trading Accounts</h1>
+            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+              <CandlestickChart className="h-6 w-6 text-primary" />
+              Trading Accounts
+            </h1>
             <p className="text-muted-foreground">
               View your Binance Futures account and manage paper trading
             </p>

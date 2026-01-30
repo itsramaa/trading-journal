@@ -2,7 +2,7 @@
  * Position Size Calculator Component - Per Trading Journey Markdown spec
  * Refactored into smaller focused components for maintainability
  */
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -11,6 +11,7 @@ import { calculatePositionSize } from "@/lib/calculations/position-sizing";
 import { useRiskProfile } from "@/hooks/use-risk-profile";
 import { useBestAvailableBalance } from "@/hooks/use-combined-balance";
 import { CalculatorInputs, CalculatorResults, QuickReferenceR } from "./calculator";
+import { trackEvent, ANALYTICS_EVENTS } from "@/lib/analytics";
 
 interface PositionSizeCalculatorProps {
   accountBalance?: number;
@@ -52,6 +53,8 @@ export function PositionSizeCalculator({
     }
   }, [defaultBalance]);
 
+  const lastTrackedRef = useRef<string>("");
+  
   const result = useMemo(() => {
     const calc = calculatePositionSize({
       account_balance: accountBalance,
@@ -61,6 +64,19 @@ export function PositionSizeCalculator({
       leverage,
     });
     onCalculate?.(calc);
+    
+    // Track calculation (debounced by unique key)
+    const trackKey = `${accountBalance}-${riskPercent}-${entryPrice}-${stopLossPrice}-${leverage}`;
+    if (lastTrackedRef.current !== trackKey && calc.position_size > 0) {
+      lastTrackedRef.current = trackKey;
+      trackEvent(ANALYTICS_EVENTS.POSITION_SIZE_CALCULATE, {
+        accountBalance,
+        riskPercent,
+        positionSize: calc.position_size,
+        riskAmount: calc.risk_amount,
+      });
+    }
+    
     return calc;
   }, [accountBalance, riskPercent, entryPrice, stopLossPrice, leverage, onCalculate]);
 
