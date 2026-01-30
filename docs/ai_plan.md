@@ -54,7 +54,44 @@ Dokumen ini mendokumentasikan integrasi AI di Trading Journey project, termasuk 
   - Crypto/Macro conflict notifications
   - Rate-limited to prevent spam (1x per hour/30min)
 
-### 4. Trading AI Edge Functions
+### 4. Market Alerts System ✅ NEW
+
+#### useMarketAlerts Hook
+- **Location:** `src/features/market-insight/useMarketAlerts.ts`
+- **Features:**
+  - Extreme Fear alert (F&G < 25)
+  - Extreme Greed alert (F&G > 75)
+  - Crypto/Macro conflict notifications
+  - Rate-limited to prevent spam (1x per hour/30min)
+
+### 5. Economic Calendar Integration ✅ NEW
+
+#### economic-calendar Edge Function
+- **Endpoint:** `supabase/functions/economic-calendar/`
+- **Source:** Trading Economics API (FREE, no key required)
+- **Features:**
+  - Real-time economic events
+  - US and Fed-focused high-impact filtering
+  - AI-generated crypto impact predictions (Gemini)
+  - Risk adjustment recommendations
+  - Position size suggestions based on event count
+
+#### useEconomicCalendar Hook
+- **Location:** `src/features/calendar/useEconomicCalendar.ts`
+- **Features:**
+  - 15-minute cache with TanStack Query
+  - Auto-refresh every 30 minutes
+  - Graceful error handling
+
+#### Calendar Page Updates
+- **Location:** `src/pages/Calendar.tsx`
+- **Changes:**
+  - Replaced mock data with live API
+  - Impact Alert Banner for high-risk days
+  - Today's Key Release with AI predictions
+  - Crypto impact badges (bullish/bearish/neutral)
+
+### 6. Trading AI Edge Functions
 
 | Function | Purpose |
 |----------|---------|
@@ -64,6 +101,7 @@ Dokumen ini mendokumentasikan integrasi AI di Trading Journey project, termasuk 
 | `dashboard-insights` | Portfolio summary and recommendations |
 | `post-trade-analysis` | Extract lessons from closed trades |
 | `session-analysis` | Analyze trading session data |
+| `economic-calendar` | Economic events with AI predictions |
 
 ---
 
