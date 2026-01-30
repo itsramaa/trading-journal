@@ -28,6 +28,7 @@ import { useTradeEntries, useCreateTradeEntry, useDeleteTradeEntry, useClosePosi
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { useBinancePositions, useBinanceBalance, useBinanceConnectionStatus } from "@/features/binance";
 import { BinanceTradeHistory } from "@/components/trading/BinanceTradeHistory";
+import { TradeHistoryCard } from "@/components/trading/TradeHistoryCard";
 
 import { filterTradesByDateRange, filterTradesByStrategies } from "@/lib/trading-calculations";
 import { formatCurrency as formatCurrencyUtil } from "@/lib/formatters";
@@ -133,10 +134,14 @@ export default function TradingJournal() {
   // Separate open and closed trades (pending not currently in DB schema, but prepared for future)
   const openPositions = useMemo(() => trades?.filter(t => t.status === 'open') || [], [trades]);
   const closedTrades = useMemo(() => trades?.filter(t => t.status === 'closed') || [], [trades]);
+  
+  // Separate Binance trades vs Paper trades
+  const binanceTrades = useMemo(() => closedTrades.filter(t => t.source === 'binance'), [closedTrades]);
+  const paperTrades = useMemo(() => closedTrades.filter(t => t.source !== 'binance'), [closedTrades]);
 
   // Filter and sort closed trades by date/strategy/AI score
-  const filteredClosedTrades = useMemo(() => {
-    let filtered = filterTradesByDateRange(closedTrades, dateRange.from, dateRange.to);
+  const filterAndSortTrades = (tradesToFilter: typeof closedTrades) => {
+    let filtered = filterTradesByDateRange(tradesToFilter, dateRange.from, dateRange.to);
     filtered = filterTradesByStrategies(filtered, selectedStrategyIds);
     
     // AI Quality Score sorting
@@ -149,7 +154,11 @@ export default function TradingJournal() {
     }
     
     return filtered;
-  }, [closedTrades, dateRange, selectedStrategyIds, sortByAI]);
+  };
+  
+  const filteredBinanceTrades = useMemo(() => filterAndSortTrades(binanceTrades), [binanceTrades, dateRange, selectedStrategyIds, sortByAI]);
+  const filteredPaperTrades = useMemo(() => filterAndSortTrades(paperTrades), [paperTrades, dateRange, selectedStrategyIds, sortByAI]);
+  const filteredClosedTrades = useMemo(() => filterAndSortTrades(closedTrades), [closedTrades, dateRange, selectedStrategyIds, sortByAI]);
 
   // Calculate P&L summaries
   const totalUnrealizedPnL = useMemo(() => openPositions.reduce((sum, t) => sum + (t.pnl || 0), 0), [openPositions]);
@@ -832,7 +841,7 @@ export default function TradingJournal() {
                 )}
               </TabsContent>
               
-              {/* Trade History Tab */}
+              {/* Trade History Tab - With Sub-tabs for Binance (priority) and Paper */}
               <TabsContent value="history" className="mt-4">
                 {/* Filters */}
                 <div className="flex flex-col gap-4 md:flex-row md:items-center mb-4">
@@ -879,113 +888,83 @@ export default function TradingJournal() {
                   )}
                 </div>
 
-                {/* Trade entries */}
-                <div className="space-y-4">
-                  {filteredClosedTrades.length === 0 ? (
-                    <EmptyState
-                      icon={BookOpen}
-                      title="No closed trades found"
-                      description="No closed trades match your current filters. Try adjusting the date range or strategy filters, or close an open position."
-                      action={{
-                        label: "Add New Entry",
-                        onClick: () => setIsAddOpen(true),
-                      }}
-                    />
-                  ) : (
-                    filteredClosedTrades.map((entry) => {
-                      const rr = calculateRR(entry);
-                      return (
-                        <Card key={entry.id} className="border-muted">
-                          <CardHeader className="pb-2">
-                            <div className="flex items-center justify-between flex-wrap gap-2">
-                              <div className="flex items-center gap-3">
-                                <Badge variant={entry.direction === "LONG" ? "default" : "secondary"}>
-                                  {entry.direction}
-                                </Badge>
-                                <span className="font-bold text-lg">{entry.pair}</span>
-                                <span className="text-muted-foreground flex items-center gap-1">
-                                  <Calendar className="h-4 w-4" />
-                                  {format(new Date(entry.trade_date), "MMM d, yyyy")}
-                                </span>
-                                {/* AI Quality Score Badge */}
-                                {entry.ai_quality_score !== null && entry.ai_quality_score !== undefined && (
-                                  <Badge 
-                                    variant="outline" 
-                                    className={cn(
-                                      "gap-1",
-                                      entry.ai_quality_score >= 80 && "border-green-500 text-green-500",
-                                      entry.ai_quality_score >= 60 && entry.ai_quality_score < 80 && "border-yellow-500 text-yellow-500",
-                                      entry.ai_quality_score < 60 && "border-red-500 text-red-500"
-                                    )}
-                                  >
-                                    <Brain className="h-3 w-3" />
-                                    AI: {entry.ai_quality_score}%
-                                  </Badge>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className={`font-bold text-lg ${(entry.realized_pnl || 0) >= 0 ? "text-green-500" : "text-red-500"}`}>
-                                  {(entry.realized_pnl || 0) >= 0 ? "+" : ""}{formatCurrency(entry.realized_pnl || 0, "USD")}
-                                </span>
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                                      <MoreVertical className="h-4 w-4" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                                    <DropdownMenuItem onClick={() => setDeletingTrade(entry)}>
-                                      <Trash2 className="h-4 w-4 mr-2" />
-                                      Delete
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </div>
-                            </div>
-                          </CardHeader>
-                          <CardContent className="space-y-3">
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                              <div><span className="text-muted-foreground">Entry:</span> {formatCurrency(entry.entry_price, "USD")}</div>
-                              <div><span className="text-muted-foreground">Exit:</span> {entry.exit_price ? formatCurrency(entry.exit_price, "USD") : '-'}</div>
-                              <div><span className="text-muted-foreground">R:R:</span> {rr > 0 ? `${rr.toFixed(2)}:1` : '-'}</div>
-                              <div className="flex items-center gap-1">
-                                <span className="text-muted-foreground">Confluence:</span> 
-                                {entry.confluence_score !== null && entry.confluence_score !== undefined ? (
-                                  <Badge variant="outline" className="text-xs">{entry.confluence_score}/5</Badge>
-                                ) : '-'}
-                              </div>
-                            </div>
-                            
-                            {entry.strategies && entry.strategies.length > 0 && (
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <Target className="h-4 w-4 text-muted-foreground" />
-                                {entry.strategies.map(strategy => (
-                                  <Badge key={strategy.id} variant="secondary">
-                                    {strategy.name}
-                                  </Badge>
-                                ))}
-                              </div>
-                            )}
-
-                            {entry.notes && (
-                              <p className="text-sm text-muted-foreground">{entry.notes}</p>
-                            )}
-
-                            {entry.tags && entry.tags.length > 0 && (
-                              <div className="flex gap-2 flex-wrap">
-                                {entry.tags.map((tag) => (
-                                  <Badge key={tag} variant="outline" className="text-xs">
-                                    <Tag className="h-3 w-3 mr-1" />{tag}
-                                  </Badge>
-                                ))}
-                              </div>
-                            )}
-                          </CardContent>
-                        </Card>
-                      );
-                    })
-                  )}
-                </div>
+                {/* Sub-tabs: Binance History (priority) and Paper History */}
+                <Tabs defaultValue="binance-history" className="w-full">
+                  <TabsList className="mb-4">
+                    <TabsTrigger value="binance-history" className="gap-2">
+                      <Wifi className="h-4 w-4" />
+                      Binance
+                      {filteredBinanceTrades.length > 0 && (
+                        <Badge variant="secondary" className="ml-1 h-5 px-1.5">{filteredBinanceTrades.length}</Badge>
+                      )}
+                    </TabsTrigger>
+                    <TabsTrigger value="paper-history" className="gap-2">
+                      <BookOpen className="h-4 w-4" />
+                      Paper
+                      {filteredPaperTrades.length > 0 && (
+                        <Badge variant="secondary" className="ml-1 h-5 px-1.5">{filteredPaperTrades.length}</Badge>
+                      )}
+                    </TabsTrigger>
+                  </TabsList>
+                  
+                  {/* Binance History Sub-Tab (Priority) */}
+                  <TabsContent value="binance-history">
+                    <div className="space-y-4">
+                      {filteredBinanceTrades.length === 0 ? (
+                        <EmptyState
+                          icon={Wifi}
+                          title="No Binance trades found"
+                          description={isBinanceConnected 
+                            ? "Import trades from your Binance account using the Import tab." 
+                            : "Connect your Binance account to import trade history."}
+                          action={isBinanceConnected ? undefined : {
+                            label: "Go to Settings",
+                            onClick: () => window.location.href = '/settings',
+                          }}
+                        />
+                      ) : (
+                        filteredBinanceTrades.map((entry) => (
+                          <TradeHistoryCard 
+                            key={entry.id} 
+                            entry={entry} 
+                            onDelete={setDeletingTrade}
+                            calculateRR={calculateRR}
+                            formatCurrency={formatCurrency}
+                            isBinance={true}
+                          />
+                        ))
+                      )}
+                    </div>
+                  </TabsContent>
+                  
+                  {/* Paper History Sub-Tab */}
+                  <TabsContent value="paper-history">
+                    <div className="space-y-4">
+                      {filteredPaperTrades.length === 0 ? (
+                        <EmptyState
+                          icon={BookOpen}
+                          title="No paper trades found"
+                          description="No paper trades match your current filters. Try adjusting the date range or strategy filters."
+                          action={{
+                            label: "Add Paper Trade",
+                            onClick: () => setIsAddOpen(true),
+                          }}
+                        />
+                      ) : (
+                        filteredPaperTrades.map((entry) => (
+                          <TradeHistoryCard 
+                            key={entry.id} 
+                            entry={entry} 
+                            onDelete={setDeletingTrade}
+                            calculateRR={calculateRR}
+                            formatCurrency={formatCurrency}
+                            isBinance={false}
+                          />
+                        ))
+                      )}
+                    </div>
+                  </TabsContent>
+                </Tabs>
               </TabsContent>
 
               {/* Import from Binance Tab */}
