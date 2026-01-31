@@ -198,6 +198,12 @@ export default function TradingJournal() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
+        {/* Pro Tip - at top */}
+        <QuickTip storageKey="trading_journal_tip" className="mb-2">
+          <strong>Pro tip:</strong> Document every trade with detailed notes and tag your strategies. 
+          Focus on quality setups and review your patterns to improve your trading edge.
+        </QuickTip>
+
         {/* Page Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
@@ -366,11 +372,6 @@ export default function TradingJournal() {
           </CardContent>
         </Card>
 
-        {/* Pro Tip */}
-        <QuickTip storageKey="trading_journal_tip" className="mb-2">
-          <strong>Pro tip:</strong> Document every trade with detailed notes and tag your strategies. 
-          Focus on quality setups and review your patterns to improve your trading edge.
-        </QuickTip>
 
         {/* Close Position Dialog */}
         <ClosePositionDialog

@@ -47,8 +47,8 @@ const navigationGroups = [
     title: "Market",
     items: [
       { title: "Market Data", url: "/market-data", icon: BarChart3 },
-      { title: "Top Movers", url: "/top-movers", icon: Flame },
       { title: "Economic Calendar", url: "/calendar", icon: Calendar },
+      { title: "Top Movers", url: "/top-movers", icon: Flame },
       { title: "AI Analysis", url: "/market", icon: TrendingUp },
     ],
   },
@@ -85,8 +85,8 @@ const navigationGroups = [
   {
     title: "Settings",
     items: [
-      { title: "Settings", url: "/settings", icon: Settings },
       { title: "Bulk Export", url: "/export", icon: Download },
+      { title: "Settings", url: "/settings", icon: Settings },
     ],
   },
 ];

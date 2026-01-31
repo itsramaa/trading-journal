@@ -193,7 +193,7 @@ export default function StrategyManagement() {
                     performance={strategyPerformance.get(strategy.id)}
                     onEdit={handleOpenEdit}
                     onDelete={setDeletingStrategy}
-                    onBacktest={() => setActiveTab('backtest')}
+                    onBacktest={(id) => {/* Navigation handled in StrategyCard */}}
                   />
                 ))}
               </div>

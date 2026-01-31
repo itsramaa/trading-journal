@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,7 +25,10 @@ import type { BacktestConfig, BacktestResult } from "@/types/backtest";
 import { COMMON_PAIRS } from "@/types/strategy";
 
 export function BacktestRunner() {
-  const [selectedStrategyId, setSelectedStrategyId] = useState<string>('');
+  const [searchParams] = useSearchParams();
+  const strategyFromUrl = searchParams.get('strategy');
+  
+  const [selectedStrategyId, setSelectedStrategyId] = useState<string>(strategyFromUrl || '');
   const [selectedPair, setSelectedPair] = useState('BTC');
   const [periodStart, setPeriodStart] = useState<Date>(subMonths(new Date(), 3));
   const [periodEnd, setPeriodEnd] = useState<Date>(new Date());
@@ -35,6 +39,13 @@ export function BacktestRunner() {
   const { data: strategies, isLoading: strategiesLoading } = useTradingStrategies();
   const { data: baseAssets } = useBaseAssets();
   const runBacktest = useRunBacktest();
+
+  // Update selected strategy when URL param changes or strategies load
+  useEffect(() => {
+    if (strategyFromUrl && strategies?.some(s => s.id === strategyFromUrl)) {
+      setSelectedStrategyId(strategyFromUrl);
+    }
+  }, [strategyFromUrl, strategies]);
 
   const availablePairs = baseAssets.length > 0 ? baseAssets : COMMON_PAIRS;
 

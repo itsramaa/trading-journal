@@ -124,7 +124,66 @@ const Dashboard = () => {
           <p className="text-muted-foreground">{t('dashboard.welcome')}</p>
         </div>
 
-        {/* 1. Quick Actions - No title */}
+        {/* 1. 7-Day Stats - At top with title */}
+        {hasTrades && (
+          <>
+            <h2 className="text-lg font-semibold">7-Day Stats</h2>
+            <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Current Streak</p>
+                      <p className={`text-2xl font-bold ${sevenDayStats.streak.type === 'win' ? 'text-profit' : 'text-loss'}`}>
+                        {sevenDayStats.streak.count} {sevenDayStats.streak.type === 'win' ? 'W' : 'L'}
+                      </p>
+                    </div>
+                    <Flame className={`h-8 w-8 ${sevenDayStats.streak.type === 'win' ? 'text-profit' : 'text-loss'}`} />
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Trades (7D)</p>
+                      <p className="text-2xl font-bold">{sevenDayStats.trades7d}</p>
+                    </div>
+                    <Activity className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Best Day</p>
+                      <p className={`text-2xl font-bold ${sevenDayStats.bestDay.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                        {sevenDayStats.bestDay.pnl >= 0 ? '+' : ''}{formatCurrency(sevenDayStats.bestDay.pnl, 'USD')}
+                      </p>
+                    </div>
+                    <Trophy className="h-8 w-8 text-profit" />
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Worst Day</p>
+                      <p className={`text-2xl font-bold ${sevenDayStats.worstDay.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                        {sevenDayStats.worstDay.pnl >= 0 ? '+' : ''}{formatCurrency(sevenDayStats.worstDay.pnl, 'USD')}
+                      </p>
+                    </div>
+                    <AlertTriangle className="h-8 w-8 text-loss" />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </>
+        )}
+
+        {/* 2. Quick Actions - No title */}
         <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
           <Button variant="outline" className="h-auto py-4 flex flex-col gap-2" asChild>
             <Link to="/trading">
@@ -151,63 +210,6 @@ const Dashboard = () => {
             </Link>
           </Button>
         </div>
-
-        {/* 2. 7-Day Stats - No title (moved from Trading Journal) */}
-        {hasTrades && (
-          <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
-            <Card>
-              <CardContent className="pt-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Current Streak</p>
-                    <p className={`text-2xl font-bold ${sevenDayStats.streak.type === 'win' ? 'text-profit' : 'text-loss'}`}>
-                      {sevenDayStats.streak.count} {sevenDayStats.streak.type === 'win' ? 'W' : 'L'}
-                    </p>
-                  </div>
-                  <Flame className={`h-8 w-8 ${sevenDayStats.streak.type === 'win' ? 'text-profit' : 'text-loss'}`} />
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Trades (7D)</p>
-                    <p className="text-2xl font-bold">{sevenDayStats.trades7d}</p>
-                  </div>
-                  <Activity className="h-8 w-8 text-muted-foreground" />
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Best Day</p>
-                    <p className={`text-2xl font-bold ${sevenDayStats.bestDay.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                      {sevenDayStats.bestDay.pnl >= 0 ? '+' : ''}{formatCurrency(sevenDayStats.bestDay.pnl, 'USD')}
-                    </p>
-                  </div>
-                  <Trophy className="h-8 w-8 text-profit" />
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Worst Day</p>
-                    <p className={`text-2xl font-bold ${sevenDayStats.worstDay.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                      {sevenDayStats.worstDay.pnl >= 0 ? '+' : ''}{formatCurrency(sevenDayStats.worstDay.pnl, 'USD')}
-                    </p>
-                  </div>
-                  <AlertTriangle className="h-8 w-8 text-loss" />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
         {/* 3. System Status - No title (already built-in) */}
         <SystemStatusIndicator />
 
