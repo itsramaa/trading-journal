@@ -5,7 +5,6 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { 
   Clock, 
@@ -19,15 +18,18 @@ import {
   Edit,
   CheckCircle2,
   XCircle,
-  AlertCircle
+  AlertCircle,
+  Download
 } from "lucide-react";
 import { format } from "date-fns";
 import type { TradingStrategy } from "@/hooks/use-trading-strategies";
 import { useStrategyContext } from "@/hooks/use-strategy-context";
 import { getQualityScoreLabel, type StrategyPerformance } from "@/hooks/use-strategy-performance";
+import { useStrategyExport } from "@/hooks/use-strategy-export";
 import { MarketFitSection } from "./MarketFitSection";
 import { PairRecommendations } from "./PairRecommendations";
 import { Progress } from "@/components/ui/progress";
+import { toast } from "sonner";
 
 // Design system color tokens
 const colorClasses: Record<string, string> = {
@@ -59,9 +61,28 @@ export function StrategyDetailDrawer({
   onBacktest,
 }: StrategyDetailDrawerProps) {
   const strategyContext = useStrategyContext(strategy);
+  const { exportToPDF } = useStrategyExport();
   const qualityScore = performance?.aiQualityScore || 0;
   const scoreInfo = getQualityScoreLabel(qualityScore);
   const colorClass = colorClasses[strategy?.color || 'blue'] || colorClasses.blue;
+
+  const handleExportPDF = () => {
+    if (!strategy) return;
+    
+    exportToPDF({
+      strategy,
+      performance,
+      marketFit: strategyContext?.marketFit,
+      strategyPerformance: strategyContext?.performance,
+      recommendations: strategyContext?.recommendations,
+      validityReasons: strategyContext?.validityReasons,
+      isValidForCurrentConditions: strategyContext?.isValidForCurrentConditions,
+    });
+    
+    toast.success('Strategy report exported', {
+      description: `PDF saved for ${strategy.name}`,
+    });
+  };
 
   if (!strategy) return null;
 
@@ -83,11 +104,19 @@ export function StrategyDetailDrawer({
           <div className="flex gap-2">
             <Button onClick={onEdit} variant="outline" className="flex-1">
               <Edit className="h-4 w-4 mr-2" />
-              Edit Strategy
+              Edit
             </Button>
-            <Button onClick={onBacktest} className="flex-1">
+            <Button onClick={onBacktest} variant="outline" className="flex-1">
               <Play className="h-4 w-4 mr-2" />
-              Run Backtest
+              Backtest
+            </Button>
+            <Button 
+              onClick={handleExportPDF} 
+              variant="outline"
+              disabled={strategyContext?.isLoading}
+              aria-label="Export strategy report as PDF"
+            >
+              <Download className="h-4 w-4" />
             </Button>
           </div>
 
