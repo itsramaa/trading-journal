@@ -189,10 +189,10 @@ export function MarketSentimentWidget({
                     variant="outline"
                     role="combobox"
                     aria-expanded={open}
-                    className="h-8 w-24 justify-between"
+                    className="h-8 w-28 justify-between"
                     disabled={pairsLoading}
                   >
-                    {currentLabel}
+                    {symbol}
                     <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
@@ -218,8 +218,7 @@ export function MarketSentimentWidget({
                                 symbol === s.value ? "opacity-100" : "opacity-0"
                               )}
                             />
-                            {s.label}
-                            <span className="ml-auto text-xs text-muted-foreground">{s.value}</span>
+                            {s.value}
                           </CommandItem>
                         ))}
                       </CommandGroup>
@@ -242,8 +241,7 @@ export function MarketSentimentWidget({
                                   symbol === s.value ? "opacity-100" : "opacity-0"
                                 )}
                               />
-                              {s.label}
-                              <span className="ml-auto text-xs text-muted-foreground">{s.value}</span>
+                              {s.value}
                             </CommandItem>
                           ))}
                       </CommandGroup>

@@ -63,7 +63,7 @@ const navigationGroups = [
     title: "Risk",
     items: [
       { title: "Risk Overview", url: "/risk", icon: Shield },
-      { title: "Position Calculator", url: "/calculator", icon: Calculator },
+      { title: "Risk Calculator", url: "/calculator", icon: Calculator },
     ],
   },
   {
