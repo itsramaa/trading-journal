@@ -15,7 +15,7 @@ import { calculatePositionSize } from "@/lib/calculations/position-sizing";
 import { useRiskProfile } from "@/hooks/use-risk-profile";
 import { useBestAvailableBalance } from "@/hooks/use-combined-balance";
 import { useBinanceCommissionRate, useBinanceLeverageBrackets, getMaxLeverageForNotional } from "@/features/binance";
-import { CalculatorInputs, CalculatorResults, QuickReferenceR } from "@/components/risk/calculator";
+import { CalculatorInputs, CalculatorResults, QuickReferenceR, ContextWarnings } from "@/components/risk/calculator";
 import { VolatilityStopLoss } from "@/components/risk/calculator/VolatilityStopLoss";
 import { MarketScoreWidget } from "@/components/dashboard/MarketScoreWidget";
 import { trackEvent, ANALYTICS_EVENTS } from "@/lib/analytics";
@@ -139,7 +139,10 @@ export default function PositionCalculator() {
         </div>
 
         {/* Market Score Widget - Quick Assessment */}
-        <MarketScoreWidget symbol={selectedSymbol} compact />
+        <div className="grid gap-4 md:grid-cols-2">
+          <MarketScoreWidget symbol={selectedSymbol} compact />
+          <ContextWarnings symbol={selectedSymbol} />
+        </div>
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
