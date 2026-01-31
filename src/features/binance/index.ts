@@ -24,8 +24,7 @@ export * from './useBinanceExtendedData';
 // Phase 5: Bulk export hooks
 export * from './useBinanceBulkExport';
 
-// Phase 6: Algo orders and transaction history hooks
-export * from './useBinanceAlgoOrders';
+// Phase 6: Transaction history hooks
 export * from './useBinanceTransactionHistory';
 
 // Re-export commonly used account hooks for convenience
@@ -109,15 +108,6 @@ export {
   getExportTypeLabel,
   getExportTypeDescription,
 } from './useBinanceBulkExport';
-
-// Re-export Phase 6 algo orders hooks
-export {
-  useBinanceAlgoOrders,
-  useBinanceAlgoOpenOrders,
-  useBinanceAlgoOrder,
-  getAlgoTypeLabel,
-  getAlgoStatusVariant,
-} from './useBinanceAlgoOrders';
 
 // Re-export Phase 6 transaction history hooks
 export {

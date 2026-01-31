@@ -21,12 +21,11 @@ import {
   Wifi, 
   Circle, 
   Clock, 
-  Target, 
+  Target,
   TrendingUp
 } from "lucide-react";
 import { useTradeEntries, useDeleteTradeEntry, useClosePosition, useUpdateTradeEntry, TradeEntry } from "@/hooks/use-trade-entries";
 import { useBinancePositions, useBinanceBalance, useBinanceConnectionStatus } from "@/features/binance";
-import { AlgoOrdersTab } from "@/components/trading/AlgoOrdersTab";
 import { calculateTradingStats } from "@/lib/trading-calculations";
 import { WinRateTooltip, ProfitFactorTooltip, ProfitLossTooltip } from "@/components/ui/info-tooltip";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
@@ -312,7 +311,7 @@ export default function TradingJournal() {
           </CardHeader>
           <CardContent className="space-y-4">
             <Tabs defaultValue="active">
-              <TabsList className="grid w-full grid-cols-3 max-w-[400px]">
+              <TabsList className="grid w-full grid-cols-2 max-w-[300px]">
                 <TabsTrigger value="pending" className="gap-2">
                   <Clock className="h-4 w-4" aria-hidden="true" />
                   <span className="hidden sm:inline">Pending</span>
@@ -330,10 +329,6 @@ export default function TradingJournal() {
                       {openPositions.filter(p => p.entry_price && p.entry_price > 0).length + binancePositions.filter(p => p.positionAmt !== 0).length}
                     </Badge>
                   )}
-                </TabsTrigger>
-                <TabsTrigger value="algo" className="gap-2">
-                  <Target className="h-4 w-4" aria-hidden="true" />
-                  <span className="hidden sm:inline">Algo Orders</span>
                 </TabsTrigger>
               </TabsList>
               
@@ -371,11 +366,6 @@ export default function TradingJournal() {
                   onDelete={setDeletingTrade}
                   formatCurrency={formatCurrency}
                 />
-              </TabsContent>
-              
-              {/* Algo Orders Tab */}
-              <TabsContent value="algo" className="mt-4">
-                <AlgoOrdersTab />
               </TabsContent>
             </Tabs>
           </CardContent>
