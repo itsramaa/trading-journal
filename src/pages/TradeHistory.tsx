@@ -14,7 +14,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { TradeHistoryCard } from "@/components/trading/TradeHistoryCard";
 import { BinanceTradeHistory } from "@/components/trading/BinanceTradeHistory";
 import { BinanceIncomeHistory } from "@/components/trading/BinanceIncomeHistory";
-import { History, Wifi, BookOpen, RefreshCw, FileText, Download } from "lucide-react";
+import { History, Wifi, BookOpen, RefreshCw, FileText } from "lucide-react";
 import { format } from "date-fns";
 import { useTradeEntries, useDeleteTradeEntry, TradeEntry } from "@/hooks/use-trade-entries";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
@@ -261,10 +261,6 @@ export default function TradeHistory() {
                   <BookOpen className="h-4 w-4" aria-hidden="true" />
                   Paper
                   <Badge variant="secondary" className="ml-1 h-5 px-1.5">{filteredPaperTrades.length}</Badge>
-                </TabsTrigger>
-                <TabsTrigger value="import" className="gap-2">
-                  <Download className="h-4 w-4" aria-hidden="true" />
-                  Import
                 </TabsTrigger>
               </TabsList>
 
