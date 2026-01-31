@@ -111,22 +111,37 @@ export function StrategyCard({ strategy, performance, onEdit, onDelete, onBackte
             
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Options for ${strategy.name} strategy`}>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-8 w-8" 
+                  aria-label={`Options for ${strategy.name} strategy`}
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <MoreVertical className="h-4 w-4" aria-hidden="true" />
                   <span className="sr-only">Strategy options</span>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => onEdit(strategy)}>
+              <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                <DropdownMenuItem onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit(strategy);
+                }}>
                   <Edit className="h-4 w-4 mr-2" aria-hidden="true" />
                   Edit
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleBacktest}>
+                <DropdownMenuItem onClick={(e) => {
+                  e.stopPropagation();
+                  handleBacktest();
+                }}>
                   <Play className="h-4 w-4 mr-2" aria-hidden="true" />
                   Run Backtest
                 </DropdownMenuItem>
                 <DropdownMenuItem 
-                  onClick={() => onDelete(strategy)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(strategy);
+                  }}
                   className="text-destructive"
                 >
                   <Trash2 className="h-4 w-4 mr-2" aria-hidden="true" />
