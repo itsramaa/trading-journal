@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import { 
   Brain, 
   TrendingUp, 
@@ -25,9 +26,12 @@ import {
   Shield,
   Calendar,
   Activity,
+  Download,
 } from "lucide-react";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
+import { useContextualAnalytics } from "@/hooks/use-contextual-analytics";
+import { useContextualExport } from "@/hooks/use-contextual-export";
 import { ContextualPerformance } from "@/components/analytics/ContextualPerformance";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
@@ -59,6 +63,8 @@ interface TimeSlotAnalysis {
 export default function AIInsights() {
   const { data: trades = [] } = useTradeEntries();
   const { data: strategies = [] } = useTradingStrategies();
+  const { data: contextualData } = useContextualAnalytics();
+  const { exportContextualPDF } = useContextualExport();
 
   const closedTrades = useMemo(() => 
     trades.filter(t => t.status === 'closed'), [trades]
@@ -346,14 +352,26 @@ export default function AIInsights() {
     <DashboardLayout>
       <div className="space-y-6">
         {/* Page Header */}
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Brain className="h-6 w-6 text-primary" />
-            AI Insights
-          </h1>
-          <p className="text-muted-foreground">
-            AI-powered analysis of your trading patterns and recommendations
-          </p>
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+              <Brain className="h-6 w-6 text-primary" />
+              AI Insights
+            </h1>
+            <p className="text-muted-foreground">
+              AI-powered analysis of your trading patterns and recommendations
+            </p>
+          </div>
+          {contextualData && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => exportContextualPDF(contextualData)}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Export Contextual PDF
+            </Button>
+          )}
         </div>
 
         {/* Tabs */}
