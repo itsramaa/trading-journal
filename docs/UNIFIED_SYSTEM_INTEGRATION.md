@@ -438,6 +438,42 @@ Key features:
 
 ---
 
+## Analytics Integration
+
+### Linkage dengan Analytics Group
+
+Analytics saat ini adalah **standalone consumer** dari Journal dan Strategy data, tanpa integrasi dengan Market, Calendar, Risk context.
+
+```
+Market Context ─────► Analytics Engine
+• Volatility levels    • Segment by volatility
+• Fear/Greed           • Correlate with sentiment
+• Economic events      • Annotate charts
+
+Journal + Strategy ──► Contextual Analytics
+• market_context       • WHY performance happened
+• Emotional state      • Correlate with state
+• Strategy rules       • Strategy-specific analysis
+
+Risk Profile ────────► Performance Comparison
+• Limits               • Compare drawdown vs limits
+• Events               • Annotate limit breaches
+```
+
+### New Hook: useContextualAnalytics
+
+Detailed specification available in `docs/ANALYTICS_INTEGRATION_ANALYSIS.md`.
+
+Key features:
+| Feature | Source | Output |
+|---------|--------|--------|
+| Volatility Segmentation | market_context | Win rate by vol level |
+| F&G Correlation | market_context | Performance by sentiment |
+| Event Impact | Calendar + trades | Event day vs normal |
+| Contextual Insights | AI calculation | Data-driven recommendations |
+
+---
+
 ## Related Documents
 
 | Document | Focus |
@@ -446,6 +482,7 @@ Key features:
 | `JOURNAL_INTEGRATION_ANALYSIS.md` | Trading Journal, Trade History, Enrichment |
 | `RISK_MANAGEMENT_INTEGRATION_ANALYSIS.md` | Risk Overview, Risk Calculator, Trading Gate |
 | `STRATEGY_INTEGRATION_ANALYSIS.md` | Strategy Library, Backtest, Performance |
+| `ANALYTICS_INTEGRATION_ANALYSIS.md` | Performance, Daily P&L, Heatmap, AI Insights |
 | `Trading_Journey_User_Flow.md` | Complete user flow specification |
 
 ---
@@ -469,23 +506,97 @@ Key features:
 - [ ] Add Pair Recommendations to Strategy view
 - [ ] Add Regime Analysis to Backtest Results
 
-### Phase 4: AI Integration
-- [ ] Correlation analysis in AI Insights
-- [ ] Adaptive strategy recommendations
-- [ ] Post-trade feedback loop
+### Phase 4: Analytics Integration
+- [ ] Implement `useContextualAnalytics` hook
+- [ ] Add event annotations to Equity Curve
+- [ ] Add contextual performance to AI Insights
+- [ ] Add F&G correlation charts
+- [ ] Add event overlay to Heatmap
+
+### Phase 5: Complete Feedback Loop
+- [ ] Analytics insights feed back to Strategy recommendations
+- [ ] Risk profile auto-adjustment suggestions
+- [ ] Trading gate awareness of analytics patterns
+- [ ] Post-trade feedback completes the loop
+
+---
+
+## Complete System Architecture (Final)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                            UNIFIED MARKET CONTEXT                                    │
+│                (Single Source of Truth for all trading decisions)                   │
+└─────────────────────────────────────────┬───────────────────────────────────────────┘
+                                          │
+    ┌─────────────────────────────────────┼─────────────────────────────────────┐
+    │                                     │                                     │
+    ▼                                     ▼                                     ▼
+┌───────────────┐                 ┌───────────────┐                 ┌───────────────┐
+│  MARKET DATA  │                 │   STRATEGY    │                 │    JOURNAL    │
+│    DOMAIN     │◄───────────────►│    DOMAIN     │◄───────────────►│    DOMAIN     │
+└───────┬───────┘                 └───────┬───────┘                 └───────┬───────┘
+        │                                 │                                 │
+        │         ┌───────────────────────┼───────────────────────┐         │
+        │         │                       ▼                       │         │
+        │         │               ┌───────────────┐               │         │
+        └─────────┼──────────────►│     RISK      │◄──────────────┼─────────┘
+                  │               │   MANAGEMENT  │               │
+                  │               └───────┬───────┘               │
+                  │                       │                       │
+                  └───────────────────────┼───────────────────────┘
+                                          │
+                                          ▼
+                          ┌───────────────────────────────┐
+                          │      TRADE ENTRY WIZARD       │
+                          └───────────────┬───────────────┘
+                                          │
+                                          ▼
+                          ┌───────────────────────────────┐
+                          │      POST-TRADE ANALYSIS      │
+                          └───────────────┬───────────────┘
+                                          │
+                                          ▼
+                          ┌───────────────────────────────┐
+                          │        ANALYTICS ENGINE       │
+                          │                               │
+                          │  • Contextual Segmentation    │
+                          │  • Event Annotations          │
+                          │  • Correlation Analysis       │
+                          │  • Pattern Detection          │
+                          │  • Actionable Insights        │
+                          └───────────────┬───────────────┘
+                                          │
+                          ┌───────────────┼───────────────┐
+                          │               │               │
+                          ▼               ▼               ▼
+                    ┌───────────┐  ┌───────────┐  ┌───────────┐
+                    │ STRATEGY  │  │   RISK    │  │   TRADE   │
+                    │ REFINEMENT│  │ ADJUSTMENT│  │  GUIDANCE │
+                    └─────┬─────┘  └─────┬─────┘  └─────┬─────┘
+                          │              │              │
+                          └──────────────┼──────────────┘
+                                         │
+                                         ▼
+                                  ┌─────────────┐
+                                  │  CONTINUOUS │
+                                  │  FEEDBACK   │
+                                  │    LOOP     │
+                                  └─────────────┘
+```
 
 ---
 
 ## Conclusion
 
-Sistem saat ini memiliki **data vertikal yang solid** (Binance → DB → UI) tetapi **horizontal integration yang lemah** (Market ↔ Journal ↔ Risk ↔ Strategy). 
+Sistem saat ini memiliki **data vertikal yang solid** (Binance → DB → UI) tetapi **horizontal integration yang lemah** (Market ↔ Journal ↔ Risk ↔ Strategy ↔ Analytics). 
 
 Dengan mengimplementasikan integrasi yang diusulkan:
 
 ### Fase 1: UnifiedMarketContext
 - Menghubungkan semua sumber data pasar
 - Menyimpan snapshot saat trade entry
-- Memungkinkan analisis korelasi AI
+- Foundation untuk semua analisis kontekstual
 
 ### Fase 2: Context-Aware Risk
 - Otomatis menyesuaikan position sizing
@@ -498,18 +609,30 @@ Dengan mengimplementasikan integrasi yang diusulkan:
 - Pair-specific recommendations
 - Regime-based performance analysis
 
-### Fase 4: Complete Decision Support
-- Trade Entry Wizard terintegrasi penuh
-- AI recommendations dengan full context
-- Proactive protection dari market conditions
-- Continuous feedback loop
+### Fase 4: Contextual Analytics
+- Performance segmented by market conditions
+- Event annotations on all charts
+- Correlation analysis (sentiment vs results)
+- Data-driven contextual recommendations
 
-Ini mengubah sistem dari **reactive journaling** menjadi **intelligent trading decision support**:
+### Fase 5: Complete Feedback Loop
+- Analytics insights improve strategy selection
+- Risk profile adapts to analytics patterns
+- Trading gate becomes context-aware
+- System continuously learns and improves
+
+Ini mengubah sistem dari **reactive journaling** menjadi **intelligent trading ecosystem**:
 
 ```
-Market Conditions → Strategy Selection → Risk Adjustment → Trade Execution
-         ↑                                                        │
-         └────────────── Post-Trade Feedback ─────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                                                                         │
+│   Market Conditions ──► Strategy Selection ──► Risk Adjustment          │
+│          ▲                                           │                  │
+│          │                                           ▼                  │
+│   Analytics Insights ◄── Post-Trade Analysis ◄── Trade Execution        │
+│                                                                         │
+│                    CONTINUOUS LEARNING LOOP                             │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Result**: Dari isolated silos menjadi **fully integrated trading ecosystem**.
+**Result**: Dari isolated silos menjadi **fully integrated, self-improving trading intelligence system**.
