@@ -1,10 +1,11 @@
 
-# Comprehensive Trading Domain Cross-Check Audit & Remediation Plan V8
+# Comprehensive Trading Domain Cross-Check Audit & Remediation Plan V9
 
-## Status: ✅ STEP 3 COMPLETE - ANALYTICS DOMAIN AUDIT DONE
+## Status: ✅ STEP 2 (JOURNAL) + STEP 3 (ANALYTICS) COMPLETE
 **Tanggal Audit**: 2026-01-31
 **Domain Identification**: COMPLETED (Step 1)
-**ACCOUNTS Domain**: COMPLETED (Step 2)
+**ACCOUNTS Domain**: COMPLETED (Foundation)
+**JOURNAL Domain**: COMPLETED (Step 2)
 **ANALYTICS Domain**: COMPLETED (Step 3)
 **Next Step**: RISK Domain Audit (Step 4)
 **Basis Audit**: Menu-based domain analysis + Binance Futures Domain Model
@@ -18,7 +19,7 @@
 | Step | Domain | Dependencies | Status |
 |------|--------|--------------|--------|
 | 1 | ACCOUNTS | None | ✅ DONE |
-| 2 | JOURNAL | ACCOUNTS | 🔜 PENDING |
+| 2 | JOURNAL | ACCOUNTS | ✅ DONE |
 | 3 | ANALYTICS | JOURNAL, ACCOUNTS | ✅ DONE |
 | 4 | RISK | ACCOUNTS, ANALYTICS | 🔜 PENDING |
 | 5 | STRATEGY | External market data | 🔜 PENDING |
@@ -27,6 +28,34 @@
 | 8 | SETTINGS | None | 🔜 PENDING |
 | 9 | USER | Auth system | 🔜 PENDING |
 | 10 | INFRASTRUCTURE | None | 🔜 PENDING |
+
+---
+
+## JOURNAL DOMAIN AUDIT (STEP 2) - COMPLETED
+
+### Pages & Components Verified
+- `/journal` (TradingJournal.tsx) - Pending & Active positions management
+- `/history` (TradeHistory.tsx) - Closed trades with filters, AI sorting, enrichment
+
+### Core Hooks Verified
+- `useTradeEntries()` - CRUD dengan strategy linking, screenshots JSONB
+- `useBinanceSync()` / `useBulkSyncTrades()` - Duplicate detection via binance_trade_id
+- `useClosePosition()` - Lifecycle transition, result auto-calculation, AI trigger
+- `usePostTradeAnalysis()` - Async post-trade AI analysis
+
+### Data Flow Verified
+- **IN**: Binance API (positions/trades), Market Context (Fear/Greed saat capture)
+- **OUT**: Analytics (useTradeEntries), Risk (useUnifiedDailyPnl), Dashboard
+
+### Calculations Verified (`trading-calculations.ts`)
+- Win Rate, Profit Factor, Expectancy, Sharpe Ratio, Max Drawdown
+- R:R calculation with direction awareness
+- Equity curve generation
+
+### Integration Points Verified
+- Trading Gate integration dalam TradeEntryWizard
+- TradeEnrichmentDrawer untuk Binance & Paper trades
+- Express Mode (3 steps) vs Full Mode (5 steps)
 
 ### Domain Map (CORRECTED)
 
