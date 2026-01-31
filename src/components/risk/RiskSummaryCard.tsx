@@ -12,6 +12,7 @@ import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { useDailyRiskStatus } from "@/hooks/use-risk-profile";
 import { useBinancePositions, useBinanceConnectionStatus } from "@/features/binance";
 import { checkCorrelationRisk, extractSymbols, type CorrelationWarning } from "@/lib/correlation-utils";
+import { formatPercentUnsigned, formatCurrency } from "@/lib/formatters";
 
 export function RiskSummaryCard() {
   const { data: riskStatus, riskProfile, isBinanceConnected } = useDailyRiskStatus();
@@ -111,7 +112,7 @@ export function RiskSummaryCard() {
               <InfoTooltip content="Maximum amount you're allowed to lose in a single trading day, based on your risk profile percentage of total capital." />
             </span>
             <span className="font-medium">
-              {riskStatus.loss_used_percent.toFixed(1)}% used
+              {formatPercentUnsigned(riskStatus.loss_used_percent, 1)} used
             </span>
           </div>
           <Progress 
@@ -120,10 +121,10 @@ export function RiskSummaryCard() {
           />
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
-              Remaining: ${riskStatus.remaining_budget.toFixed(2)}
+              Remaining: {formatCurrency(riskStatus.remaining_budget, 'USD')}
               <InfoTooltip content="How much more you can lose today before hitting your daily loss limit." />
             </span>
-            <span>Limit: ${riskStatus.loss_limit.toFixed(2)}</span>
+            <span>Limit: {formatCurrency(riskStatus.loss_limit, 'USD')}</span>
           </div>
         </div>
 
@@ -147,7 +148,7 @@ export function RiskSummaryCard() {
                 Correlated Positions
               </span>
               <p className="text-xs text-muted-foreground mt-0.5">
-                {correlationWarning.pairs.length} pair{correlationWarning.pairs.length !== 1 ? 's' : ''} ({(correlationWarning.avgCorrelation * 100).toFixed(0)}% avg)
+                {correlationWarning.pairs.length} pair{correlationWarning.pairs.length !== 1 ? 's' : ''} ({formatPercentUnsigned(correlationWarning.avgCorrelation * 100, 0)} avg)
                 {correlationWarning.highRiskCount > 0 && (
                   <Badge variant="outline" className="ml-1.5 text-xs border-warning/30 text-warning">
                     High Risk

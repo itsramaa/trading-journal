@@ -4,6 +4,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Shield, AlertTriangle } from "lucide-react";
+import { formatPercentUnsigned } from "@/lib/formatters";
 
 interface RiskProfileData {
   risk_per_trade_percent: number;
@@ -37,15 +38,15 @@ export function RiskProfileSummaryCard({
           <div className="grid grid-cols-2 gap-3">
             <div className="p-3 rounded-lg bg-muted/50">
               <p className="text-xs text-muted-foreground">Risk per Trade</p>
-              <p className="text-lg font-semibold">{riskProfile.risk_per_trade_percent}%</p>
+              <p className="text-lg font-semibold">{formatPercentUnsigned(riskProfile.risk_per_trade_percent)}</p>
             </div>
             <div className="p-3 rounded-lg bg-muted/50">
               <p className="text-xs text-muted-foreground">Max Daily Loss</p>
-              <p className="text-lg font-semibold">{riskProfile.max_daily_loss_percent}%</p>
+              <p className="text-lg font-semibold">{formatPercentUnsigned(riskProfile.max_daily_loss_percent)}</p>
             </div>
             <div className="p-3 rounded-lg bg-muted/50">
               <p className="text-xs text-muted-foreground">Max Position Size</p>
-              <p className="text-lg font-semibold">{riskProfile.max_position_size_percent}%</p>
+              <p className="text-lg font-semibold">{formatPercentUnsigned(riskProfile.max_position_size_percent)}</p>
             </div>
             <div className="p-3 rounded-lg bg-muted/50">
               <p className="text-xs text-muted-foreground">Max Positions</p>

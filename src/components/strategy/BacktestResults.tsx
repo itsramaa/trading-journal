@@ -21,6 +21,7 @@ import { format } from "date-fns";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, ComposedChart } from "recharts";
 import type { BacktestResult } from "@/types/backtest";
 import { cn } from "@/lib/utils";
+import { formatPercent, formatCurrency, formatWinRate, formatNumber } from "@/lib/formatters";
 
 interface BacktestResultsProps {
   result: BacktestResult;
@@ -82,7 +83,7 @@ export function BacktestResults({ result }: BacktestResultsProps) {
                 )}
               >
                 {isProfit ? <TrendingUp className="h-4 w-4 mr-1" /> : <TrendingDown className="h-4 w-4 mr-1" />}
-                {metrics.totalReturn >= 0 ? '+' : ''}{metrics.totalReturn.toFixed(2)}%
+                {formatPercent(metrics.totalReturn)}
               </Badge>
             </div>
           </div>
@@ -100,7 +101,7 @@ export function BacktestResults({ result }: BacktestResultsProps) {
                   "text-2xl font-bold font-mono",
                   isProfit ? "text-profit" : "text-loss"
                 )}>
-                  ${metrics.totalReturnAmount.toFixed(2)}
+                  {formatCurrency(metrics.totalReturnAmount, 'USD')}
                 </p>
               </div>
               <div className={cn(
@@ -119,7 +120,7 @@ export function BacktestResults({ result }: BacktestResultsProps) {
               <div>
                 <p className="text-sm text-muted-foreground">Win Rate</p>
                 <p className="text-2xl font-bold font-mono">
-                  {(metrics.winRate * 100).toFixed(1)}%
+                  {formatWinRate(metrics.winRate * 100)}
                 </p>
               </div>
               <div className="p-2 rounded-full bg-primary/10">
@@ -138,7 +139,7 @@ export function BacktestResults({ result }: BacktestResultsProps) {
               <div>
                 <p className="text-sm text-muted-foreground">Max Drawdown</p>
                 <p className="text-2xl font-bold font-mono text-loss">
-                  {metrics.maxDrawdown.toFixed(2)}%
+                  {formatNumber(metrics.maxDrawdown, 2)}%
                 </p>
               </div>
               <div className="p-2 rounded-full bg-loss-muted">
@@ -146,7 +147,7 @@ export function BacktestResults({ result }: BacktestResultsProps) {
               </div>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              ${metrics.maxDrawdownAmount.toFixed(2)}
+              {formatCurrency(metrics.maxDrawdownAmount, 'USD')}
             </p>
           </CardContent>
         </Card>
@@ -157,7 +158,7 @@ export function BacktestResults({ result }: BacktestResultsProps) {
               <div>
                 <p className="text-sm text-muted-foreground">Sharpe Ratio</p>
                 <p className="text-2xl font-bold font-mono">
-                  {metrics.sharpeRatio.toFixed(2)}
+                  {formatNumber(metrics.sharpeRatio, 2)}
                 </p>
               </div>
               <div className="p-2 rounded-full bg-primary/10">
@@ -185,25 +186,25 @@ export function BacktestResults({ result }: BacktestResultsProps) {
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground text-sm">Avg Win</span>
-                <span className="font-medium font-mono text-profit">${metrics.avgWin.toFixed(2)}</span>
+                <span className="font-medium font-mono text-profit">{formatCurrency(metrics.avgWin, 'USD')}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground text-sm">Avg Loss</span>
-                <span className="font-medium font-mono text-loss">-${metrics.avgLoss.toFixed(2)}</span>
+                <span className="font-medium font-mono text-loss">-{formatCurrency(metrics.avgLoss, 'USD')}</span>
               </div>
             </div>
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground text-sm">Profit Factor</span>
-                <span className="font-medium font-mono">{metrics.profitFactor === Infinity ? '∞' : metrics.profitFactor.toFixed(2)}</span>
+                <span className="font-medium font-mono">{metrics.profitFactor === Infinity ? '∞' : formatNumber(metrics.profitFactor, 2)}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground text-sm">Avg Win %</span>
-                <span className="font-medium font-mono text-profit">+{metrics.avgWinPercent.toFixed(2)}%</span>
+                <span className="font-medium font-mono text-profit">{formatPercent(metrics.avgWinPercent)}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground text-sm">Avg Loss %</span>
-                <span className="font-medium font-mono text-loss">-{metrics.avgLossPercent.toFixed(2)}%</span>
+                <span className="font-medium font-mono text-loss">-{formatNumber(metrics.avgLossPercent, 2)}%</span>
               </div>
             </div>
             <div className="space-y-3">
@@ -217,7 +218,7 @@ export function BacktestResults({ result }: BacktestResultsProps) {
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground text-sm">Avg Holding</span>
-                <span className="font-medium font-mono">{metrics.holdingPeriodAvg.toFixed(1)}h</span>
+                <span className="font-medium font-mono">{formatNumber(metrics.holdingPeriodAvg, 1)}h</span>
               </div>
             </div>
           </div>
@@ -333,18 +334,18 @@ export function BacktestResults({ result }: BacktestResultsProps) {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right font-mono text-sm">
-                          ${trade.entryPrice.toFixed(2)}
+                          {formatCurrency(trade.entryPrice, 'USD')}
                         </TableCell>
                         <TableCell className="text-right font-mono text-sm">
-                          ${trade.exitPrice.toFixed(2)}
+                          {formatCurrency(trade.exitPrice, 'USD')}
                         </TableCell>
                         <TableCell className={cn(
                           "text-right font-mono text-sm font-medium",
                           trade.pnl >= 0 ? "text-profit" : "text-loss"
                         )}>
-                          {trade.pnl >= 0 ? '+' : ''}{trade.pnl.toFixed(2)}
+                          {formatPercent(trade.pnl)}
                           <span className="text-xs text-muted-foreground ml-1">
-                            ({trade.pnlPercent >= 0 ? '+' : ''}{trade.pnlPercent.toFixed(2)}%)
+                            ({formatPercent(trade.pnlPercent)})
                           </span>
                         </TableCell>
                         <TableCell>
