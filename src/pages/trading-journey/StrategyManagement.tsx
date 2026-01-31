@@ -10,7 +10,7 @@ import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Target, Youtube, Library } from "lucide-react";
+import { Plus, Target, Youtube, Library, Trophy } from "lucide-react";
 import { 
   useTradingStrategies, 
   useCreateTradingStrategy, 
@@ -26,6 +26,7 @@ import {
   StrategyFormDialog,
   StrategyDetailDrawer,
   StrategyShareDialog,
+  StrategyLeaderboard,
   YouTubeStrategyImporter,
 } from "@/components/strategy";
 import type { EntryRule, ExitRule } from "@/types/strategy";
@@ -163,14 +164,18 @@ export default function StrategyManagement() {
 
         {/* Main Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-2 h-11" aria-label="Strategy management sections">
+          <TabsList className="grid w-full grid-cols-3 h-11" aria-label="Strategy management sections">
             <TabsTrigger value="library" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground" aria-label="Strategy library">
               <Library className="h-4 w-4" aria-hidden="true" />
               <span className="hidden sm:inline">Library</span>
             </TabsTrigger>
+            <TabsTrigger value="leaderboard" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground" aria-label="Strategy leaderboard">
+              <Trophy className="h-4 w-4" aria-hidden="true" />
+              <span className="hidden sm:inline">Leaderboard</span>
+            </TabsTrigger>
             <TabsTrigger value="import" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground" aria-label="Import strategy from YouTube">
               <Youtube className="h-4 w-4" aria-hidden="true" />
-              <span className="hidden sm:inline">YouTube Import</span>
+              <span className="hidden sm:inline">Import</span>
             </TabsTrigger>
           </TabsList>
 
@@ -220,6 +225,11 @@ export default function StrategyManagement() {
                 ))}
               </div>
             )}
+          </TabsContent>
+
+          {/* Leaderboard Tab */}
+          <TabsContent value="leaderboard" className="mt-6">
+            <StrategyLeaderboard />
           </TabsContent>
 
           {/* YouTube Import Tab */}
