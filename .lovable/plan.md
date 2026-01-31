@@ -25,9 +25,14 @@
 - Added `StrategyCloneStatsWidget` import
 - Positioned at top of Library tab (before StrategyStats)
 
-### Remaining Phase 2 Tasks
-- [ ] AI Insights - Remove duplicate Quick Stats
-- [ ] Risk Management - Collapse correlation matrix by default
+### AI Insights - Quick Stats Removed ✅
+- Removed duplicate Quick Stats grid (Total P&L, Win Rate, PF, Streak)
+- These metrics already exist on Performance page
+
+### Risk Management - Collapsible Correlation Matrix ✅
+- Made CorrelationMatrix collapsible by default
+- Auto-expands when high correlation warnings exist
+- Added "Advanced" badge to indicate feature complexity
 
 ## Phase 3: LOW PRIORITY
 - [ ] Trade History - Add saved filters
