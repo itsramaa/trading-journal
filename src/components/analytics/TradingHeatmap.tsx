@@ -2,13 +2,18 @@
  * Trading Heatmap Component - Shows total PNL by day of week and hour
  * Accepts optional filtered trades, otherwise fetches all trades
  * Card cells show total PNL, hover shows trade count and win rate
+ * Event overlay shows high-impact economic events (FOMC, CPI, NFP)
  */
 import { useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Badge } from "@/components/ui/badge";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
+import { useHighImpactEventDates, isHighImpactEventDay, getEventLabel } from "@/hooks/use-economic-events";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
+import { format, subDays, parseISO, startOfWeek, addDays } from "date-fns";
+import { Calendar } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 
 // Generic trade type for the heatmap - only needs these fields
@@ -18,6 +23,7 @@ interface HeatmapTrade {
   realized_pnl?: number | null;
   pnl?: number | null;
 }
+
 interface HeatmapCell {
   dayOfWeek: number;
   hour: number;
@@ -25,18 +31,26 @@ interface HeatmapCell {
   wins: number;
   winRate: number;
   totalPnl: number;
+  dateKey?: string; // For event matching
+  hasEvent?: boolean;
+  eventLabels?: string[];
 }
 
 interface TradingHeatmapProps {
   trades?: HeatmapTrade[];
   className?: string;
+  showEventOverlay?: boolean;
 }
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const HOURS = [0, 4, 8, 12, 16, 20];
 
-export function TradingHeatmap({ trades: externalTrades, className }: TradingHeatmapProps) {
+export function TradingHeatmap({ trades: externalTrades, className, showEventOverlay = true }: TradingHeatmapProps) {
   const { data: fetchedTrades } = useTradeEntries();
+  const { eventDateMap, isLoading: eventsLoading } = useHighImpactEventDates({
+    startDate: subDays(new Date(), 90),
+    endDate: new Date(),
+  });
   
   // Use external trades if provided, otherwise use fetched
   const trades = externalTrades || fetchedTrades;
@@ -52,12 +66,18 @@ export function TradingHeatmap({ trades: externalTrades, className }: TradingHea
     // Initialize grid
     const grid: Map<string, HeatmapCell> = new Map();
 
+    // Track unique dates for event matching
+    const tradeDates = new Set<string>();
+
     // Process each trade
     closedTrades.forEach((trade) => {
       const tradeDate = new Date(trade.trade_date);
       const dayOfWeek = tradeDate.getDay();
       // Round hour to nearest 4-hour block
       const hour = Math.floor(tradeDate.getHours() / 4) * 4;
+      const dateKey = format(tradeDate, 'yyyy-MM-dd');
+      
+      tradeDates.add(dateKey);
       
       const key = `${dayOfWeek}-${hour}`;
       const existing = grid.get(key) || {
@@ -67,11 +87,26 @@ export function TradingHeatmap({ trades: externalTrades, className }: TradingHea
         wins: 0,
         winRate: 0,
         totalPnl: 0,
+        hasEvent: false,
+        eventLabels: [],
       };
 
       existing.trades++;
       const pnl = trade.realized_pnl || trade.pnl || 0;
       existing.totalPnl += pnl;
+      
+      // Check if this trade date has events
+      if (showEventOverlay && eventDateMap.size > 0) {
+        const { hasEvent, events } = isHighImpactEventDay(dateKey, eventDateMap);
+        if (hasEvent) {
+          existing.hasEvent = true;
+          events.forEach(e => {
+            if (!existing.eventLabels?.includes(e)) {
+              existing.eventLabels?.push(e);
+            }
+          });
+        }
+      }
       
       if (pnl > 0) {
         existing.wins++;
@@ -82,7 +117,7 @@ export function TradingHeatmap({ trades: externalTrades, className }: TradingHea
     });
 
     return Array.from(grid.values());
-  }, [trades, externalTrades]);
+  }, [trades, externalTrades, showEventOverlay, eventDateMap]);
 
   // Calculate dynamic color thresholds based on data
   const { maxPnl, minPnl } = useMemo(() => {
@@ -174,16 +209,29 @@ export function TradingHeatmap({ trades: externalTrades, className }: TradingHea
                   </div>
                   {DAYS.map((_, dayIndex) => {
                     const cell = getCellData(dayIndex, hour);
+                    const hasEvent = cell?.hasEvent;
+                    const eventLabel = hasEvent && cell?.eventLabels ? getEventLabel(cell.eventLabels) : '';
+                    
                     return (
                       <div key={dayIndex} className="w-14 flex justify-center">
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <div
                               className={cn(
-                                "w-12 h-12 rounded-md flex items-center justify-center text-xs font-medium cursor-default transition-all hover:scale-105",
-                                getCellColor(cell)
+                                "w-12 h-12 rounded-md flex flex-col items-center justify-center text-xs font-medium cursor-default transition-all hover:scale-105 relative",
+                                getCellColor(cell),
+                                hasEvent && "ring-2 ring-warning ring-offset-1 ring-offset-background"
                               )}
                             >
+                              {/* Event indicator badge */}
+                              {hasEvent && (
+                                <div className="absolute -top-1 -right-1">
+                                  <div className="w-3 h-3 bg-warning rounded-full flex items-center justify-center">
+                                    <Calendar className="w-2 h-2 text-warning-foreground" />
+                                  </div>
+                                </div>
+                              )}
+                              
                               {cell && cell.trades > 0 ? (
                                 <span className={cn(
                                   "text-[10px] font-semibold",
@@ -202,6 +250,20 @@ export function TradingHeatmap({ trades: externalTrades, className }: TradingHea
                                 <div className="font-semibold text-sm">
                                   {DAYS[dayIndex]} {hour.toString().padStart(2, '0')}:00 - {((hour + 4) % 24).toString().padStart(2, '0')}:00
                                 </div>
+                                
+                                {/* Event Warning */}
+                                {hasEvent && cell.eventLabels && cell.eventLabels.length > 0 && (
+                                  <div className="flex items-center gap-1.5 text-warning bg-warning/10 rounded px-1.5 py-0.5">
+                                    <Calendar className="w-3 h-3" />
+                                    <span className="font-medium">
+                                      {cell.eventLabels.length === 1 
+                                        ? cell.eventLabels[0] 
+                                        : `${cell.eventLabels.length} events: ${cell.eventLabels.slice(0, 2).join(', ')}${cell.eventLabels.length > 2 ? '...' : ''}`
+                                      }
+                                    </span>
+                                  </div>
+                                )}
+                                
                                 <div className={cn("font-medium", cell.totalPnl >= 0 ? "text-profit" : "text-loss")}>
                                   Total P&L: {formatCurrency(cell.totalPnl, 'USD')}
                                 </div>
@@ -247,6 +309,14 @@ export function TradingHeatmap({ trades: externalTrades, className }: TradingHea
             <div className="w-4 h-4 rounded bg-profit/70" />
             <span>High Profit</span>
           </div>
+          {showEventOverlay && (
+            <div className="flex items-center gap-1 ml-2 pl-2 border-l">
+              <div className="w-4 h-4 rounded ring-2 ring-warning ring-offset-1 ring-offset-background flex items-center justify-center">
+                <Calendar className="w-2.5 h-2.5 text-warning" />
+              </div>
+              <span>High-Impact Event</span>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
