@@ -1,7 +1,7 @@
 
-# Comprehensive Trading Domain Cross-Check Audit & Remediation Plan V11
+# Comprehensive Trading Domain Cross-Check Audit & Remediation Plan V12
 
-## Status: ✅ STEP 5 (STRATEGY) COMPLETE
+## Status: ✅ STEP 6 (MARKET) COMPLETE
 **Tanggal Audit**: 2026-01-31
 **Domain Identification**: COMPLETED (Step 1)
 **ACCOUNTS Domain**: COMPLETED (Foundation)
@@ -9,7 +9,8 @@
 **ANALYTICS Domain**: COMPLETED (Step 3)
 **RISK Domain**: COMPLETED (Step 4)
 **STRATEGY Domain**: COMPLETED (Step 5)
-**Next Step**: MARKET Domain Audit (Step 6)
+**MARKET Domain**: COMPLETED (Step 6)
+**Next Step**: DASHBOARD Domain Audit (Step 7)
 **Basis Audit**: Menu-based domain analysis + Binance Futures Domain Model
 
 ---
@@ -25,7 +26,8 @@
 | 3 | ANALYTICS | JOURNAL, ACCOUNTS | ✅ DONE |
 | 4 | RISK | ACCOUNTS, ANALYTICS | ✅ DONE |
 | 5 | STRATEGY | External market data | ✅ DONE |
-| 6 | MARKET | None (external APIs) | 🔜 PENDING |
+| 6 | MARKET | None (external APIs) | ✅ DONE |
+| 7 | DASHBOARD | All domains (1-6) | 🔜 PENDING |
 | 7 | DASHBOARD | All domains (1-6) | 🔜 PENDING |
 | 8 | SETTINGS | None | 🔜 PENDING |
 | 9 | USER | Auth system | 🔜 PENDING |
@@ -200,7 +202,155 @@ Key Findings:
 
 ---
 
-## RISK DOMAIN AUDIT (STEP 4) - COMPLETED
+## MARKET DOMAIN AUDIT (STEP 6) - COMPLETED
+
+### 6.1 Domain Definition
+
+**Menu Entry Points**:
+- Market Data (`/market-data`) - Sentiment, Volatility, Whale Tracking, Opportunities
+- Market Insight (`/market-insight`) - AI Sentiment, Macro Analysis, Combined Analysis
+- Economic Calendar (`/calendar`) - Economic events with crypto impact
+- Top Movers (`/top-movers`) - Gainers, Losers, Volume Leaders
+
+**Fungsi Domain**:
+- Menyediakan Market Sentiment (bullish/bearish scores)
+- Menyediakan Fear & Greed Index dengan label
+- Menyediakan Volatility data (ATR-based levels)
+- Menyediakan Economic Events dengan AI crypto impact predictions
+- Menyediakan Whale Tracking (volume-based detection)
+- Menyediakan Trading Opportunities (AI-ranked setups)
+- Menyediakan Unified Market Score (composite 0-100)
+- Menyediakan Trading Bias (LONG_FAVORABLE, SHORT_FAVORABLE, NEUTRAL, AVOID)
+
+### 6.2 Pages & Components Verified
+
+| Page | Route | Components | Status |
+|------|-------|------------|--------|
+| MarketData | `/market-data` | MarketSentimentWidget, VolatilityMeterWidget, WhaleTracking, TradingOpportunities | ✅ OK |
+| MarketInsight | `/market-insight` | AIAnalysisTab, CombinedAnalysisCard | ✅ OK |
+| EconomicCalendar | `/calendar` | CalendarTab | ✅ OK |
+| TopMovers | `/top-movers` | MoverCard, MoversList (Gainers/Losers/Volume tabs) | ✅ OK |
+
+### 6.3 Core Hooks Verified
+
+| Hook | File | Dependencies | Status |
+|------|------|--------------|--------|
+| `useCaptureMarketContext` | use-capture-market-context.ts | useMarketSentiment, useMacroAnalysis, useEconomicCalendar, useBinanceMarketSentiment | ✅ OK |
+| `useUnifiedMarketScore` | use-unified-market-score.ts | useCaptureMarketContext | ✅ OK |
+| `useMarketSentiment` | features/market-insight | edge function: market-insight | ✅ OK |
+| `useMacroAnalysis` | features/market-insight | edge function: macro-analysis | ✅ OK |
+| `useCombinedAnalysis` | features/market-insight | useMarketSentiment, useMacroAnalysis | ✅ OK |
+| `useMarketAlerts` | features/market-insight | useMarketSentiment (toast alerts) | ✅ OK |
+| `useEconomicCalendar` | features/calendar | edge function: economic-calendar | ✅ OK |
+| `useMultiSymbolMarketInsight` | features/market-insight | edge function: market-insight (dynamic symbols) | ✅ OK |
+| `useBinanceTopMovers` | features/binance | edge function: binance-market-data | ✅ OK |
+| `useBinanceMarketSentiment` | features/binance | edge function: binance-market-data | ✅ OK |
+
+### 6.4 Global State Verified
+
+| Context | File | Data | Status |
+|---------|------|------|--------|
+| MarketContext | contexts/MarketContext.tsx | selectedSymbol, watchlist | ✅ OK |
+
+**Persistence**: localStorage via `trading-journey-market-context` key
+
+### 6.5 Integration Points Verified
+
+| From | To | Data | Status |
+|------|-----|------|--------|
+| MARKET → RISK | useContextAwareRisk | Volatility adjustment, Event risk | ✅ OK |
+| MARKET → STRATEGY | useStrategyContext | Market fit score | ✅ OK |
+| MARKET → JOURNAL | useCaptureMarketContext | Context snapshot at trade entry | ✅ OK |
+| MARKET → DASHBOARD | MarketScoreWidget | Score, bias, event warnings | ✅ OK |
+| MARKET → CALCULATOR | ContextWarnings | Event/volatility alerts | ✅ OK |
+
+### 6.6 Data Flow Diagram
+
+```mermaid
+flowchart TB
+    subgraph EXTERNAL["EXTERNAL DATA SOURCES"]
+        BINANCE["Binance Futures API"]
+        COINGECKO["CoinGecko API"]
+        ALTERNATIVE["Alternative.me"]
+        TRADINGECO["TradingEconomics API"]
+    end
+    
+    subgraph EDGE["EDGE FUNCTIONS"]
+        EF1["market-insight"]
+        EF2["macro-analysis"]
+        EF3["economic-calendar"]
+        EF4["binance-market-data"]
+    end
+    
+    subgraph HOOKS["MARKET HOOKS"]
+        MS["useMarketSentiment"]
+        MA["useMacroAnalysis"]
+        EC["useEconomicCalendar"]
+        BSM["useBinanceMarketSentiment"]
+    end
+    
+    subgraph UNIFIED["UNIFIED LAYER"]
+        CMC["useCaptureMarketContext"]
+        UMS["useUnifiedMarketScore"]
+    end
+    
+    subgraph CONSUMERS["CONSUMERS"]
+        RISK["RISK: useContextAwareRisk"]
+        STRATEGY["STRATEGY: useStrategyContext"]
+        JOURNAL["JOURNAL: Context snapshot"]
+        DASHBOARD["DASHBOARD: MarketScoreWidget"]
+    end
+    
+    BINANCE --> EF1
+    BINANCE --> EF4
+    COINGECKO --> EF1
+    ALTERNATIVE --> EF1
+    TRADINGECO --> EF3
+    
+    EF1 --> MS
+    EF2 --> MA
+    EF3 --> EC
+    EF4 --> BSM
+    
+    MS --> CMC
+    MA --> CMC
+    EC --> CMC
+    BSM --> CMC
+    
+    CMC --> UMS
+    
+    UMS --> RISK
+    UMS --> STRATEGY
+    CMC --> JOURNAL
+    UMS --> DASHBOARD
+```
+
+### 6.7 Business Rules Verified
+
+| Rule | Implementation | Status |
+|------|----------------|--------|
+| Fear/Greed Thresholds | <=25 Extreme Fear, >=75 Extreme Greed | ✅ OK |
+| Volatility Levels | Low (<2%), Medium (2-4%), High (>4%) | ✅ OK |
+| Event Risk Levels | LOW, MODERATE, HIGH, VERY_HIGH | ✅ OK |
+| Position Adjustment | normal, reduce_30%, reduce_50% | ✅ OK |
+| Trading Bias | LONG_FAVORABLE, SHORT_FAVORABLE, NEUTRAL, AVOID | ✅ OK |
+| Composite Score Weights | Technical 30%, OnChain 20%, F&G 20%, Macro 15%, Events 15% | ✅ OK |
+
+### 6.8 Audit Result
+
+**MARKET Domain Status**: ✅ **PASS** - No gaps identified
+
+Key Findings:
+1. **Data Aggregation**: 4 external sources (Binance, CoinGecko, Alternative.me, TradingEconomics)
+2. **Edge Functions**: 4 dedicated functions for data processing
+3. **Unified Score**: Composite 0-100 score with component breakdown
+4. **Trading Bias**: Actionable recommendations (LONG/SHORT/NEUTRAL/AVOID)
+5. **Event Integration**: Economic events with AI crypto impact predictions
+6. **Context Capture**: Snapshot mechanism for trade entry enrichment
+7. **Global State**: MarketContext with localStorage persistence
+8. **Cross-Domain**: Clean integration with RISK, STRATEGY, JOURNAL, DASHBOARD
+
+---
 
 ### 4.1 Domain Definition
 
