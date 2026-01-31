@@ -86,37 +86,76 @@
 
 ### 4.6 Data Flow Diagram
 
+```mermaid
+flowchart TB
+    subgraph INPUTS["INPUT DOMAINS"]
+        ACCOUNTS["ACCOUNTS Domain<br/>useBestAvailableBalance()"]
+        ANALYTICS["ANALYTICS Domain<br/>useUnifiedDailyPnl()"]
+    end
+    
+    subgraph RISK["RISK DOMAIN CORE"]
+        GATE["useTradingGate()<br/>- Combines balance + P&L<br/>- Calculates lossUsedPercent<br/>- Returns canTrade, status, reason"]
+        PROFILE["useRiskProfile()<br/>- max_daily_loss_percent<br/>- risk_per_trade_percent"]
+        CONTEXT["useContextAwareRisk()<br/>- Volatility adjustment<br/>- Event adjustment"]
+    end
+    
+    subgraph OUTPUTS["OUTPUT CONSUMERS"]
+        DASHBOARD["Dashboard<br/>SystemStatusIndicator"]
+        JOURNAL["Journal<br/>PreTradeValidation"]
+        RISKPAGE["Risk Page<br/>DailyLossTracker"]
+        CALCULATOR["Calculator<br/>PositionSizing"]
+    end
+    
+    ACCOUNTS --> GATE
+    ANALYTICS --> GATE
+    PROFILE --> GATE
+    PROFILE --> CONTEXT
+    
+    GATE --> DASHBOARD
+    GATE --> JOURNAL
+    GATE --> RISKPAGE
+    CONTEXT --> CALCULATOR
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                      RISK DOMAIN DATA FLOW                          │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  ┌─────────────────┐     ┌─────────────────┐                       │
-│  │ ACCOUNTS Domain │     │ ANALYTICS Domain│                       │
-│  │ ───────────────│     │ ────────────────│                       │
-│  │ useBestAvailable│     │ useUnifiedDaily │                       │
-│  │ Balance()       │     │ Pnl()           │                       │
-│  └────────┬────────┘     └────────┬────────┘                       │
-│           │                       │                                 │
-│           ▼                       ▼                                 │
-│  ┌─────────────────────────────────────────┐                       │
-│  │         useTradingGate()                │                       │
-│  │ ────────────────────────────────────────│                       │
-│  │ • Combines balance + P&L                │                       │
-│  │ • Calculates lossUsedPercent            │                       │
-│  │ • Returns canTrade, status, reason      │                       │
-│  └────────────────────┬────────────────────┘                       │
-│                       │                                             │
-│           ┌───────────┼───────────┐                                │
-│           ▼           ▼           ▼                                │
-│  ┌────────────┐ ┌────────────┐ ┌────────────┐                     │
-│  │ Dashboard  │ │ Journal    │ │ Risk Page  │                     │
-│  │ ──────────│ │ ──────────│ │ ──────────│                      │
-│  │ SystemStat│ │ PreTrade   │ │ DailyLoss  │                     │
-│  │ Indicator │ │ Validation │ │ Tracker    │                     │
-│  └────────────┘ └────────────┘ └────────────┘                     │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+
+### 4.6b RISK Domain Cross-Domain Integration
+
+```mermaid
+flowchart LR
+    subgraph RISK_DOMAIN["RISK DOMAIN"]
+        TG["Trading Gate"]
+        CAR["Context Aware Risk"]
+        RP["Risk Profile"]
+        DLT["Daily Loss Tracker"]
+    end
+    
+    subgraph TO_JOURNAL["TO JOURNAL"]
+        PTV["PreTradeValidation<br/>canTrade: boolean"]
+        TEW["TradeEntryWizard<br/>blocked if disabled"]
+    end
+    
+    subgraph TO_DASHBOARD["TO DASHBOARD"]
+        SSI["SystemStatusIndicator<br/>🟢 OK / 🟡 Warning / 🔴 Disabled"]
+        RSC["RiskSummaryCard<br/>lossUsedPercent gauge"]
+    end
+    
+    subgraph TO_CALCULATOR["TO CALCULATOR"]
+        PSC["PositionSizeCalculator<br/>adjustedRiskPercent"]
+        RAB["RiskAdjustmentBreakdown<br/>multiplier visualization"]
+    end
+    
+    subgraph TO_ANALYTICS["TO ANALYTICS"]
+        EP["EquityCurve<br/>risk event markers"]
+        CP["ContextualPerformance<br/>segmented by risk levels"]
+    end
+    
+    TG --> PTV
+    TG --> TEW
+    TG --> SSI
+    DLT --> RSC
+    CAR --> PSC
+    CAR --> RAB
+    RP --> EP
+    RP --> CP
 ```
 
 ### 4.7 Audit Result
