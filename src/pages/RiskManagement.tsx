@@ -8,59 +8,24 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { QuickTip } from "@/components/ui/onboarding-tooltip";
-import { Shield, Settings, AlertTriangle, History, LayoutDashboard, CheckCircle } from "lucide-react";
+import { Shield, AlertTriangle, History, LayoutDashboard, CheckCircle } from "lucide-react";
 import { 
   DailyLossTracker, 
   RiskEventLog, 
   CorrelationMatrix,
   RiskProfileSummaryCard,
-  RiskSettingsForm,
 } from "@/components/risk";
-import { useRiskProfile, useUpsertRiskProfile } from "@/hooks/use-risk-profile";
+import { useRiskProfile } from "@/hooks/use-risk-profile";
 import { useRiskEvents } from "@/hooks/use-risk-events";
-import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 
 export default function RiskManagement() {
-  const [searchParams] = useSearchParams();
-  const tabFromUrl = searchParams.get('tab');
-  const defaultTab = tabFromUrl === 'settings' ? 'settings' : 'overview';
-  
-  const { data: riskProfile, isLoading } = useRiskProfile();
+  const { data: riskProfile } = useRiskProfile();
   const { events: riskEvents } = useRiskEvents();
-  const upsertProfile = useUpsertRiskProfile();
-
-  // Form state
-  const [riskPerTrade, setRiskPerTrade] = useState(2);
-  const [maxDailyLoss, setMaxDailyLoss] = useState(5);
-  const [maxWeeklyDrawdown, setMaxWeeklyDrawdown] = useState(10);
-  const [maxPositionSize, setMaxPositionSize] = useState(40);
-  const [maxConcurrentPositions, setMaxConcurrentPositions] = useState(3);
-
-  // Load existing profile values
-  useEffect(() => {
-    if (riskProfile) {
-      setRiskPerTrade(riskProfile.risk_per_trade_percent);
-      setMaxDailyLoss(riskProfile.max_daily_loss_percent);
-      setMaxWeeklyDrawdown(riskProfile.max_weekly_drawdown_percent);
-      setMaxPositionSize(riskProfile.max_position_size_percent);
-      setMaxConcurrentPositions(riskProfile.max_concurrent_positions);
-    }
-  }, [riskProfile]);
-
-  const handleSaveProfile = async () => {
-    await upsertProfile.mutateAsync({
-      risk_per_trade_percent: riskPerTrade,
-      max_daily_loss_percent: maxDailyLoss,
-      max_weekly_drawdown_percent: maxWeeklyDrawdown,
-      max_position_size_percent: maxPositionSize,
-      max_concurrent_positions: maxConcurrentPositions,
-    });
-  };
 
   const navigateToSettings = () => {
-    document.querySelector('[value="settings"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    window.location.href = '/settings?tab=trading';
   };
 
   return (
@@ -78,15 +43,11 @@ export default function RiskManagement() {
         </div>
 
         {/* Tabs */}
-        <Tabs defaultValue={defaultTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:inline-flex">
+        <Tabs defaultValue="overview" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-2 lg:w-auto lg:inline-flex">
             <TabsTrigger value="overview" className="gap-2">
               <LayoutDashboard className="h-4 w-4" />
               <span className="hidden sm:inline">Overview</span>
-            </TabsTrigger>
-            <TabsTrigger value="settings" className="gap-2">
-              <Settings className="h-4 w-4" />
-              <span className="hidden sm:inline">Settings</span>
             </TabsTrigger>
             <TabsTrigger value="history" className="gap-2">
               <History className="h-4 w-4" />
@@ -169,23 +130,6 @@ export default function RiskManagement() {
             <CorrelationMatrix />
           </TabsContent>
 
-          {/* Settings Tab */}
-          <TabsContent value="settings" className="space-y-6">
-            <RiskSettingsForm
-              riskPerTrade={riskPerTrade}
-              maxDailyLoss={maxDailyLoss}
-              maxWeeklyDrawdown={maxWeeklyDrawdown}
-              maxPositionSize={maxPositionSize}
-              maxConcurrentPositions={maxConcurrentPositions}
-              onRiskPerTradeChange={setRiskPerTrade}
-              onMaxDailyLossChange={setMaxDailyLoss}
-              onMaxWeeklyDrawdownChange={setMaxWeeklyDrawdown}
-              onMaxPositionSizeChange={setMaxPositionSize}
-              onMaxConcurrentPositionsChange={setMaxConcurrentPositions}
-              onSave={handleSaveProfile}
-              isSaving={upsertProfile.isPending}
-            />
-          </TabsContent>
 
           {/* History Tab */}
           <TabsContent value="history">
