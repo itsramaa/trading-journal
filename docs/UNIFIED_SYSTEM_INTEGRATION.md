@@ -474,6 +474,49 @@ Key features:
 
 ---
 
+## Settings & Export Integration
+
+### Linkage dengan Settings Group
+
+Settings saat ini berfungsi sebagai **passive storage** - menyimpan preferensi tanpa enforcement. Integrasi yang diperlukan:
+
+```
+AI Settings ─────────────► AI Execution
+• confluence_detection      • Check before calling edge function
+• quality_scoring           • Skip if disabled
+• confidence_threshold      • Filter results below threshold
+• suggestion_style          • Adjust recommendation aggressiveness
+
+Notification Settings ────► Notification Delivery
+• notify_price_alerts       • Trigger in-app + future channels
+• notify_weekly_report      • Generate scheduled reports
+• notify_email_enabled      • Future email integration
+
+Export Settings ──────────► Enhanced Export
+• Include market context    • Join with trade_entries.market_context
+• Include strategy          • Join with trade_entry_strategies
+• Include AI scores         • Quality and confluence scores
+```
+
+### New Hooks for Settings Enforcement
+
+| Hook | Purpose | Key Functions |
+|------|---------|---------------|
+| `useAISettingsEnforcement` | Check settings before AI calls | shouldRunAIFeature(), filterByConfidence() |
+| `useNotificationService` | Centralized notification dispatch | notify(), respects user channels |
+| `useSmartDefaults` | Performance-based recommendations | recommendedSettings based on analytics |
+
+### Key Integration Points
+
+1. **AI Edge Functions**: Check `user_settings.ai_settings` before execution
+2. **Dashboard Widgets**: Apply `confidence_threshold` and `suggestion_style` filtering
+3. **Export Pages**: Offer enhanced export with market context and strategy data
+4. **Risk Profile**: Consolidate into Settings as "Trading Config" tab
+
+Detailed specification available in `docs/SETTINGS_EXPORT_INTEGRATION_ANALYSIS.md`.
+
+---
+
 ## Related Documents
 
 | Document | Focus |
@@ -483,6 +526,7 @@ Key features:
 | `RISK_MANAGEMENT_INTEGRATION_ANALYSIS.md` | Risk Overview, Risk Calculator, Trading Gate |
 | `STRATEGY_INTEGRATION_ANALYSIS.md` | Strategy Library, Backtest, Performance |
 | `ANALYTICS_INTEGRATION_ANALYSIS.md` | Performance, Daily P&L, Heatmap, AI Insights |
+| `SETTINGS_EXPORT_INTEGRATION_ANALYSIS.md` | Settings, Export, Configuration Hub |
 | `Trading_Journey_User_Flow.md` | Complete user flow specification |
 
 ---
@@ -494,6 +538,7 @@ Key features:
 - [ ] Implement `useCaptureMarketContext` hook
 - [ ] Implement `useContextAwareRisk` hook
 - [ ] Implement `useStrategyContext` hook
+- [ ] Implement `useAISettingsEnforcement` hook
 
 ### Phase 2: Data Capture
 - [ ] Integrate context capture into Trade Entry Wizard
@@ -513,10 +558,18 @@ Key features:
 - [ ] Add F&G correlation charts
 - [ ] Add event overlay to Heatmap
 
-### Phase 5: Complete Feedback Loop
+### Phase 5: Settings & Export Enhancement
+- [ ] Enforce AI settings in all AI edge function calls
+- [ ] Implement `useNotificationService` hook
+- [ ] Add Trading Config tab to Settings
+- [ ] Enhance export with market context options
+- [ ] Implement `useSmartDefaults` based on performance
+
+### Phase 6: Complete Feedback Loop
 - [ ] Analytics insights feed back to Strategy recommendations
 - [ ] Risk profile auto-adjustment suggestions
 - [ ] Trading gate awareness of analytics patterns
+- [ ] Smart defaults update based on performance
 - [ ] Post-trade feedback completes the loop
 
 ---
@@ -524,6 +577,22 @@ Key features:
 ## Complete System Architecture (Final)
 
 ```
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                         SETTINGS & CONFIGURATION HUB                                 │
+│                (Controls AI behavior, notifications, risk limits)                   │
+└─────────────────────────────────────────────────────────────────┬───────────────────┘
+                                                                  │
+                    ┌─────────────────────────────────────────────┼─────────────────┐
+                    │                                             │                 │
+                    ▼                                             ▼                 ▼
+          ┌──────────────────┐                        ┌──────────────────┐   ┌───────────┐
+          │  AI Enforcement  │                        │  Notification    │   │   Risk    │
+          │  Layer           │                        │  Service         │   │  Limits   │
+          └────────┬─────────┘                        └────────┬─────────┘   └─────┬─────┘
+                   │                                           │                   │
+                   └─────────────────────┬─────────────────────┘                   │
+                                         │                                         │
+                                         ▼                                         │
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
 │                            UNIFIED MARKET CONTEXT                                    │
 │                (Single Source of Truth for all trading decisions)                   │
@@ -571,16 +640,23 @@ Key features:
                           │               │               │
                           ▼               ▼               ▼
                     ┌───────────┐  ┌───────────┐  ┌───────────┐
-                    │ STRATEGY  │  │   RISK    │  │   TRADE   │
-                    │ REFINEMENT│  │ ADJUSTMENT│  │  GUIDANCE │
+                    │ STRATEGY  │  │   RISK    │  │   SMART   │
+                    │ REFINEMENT│  │ ADJUSTMENT│  │ DEFAULTS  │
                     └─────┬─────┘  └─────┬─────┘  └─────┬─────┘
                           │              │              │
                           └──────────────┼──────────────┘
                                          │
                                          ▼
                                   ┌─────────────┐
+                                  │  SETTINGS   │
+                                  │  AUTO-      │
+                                  │  OPTIMIZE   │
+                                  └──────┬──────┘
+                                         │
+                                         ▼
+                                  ┌─────────────┐
                                   │  CONTINUOUS │
-                                  │  FEEDBACK   │
+                                  │  LEARNING   │
                                   │    LOOP     │
                                   └─────────────┘
 ```
@@ -589,9 +665,9 @@ Key features:
 
 ## Conclusion
 
-Sistem saat ini memiliki **data vertikal yang solid** (Binance → DB → UI) tetapi **horizontal integration yang lemah** (Market ↔ Journal ↔ Risk ↔ Strategy ↔ Analytics). 
+Sistem saat ini memiliki **data vertikal yang solid** (Binance → DB → UI) tetapi **horizontal integration yang lemah** (Market ↔ Journal ↔ Risk ↔ Strategy ↔ Analytics ↔ Settings). 
 
-Dengan mengimplementasikan integrasi yang diusulkan:
+Dengan mengimplementasikan integrasi yang diusulkan dalam **6 fase**:
 
 ### Fase 1: UnifiedMarketContext
 - Menghubungkan semua sumber data pasar
@@ -615,10 +691,17 @@ Dengan mengimplementasikan integrasi yang diusulkan:
 - Correlation analysis (sentiment vs results)
 - Data-driven contextual recommendations
 
-### Fase 5: Complete Feedback Loop
+### Fase 5: Settings & Export Enhancement
+- AI settings enforcement across all features
+- Unified configuration hub
+- Enhanced export with market context
+- Smart defaults based on performance analytics
+
+### Fase 6: Complete Feedback Loop
 - Analytics insights improve strategy selection
 - Risk profile adapts to analytics patterns
 - Trading gate becomes context-aware
+- Settings auto-optimize based on performance
 - System continuously learns and improves
 
 Ini mengubah sistem dari **reactive journaling** menjadi **intelligent trading ecosystem**:
@@ -626,13 +709,13 @@ Ini mengubah sistem dari **reactive journaling** menjadi **intelligent trading e
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                                                                         │
-│   Market Conditions ──► Strategy Selection ──► Risk Adjustment          │
-│          ▲                                           │                  │
-│          │                                           ▼                  │
-│   Analytics Insights ◄── Post-Trade Analysis ◄── Trade Execution        │
+│   Settings Config ──► Market Context ──► Strategy Selection             │
+│          ▲                                       │                      │
+│          │                                       ▼                      │
+│   Smart Defaults ◄── Analytics ◄── Post-Trade ◄── Trade Execution       │
 │                                                                         │
-│                    CONTINUOUS LEARNING LOOP                             │
+│                    CONTINUOUS OPTIMIZATION LOOP                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Result**: Dari isolated silos menjadi **fully integrated, self-improving trading intelligence system**.
+**Result**: Dari isolated silos menjadi **fully integrated, self-optimizing trading intelligence system** dengan Settings sebagai Configuration Hub pusat.
