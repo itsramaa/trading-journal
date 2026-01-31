@@ -1,335 +1,323 @@
 
-# Page Analysis: Performance Overview (`/performance`)
 
-## Page Intent
-
-**Primary Job-to-be-Done (JTBD):**
-> "Sebagai trader, saya ingin melihat analisis mendalam tentang performa trading saya secara keseluruhan sehingga saya dapat mengidentifikasi kekuatan, kelemahan, dan area yang perlu diperbaiki."
-
-**Secondary JTBD:**
-- Membandingkan performa antar strategi
-- Melihat equity curve dengan anotasi event makro
-- Menganalisis performa berdasarkan konteks pasar (Fear/Greed, Volatility, Event Days)
-- Export laporan performa ke CSV/PDF
+# Evaluasi UI Deep-Dive: Risk Calculator (`/calculator`)
 
 ---
 
-## Current Content Inventory
+## 1. PAGE INTENT
 
-### Page Header
-| Element | Status | Notes |
-|---------|--------|-------|
-| Title: "Performance Analytics" | ✅ OK | Icon + title sesuai standard |
-| Description | ✅ OK | "Deep dive into your trading performance metrics" |
-| Export Buttons | ✅ OK | CSV + PDF export buttons di header |
+### Primary Intent
+> "Sebagai trader, saya ingin menghitung ukuran posisi yang optimal berdasarkan parameter risiko saya sehingga saya dapat masuk trade dengan ukuran yang tepat tanpa overexposure."
 
-### Filters Card
-| Element | Status | Notes |
-|---------|--------|-------|
-| DateRangeFilter | ✅ OK | Date picker untuk filter periode |
-| Strategy Filter | ✅ OK | Badge-based multi-select untuk strategy |
-| Event Days Toggle | ✅ OK | Switch untuk filter hanya event days |
+### Secondary Intents
+1. Mendapatkan rekomendasi stop-loss berbasis volatilitas
+2. Memahami bagaimana konteks pasar mempengaruhi sizing
+3. Melihat warning sebelum memasukkan trade
+4. Melihat estimasi fee dan leverage constraint
 
-### Tabs Structure
-| Tab | Content | Status |
-|-----|---------|--------|
-| **Overview** | Key metrics, equity curve, contextual charts | ✅ Comprehensive |
-| **Strategies** | Strategy performance breakdown | ✅ OK |
+### Overlap Check dengan Page Lain
+| Page | Potensi Overlap | Status |
+|------|----------------|--------|
+| Risk Management | Daily Loss, Risk Profile Settings | ✅ OK - link ke settings via `?tab=settings` |
+| Trade Entry Wizard | Position sizing step | ⚠️ Partial - wizard juga punya sizing, tapi calculator ini standalone |
+| Market Insight | Volatility data | ✅ OK - context saja, bukan duplikasi |
+
+**Kesimpulan:** Page ini memiliki fokus yang jelas sebagai **pre-trade sizing tool**. Tidak ada overlap yang signifikan.
 
 ---
 
-## Overview Tab Content Analysis
+## 2. CONTENT & CARD INVENTORY (LENGKAP)
 
-### Section 1: 7-Day Stats Card (`SevenDayStatsCard`)
-| Card | Metric | Status |
-|------|--------|--------|
-| Current Streak | Win/Loss streak count | ✅ OK |
-| Trades (7D) | Trade count in 7 days | ✅ OK |
-| Best Day | Best P&L day | ✅ OK - uses `formatCurrency()` |
-| Worst Day | Worst P&L day | ✅ OK - uses `formatCurrency()` |
+### A. Page Header
+| Element | Tujuan | Domain | Status |
+|---------|--------|--------|--------|
+| Title + Icon | Identifikasi page | UI/Layout | ✅ Sesuai standard |
+| Description | Penjelasan konteks | UI/Layout | ✅ Clear |
 
-### Section 2: Key Metrics (4-Column Grid)
-| Card | Metric | Status | Decimal Issue |
-|------|--------|--------|---------------|
-| Win Rate | `stats.winRate.toFixed(1)%` | ⚠️ Minor | Should use `formatWinRate()` |
-| Profit Factor | `stats.profitFactor.toFixed(2)` | ✅ OK | Handles Infinity case |
-| Expectancy | `formatCurrency(stats.expectancy)` | ✅ OK | Local formatter |
-| Max Drawdown | `stats.maxDrawdownPercent.toFixed(1)%` | ⚠️ Minor | Should use `formatPercentUnsigned()` |
+### B. Symbol Selector (`TradingPairCombobox`)
+| Element | Tujuan | Domain | Status |
+|---------|--------|--------|--------|
+| Label "Trading Pair" | Guidance | Risk/Market | ✅ OK |
+| Combobox | Pilih pair untuk kalkulasi | Risk/Market | ✅ Terkoneksi ke MarketContext |
 
-### Section 3: Additional Metrics (4-Column Grid)
-| Card | Metric | Status | Decimal Issue |
-|------|--------|--------|---------------|
-| Sharpe Ratio | `stats.sharpeRatio.toFixed(2)` | ✅ OK | 2 decimals appropriate |
-| Avg R:R | `stats.avgRR.toFixed(2):1` | ✅ OK | Should use `formatRatio()` |
-| Total Trades | `stats.totalTrades` | ✅ OK | Integer |
-| Total P&L | `formatCurrency(stats.totalPnl)` | ✅ OK | With Binance breakdown |
+**Alasan Eksistensi:** User harus bisa memilih pair karena commission rate, volatility, dan leverage berbeda per pair.
 
-### Section 4: Equity Curve (`EquityCurveWithEvents`)
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Area chart | ✅ OK | Cumulative P&L |
-| Event annotations | ✅ OK | Diamond markers for FOMC/CPI/NFP |
-| Custom tooltip | ✅ OK | Shows P&L + event info |
-| Event legend | ✅ OK | Lists event days |
+### C. Top Section - 2 Column Grid
+| Card | Component | Tujuan | Domain | Status |
+|------|-----------|--------|--------|--------|
+| Market Score Widget | `MarketScoreWidget` (compact) | Quick market assessment sebelum sizing | Market | ✅ Compact mode appropriate |
+| Context Warnings | `ContextWarnings` | Alert volatilitas, event, korelasi | Risk/Market | ✅ Pre-sizing context |
 
-### Section 5: Contextual Charts (2-Column Grid)
-| Component | Purpose | Status |
-|-----------|---------|--------|
-| `CombinedContextualScore` | Unified context score | ✅ OK |
-| `TradingHeatmapChart` | Time-based win rate | ✅ OK |
+**Alasan Eksistensi:** Trader perlu tahu kondisi pasar sebelum menentukan ukuran posisi.
 
-### Section 6: Event & Fear/Greed Charts (2-Column Grid)
-| Component | Purpose | Status |
-|-----------|---------|--------|
-| `EventDayComparison` | Event days vs normal days | ✅ OK |
-| `FearGreedZoneChart` | Performance by F/G zone | ✅ OK |
+### D. Tabs Structure
+| Tab | Isi | Tujuan |
+|-----|-----|--------|
+| Position Size Calculator | Input + Results + Fees + R-reference | Core function |
+| Volatility-Based Stop Loss | ATR recommendations | Complementary sizing tool |
 
-### Section 7: Volatility Chart
-| Component | Purpose | Status |
-|-----------|---------|--------|
-| `VolatilityLevelChart` | Performance by vol level | ✅ OK |
+### E. Tab 1: Position Size Calculator (DETAIL)
 
-### Section 8: Drawdown Chart
-| Component | Purpose | Status |
-|-----------|---------|--------|
-| `DrawdownChart` | Equity drawdown over time | ✅ OK - uses `.toFixed(2)%` |
+| Section | Component | Tujuan | Domain | Status |
+|---------|-----------|--------|--------|--------|
+| Calculator Inputs | `CalculatorInputs` | 6 inputs: Balance, Risk%, Entry, SL, Direction, Leverage | Risk | ✅ Complete |
+| Separator | Visual break | UI | ✅ OK |
+| Calculator Results | `CalculatorResults` | Position size, value, risk amount, potential profit, warnings | Risk | ✅ Core output |
+| Commission Rates | Inline section | Real-time fees dari Binance | Binance/Risk | ✅ Useful for accurate sizing |
+| Max Leverage Info | Inline section | Leverage constraint per notional | Binance/Risk | ✅ Prevents over-leverage |
+| Quick Reference R | `QuickReferenceR` | 1R, 2R, 3R badges untuk mental reference | Risk | ✅ Educational |
 
----
+### F. Tab 2: Volatility-Based Stop Loss
+| Section | Component | Tujuan | Domain | Status |
+|---------|-----------|--------|--------|--------|
+| Volatility Stats | Grid 2x2 | Daily Vol, ATR, Annualized, ATR Value | Market/Risk | ✅ Contextual data |
+| Risk Level Badge | Badge | Visual indicator volatility level | Risk | ✅ Quick assessment |
+| Recommendation Message | Conditional text | Guidance based on volatility | Risk | ✅ Actionable |
+| Stop Loss Suggestions | 4 rows | Tight, 1x ATR, 1.5x ATR, 2x ATR | Risk | ✅ Actionable |
+| Apply Buttons | Arrow buttons | Apply SL to calculator | UX | ✅ Flow integration |
+| Adjusted Risk Info | Conditional | Shows volatility adjustment | Risk | ✅ Transparency |
 
-## Strategies Tab Content Analysis
-
-### Strategy Performance Table
-| Column | Status | Decimal Issue |
-|--------|--------|---------------|
-| Win Rate | `sp.winRate.toFixed(1)%` | ⚠️ Should use `formatWinRate()` |
-| Avg R:R | `sp.avgRR.toFixed(2):1` | ⚠️ Should use `formatRatio()` |
-| Avg P&L | `formatCurrency(sp.avgPnl)` | ✅ OK |
-| Contribution | `sp.contribution.toFixed(1)%` | ⚠️ Should use `formatWinRate()` |
-| Total P&L | `formatCurrency(sp.totalPnl)` | ✅ OK |
-
-### Strategy Comparison Chart
-| Feature | Status |
-|---------|--------|
-| Horizontal bar chart | ✅ OK |
-| P&L by strategy | ✅ OK |
-| Color coding | ✅ OK (profit/loss) |
+### G. Outside Tabs (Calculator Tab Only)
+| Card | Component | Tujuan | Domain | Status |
+|------|-----------|--------|--------|--------|
+| Risk Adjustment Breakdown | `RiskAdjustmentBreakdown` | Full breakdown of adjustment factors | Risk/AI | ✅ Advanced insight |
 
 ---
 
-## Issues Identified
+## 3. ORDERING & HIERARCHY ANALYSIS
 
-### Issue 1: Local `formatCurrency` Function (MEDIUM)
-**Current:** Page defines its own `formatCurrency` function
+### Current Flow
+```
+1. Page Header
+2. Symbol Selector ← NEW (baru ditambahkan phase sebelumnya)
+3. [MarketScoreWidget] [ContextWarnings] ← 2-col grid
+4. Tabs:
+   ├─ Tab 1: Position Size Calculator
+   │  ├─ Calculator Inputs (6 fields, 2-col grid)
+   │  ├─ Separator
+   │  ├─ Calculator Results (2x2 grid cards)
+   │  ├─ Commission Rates (conditional)
+   │  ├─ Max Leverage Info (conditional)
+   │  └─ Quick Reference R (badges)
+   └─ Tab 2: Volatility-Based Stop Loss
+       ├─ Volatility Stats (2x2 grid)
+       ├─ Recommendation
+       └─ Stop Loss Suggestions (4 rows with apply buttons)
+5. Risk Adjustment Breakdown (outside tabs, calculator tab only)
+```
+
+### Evaluation per Hierarchy Level
+
+| Level | Content | Cognitive Load | Verdict |
+|-------|---------|----------------|---------|
+| 1 | Header + Symbol | Low | ✅ Entry point jelas |
+| 2 | Context widgets | Medium | ✅ Konteks sebelum input |
+| 3 | Calculator inputs | Medium | ✅ Core action |
+| 4 | Results | Medium | ✅ Output dari action |
+| 5 | Fees/Leverage | Low | ✅ Supporting info |
+| 6 | Quick R | Low | ✅ Reference |
+| 7 | Adjustment Breakdown | High | ⚠️ Bisa overwhelming |
+
+### Flow Logic Check
+1. **Konteks → Aksi → Hasil → Pendukung** ✅
+   - User melihat market context dulu (MarketScore + Warnings)
+   - User mengisi input (aksi)
+   - User melihat hasil kalkulasi
+   - User melihat info pendukung (fees, leverage, R-reference)
+
+2. **Progressive Disclosure** ✅
+   - Tab structure memisahkan core calculator dari volatility SL
+   - Risk Adjustment Breakdown di luar tab (advanced users)
+
+---
+
+## 4. ISSUES IDENTIFIED (BERDASARKAN ANALISIS MENDALAM)
+
+### Issue 1: Risk Adjustment Breakdown Position (MEDIUM)
+**Current:** Di luar tabs, hanya muncul saat calculator tab aktif
+**Problem:** 
+- Secara visual terpisah dari flow utama
+- User mungkin miss karena harus scroll
+- Informasinya "heavy" tapi placement-nya tidak jelas
+
+**Impact:** Konten berharga tapi tidak terlihat oleh user yang scroll cepat.
+
+### Issue 2: Tab Label Length (LOW)
+**Current:** "Position Size Calculator" dan "Volatility-Based Stop Loss"
+**Problem:** Pada mobile, label bisa terpotong atau cramped
+**Impact:** Minor UX issue pada viewport kecil
+
+### Issue 3: Commission Rate Decimals Inconsistency (LOW)
+**Current:** 
+- Page: `.toFixed(3)%` dan `.toFixed(2)` untuk fee amount
+- Component `PositionSizeCalculator.tsx`: `.toFixed(2)%` dan `.toFixed(4)`
+**Problem:** Inkonsistensi antara page dan standalone component
+**Impact:** Minor visual inconsistency
+
+### Issue 4: No Empty State for Missing Data (LOW)
+**Current:** Jika Binance tidak connected, beberapa section tidak muncul (conditional render)
+**Suggestion:** Could show skeleton atau "Connect Binance" CTA
+
+### Issue 5: Risk Adjustment Breakdown Loading State (MINOR)
+**Current:** Shows "Analyzing market conditions..."
+**Status:** ✅ Already handled - no issue
+
+---
+
+## 5. PLACEMENT DECISIONS PER CARD/SECTION
+
+### A. Page Header
+| Decision | Reasoning |
+|----------|-----------|
+| ✅ TETAP | Standard, sesuai pattern |
+
+### B. Symbol Selector
+| Decision | Reasoning |
+|----------|-----------|
+| ✅ TETAP | Baru ditambahkan, posisi tepat setelah header |
+
+### C. MarketScoreWidget (compact)
+| Decision | Reasoning |
+|----------|-----------|
+| ✅ TETAP | Pre-sizing context penting, compact mode appropriate |
+
+### D. ContextWarnings
+| Decision | Reasoning |
+|----------|-----------|
+| ✅ TETAP | Alert sebelum sizing = correct mental flow |
+
+### E. Tabs Structure
+| Decision | Reasoning |
+|----------|-----------|
+| ✅ TETAP | 2 tab memisahkan core calculator dari volatility tool |
+| ⚠️ CONSIDER | Pindahkan Risk Adjustment Breakdown ke dalam tab atau collapse |
+
+### F. Calculator Inputs
+| Decision | Reasoning |
+|----------|-----------|
+| ✅ TETAP | Core function, 6 inputs = manageable |
+
+### G. Calculator Results
+| Decision | Reasoning |
+|----------|-----------|
+| ✅ TETAP | Immediate feedback setelah input |
+
+### H. Commission Rates
+| Decision | Reasoning |
+|----------|-----------|
+| ✅ TETAP | Useful for accurate fee estimation |
+| 🔧 FIX | Standardize decimals dengan formatters |
+
+### I. Max Leverage Info
+| Decision | Reasoning |
+|----------|-----------|
+| ✅ TETAP | Prevents over-leverage, inline appropriate |
+
+### J. Quick Reference R
+| Decision | Reasoning |
+|----------|-----------|
+| ✅ TETAP | Educational, non-intrusive badges |
+
+### K. Volatility Stats (Tab 2)
+| Decision | Reasoning |
+|----------|-----------|
+| ✅ TETAP | Contextual data untuk SL recommendation |
+
+### L. Stop Loss Suggestions (Tab 2)
+| Decision | Reasoning |
+|----------|-----------|
+| ✅ TETAP | Actionable, apply button integrates flow |
+
+### M. Risk Adjustment Breakdown
+| Decision | Reasoning |
+|----------|-----------|
+| 🔄 PINDAH ke dalam TabsContent calculator | Currently orphaned outside tabs |
+| Alternative: Jadikan Collapsible | Reduce cognitive load for casual users |
+
+---
+
+## 6. REKOMENDASI IMPROVEMENT
+
+### Priority 1: Move Risk Adjustment Breakdown (MEDIUM)
+**Current Location:** Outside tabs, after `</Tabs>`
+**Recommended Location:** Inside `TabsContent value="calculator"`, after `QuickReferenceR`
+
+**Alasan:**
+1. Secara logis bagian dari calculator workflow
+2. User tidak perlu scroll melewati tabs untuk melihatnya
+3. Tetap visible saat user di tab calculator
+
+**Alternative:** Wrap dalam `Collapsible` dengan default collapsed untuk user yang tidak butuh detail.
+
+### Priority 2: Standardize Commission Decimals (LOW)
+**File:** `src/pages/PositionCalculator.tsx` lines 226-239
+**Issue:** Manual `.toFixed()` calls
+**Fix:** Use `formatPercentUnsigned()` dan `formatCurrency()`
+
 ```typescript
-const formatCurrency = (v: number) => {
-  if (Math.abs(v) >= 1000) return `$${(v / 1000).toFixed(1)}k`;
-  return `$${v.toFixed(0)}`;
-};
+// Current
+{(commissionRate.makerCommissionRate * 100).toFixed(3)}%
+(${estimatedFees.makerFee.toFixed(2)})
+
+// Recommended
+{formatPercentUnsigned(commissionRate.makerCommissionRate * 100)}
+({formatCurrency(estimatedFees.makerFee)})
 ```
-**Expected:** Should use centralized `formatCurrency` or `formatCompactCurrency` from `@/lib/formatters`
-**Impact:** Inconsistent formatting with rest of app
 
-### Issue 2: Inconsistent Percent Formatting (LOW)
-**Current:** Uses `.toFixed(1)%` directly
-```typescript
-<div className="text-2xl font-bold">{stats.winRate.toFixed(1)}%</div>
+### Priority 3: Shorter Tab Labels on Mobile (LOW)
+**Recommendation:** Use abbreviated labels on small screens
 ```
-**Expected:** Should use `formatWinRate()` from formatters
-**Impact:** Minor inconsistency
+Desktop: "Position Size Calculator" | "Volatility-Based Stop Loss"
+Mobile:  "Calculator" | "Vol. Stop Loss"
+```
 
-### Issue 3: Ratio Formatting (LOW)
-**Current:** Uses `.toFixed(2):1` directly
-**Expected:** Should use `formatRatio()` from formatters
-
-### Issue 4: Export Not Using Centralized Formatters (MEDIUM)
-**Current:** Export functions use inline `.toFixed()` calls
-**Expected:** Should leverage `formatCurrency`, `formatPercent` etc.
-**Impact:** Export data may have different precision than UI
-
-### Issue 5: No Link to Related Pages (LOW)
-**Current:** Page is standalone
-**Suggestion:** Add quick links to Daily P&L, Heatmap, AI Insights
+**Implementation:** CSS media query atau conditional className
 
 ---
 
-## Ordering & Hierarchy Analysis
+## 7. FINAL VERDICT
 
-### Current Flow (Overview Tab)
-```
-1. 7-Day Stats (4 cards)
-2. Key Metrics (4 cards: Win Rate, PF, Expectancy, DD)
-3. Additional Metrics (4 cards: Sharpe, R:R, Trades, P&L)
-4. Equity Curve with Events
-5. [CombinedContextualScore] [TradingHeatmapChart]
-6. [EventDayComparison] [FearGreedZoneChart]
-7. VolatilityLevelChart
-8. DrawdownChart
-```
+### Page Status: ✅ ALMOST COMPLETE
 
-### Evaluation
-| Aspect | Status | Notes |
-|--------|--------|-------|
-| Information priority | ✅ Good | Key metrics at top |
-| Visual hierarchy | ✅ Good | Progressively detailed |
-| Chart grouping | ✅ Good | Related charts together |
-| Cognitive load | ⚠️ Heavy | 8 sections may be overwhelming |
+| Criteria | Status | Notes |
+|----------|--------|-------|
+| Page intent jelas | ✅ Pass | Pre-trade sizing tool |
+| Semua card terinventarisasi | ✅ Pass | 12+ sections documented |
+| Urutan konten masuk akal | ✅ Pass | Context → Action → Result → Support |
+| Tidak ada konten numpuk | ⚠️ Minor | Risk Adjustment Breakdown slightly orphaned |
+| Keputusan placement per card | ✅ Pass | All decisions documented |
 
-### Recommended Flow (No Change Needed)
-The current flow is logical and follows a good pattern:
-1. Recent snapshot (7-day)
-2. Core metrics (what matters most)
-3. Extended metrics (deeper analysis)
-4. Equity visualization
-5. Contextual analysis (drilling down)
-6. Risk visualization (drawdown)
+### Summary of Changes Needed
+
+| Priority | Change | Impact |
+|----------|--------|--------|
+| Medium | Move RiskAdjustmentBreakdown inside calculator tab | Better content grouping |
+| Low | Standardize commission decimals with formatters | Consistency |
+| Low | Shorter tab labels on mobile | Mobile UX |
 
 ---
 
-## Proposed Changes
-
-### Phase 1: Use Centralized Formatters (HIGH PRIORITY)
-
-**File:** `src/pages/Performance.tsx`
-
-**Changes:**
-1. Remove local `formatCurrency` function
-2. Import and use centralized formatters
-3. Replace inline `.toFixed()` calls
-
-```typescript
-// Remove local formatter
-- const formatCurrency = (v: number) => {
--   if (Math.abs(v) >= 1000) return `$${(v / 1000).toFixed(1)}k`;
--   return `$${v.toFixed(0)}`;
-- };
-
-// Import centralized formatters
-import { 
-  formatCurrency, 
-  formatCompactCurrency, 
-  formatWinRate, 
-  formatRatio, 
-  formatPercentUnsigned 
-} from "@/lib/formatters";
-
-// Win Rate card
-- <div className="text-2xl font-bold">{stats.winRate.toFixed(1)}%</div>
-+ <div className="text-2xl font-bold">{formatWinRate(stats.winRate)}</div>
-
-// Max Drawdown card
-- <div className="text-2xl font-bold text-destructive">{stats.maxDrawdownPercent.toFixed(1)}%</div>
-+ <div className="text-2xl font-bold text-destructive">{formatPercentUnsigned(stats.maxDrawdownPercent)}</div>
-
-// Avg R:R card
-- <div className="text-xl font-bold">{stats.avgRR.toFixed(2)}:1</div>
-+ <div className="text-xl font-bold">{formatRatio(stats.avgRR)}</div>
-
-// Strategy Performance section
-- <div className="font-medium">{sp.winRate.toFixed(1)}%</div>
-+ <div className="font-medium">{formatWinRate(sp.winRate)}</div>
-
-- <div className="font-medium">{sp.avgRR.toFixed(2)}:1</div>
-+ <div className="font-medium">{formatRatio(sp.avgRR)}</div>
-
-- <div className="font-medium">{sp.contribution.toFixed(1)}%</div>
-+ <div className="font-medium">{formatWinRate(sp.contribution)}</div>
-```
-
-### Phase 2: Fix Equity Curve Formatter (MEDIUM PRIORITY)
-
-**File:** `src/pages/Performance.tsx`
-
-**Changes:**
-Use `formatCompactCurrency` for chart axis formatter (keeps K/M suffix behavior):
-```typescript
-// For the equity curve
-<EquityCurveWithEvents 
-  equityData={equityData} 
-  formatCurrency={formatCompactCurrency} // Use compact version
-/>
-```
-
-Or create a chart-specific formatter:
-```typescript
-const chartFormatCurrency = (v: number) => formatCompactCurrency(v, 'USD');
-```
-
-### Phase 3: Update DrawdownChart (LOW PRIORITY)
-
-**File:** `src/components/analytics/DrawdownChart.tsx`
-
-**Changes:**
-```typescript
-import { formatPercentUnsigned } from "@/lib/formatters";
-
-// Replace
-- <p className="text-xl font-bold text-loss">-{maxDrawdown.toFixed(2)}%</p>
-+ <p className="text-xl font-bold text-loss">-{formatPercentUnsigned(maxDrawdown)}</p>
-```
-
----
-
-## Technical Implementation
-
-### Files to Modify
-
-| File | Priority | Changes |
-|------|----------|---------|
-| `src/pages/Performance.tsx` | High | Replace local formatCurrency, use centralized formatters |
-| `src/components/analytics/DrawdownChart.tsx` | Low | Use formatPercentUnsigned |
-
-### Code Changes Summary
-
-**Performance.tsx:**
-1. Remove local `formatCurrency` function (lines 114-117)
-2. Import centralized formatters
-3. Update Win Rate card (line 330)
-4. Update Max Drawdown card (line 371)
-5. Update Sharpe Ratio card (line 386)
-6. Update Avg R:R card (line 395)
-7. Update Strategy Performance section (lines 518, 522, 534)
-8. Update Equity Curve prop (line 440)
-
----
-
-## Success Criteria
-
-| Criteria | Expected Behavior |
-|----------|-------------------|
-| Win Rate | Displays as `65.5%` (1 decimal via formatWinRate) |
-| Drawdown | Displays as `12.50%` (2 decimals via formatPercentUnsigned) |
-| Avg R:R | Displays as `2.50:1` (via formatRatio) |
-| Equity Chart | Uses formatCompactCurrency for K/M notation |
-| Strategy metrics | All use centralized formatters |
-| Consistency | All metrics match formatting in other pages |
-
----
-
-## Risk Assessment
-
-| Risk | Mitigation |
-|------|------------|
-| Chart axis formatting breaks | Test compact currency formatter with small/large values |
-| Export precision changes | Keep export functions separate if needed |
-| Visual differences | Minor - standardization is the goal |
-
----
-
-## Estimated Effort
-
-| Phase | Effort | Priority |
-|-------|--------|----------|
-| Phase 1: Centralized Formatters | Low | High |
-| Phase 2: Chart Formatter | Very Low | Medium |
-| Phase 3: DrawdownChart | Very Low | Low |
-
----
-
-## File Impact Summary
+## 8. FILES IMPACTED
 
 | File | Changes |
 |------|---------|
-| `src/pages/Performance.tsx` | ~15 line changes |
-| `src/components/analytics/DrawdownChart.tsx` | ~2 line changes |
+| `src/pages/PositionCalculator.tsx` | Move RiskAdjustmentBreakdown, fix decimals, optional mobile labels |
 
-**Total Estimated Changes:** ~17 lines
+**Estimated Lines Changed:** ~15-20 lines
+
+---
+
+## 9. APPROVAL NEEDED
+
+Sebelum implementasi, konfirmasi:
+
+1. **Risk Adjustment Breakdown:** 
+   - Option A: Pindah ke dalam `TabsContent calculator` (recommended)
+   - Option B: Jadikan `Collapsible` dengan default collapsed
+   
+2. **Mobile Tab Labels:**
+   - Option A: Keep current (accept cramping)
+   - Option B: Shorter labels on mobile
+
+Apakah user menyetujui rekomendasi di atas untuk dilanjutkan ke implementasi?
+
