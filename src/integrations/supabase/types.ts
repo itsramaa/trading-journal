@@ -659,6 +659,7 @@ export type Database = {
       trading_strategies: {
         Row: {
           automation_score: number | null
+          clone_count: number | null
           color: string | null
           created_at: string
           description: string | null
@@ -668,6 +669,7 @@ export type Database = {
           id: string
           is_active: boolean | null
           is_shared: boolean | null
+          last_cloned_at: string | null
           market_type: string | null
           min_confluences: number | null
           min_rr: number | null
@@ -686,6 +688,7 @@ export type Database = {
         }
         Insert: {
           automation_score?: number | null
+          clone_count?: number | null
           color?: string | null
           created_at?: string
           description?: string | null
@@ -695,6 +698,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           is_shared?: boolean | null
+          last_cloned_at?: string | null
           market_type?: string | null
           min_confluences?: number | null
           min_rr?: number | null
@@ -713,6 +717,7 @@ export type Database = {
         }
         Update: {
           automation_score?: number | null
+          clone_count?: number | null
           color?: string | null
           created_at?: string
           description?: string | null
@@ -722,6 +727,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           is_shared?: boolean | null
+          last_cloned_at?: string | null
           market_type?: string | null
           min_confluences?: number | null
           min_rr?: number | null

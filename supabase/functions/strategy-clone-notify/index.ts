@@ -118,6 +118,24 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("Clone notification email sent:", emailResponse);
 
+    // Increment clone count and update last_cloned_at
+    // First get current clone_count, then increment
+    const { data: currentStrategy } = await supabase
+      .from("trading_strategies")
+      .select("clone_count")
+      .eq("id", strategyId)
+      .single();
+    
+    const newCloneCount = (currentStrategy?.clone_count || 0) + 1;
+    
+    await supabase
+      .from("trading_strategies")
+      .update({ 
+        clone_count: newCloneCount,
+        last_cloned_at: new Date().toISOString() 
+      })
+      .eq("id", strategyId);
+
     // Also create in-app notification
     await supabase.from("notifications").insert({
       user_id: ownerUserId,

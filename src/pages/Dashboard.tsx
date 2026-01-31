@@ -20,6 +20,7 @@ import { SystemStatusIndicator } from "@/components/dashboard/SystemStatusIndica
 import { MarketSessionsWidget } from "@/components/dashboard/MarketSessionsWidget";
 import { ADLRiskWidget } from "@/components/dashboard/ADLRiskWidget";
 import { MarketScoreWidget } from "@/components/dashboard/MarketScoreWidget";
+import { StrategyCloneStatsWidget } from "@/components/dashboard/StrategyCloneStatsWidget";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { useRealtime } from "@/hooks/use-realtime";
 import { 
@@ -214,6 +215,9 @@ const Dashboard = () => {
 
         {/* 3. Market Score Widget */}
         <MarketScoreWidget symbol="BTCUSDT" />
+
+        {/* 3b. Strategy Clone Stats Widget */}
+        <StrategyCloneStatsWidget />
 
         {/* 4. System Status - No title (already built-in) */}
         <SystemStatusIndicator />
