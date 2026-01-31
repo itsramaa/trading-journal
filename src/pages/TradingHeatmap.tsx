@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { TradingHeatmap } from "@/components/analytics/TradingHeatmap";
-import { formatCurrency } from "@/lib/formatters";
+import { formatCurrency, formatWinRate } from "@/lib/formatters";
 
 type DateRangeOption = '7d' | '30d' | '90d' | 'all';
 
@@ -307,7 +307,7 @@ export default function TradingHeatmapPage() {
                     {formatCurrency(sessionStats.asia.pnl, 'USD')}
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    {sessionStats.asia.trades} trades • {sessionStats.asia.winRate.toFixed(0)}% win rate
+                    {sessionStats.asia.trades} trades • {formatWinRate(sessionStats.asia.winRate)} win rate
                   </p>
                 </CardContent>
               </Card>
@@ -325,7 +325,7 @@ export default function TradingHeatmapPage() {
                     {formatCurrency(sessionStats.london.pnl, 'USD')}
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    {sessionStats.london.trades} trades • {sessionStats.london.winRate.toFixed(0)}% win rate
+                    {sessionStats.london.trades} trades • {formatWinRate(sessionStats.london.winRate)} win rate
                   </p>
                 </CardContent>
               </Card>
@@ -343,7 +343,7 @@ export default function TradingHeatmapPage() {
                     {formatCurrency(sessionStats.ny.pnl, 'USD')}
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    {sessionStats.ny.trades} trades • {sessionStats.ny.winRate.toFixed(0)}% win rate
+                    {sessionStats.ny.trades} trades • {formatWinRate(sessionStats.ny.winRate)} win rate
                   </p>
                 </CardContent>
               </Card>
