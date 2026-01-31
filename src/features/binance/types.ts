@@ -116,10 +116,7 @@ export type BinanceAction =
   // Phase 5: Bulk Export
   | 'request-download'
   | 'get-download'
-  // Phase 6: Algo Orders, Transaction History
-  | 'algo-orders'
-  | 'algo-open-orders'
-  | 'algo-order'
+  // Phase 6: Transaction History
   | 'transaction-history';
 
 /**

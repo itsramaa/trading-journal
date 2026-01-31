@@ -2,8 +2,9 @@
  * Market Data Page - Standalone page for market data tab content
  * Primary entry point for Market domain
  * Layout: 1. Market Sentiment (full), 2. Volatility+Whale grid, 3. Trading Opportunities
- * Top 5 for all widgets
+ * Top 5 for all widgets + selected pair sync
  */
+import { useState, useMemo } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { MarketSentimentWidget } from "@/components/market";
 import { VolatilityMeterWidget } from "@/components/dashboard/VolatilityMeterWidget";
@@ -16,15 +17,26 @@ import { useMarketSentiment } from "@/features/market-insight";
 import { cn } from "@/lib/utils";
 import type { WhaleSignal } from "@/features/market-insight/types";
 
-// Top 5 pairs for default display
+// Top 5 assets (format used by whale API: 'BTC', 'ETH', etc.)
+const TOP_5_ASSETS = ['BTC', 'ETH', 'SOL', 'XRP', 'BNB'];
+// Top 5 pairs (format used by volatility API: 'BTCUSDT', etc.)
 const TOP_5_PAIRS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'XRPUSDT', 'BNBUSDT'];
+// Top 5 opportunity pairs (format used by opportunities API: 'BTC/USDT', etc.)
+const TOP_5_OPP_PAIRS = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'XRP/USDT', 'BNB/USDT'];
 
 export default function MarketData() {
+  // Selected pair from Market Sentiment widget
+  const [selectedPair, setSelectedPair] = useState('BTCUSDT');
+  
   const { 
     data: sentimentData, 
     isLoading: sentimentLoading, 
     refetch: refetchSentiment 
   } = useMarketSentiment();
+
+  // Derived formats for selected pair
+  const selectedAsset = useMemo(() => selectedPair.replace('USDT', ''), [selectedPair]);
+  const selectedOppPair = useMemo(() => `${selectedAsset}/USDT`, [selectedAsset]);
 
   const getWhaleSignalColor = (signal: WhaleSignal) => {
     switch (signal) {
@@ -34,24 +46,60 @@ export default function MarketData() {
     }
   };
 
-  // Get whale data - top 5 pairs only
+  // Volatility symbols - add selected pair at top if not in top 5
+  const volatilitySymbols = useMemo(() => {
+    if (selectedPair && !TOP_5_PAIRS.includes(selectedPair)) {
+      return [selectedPair, ...TOP_5_PAIRS];
+    }
+    return TOP_5_PAIRS;
+  }, [selectedPair]);
+
+  // Get whale data - top 5 assets + selected if not in top 5
   const getWhaleData = () => {
     if (!sentimentData?.whaleActivity) return [];
     
-    // Filter to top 5 pairs
-    return sentimentData.whaleActivity.filter(w => 
-      TOP_5_PAIRS.includes(w.asset)
+    const isSelectedInTop5 = TOP_5_ASSETS.includes(selectedAsset);
+    
+    // Get top 5 whale data
+    let result = sentimentData.whaleActivity.filter(w => 
+      TOP_5_ASSETS.includes(w.asset)
     ).slice(0, 5);
+    
+    // If selected is NOT in top 5, find it and add to front
+    if (!isSelectedInTop5) {
+      const selectedWhale = sentimentData.whaleActivity.find(w => 
+        w.asset === selectedAsset
+      );
+      if (selectedWhale) {
+        result = [selectedWhale, ...result.slice(0, 4)];
+      }
+    }
+    
+    return result;
   };
 
-  // Get opportunities data - top 5 pairs only
+  // Get opportunities data - top 5 pairs + selected if not in top 5
   const getOpportunitiesData = () => {
     if (!sentimentData?.opportunities) return [];
     
-    // Filter to top 5 pairs
-    return sentimentData.opportunities.filter(o => 
-      TOP_5_PAIRS.includes(o.pair)
+    const isSelectedInTop5 = TOP_5_OPP_PAIRS.includes(selectedOppPair);
+    
+    // Get top 5 opportunity data
+    let result = sentimentData.opportunities.filter(o => 
+      TOP_5_OPP_PAIRS.includes(o.pair)
     ).slice(0, 5);
+    
+    // If selected is NOT in top 5, find it and add to front
+    if (!isSelectedInTop5) {
+      const selectedOpp = sentimentData.opportunities.find(o => 
+        o.pair === selectedOppPair
+      );
+      if (selectedOpp) {
+        result = [selectedOpp, ...result.slice(0, 4)];
+      }
+    }
+    
+    return result;
   };
 
   const whaleData = getWhaleData();
@@ -87,13 +135,14 @@ export default function MarketData() {
         <MarketSentimentWidget 
           defaultSymbol="BTCUSDT" 
           showSymbolSelector={true}
+          onSymbolChange={setSelectedPair}
         />
 
         {/* 2. Volatility Meter + Whale Tracker - Grid 2 */}
         <div className="grid gap-4 md:grid-cols-2">
-          <VolatilityMeterWidget />
+          <VolatilityMeterWidget symbols={volatilitySymbols} />
           
-          {/* AI Whale Tracking - Top 5 */}
+          {/* AI Whale Tracking - Top 5 + selected */}
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
@@ -101,7 +150,9 @@ export default function MarketData() {
                   <Activity className="h-5 w-5 text-primary" />
                   <CardTitle className="text-lg">Whale Tracking</CardTitle>
                 </div>
-                <Badge variant="outline">Top 5</Badge>
+                <Badge variant="outline">
+                  {!TOP_5_ASSETS.includes(selectedAsset) ? `+${selectedAsset}` : 'Top 5'}
+                </Badge>
               </div>
               <CardDescription>
                 Volume-based whale activity detection
@@ -115,6 +166,11 @@ export default function MarketData() {
                   <Skeleton className="h-14" />
                   <Skeleton className="h-14" />
                   <Skeleton className="h-14" />
+                </div>
+              ) : whaleData.length === 0 ? (
+                <div className="text-center py-6 text-muted-foreground">
+                  <Activity className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No whale activity detected</p>
                 </div>
               ) : whaleData.map((whale, idx) => (
                 <div 
@@ -157,7 +213,7 @@ export default function MarketData() {
           </Card>
         </div>
 
-        {/* 3. Trading Opportunities - Full Width at Bottom - Top 5 */}
+        {/* 3. Trading Opportunities - Full Width at Bottom - Top 5 + selected */}
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
@@ -165,7 +221,9 @@ export default function MarketData() {
                 <Target className="h-5 w-5 text-primary" />
                 <CardTitle className="text-lg">Trading Opportunities</CardTitle>
               </div>
-              <Badge variant="outline">Top 5</Badge>
+              <Badge variant="outline">
+                {!TOP_5_OPP_PAIRS.includes(selectedOppPair) ? `+${selectedAsset}` : 'Top 5'}
+              </Badge>
             </div>
             <CardDescription>
               AI-ranked setups based on technicals
@@ -179,6 +237,11 @@ export default function MarketData() {
                 <Skeleton className="h-24" />
                 <Skeleton className="h-24" />
                 <Skeleton className="h-24" />
+              </div>
+            ) : opportunitiesData.length === 0 ? (
+              <div className="text-center py-6 text-muted-foreground">
+                <Target className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">No trading opportunities found</p>
               </div>
             ) : (
               <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">

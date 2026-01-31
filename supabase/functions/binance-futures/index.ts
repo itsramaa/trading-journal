@@ -1320,23 +1320,6 @@ Deno.serve(async (req) => {
         }
         break;
         
-      // Phase 6: Algo Orders, Trading Schedule, Transaction History
-      case 'algo-orders':
-        result = await getAlgoOrders(apiKey, apiSecret, body.params || {});
-        break;
-        
-      case 'algo-open-orders':
-        result = await getAlgoOpenOrders(apiKey, apiSecret);
-        break;
-        
-      case 'algo-order':
-        if (!body.algoId) {
-          result = { success: false, error: 'algoId is required' };
-        } else {
-          result = await getAlgoOrder(apiKey, apiSecret, body.algoId);
-        }
-        break;
-        
       case 'transaction-history':
         result = await getTransactionHistory(apiKey, apiSecret, body.params || {});
         break;

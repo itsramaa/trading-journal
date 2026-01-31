@@ -45,6 +45,7 @@ interface MarketSentimentWidgetProps {
   defaultSymbol?: string;
   showSymbolSelector?: boolean;
   className?: string;
+  onSymbolChange?: (symbol: string) => void;
 }
 
 // Default quick-access symbols shown before search
@@ -65,7 +66,8 @@ const PERIODS: { value: OpenInterestPeriod; label: string }[] = [
 export function MarketSentimentWidget({ 
   defaultSymbol = "BTCUSDT",
   showSymbolSelector = true,
-  className 
+  className,
+  onSymbolChange
 }: MarketSentimentWidgetProps) {
   const [symbol, setSymbol] = useState(defaultSymbol);
   const [period, setPeriod] = useState<OpenInterestPeriod>("1h");
@@ -209,6 +211,7 @@ export function MarketSentimentWidget({
                             value={s.value}
                             onSelect={() => {
                               setSymbol(s.value);
+                              onSymbolChange?.(s.value);
                               setOpen(false);
                             }}
                           >
@@ -232,6 +235,7 @@ export function MarketSentimentWidget({
                               value={s.value}
                               onSelect={() => {
                                 setSymbol(s.value);
+                                onSymbolChange?.(s.value);
                                 setOpen(false);
                               }}
                             >
