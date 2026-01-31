@@ -1,15 +1,17 @@
 # Trading Journey - Unified System Integration Implementation Plan
 
 > **Single Source of Truth**: Dokumen ini adalah panduan implementasi lengkap untuk integrasi seluruh domain dalam Trading Journey.
-> **Target**: Menghubungkan Market Data, Journal, Risk, Strategy, Analytics, dan Settings menjadi satu ekosistem terintegrasi.
+> **Target**: Menghubungkan Dashboard, Accounts, Market Data, Journal, Risk, Strategy, Analytics, dan Settings menjadi satu ekosistem terintegrasi.
 > **Reference Documents**: 
-> - `docs/MARKET_DATA_INTEGRATION_ANALYSIS.md`
-> - `docs/JOURNAL_INTEGRATION_ANALYSIS.md`
-> - `docs/UNIFIED_SYSTEM_INTEGRATION.md`
-> - `docs/RISK_MANAGEMENT_INTEGRATION_ANALYSIS.md`
-> - `docs/STRATEGY_INTEGRATION_ANALYSIS.md`
-> - `docs/ANALYTICS_INTEGRATION_ANALYSIS.md`
-> - `docs/SETTINGS_EXPORT_INTEGRATION_ANALYSIS.md`
+> - `docs/DASHBOARD_INTEGRATION_ANALYSIS.md` - Central Command Center analysis
+> - `docs/ACCOUNTS_INTEGRATION_ANALYSIS.md` - Financial Data Hub analysis
+> - `docs/MARKET_DATA_INTEGRATION_ANALYSIS.md` - Market Data, Calendar, Top Movers, AI Analysis
+> - `docs/JOURNAL_INTEGRATION_ANALYSIS.md` - Trading Journal & Trade History
+> - `docs/UNIFIED_SYSTEM_INTEGRATION.md` - Cross-domain integration solutions
+> - `docs/RISK_MANAGEMENT_INTEGRATION_ANALYSIS.md` - Risk Overview & Calculator
+> - `docs/STRATEGY_INTEGRATION_ANALYSIS.md` - Strategies & Backtest
+> - `docs/ANALYTICS_INTEGRATION_ANALYSIS.md` - Performance, Daily P&L, Heatmap, AI Insights
+> - `docs/SETTINGS_EXPORT_INTEGRATION_ANALYSIS.md` - Settings & Bulk Export
 
 ---
 
