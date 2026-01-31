@@ -96,7 +96,7 @@ export function useStrategySharing(strategyId?: string) {
   // Clone a shared strategy to user's account
   const cloneStrategy = useMutation({
     mutationFn: async (shareToken: string) => {
-      // First, get the shared strategy
+      // First, get the shared strategy with owner info
       const { data: sharedStrategy, error: fetchError } = await supabase
         .from('trading_strategies')
         .select('*')
@@ -109,6 +109,13 @@ export function useStrategySharing(strategyId?: string) {
       // Get current user
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('You must be logged in to clone a strategy');
+
+      // Get cloner's display name for notification
+      const { data: clonerProfile } = await supabase
+        .from('users_profile')
+        .select('display_name')
+        .eq('user_id', user.id)
+        .single();
       
       // Create a copy for the current user
       const { data, error } = await supabase
@@ -136,6 +143,19 @@ export function useStrategySharing(strategyId?: string) {
         .single();
       
       if (error) throw error;
+
+      // Send notification to strategy owner (don't await, fire and forget)
+      if (sharedStrategy.user_id !== user.id) {
+        supabase.functions.invoke('strategy-clone-notify', {
+          body: {
+            strategyId: sharedStrategy.id,
+            strategyName: sharedStrategy.name,
+            ownerUserId: sharedStrategy.user_id,
+            clonerDisplayName: clonerProfile?.display_name || user.email?.split('@')[0] || 'A trader',
+          },
+        }).catch(err => console.warn('Clone notification failed:', err));
+      }
+
       return data;
     },
     onSuccess: () => {
