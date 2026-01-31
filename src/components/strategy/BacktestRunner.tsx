@@ -29,6 +29,9 @@ import { cn } from "@/lib/utils";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { useRunBacktest } from "@/hooks/use-backtest";
 import { useBaseAssets } from "@/hooks/use-trading-pairs";
+import { useAccounts } from "@/hooks/use-accounts";
+import { useBinanceConnectionStatus, useBinanceBalance } from "@/features/binance";
+import { formatCurrency } from "@/lib/formatters";
 import { BacktestResults } from "./BacktestResults";
 import type { 
   BacktestConfig, 
@@ -64,6 +67,18 @@ export function BacktestRunner() {
   const { data: strategies, isLoading: strategiesLoading } = useTradingStrategies();
   const { data: baseAssets } = useBaseAssets();
   const runBacktest = useRunBacktest();
+  
+  // For quick fill buttons
+  const { data: accounts } = useAccounts();
+  const { data: connectionStatus } = useBinanceConnectionStatus();
+  const { data: binanceBalance } = useBinanceBalance();
+  
+  // Get trading accounts for quick fill
+  const tradingAccounts = accounts?.filter(a => 
+    a.account_type === 'trading' && a.is_active
+  ) || [];
+  const isBinanceConnected = connectionStatus?.isConnected;
+  const binanceAvailableBalance = binanceBalance?.availableBalance || 0;
 
   // Update selected strategy when URL param changes or strategies load
   useEffect(() => {
@@ -227,6 +242,32 @@ export function BacktestRunner() {
                 min={100}
                 step={100}
               />
+              {/* Quick Fill Buttons */}
+              <div className="flex flex-wrap gap-1.5">
+                {isBinanceConnected && binanceAvailableBalance > 0 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-xs h-7"
+                    onClick={() => setInitialCapital(Math.floor(binanceAvailableBalance))}
+                  >
+                    Binance: {formatCurrency(binanceAvailableBalance, 'USD')}
+                  </Button>
+                )}
+                {tradingAccounts.slice(0, 2).map((account) => (
+                  <Button
+                    key={account.id}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-xs h-7"
+                    onClick={() => setInitialCapital(Math.floor(Number(account.balance)))}
+                  >
+                    {account.name}: {formatCurrency(Number(account.balance), account.currency)}
+                  </Button>
+                ))}
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="commission">Commission Rate (%)</Label>

@@ -24,6 +24,7 @@ export interface UserSettings {
   notify_push_enabled: boolean;
   target_allocations?: Record<string, number> | null;
   ai_settings?: Record<string, boolean | number | string> | null;
+  default_trading_account_id?: string | null;
   created_at: string;
   updated_at: string;
 }

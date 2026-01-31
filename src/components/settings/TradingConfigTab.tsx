@@ -45,8 +45,13 @@ export function TradingConfigTab() {
 
   useEffect(() => {
     if (userSettings) {
-      const aiSettings = userSettings.ai_settings as { default_trading_account_id?: string } | null;
-      setDefaultAccountId(aiSettings?.default_trading_account_id || null);
+      // Read from new dedicated column first, fallback to ai_settings for backward compatibility
+      if (userSettings.default_trading_account_id) {
+        setDefaultAccountId(userSettings.default_trading_account_id);
+      } else {
+        const aiSettings = userSettings.ai_settings as { default_trading_account_id?: string } | null;
+        setDefaultAccountId(aiSettings?.default_trading_account_id || null);
+      }
     }
   }, [userSettings]);
 
@@ -71,12 +76,9 @@ export function TradingConfigTab() {
     setDefaultAccountId(newValue);
     
     try {
-      const currentAiSettings = (userSettings?.ai_settings as Record<string, unknown>) || {};
+      // Use the dedicated column for default trading account
       await updateUserSettings.mutateAsync({
-        ai_settings: {
-          ...currentAiSettings,
-          default_trading_account_id: newValue,
-        },
+        default_trading_account_id: newValue,
       });
       toast.success("Default trading account updated");
     } catch (error) {

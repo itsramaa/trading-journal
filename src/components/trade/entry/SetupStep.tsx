@@ -27,6 +27,7 @@ import { useBinanceBalance, useBinanceConnectionStatus } from "@/features/binanc
 import { useCaptureMarketContext } from "@/hooks/use-capture-market-context";
 import { MarketContextBadge } from "@/components/market/MarketContextBadge";
 import { useStrategyContext, type MarketFit } from "@/hooks/use-strategy-context";
+import { useUserSettings } from "@/hooks/use-user-settings";
 import type { ValidationResult } from "@/types/trade-wizard";
 
 interface SetupStepProps {
@@ -83,6 +84,9 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
   const { data: tradingAccounts, isLoading: accountsLoading } = useTradingAccounts();
   const activeTradingAccounts = tradingAccounts?.filter(a => a.is_active) || [];
   
+  // User settings for default account
+  const { data: userSettings } = useUserSettings();
+  
   // Get balance based on selection
   const accountBalance = useMemo(() => {
     if (selectedAccountType === 'binance' && binanceBalance) {
@@ -121,12 +125,30 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
   const [hasRunValidation, setHasRunValidation] = useState(false);
   const [sectionsOpen, setSectionsOpen] = useState({ validation: true, strategy: true, trade: true, context: true });
 
-  // Auto-select Binance if connected
+  // Auto-select default account (priority: user preference > Binance if connected > first paper account)
   useEffect(() => {
-    if (isBinanceConnected && !selectedAccountType) {
+    if (selectedAccountType) return; // Already selected
+    
+    // Check user's default preference first
+    const defaultAccountId = userSettings?.default_trading_account_id;
+    
+    if (defaultAccountId) {
+      // Check if it's 'binance' or a valid paper account
+      if (defaultAccountId === 'binance' && isBinanceConnected) {
+        setSelectedAccountType('binance');
+        return;
+      }
+      if (activeTradingAccounts.some(a => a.id === defaultAccountId)) {
+        setSelectedAccountType(defaultAccountId);
+        return;
+      }
+    }
+    
+    // Fallback: auto-select Binance if connected
+    if (isBinanceConnected) {
       setSelectedAccountType('binance');
     }
-  }, [isBinanceConnected]);
+  }, [isBinanceConnected, userSettings?.default_trading_account_id, activeTradingAccounts]);
 
   // Initialize from wizard state
   useEffect(() => {
