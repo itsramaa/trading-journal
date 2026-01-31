@@ -1,84 +1,107 @@
-import { useState } from "react";
 import { Bell, BellOff, Check, Trash2 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
-interface Notification {
-  id: string;
-  title: string;
-  message: string;
-  type: "info" | "success" | "warning";
-  read: boolean;
-  timestamp: string;
-}
-
-const dummyNotifications: Notification[] = [
-  {
-    id: "1",
-    title: "Price Alert Triggered",
-    message: "BTC has reached your target price of $95,000",
-    type: "success",
-    read: false,
-    timestamp: "2 hours ago",
-  },
-  {
-    id: "2",
-    title: "Portfolio Update",
-    message: "Your portfolio value increased by 5.2% this week",
-    type: "info",
-    read: false,
-    timestamp: "1 day ago",
-  },
-  {
-    id: "3",
-    title: "Market Alert",
-    message: "High volatility detected in crypto markets",
-    type: "warning",
-    read: true,
-    timestamp: "2 days ago",
-  },
-];
+import { Skeleton } from "@/components/ui/skeleton";
+import { formatDistanceToNow } from "date-fns";
+import {
+  useNotifications,
+  useUnreadCount,
+  useMarkAsRead,
+  useMarkAllAsRead,
+  useClearAllNotifications,
+} from "@/hooks/use-notifications";
 
 export default function Notifications() {
-  const [notifications, setNotifications] = useState<Notification[]>(dummyNotifications);
-  const [settings, setSettings] = useState({
-    priceAlerts: true,
-    portfolioUpdates: true,
-    marketNews: false,
-    weeklyDigest: true,
-    emailNotifications: true,
-    pushNotifications: false,
-  });
+  const { data: notifications = [], isLoading } = useNotifications();
+  const unreadCount = useUnreadCount();
+  const markAsRead = useMarkAsRead();
+  const markAllAsRead = useMarkAllAsRead();
+  const clearAll = useClearAllNotifications();
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
-
-  const markAllAsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-  };
-
-  const markAsRead = (id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-    );
-  };
-
-  const deleteNotification = (id: string) => {
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
-  };
-
-  const getTypeColor = (type: Notification["type"]) => {
+  const getTypeColor = (type: string) => {
     switch (type) {
       case "success":
+      case "price_alert":
         return "bg-profit/10 text-profit";
       case "warning":
         return "bg-warning/10 text-warning";
+      case "error":
+        return "bg-loss/10 text-loss";
       default:
         return "bg-primary/10 text-primary";
     }
   };
+
+  const formatTimestamp = (dateStr: string) => {
+    try {
+      return formatDistanceToNow(new Date(dateStr), { addSuffix: true });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const NotificationCard = ({ notification }: { notification: typeof notifications[0] }) => (
+    <Card className={notification.read ? "opacity-60" : ""}>
+      <CardContent className="flex items-start gap-4 p-4">
+        <div
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${getTypeColor(notification.type)}`}
+        >
+          <Bell className="h-5 w-5" />
+        </div>
+        <div className="flex-1 space-y-1">
+          <div className="flex items-center gap-2">
+            <p className="font-medium">{notification.title}</p>
+            {!notification.read && (
+              <Badge variant="default" className="h-2 w-2 rounded-full p-0" />
+            )}
+          </div>
+          <p className="text-sm text-muted-foreground">{notification.message}</p>
+          {notification.asset_symbol && (
+            <Badge variant="outline" className="mt-1">{notification.asset_symbol}</Badge>
+          )}
+          <p className="text-xs text-muted-foreground">
+            {formatTimestamp(notification.created_at)}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          {!notification.read && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => markAsRead.mutate(notification.id)}
+              disabled={markAsRead.isPending}
+            >
+              <Check className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  if (isLoading) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-6">
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-12 w-12 rounded-xl" />
+            <div>
+              <Skeleton className="h-6 w-40 mb-2" />
+              <Skeleton className="h-4 w-60" />
+            </div>
+          </div>
+          <div className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-24 w-full" />
+            ))}
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -98,12 +121,28 @@ export default function Notifications() {
               </p>
             </div>
           </div>
-          {unreadCount > 0 && (
-            <Button variant="outline" onClick={markAllAsRead}>
-              <Check className="mr-2 h-4 w-4" />
-              Mark all as read
-            </Button>
-          )}
+          <div className="flex gap-2">
+            {unreadCount > 0 && (
+              <Button
+                variant="outline"
+                onClick={() => markAllAsRead.mutate()}
+                disabled={markAllAsRead.isPending}
+              >
+                <Check className="mr-2 h-4 w-4" />
+                Mark all as read
+              </Button>
+            )}
+            {notifications.length > 0 && (
+              <Button
+                variant="outline"
+                onClick={() => clearAll.mutate()}
+                disabled={clearAll.isPending}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Clear all
+              </Button>
+            )}
+          </div>
         </div>
 
         <Tabs defaultValue="all" className="space-y-4">
@@ -127,50 +166,7 @@ export default function Notifications() {
           <TabsContent value="all" className="space-y-4">
             {notifications.length > 0 ? (
               notifications.map((notification) => (
-                <Card
-                  key={notification.id}
-                  className={notification.read ? "opacity-60" : ""}
-                >
-                  <CardContent className="flex items-start gap-4 p-4">
-                    <div
-                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${getTypeColor(notification.type)}`}
-                    >
-                      <Bell className="h-5 w-5" />
-                    </div>
-                    <div className="flex-1 space-y-1">
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium">{notification.title}</p>
-                        {!notification.read && (
-                          <Badge variant="default" className="h-2 w-2 rounded-full p-0" />
-                        )}
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        {notification.message}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {notification.timestamp}
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      {!notification.read && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => markAsRead(notification.id)}
-                        >
-                          <Check className="h-4 w-4" />
-                        </Button>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => deleteNotification(notification.id)}
-                      >
-                        <Trash2 className="h-4 w-4 text-muted-foreground" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
+                <NotificationCard key={notification.id} notification={notification} />
               ))
             ) : (
               <Card>
@@ -187,40 +183,7 @@ export default function Notifications() {
               notifications
                 .filter((n) => !n.read)
                 .map((notification) => (
-                  <Card key={notification.id}>
-                    <CardContent className="flex items-start gap-4 p-4">
-                      <div
-                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${getTypeColor(notification.type)}`}
-                      >
-                        <Bell className="h-5 w-5" />
-                      </div>
-                      <div className="flex-1 space-y-1">
-                        <p className="font-medium">{notification.title}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {notification.message}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {notification.timestamp}
-                        </p>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => markAsRead(notification.id)}
-                        >
-                          <Check className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => deleteNotification(notification.id)}
-                        >
-                          <Trash2 className="h-4 w-4 text-muted-foreground" />
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <NotificationCard key={notification.id} notification={notification} />
                 ))
             ) : (
               <Card>
@@ -231,7 +194,6 @@ export default function Notifications() {
               </Card>
             )}
           </TabsContent>
-
         </Tabs>
       </div>
     </DashboardLayout>
