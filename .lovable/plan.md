@@ -2,7 +2,7 @@
 
 ## Status: 🟡 IN PROGRESS - Phase 1 Complete
 **Tanggal Audit**: 2026-01-31
-**Source of Truth**: `docs/Trading_Journey_Documentation.md`, `docs/GAP_ANALYSIS_COMPREHENSIVE.md`
+**Source of Truth**: `docs/` (fresh documentation folder)
 
 ### ✅ PHASE 1 COMPLETED (2026-01-31)
 - [x] Task 1.1: Enforce REALIZED_PNL filter in auto-sync
