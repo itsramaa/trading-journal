@@ -14,12 +14,14 @@ import {
   ChevronDown,
   ChevronUp,
   Trash2,
+  EyeOff,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTradeEntries } from '@/hooks/use-trade-entries';
 import { useTradingStrategies } from '@/hooks/use-trading-strategies';
 import { useAccounts } from '@/hooks/use-accounts';
 import { useAppStore } from '@/store/app-store';
+import { useAuth } from '@/hooks/use-auth';
 import { ChatMessage } from './ChatMessage';
 import { QuickActionsPanel } from './QuickActionsPanel';
 import { TipsPanel } from './TipsPanel';
@@ -44,9 +46,11 @@ const AI_MODES = {
 };
 
 export function AIChatbot() {
+  const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isHidden, setIsHidden] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -254,6 +258,27 @@ export function AIChatbot() {
     setMessages([]);
   };
 
+  // Don't render if user is not logged in
+  if (!user) {
+    return null;
+  }
+
+  // Hidden state - show small button to unhide
+  if (isHidden) {
+    return (
+      <Button
+        onClick={() => setIsHidden(false)}
+        size="sm"
+        variant="outline"
+        className="fixed bottom-6 right-6 h-10 px-3 rounded-full shadow-lg z-50 gap-2"
+        aria-label="Show AI Assistant"
+      >
+        <Sparkles className="h-4 w-4" aria-hidden="true" />
+        <span className="text-xs">Show AI</span>
+      </Button>
+    );
+  }
+
   if (!isOpen) {
     return (
       <Button
@@ -292,6 +317,25 @@ export function AIChatbot() {
           )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
+          {/* Hide button (only in expanded mode) */}
+          {isExpanded && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => {
+                setIsHidden(true);
+                setIsOpen(false);
+                setIsExpanded(false);
+                setChatbotOpen(false);
+              }}
+              aria-label="Hide AI Assistant"
+            >
+              <EyeOff className="h-4 w-4" aria-hidden="true" />
+              <span className="sr-only">Hide AI Assistant</span>
+            </Button>
+          )}
+          
           {/* Expand/Collapse */}
           <Button
             variant="ghost"
@@ -328,7 +372,8 @@ export function AIChatbot() {
             className="h-7 w-7"
             onClick={() => { 
               setIsOpen(false); 
-              setIsExpanded(false); 
+              setIsExpanded(false);
+              setChatbotOpen(false);
             }}
             aria-label="Close AI chat"
           >
