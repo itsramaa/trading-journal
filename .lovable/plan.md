@@ -1,14 +1,15 @@
 
-# Comprehensive Trading Domain Cross-Check Audit & Remediation Plan V10
+# Comprehensive Trading Domain Cross-Check Audit & Remediation Plan V11
 
-## Status: ✅ STEP 4 (RISK) COMPLETE
+## Status: ✅ STEP 5 (STRATEGY) COMPLETE
 **Tanggal Audit**: 2026-01-31
 **Domain Identification**: COMPLETED (Step 1)
 **ACCOUNTS Domain**: COMPLETED (Foundation)
 **JOURNAL Domain**: COMPLETED (Step 2)
 **ANALYTICS Domain**: COMPLETED (Step 3)
 **RISK Domain**: COMPLETED (Step 4)
-**Next Step**: STRATEGY Domain Audit (Step 5)
+**STRATEGY Domain**: COMPLETED (Step 5)
+**Next Step**: MARKET Domain Audit (Step 6)
 **Basis Audit**: Menu-based domain analysis + Binance Futures Domain Model
 
 ---
@@ -23,12 +24,179 @@
 | 2 | JOURNAL | ACCOUNTS | ✅ DONE |
 | 3 | ANALYTICS | JOURNAL, ACCOUNTS | ✅ DONE |
 | 4 | RISK | ACCOUNTS, ANALYTICS | ✅ DONE |
-| 5 | STRATEGY | External market data | 🔜 PENDING |
+| 5 | STRATEGY | External market data | ✅ DONE |
 | 6 | MARKET | None (external APIs) | 🔜 PENDING |
 | 7 | DASHBOARD | All domains (1-6) | 🔜 PENDING |
 | 8 | SETTINGS | None | 🔜 PENDING |
 | 9 | USER | Auth system | 🔜 PENDING |
 | 10 | INFRASTRUCTURE | None | 🔜 PENDING |
+
+---
+
+## STRATEGY DOMAIN AUDIT (STEP 5) - COMPLETED
+
+### 5.1 Domain Definition
+
+**Menu Entry Points**:
+- Strategy & Rules (`/strategies`) - Library, Leaderboard, YouTube Import
+- Backtest (`/backtest`) - Run Backtest, Compare Results
+
+**Fungsi Domain**:
+- Strategy CRUD (Create, Read, Update, Soft Delete)
+- Entry/Exit Rules Builder (structured rule types)
+- Backtesting engine with real Binance Futures Klines
+- Strategy Sharing ecosystem (tokens, cloning, notifications)
+- YouTube Strategy Importer (AI-powered extraction)
+- Market Fit Analysis (volatility, trend, event risk)
+- Pair Recommendations (historical win rate analysis)
+
+### 5.2 Pages & Components Verified
+
+| Page | Route | Components | Status |
+|------|-------|------------|--------|
+| StrategyManagement | `/strategies` | StrategyCard, StrategyStats, StrategyFormDialog, StrategyDetailDrawer, StrategyShareDialog, StrategyLeaderboard, YouTubeStrategyImporter | ✅ OK |
+| Backtest | `/backtest` | BacktestRunner, BacktestComparison, BacktestResults | ✅ OK |
+| SharedStrategy | `/shared/strategy/:token` | Public view for cloning | ✅ OK |
+
+### 5.3 Core Hooks Verified
+
+| Hook | File | Dependencies | Status |
+|------|------|--------------|--------|
+| `useTradingStrategies` | use-trading-strategies.ts | useAuth | ✅ OK |
+| `useCreateTradingStrategy` | use-trading-strategies.ts | useAuth, queryClient | ✅ OK |
+| `useUpdateTradingStrategy` | use-trading-strategies.ts | queryClient | ✅ OK |
+| `useDeleteTradingStrategy` | use-trading-strategies.ts | queryClient (soft delete) | ✅ OK |
+| `useStrategyPerformance` | use-strategy-performance.ts | useTradeEntries | ✅ OK |
+| `useStrategyContext` | use-strategy-context.ts | useUnifiedMarketScore, useAuth | ✅ OK |
+| `useStrategySharing` | use-strategy-sharing.ts | supabase RPC, queryClient | ✅ OK |
+| `useSharedStrategy` | use-strategy-sharing.ts | supabase | ✅ OK |
+| `useRunBacktest` | use-backtest.ts | edge function, useAuth | ✅ OK |
+| `useBacktestHistory` | use-backtest.ts | useAuth | ✅ OK |
+| `useYouTubeStrategyImport` | use-youtube-strategy-import.ts | edge function, useAuth | ✅ OK |
+
+### 5.4 Integration Points Verified
+
+| From | To | Data | Status |
+|------|-----|------|--------|
+| JOURNAL → STRATEGY | trade_entry_strategies | Many-to-many link | ✅ OK |
+| STRATEGY → JOURNAL | useStrategyPerformance | Per-strategy win rate, P&L | ✅ OK |
+| MARKET → STRATEGY | useStrategyContext | Market fit score | ✅ OK |
+| STRATEGY → BACKTEST | BacktestRunner | Strategy rules → simulation | ✅ OK |
+
+### 5.5 Data Flow Diagram
+
+```mermaid
+flowchart TB
+    subgraph STRATEGY_CORE["STRATEGY DOMAIN"]
+        CRUD["Strategy CRUD<br/>useTradingStrategies"]
+        RULES["Entry/Exit Rules<br/>EntryRulesBuilder, ExitRulesBuilder"]
+        SHARE["Strategy Sharing<br/>useStrategySharing"]
+        YOUTUBE["YouTube Import<br/>useYouTubeStrategyImport"]
+    end
+    
+    subgraph STRATEGY_ANALYSIS["STRATEGY INTELLIGENCE"]
+        PERF["useStrategyPerformance<br/>Win Rate, Profit Factor, AI Score"]
+        CONTEXT["useStrategyContext<br/>Market Fit Analysis"]
+        RECOMMEND["Pair Recommendations<br/>Best/Avoid pairs"]
+    end
+    
+    subgraph INPUTS["INPUT SOURCES"]
+        JOURNAL["JOURNAL Domain<br/>trade_entry_strategies"]
+        MARKET["MARKET Domain<br/>useUnifiedMarketScore"]
+        BINANCE["Binance API<br/>Klines for Backtest"]
+    end
+    
+    subgraph OUTPUTS["OUTPUT CONSUMERS"]
+        BACKTEST["Backtest Engine<br/>BacktestRunner"]
+        WIZARD["Trade Entry Wizard<br/>Strategy selection"]
+        DASHBOARD["Dashboard<br/>StrategyCloneStatsWidget"]
+    end
+    
+    JOURNAL --> PERF
+    MARKET --> CONTEXT
+    BINANCE --> BACKTEST
+    
+    CRUD --> RULES
+    CRUD --> SHARE
+    YOUTUBE --> CRUD
+    
+    PERF --> CONTEXT
+    CONTEXT --> RECOMMEND
+    
+    CRUD --> BACKTEST
+    CRUD --> WIZARD
+    SHARE --> DASHBOARD
+```
+
+### 5.6 Business Rules Verified
+
+| Rule | Implementation | Status |
+|------|----------------|--------|
+| Soft Delete | `is_active = false` on delete | ✅ OK |
+| Share Token Generation | `generate_share_token()` RPC | ✅ OK |
+| Clone Notification | `strategy-clone-notify` edge function | ✅ OK |
+| AI Quality Score | Weighted: WR 40%, PF 30%, Consistency 20%, Sample 10% | ✅ OK |
+| Market Fit Scoring | volatility + trend + session + events = 0-100 | ✅ OK |
+| Pair Recommendation | Min 3 trades per pair for validity | ✅ OK |
+| YouTube Import Validation | AI extraction + validation score | ✅ OK |
+
+### 5.7 Cross-Domain Integration Map
+
+```mermaid
+flowchart LR
+    subgraph STRATEGY["STRATEGY DOMAIN"]
+        S1["Strategy Entity"]
+        S2["Backtest Engine"]
+        S3["Market Fit"]
+    end
+    
+    subgraph TO_JOURNAL["TO JOURNAL"]
+        J1["trade_entry_strategies<br/>Strategy linking"]
+        J2["TradeEntryWizard<br/>Strategy selection"]
+        J3["TradeEnrichment<br/>Strategy assignment"]
+    end
+    
+    subgraph TO_ANALYTICS["TO ANALYTICS"]
+        A1["Per-strategy filtering"]
+        A2["Strategy-based heatmap"]
+        A3["AI Insights"]
+    end
+    
+    subgraph TO_RISK["TO RISK"]
+        R1["useContextAwareRisk<br/>Strategy pair performance"]
+        R2["Position Calculator<br/>Pair recommendations"]
+    end
+    
+    subgraph TO_DASHBOARD["TO DASHBOARD"]
+        D1["StrategyCloneStatsWidget"]
+        D2["SmartQuickActions"]
+    end
+    
+    S1 --> J1
+    S1 --> J2
+    S1 --> J3
+    S1 --> A1
+    S1 --> A2
+    S1 --> A3
+    S3 --> R1
+    S3 --> R2
+    S1 --> D1
+    S2 --> D2
+```
+
+### 5.8 Audit Result
+
+**STRATEGY Domain Status**: ✅ **PASS** - No gaps identified
+
+Key Findings:
+1. **CRUD**: Complete with soft-delete pattern
+2. **Rules System**: Structured entry/exit rules with type safety
+3. **Performance Tracking**: AI Quality Score calculated from Journal trades
+4. **Market Fit**: Real-time context analysis via `useStrategyContext`
+5. **Sharing Ecosystem**: Token-based sharing with clone notifications
+6. **YouTube Import**: AI-powered extraction via edge function
+7. **Backtest**: Real Binance Klines, event/session/volatility filtering
+8. **Journal Integration**: Many-to-many via `trade_entry_strategies` table
 
 ---
 
