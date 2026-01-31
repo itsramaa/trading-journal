@@ -137,16 +137,16 @@ export function AllPositionsTable({
   }
 
   return (
-    <div className="rounded-md border">
+    <div className="rounded-md border overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow>
             <TableHead className="w-[100px]">Source</TableHead>
             <TableHead>Symbol</TableHead>
-            <TableHead>Direction</TableHead>
-            <TableHead className="text-right">Entry</TableHead>
-            <TableHead className="text-right">Current</TableHead>
-            <TableHead className="text-right">Size</TableHead>
+            <TableHead className="hidden sm:table-cell">Direction</TableHead>
+            <TableHead className="text-right hidden md:table-cell">Entry</TableHead>
+            <TableHead className="text-right hidden md:table-cell">Current</TableHead>
+            <TableHead className="text-right hidden lg:table-cell">Size</TableHead>
             <TableHead className="text-right">P&L</TableHead>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
@@ -184,7 +184,7 @@ export function AllPositionsTable({
                     </Badge>
                   )}
                 </TableCell>
-                <TableCell>
+                <TableCell className="hidden sm:table-cell">
                   <Badge 
                     variant="outline"
                     className={position.direction === 'LONG' ? 'text-profit border-profit/30' : 'text-loss border-loss/30'}
@@ -197,13 +197,13 @@ export function AllPositionsTable({
                     {position.direction}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-right font-mono">
+                <TableCell className="text-right font-mono hidden md:table-cell">
                   {position.entryPrice.toFixed(2)}
                 </TableCell>
-                <TableCell className="text-right font-mono">
+                <TableCell className="text-right font-mono hidden md:table-cell">
                   {position.currentPrice?.toFixed(2) || '-'}
                 </TableCell>
-                <TableCell className="text-right font-mono">
+                <TableCell className="text-right font-mono hidden lg:table-cell">
                   {position.quantity.toFixed(4)}
                 </TableCell>
                 <TableCell className={`text-right font-mono ${pnlColor}`}>
