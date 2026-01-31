@@ -1,7 +1,7 @@
 
-# Comprehensive Trading Domain Cross-Check Audit & Remediation Plan V13
+# Comprehensive Trading Domain Cross-Check Audit & Remediation Plan V14
 
-## Status: ✅ ALL DOMAINS AUDITED - GAP ANALYSIS COMPLETE
+## Status: ✅ ALL DOMAINS + INFRASTRUCTURE AUDITED
 **Tanggal Audit**: 2026-01-31
 **Domain Identification**: COMPLETED (Step 1)
 **ACCOUNTS Domain**: ✅ PASS
@@ -11,8 +11,149 @@
 **STRATEGY Domain**: ✅ PASS
 **MARKET Domain**: ✅ PASS
 **DASHBOARD Domain**: ✅ PASS
+**SETTINGS Domain**: ✅ PASS (Step 9)
+**USER Domain**: ✅ PASS (Step 9)
 **Gap Analysis**: COMPLETED (Step 8)
+**Infrastructure Audit**: COMPLETED (Step 9)
 **Basis Audit**: Menu-based domain analysis + Binance Futures Domain Model
+
+---
+
+## INFRASTRUCTURE AUDIT (STEP 9) - COMPLETED
+
+### 9.1 SETTINGS Domain Audit
+
+**Menu Entry**: Sidebar → SETTINGS group
+**Page**: `src/pages/Settings.tsx`
+**Status**: ✅ PASS
+
+#### Settings Tab Structure
+| Tab | Component | Data Source | Cross-Domain Integration |
+|-----|-----------|-------------|--------------------------|
+| Trading | `TradingConfigTab` | `useRiskProfile`, `useAccounts`, `useUserSettings` | RISK ↔ ACCOUNTS |
+| Alerts | Inline switches | `useUserSettings` | Standalone |
+| Theme | Theme buttons | `useUserSettings` | App-wide |
+| Exchange | `BinanceApiSettings` | Edge function secrets | JOURNAL (Binance sync) |
+| AI | `AISettingsTab` | `useUserSettings.ai_settings` | ALL AI features |
+
+#### Critical Integrations Verified
+1. **TradingConfigTab** ✅
+   - Reads `risk_profiles` table for risk parameters
+   - Reads `accounts` for default trading account selection
+   - Writes to `user_settings.ai_settings.default_trading_account_id`
+   - Proper cross-domain dependency on RISK + ACCOUNTS
+
+2. **AISettingsTab** ✅
+   - 10 AI feature toggles persisted to `user_settings.ai_settings` (JSONB)
+   - Features: confluence_detection, quality_scoring, pattern_recognition, daily_suggestions, risk_monitoring, post_trade_analysis
+   - Confidence threshold (60-90%) affects AI filtering via `useAISettingsEnforcement`
+   - Suggestion style: conservative/balanced/aggressive
+
+3. **BinanceApiSettings** ✅
+   - API key verification via edge function
+   - Connection status display
+   - Manages BINANCE_API_KEY, BINANCE_API_SECRET secrets
+
+#### Data Flow
+```
+SETTINGS → user_settings → All domains consume settings
+         → risk_profiles → RISK domain
+         → ai_settings   → AI enforcement hook
+```
+
+---
+
+### 9.2 USER Domain Audit
+
+**Menu Entry**: Sidebar Footer → NavUser dropdown → Profile
+**Pages**: `src/pages/Profile.tsx`, `src/pages/Auth.tsx`
+**Status**: ✅ PASS
+
+#### Profile Tab Structure
+| Tab | Features | Data Source |
+|-----|----------|-------------|
+| Profile | Avatar upload, Display name, Bio, Currency, Language | `useUserProfile`, `useUserSettings`, `useUploadAvatar` |
+| Security | Password change, 2FA (coming soon), Account deletion | `useUpdatePassword`, `useDeleteAccount` |
+
+#### Authentication Flow (`use-auth.ts`) ✅
+1. **Session Management**: Proper `onAuthStateChange` listener setup BEFORE `getSession()`
+2. **Sign Up**: Email verification required, auto-creates profile + settings + default trading account
+3. **Sign In**: Email/password + Google OAuth supported
+4. **Password Reset**: Email-based reset with recovery mode handling
+5. **Profile Auto-Creation**: Idempotent upsert pattern prevents duplicates
+
+#### Database Tables Touched
+| Table | Hook | Operations |
+|-------|------|------------|
+| `users_profile` | `useUserProfile`, `useUpdateUserProfile`, `useUploadAvatar` | CRUD |
+| `user_settings` | `useUserSettings`, `useUpdateUserSettings` | CRUD |
+| `accounts` (default) | `use-auth.ts` on SIGNED_IN | Auto-create trading account |
+| `notifications` | `use-auth.ts` | Welcome notification |
+| `avatars` bucket | `useUploadAvatar` | Storage upload |
+
+#### Security Features ✅
+- Password minimum length validation (6 chars)
+- File upload validation (2MB limit, image types only)
+- Email verification enforced (no auto-confirm)
+- Account deletion with confirmation dialog
+
+#### Cross-Domain Integration
+```
+USER → users_profile      → NavUser, DashboardLayout
+     → user_settings      → SETTINGS, CurrencyDisplay, LanguageSync
+     → accounts (default) → ACCOUNTS domain foundation
+```
+
+---
+
+### 9.3 Infrastructure Integration Summary
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     INFRASTRUCTURE LAYER                        │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐      │
+│  │     USER     │    │   SETTINGS   │    │   PLATFORM   │      │
+│  │              │    │              │    │              │      │
+│  │ Auth.tsx     │    │ Settings.tsx │    │ CommandPalette│     │
+│  │ Profile.tsx  │    │ AI Settings  │    │ CurrencyDisp. │     │
+│  │ use-auth     │    │ Trading Cfg  │    │ ThemeToggle   │     │
+│  │ use-profile  │    │ Binance API  │    │ i18n          │     │
+│  └──────┬───────┘    └──────┬───────┘    └───────────────┘     │
+│         │                   │                                   │
+│         ▼                   ▼                                   │
+│  ┌──────────────────────────────────────┐                      │
+│  │           SHARED DATA LAYER          │                      │
+│  │  users_profile │ user_settings       │                      │
+│  │  risk_profiles │ accounts (default)  │                      │
+│  └──────────────────────────────────────┘                      │
+│                        │                                        │
+│                        ▼                                        │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │               BUSINESS DOMAIN LAYER                       │  │
+│  │  ACCOUNTS │ JOURNAL │ ANALYTICS │ RISK │ STRATEGY │ MARKET│  │
+│  └──────────────────────────────────────────────────────────┘  │
+│                        │                                        │
+│                        ▼                                        │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │                    DASHBOARD                              │  │
+│  │              (Aggregation Layer)                          │  │
+│  └──────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 9.4 Identified Gaps (Infrastructure)
+
+| Priority | Gap | Impact | Status |
+|----------|-----|--------|--------|
+| **P1** | 2FA not implemented | Medium | Placeholder exists |
+| **P2** | Account deletion is signOut only | Low | Needs edge function |
+| **P3** | Language sync on Settings page | Low | Not exposed in Settings UI |
+
+**Recommendation**: These are non-critical for core trading functionality. Add to future backlog.
 
 ---
 
