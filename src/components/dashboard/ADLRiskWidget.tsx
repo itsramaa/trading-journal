@@ -1,0 +1,200 @@
+/**
+ * ADL Risk Indicator Widget
+ * Displays Auto-Deleveraging risk levels for active positions
+ */
+
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Progress } from "@/components/ui/progress";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { AlertTriangle, CheckCircle, Shield, TrendingDown, TrendingUp } from "lucide-react";
+import { useBinanceAdlQuantile, useBinancePositions, getAdlRiskLevel } from "@/features/binance";
+import type { AdlQuantile } from "@/features/binance/types";
+import { cn } from "@/lib/utils";
+
+const riskLevelConfig = {
+  low: {
+    color: 'text-profit',
+    bgColor: 'bg-profit/10',
+    borderColor: 'border-profit/30',
+    icon: CheckCircle,
+    label: 'Low Risk',
+    description: 'Position is safe from ADL',
+  },
+  medium: {
+    color: 'text-chart-4',
+    bgColor: 'bg-chart-4/10',
+    borderColor: 'border-chart-4/30',
+    icon: Shield,
+    label: 'Medium Risk',
+    description: 'Monitor your position',
+  },
+  high: {
+    color: 'text-chart-5',
+    bgColor: 'bg-chart-5/10',
+    borderColor: 'border-chart-5/30',
+    icon: AlertTriangle,
+    label: 'High Risk',
+    description: 'Consider reducing position',
+  },
+  critical: {
+    color: 'text-loss',
+    bgColor: 'bg-loss/10',
+    borderColor: 'border-loss/30',
+    icon: AlertTriangle,
+    label: 'Critical Risk',
+    description: 'ADL likely if market moves',
+  },
+};
+
+interface PositionADLProps {
+  symbol: string;
+  side: 'LONG' | 'SHORT' | 'BOTH';
+  quantile: number;
+}
+
+function PositionADLRow({ symbol, side, quantile }: PositionADLProps) {
+  const riskLevel = getAdlRiskLevel(quantile);
+  const config = riskLevelConfig[riskLevel];
+  const Icon = config.icon;
+  const progressValue = (quantile / 5) * 100;
+
+  return (
+    <div className={cn(
+      "flex items-center justify-between p-3 rounded-lg border",
+      config.bgColor,
+      config.borderColor
+    )}>
+      <div className="flex items-center gap-3 min-w-0">
+        <div className={cn("shrink-0", config.color)}>
+          {side === 'LONG' ? (
+            <TrendingUp className="h-4 w-4" />
+          ) : (
+            <TrendingDown className="h-4 w-4" />
+          )}
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-medium truncate">{symbol}</p>
+          <p className="text-xs text-muted-foreground">{side}</p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <div className="w-16">
+          <Progress 
+            value={progressValue} 
+            className={cn("h-2", riskLevel === 'critical' && "bg-loss/20")}
+          />
+        </div>
+        <Badge variant="outline" className={cn("gap-1 shrink-0", config.color)}>
+          <Icon className="h-3 w-3" />
+          {quantile}/5
+        </Badge>
+      </div>
+    </div>
+  );
+}
+
+export function ADLRiskWidget() {
+  const { data: positions, isLoading: positionsLoading } = useBinancePositions();
+  const { data: adlData, isLoading: adlLoading } = useBinanceAdlQuantile();
+
+  const isLoading = positionsLoading || adlLoading;
+
+  // Filter active positions (non-zero position amount)
+  const activePositions = positions?.filter(p => parseFloat(String(p.positionAmt)) !== 0) || [];
+
+  // Map ADL data to positions
+  const adlArray = Array.isArray(adlData) ? adlData : adlData ? [adlData] : [];
+  const adlMap = new Map<string, AdlQuantile>();
+  adlArray.forEach(adl => adlMap.set(adl.symbol, adl));
+
+  // Get positions with ADL data
+  const positionsWithADL = activePositions.map(pos => {
+    const adl = adlMap.get(pos.symbol);
+    const side = parseFloat(String(pos.positionAmt)) > 0 ? 'LONG' : 'SHORT';
+    const quantile = adl?.adlQuantile?.[side] || adl?.adlQuantile?.BOTH || 0;
+    return {
+      symbol: pos.symbol,
+      side: side as 'LONG' | 'SHORT',
+      quantile,
+    };
+  }).sort((a, b) => b.quantile - a.quantile); // Sort by risk (highest first)
+
+  // Calculate overall risk
+  const maxQuantile = Math.max(...positionsWithADL.map(p => p.quantile), 0);
+  const overallRiskLevel = getAdlRiskLevel(maxQuantile);
+  const overallConfig = riskLevelConfig[overallRiskLevel];
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Shield className="h-5 w-5 text-primary" />
+            ADL Risk
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {[1, 2].map(i => (
+              <Skeleton key={i} className="h-14 w-full" />
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Shield className="h-5 w-5 text-primary" />
+            ADL Risk
+            <InfoTooltip content="Auto-Deleveraging (ADL) quantile indicates how likely your position is to be automatically closed if the insurance fund is depleted. Higher values = higher risk." />
+          </CardTitle>
+          {positionsWithADL.length > 0 && (
+            <Badge variant="outline" className={cn("gap-1", overallConfig.color)}>
+              {overallConfig.label}
+            </Badge>
+          )}
+        </div>
+        <CardDescription>
+          Position deleveraging risk levels
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {positionsWithADL.length === 0 ? (
+          <div className="flex items-center gap-3 py-4">
+            <CheckCircle className="h-8 w-8 text-profit" />
+            <div>
+              <p className="font-medium">No Active Positions</p>
+              <p className="text-sm text-muted-foreground">
+                No ADL risk when you have no open positions.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {positionsWithADL.slice(0, 5).map((pos) => (
+              <PositionADLRow
+                key={`${pos.symbol}-${pos.side}`}
+                symbol={pos.symbol}
+                side={pos.side}
+                quantile={pos.quantile}
+              />
+            ))}
+            {positionsWithADL.length > 5 && (
+              <p className="text-xs text-center text-muted-foreground pt-2">
+                +{positionsWithADL.length - 5} more positions
+              </p>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}

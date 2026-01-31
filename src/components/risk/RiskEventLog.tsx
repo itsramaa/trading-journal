@@ -1,16 +1,18 @@
 /**
- * Risk Event Log - Displays history of risk events + Binance liquidations
+ * Risk Event Log - Displays history of risk events + Binance liquidations + Margin History
  * Phase 2: Integrated with useBinanceForceOrders for liquidation history
+ * Phase 4: Integrated with MarginHistoryTab for margin additions/reductions
  */
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AlertTriangle, Shield, XCircle, CheckCircle, Clock, Skull, TrendingDown } from "lucide-react";
+import { AlertTriangle, Shield, XCircle, CheckCircle, Clock, Skull, TrendingDown, Wallet } from "lucide-react";
 import { useRiskEvents } from "@/hooks/use-risk-events";
 import { useBinanceForceOrders } from "@/features/binance";
 import { format, formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
+import { MarginHistoryTab } from "./MarginHistoryTab";
 
 const eventTypeConfig: Record<string, { icon: typeof AlertTriangle; color: string; label: string }> = {
   warning_70: {
@@ -99,7 +101,7 @@ export function RiskEventLog() {
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="events" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="events">
               Risk Events
               {events && events.length > 0 && (
@@ -111,6 +113,10 @@ export function RiskEventLog() {
               {hasLiquidations && (
                 <Badge variant="destructive" className="ml-2">{forceOrders.length}</Badge>
               )}
+            </TabsTrigger>
+            <TabsTrigger value="margin" className="gap-1">
+              <Wallet className="h-3 w-3" />
+              Margin
             </TabsTrigger>
           </TabsList>
           
@@ -221,6 +227,10 @@ export function RiskEventLog() {
                 </div>
               </ScrollArea>
             )}
+          </TabsContent>
+          
+          <TabsContent value="margin">
+            <MarginHistoryTab />
           </TabsContent>
         </Tabs>
       </CardContent>

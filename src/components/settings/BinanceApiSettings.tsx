@@ -3,7 +3,6 @@
  * Configure and test Binance Futures API connection
  */
 
-import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +24,7 @@ import {
   useBinanceBalance,
 } from "@/features/binance";
 import { toast } from "sonner";
+import { BinanceAccountConfigCard } from "./BinanceAccountConfigCard";
 
 export function BinanceApiSettings() {
   const { data: connectionStatus, isLoading: isCheckingConnection } = useBinanceConnection();
@@ -177,6 +177,9 @@ export function BinanceApiSettings() {
               )}
             </CardContent>
           </Card>
+
+          {/* Account Configuration Card */}
+          <BinanceAccountConfigCard />
         </>
       )}
     </div>
