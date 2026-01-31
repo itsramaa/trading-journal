@@ -1,7 +1,10 @@
 /**
  * useBinanceAutoSync - Hook for auto-syncing Binance income records to local database
  * Handles: Periodic sync, duplicate detection, background sync on mount
- * Supports ALL income types: REALIZED_PNL, COMMISSION, FUNDING_FEE, etc.
+ * 
+ * IMPORTANT: Only syncs REALIZED_PNL as trades. Other income types (COMMISSION, 
+ * FUNDING_FEE, TRANSFER, etc.) are NOT trades and should be displayed separately
+ * in the Financial Summary component.
  */
 import { useEffect, useCallback, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -9,6 +12,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { useBinanceAllIncome, useBinanceConnectionStatus, BinanceIncome } from "@/features/binance";
+
+/**
+ * CRITICAL: Only REALIZED_PNL represents actual trade P&L.
+ * Other types are costs/income that should NOT be synced as trades.
+ * 
+ * - COMMISSION → Trading fee (cost)
+ * - FUNDING_FEE → Funding rate payment (cost/income)
+ * - TRANSFER → Deposit/Withdrawal (capital flow)
+ * - COMMISSION_REBATE → Fee rebate (income)
+ */
+const TRADE_INCOME_TYPES = ['REALIZED_PNL'] as const;
 
 export interface AutoSyncResult {
   synced: number;
@@ -24,8 +38,6 @@ export interface AutoSyncOptions {
   syncInterval?: number;
   /** Enable periodic sync */
   enablePeriodicSync?: boolean;
-  /** Income types to sync (default: ['REALIZED_PNL']) - empty means all types */
-  incomeTypes?: string[];
   /** Days of history to sync (default: 7) */
   daysToSync?: number;
 }
@@ -67,7 +79,6 @@ export function useBinanceAutoSync(options: AutoSyncOptions = {}) {
     autoSyncOnMount = false,
     syncInterval = 5 * 60 * 1000, // 5 minutes
     enablePeriodicSync = false,
-    incomeTypes = ['REALIZED_PNL'],
     daysToSync = 7,
   } = options;
 
@@ -92,16 +103,14 @@ export function useBinanceAutoSync(options: AutoSyncOptions = {}) {
       setIsSyncing(true);
 
       try {
-        // Filter to specified income types (only REALIZED_PNL becomes trade entries)
-        let recordsToSync = incomeData;
-        if (incomeTypes.length > 0) {
-          recordsToSync = incomeData.filter((r: BinanceIncome) => 
-            incomeTypes.includes(r.incomeType)
-          );
-        }
+        // CRITICAL: Only sync REALIZED_PNL as trades
+        // Other income types (COMMISSION, FUNDING_FEE, etc.) are NOT trades
+        const filteredByType = incomeData.filter((r: BinanceIncome) => 
+          TRADE_INCOME_TYPES.includes(r.incomeType as typeof TRADE_INCOME_TYPES[number])
+        );
 
         // Filter out zero-value income
-        recordsToSync = recordsToSync.filter((r: BinanceIncome) => r.income !== 0);
+        const recordsToSync = filteredByType.filter((r: BinanceIncome) => r.income !== 0);
 
         if (recordsToSync.length === 0) {
           return { synced: 0, skipped: 0, errors: 0, byType: {} };
