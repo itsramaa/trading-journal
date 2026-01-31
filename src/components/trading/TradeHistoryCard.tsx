@@ -52,14 +52,15 @@ export function TradeHistoryCard({
     <Card className="border-muted">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-3 flex-wrap">
-            <Badge variant={entry.direction === "LONG" ? "default" : "secondary"}>
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+            <Badge variant={entry.direction === "LONG" ? "default" : "secondary"} className="text-xs sm:text-sm">
               {entry.direction}
             </Badge>
-            <span className="font-bold text-lg">{entry.pair}</span>
-            <span className="text-muted-foreground flex items-center gap-1">
-              <Calendar className="h-4 w-4" />
-              {format(new Date(entry.trade_date), "MMM d, yyyy")}
+            <span className="font-bold text-base sm:text-lg">{entry.pair}</span>
+            <span className="text-muted-foreground flex items-center gap-1 text-xs sm:text-sm">
+              <Calendar className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden xs:inline">{format(new Date(entry.trade_date), "MMM d, yyyy")}</span>
+              <span className="xs:hidden">{format(new Date(entry.trade_date), "MM/dd")}</span>
             </span>
             {/* Source Badge */}
             {isBinance && (

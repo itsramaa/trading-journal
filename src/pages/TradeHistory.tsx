@@ -186,7 +186,7 @@ export default function TradeHistory() {
               <div className="text-muted-foreground">Trades</div>
             </div>
             <div className="text-center">
-              <div className={`text-2xl font-bold ${totalPnL >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+              <div className={`text-2xl font-bold ${totalPnL >= 0 ? 'text-profit' : 'text-loss'}`}>
                 {formatCurrency(totalPnL)}
               </div>
               <div className="text-muted-foreground">P&L</div>

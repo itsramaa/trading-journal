@@ -1,6 +1,7 @@
 /**
  * TradeEnrichmentDrawer - Side panel for adding journal data to any trade
  * Supports strategies, screenshots, notes, emotional state, tags
+ * Refactored to use useTradeEnrichment hook
  */
 import { useState, useEffect } from "react";
 import {
@@ -36,10 +37,9 @@ import {
   Brain,
   Loader2,
 } from "lucide-react";
-import { useUpdateTradeEntry, TradeEntry } from "@/hooks/use-trade-entries";
+import { TradeEntry } from "@/hooks/use-trade-entries";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
+import { useTradeEnrichment } from "@/hooks/use-trade-enrichment";
 import { EMOTIONAL_STATES } from "@/types/trade-wizard";
 import type { UnifiedPosition } from "./AllPositionsTable";
 
@@ -72,7 +72,7 @@ export function TradeEnrichmentDrawer({
   onSaved,
 }: TradeEnrichmentDrawerProps) {
   const { data: strategies = [] } = useTradingStrategies();
-  const updateTrade = useUpdateTradeEntry();
+  const { isSaving, loadLinkedStrategies, saveEnrichment } = useTradeEnrichment();
   
   // Form state
   const [selectedStrategies, setSelectedStrategies] = useState<string[]>([]);
@@ -81,41 +81,36 @@ export function TradeEnrichmentDrawer({
   const [emotionalState, setEmotionalState] = useState<string>("");
   const [chartTimeframe, setChartTimeframe] = useState<string>("");
   const [customTags, setCustomTags] = useState<string>("");
-  const [isSaving, setIsSaving] = useState(false);
 
   // Load existing data when position changes
   useEffect(() => {
-    if (position && position.source === "paper") {
-      const trade = position.originalData as TradeEntry;
-      setNotes(trade.notes || "");
-      setEmotionalState(trade.emotional_state || "");
-      setScreenshots((trade as any).screenshots || []);
-      setChartTimeframe((trade as any).chart_timeframe || "");
-      setCustomTags(trade.tags?.join(", ") || "");
-      
-      // Load linked strategies
-      loadLinkedStrategies(trade.id);
-    } else {
-      // Reset for Binance positions (no existing local data)
-      setNotes("");
-      setEmotionalState("");
-      setScreenshots([]);
-      setChartTimeframe("");
-      setCustomTags("");
-      setSelectedStrategies([]);
-    }
-  }, [position]);
-
-  const loadLinkedStrategies = async (tradeId: string) => {
-    const { data } = await supabase
-      .from("trade_entry_strategies")
-      .select("strategy_id")
-      .eq("trade_entry_id", tradeId);
+    const loadData = async () => {
+      if (position && position.source === "paper") {
+        const trade = position.originalData as TradeEntry;
+        setNotes(trade.notes || "");
+        setEmotionalState(trade.emotional_state || "");
+        setScreenshots((trade as any).screenshots || []);
+        setChartTimeframe((trade as any).chart_timeframe || "");
+        setCustomTags(trade.tags?.join(", ") || "");
+        
+        // Load linked strategies using hook
+        const strategyIds = await loadLinkedStrategies(trade.id);
+        setSelectedStrategies(strategyIds);
+      } else {
+        // Reset for Binance positions (no existing local data)
+        setNotes("");
+        setEmotionalState("");
+        setScreenshots([]);
+        setChartTimeframe("");
+        setCustomTags("");
+        setSelectedStrategies([]);
+      }
+    };
     
-    if (data) {
-      setSelectedStrategies(data.map((d) => d.strategy_id));
+    if (open && position) {
+      loadData();
     }
-  };
+  }, [position, open, loadLinkedStrategies]);
 
   const toggleStrategy = (strategyId: string) => {
     setSelectedStrategies((prev) =>
@@ -128,114 +123,24 @@ export function TradeEnrichmentDrawer({
   const handleSave = async () => {
     if (!position) return;
     
-    setIsSaving(true);
-    
     try {
-      if (position.source === "paper") {
-        // Update existing paper trade
-        const trade = position.originalData as TradeEntry;
-        
-        await updateTrade.mutateAsync({
-          id: trade.id,
+      await saveEnrichment(
+        position,
+        {
           notes,
-          emotional_state: emotionalState || null,
-          tags: customTags ? customTags.split(",").map((t) => t.trim()) : [],
-          screenshots: screenshots as any,
-          chart_timeframe: chartTimeframe || null,
-        } as any);
-
-        // Update linked strategies
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          // Remove existing links
-          await supabase
-            .from("trade_entry_strategies")
-            .delete()
-            .eq("trade_entry_id", trade.id);
-
-          // Add new links
-          if (selectedStrategies.length > 0) {
-            await supabase.from("trade_entry_strategies").insert(
-              selectedStrategies.map((strategyId) => ({
-                trade_entry_id: trade.id,
-                strategy_id: strategyId,
-                user_id: user.id,
-              }))
-            );
-          }
+          emotionalState,
+          chartTimeframe,
+          customTags,
+          screenshots,
+          selectedStrategies,
+        },
+        () => {
+          onSaved?.();
+          onOpenChange(false);
         }
-      } else {
-        // For Binance trades, we need to find or create a local trade entry
-        // This links the enrichment data to the Binance trade
-        const binancePos = position.originalData as any;
-        
-        // Check if we already have a linked trade
-        const { data: existingTrade } = await supabase
-          .from("trade_entries")
-          .select("id")
-          .eq("binance_trade_id", position.id)
-          .single();
-
-        if (existingTrade) {
-          // Update existing
-          await supabase
-            .from("trade_entries")
-            .update({
-              notes,
-              emotional_state: emotionalState || null,
-              tags: customTags ? customTags.split(",").map((t) => t.trim()) : [],
-              screenshots: screenshots as unknown as any,
-              chart_timeframe: chartTimeframe || null,
-            })
-            .eq("id", existingTrade.id);
-        } else {
-          // Create new enrichment entry for Binance trade
-          const { data: { user } } = await supabase.auth.getUser();
-          if (!user) throw new Error("Not authenticated");
-
-          const { data: newTrade, error } = await supabase
-            .from("trade_entries")
-            .insert({
-              user_id: user.id,
-              pair: position.symbol,
-              direction: position.direction,
-              entry_price: position.entryPrice,
-              quantity: position.quantity,
-              status: "open",
-              source: "binance",
-              binance_trade_id: position.id,
-              notes,
-              emotional_state: emotionalState || null,
-              tags: customTags ? customTags.split(",").map((t) => t.trim()) : [],
-              screenshots: screenshots as unknown as any,
-              chart_timeframe: chartTimeframe || null,
-            })
-            .select()
-            .single();
-
-          if (error) throw error;
-
-          // Link strategies
-          if (newTrade && selectedStrategies.length > 0) {
-            await supabase.from("trade_entry_strategies").insert(
-              selectedStrategies.map((strategyId) => ({
-                trade_entry_id: newTrade.id,
-                strategy_id: strategyId,
-                user_id: user.id,
-              }))
-            );
-          }
-        }
-      }
-
-      toast.success("Trade enrichment saved");
-      onSaved?.();
-      onOpenChange(false);
-    } catch (error: any) {
-      console.error("Failed to save enrichment:", error);
-      toast.error(error.message || "Failed to save");
-    } finally {
-      setIsSaving(false);
+      );
+    } catch (error) {
+      // Error handled in hook
     }
   };
 
