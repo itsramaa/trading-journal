@@ -3,6 +3,7 @@
  */
 import type { PositionSizeResult } from "@/types/risk";
 import type { TradingStrategyEnhanced, TimeframeType } from "@/types/strategy";
+import type { UnifiedMarketContext } from "@/types/market-context";
 
 export type WizardStep = 
   | 'setup'         // Step 1: Pre-validation + Strategy + Basic Details
@@ -88,6 +89,7 @@ export interface WizardState {
   selectedStrategyId: string | null;
   strategyDetails: TradingStrategyEnhanced | null;
   tradeDetails: TradeDetailsData | null;
+  marketContext: UnifiedMarketContext | null;  // Market context at trade entry
   
   // Step 2: Confluence validation (skipped in express mode)
   confluences: ConfluenceData | null;
@@ -112,6 +114,7 @@ export const INITIAL_WIZARD_STATE: WizardState = {
   selectedStrategyId: null,
   strategyDetails: null,
   tradeDetails: null,
+  marketContext: null,
   confluences: null,
   priceLevels: null,
   positionSizing: null,
