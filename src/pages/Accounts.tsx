@@ -23,7 +23,8 @@ import {
   Trophy,
   AlertTriangle,
   BarChart3,
-  Target
+  Target,
+  ArrowDownUp
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,7 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { AddAccountForm } from "@/components/accounts/AddAccountForm";
 import { AccountCardList } from "@/components/accounts/AccountCardList";
 import { AccountTransactionDialog } from "@/components/accounts/AccountTransactionDialog";
+import { BinanceTransactionHistoryTab } from "@/components/trading/BinanceTransactionHistory";
 
 import { useAccounts } from "@/hooks/use-accounts";
 import { useAccountsRealtime } from "@/hooks/use-realtime";
@@ -58,7 +60,7 @@ export default function Accounts() {
   const [transactionDialogOpen, setTransactionDialogOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<Account | undefined>();
   const [defaultTransactionTab, setDefaultTransactionTab] = useState<'deposit' | 'withdraw'>('deposit');
-  const [activeTab, setActiveTab] = useState<'binance' | 'paper'>('binance');
+  const [activeTab, setActiveTab] = useState<'binance' | 'paper' | 'transactions'>('binance');
   
   const { data: accounts } = useAccounts();
   const { data: connectionStatus } = useBinanceConnectionStatus();
@@ -279,7 +281,7 @@ export default function Accounts() {
 
         {/* Account Tabs */}
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
-          <TabsList className="grid w-full grid-cols-2 lg:w-[400px]" aria-label="Account type tabs">
+          <TabsList className="grid w-full grid-cols-3 lg:w-[500px]" aria-label="Account type tabs">
             <TabsTrigger value="binance" className="gap-2" aria-label={`Binance Futures${isConnected ? ' - Connected' : ''}`}>
               <CandlestickChart className="h-4 w-4" aria-hidden="true" />
               <span className="hidden sm:inline">Binance Futures</span>
@@ -300,6 +302,13 @@ export default function Accounts() {
                 </Badge>
               )}
             </TabsTrigger>
+            {isConnected && (
+              <TabsTrigger value="transactions" className="gap-2" aria-label="Transaction History">
+                <ArrowDownUp className="h-4 w-4" aria-hidden="true" />
+                <span className="hidden sm:inline">Transactions</span>
+                <span className="sm:hidden">Txns</span>
+              </TabsTrigger>
+            )}
           </TabsList>
 
           {/* Binance Account Tab */}
@@ -429,6 +438,13 @@ export default function Accounts() {
               />
             </div>
           </TabsContent>
+
+          {/* Transactions Tab */}
+          {isConnected && (
+            <TabsContent value="transactions" className="mt-6">
+              <BinanceTransactionHistoryTab />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
 

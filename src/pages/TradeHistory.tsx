@@ -14,7 +14,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { TradeHistoryCard } from "@/components/trading/TradeHistoryCard";
 import { BinanceTradeHistory } from "@/components/trading/BinanceTradeHistory";
 import { BinanceIncomeHistory } from "@/components/trading/BinanceIncomeHistory";
-import { History, Wifi, BookOpen, RefreshCw, FileText, Download } from "lucide-react";
+import { AlgoOrdersTab } from "@/components/trading/AlgoOrdersTab";
+import { History, Wifi, BookOpen, RefreshCw, FileText, Download, Target } from "lucide-react";
 import { format } from "date-fns";
 import { useTradeEntries, useDeleteTradeEntry, TradeEntry } from "@/hooks/use-trade-entries";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
@@ -257,6 +258,12 @@ export default function TradeHistory() {
                   <Download className="h-4 w-4" aria-hidden="true" />
                   Import
                 </TabsTrigger>
+                {isBinanceConnected && (
+                  <TabsTrigger value="algo" className="gap-2">
+                    <Target className="h-4 w-4" aria-hidden="true" />
+                    Algo Orders
+                  </TabsTrigger>
+                )}
               </TabsList>
 
               {/* All Trades */}
@@ -402,6 +409,13 @@ export default function TradeHistory() {
                   </div>
                 )}
               </TabsContent>
+
+              {/* Algo Orders Tab */}
+              {isBinanceConnected && (
+                <TabsContent value="algo">
+                  <AlgoOrdersTab />
+                </TabsContent>
+              )}
             </Tabs>
           </CardContent>
         </Card>

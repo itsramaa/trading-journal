@@ -757,10 +757,11 @@ interface MarginChange {
 
 ---
 
-#### 4.4 Account Transaction History 🆕
+#### ✅ 4.4 Account Transaction History 🆕 **IMPLEMENTED**
 ```
-Endpoint: GET /fapi/v1/transactionHistory
+Endpoint: GET /fapi/v1/income (with incomeType=TRANSFER)
 Permission: USER_DATA (Read-Only)
+Note: Using income endpoint with TRANSFER type for futures wallet transactions
 ```
 
 **Use Cases:**
@@ -768,15 +769,22 @@ Permission: USER_DATA (Read-Only)
 - ✅ **Account History Page**: Complete account activity
 - ✅ **Tax Reporting**: All transactions for reporting
 
+**Frontend Hooks Available:**
+- `useBinanceTransactionHistory()` - Transaction history with params
+- `useRecentTransactions()` - Last N days transactions
+- `useTransactionSummary()` - Aggregated deposits/withdrawals/net flow
+
+**UI Location:** Accounts page → Transactions tab
+
 **Response:**
 ```typescript
-interface Transaction {
-  asset: string;
+interface BinanceTransaction {
   tranId: number;
-  amount: string;
-  type: string;       // 'DEPOSIT' | 'WITHDRAW' | 'TRANSFER' etc.
-  status: string;
+  asset: string;
+  amount: number;
+  type: 'DEPOSIT' | 'WITHDRAWAL';
   time: number;
+  info: string;
 }
 ```
 
@@ -784,12 +792,12 @@ interface Transaction {
 
 ---
 
-#### 4.5 Algo Orders History (3 endpoints) 🆕
+#### ✅ 4.5 Algo Orders History (3 endpoints) 🆕 **IMPLEMENTED**
 ```
 Endpoints:
-  GET /fapi/v1/algoOrders           - All algo orders (historical)
-  GET /fapi/v1/algoOpenOrders       - Current open algo orders
-  GET /fapi/v1/algoOrder            - Specific algo order by ID
+  GET /fapi/v1/algo/futures/historicalOrders   - All algo orders (historical)
+  GET /fapi/v1/algo/futures/openOrders         - Current open algo orders
+  GET /fapi/v1/algo/futures/subOrders          - Specific algo order by ID
 Permission: USER_DATA (Read-Only)
 ```
 
@@ -797,6 +805,13 @@ Permission: USER_DATA (Read-Only)
 - ✅ **TP/SL Order Tracking**: Track conditional orders
 - ✅ **Strategy Analysis**: Review algo order execution
 - ✅ **Trade Journal**: Include algo orders in trade history
+
+**Frontend Hooks Available:**
+- `useBinanceAlgoOrders()` - Historical algo orders
+- `useBinanceAlgoOpenOrders()` - Active algo orders
+- `useBinanceAlgoOrder()` - Sub-orders for specific algo order
+
+**UI Location:** Trade History page → Algo Orders tab
 
 **Response:**
 ```typescript
@@ -806,11 +821,11 @@ interface AlgoOrder {
   orderId: number;
   side: 'BUY' | 'SELL';
   positionSide: string;
-  totalQty: string;
-  executedQty: string;
-  avgPrice: string;
+  totalQty: number;
+  executedQty: number;
+  avgPrice: number;
   status: string;
-  triggerPrice: string;
+  triggerPrice: number;
   algoType: string;     // 'VP' | 'TWAP' etc.
   createTime: number;
   updateTime: number;

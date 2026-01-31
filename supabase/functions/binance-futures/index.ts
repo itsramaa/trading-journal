@@ -626,6 +626,184 @@ async function getAllOrders(
 }
 
 // =============================================================================
+// Phase 6: Algo Orders, Trading Schedule, Transaction History
+// =============================================================================
+
+/**
+ * Get algo orders history (historical algo/conditional orders)
+ * Phase 6: Algo Orders
+ */
+async function getAlgoOrders(
+  apiKey: string,
+  apiSecret: string,
+  params: {
+    symbol?: string;
+    side?: 'BUY' | 'SELL';
+    startTime?: number;
+    endTime?: number;
+    limit?: number;
+  } = {}
+) {
+  try {
+    const queryParams: Record<string, any> = {};
+    if (params.symbol) queryParams.symbol = params.symbol;
+    if (params.side) queryParams.side = params.side;
+    if (params.startTime) queryParams.startTime = params.startTime;
+    if (params.endTime) queryParams.endTime = params.endTime;
+    queryParams.limit = params.limit || 100;
+    
+    const response = await binanceRequest('/fapi/v1/algo/futures/historicalOrders', 'GET', queryParams, apiKey, apiSecret);
+    const data = await response.json();
+    
+    if (data.code && data.code < 0) {
+      return { success: false, error: data.msg, code: data.code };
+    }
+    
+    const orders = (data.orders || []).map((o: any) => ({
+      algoId: o.algoId,
+      symbol: o.symbol,
+      orderId: o.orderId,
+      side: o.side,
+      positionSide: o.positionSide,
+      totalQty: parseFloat(o.totalQty || '0'),
+      executedQty: parseFloat(o.executedQty || '0'),
+      avgPrice: parseFloat(o.avgPrice || '0'),
+      status: o.status,
+      triggerPrice: parseFloat(o.triggerPrice || '0'),
+      algoType: o.algoType,
+      createTime: o.createTime,
+      updateTime: o.updateTime,
+    }));
+    
+    return { success: true, data: orders };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch algo orders',
+    };
+  }
+}
+
+/**
+ * Get open algo orders (active conditional orders)
+ * Phase 6: Algo Orders
+ */
+async function getAlgoOpenOrders(apiKey: string, apiSecret: string) {
+  try {
+    const response = await binanceRequest('/fapi/v1/algo/futures/openOrders', 'GET', {}, apiKey, apiSecret);
+    const data = await response.json();
+    
+    if (data.code && data.code < 0) {
+      return { success: false, error: data.msg, code: data.code };
+    }
+    
+    const orders = (data.orders || []).map((o: any) => ({
+      algoId: o.algoId,
+      symbol: o.symbol,
+      orderId: o.orderId,
+      side: o.side,
+      positionSide: o.positionSide,
+      totalQty: parseFloat(o.totalQty || '0'),
+      executedQty: parseFloat(o.executedQty || '0'),
+      avgPrice: parseFloat(o.avgPrice || '0'),
+      status: o.status,
+      triggerPrice: parseFloat(o.triggerPrice || '0'),
+      algoType: o.algoType,
+      createTime: o.createTime,
+      updateTime: o.updateTime,
+    }));
+    
+    return { success: true, data: orders };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch open algo orders',
+    };
+  }
+}
+
+/**
+ * Get specific algo order by ID
+ * Phase 6: Algo Orders
+ */
+async function getAlgoOrder(apiKey: string, apiSecret: string, algoId: number) {
+  try {
+    const response = await binanceRequest('/fapi/v1/algo/futures/subOrders', 'GET', { algoId }, apiKey, apiSecret);
+    const data = await response.json();
+    
+    if (data.code && data.code < 0) {
+      return { success: false, error: data.msg, code: data.code };
+    }
+    
+    const subOrders = (data.subOrders || []).map((o: any) => ({
+      algoId: o.algoId,
+      orderId: o.orderId,
+      symbol: o.symbol,
+      side: o.side,
+      price: parseFloat(o.price || '0'),
+      qty: parseFloat(o.qty || '0'),
+      executedQty: parseFloat(o.executedQty || '0'),
+      status: o.status,
+      time: o.time,
+    }));
+    
+    return { success: true, data: subOrders };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch algo order',
+    };
+  }
+}
+
+/**
+ * Get account transaction history (deposits, withdrawals, transfers)
+ * Phase 6: Transaction History
+ * Note: Using income endpoint with TRANSFER type for futures wallet transactions
+ */
+async function getTransactionHistory(
+  apiKey: string,
+  apiSecret: string,
+  params: {
+    startTime?: number;
+    endTime?: number;
+    limit?: number;
+  } = {}
+) {
+  try {
+    const queryParams: Record<string, any> = {
+      incomeType: 'TRANSFER',
+      limit: params.limit || 1000,
+    };
+    if (params.startTime) queryParams.startTime = params.startTime;
+    if (params.endTime) queryParams.endTime = params.endTime;
+    
+    const response = await binanceRequest('/fapi/v1/income', 'GET', queryParams, apiKey, apiSecret);
+    const data = await response.json();
+    
+    if (data.code && data.code < 0) {
+      return { success: false, error: data.msg, code: data.code };
+    }
+    
+    const transactions = data.map((t: any) => ({
+      tranId: t.tranId,
+      asset: t.asset,
+      amount: parseFloat(t.income),
+      type: parseFloat(t.income) > 0 ? 'DEPOSIT' : 'WITHDRAWAL',
+      time: t.time,
+      info: t.info || '',
+    }));
+    
+    return { success: true, data: transactions };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch transaction history',
+    };
+  }
+}
+
+// =============================================================================
 // Phase 4: Extended Account Data
 // =============================================================================
 
@@ -1098,6 +1276,27 @@ Deno.serve(async (req) => {
         } else {
           result = await getDownloadLink(apiKey, apiSecret, body.downloadType, body.downloadId);
         }
+        break;
+        
+      // Phase 6: Algo Orders, Trading Schedule, Transaction History
+      case 'algo-orders':
+        result = await getAlgoOrders(apiKey, apiSecret, body.params || {});
+        break;
+        
+      case 'algo-open-orders':
+        result = await getAlgoOpenOrders(apiKey, apiSecret);
+        break;
+        
+      case 'algo-order':
+        if (!body.algoId) {
+          result = { success: false, error: 'algoId is required' };
+        } else {
+          result = await getAlgoOrder(apiKey, apiSecret, body.algoId);
+        }
+        break;
+        
+      case 'transaction-history':
+        result = await getTransactionHistory(apiKey, apiSecret, body.params || {});
         break;
         
       default:
