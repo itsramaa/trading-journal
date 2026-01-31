@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { 
   Trophy, 
   Medal, 
@@ -27,7 +28,8 @@ import {
   Crown,
   Star,
   Filter,
-  X
+  X,
+  Search
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Link } from "react-router-dom";
@@ -70,6 +72,7 @@ const MARKET_TYPE_OPTIONS = [
 
 export function StrategyLeaderboard() {
   const { user } = useAuth();
+  const [searchQuery, setSearchQuery] = useState("");
   const [timeframeFilter, setTimeframeFilter] = useState("all");
   const [marketTypeFilter, setMarketTypeFilter] = useState("all");
 
@@ -90,11 +93,22 @@ export function StrategyLeaderboard() {
     staleTime: 5 * 60_000, // 5 minutes
   });
 
-  // Filter strategies based on selected filters
+  // Filter strategies based on selected filters and search
   const filteredStrategies = useMemo(() => {
     if (!strategies) return [];
     
     return strategies.filter((strategy) => {
+      // Search filter
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase();
+        const nameMatch = strategy.name.toLowerCase().includes(query);
+        const descMatch = strategy.description?.toLowerCase().includes(query);
+        const tagsMatch = strategy.tags?.some(tag => tag.toLowerCase().includes(query));
+        if (!nameMatch && !descMatch && !tagsMatch) {
+          return false;
+        }
+      }
+
       // Timeframe filter
       if (timeframeFilter !== "all") {
         if (!strategy.timeframe || strategy.timeframe !== timeframeFilter) {
@@ -111,11 +125,12 @@ export function StrategyLeaderboard() {
       
       return true;
     }).slice(0, 10); // Limit to top 10 after filtering
-  }, [strategies, timeframeFilter, marketTypeFilter]);
+  }, [strategies, searchQuery, timeframeFilter, marketTypeFilter]);
 
-  const hasActiveFilters = timeframeFilter !== "all" || marketTypeFilter !== "all";
+  const hasActiveFilters = searchQuery.trim() !== "" || timeframeFilter !== "all" || marketTypeFilter !== "all";
 
   const clearFilters = () => {
+    setSearchQuery("");
     setTimeframeFilter("all");
     setMarketTypeFilter("all");
   };
@@ -158,12 +173,35 @@ export function StrategyLeaderboard() {
           </Badge>
         </div>
 
-        {/* Filters */}
-        <div className="flex flex-wrap items-center gap-3 pt-4">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Filter className="h-4 w-4" />
-            <span>Filters:</span>
+        {/* Search and Filters */}
+        <div className="flex flex-col gap-3 pt-4">
+          {/* Search Input */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search strategies by name, description, or tags..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 h-9"
+            />
+            {searchQuery && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                onClick={() => setSearchQuery("")}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
           </div>
+
+          {/* Dropdown Filters */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Filter className="h-4 w-4" />
+              <span>Filters:</span>
+            </div>
           
           <Select value={timeframeFilter} onValueChange={setTimeframeFilter}>
             <SelectTrigger className="w-[140px] h-8">
@@ -202,6 +240,7 @@ export function StrategyLeaderboard() {
               Clear
             </Button>
           )}
+          </div>
         </div>
       </CardHeader>
 
