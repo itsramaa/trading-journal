@@ -79,110 +79,70 @@ Transformasi sistem dari **siloed modules** menjadi **interconnected ecosystem**
 
 ---
 
-### Phase 1: Foundation (UnifiedMarketContext & Capture)
+### Phase 1: Foundation (UnifiedMarketContext & Capture) ✅ COMPLETED
 **Duration**: 2-3 days | **Priority**: 🔴 Critical - Foundation for all other phases
+**Status**: ✅ Implemented on 2026-01-31
 
-#### Tasks:
+#### Completed Tasks:
 
-**1.1 Implementasikan UnifiedMarketContext type**
-- File: `src/types/market-context.ts`
-```typescript
-export interface UnifiedMarketContext {
-  // Sentiment (from market-insight)
-  sentiment: {
-    overall: 'bullish' | 'bearish' | 'neutral';
-    technicalScore: number;      // 0-100
-    onChainScore: number;        // 0-100
-    macroScore: number;          // 0-100
-    confidence: number;          // 0-100
-  };
-  
-  // Fear & Greed (from alternative.me)
-  fearGreed: {
-    value: number;               // 0-100
-    label: string;
-  };
-  
-  // Volatility (from binance-market-data)
-  volatility: {
-    level: 'low' | 'medium' | 'high';
-    value: number;
-    suggestedStopMultiplier: number;
-  };
-  
-  // Economic Events (from economic-calendar)
-  events: {
-    hasHighImpactToday: boolean;
-    riskLevel: 'LOW' | 'MODERATE' | 'HIGH' | 'VERY_HIGH';
-    positionSizeAdjustment: 'normal' | 'reduce_30%' | 'reduce_50%';
-    upcomingEvent?: {
-      name: string;
-      timeUntil: string;
-      cryptoImpact: 'bullish' | 'bearish' | 'neutral';
-    };
-  };
-  
-  // Momentum (from top-movers)
-  momentum: {
-    isTopGainer: boolean;
-    isTopLoser: boolean;
-    rank24h: number | null;
-    priceChange24h: number;
-  };
-  
-  // Combined Score
-  compositeScore: number;
-  tradingBias: 'LONG_FAVORABLE' | 'SHORT_FAVORABLE' | 'NEUTRAL' | 'AVOID';
-  
-  // Metadata
-  capturedAt: string;
-  dataQuality: number;
-}
-```
+**1.1 ✅ UnifiedMarketContext type** - `src/types/market-context.ts`
+- Complete type definitions for all market context components
+- Includes: MarketSentimentContext, FearGreedContext, VolatilityContext, EventContext, MomentumContext
+- Defines TradingBias, EventRiskLevel, PositionSizeAdjustment types
+- MARKET_SCORE_WEIGHTS constants for composite calculation
 
-**1.2 Buat useCaptureMarketContext hook**
-- File: `src/hooks/use-capture-market-context.ts`
-- Aggregate data from useMarketSentiment, useEconomicCalendar, useBinanceMarketData
-- Calculate composite score using weighted formula
-- Return capture function for TradeEntryWizard
+**1.2 ✅ useCaptureMarketContext hook** - `src/hooks/use-capture-market-context.ts`
+- Aggregates data from useMarketSentiment, useEconomicCalendar, useBinanceMarketSentiment
+- Builds complete context from all market data sources
+- Provides `capture(symbol)` function for on-demand context capture
+- Auto-refreshes when symbol changes
 
-**1.3 Buat useUnifiedMarketScore hook**
-- File: `src/hooks/use-unified-market-score.ts`
-- Combine: technical, sentiment, macro, events, momentum
-- Weighted calculation formula:
-  ```typescript
-  const WEIGHTS = {
-    technical: 0.25,
-    onChain: 0.15,
-    fearGreed: 0.15,
-    macro: 0.15,
-    eventRisk: 0.15,  // Negative weight - reduces confidence
-    momentum: 0.15,
-  };
-  ```
-- Return single composite score with trading bias
+**1.3 ✅ useUnifiedMarketScore hook** - `src/hooks/use-unified-market-score.ts`
+- Provides simple score (0-100) with trading bias
+- Component breakdown for UI display
+- Helper labels (scoreLabel, fearGreedLabel, volatilityLabel)
+- Position size adjustment recommendation
 
-**1.4 Integrasikan ke TradeEntryWizard Step 1 (Setup)**
-- File: `src/components/trade/entry/SetupStep.tsx`
-- Auto-capture context when pair is selected
-- Store in trade's `market_context` column
-- Display summary badge (Fear/Greed, Event Risk)
+**1.4 ✅ Market Scoring Utilities** - `src/lib/market-scoring.ts`
+- calculateCompositeScore() with weighted formula
+- calculateTradingBias() logic
+- calculateDataQuality() for context completeness
+- Helper functions for volatility, events, fear/greed
 
-**1.5 Tambahkan badge Fear/Greed dan High-Impact Event ke TradeHistoryCard**
-- File: `src/components/trading/TradeHistoryCard.tsx`
-- Read `market_context` from trade
-- Show Fear/Greed value at entry time
-- Flag if high-impact event day
+**1.5 ✅ MarketContextBadge component** - `src/components/market/MarketContextBadge.tsx`
+- Compact and full variants for display
+- FearGreedBadge and EventDayBadge components
+- Color-coded by severity/value
 
-#### Files to Create:
-- `src/types/market-context.ts`
-- `src/hooks/use-capture-market-context.ts`
-- `src/hooks/use-unified-market-score.ts`
-- `src/lib/market-scoring.ts`
+**1.6 ✅ TradeEntryWizard Integration** - `src/components/trade/entry/SetupStep.tsx`
+- Market Context collapsible section in Trade Setup
+- Auto-captures context when pair is selected
+- Displays Fear/Greed, Volatility, Event Risk
+- Stores context in wizard state for submission
 
-#### Files to Modify:
-- `src/components/trade/entry/SetupStep.tsx`
-- `src/components/trading/TradeHistoryCard.tsx`
+**1.7 ✅ Wizard State Update** - `src/types/trade-wizard.ts` & `src/features/trade/useTradeEntryWizard.ts`
+- Added marketContext to WizardState
+- Added setMarketContext() action
+- submitTrade() now includes market_context in trade_entries
+
+**1.8 ✅ TradeHistoryCard badges** - `src/components/trading/TradeHistoryCard.tsx`
+- Displays Fear/Greed badge from market_context
+- Displays High-Impact Event badge if event day
+- Parses stored market_context from trade entry
+
+#### Files Created:
+- ✅ `src/types/market-context.ts`
+- ✅ `src/hooks/use-capture-market-context.ts`
+- ✅ `src/hooks/use-unified-market-score.ts`
+- ✅ `src/lib/market-scoring.ts`
+- ✅ `src/components/market/MarketContextBadge.tsx`
+
+#### Files Modified:
+- ✅ `src/types/trade-wizard.ts` (added marketContext)
+- ✅ `src/features/trade/useTradeEntryWizard.ts` (added setMarketContext, submit with context)
+- ✅ `src/components/trade/entry/SetupStep.tsx` (market context section)
+- ✅ `src/components/trading/TradeHistoryCard.tsx` (context badges)
+- ✅ `src/components/market/index.ts` (export MarketContextBadge)
 
 ---
 

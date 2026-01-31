@@ -1,6 +1,6 @@
 /**
  * TradeHistoryCard - Display a single trade entry in the history
- * Enhanced with accessibility and Enrich button for journaling
+ * Enhanced with accessibility, Enrich button for journaling, and market context badges
  */
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,8 @@ import { format } from "date-fns";
 import { TradeEntry } from "@/hooks/use-trade-entries";
 import { cn } from "@/lib/utils";
 import { RiskRewardTooltip, ConfluenceScoreTooltip } from "@/components/ui/info-tooltip";
+import { FearGreedBadge, EventDayBadge } from "@/components/market/MarketContextBadge";
+import type { UnifiedMarketContext } from "@/types/market-context";
 
 interface TradeHistoryCardProps {
   entry: TradeEntry;
@@ -35,6 +37,16 @@ export function TradeHistoryCard({
   const hasScreenshots = entry.screenshots && Array.isArray(entry.screenshots) && entry.screenshots.length > 0;
   const screenshotCount = hasScreenshots ? entry.screenshots!.length : 0;
   const hasNotes = entry.notes && entry.notes.length > 0;
+  
+  // Parse market context from trade entry (may be partial or null)
+  const rawMarketContext = entry.market_context as unknown;
+  const marketContext = rawMarketContext && typeof rawMarketContext === 'object' 
+    ? rawMarketContext as Partial<UnifiedMarketContext>
+    : null;
+  const fearGreedValue = marketContext?.fearGreed?.value;
+  const fearGreedLabel = marketContext?.fearGreed?.label;
+  const hasHighImpactEvent = marketContext?.events?.hasHighImpactToday;
+  const eventName = marketContext?.events?.upcomingEvent?.name;
   
   return (
     <Card className="border-muted">
@@ -77,6 +89,13 @@ export function TradeHistoryCard({
                 <ImageIcon className="h-3 w-3" />
                 {screenshotCount}
               </Badge>
+            )}
+            {/* Market Context Badges */}
+            {fearGreedValue !== undefined && (
+              <FearGreedBadge value={fearGreedValue} label={fearGreedLabel} />
+            )}
+            {hasHighImpactEvent && (
+              <EventDayBadge eventName={eventName} />
             )}
           </div>
           <div className="flex items-center gap-2">

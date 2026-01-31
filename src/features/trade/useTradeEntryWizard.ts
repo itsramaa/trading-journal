@@ -17,6 +17,7 @@ import type {
 import { INITIAL_WIZARD_STATE, EXPRESS_STEPS, FULL_STEPS } from "@/types/trade-wizard";
 import type { PositionSizeResult } from "@/types/risk";
 import type { TradingStrategyEnhanced } from "@/types/strategy";
+import type { UnifiedMarketContext } from "@/types/market-context";
 
 interface WizardStore extends WizardState {
   // Navigation
@@ -34,6 +35,7 @@ interface WizardStore extends WizardState {
   setPositionSizing: (result: PositionSizeResult) => void;
   setFinalChecklist: (data: FinalChecklistData) => void;
   setTradingAccount: (accountId: string, balance: number) => void;
+  setMarketContext: (context: UnifiedMarketContext) => void;
   
   // Actions
   reset: () => void;
@@ -116,6 +118,10 @@ export const useTradeEntryWizard = create<WizardStore>((set, get) => ({
     set({ tradingAccountId: accountId, accountBalance: balance });
   },
 
+  setMarketContext: (context) => {
+    set({ marketContext: context });
+  },
+
   reset: () => {
     set(INITIAL_WIZARD_STATE);
   },
@@ -125,13 +131,13 @@ export const useTradeEntryWizard = create<WizardStore>((set, get) => ({
     set({ isSubmitting: true });
 
     try {
-      const { tradeDetails, priceLevels, positionSizing, confluences, finalChecklist, tradingAccountId } = state;
+      const { tradeDetails, priceLevels, positionSizing, confluences, finalChecklist, tradingAccountId, marketContext } = state;
 
       if (!tradeDetails || !priceLevels || !positionSizing) {
         throw new Error("Missing required trade data");
       }
 
-      // Insert trade entry with AI quality score
+      // Insert trade entry with AI quality score and market context
       const { data, error } = await supabase
         .from("trade_entries")
         .insert({
@@ -152,6 +158,7 @@ export const useTradeEntryWizard = create<WizardStore>((set, get) => ({
           notes: finalChecklist?.tradeComment || null,
           ai_quality_score: finalChecklist?.aiQualityScore || null,
           ai_confidence: finalChecklist?.aiConfidence || confluences?.aiConfidence || null,
+          market_context: marketContext as any, // Store market context at entry time
         })
         .select()
         .single();

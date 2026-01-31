@@ -1,6 +1,7 @@
 /**
  * Step 1: Setup (Combined Pre-validation + Strategy + Basic Details)
  * Now supports Binance account selection when connected
+ * Includes market context capture for unified analysis
  */
 import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,7 +13,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { 
   CheckCircle, XCircle, AlertTriangle, Loader2, ShieldCheck, 
   Building2, Brain, Sparkles, TrendingUp, TrendingDown, Target, 
-  Clock, ChevronDown, Layers, Wifi
+  Clock, ChevronDown, Layers, Wifi, Activity
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePreTradeValidation } from "@/features/trade/usePreTradeValidation";
@@ -23,6 +24,8 @@ import { useAIPreflight } from "@/features/ai/useAIPreflight";
 import { TradingPairCombobox } from "@/components/ui/trading-pair-combobox";
 import { TIMEFRAME_OPTIONS, type TimeframeType } from "@/types/strategy";
 import { useBinanceBalance, useBinanceConnectionStatus } from "@/features/binance";
+import { useCaptureMarketContext } from "@/hooks/use-capture-market-context";
+import { MarketContextBadge } from "@/components/market/MarketContextBadge";
 import type { ValidationResult } from "@/types/trade-wizard";
 
 interface SetupStepProps {
@@ -103,9 +106,16 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
   const { runAllChecks, isLoading: validationLoading } = usePreTradeValidation({ accountBalance });
   const aiPreflight = useAIPreflight();
   
+  // Market context capture
+  const { 
+    context: marketContext, 
+    isLoading: contextLoading,
+    capture: captureMarketContext,
+  } = useCaptureMarketContext({ symbol: pair || 'BTCUSDT', enabled: !!pair });
+  
   const [validationResult, setValidationResult] = useState<ReturnType<typeof runAllChecks> | null>(null);
   const [hasRunValidation, setHasRunValidation] = useState(false);
-  const [sectionsOpen, setSectionsOpen] = useState({ validation: true, strategy: true, trade: true });
+  const [sectionsOpen, setSectionsOpen] = useState({ validation: true, strategy: true, trade: true, context: true });
 
   // Auto-select Binance if connected
   useEffect(() => {
@@ -155,13 +165,25 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
   const isPairSelected = !!pair;
   const canProceed = isAccountSelected && isValidationPassed && isStrategySelected && isPairSelected;
 
-  const handleNext = () => {
-    // Save trade details to wizard
+  const handleNext = async () => {
+    // Capture market context before proceeding
+    let capturedContext = marketContext;
+    if (pair && !capturedContext) {
+      capturedContext = await captureMarketContext(pair);
+    }
+    
+    // Save trade details to wizard with market context
     wizard.setTradeDetails({
       pair,
       direction,
       timeframe: timeframe as TimeframeType,
     });
+    
+    // Store market context in wizard for later use
+    if (capturedContext) {
+      wizard.setMarketContext(capturedContext);
+    }
+    
     onNext();
   };
 
@@ -469,6 +491,42 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
                       </div>
                     )}
                   </div>
+                )}
+
+                {/* Market Context Section */}
+                {pair && (
+                  <Collapsible open={sectionsOpen.context} onOpenChange={(open) => setSectionsOpen(p => ({ ...p, context: open }))}>
+                    <CollapsibleTrigger asChild>
+                      <Button variant="ghost" className="w-full justify-between p-2 h-auto">
+                        <span className="font-medium text-sm flex items-center gap-2">
+                          <Activity className="h-4 w-4" />
+                          Market Context
+                        </span>
+                        <div className="flex items-center gap-2">
+                          {contextLoading ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : marketContext ? (
+                            <MarketContextBadge context={marketContext} variant="compact" />
+                          ) : null}
+                          <ChevronDown className={cn("h-4 w-4 transition-transform", sectionsOpen.context && "rotate-180")} />
+                        </div>
+                      </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="pt-2">
+                      {contextLoading ? (
+                        <div className="flex items-center gap-2 p-4 text-muted-foreground">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Loading market context...
+                        </div>
+                      ) : marketContext ? (
+                        <MarketContextBadge context={marketContext} variant="full" />
+                      ) : (
+                        <div className="text-sm text-muted-foreground p-3">
+                          Market context will be captured when you proceed.
+                        </div>
+                      )}
+                    </CollapsibleContent>
+                  </Collapsible>
                 )}
               </CollapsibleContent>
             </Collapsible>
