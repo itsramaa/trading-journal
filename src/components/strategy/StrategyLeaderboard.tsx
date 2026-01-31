@@ -29,7 +29,8 @@ import {
   Star,
   Filter,
   X,
-  Search
+  Search,
+  ArrowUpDown
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Link } from "react-router-dom";
@@ -70,11 +71,19 @@ const MARKET_TYPE_OPTIONS = [
   { value: "margin", label: "Margin" },
 ];
 
+const SORT_OPTIONS = [
+  { value: "clone_count_desc", label: "Most Cloned" },
+  { value: "clone_count_asc", label: "Least Cloned" },
+  { value: "last_cloned_desc", label: "Recently Cloned" },
+  { value: "last_cloned_asc", label: "Oldest Cloned" },
+];
+
 export function StrategyLeaderboard() {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [timeframeFilter, setTimeframeFilter] = useState("all");
   const [marketTypeFilter, setMarketTypeFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("clone_count_desc");
 
   const { data: strategies, isLoading } = useQuery({
     queryKey: ["strategy-leaderboard"],
@@ -93,11 +102,12 @@ export function StrategyLeaderboard() {
     staleTime: 5 * 60_000, // 5 minutes
   });
 
-  // Filter strategies based on selected filters and search
+  // Filter and sort strategies
   const filteredStrategies = useMemo(() => {
     if (!strategies) return [];
     
-    return strategies.filter((strategy) => {
+    // First filter
+    const filtered = strategies.filter((strategy) => {
       // Search filter
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
@@ -124,15 +134,34 @@ export function StrategyLeaderboard() {
       }
       
       return true;
-    }).slice(0, 10); // Limit to top 10 after filtering
-  }, [strategies, searchQuery, timeframeFilter, marketTypeFilter]);
+    });
 
-  const hasActiveFilters = searchQuery.trim() !== "" || timeframeFilter !== "all" || marketTypeFilter !== "all";
+    // Then sort
+    const sorted = [...filtered].sort((a, b) => {
+      switch (sortBy) {
+        case "clone_count_desc":
+          return (b.clone_count || 0) - (a.clone_count || 0);
+        case "clone_count_asc":
+          return (a.clone_count || 0) - (b.clone_count || 0);
+        case "last_cloned_desc":
+          return new Date(b.last_cloned_at || 0).getTime() - new Date(a.last_cloned_at || 0).getTime();
+        case "last_cloned_asc":
+          return new Date(a.last_cloned_at || 0).getTime() - new Date(b.last_cloned_at || 0).getTime();
+        default:
+          return 0;
+      }
+    });
+
+    return sorted.slice(0, 10); // Limit to top 10 after filtering and sorting
+  }, [strategies, searchQuery, timeframeFilter, marketTypeFilter, sortBy]);
+
+  const hasActiveFilters = searchQuery.trim() !== "" || timeframeFilter !== "all" || marketTypeFilter !== "all" || sortBy !== "clone_count_desc";
 
   const clearFilters = () => {
     setSearchQuery("");
     setTimeframeFilter("all");
     setMarketTypeFilter("all");
+    setSortBy("clone_count_desc");
   };
 
   if (isLoading) {
@@ -222,6 +251,24 @@ export function StrategyLeaderboard() {
             </SelectTrigger>
             <SelectContent>
               {MARKET_TYPE_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <div className="flex items-center gap-2 text-sm text-muted-foreground ml-2">
+            <ArrowUpDown className="h-4 w-4" />
+            <span>Sort:</span>
+          </div>
+
+          <Select value={sortBy} onValueChange={setSortBy}>
+            <SelectTrigger className="w-[150px] h-8">
+              <SelectValue placeholder="Sort by" />
+            </SelectTrigger>
+            <SelectContent>
+              {SORT_OPTIONS.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
                   {option.label}
                 </SelectItem>
