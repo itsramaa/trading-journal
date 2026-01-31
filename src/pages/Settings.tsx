@@ -1,6 +1,7 @@
-import { Bell, Palette, Bot, Link, Settings as SettingsIcon } from "lucide-react";
+import { Bell, Palette, Bot, Link, Settings as SettingsIcon, TrendingUp } from "lucide-react";
 import { AISettingsTab } from "@/components/settings/AISettingsTab";
 import { BinanceApiSettings } from "@/components/settings/BinanceApiSettings";
+import { TradingConfigTab } from "@/components/settings/TradingConfigTab";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -71,8 +72,12 @@ const Settings = () => {
           <p className="text-muted-foreground">Manage your app preferences.</p>
         </div>
 
-        <Tabs defaultValue="notifications" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-4 lg:w-[400px]">
+        <Tabs defaultValue="trading" className="space-y-4">
+          <TabsList className="grid w-full grid-cols-5 lg:w-[500px]">
+            <TabsTrigger value="trading" className="gap-2">
+              <TrendingUp className="h-4 w-4" />
+              <span className="hidden sm:inline">Trading</span>
+            </TabsTrigger>
             <TabsTrigger value="notifications" className="gap-2">
               <Bell className="h-4 w-4" />
               <span className="hidden sm:inline">Alerts</span>
@@ -90,6 +95,10 @@ const Settings = () => {
               <span className="hidden sm:inline">AI</span>
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="trading" className="space-y-4">
+            <TradingConfigTab />
+          </TabsContent>
 
           <TabsContent value="notifications" className="space-y-4">
             <Card className="border-border/50">
