@@ -870,6 +870,109 @@ async function getOrderRateLimit(apiKey: string, apiSecret: string) {
   }
 }
 
+// ============================================================================
+// Phase 5: Bulk Export Functions
+// ============================================================================
+
+type DownloadType = 'transaction' | 'order' | 'trade';
+
+/**
+ * Request download ID for bulk export
+ * Phase 5: Bulk Export
+ */
+async function requestDownloadId(
+  apiKey: string, 
+  apiSecret: string, 
+  type: DownloadType,
+  startTime: number,
+  endTime: number
+) {
+  try {
+    const endpoints: Record<DownloadType, string> = {
+      transaction: '/fapi/v1/income/asyn',
+      order: '/fapi/v1/order/asyn',
+      trade: '/fapi/v1/trade/asyn',
+    };
+    
+    const params: Record<string, any> = {
+      startTime,
+      endTime,
+    };
+    
+    const response = await binanceRequest(endpoints[type], 'GET', params, apiKey, apiSecret);
+    const data = await response.json();
+    
+    if (data.code && data.code < 0) {
+      return { success: false, error: data.msg, code: data.code };
+    }
+    
+    return {
+      success: true,
+      data: {
+        downloadId: data.downloadId,
+        type,
+        startTime,
+        endTime,
+        status: 'pending',
+      },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to request download ID',
+    };
+  }
+}
+
+/**
+ * Get download link for bulk export
+ * Phase 5: Bulk Export
+ */
+async function getDownloadLink(
+  apiKey: string, 
+  apiSecret: string, 
+  type: DownloadType,
+  downloadId: string
+) {
+  try {
+    const endpoints: Record<DownloadType, string> = {
+      transaction: '/fapi/v1/income/asyn/id',
+      order: '/fapi/v1/order/asyn/id',
+      trade: '/fapi/v1/trade/asyn/id',
+    };
+    
+    const params = { downloadId };
+    
+    const response = await binanceRequest(endpoints[type], 'GET', params, apiKey, apiSecret);
+    const data = await response.json();
+    
+    if (data.code && data.code < 0) {
+      return { success: false, error: data.msg, code: data.code };
+    }
+    
+    // Status can be: 'pending', 'processing', 'completed'
+    const isReady = data.status === 'completed' || !!data.url;
+    
+    return {
+      success: true,
+      data: {
+        downloadId: data.downloadId || downloadId,
+        status: isReady ? 'completed' : (data.status || 'pending'),
+        url: data.url || null,
+        expirationTimestamp: data.expirationTimestamp || null,
+        notified: data.notified || false,
+      },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to get download link',
+    };
+  }
+}
+
+
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -980,10 +1083,27 @@ Deno.serve(async (req) => {
         result = await getOrderRateLimit(apiKey, apiSecret);
         break;
         
+      // Phase 5: Bulk Export
+      case 'request-download':
+        if (!body.downloadType || !body.startTime || !body.endTime) {
+          result = { success: false, error: 'downloadType, startTime, and endTime are required' };
+        } else {
+          result = await requestDownloadId(apiKey, apiSecret, body.downloadType, body.startTime, body.endTime);
+        }
+        break;
+        
+      case 'get-download':
+        if (!body.downloadType || !body.downloadId) {
+          result = { success: false, error: 'downloadType and downloadId are required' };
+        } else {
+          result = await getDownloadLink(apiKey, apiSecret, body.downloadType, body.downloadId);
+        }
+        break;
+        
       default:
         result = {
           success: false,
-          error: `Unknown action: ${action}. Valid actions: validate, balance, positions, trades, open-orders, place-order, cancel-order, income, commission-rate, leverage-brackets, force-orders, position-mode, all-orders, symbol-config, multi-assets-mode, position-margin-history, account-config, bnb-burn, adl-quantile, order-rate-limit`,
+          error: `Unknown action: ${action}. Valid actions: validate, balance, positions, trades, open-orders, place-order, cancel-order, income, commission-rate, leverage-brackets, force-orders, position-mode, all-orders, symbol-config, multi-assets-mode, position-margin-history, account-config, bnb-burn, adl-quantile, order-rate-limit, request-download, get-download`,
         };
     }
     

@@ -869,22 +869,20 @@ interface BnbBurnStatus {
 
 ---
 
-### Phase 5: Bulk Export (USER_DATA) 🆕
+### ✅ Phase 5: IMPLEMENTED - Bulk Export (USER_DATA)
 
-#### 5.1 Download History Endpoints (6 total) 🆕
+#### 5.1 Download History Endpoints (2 actions implemented)
 ```
 Endpoints:
-  Transaction History:
-    GET /fapi/v1/downloadId/transaction
-    GET /fapi/v1/download/transaction
+  Request Download ID:
+    GET /fapi/v1/income/asyn      (transaction)
+    GET /fapi/v1/order/asyn       (order)
+    GET /fapi/v1/trade/asyn       (trade)
   
-  Order History:
-    GET /fapi/v1/downloadId/order
-    GET /fapi/v1/download/order
-  
-  Trade History:
-    GET /fapi/v1/downloadId/trade
-    GET /fapi/v1/download/trade
+  Get Download Link:
+    GET /fapi/v1/income/asyn/id   (transaction)
+    GET /fapi/v1/order/asyn/id    (order)
+    GET /fapi/v1/trade/asyn/id    (trade)
     
 Permission: USER_DATA (Read-Only)
 ```
@@ -894,9 +892,16 @@ Permission: USER_DATA (Read-Only)
 - ✅ **Data Analysis**: Download large datasets
 - ✅ **Backup**: Archive trading history
 
+**Frontend Hooks Available:**
+- `useBulkExportWorkflow()` - Complete export workflow with polling
+- `useRequestBulkExport()` - Request download ID
+- `useGetDownloadLink()` - Get download URL
+
+**UI Page:** `/export` - Bulk Export page with date range selection and 3 export types
+
 **Workflow:**
 1. Request download ID (async)
-2. Poll for completion
+2. Poll for completion (10s intervals, max 30 polls)
 3. Download CSV file
 
 **Impact:** LOW - Bulk export for tax/reporting

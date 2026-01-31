@@ -21,6 +21,9 @@ export * from './useBinanceAdvancedAnalytics';
 // Phase 4: Extended account data hooks
 export * from './useBinanceExtendedData';
 
+// Phase 5: Bulk export hooks
+export * from './useBinanceBulkExport';
+
 // Re-export commonly used account hooks for convenience
 export {
   useBinanceConnectionStatus,
@@ -93,6 +96,15 @@ export {
   getRateLimitUsage,
   isRateLimitWarning,
 } from './useBinanceExtendedData';
+
+// Re-export Phase 5 bulk export hooks
+export {
+  useBulkExportWorkflow,
+  useRequestBulkExport,
+  useGetDownloadLink,
+  getExportTypeLabel,
+  getExportTypeDescription,
+} from './useBinanceBulkExport';
 
 // Re-export utility functions
 export { getIncomeTypeCategory } from './types';
