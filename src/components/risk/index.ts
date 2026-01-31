@@ -7,6 +7,7 @@ export { RiskProfileSummaryCard } from './RiskProfileSummaryCard';
 export { RiskSettingsForm } from './RiskSettingsForm';
 export { RiskAlertBanner } from './RiskAlertBanner';
 export { RiskSummaryCard } from './RiskSummaryCard';
+export { MarginHistoryTab } from './MarginHistoryTab';
 
 // Calculator sub-components
 export { CalculatorInputs, CalculatorResults, QuickReferenceR } from './calculator';
