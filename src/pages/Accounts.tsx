@@ -15,7 +15,8 @@ import {
   TrendingUp,
   TrendingDown,
   ArrowDownUp,
-  CircleDollarSign
+  CircleDollarSign,
+  Shield
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -102,6 +103,12 @@ export default function Accounts() {
               <Link to="/settings?tab=exchange" aria-label="Open API settings">
                 <Settings className="h-4 w-4 mr-2" aria-hidden="true" />
                 API Settings
+              </Link>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link to="/risk?tab=settings" aria-label="Open risk settings">
+                <Shield className="h-4 w-4 mr-2" aria-hidden="true" />
+                Risk Settings
               </Link>
             </Button>
           </div>
