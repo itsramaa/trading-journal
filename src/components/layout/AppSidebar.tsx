@@ -23,6 +23,7 @@ import {
   CandlestickChart,
   History,
   Flame,
+  Download,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { NavUser } from "./NavUser";
@@ -79,6 +80,7 @@ const navigationGroups = [
       { title: "Daily P&L", url: "/daily-pnl", icon: DollarSign },
       { title: "Heatmap", url: "/heatmap", icon: Grid3X3 },
       { title: "AI Insights", url: "/ai-insights", icon: Brain },
+      { title: "Bulk Export", url: "/export", icon: Download },
     ],
   },
   {

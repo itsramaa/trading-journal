@@ -112,7 +112,10 @@ export type BinanceAction =
   | 'account-config'
   | 'bnb-burn'
   | 'adl-quantile'
-  | 'order-rate-limit';
+  | 'order-rate-limit'
+  // Phase 5: Bulk Export
+  | 'request-download'
+  | 'get-download';
 
 /**
  * Phase 2: Commission Rate for accurate fee calculation

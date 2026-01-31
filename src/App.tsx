@@ -25,6 +25,7 @@ import MarketInsight from "./pages/MarketInsight";
 import EconomicCalendar from "./pages/EconomicCalendar";
 import MarketData from "./pages/MarketData";
 import TopMovers from "./pages/TopMovers";
+import BulkExport from "./pages/BulkExport";
 import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
 import Notifications from "./pages/Notifications";
@@ -184,6 +185,11 @@ const App = () => (
             <Route path="/accounts/:accountId" element={
               <ProtectedRoute>
                 <AccountDetail />
+              </ProtectedRoute>
+            } />
+            <Route path="/export" element={
+              <ProtectedRoute>
+                <BulkExport />
               </ProtectedRoute>
             } />
             
