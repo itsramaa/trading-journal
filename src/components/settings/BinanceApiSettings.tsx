@@ -137,48 +137,10 @@ export function BinanceApiSettings() {
         </CardContent>
       </Card>
       
-      {/* Account Overview (only show if connected) */}
+      {/* Account Configuration Card (only show if connected) */}
       {isConnected && (
         <>
           <Separator />
-          
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Wallet className="h-5 w-5" />
-                Account Overview
-              </CardTitle>
-              <CardDescription>
-                Real-time balance data from Binance Futures
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoadingBalance ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                </div>
-              ) : balance ? (
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <p className="text-sm text-muted-foreground">Wallet Balance</p>
-                    <p className="text-xl font-bold">
-                      ${balance.totalWalletBalance.toFixed(2)}
-                    </p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-sm text-muted-foreground">Available</p>
-                    <p className="text-xl font-bold">
-                      ${balance.availableBalance.toFixed(2)}
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-muted-foreground">Unable to load balance data</p>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Account Configuration Card */}
           <BinanceAccountConfigCard />
         </>
       )}

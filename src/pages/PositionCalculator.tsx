@@ -113,7 +113,7 @@ export default function PositionCalculator() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
               <Calculator className="h-6 w-6 text-primary" />
-              Position Calculator
+              Risk Calculator
             </h1>
             <p className="text-muted-foreground">Loading your risk settings...</p>
           </div>
@@ -130,10 +130,10 @@ export default function PositionCalculator() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <Calculator className="h-6 w-6 text-primary" />
-            Position Calculator
+            Risk Calculator
           </h1>
           <p className="text-muted-foreground">
-            Calculate optimal position sizes based on your risk parameters
+            Calculate position sizes and manage risk before entering trades
           </p>
         </div>
 
@@ -163,7 +163,7 @@ export default function PositionCalculator() {
                   {riskProfile && (
                     <span className="flex items-center gap-2 text-xs mt-1 text-primary">
                       <Settings className="h-3 w-3" />
-                      <Link to="/settings" className="hover:underline">
+                      <Link to="/risk?tab=settings" className="hover:underline">
                         Using your Risk Profile settings
                       </Link>
                     </span>

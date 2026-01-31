@@ -19,9 +19,14 @@ import {
 import { useRiskProfile, useUpsertRiskProfile } from "@/hooks/use-risk-profile";
 import { useRiskEvents } from "@/hooks/use-risk-events";
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 
 export default function RiskManagement() {
+  const [searchParams] = useSearchParams();
+  const tabFromUrl = searchParams.get('tab');
+  const defaultTab = tabFromUrl === 'settings' ? 'settings' : 'overview';
+  
   const { data: riskProfile, isLoading } = useRiskProfile();
   const { events: riskEvents } = useRiskEvents();
   const upsertProfile = useUpsertRiskProfile();
@@ -73,7 +78,7 @@ export default function RiskManagement() {
         </div>
 
         {/* Tabs */}
-        <Tabs defaultValue="overview" className="space-y-6">
+        <Tabs defaultValue={defaultTab} className="space-y-6">
           <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:inline-flex">
             <TabsTrigger value="overview" className="gap-2">
               <LayoutDashboard className="h-4 w-4" />
