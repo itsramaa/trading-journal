@@ -64,7 +64,16 @@ async function fetchBinanceKlines(symbol: string, interval = '1h', limit = 100):
     const response = await fetch(
       `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`
     );
-    return await response.json();
+    const data = await response.json();
+    
+    // Binance returns an error object for invalid symbols, not an array
+    // e.g. {"code": -1121, "msg": "Invalid symbol."}
+    if (!Array.isArray(data)) {
+      console.error(`Binance klines returned non-array for ${symbol}:`, data);
+      return [];
+    }
+    
+    return data;
   } catch (error) {
     console.error(`Binance klines error for ${symbol}:`, error);
     return [];
@@ -224,6 +233,23 @@ async function processSymbol(symbol: string) {
     fetchBinanceTicker(symbol),
   ]);
   
+  // Guard against empty klines (invalid symbol or API error)
+  if (!klines || klines.length === 0) {
+    console.warn(`No klines data for ${symbol}, using defaults`);
+    const asset = symbol.replace('USDT', '');
+    return {
+      symbol,
+      asset,
+      klines: [],
+      closes: [],
+      ticker,
+      signal: { trend: 'No data available', direction: 'neutral' as const, score: 0.5 },
+      volatility: 0,
+      whale: { signal: 'NONE' as const, volumeChange: 0, confidence: 30 },
+      valid: false,
+    };
+  }
+  
   const closes = klines.map((k) => parseFloat(String(k[4]))).reverse();
   const asset = symbol.replace('USDT', '');
   
@@ -240,9 +266,9 @@ async function processSymbol(symbol: string) {
     signal,
     volatility,
     whale,
+    valid: true,
   };
 }
-
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
