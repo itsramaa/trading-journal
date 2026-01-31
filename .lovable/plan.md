@@ -107,6 +107,204 @@
 
 ---
 
+## STEP 2: ACCOUNTS DOMAIN AUDIT
+
+**Audit Date**: 2026-01-31
+**Status**: ✅ COMPLETED
+
+### 2.1 Domain Definition
+
+**Menu Entry Point**: Standalone `/accounts` (2nd item in sidebar after Dashboard)
+
+**Fungsi Domain**:
+- Menyediakan data balance & capital (Total Wallet Balance, Available Balance)
+- Menyediakan Unrealized P&L dari open positions
+- Mengelola Paper Trading accounts (CRUD, deposit, withdrawal)
+- Menyediakan Transaction History (deposit/withdrawal Binance)
+- Menyediakan Financial Summary (fees, funding, rebates)
+
+**Domain Boundary**:
+- **IN**: 
+  - Binance API (`/fapi/v2/balance`, `/fapi/v2/positionRisk`, `/fapi/v1/income`)
+  - Local Paper Accounts (`accounts` table in Supabase)
+  - Account Transactions (`account_transactions` table)
+- **OUT**: 
+  - Balance data ke RISK, ANALYTICS, DASHBOARD
+  - Account context ke JOURNAL (trade_entries.trading_account_id)
+
+### 2.2 Data Sources Audit
+
+| Data Type | Source | Endpoint/Table | Hook | Status |
+|-----------|--------|----------------|------|--------|
+| Total Wallet Balance | Binance API | `/fapi/v2/balance` | `useBinanceBalance()` | ✅ CORRECT |
+| Available Balance | Binance API | `/fapi/v2/balance` | `useBinanceBalance()` | ✅ CORRECT |
+| Unrealized P&L | Binance API | `/fapi/v2/positionRisk` | `useBinanceBalance()` | ✅ CORRECT |
+| Active Positions | Binance API | `/fapi/v2/positionRisk` | `useBinancePositions()` | ✅ CORRECT |
+| Paper Account Balance | Supabase | `accounts.balance` | `useAccounts()` | ✅ CORRECT |
+| Account Transactions | Supabase | `account_transactions` | `useAccountTransactions()` | ✅ CORRECT |
+| Binance Transfers | Binance API | `/fapi/v1/income` (TRANSFER) | `useBinanceTransactionHistory()` | ✅ CORRECT |
+| Fees/Funding | Binance API | `/fapi/v1/income` | `useBinanceAllIncome()` | ✅ CORRECT |
+
+### 2.3 Implementation Audit
+
+#### 2.3.1 Accounts Page Structure (`/accounts`)
+
+**File**: `src/pages/Accounts.tsx`
+
+**Tabs**:
+| Tab | Content | Status |
+|-----|---------|--------|
+| Accounts | Merged Binance + Paper accounts | ✅ CORRECT |
+| Transactions | Binance deposit/withdrawal history | ✅ CORRECT |
+| Financial | Fee/Funding/Rebate summary | ✅ CORRECT |
+
+**Overview Cards** (Top of page):
+| Card | Data Source | Display | Status |
+|------|-------------|---------|--------|
+| Total Accounts | Calculated | `{binance + paperCount}` | ✅ CORRECT |
+| Total Balance | `useBinanceBalance()` | `totalWalletBalance` | ✅ CORRECT |
+| Active Positions | `useBinancePositions()` | Count + Unrealized P&L | ✅ CORRECT |
+
+**Binance Section** (when connected):
+| Card | Data | Status |
+|------|------|--------|
+| Wallet Balance | `balance.totalWalletBalance` | ✅ CORRECT |
+| Available | `balance.availableBalance` | ✅ CORRECT |
+| Unrealized P&L | `balance.totalUnrealizedProfit` | ✅ CORRECT |
+
+**Paper Trading Section**:
+- `AddAccountForm` for creating new paper accounts | ✅ CORRECT
+- `AccountCardList` with `filterType="trading"` + `backtestOnly` | ✅ CORRECT
+
+#### 2.3.2 Financial Summary Card (`FinancialSummaryCard.tsx`)
+
+**Income Type Segregation**:
+```typescript
+// Line 82-86: Correctly filters non-trade income
+return allIncome.filter((item: BinanceIncome) => {
+  const category = getIncomeTypeCategory(item.incomeType);
+  return category === 'fees' || category === 'funding' || category === 'rewards';
+});
+```
+
+**Display Breakdown**:
+| Metric | Source | Display | Status |
+|--------|--------|---------|--------|
+| Trading Fees | COMMISSION | `-${totalFees}` | ✅ CORRECT |
+| Funding Paid | FUNDING_FEE (negative) | `-${fundingPaid}` | ✅ CORRECT |
+| Funding Received | FUNDING_FEE (positive) | `+${fundingReceived}` | ✅ CORRECT |
+| Fee Rebates | COMMISSION_REBATE, API_REBATE | `+${totalRebates}` | ✅ CORRECT |
+| Net Trading Cost | Calculated | `fees + fundingPaid - fundingReceived - rebates` | ✅ CORRECT |
+
+#### 2.3.3 Transaction History (`BinanceTransactionHistory.tsx`)
+
+**Data Source**: `useBinanceTransactionHistory()` → filters `TRANSFER` type from income
+
+**Summary Cards**:
+| Card | Calculation | Status |
+|------|-------------|--------|
+| Total Deposits | Sum of DEPOSIT type | ✅ CORRECT |
+| Total Withdrawals | Sum of WITHDRAWAL type | ✅ CORRECT |
+| Net Flow | Deposits - Withdrawals | ✅ CORRECT |
+
+#### 2.3.4 Combined Balance Hook (`use-combined-balance.ts`)
+
+**Purpose**: Single source of balance for components that need account-agnostic balance
+
+**Logic**:
+```
+1. If Binance connected → use Binance balance
+2. Else if paperAccountId specified → use that account
+3. Else → sum all active trading accounts
+```
+
+**Status**: ✅ CORRECT - Properly prioritizes Binance as source of truth
+
+### 2.4 Dependencies (Data Flow OUT)
+
+#### To RISK Domain
+
+| Hook/Component | Uses | For |
+|----------------|------|-----|
+| `use-trading-gate.ts` | `useBinanceDailyPnl()` → `totalBalance` | Daily loss limit base |
+| `RiskSummaryCard.tsx` | Balance for loss % calculation | Loss limit progress |
+| `PositionCalculator.tsx` | `useBestAvailableBalance()` | Position sizing base |
+
+**Verification**: ✅ CORRECT - Risk uses live Binance balance
+
+#### To ANALYTICS Domain
+
+| Hook/Component | Uses | For |
+|----------------|------|-----|
+| `PortfolioOverviewCard.tsx` | `useBinanceTotalBalance()` | Total Capital display |
+| `Performance.tsx` | Balance for Return % | Performance metrics |
+| `DailyPnL.tsx` | Balance for daily % change | Daily analytics |
+
+**Verification**: ✅ CORRECT - Analytics uses live Binance balance
+
+#### To DASHBOARD Domain
+
+| Component | Uses | For |
+|-----------|------|-----|
+| `PortfolioOverviewCard.tsx` | `useBinanceTotalBalance()` | First widget display |
+| `TodayPerformance.tsx` | Daily P&L calculations | Performance cards |
+
+**Verification**: ✅ CORRECT - Dashboard aggregates correctly
+
+#### To JOURNAL Domain
+
+| Component | Uses | For |
+|-----------|------|-----|
+| `TradeEntryWizard.tsx` | `useBinanceBalance()` | Balance context for trade entry |
+| `OpenPositionsTable.tsx` | `useBinancePositions()` | Show active positions |
+
+**Verification**: ✅ CORRECT - Journal has access to account context
+
+### 2.5 Gap Analysis
+
+| Area | Expected | Actual | Gap? |
+|------|----------|--------|------|
+| Binance Balance Display | Live from API | Live from API | ✅ NO GAP |
+| Paper Account Management | CRUD + Transactions | CRUD + Transactions | ✅ NO GAP |
+| Financial Summary | Fee/Funding/Rebate breakdown | Fee/Funding/Rebate breakdown | ✅ NO GAP |
+| Transaction History | Deposits/Withdrawals | Deposits/Withdrawals | ✅ NO GAP |
+| Data Flow to RISK | Live balance | Live balance | ✅ NO GAP |
+| Data Flow to ANALYTICS | Live balance | Live balance | ✅ NO GAP |
+| Data Flow to DASHBOARD | Live balance | Live balance | ✅ NO GAP |
+
+### 2.6 UI/UX Audit
+
+| Aspect | Status | Notes |
+|--------|--------|-------|
+| Information Hierarchy | ✅ GOOD | Overview cards → Tabs → Detail sections |
+| Progressive Disclosure | ✅ GOOD | Collapsible details in Financial Summary |
+| Not Connected State | ✅ GOOD | Clear CTA to configure API keys |
+| Loading States | ✅ GOOD | Skeletons for all async data |
+| Separation of Concerns | ✅ GOOD | Binance section vs Paper section clearly separated |
+| Mental Model Alignment | ✅ GOOD | Trader expects: Balance, Positions, Transactions, Fees |
+
+### 2.7 Audit Result Summary
+
+| Category | Result |
+|----------|--------|
+| Data Sources | ✅ CORRECT |
+| Data Flow | ✅ CORRECT |
+| Calculations | ✅ CORRECT |
+| UI Display | ✅ CORRECT |
+| Dependencies | ✅ CORRECT |
+| Integration | ✅ CORRECT |
+
+**ACCOUNTS Domain Status**: ✅ **PASS** - No gaps identified
+
+### 2.8 Minor Observations (Non-Critical)
+
+| Observation | Severity | Recommendation |
+|-------------|----------|----------------|
+| AccountDetail page links to `/trading-journey/journal` (old route) | LOW | Update to `/trading` |
+| Paper account doesn't show P&L in AccountDetail | INFO | P&L comes from linked trades (by design) |
+
+---
+
 ## PREVIOUS IMPLEMENTATION SUMMARY (V6)
 
 All 6 gap remediation phases have been successfully implemented:

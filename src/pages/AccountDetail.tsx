@@ -229,7 +229,7 @@ export default function AccountDetail() {
                 </div>
                 <BarChart3 className="h-8 w-8 text-muted-foreground/50" />
               </div>
-              <Link to="/trading-journey/journal" className="text-xs text-primary hover:underline mt-1 block">
+              <Link to="/trading" className="text-xs text-primary hover:underline mt-1 block">
                 View in Journal →
               </Link>
             </CardContent>
