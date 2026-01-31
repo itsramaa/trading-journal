@@ -341,42 +341,99 @@ Key adjustment factors:
 
 ---
 
+## Strategy Management Integration
+
+### Linkage dengan Strategy Group
+
+Strategy Management saat ini **parsial terhubung** ke Journal (trade → strategy linkage), tapi tidak menerima input dari Market, Risk, atau AI.
+
+```
+Market Data ────────► Strategy Selection
+• Volatility level     • Check market fit
+• Trend direction      • Validate entry rules
+• Event risk           • Pause during events
+
+Risk Profile ───────► Strategy Rules
+• Risk per trade       • Scale exit rules
+• Max position         • Adjust TP/SL
+• Correlation          • Filter valid pairs
+
+Journal History ────► Strategy Recommendations
+• Win rate per pair    • Best pair suggestions
+• Best timeframe       • Timeframe recommendations
+• Strategy performance • AI Quality Score
+```
+
+### New Hook: useStrategyContext
+
+Detailed specification available in `docs/STRATEGY_INTEGRATION_ANALYSIS.md`.
+
+Key features:
+| Feature | Source | Output |
+|---------|--------|--------|
+| Market Fit | Volatility + Trend + Events | optimal/acceptable/poor |
+| Pair Recommendations | Historical win rate | Best 3, Avoid 3 |
+| Regime Analysis | Backtest segmentation | Trending/Ranging performance |
+| Event-Aware Backtest | Calendar + Klines | Realistic metrics |
+
+---
+
 ## Complete System Architecture
 
 ```
-                    ┌─────────────────────────────────────────────────────────────────┐
-                    │                    UNIFIED MARKET CONTEXT                        │
-                    │  (Single Source of Truth for all trading decisions)             │
-                    └─────────────────────────────┬───────────────────────────────────┘
-                                                  │
-        ┌─────────────────────────────────────────┼─────────────────────────────────────────┐
-        │                                         │                                         │
-        ▼                                         ▼                                         ▼
-┌───────────────────┐                   ┌───────────────────┐                   ┌───────────────────┐
-│   MARKET DATA     │                   │   RISK MANAGEMENT │                   │     JOURNAL       │
-│   DOMAIN          │◄─────────────────►│   DOMAIN          │◄─────────────────►│     DOMAIN        │
-│                   │                   │                   │                   │                   │
-│ • Sentiment       │ volatility        │ • Trading Gate    │ historical perf   │ • Trade Entries   │
-│ • Fear/Greed      │ momentum          │ • Risk Profile    │ win rate by pair  │ • Trade History   │
-│ • Top Movers      │ event risk        │ • Daily Tracker   │ correlation data  │ • Enrichment      │
-│ • Calendar        │────────────►      │ • Calculator      │ ◄────────────     │ • Screenshots     │
-│ • Whale Tracking  │                   │ • Correlation     │                   │ • Strategies      │
-│ • AI Analysis     │                   │ • Event Log       │                   │ • AI Analysis     │
-└───────────────────┘                   └───────────────────┘                   └───────────────────┘
-        │                                         │                                         │
-        │                                         │                                         │
-        └─────────────────────────────────────────┼─────────────────────────────────────────┘
-                                                  │
-                                                  ▼
-                              ┌─────────────────────────────────────────┐
-                              │         TRADE ENTRY WIZARD              │
-                              │                                         │
-                              │  Step 1: Setup + Context Capture        │
-                              │  Step 2: Position Sizing (Context-Aware)│
-                              │  Step 3: Confluence Check               │
-                              │  Step 4: Pre-Trade Validation           │
-                              │  Step 5: Confirmation                   │
-                              └─────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                            UNIFIED MARKET CONTEXT                                    │
+│                (Single Source of Truth for all trading decisions)                   │
+└─────────────────────────────────────────┬───────────────────────────────────────────┘
+                                          │
+    ┌─────────────────────────────────────┼─────────────────────────────────────┐
+    │                                     │                                     │
+    ▼                                     ▼                                     ▼
+┌───────────────┐                 ┌───────────────┐                 ┌───────────────┐
+│  MARKET DATA  │                 │   STRATEGY    │                 │    JOURNAL    │
+│    DOMAIN     │◄───────────────►│    DOMAIN     │◄───────────────►│    DOMAIN     │
+│               │  volatility     │               │  performance    │               │
+│ • Sentiment   │  trend          │ • Library     │  win rate       │ • Trades      │
+│ • Fear/Greed  │  events         │ • Backtest    │  best pairs     │ • History     │
+│ • Top Movers  │────────────►    │ • Rules       │  ◄────────────  │ • Enrichment  │
+│ • Calendar    │                 │ • Performance │                 │ • Screenshots │
+│ • AI Analysis │                 │ • Validation  │                 │ • Analysis    │
+└───────┬───────┘                 └───────┬───────┘                 └───────┬───────┘
+        │                                 │                                 │
+        │         ┌───────────────────────┼───────────────────────┐         │
+        │         │                       ▼                       │         │
+        │         │               ┌───────────────┐               │         │
+        └─────────┼──────────────►│     RISK      │◄──────────────┼─────────┘
+                  │               │   MANAGEMENT  │               │
+                  │               │               │               │
+                  │               │ • Trading Gate│               │
+                  │               │ • Calculator  │               │
+                  │               │ • Daily Track │               │
+                  │               │ • Correlation │               │
+                  │               └───────┬───────┘               │
+                  │                       │                       │
+                  └───────────────────────┼───────────────────────┘
+                                          │
+                                          ▼
+                          ┌───────────────────────────────┐
+                          │      TRADE ENTRY WIZARD       │
+                          │                               │
+                          │  Step 1: Setup + Context      │
+                          │  Step 2: Strategy + Fit Check │
+                          │  Step 3: Position Sizing      │
+                          │  Step 4: Confluence Check     │
+                          │  Step 5: Confirmation         │
+                          └───────────────────────────────┘
+                                          │
+                                          ▼
+                          ┌───────────────────────────────┐
+                          │      POST-TRADE ANALYSIS      │
+                          │                               │
+                          │  • Update Strategy Score      │
+                          │  • Capture Market Context     │
+                          │  • AI Pattern Detection       │
+                          │  • Risk Event Logging         │
+                          └───────────────────────────────┘
 ```
 
 ---
@@ -388,13 +445,40 @@ Key adjustment factors:
 | `MARKET_DATA_INTEGRATION_ANALYSIS.md` | Market Data, Calendar, Top Movers, AI Analysis |
 | `JOURNAL_INTEGRATION_ANALYSIS.md` | Trading Journal, Trade History, Enrichment |
 | `RISK_MANAGEMENT_INTEGRATION_ANALYSIS.md` | Risk Overview, Risk Calculator, Trading Gate |
+| `STRATEGY_INTEGRATION_ANALYSIS.md` | Strategy Library, Backtest, Performance |
 | `Trading_Journey_User_Flow.md` | Complete user flow specification |
+
+---
+
+## Implementation Roadmap
+
+### Phase 1: Foundation (Types & Hooks)
+- [ ] Create `UnifiedMarketContext` type
+- [ ] Implement `useCaptureMarketContext` hook
+- [ ] Implement `useContextAwareRisk` hook
+- [ ] Implement `useStrategyContext` hook
+
+### Phase 2: Data Capture
+- [ ] Integrate context capture into Trade Entry Wizard
+- [ ] Store market context in trade_entries.market_context
+- [ ] Add event annotations to backtest results
+
+### Phase 3: Display & Feedback
+- [ ] Add Market Fit badges to Strategy Cards
+- [ ] Add Context Warnings to Position Calculator
+- [ ] Add Pair Recommendations to Strategy view
+- [ ] Add Regime Analysis to Backtest Results
+
+### Phase 4: AI Integration
+- [ ] Correlation analysis in AI Insights
+- [ ] Adaptive strategy recommendations
+- [ ] Post-trade feedback loop
 
 ---
 
 ## Conclusion
 
-Sistem saat ini memiliki **data vertikal yang solid** (Binance → DB → UI) tetapi **horizontal integration yang lemah** (Market ↔ Journal ↔ Risk). 
+Sistem saat ini memiliki **data vertikal yang solid** (Binance → DB → UI) tetapi **horizontal integration yang lemah** (Market ↔ Journal ↔ Risk ↔ Strategy). 
 
 Dengan mengimplementasikan integrasi yang diusulkan:
 
@@ -408,9 +492,24 @@ Dengan mengimplementasikan integrasi yang diusulkan:
 - Memberikan warning untuk kondisi berbahaya
 - Belajar dari historical performance
 
-### Fase 3: Complete Decision Support
+### Fase 3: Smart Strategy System
+- Market fit validation
+- Event-aware backtesting
+- Pair-specific recommendations
+- Regime-based performance analysis
+
+### Fase 4: Complete Decision Support
 - Trade Entry Wizard terintegrasi penuh
 - AI recommendations dengan full context
 - Proactive protection dari market conditions
+- Continuous feedback loop
 
-Ini mengubah sistem dari **reactive journaling** menjadi **proactive decision support** yang melindungi trader secara otomatis.
+Ini mengubah sistem dari **reactive journaling** menjadi **intelligent trading decision support**:
+
+```
+Market Conditions → Strategy Selection → Risk Adjustment → Trade Execution
+         ↑                                                        │
+         └────────────── Post-Trade Feedback ─────────────────────┘
+```
+
+**Result**: Dari isolated silos menjadi **fully integrated trading ecosystem**.
