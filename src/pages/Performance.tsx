@@ -8,6 +8,8 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { DateRangeFilter, DateRange } from "@/components/trading/DateRangeFilter";
 import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -21,6 +23,7 @@ import {
   FileText, 
   Download,
   FileSpreadsheet,
+  Calendar,
 } from "lucide-react";
 import { 
   AreaChart, 
@@ -40,8 +43,11 @@ import { useBinanceDailyPnl } from "@/hooks/use-binance-daily-pnl";
 import { useBinanceWeeklyPnl } from "@/hooks/use-binance-weekly-pnl";
 import { useStrategyPerformance, getQualityScoreLabel } from "@/hooks/use-strategy-performance";
 import { usePerformanceExport } from "@/hooks/use-performance-export";
+import { useContextualAnalytics } from "@/hooks/use-contextual-analytics";
 import { DrawdownChart } from "@/components/analytics/DrawdownChart";
 import { EquityCurveWithEvents } from "@/components/analytics/EquityCurveWithEvents";
+import { EventDayComparison } from "@/components/analytics/EventDayComparison";
+import { FearGreedZoneChart } from "@/components/analytics/FearGreedZoneChart";
 import { 
   filterTradesByDateRange, 
   filterTradesByStrategies,
@@ -50,10 +56,12 @@ import {
   generateEquityCurve,
 } from "@/lib/trading-calculations";
 import { format } from "date-fns";
+import type { UnifiedMarketContext } from "@/types/market-context";
 
 export default function Performance() {
   const [dateRange, setDateRange] = useState<DateRange>({ from: null, to: null });
   const [selectedStrategyIds, setSelectedStrategyIds] = useState<string[]>([]);
+  const [eventDaysOnly, setEventDaysOnly] = useState(false);
 
   // Data hooks
   const { data: trades, isLoading: tradesLoading } = useTradeEntries();
@@ -62,14 +70,33 @@ export default function Performance() {
   const weeklyStats = useBinanceWeeklyPnl();
   const strategyPerformanceMap = useStrategyPerformance();
   const { exportToCSV, exportToPDF } = usePerformanceExport();
+  const { data: contextualData } = useContextualAnalytics();
 
-  // Filter trades
+  // Filter trades (including event day filter)
   const filteredTrades = useMemo(() => {
     if (!trades) return [];
     let filtered = filterTradesByDateRange(trades, dateRange.from, dateRange.to);
     filtered = filterTradesByStrategies(filtered, selectedStrategyIds);
+    
+    // Filter for event days only
+    if (eventDaysOnly) {
+      filtered = filtered.filter(trade => {
+        const context = trade.market_context as unknown as UnifiedMarketContext;
+        return context?.events?.hasHighImpactToday === true;
+      });
+    }
+    
     return filtered;
-  }, [trades, dateRange, selectedStrategyIds]);
+  }, [trades, dateRange, selectedStrategyIds, eventDaysOnly]);
+
+  // Count event day trades for badge
+  const eventDayTradeCount = useMemo(() => {
+    if (!trades) return 0;
+    return trades.filter(trade => {
+      const context = trade.market_context as unknown as UnifiedMarketContext;
+      return context?.events?.hasHighImpactToday === true;
+    }).length;
+  }, [trades]);
 
   const stats = useMemo(() => calculateTradingStats(filteredTrades), [filteredTrades]);
   
@@ -202,36 +229,59 @@ export default function Performance() {
         {/* Filters */}
         <Card>
           <CardContent className="pt-4">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center">
-              <DateRangeFilter value={dateRange} onChange={setDateRange} />
-              {strategies.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm text-muted-foreground">Strategy:</span>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge
-                      variant={selectedStrategyIds.length === 0 ? "default" : "outline"}
-                      className="cursor-pointer"
-                      onClick={() => setSelectedStrategyIds([])}
-                    >
-                      All
-                    </Badge>
-                    {strategies.map((strategy) => (
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="flex flex-col gap-4 md:flex-row md:items-center">
+                <DateRangeFilter value={dateRange} onChange={setDateRange} />
+                {strategies.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Strategy:</span>
+                    <div className="flex flex-wrap gap-2">
                       <Badge
-                        key={strategy.id}
-                        variant={selectedStrategyIds.includes(strategy.id) ? "default" : "outline"}
+                        variant={selectedStrategyIds.length === 0 ? "default" : "outline"}
                         className="cursor-pointer"
-                        onClick={() => {
-                          setSelectedStrategyIds(prev =>
-                            prev.includes(strategy.id)
-                              ? prev.filter(id => id !== strategy.id)
-                              : [...prev, strategy.id]
-                          );
-                        }}
+                        onClick={() => setSelectedStrategyIds([])}
                       >
-                        {strategy.name}
+                        All
                       </Badge>
-                    ))}
+                      {strategies.map((strategy) => (
+                        <Badge
+                          key={strategy.id}
+                          variant={selectedStrategyIds.includes(strategy.id) ? "default" : "outline"}
+                          className="cursor-pointer"
+                          onClick={() => {
+                            setSelectedStrategyIds(prev =>
+                              prev.includes(strategy.id)
+                                ? prev.filter(id => id !== strategy.id)
+                                : [...prev, strategy.id]
+                            );
+                          }}
+                        >
+                          {strategy.name}
+                        </Badge>
+                      ))}
+                    </div>
                   </div>
+                )}
+              </div>
+              
+              {/* Event Day Filter */}
+              {eventDayTradeCount > 0 && (
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="event-days-filter"
+                    checked={eventDaysOnly}
+                    onCheckedChange={setEventDaysOnly}
+                  />
+                  <Label 
+                    htmlFor="event-days-filter" 
+                    className="flex items-center gap-1.5 cursor-pointer text-sm"
+                  >
+                    <Calendar className="h-4 w-4 text-warning" />
+                    Event Days Only
+                    <Badge variant="secondary" className="ml-1">
+                      {eventDayTradeCount}
+                    </Badge>
+                  </Label>
                 </div>
               )}
             </div>
@@ -356,6 +406,17 @@ export default function Performance() {
                 equityData={equityData} 
                 formatCurrency={formatCurrency} 
               />
+
+              {/* Event Days vs Normal Days Comparison + Fear/Greed Chart */}
+              {contextualData && (
+                <div className="grid gap-6 lg:grid-cols-2">
+                  <EventDayComparison 
+                    eventDayMetrics={contextualData.byEventProximity.eventDay}
+                    normalDayMetrics={contextualData.byEventProximity.normalDay}
+                  />
+                  <FearGreedZoneChart byFearGreed={contextualData.byFearGreed} />
+                </div>
+              )}
 
               {/* Drawdown Chart */}
               <DrawdownChart />
