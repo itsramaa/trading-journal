@@ -1,285 +1,176 @@
 
-# Implementation Plan: Fee Display Fix & Decimal Standardization
+# Implementation Plan: Multi-Domain Decimal Standardization & UI Polish
 
-## Problem Summary
+## Status Saat Ini
 
-### Masalah 1: Fee Selalu 0 di Trade History Card
+Semua phase dari plan sebelumnya telah **SELESAI**:
 
-**Root Cause Analysis:**
-
-1. Auto-sync menggunakan income endpoint (`/fapi/v1/income`) dengan filter `REALIZED_PNL`
-2. Income endpoint hanya return P&L value, **TIDAK** include commission data
-3. Commission adalah **record terpisah** dengan `incomeType: "COMMISSION"`
-4. Fungsi `incomeToTradeEntry()` di `use-binance-auto-sync.ts` tidak populate fee field
-
-**Data Flow Saat Ini:**
-```
-Binance Income API
-      │
-      ▼
-┌─────────────────────────┐
-│ REALIZED_PNL record     │─────► trade_entries.realized_pnl
-│ - tranId                │
-│ - income (P&L)          │
-│ - symbol                │
-│ - time                  │
-│ ❌ NO commission field  │
-└─────────────────────────┘
-
-┌─────────────────────────┐
-│ COMMISSION record       │─────► ❌ NOT synced to trades
-│ - tranId (different)    │
-│ - income (fee amount)   │
-│ - symbol                │
-└─────────────────────────┘
-```
-
-**Kenapa Fee Tidak Bisa Langsung Di-Sync:**
-- COMMISSION records memiliki `tranId` berbeda dari REALIZED_PNL
-- Tidak ada direct correlation antara satu trade dan fee-nya dari income endpoint
-- Untuk akurasi, perlu query `/fapi/v1/userTrades` per symbol (rate limit concern)
-
-### Masalah 2: Inconsistent Decimal Places
-
-Banyak tempat menggunakan `.toFixed()` dengan nilai berbeda-beda:
-- Persentase: `.toFixed(0)`, `.toFixed(1)`, `.toFixed(2)`
-- Currency: `.toFixed(2)`, `.toFixed(4)`
-- Quantity: `.toFixed(4)`, `.toFixed(8)`
-
-**Standard yang Diminta:**
-- Currency/Number: max 4 decimal (`.toFixed(4)`)
-- Percentage: max 2 decimal (`.toFixed(2)`)
+| Feature | Status |
+|---------|--------|
+| Fee Display Fix | Done - TradeHistoryCard dengan "See Summary" fallback |
+| Decimal Standardization | Done - formatters.ts dengan smart decimals |
+| Auto-Sync Fee Enrichment | Done - enrichWithFees() matching COMMISSION records |
+| Applied to Key Components | Done - PortfolioOverviewCard, PositionSizeCalculator, DailyLossTracker |
+| Notification Triggers | Done - notification-service.ts + use-notification-triggers.ts |
+| Weekly Report Generator | Done - Edge function + PDF export hook |
+| Notifications Page UI | Done - Export buttons + loading states |
 
 ---
 
-## Solution Design
+## Next Priority: Extend Decimal Standardization to Remaining Domains
 
-### Phase 1: Fee Display - UI Improvement
+Berdasarkan user request untuk konsistensi decimals di **SEMUA DOMAIN**, beberapa komponen masih perlu di-update.
 
-**Strategy:** Jangan tampilkan Fee jika data tidak tersedia. Ganti dengan indicator yang jelas.
+### Target Components
 
-**Files to Modify:**
+#### 1. Risk Domain
 
-| File | Change |
-|------|--------|
-| `src/components/trading/TradeHistoryCard.tsx` | Update fee display logic |
+| File | Issue | Fix |
+|------|-------|-----|
+| `RiskProfileSummaryCard.tsx` | Uses raw `riskProfile.risk_per_trade_percent` tanpa formatting | Use `formatPercentUnsigned()` untuk consistency |
+| `RiskSummaryCard.tsx` | May have inconsistent percent display | Audit & apply standard formatters |
 
-**Implementation:**
+#### 2. Strategy Domain
 
-```typescript
-// Current (problematic):
-{isBinance && entry.commission !== null && entry.commission !== undefined && (
-  <div><span>Fee:</span> {entry.commission.toFixed(4)} {entry.commission_asset || 'USDT'}</div>
-)}
+| File | Issue | Fix |
+|------|-------|-----|
+| `StrategyCard.tsx` | `(performance.winRate * 100).toFixed(1)%` dan `.toFixed(0)%` | Use `formatWinRate()` |
+| `StrategyStats.tsx` | Various `.toFixed()` calls | Standardize to `formatPercent`, `formatWinRate` |
+| `BacktestResults.tsx` | Likely has metrics with inconsistent decimals | Audit & apply formatters |
 
-// New (improved):
-{isBinance && (
-  <div className="flex items-center gap-1">
-    <span className="text-muted-foreground">Fee:</span>
-    {entry.commission && entry.commission > 0 ? (
-      <span className="font-mono-numbers">{entry.commission.toFixed(4)} {entry.commission_asset || 'USDT'}</span>
-    ) : (
-      <span className="text-muted-foreground text-xs italic flex items-center gap-1">
-        See Financial Summary
-        <InfoTooltip content="Trading fees are aggregated in the Accounts page Financial Summary. Individual trade fees require manual sync." />
-      </span>
-    )}
-  </div>
-)}
-```
+#### 3. Analytics Domain
 
-**Rationale:**
-- Fee = 0 atau null → show "See Financial Summary" dengan tooltip
-- Fee > 0 → show actual fee value
-- User diarahkan ke Accounts > Financial Summary untuk fee breakdown
+| File | Issue | Fix |
+|------|-------|-----|
+| `SevenDayStatsCard.tsx` | Percent and currency displays | Apply formatters |
+| `CryptoRanking.tsx` | Price/percent changes | Apply `formatPercent`, `formatPrice` |
+| `TradeSummaryStats.tsx` | Win rate, profit factor display | Apply `formatWinRate`, `formatNumber` |
 
-### Phase 2: Improve Auto-Sync to Capture Fees (Optional Enhancement)
+#### 4. Dashboard Domain (Remaining)
 
-**Strategy:** Ketika sync REALIZED_PNL, lookup matching COMMISSION records.
-
-**Files to Modify:**
-
-| File | Change |
-|------|--------|
-| `src/hooks/use-binance-auto-sync.ts` | Enhance sync to match fees |
-
-**Implementation Logic:**
-
-```typescript
-// In incomeToTradeEntry or sync logic
-// 1. Get REALIZED_PNL record
-// 2. Find COMMISSION records with same symbol & close timestamp (within 1 min)
-// 3. Sum commissions for that trade
-
-async function enrichWithFees(
-  pnlRecords: BinanceIncome[],
-  allIncome: BinanceIncome[]
-): Map<number, number> {
-  const feeMap = new Map<number, number>();
-  
-  const commissions = allIncome.filter(r => r.incomeType === 'COMMISSION');
-  
-  for (const pnl of pnlRecords) {
-    // Find commissions within 1 minute of the PNL record for same symbol
-    const matchingFees = commissions.filter(c => 
-      c.symbol === pnl.symbol && 
-      Math.abs(c.time - pnl.time) < 60000 // 1 minute window
-    );
-    
-    const totalFee = matchingFees.reduce((sum, c) => sum + Math.abs(c.income), 0);
-    feeMap.set(pnl.tranId, totalFee);
-  }
-  
-  return feeMap;
-}
-```
-
-**Note:** Ini adalah enhancement optional karena fee matching by timestamp tidak 100% akurat.
-
-### Phase 3: Centralized Decimal Formatter Functions
-
-**Strategy:** Buat helper functions di `src/lib/formatters.ts` untuk standardized decimals.
-
-**Files to Modify:**
-
-| File | Change |
-|------|--------|
-| `src/lib/formatters.ts` | Add standardized decimal formatters |
-
-**New Functions:**
-
-```typescript
-/**
- * Format number with standard 4 decimal max
- * For: fees, quantities, prices
- */
-export function formatNumber(value: number, maxDecimals: number = 4): string {
-  // Remove trailing zeros
-  return parseFloat(value.toFixed(maxDecimals)).toString();
-}
-
-/**
- * Format currency with appropriate decimals
- * Standard: 2 for display, up to 4 for small values
- */
-export function formatCurrencyStandard(
-  value: number, 
-  currency: string = 'USD',
-  options: { maxDecimals?: number; showTrailingZeros?: boolean } = {}
-): string {
-  const { maxDecimals = 4, showTrailingZeros = false } = options;
-  // ... implementation
-}
-
-/**
- * Format percentage with standard 2 decimal max
- */
-export function formatPercentStandard(value: number, signed: boolean = true): string {
-  const sign = signed && value >= 0 ? '+' : '';
-  return `${sign}${value.toFixed(2)}%`;
-}
-```
-
-### Phase 4: Apply Standard Formatting to Key Components
-
-**Files to Update (Priority Order):**
-
-1. **Trade History Domain:**
-   - `src/components/trading/TradeHistoryCard.tsx`
-   - `src/components/trading/BinanceTradeHistory.tsx`
-   - `src/pages/TradeHistory.tsx`
-
-2. **Dashboard:**
-   - `src/components/dashboard/PortfolioOverviewCard.tsx`
-   - `src/components/dashboard/TodayPerformance.tsx`
-   - `src/components/dashboard/SystemStatusIndicator.tsx`
-
-3. **Risk:**
-   - `src/components/risk/PositionSizeCalculator.tsx`
-   - `src/components/risk/DailyLossTracker.tsx`
-
-4. **Analytics:**
-   - `src/components/analytics/CryptoRanking.tsx`
-   - `src/components/analytics/SevenDayStatsCard.tsx`
+| File | Issue | Fix |
+|------|-------|-----|
+| `TodayPerformance.tsx` | Streak stats, percentages | Audit & apply formatters |
+| `SystemStatusIndicator.tsx` | Status values | Audit decimals |
 
 ---
 
-## Technical Details
+## Implementation Details
 
-### Decimal Standards
+### Phase 1: Risk Domain Cleanup
 
-| Category | Max Decimals | Example |
-|----------|--------------|---------|
-| Currency Display (P&L, Balance) | 2-4 | `$1,234.56`, `$0.0012` |
-| Fee/Commission | 4 | `0.0156 USDT` |
-| Quantity | 4-8 (crypto) | `0.0015 BTC` |
-| Percentage | 2 | `+5.25%`, `-2.10%` |
-| Win Rate | 1-2 | `65.5%` |
-| Ratio (R:R) | 2 | `2.50:1` |
+**Files to Modify:**
+- `src/components/risk/RiskProfileSummaryCard.tsx`
+- `src/components/risk/RiskSummaryCard.tsx`
 
-### formatters.ts Enhancements
-
+**Changes:**
 ```typescript
-// Update existing formatCurrency to use max 4 decimals
-export function formatCurrency(
-  value: number,
-  currency: Currency | AssetMarket | string = 'USD'
-): string {
-  // For small values, use up to 4 decimals
-  const decimals = Math.abs(value) < 1 ? 4 : 2;
-  // ... rest of implementation
-}
+// RiskProfileSummaryCard.tsx
+import { formatPercentUnsigned } from "@/lib/formatters";
 
-// Update formatPercent to always use 2 decimals
-export function formatPercent(value: number, decimals: number = 2): string {
-  const sign = value >= 0 ? '+' : '';
-  return `${sign}${value.toFixed(2)}%`;
-}
+// Replace:
+<p className="text-lg font-semibold">{riskProfile.risk_per_trade_percent}%</p>
+
+// With:
+<p className="text-lg font-semibold">{formatPercentUnsigned(riskProfile.risk_per_trade_percent)}</p>
 ```
+
+### Phase 2: Strategy Domain Cleanup
+
+**Files to Modify:**
+- `src/components/strategy/StrategyCard.tsx`
+- `src/components/strategy/StrategyStats.tsx`
+- `src/components/strategy/BacktestResults.tsx`
+
+**Changes:**
+```typescript
+// StrategyCard.tsx
+import { formatWinRate, formatNumber } from "@/lib/formatters";
+
+// Replace:
+<p>Win Rate: {(performance.winRate * 100).toFixed(1)}%</p>
+
+// With:
+<p>Win Rate: {formatWinRate(performance.winRate * 100)}</p>
+
+// Replace:
+{(performance.winRate * 100).toFixed(0)}% WR
+
+// With:
+{formatWinRate(performance.winRate * 100).replace('%', '')}% WR
+```
+
+### Phase 3: Analytics Domain Cleanup
+
+**Files to Modify:**
+- `src/components/analytics/SevenDayStatsCard.tsx`
+- `src/components/analytics/CryptoRanking.tsx`
+- `src/components/journal/TradeSummaryStats.tsx`
+
+**Changes:**
+```typescript
+// Apply standard formatters throughout
+import { formatPercent, formatCurrency, formatWinRate, formatNumber } from "@/lib/formatters";
+```
+
+### Phase 4: Dashboard Remaining Cleanup
+
+**Files to Modify:**
+- `src/components/dashboard/TodayPerformance.tsx`
+- `src/components/dashboard/SystemStatusIndicator.tsx`
 
 ---
 
 ## Execution Order
 
-### Step 1: Fix Fee Display (Phase 1)
-1. Update `TradeHistoryCard.tsx` dengan improved fee display logic
-2. Add InfoTooltip untuk redirect user ke Financial Summary
-
-### Step 2: Centralize Formatters (Phase 3)
-1. Add new standardized functions ke `src/lib/formatters.ts`
-2. Update existing functions dengan max decimal logic
-
-### Step 3: Apply Formatting Standards (Phase 4)
-1. Update `TradeHistoryCard.tsx` - use formatNumber for fees
-2. Update other high-visibility components
-
-### Step 4 (Optional): Enhance Auto-Sync (Phase 2)
-1. Implement fee matching logic in `use-binance-auto-sync.ts`
-2. Update incomeToTradeEntry to populate fee fields
+1. **Phase 1**: Risk Domain - RiskProfileSummaryCard, RiskSummaryCard
+2. **Phase 2**: Strategy Domain - StrategyCard, StrategyStats, BacktestResults
+3. **Phase 3**: Analytics Domain - SevenDayStatsCard, CryptoRanking, TradeSummaryStats
+4. **Phase 4**: Dashboard cleanup - TodayPerformance, SystemStatusIndicator
 
 ---
 
 ## Success Criteria
 
-| Criteria | Expected Behavior |
-|----------|-------------------|
-| Fee = 0 Display | Shows "See Financial Summary" with tooltip |
-| Fee > 0 Display | Shows `0.0123 USDT` format |
-| Currency Decimals | Max 4 for small values, 2 for large |
-| Percentage Decimals | Always 2 decimals |
-| Consistency | All components use same formatting standards |
+| Metric | Target |
+|--------|--------|
+| All percentages | Fixed 2 decimals (e.g., `65.50%`) |
+| Win rates | Fixed 1 decimal (e.g., `65.5%`) |
+| Currency/Numbers | Max 4 decimals, smart removal of trailing zeros |
+| Consistency | All domains use centralized formatters |
+
+---
+
+## Technical Notes
+
+### Formatter Usage Guide
+
+| Format Type | Function | Example Input | Example Output |
+|-------------|----------|---------------|----------------|
+| P&L Change | `formatPercent(value)` | 5.5 | `+5.50%` |
+| Win Rate | `formatWinRate(value)` | 65.5 | `65.5%` |
+| Currency | `formatCurrency(value)` | 1234.56 | `$1,234.56` |
+| Fee | `formatFee(value, asset)` | 0.0156 | `0.0156 USDT` |
+| Ratio | `formatRatio(value)` | 2.5 | `2.50:1` |
+| Number (generic) | `formatNumber(value)` | 0.00123 | `0.0012` |
+| Unsigned % | `formatPercentUnsigned(value)` | 2.5 | `2.50%` |
 
 ---
 
 ## File Impact Summary
 
-| File | Priority | Changes |
-|------|----------|---------|
-| `src/components/trading/TradeHistoryCard.tsx` | High | Fee display logic, decimal standardization |
-| `src/lib/formatters.ts` | High | Add/update standardized formatters |
-| `src/pages/TradeHistory.tsx` | Medium | Use standardized formatters |
-| `src/components/dashboard/PortfolioOverviewCard.tsx` | Medium | Decimal standardization |
-| `src/hooks/use-binance-auto-sync.ts` | Low | Optional fee enrichment |
+| Priority | File | Domain | Changes |
+|----------|------|--------|---------|
+| High | `RiskProfileSummaryCard.tsx` | Risk | Percent formatting |
+| High | `StrategyCard.tsx` | Strategy | Win rate, profit factor |
+| High | `SevenDayStatsCard.tsx` | Analytics | Stats formatting |
+| Medium | `RiskSummaryCard.tsx` | Risk | Percent formatting |
+| Medium | `StrategyStats.tsx` | Strategy | Multiple metrics |
+| Medium | `BacktestResults.tsx` | Strategy | Backtest metrics |
+| Medium | `CryptoRanking.tsx` | Analytics | Price/percent changes |
+| Medium | `TradeSummaryStats.tsx` | Journal | Summary stats |
+| Low | `TodayPerformance.tsx` | Dashboard | Stats formatting |
+| Low | `SystemStatusIndicator.tsx` | Dashboard | Status values |
 
 ---
 
@@ -287,6 +178,7 @@ export function formatPercent(value: number, decimals: number = 2): string {
 
 | Risk | Mitigation |
 |------|------------|
-| Breaking existing fee display | Only change display when fee = 0, preserve when > 0 |
-| Formatter changes affect other domains | Test key pages after changes |
-| Fee matching inaccurate | Mark as optional, implement with clear tolerance window |
+| Breaking existing displays | Incremental changes, test each component |
+| Formatter output differences | Use parseFloat for consistency |
+| Missing edge cases | Handle null/undefined values |
+
