@@ -15,9 +15,25 @@ import { QuickTip } from "@/components/ui/onboarding-tooltip";
 import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BookOpen, Wand2, Wifi, Circle, Clock } from "lucide-react";
+import { 
+  BookOpen, 
+  Wand2, 
+  Wifi, 
+  Circle, 
+  Clock, 
+  Target, 
+  TrendingUp,
+  Calendar,
+  Flame,
+  Activity,
+  Trophy,
+  AlertTriangle 
+} from "lucide-react";
 import { useTradeEntries, useDeleteTradeEntry, useClosePosition, useUpdateTradeEntry, TradeEntry } from "@/hooks/use-trade-entries";
 import { useBinancePositions, useBinanceBalance, useBinanceConnectionStatus } from "@/features/binance";
+import { calculateTradingStats } from "@/lib/trading-calculations";
+import { WinRateTooltip, ProfitFactorTooltip, ProfitLossTooltip } from "@/components/ui/info-tooltip";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 
 import { formatCurrency as formatCurrencyUtil } from "@/lib/formatters";
 import { useUserSettings } from "@/hooks/use-user-settings";
@@ -94,6 +110,48 @@ export default function TradingJournal() {
   // Calculate P&L summaries
   const totalUnrealizedPnL = useMemo(() => openPositions.reduce((sum, t) => sum + (t.pnl || 0), 0), [openPositions]);
   const totalRealizedPnL = useMemo(() => closedTrades.reduce((sum, t) => sum + (t.realized_pnl || 0), 0), [closedTrades]);
+
+  // Trading stats for performance cards
+  const tradingStats = useMemo(() => calculateTradingStats(trades || []), [trades]);
+
+  // 7-Day Quick Stats
+  const sevenDayStats = useMemo(() => {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    
+    const recentTrades = (trades || [])
+      .filter(t => t.status === 'closed' && new Date(t.trade_date) >= sevenDaysAgo)
+      .sort((a, b) => new Date(b.trade_date).getTime() - new Date(a.trade_date).getTime());
+    
+    // Calculate streak (consecutive wins or losses from most recent)
+    let streak = { type: 'win' as 'win' | 'loss', count: 0 };
+    if (recentTrades.length > 0) {
+      const firstResult = recentTrades[0].result;
+      streak.type = firstResult === 'win' ? 'win' : 'loss';
+      for (const trade of recentTrades) {
+        if (trade.result === streak.type) {
+          streak.count++;
+        } else {
+          break;
+        }
+      }
+    }
+    
+    // Calculate best/worst day
+    const byDay = recentTrades.reduce((acc, t) => {
+      const day = new Date(t.trade_date).toISOString().split('T')[0];
+      acc[day] = (acc[day] || 0) + (t.realized_pnl || 0);
+      return acc;
+    }, {} as Record<string, number>);
+    
+    const days = Object.entries(byDay).sort((a, b) => b[1] - a[1]);
+    const bestDay = days[0] ? { date: days[0][0], pnl: days[0][1] } : { date: '', pnl: 0 };
+    const worstDay = days[days.length - 1] ? { date: days[days.length - 1][0], pnl: days[days.length - 1][1] } : { date: '', pnl: 0 };
+    
+    return { streak, bestDay, worstDay, trades7d: recentTrades.length };
+  }, [trades]);
+
+  const hasTrades = closedTrades.length > 0;
 
   const handleClosePosition = async (values: ClosePositionFormValues) => {
     if (!closingPosition) return;
@@ -196,6 +254,121 @@ export default function TradingJournal() {
             New Trade
           </Button>
         </div>
+
+        {/* Portfolio Performance & 7-Day Stats (at top) */}
+        {hasTrades && (
+          <div className="space-y-6">
+            {/* Portfolio Performance - No title/icon */}
+            <div className="grid gap-4 md:grid-cols-3">
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground flex items-center gap-1">
+                        Win Rate
+                        <WinRateTooltip />
+                      </p>
+                      <p className="text-2xl font-bold">{tradingStats.winRate.toFixed(1)}%</p>
+                    </div>
+                    <Target className="h-8 w-8 text-primary" />
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground flex items-center gap-1">
+                        Profit Factor
+                        <ProfitFactorTooltip />
+                      </p>
+                      <p className={`text-2xl font-bold ${tradingStats.profitFactor >= 1 ? 'text-profit' : 'text-loss'}`}>
+                        {tradingStats.profitFactor.toFixed(2)}
+                      </p>
+                    </div>
+                    <TrendingUp className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground flex items-center gap-1">
+                        Expectancy
+                        <InfoTooltip content="Average expected profit per trade based on your historical performance." />
+                      </p>
+                      <p className={`text-2xl font-bold ${tradingStats.expectancy >= 0 ? 'text-profit' : 'text-loss'}`}>
+                        {tradingStats.expectancy >= 0 ? '+' : ''}{formatCurrency(tradingStats.expectancy)}
+                      </p>
+                    </div>
+                    <ProfitLossTooltip />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* 7-Day Quick Stats */}
+            <section className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-primary" />
+                <h2 className="text-lg font-semibold">7-Day Stats</h2>
+              </div>
+              <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Current Streak</p>
+                        <p className={`text-2xl font-bold ${sevenDayStats.streak.type === 'win' ? 'text-profit' : 'text-loss'}`}>
+                          {sevenDayStats.streak.count} {sevenDayStats.streak.type === 'win' ? 'W' : 'L'}
+                        </p>
+                      </div>
+                      <Flame className={`h-8 w-8 ${sevenDayStats.streak.type === 'win' ? 'text-profit' : 'text-loss'}`} />
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Trades (7D)</p>
+                        <p className="text-2xl font-bold">{sevenDayStats.trades7d}</p>
+                      </div>
+                      <Activity className="h-8 w-8 text-muted-foreground" />
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Best Day</p>
+                        <p className={`text-2xl font-bold ${sevenDayStats.bestDay.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                          {sevenDayStats.bestDay.pnl >= 0 ? '+' : ''}{formatCurrency(sevenDayStats.bestDay.pnl)}
+                        </p>
+                      </div>
+                      <Trophy className="h-8 w-8 text-profit" />
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Worst Day</p>
+                        <p className={`text-2xl font-bold ${sevenDayStats.worstDay.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                          {sevenDayStats.worstDay.pnl >= 0 ? '+' : ''}{formatCurrency(sevenDayStats.worstDay.pnl)}
+                        </p>
+                      </div>
+                      <AlertTriangle className="h-8 w-8 text-loss" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </section>
+          </div>
+        )}
         
         {/* Trade Entry Wizard Dialog */}
         <Dialog open={isWizardOpen} onOpenChange={setIsWizardOpen}>
