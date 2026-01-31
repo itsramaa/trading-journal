@@ -41,6 +41,7 @@ import { useBinanceWeeklyPnl } from "@/hooks/use-binance-weekly-pnl";
 import { useStrategyPerformance, getQualityScoreLabel } from "@/hooks/use-strategy-performance";
 import { usePerformanceExport } from "@/hooks/use-performance-export";
 import { DrawdownChart } from "@/components/analytics/DrawdownChart";
+import { EquityCurveWithEvents } from "@/components/analytics/EquityCurveWithEvents";
 import { 
   filterTradesByDateRange, 
   filterTradesByStrategies,
@@ -350,40 +351,11 @@ export default function Performance() {
                 </Card>
               </div>
 
-              {/* Equity Curve */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Equity Curve</CardTitle>
-                  <CardDescription>Cumulative P&L over time</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-[300px]">
-                    {equityData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={equityData}>
-                          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                          <XAxis dataKey="date" className="text-xs" />
-                          <YAxis tickFormatter={(v) => formatCurrency(v)} className="text-xs" />
-                          <Tooltip 
-                            formatter={(v: number) => [formatCurrency(v), 'Cumulative P&L']}
-                            labelFormatter={(label) => `Date: ${label}`}
-                          />
-                          <Area 
-                            type="monotone" 
-                            dataKey="cumulative" 
-                            stroke="hsl(var(--primary))" 
-                            fill="hsl(var(--primary)/0.2)" 
-                          />
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <div className="h-full flex items-center justify-center text-muted-foreground">
-                        No trades to display
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
+              {/* Equity Curve with Event Annotations */}
+              <EquityCurveWithEvents 
+                equityData={equityData} 
+                formatCurrency={formatCurrency} 
+              />
 
               {/* Drawdown Chart */}
               <DrawdownChart />
