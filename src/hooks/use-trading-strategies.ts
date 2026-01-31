@@ -21,6 +21,9 @@ export interface TradingStrategy {
   valid_pairs: string[] | null;
   version: number | null;
   status: StrategyStatus | null;
+  // Source fields - only populated for imported strategies (e.g., YouTube)
+  source: string | null;
+  source_url: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -69,6 +72,8 @@ export function useTradingStrategies() {
         timeframe: s.timeframe as TimeframeType | null,
         market_type: (s.market_type || 'spot') as MarketType,
         status: (s.status || 'active') as StrategyStatus,
+        source: s.source || null,
+        source_url: s.source_url || null,
       })) as TradingStrategy[];
     },
     enabled: !!user?.id,

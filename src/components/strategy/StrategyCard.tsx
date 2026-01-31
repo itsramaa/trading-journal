@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { MoreVertical, Edit, Play, Trash2, Clock, TrendingUp, Shield, Target, Tag, Star, Brain, Activity } from "lucide-react";
+import { MoreVertical, Edit, Play, Trash2, Clock, TrendingUp, Shield, Target, Tag, Star, Brain, Activity, Youtube, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 import type { TradingStrategy } from "@/hooks/use-trading-strategies";
 import { getQualityScoreLabel, type StrategyPerformance } from "@/hooks/use-strategy-performance";
@@ -207,8 +207,39 @@ export function StrategyCard({ strategy, performance, onEdit, onDelete, onBackte
             </div>
           )}
           
-          <div className="text-xs text-muted-foreground">
-            Created {format(new Date(strategy.created_at), 'MMM d, yyyy')}
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>Created {format(new Date(strategy.created_at), 'MMM d, yyyy')}</span>
+            
+            {/* YouTube Source Badge - Only shown for imported strategies */}
+            {(strategy as TradingStrategy & { source?: string; source_url?: string }).source === 'youtube' && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    {(strategy as TradingStrategy & { source_url?: string }).source_url ? (
+                      <a
+                        href={(strategy as TradingStrategy & { source_url?: string }).source_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-[hsl(var(--chart-5))] hover:underline"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Youtube className="h-3.5 w-3.5" aria-hidden="true" />
+                        <span>YouTube</span>
+                        <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                      </a>
+                    ) : (
+                      <span className="flex items-center gap-1 text-[hsl(var(--chart-5))]">
+                        <Youtube className="h-3.5 w-3.5" aria-hidden="true" />
+                        <span>YouTube</span>
+                      </span>
+                    )}
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Imported from YouTube video</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
           </div>
         </div>
       </CardContent>
