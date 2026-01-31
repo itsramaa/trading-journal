@@ -1,9 +1,8 @@
 /**
  * Accounts Page - Binance-centered account management
- * Primary: Binance Futures account with live data
- * Secondary: Paper trading accounts for backtesting
+ * Tabs: Accounts (merged Binance + Paper) and Transactions
  */
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Helmet } from "react-helmet";
 import { Link } from "react-router-dom";
 import { 
@@ -15,12 +14,11 @@ import {
   Wallet,
   TrendingUp,
   TrendingDown,
-  ExternalLink,
   ArrowDownUp
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -44,7 +42,7 @@ export default function Accounts() {
   const [transactionDialogOpen, setTransactionDialogOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<Account | undefined>();
   const [defaultTransactionTab, setDefaultTransactionTab] = useState<'deposit' | 'withdraw'>('deposit');
-  const [activeTab, setActiveTab] = useState<'binance' | 'paper' | 'transactions'>('binance');
+  const [activeTab, setActiveTab] = useState<'accounts' | 'transactions'>('accounts');
   
   const { data: accounts } = useAccounts();
   const { data: connectionStatus } = useBinanceConnectionStatus();
@@ -64,7 +62,8 @@ export default function Accounts() {
 
   const isConnected = connectionStatus?.isConnected;
   const activePositions = positions?.filter(p => p.positionAmt !== 0) || [];
-  const backtestCount = accounts?.filter(a => a.account_type === 'trading' && a.metadata?.is_backtest).length || 0;
+  const paperAccountsCount = accounts?.filter(a => a.account_type === 'trading' && a.metadata?.is_backtest).length || 0;
+  const totalAccounts = (isConnected ? 1 : 0) + paperAccountsCount;
 
   return (
     <DashboardLayout>
@@ -106,64 +105,112 @@ export default function Accounts() {
           </div>
         </div>
 
-        {/* Account Tabs - Stats moved to Trading Journal */}
+        {/* Accounts Overview Cards */}
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Accounts</CardTitle>
+              <CandlestickChart className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{totalAccounts}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {isConnected ? '1 Binance' : '0 Binance'} + {paperAccountsCount} Paper
+              </p>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Balance</CardTitle>
+              <Wallet className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              {balanceLoading ? (
+                <Skeleton className="h-8 w-32" />
+              ) : (
+                <>
+                  <div className="text-2xl font-bold font-mono-numbers">
+                    {formatCurrency(balance?.totalWalletBalance || 0, 'USD')}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Binance wallet balance
+                  </p>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Active Positions</CardTitle>
+              {(balance?.totalUnrealizedProfit || 0) >= 0 ? (
+                <TrendingUp className="h-4 w-4 text-profit" />
+              ) : (
+                <TrendingDown className="h-4 w-4 text-loss" />
+              )}
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{activePositions.length}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {(balance?.totalUnrealizedProfit || 0) >= 0 ? '+' : ''}{formatCurrency(balance?.totalUnrealizedProfit || 0, 'USD')} unrealized
+              </p>
+            </CardContent>
+          </Card>
+        </div>
 
         {/* Account Tabs */}
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
-          <TabsList className="grid w-full grid-cols-3 lg:w-[500px]" aria-label="Account type tabs">
-            <TabsTrigger value="binance" className="gap-2" aria-label={`Binance Futures${isConnected ? ' - Connected' : ''}`}>
+          <TabsList className="grid w-full grid-cols-2 lg:w-[400px]" aria-label="Account type tabs">
+            <TabsTrigger value="accounts" className="gap-2" aria-label={`All Accounts - ${totalAccounts} accounts`}>
               <CandlestickChart className="h-4 w-4" aria-hidden="true" />
-              <span className="hidden sm:inline">Binance Futures</span>
-              <span className="sm:hidden">Binance</span>
-              {isConnected && (
-                <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs bg-profit/20 text-profit" aria-label="Connected">
-                  Live
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="paper" className="gap-2" aria-label={`Paper Trading${backtestCount > 0 ? ` - ${backtestCount} accounts` : ''}`}>
-              <FlaskConical className="h-4 w-4" aria-hidden="true" />
-              <span className="hidden sm:inline">Paper Trading</span>
-              <span className="sm:hidden">Paper</span>
-              {backtestCount > 0 && (
+              Accounts
+              {totalAccounts > 0 && (
                 <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs" aria-hidden="true">
-                  {backtestCount}
+                  {totalAccounts}
                 </Badge>
               )}
             </TabsTrigger>
             {isConnected && (
               <TabsTrigger value="transactions" className="gap-2" aria-label="Transaction History">
                 <ArrowDownUp className="h-4 w-4" aria-hidden="true" />
-                <span className="hidden sm:inline">Transactions</span>
-                <span className="sm:hidden">Txns</span>
+                Transactions
               </TabsTrigger>
             )}
           </TabsList>
 
-          {/* Binance Account Tab */}
-          <TabsContent value="binance" className="mt-6 space-y-6">
-            {!isConnected ? (
-              // Not Connected State
-              <Card className="border-dashed">
-                <CardContent className="py-12">
-                  <div className="text-center max-w-md mx-auto">
-                    <XCircle className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                    <h3 className="text-lg font-semibold mb-2">Binance Not Connected</h3>
-                    <p className="text-muted-foreground mb-6">
-                      Connect your Binance Futures API to view real-time balance, positions, and trade history.
-                    </p>
-                    <Button asChild>
-                      <Link to="/settings?tab=exchange">
-                        <Settings className="h-4 w-4 mr-2" />
-                        Configure API Keys
-                      </Link>
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : (
-              <>
-                {/* Binance Account Overview */}
+          {/* Accounts Tab - Merged Binance + Paper */}
+          <TabsContent value="accounts" className="mt-6 space-y-6">
+            {/* Binance Account Section */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xl font-semibold">Binance Futures</h2>
+                  {isConnected && (
+                    <Badge variant="secondary" className="bg-profit/20 text-profit">Live</Badge>
+                  )}
+                </div>
+              </div>
+              
+              {!isConnected ? (
+                <Card className="border-dashed">
+                  <CardContent className="py-8">
+                    <div className="text-center max-w-md mx-auto">
+                      <XCircle className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                      <h3 className="text-lg font-semibold mb-2">Binance Not Connected</h3>
+                      <p className="text-muted-foreground mb-4">
+                        Connect your Binance Futures API to view real-time balance and positions.
+                      </p>
+                      <Button asChild>
+                        <Link to="/settings?tab=exchange">
+                          <Settings className="h-4 w-4 mr-2" />
+                          Configure API Keys
+                        </Link>
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
                 <div className="grid gap-4 md:grid-cols-3">
                   {/* Wallet Balance */}
                   <Card>
@@ -238,20 +285,18 @@ export default function Accounts() {
                     </CardContent>
                   </Card>
                 </div>
+              )}
+            </div>
 
-              </>
-            )}
-          </TabsContent>
-
-          {/* Paper Trading Tab */}
-          <TabsContent value="paper" className="mt-6">
+            {/* Paper Trading Section */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-semibold">Paper Trading Accounts</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Simulated accounts for backtesting and paper trading
-                  </p>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xl font-semibold">Paper Trading</h2>
+                  <Badge variant="outline">
+                    <FlaskConical className="h-3 w-3 mr-1" />
+                    Simulated
+                  </Badge>
                 </div>
                 <AddAccountForm />
               </div>
