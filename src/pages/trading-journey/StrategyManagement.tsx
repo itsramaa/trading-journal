@@ -3,6 +3,7 @@
  * Components extracted: StrategyCard, StrategyFormDialog, StrategyStats
  */
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
@@ -23,15 +24,18 @@ import {
   StrategyCard, 
   StrategyStats, 
   StrategyFormDialog,
+  StrategyDetailDrawer,
   YouTubeStrategyImporter,
 } from "@/components/strategy";
 import type { EntryRule, ExitRule } from "@/types/strategy";
 
 export default function StrategyManagement() {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('library');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingStrategy, setEditingStrategy] = useState<TradingStrategy | null>(null);
   const [deletingStrategy, setDeletingStrategy] = useState<TradingStrategy | null>(null);
+  const [viewingStrategy, setViewingStrategy] = useState<TradingStrategy | null>(null);
 
   const { data: strategies, isLoading } = useTradingStrategies();
   const strategyPerformance = useStrategyPerformance();
@@ -187,14 +191,30 @@ export default function StrategyManagement() {
             ) : (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {strategies.map((strategy) => (
-                  <StrategyCard
-                    key={strategy.id}
-                    strategy={strategy}
-                    performance={strategyPerformance.get(strategy.id)}
-                    onEdit={handleOpenEdit}
-                    onDelete={setDeletingStrategy}
-                    onBacktest={(id) => {/* Navigation handled in StrategyCard */}}
-                  />
+                  <div 
+                    key={strategy.id} 
+                    className="cursor-pointer"
+                    onClick={() => setViewingStrategy(strategy)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => e.key === 'Enter' && setViewingStrategy(strategy)}
+                    aria-label={`View details for ${strategy.name} strategy`}
+                  >
+                    <StrategyCard
+                      strategy={strategy}
+                      performance={strategyPerformance.get(strategy.id)}
+                      onEdit={(s) => {
+                        // Prevent detail view when clicking edit
+                        setEditingStrategy(s);
+                        setIsFormOpen(true);
+                      }}
+                      onDelete={(s) => {
+                        // Prevent detail view when clicking delete
+                        setDeletingStrategy(s);
+                      }}
+                      onBacktest={(id) => {/* Navigation handled in StrategyCard */}}
+                    />
+                  </div>
                 ))}
               </div>
             )}
@@ -214,6 +234,27 @@ export default function StrategyManagement() {
           availablePairs={baseAssets}
           onSubmit={handleFormSubmit}
           isPending={createStrategy.isPending || updateStrategy.isPending}
+        />
+
+        {/* Strategy Detail Drawer */}
+        <StrategyDetailDrawer
+          strategy={viewingStrategy}
+          performance={viewingStrategy ? strategyPerformance.get(viewingStrategy.id) : undefined}
+          open={!!viewingStrategy}
+          onOpenChange={(open) => !open && setViewingStrategy(null)}
+          onEdit={() => {
+            if (viewingStrategy) {
+              setEditingStrategy(viewingStrategy);
+              setIsFormOpen(true);
+              setViewingStrategy(null);
+            }
+          }}
+          onBacktest={() => {
+            if (viewingStrategy) {
+              navigate(`/backtest?strategy=${viewingStrategy.id}`);
+              setViewingStrategy(null);
+            }
+          }}
         />
 
         {/* Delete Confirmation */}
