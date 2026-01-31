@@ -1,13 +1,31 @@
 /**
  * Formatting utilities for Trading Journey
  * Centralized formatters for currency, percentages, and numbers
+ * 
+ * STANDARDS:
+ * - Currency/Numbers: max 4 decimal places
+ * - Percentages: always 2 decimal places
+ * - Quantities (Crypto): up to 8 decimals
  */
 
 type AssetMarket = 'CRYPTO' | 'US' | 'ID';
 type Currency = 'USD' | 'IDR' | 'EUR' | 'SGD' | 'MYR';
 
 /**
+ * Get the appropriate number of decimals for a value
+ * Small values get more decimals (up to 4), larger values get 2
+ */
+function getSmartDecimals(value: number, maxDecimals: number = 4): number {
+  const absValue = Math.abs(value);
+  if (absValue === 0) return 2;
+  if (absValue < 0.01) return maxDecimals;
+  if (absValue < 1) return Math.min(4, maxDecimals);
+  return 2;
+}
+
+/**
  * Format currency value based on market or currency type
+ * Uses smart decimals: max 4 for small values, 2 for larger
  */
 export function formatCurrency(
   value: number,
@@ -23,6 +41,8 @@ export function formatCurrency(
     currencyCode = currency;
   }
   
+  const decimals = getSmartDecimals(value, 4);
+  
   if (currencyCode === 'IDR') {
     return `Rp ${value.toLocaleString('id-ID', {
       minimumFractionDigits: 0,
@@ -32,28 +52,28 @@ export function formatCurrency(
   
   if (currencyCode === 'EUR') {
     return `€${value.toLocaleString('de-DE', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
     })}`;
   }
   
   if (currencyCode === 'SGD') {
     return `S$${value.toLocaleString('en-SG', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
     })}`;
   }
   
   if (currencyCode === 'MYR') {
     return `RM${value.toLocaleString('ms-MY', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
     })}`;
   }
   
   return `$${value.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
   })}`;
 }
 
@@ -75,31 +95,45 @@ export function formatCompactCurrency(
   const prefix = currencyCode === 'IDR' ? 'Rp ' : currencyCode === 'EUR' ? '€' : currencyCode === 'SGD' ? 'S$' : currencyCode === 'MYR' ? 'RM' : '$';
   
   if (Math.abs(value) >= 1_000_000_000) {
-    return `${prefix}${(value / 1_000_000_000).toFixed(1)}B`;
+    return `${prefix}${(value / 1_000_000_000).toFixed(2)}B`;
   }
   if (Math.abs(value) >= 1_000_000) {
-    return `${prefix}${(value / 1_000_000).toFixed(1)}M`;
+    return `${prefix}${(value / 1_000_000).toFixed(2)}M`;
   }
   if (Math.abs(value) >= 1_000) {
-    return `${prefix}${(value / 1_000).toFixed(1)}K`;
+    return `${prefix}${(value / 1_000).toFixed(2)}K`;
   }
   
   return formatCurrency(value, currency);
 }
 
 /**
- * Format percentage with sign and fixed decimals
+ * Format percentage with sign and fixed 2 decimals (STANDARD)
  */
 export function formatPercent(value: number, decimals: number = 2): string {
   const sign = value >= 0 ? '+' : '';
-  return `${sign}${value.toFixed(decimals)}%`;
+  return `${sign}${value.toFixed(2)}%`;
 }
 
 /**
- * Format percentage without sign
+ * Format percentage without sign (always 2 decimals)
  */
 export function formatPercentUnsigned(value: number, decimals: number = 2): string {
-  return `${value.toFixed(decimals)}%`;
+  return `${value.toFixed(2)}%`;
+}
+
+/**
+ * Format a number with max 4 decimals, removing trailing zeros
+ */
+export function formatNumber(value: number, maxDecimals: number = 4): string {
+  return parseFloat(value.toFixed(maxDecimals)).toString();
+}
+
+/**
+ * Format fee/commission with 4 decimal precision
+ */
+export function formatFee(value: number, asset: string = 'USDT'): string {
+  return `${parseFloat(value.toFixed(4))} ${asset}`;
 }
 
 /**
@@ -111,18 +145,15 @@ export function formatQuantity(value: number, market: AssetMarket = 'US'): strin
     return parseFloat(value.toFixed(8)).toString();
   }
   
-  // For stocks, show whole numbers or 2 decimals for fractional shares
+  // For stocks, show whole numbers or up to 4 decimals for fractional shares
   if (Number.isInteger(value)) {
     return value.toLocaleString();
   }
-  return value.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+  return parseFloat(value.toFixed(4)).toLocaleString();
 }
 
 /**
- * Format price with appropriate decimals based on value
+ * Format price with appropriate decimals based on value (max 4)
  */
 export function formatPrice(value: number, currency: Currency | AssetMarket | string = 'USD'): string {
   let currencyCode: string;
@@ -142,18 +173,27 @@ export function formatPrice(value: number, currency: Currency | AssetMarket | st
     })}`;
   }
   
-  // For small values, show more decimals
-  if (Math.abs(value) < 0.01) {
-    return `${prefix}${value.toFixed(8)}`;
-  }
-  if (Math.abs(value) < 1) {
-    return `${prefix}${value.toFixed(4)}`;
-  }
+  // For small values, show more decimals (max 4)
+  const decimals = getSmartDecimals(value, 4);
   
   return `${prefix}${value.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
   })}`;
+}
+
+/**
+ * Format R:R ratio with 2 decimal precision
+ */
+export function formatRatio(value: number): string {
+  return `${value.toFixed(2)}:1`;
+}
+
+/**
+ * Format win rate (percentage without sign, 1 decimal for display)
+ */
+export function formatWinRate(value: number): string {
+  return `${value.toFixed(1)}%`;
 }
 
 /**

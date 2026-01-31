@@ -48,7 +48,11 @@ export function DailyLossTracker() {
     return <CheckCircle className="h-6 w-6 text-profit" />
   };
 
-  const formatCurrency = (value: number) => `$${value.toFixed(2)}`;
+  // Local formatCurrency with max 4 decimals for small values
+  const formatCurrencyLocal = (value: number) => {
+    const decimals = Math.abs(value) < 1 ? 4 : 2;
+    return `$${value.toFixed(decimals)}`;
+  };
 
   return (
     <Card>
@@ -81,7 +85,7 @@ export function DailyLossTracker() {
               <InfoTooltip content="Percentage of your daily loss limit consumed. Trading is disabled at 100% to protect your capital." />
             </span>
             <span className={`text-2xl font-bold ${getStatusColor()}`}>
-              {riskStatus.loss_used_percent.toFixed(1)}%
+              {riskStatus.loss_used_percent.toFixed(2)}%
             </span>
           </div>
           <Progress 
@@ -104,7 +108,7 @@ export function DailyLossTracker() {
               <InfoTooltip content={isBinanceConnected ? "Your current Binance Futures wallet balance used as the base for daily loss calculations." : "Your starting balance for today, used as the base for daily loss limit calculations."} />
             </p>
             <p className="text-lg font-semibold">
-              {formatCurrency(riskStatus.starting_balance)}
+              {formatCurrencyLocal(riskStatus.starting_balance)}
             </p>
           </div>
           <div className="p-3 rounded-lg bg-muted/50">
@@ -113,7 +117,7 @@ export function DailyLossTracker() {
               <InfoTooltip content="Maximum dollar amount you can lose today based on your risk profile percentage. Calculated from your starting balance." />
             </p>
             <p className="text-lg font-semibold">
-              {formatCurrency(riskStatus.loss_limit)}
+              {formatCurrencyLocal(riskStatus.loss_limit)}
             </p>
           </div>
           <div className={`p-3 rounded-lg ${riskStatus.current_pnl >= 0 ? 'bg-profit-muted' : 'bg-loss-muted'}`}>
@@ -122,7 +126,7 @@ export function DailyLossTracker() {
               <InfoTooltip content="Your total realized profit or loss for today. Negative values count against your daily loss limit." />
             </p>
             <p className={`text-lg font-semibold ${riskStatus.current_pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-              {riskStatus.current_pnl >= 0 ? '+' : ''}{formatCurrency(riskStatus.current_pnl)}
+              {riskStatus.current_pnl >= 0 ? '+' : ''}{formatCurrencyLocal(riskStatus.current_pnl)}
             </p>
           </div>
           <div className="p-3 rounded-lg bg-muted/50">
@@ -131,7 +135,7 @@ export function DailyLossTracker() {
               <InfoTooltip content="How much more you can lose today before hitting your daily loss limit. When this reaches $0, trading should stop." />
             </p>
             <p className={`text-lg font-semibold ${riskStatus.remaining_budget <= 0 ? 'text-loss' : ''}`}>
-              {formatCurrency(riskStatus.remaining_budget)}
+              {formatCurrencyLocal(riskStatus.remaining_budget)}
             </p>
           </div>
         </div>

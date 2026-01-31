@@ -43,10 +43,39 @@ export interface AutoSyncOptions {
 }
 
 /**
+ * Enrich PNL records with matching fee data from COMMISSION records
+ * Matches by symbol and timestamp (within 1 minute window)
+ */
+function enrichWithFees(
+  pnlRecords: BinanceIncome[],
+  allIncome: BinanceIncome[]
+): Map<number, number> {
+  const feeMap = new Map<number, number>();
+  
+  const commissions = allIncome.filter(r => r.incomeType === 'COMMISSION');
+  
+  for (const pnl of pnlRecords) {
+    // Find commissions within 1 minute of the PNL record for same symbol
+    const matchingFees = commissions.filter(c => 
+      c.symbol === pnl.symbol && 
+      Math.abs(c.time - pnl.time) < 60000 // 1 minute window
+    );
+    
+    // Sum up all matching fees (absolute value since fees are negative in income)
+    const totalFee = matchingFees.reduce((sum, c) => sum + Math.abs(c.income), 0);
+    if (totalFee > 0) {
+      feeMap.set(pnl.tranId, totalFee);
+    }
+  }
+  
+  return feeMap;
+}
+
+/**
  * Convert BinanceIncome record to trade_entries format
  * Only REALIZED_PNL records become trades, other types are tracked but not as separate entries
  */
-function incomeToTradeEntry(income: BinanceIncome, userId: string) {
+function incomeToTradeEntry(income: BinanceIncome, userId: string, fee?: number) {
   // Determine result based on income value
   const result = income.income > 0 ? 'win' : income.income < 0 ? 'loss' : 'breakeven';
   
@@ -62,6 +91,8 @@ function incomeToTradeEntry(income: BinanceIncome, userId: string) {
     quantity: 0,
     pnl: income.income,
     realized_pnl: income.income,
+    commission: fee || 0, // Include matched fee if available
+    commission_asset: fee && fee > 0 ? 'USDT' : null,
     trade_date: new Date(income.time).toISOString(),
     status: 'closed' as const,
     result,
@@ -145,9 +176,12 @@ export function useBinanceAutoSync(options: AutoSyncOptions = {}) {
           return { synced: 0, skipped: recordsToSync.length, errors: 0, byType };
         }
 
-        // Convert to trade entries
+        // Enrich PNL records with fee data from COMMISSION records
+        const feeMap = enrichWithFees(pnlRecords, incomeData);
+
+        // Convert to trade entries with fee enrichment
         const tradeEntries = pnlRecords.map((r: BinanceIncome) => 
-          incomeToTradeEntry(r, user.id)
+          incomeToTradeEntry(r, user.id, feeMap.get(r.tranId))
         );
 
         // Batch insert

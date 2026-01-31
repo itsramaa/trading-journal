@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { useBinanceDailyPnl, useBinanceTotalBalance } from "@/hooks/use-binance-daily-pnl";
 import { useBinanceWeeklyPnl } from "@/hooks/use-binance-weekly-pnl";
-import { formatCurrency } from "@/lib/formatters";
+import { formatCurrency, formatPercent, formatWinRate } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 
 interface PortfolioOverviewCardProps {
@@ -147,7 +147,7 @@ export function PortfolioOverviewCard({ className }: PortfolioOverviewCardProps)
                   )}
                 >
                   {todayNetPnl > 0 ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
-                  {todayReturnPercent >= 0 ? '+' : ''}{todayReturnPercent.toFixed(2)}%
+                  {formatPercent(todayReturnPercent)}
                 </Badge>
               )}
             </div>
@@ -176,7 +176,7 @@ export function PortfolioOverviewCard({ className }: PortfolioOverviewCardProps)
                       : "border-loss/30 text-loss bg-loss/10"
                   )}
                 >
-                  {weeklyReturnPercent >= 0 ? '+' : ''}{weeklyReturnPercent.toFixed(2)}%
+                  {formatPercent(weeklyReturnPercent)}
                 </Badge>
               )}
             </div>
@@ -190,7 +190,7 @@ export function PortfolioOverviewCard({ className }: PortfolioOverviewCardProps)
             <p className="text-sm text-muted-foreground mb-1">Today's Win Rate</p>
             <div className="flex items-center gap-2">
               <p className="text-2xl font-bold">
-                {todayWinRate.toFixed(0)}%
+                {formatWinRate(todayWinRate)}
               </p>
               <Target className={cn(
                 "h-5 w-5",
