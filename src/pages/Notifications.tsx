@@ -1,6 +1,6 @@
-import { Bell, BellOff, Check, Trash2 } from "lucide-react";
+import { Bell, BellOff, Check, Trash2, FileDown, CalendarDays, Loader2 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -13,6 +13,7 @@ import {
   useMarkAllAsRead,
   useClearAllNotifications,
 } from "@/hooks/use-notifications";
+import { useWeeklyReportExport } from "@/hooks/use-weekly-report-export";
 
 export default function Notifications() {
   const { data: notifications = [], isLoading } = useNotifications();
@@ -20,6 +21,7 @@ export default function Notifications() {
   const markAsRead = useMarkAsRead();
   const markAllAsRead = useMarkAllAsRead();
   const clearAll = useClearAllNotifications();
+  const { exportCurrentWeek, exportLastWeek, isGenerating } = useWeeklyReportExport();
 
   const getTypeColor = (type: string) => {
     switch (type) {
@@ -144,6 +146,45 @@ export default function Notifications() {
             )}
           </div>
         </div>
+
+        {/* Weekly Report Export Section */}
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <FileDown className="h-5 w-5 text-primary" />
+              <CardTitle className="text-base">Weekly Report</CardTitle>
+            </div>
+            <CardDescription>
+              Download your trading performance summary as PDF
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-3">
+            <Button 
+              variant="outline" 
+              onClick={exportLastWeek}
+              disabled={isGenerating}
+            >
+              {isGenerating ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <CalendarDays className="mr-2 h-4 w-4" />
+              )}
+              Last Week Report
+            </Button>
+            <Button 
+              variant="default" 
+              onClick={exportCurrentWeek}
+              disabled={isGenerating}
+            >
+              {isGenerating ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <FileDown className="mr-2 h-4 w-4" />
+              )}
+              This Week Report
+            </Button>
+          </CardContent>
+        </Card>
 
         <Tabs defaultValue="all" className="space-y-4">
           <TabsList>
