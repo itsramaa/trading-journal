@@ -1,9 +1,10 @@
 /**
  * Trading Dashboard - Main overview showing trading performance
  * Layout order:
- * 1. Quick Actions (no title), 2. System Status, 3. Market Sessions (no title),
- * 4. Active Positions, 5. Today's Activity (no title), 6. Risk & AI Insights
+ * 1. Quick Actions (no title), 2. 7-Day Stats (no title), 3. System Status, 4. Market Sessions,
+ * 5. Active Positions, 6. Today's Activity, 7. Risk & AI Insights
  */
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -34,6 +35,8 @@ import {
   Activity,
   CandlestickChart,
   ExternalLink,
+  Flame,
+  Trophy,
 } from "lucide-react";
 
 // First-time user onboarding steps (UCD + JTBD framework)
@@ -73,6 +76,45 @@ const Dashboard = () => {
   const isConnected = connectionStatus?.isConnected;
   const activePositions = positions?.filter(p => p.positionAmt !== 0) || [];
 
+  // 7-Day Quick Stats
+  const sevenDayStats = useMemo(() => {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    
+    const recentTrades = (trades || [])
+      .filter(t => t.status === 'closed' && new Date(t.trade_date) >= sevenDaysAgo)
+      .sort((a, b) => new Date(b.trade_date).getTime() - new Date(a.trade_date).getTime());
+    
+    // Calculate streak (consecutive wins or losses from most recent)
+    let streak = { type: 'win' as 'win' | 'loss', count: 0 };
+    if (recentTrades.length > 0) {
+      const firstResult = recentTrades[0].result;
+      streak.type = firstResult === 'win' ? 'win' : 'loss';
+      for (const trade of recentTrades) {
+        if (trade.result === streak.type) {
+          streak.count++;
+        } else {
+          break;
+        }
+      }
+    }
+    
+    // Calculate best/worst day
+    const byDay = recentTrades.reduce((acc, t) => {
+      const day = new Date(t.trade_date).toISOString().split('T')[0];
+      acc[day] = (acc[day] || 0) + (t.realized_pnl || 0);
+      return acc;
+    }, {} as Record<string, number>);
+    
+    const days = Object.entries(byDay).sort((a, b) => b[1] - a[1]);
+    const bestDay = days[0] ? { date: days[0][0], pnl: days[0][1] } : { date: '', pnl: 0 };
+    const worstDay = days[days.length - 1] ? { date: days[days.length - 1][0], pnl: days[days.length - 1][1] } : { date: '', pnl: 0 };
+    
+    return { streak, bestDay, worstDay, trades7d: recentTrades.length };
+  }, [trades]);
+
+  const hasTrades = trades.filter(t => t.status === 'closed').length > 0;
+
   return (
     <DashboardLayout>
       <div className="space-y-8">
@@ -110,13 +152,69 @@ const Dashboard = () => {
           </Button>
         </div>
 
-        {/* 2. System Status - No title (already built-in) */}
+        {/* 2. 7-Day Stats - No title (moved from Trading Journal) */}
+        {hasTrades && (
+          <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+            <Card>
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Current Streak</p>
+                    <p className={`text-2xl font-bold ${sevenDayStats.streak.type === 'win' ? 'text-profit' : 'text-loss'}`}>
+                      {sevenDayStats.streak.count} {sevenDayStats.streak.type === 'win' ? 'W' : 'L'}
+                    </p>
+                  </div>
+                  <Flame className={`h-8 w-8 ${sevenDayStats.streak.type === 'win' ? 'text-profit' : 'text-loss'}`} />
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Trades (7D)</p>
+                    <p className="text-2xl font-bold">{sevenDayStats.trades7d}</p>
+                  </div>
+                  <Activity className="h-8 w-8 text-muted-foreground" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Best Day</p>
+                    <p className={`text-2xl font-bold ${sevenDayStats.bestDay.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                      {sevenDayStats.bestDay.pnl >= 0 ? '+' : ''}{formatCurrency(sevenDayStats.bestDay.pnl, 'USD')}
+                    </p>
+                  </div>
+                  <Trophy className="h-8 w-8 text-profit" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Worst Day</p>
+                    <p className={`text-2xl font-bold ${sevenDayStats.worstDay.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                      {sevenDayStats.worstDay.pnl >= 0 ? '+' : ''}{formatCurrency(sevenDayStats.worstDay.pnl, 'USD')}
+                    </p>
+                  </div>
+                  <AlertTriangle className="h-8 w-8 text-loss" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* 3. System Status - No title (already built-in) */}
         <SystemStatusIndicator />
 
-        {/* 3. Market Sessions - No title */}
+        {/* 4. Market Sessions - No title */}
         <MarketSessionsWidget />
 
-        {/* 4. Active Positions Card */}
+        {/* 5. Active Positions Card */}
         {isConnected && activePositions.length > 0 && (
           <Card>
             <CardHeader>
@@ -188,10 +286,10 @@ const Dashboard = () => {
           <strong>Pro tip:</strong> Press <kbd className="px-1.5 py-0.5 text-xs bg-muted rounded border">⌘K</kbd> to quickly search, or <kbd className="px-1.5 py-0.5 text-xs bg-muted rounded border">Shift+?</kbd> for all shortcuts.
         </QuickTip>
 
-        {/* 5. Today's Activity - No title */}
+        {/* 6. Today's Activity - No title */}
         <TodayPerformance />
 
-        {/* 6. Risk & AI Insights */}
+        {/* 7. Risk & AI Insights */}
         <section className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">

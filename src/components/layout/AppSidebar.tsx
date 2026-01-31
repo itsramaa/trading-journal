@@ -80,13 +80,13 @@ const navigationGroups = [
       { title: "Daily P&L", url: "/daily-pnl", icon: DollarSign },
       { title: "Heatmap", url: "/heatmap", icon: Grid3X3 },
       { title: "AI Insights", url: "/ai-insights", icon: Brain },
-      { title: "Bulk Export", url: "/export", icon: Download },
     ],
   },
   {
     title: "Settings",
     items: [
       { title: "Settings", url: "/settings", icon: Settings },
+      { title: "Bulk Export", url: "/export", icon: Download },
     ],
   },
 ];

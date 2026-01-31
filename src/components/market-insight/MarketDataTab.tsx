@@ -17,9 +17,10 @@ import type { MarketInsightResponse, WhaleSignal } from "@/features/market-insig
 interface MarketDataTabProps {
   sentimentData?: MarketInsightResponse;
   isLoading: boolean;
+  hideVolatilityAssessment?: boolean;
 }
 
-export function MarketDataTab({ sentimentData, isLoading }: MarketDataTabProps) {
+export function MarketDataTab({ sentimentData, isLoading, hideVolatilityAssessment = false }: MarketDataTabProps) {
   const getWhaleSignalColor = (signal: WhaleSignal) => {
     switch (signal) {
       case 'ACCUMULATION': return 'bg-profit';
@@ -31,8 +32,9 @@ export function MarketDataTab({ sentimentData, isLoading }: MarketDataTabProps) 
   return (
     <div className="space-y-6">
       {/* Two Column: Volatility + Opportunities */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* AI Volatility Assessment */}
+      <div className={cn("grid gap-6", !hideVolatilityAssessment && "lg:grid-cols-2")}>
+        {/* AI Volatility Assessment - conditionally hidden */}
+        {!hideVolatilityAssessment && (
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
@@ -81,6 +83,7 @@ export function MarketDataTab({ sentimentData, isLoading }: MarketDataTabProps) 
             ))}
           </CardContent>
         </Card>
+        )}
 
         {/* AI Trading Opportunities */}
         <Card>

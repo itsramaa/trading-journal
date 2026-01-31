@@ -54,10 +54,11 @@ export default function MarketData() {
           />
         </div>
 
-        {/* Market Data Content */}
+        {/* Market Data Content - Without Volatility Assessment (replaced by Volatility Meter above) */}
         <MarketDataTab 
           sentimentData={sentimentData}
           isLoading={sentimentLoading}
+          hideVolatilityAssessment={true}
         />
       </div>
     </DashboardLayout>
