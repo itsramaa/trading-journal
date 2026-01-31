@@ -2,11 +2,15 @@
  * Unified Daily P&L Hook
  * Provides consistent daily P&L calculation for both Binance and Paper Trading
  * Single source of truth for Trading Gate risk calculations
+ * 
+ * NOTE: Does NOT call useBestAvailableBalance internally to avoid nested hook issues.
+ * Source is determined from useBinanceConnectionStatus directly.
  */
 import { useMemo } from 'react';
 import { useBinanceDailyPnl } from '@/hooks/use-binance-daily-pnl';
-import { useBestAvailableBalance, AccountSourceType } from '@/hooks/use-combined-balance';
+import { useBinanceConnectionStatus } from '@/features/binance';
 import { useTradeEntries } from '@/hooks/use-trade-entries';
+import type { AccountSourceType } from '@/hooks/use-combined-balance';
 
 export interface UnifiedDailyPnlResult {
   // Core P&L data
@@ -36,8 +40,15 @@ export interface UnifiedDailyPnlResult {
  * Paper: Calculates from trade_entries table for today
  */
 export function useUnifiedDailyPnl(): UnifiedDailyPnlResult {
-  const { source, isLoading: balanceLoading } = useBestAvailableBalance();
+  // Determine source directly from connection status (avoid nested useBestAvailableBalance call)
+  const { data: connectionStatus, isLoading: connectionLoading } = useBinanceConnectionStatus();
+  const isConnected = connectionStatus?.isConnected ?? false;
+  const source: AccountSourceType = isConnected ? 'binance' : 'paper';
+  
+  // Binance P&L data
   const binancePnl = useBinanceDailyPnl();
+  
+  // Trade entries for Paper P&L calculation
   const { data: trades = [], isLoading: tradesLoading } = useTradeEntries();
   
   // Calculate Paper Trading daily P&L from trade_entries
@@ -74,7 +85,7 @@ export function useUnifiedDailyPnl(): UnifiedDailyPnlResult {
     
     return {
       totalPnl,
-      grossPnl: totalPnl + totalFees, // Add back fees for gross
+      grossPnl: totalPnl + totalFees,
       netPnl: totalPnl,
       totalTrades,
       wins,
@@ -128,7 +139,7 @@ export function useUnifiedDailyPnl(): UnifiedDailyPnlResult {
       totalFunding: 0,
       totalRebates: 0,
       source: 'paper',
-      isLoading: balanceLoading || tradesLoading,
+      isLoading: connectionLoading || tradesLoading,
     };
-  }, [source, binancePnl, paperPnl, tradesLoading, balanceLoading]);
+  }, [source, binancePnl, paperPnl, tradesLoading, connectionLoading]);
 }
