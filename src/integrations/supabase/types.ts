@@ -822,6 +822,7 @@ export type Database = {
           ai_settings: Json | null
           created_at: string
           default_currency: string
+          default_trading_account_id: string | null
           id: string
           language: string
           notification_preferences: Json | null
@@ -844,6 +845,7 @@ export type Database = {
           ai_settings?: Json | null
           created_at?: string
           default_currency?: string
+          default_trading_account_id?: string | null
           id?: string
           language?: string
           notification_preferences?: Json | null
@@ -866,6 +868,7 @@ export type Database = {
           ai_settings?: Json | null
           created_at?: string
           default_currency?: string
+          default_trading_account_id?: string | null
           id?: string
           language?: string
           notification_preferences?: Json | null
@@ -884,7 +887,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "user_settings_default_trading_account_id_fkey"
+            columns: ["default_trading_account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       users_profile: {
         Row: {

@@ -19,6 +19,7 @@ import { RiskAlertBanner } from "@/components/risk/RiskAlertBanner";
 import { useNavigationShortcuts, Kbd } from "@/components/ui/keyboard-shortcut";
 import { CommandPalette, useCommandPalette } from "./CommandPalette";
 import { useSidebarPersistence } from "@/hooks/use-sidebar-persistence";
+import { useNotificationsRealtime } from "@/hooks/use-notifications";
 import { Button } from "@/components/ui/button";
 import { Search } from "lucide-react";
 
@@ -78,6 +79,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   
   // Persistent sidebar state
   const { sidebarOpen, setSidebarOpen } = useSidebarPersistence(true);
+  
+  // Enable realtime notifications
+  useNotificationsRealtime();
 
   return (
     <SidebarProvider 

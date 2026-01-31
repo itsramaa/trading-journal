@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./use-auth";
@@ -38,6 +39,40 @@ export function useNotifications() {
     enabled: !!user?.id,
     staleTime: 30_000, // 30 seconds
   });
+}
+
+/**
+ * Realtime subscription for notifications
+ * Call this hook once in a top-level component (e.g., DashboardLayout) to enable instant updates
+ */
+export function useNotificationsRealtime() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const channel = supabase
+      .channel('notifications-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          // Invalidate query to refetch with debounce
+          queryClient.invalidateQueries({ queryKey: NOTIFICATIONS_KEY });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, queryClient]);
 }
 
 export function useUnreadCount() {

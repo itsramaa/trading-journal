@@ -29,6 +29,7 @@ import { ADLRiskWidget } from "@/components/dashboard/ADLRiskWidget";
 import { MarketScoreWidget } from "@/components/dashboard/MarketScoreWidget";
 import { SmartQuickActions } from "@/components/dashboard/SmartQuickActions";
 import { PortfolioOverviewCard } from "@/components/dashboard/PortfolioOverviewCard";
+import { DashboardAnalyticsSummary } from "@/components/dashboard/DashboardAnalyticsSummary";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { useRealtime } from "@/hooks/use-realtime";
 import { 
@@ -98,7 +99,10 @@ const Dashboard = () => {
         {/* 2. Smart Quick Actions - Context-aware */}
         <SmartQuickActions />
 
-        {/* 3. Active Positions Card (if any) */}
+        {/* 3. Analytics Summary - 30-day performance sparkline */}
+        <DashboardAnalyticsSummary />
+
+        {/* 4. Active Positions Card (if any) */}
         {isConnected && activePositions.length > 0 && (
           <Card>
             <CardHeader>

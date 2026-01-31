@@ -10,6 +10,15 @@ This plan covers **7 phases** of improvements, organized by priority and depende
 
 **Total Estimated Effort:** 8-12 hours across all phases
 
+### Progress Tracker
+- [x] **Phase 1:** Header Notification Badge ✅ (Already implemented)
+- [x] **Phase 2:** Dashboard Analytics Summary ✅ (Completed)
+- [x] **Phase 3:** Default Trading Account Preference ✅ (Completed)
+- [x] **Phase 4:** Backtest Capital Quick Fill ✅ (Completed)
+- [x] **Phase 5:** Supabase Realtime for Notifications ✅ (Completed)
+- [ ] **Phase 6:** Strategy-Specific Win Rate (Pending)
+- [ ] **Phase 7:** UX Polish & Mobile Audit (Pending)
+
 ---
 
 ## Phase 1: Header Notification Badge (High Priority)
