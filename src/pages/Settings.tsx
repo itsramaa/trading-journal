@@ -1,3 +1,4 @@
+import { useSearchParams } from "react-router-dom";
 import { Bell, Palette, Bot, Link, Settings as SettingsIcon, TrendingUp } from "lucide-react";
 import { AISettingsTab } from "@/components/settings/AISettingsTab";
 import { BinanceApiSettings } from "@/components/settings/BinanceApiSettings";
@@ -17,6 +18,9 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 
 const Settings = () => {
+  const [searchParams] = useSearchParams();
+  const defaultTab = searchParams.get('tab') || 'trading';
+  
   const { data: settings, isLoading: settingsLoading } = useUserSettings();
   const updateSettings = useUpdateUserSettings();
 
@@ -72,7 +76,7 @@ const Settings = () => {
           <p className="text-muted-foreground">Manage your app preferences.</p>
         </div>
 
-        <Tabs defaultValue="trading" className="space-y-4">
+        <Tabs defaultValue={defaultTab} className="space-y-4">
           <TabsList className="grid w-full grid-cols-5 lg:w-[500px]">
             <TabsTrigger value="trading" className="gap-2">
               <TrendingUp className="h-4 w-4" />

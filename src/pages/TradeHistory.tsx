@@ -379,41 +379,7 @@ export default function TradeHistory() {
                 </div>
               </TabsContent>
 
-              {/* Import from Binance Tab */}
-              <TabsContent value="import">
-                {isBinanceConnected ? (
-                  <div className="space-y-6">
-                    <BinanceIncomeHistory showHeader={true} limit={100} defaultFilter="pnl" />
-                    <div className="border-t pt-6">
-                      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                        <Download className="h-5 w-5" aria-hidden="true" />
-                        Manual Import by Symbol
-                      </h3>
-                      <BinanceTradeHistory />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-12 space-y-4">
-                    <div className="flex justify-center">
-                      <div className="rounded-full bg-muted p-4">
-                        <Wifi className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <h3 className="text-lg font-medium">Connect Binance to Import Trades</h3>
-                      <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                        Connect your Binance Futures account in Settings to import your trade history.
-                      </p>
-                    </div>
-                    <Button variant="outline" asChild>
-                      <Link to="/settings">
-                        <Wifi className="h-4 w-4 mr-2" aria-hidden="true" />
-                        Go to Settings
-                      </Link>
-                    </Button>
-                  </div>
-                )}
-              </TabsContent>
+              {/* Note: Import tab removed - trades auto-sync from Binance */}
             </Tabs>
           </CardContent>
         </Card>

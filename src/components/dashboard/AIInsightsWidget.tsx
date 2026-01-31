@@ -76,7 +76,8 @@ export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
   } = useAISettingsEnforcement();
   const { data: trades = [] } = useTradeEntries();
   const { data: strategies = [] } = useTradingStrategies();
-  const { data: accounts = [] } = useAccounts();
+  const { data: allAccounts = [] } = useAccounts();
+  const accounts = useMemo(() => allAccounts.filter(a => a.is_active), [allAccounts]);
   const { data: positions = [] } = useBinancePositions();
   const { data: connectionStatus } = useBinanceConnectionStatus();
   const { score, bias, scoreLabel, volatilityLabel, isLoading: marketLoading } = useUnifiedMarketScore({ symbol: 'BTCUSDT' });

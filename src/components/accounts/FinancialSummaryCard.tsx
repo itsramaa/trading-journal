@@ -174,7 +174,7 @@ export function FinancialSummaryCard({
           </div>
           <div className="flex items-center gap-2">
             <Select value={days.toString()} onValueChange={(v) => setDays(parseInt(v))}>
-              <SelectTrigger className="w-[120px]">
+              <SelectTrigger className="w-[130px]">
                 <Calendar className="h-4 w-4 mr-1" />
                 <SelectValue />
               </SelectTrigger>
@@ -182,6 +182,8 @@ export function FinancialSummaryCard({
                 <SelectItem value="7">7 days</SelectItem>
                 <SelectItem value="30">30 days</SelectItem>
                 <SelectItem value="90">90 days</SelectItem>
+                <SelectItem value="180">6 months</SelectItem>
+                <SelectItem value="365">1 year</SelectItem>
               </SelectContent>
             </Select>
             <Button variant="ghost" size="icon" onClick={() => refetch()}>
