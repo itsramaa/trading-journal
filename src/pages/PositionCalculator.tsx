@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import { Calculator, Activity, Percent, Settings } from "lucide-react";
 import { calculatePositionSize } from "@/lib/calculations/position-sizing";
 import { useRiskProfile } from "@/hooks/use-risk-profile";
@@ -18,6 +19,8 @@ import { useBinanceCommissionRate, useBinanceLeverageBrackets, getMaxLeverageFor
 import { CalculatorInputs, CalculatorResults, QuickReferenceR, ContextWarnings, RiskAdjustmentBreakdown } from "@/components/risk/calculator";
 import { VolatilityStopLoss } from "@/components/risk/calculator/VolatilityStopLoss";
 import { MarketScoreWidget } from "@/components/dashboard/MarketScoreWidget";
+import { TradingPairCombobox } from "@/components/ui/trading-pair-combobox";
+import { useMarketContext } from "@/contexts/MarketContext";
 import { trackEvent, ANALYTICS_EVENTS } from "@/lib/analytics";
 
 export default function PositionCalculator() {
@@ -25,8 +28,8 @@ export default function PositionCalculator() {
   const { data: riskProfile, isLoading: profileLoading } = useRiskProfile();
   const { balance: combinedBalance, source, isLoading: balanceLoading } = useBestAvailableBalance();
   
-  // State for symbol to fetch commission rates
-  const [selectedSymbol, setSelectedSymbol] = useState("BTCUSDT");
+  // Use global MarketContext for symbol selection
+  const { selectedSymbol, setSelectedSymbol } = useMarketContext();
   
   // Fetch real commission rates from Binance API (Phase 2)
   const { data: commissionRate, isLoading: commissionLoading } = useBinanceCommissionRate(selectedSymbol);
@@ -136,6 +139,16 @@ export default function PositionCalculator() {
           <p className="text-muted-foreground">
             Calculate position sizes and manage risk before entering trades
           </p>
+        </div>
+
+        {/* Symbol Selector */}
+        <div className="space-y-2">
+          <Label>Trading Pair</Label>
+          <TradingPairCombobox 
+            value={selectedSymbol}
+            onValueChange={setSelectedSymbol}
+            className="max-w-xs"
+          />
         </div>
 
         {/* Market Score Widget - Quick Assessment */}
