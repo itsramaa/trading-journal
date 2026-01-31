@@ -527,7 +527,7 @@ Detailed specification available in `docs/SETTINGS_EXPORT_INTEGRATION_ANALYSIS.m
 | `STRATEGY_INTEGRATION_ANALYSIS.md` | Strategy Library, Backtest, Performance |
 | `ANALYTICS_INTEGRATION_ANALYSIS.md` | Performance, Daily P&L, Heatmap, AI Insights |
 | `SETTINGS_EXPORT_INTEGRATION_ANALYSIS.md` | Settings, Export, Configuration Hub |
-| `Trading_Journey_User_Flow.md` | Complete user flow specification |
+| `Trading_Journey_Documentation.md` | Complete end-to-end documentation |
 
 ---
 
