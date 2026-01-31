@@ -1,11 +1,13 @@
 /**
  * Correlation Matrix Component
  * Shows correlation between open positions for risk management
+ * Collapsible by default to reduce cognitive load (per UX audit)
  */
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Link2 } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { AlertTriangle, Link2, ChevronDown, ChevronRight } from "lucide-react";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { cn } from "@/lib/utils";
 
@@ -56,6 +58,8 @@ interface CorrelationPair {
 
 export function CorrelationMatrix() {
   const { data: trades = [] } = useTradeEntries();
+  // Default collapsed per UX audit - advanced feature
+  const [isOpen, setIsOpen] = useState(false);
   
   const openPositions = useMemo(() => {
     return trades.filter(t => t.status === 'open');
@@ -88,6 +92,9 @@ export function CorrelationMatrix() {
   }, [openPositions]);
 
   const highCorrelationPairs = correlationPairs.filter(p => p.correlation >= 0.7);
+  
+  // Auto-expand if there are high correlation warnings
+  const shouldAutoExpand = highCorrelationPairs.length > 0;
 
   if (openPositions.length === 0) {
     return (
@@ -96,6 +103,7 @@ export function CorrelationMatrix() {
           <CardTitle className="flex items-center gap-2 text-base">
             <Link2 className="h-5 w-5" />
             Position Correlation
+            <Badge variant="secondary" className="ml-2 text-xs">Advanced</Badge>
           </CardTitle>
           <CardDescription>
             Correlation analysis between open positions
@@ -118,6 +126,7 @@ export function CorrelationMatrix() {
           <CardTitle className="flex items-center gap-2 text-base">
             <Link2 className="h-5 w-5" />
             Position Correlation
+            <Badge variant="secondary" className="ml-2 text-xs">Advanced</Badge>
           </CardTitle>
           <CardDescription>
             Correlation analysis between open positions
@@ -137,97 +146,117 @@ export function CorrelationMatrix() {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Link2 className="h-5 w-5" />
-          Position Correlation
-          {highCorrelationPairs.length > 0 && (
-            <Badge variant="destructive" className="ml-2">
-              <AlertTriangle className="h-3 w-3 mr-1" />
-              {highCorrelationPairs.length} High
-            </Badge>
-          )}
-        </CardTitle>
-        <CardDescription>
-          Correlation analysis between {openPositions.length} open positions
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* High Correlation Warning */}
-        {highCorrelationPairs.length > 0 && (
-          <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20">
-            <div className="flex items-center gap-2 text-destructive font-medium mb-2">
-              <AlertTriangle className="h-4 w-4" />
-              Correlated Exposure Warning
-            </div>
-            <p className="text-sm text-destructive/80">
-              You have {highCorrelationPairs.length} position pair(s) with high correlation (&gt;70%). 
-              Consider reducing exposure to avoid amplified losses.
-            </p>
-          </div>
-        )}
-
-        {/* Correlation Pairs List */}
-        <div className="space-y-2">
-          {correlationPairs.map((pair, index) => (
-            <div
-              key={index}
-              className={cn(
-                "flex items-center justify-between p-3 rounded-lg border",
-                pair.correlation >= 0.7 ? "border-destructive/30 bg-destructive/5" : "border-border"
-              )}
-            >
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1.5">
-                  <Badge variant="outline" className="text-xs">
-                    {pair.pair1}
-                  </Badge>
-                  <Link2 className="h-3 w-3 text-muted-foreground" />
-                  <Badge variant="outline" className="text-xs">
-                    {pair.pair2}
-                  </Badge>
-                </div>
-              </div>
+      <Collapsible open={isOpen || shouldAutoExpand} onOpenChange={setIsOpen}>
+        <CollapsibleTrigger asChild>
+          <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Link2 className="h-5 w-5" />
+                  Position Correlation
+                  <Badge variant="secondary" className="ml-2 text-xs">Advanced</Badge>
+                  {highCorrelationPairs.length > 0 && (
+                    <Badge variant="destructive" className="ml-1">
+                      <AlertTriangle className="h-3 w-3 mr-1" />
+                      {highCorrelationPairs.length} High
+                    </Badge>
+                  )}
+                </CardTitle>
+              </div>
+              {isOpen || shouldAutoExpand ? (
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              )}
+            </div>
+            <CardDescription>
+              {isOpen || shouldAutoExpand 
+                ? `Correlation analysis between ${openPositions.length} open positions`
+                : "Click to expand correlation analysis"
+              }
+            </CardDescription>
+          </CardHeader>
+        </CollapsibleTrigger>
+        
+        <CollapsibleContent>
+          <CardContent className="space-y-4">
+            {/* High Correlation Warning */}
+            {highCorrelationPairs.length > 0 && (
+              <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+                <div className="flex items-center gap-2 text-destructive font-medium mb-2">
+                  <AlertTriangle className="h-4 w-4" />
+                  Correlated Exposure Warning
+                </div>
+                <p className="text-sm text-destructive/80">
+                  You have {highCorrelationPairs.length} position pair(s) with high correlation (&gt;70%). 
+                  Consider reducing exposure to avoid amplified losses.
+                </p>
+              </div>
+            )}
+
+            {/* Correlation Pairs List */}
+            <div className="space-y-2">
+              {correlationPairs.map((pair, index) => (
                 <div
+                  key={index}
                   className={cn(
-                    "px-2 py-0.5 rounded text-xs font-medium",
-                    getCorrelationColor(pair.correlation)
+                    "flex items-center justify-between p-3 rounded-lg border",
+                    pair.correlation >= 0.7 ? "border-destructive/30 bg-destructive/5" : "border-border"
                   )}
                 >
-                  {(pair.correlation * 100).toFixed(0)}%
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1.5">
+                      <Badge variant="outline" className="text-xs">
+                        {pair.pair1}
+                      </Badge>
+                      <Link2 className="h-3 w-3 text-muted-foreground" />
+                      <Badge variant="outline" className="text-xs">
+                        {pair.pair2}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div
+                      className={cn(
+                        "px-2 py-0.5 rounded text-xs font-medium",
+                        getCorrelationColor(pair.correlation)
+                      )}
+                    >
+                      {(pair.correlation * 100).toFixed(0)}%
+                    </div>
+                    {pair.correlation >= 0.8 && (
+                      <AlertTriangle className="h-4 w-4 text-loss" />
+                    )}
+                    {pair.correlation >= 0.7 && pair.correlation < 0.8 && (
+                      <AlertTriangle className="h-4 w-4 text-[hsl(var(--chart-4))]" />
+                    )}
+                  </div>
                 </div>
-                {pair.correlation >= 0.8 && (
-                  <AlertTriangle className="h-4 w-4 text-loss" />
-                )}
-                {pair.correlation >= 0.7 && pair.correlation < 0.8 && (
-                  <AlertTriangle className="h-4 w-4 text-[hsl(var(--chart-4))]" />
-                )}
+              ))}
+            </div>
+
+            {/* Legend - Using design tokens */}
+            <div className="flex flex-wrap gap-3 text-xs text-muted-foreground pt-2 border-t">
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 rounded bg-loss" />
+                <span>≥80% Very High</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 rounded bg-[hsl(var(--chart-4))]" />
+                <span>70-79% High</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 rounded bg-[hsl(var(--chart-6))]" />
+                <span>50-69% Moderate</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 rounded bg-profit" />
+                <span>&lt;50% Low</span>
               </div>
             </div>
-          ))}
-        </div>
-
-        {/* Legend - Using design tokens */}
-        <div className="flex flex-wrap gap-3 text-xs text-muted-foreground pt-2 border-t">
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded bg-loss" />
-            <span>≥80% Very High</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded bg-[hsl(var(--chart-4))]" />
-            <span>70-79% High</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded bg-[hsl(var(--chart-6))]" />
-            <span>50-69% Moderate</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded bg-profit" />
-            <span>&lt;50% Low</span>
-          </div>
-        </div>
-      </CardContent>
+          </CardContent>
+        </CollapsibleContent>
+      </Collapsible>
     </Card>
   );
 }
