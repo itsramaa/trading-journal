@@ -1,10 +1,12 @@
 /**
  * Market Data Page - Standalone page for market data tab content
  * Primary entry point for Market domain
+ * Includes: Volatility Meter, Market Sentiment with searchable pair selector
  */
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { MarketDataTab } from "@/components/market-insight/MarketDataTab";
 import { MarketSentimentWidget } from "@/components/market";
+import { VolatilityMeterWidget } from "@/components/dashboard/VolatilityMeterWidget";
 import { BarChart3, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMarketSentiment } from "@/features/market-insight";
@@ -43,11 +45,14 @@ export default function MarketData() {
           </Button>
         </div>
 
-        {/* Market Sentiment Widget - Full width at top */}
-        <MarketSentimentWidget 
-          defaultSymbol="BTCUSDT" 
-          showSymbolSelector={true}
-        />
+        {/* Volatility Meter + Market Sentiment Side by Side */}
+        <div className="grid gap-4 md:grid-cols-2">
+          <VolatilityMeterWidget />
+          <MarketSentimentWidget 
+            defaultSymbol="BTCUSDT" 
+            showSymbolSelector={true}
+          />
+        </div>
 
         {/* Market Data Content */}
         <MarketDataTab 

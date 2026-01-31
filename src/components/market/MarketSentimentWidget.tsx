@@ -1,6 +1,7 @@
 /**
  * Market Sentiment Widget
  * Displays bullish/bearish scores from Binance Phase 1 data
+ * With searchable pair selector supporting all trading pairs
  */
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +9,19 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { 
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -17,10 +31,13 @@ import {
   BarChart3,
   Zap,
   Activity,
-  Percent
+  Percent,
+  ChevronsUpDown,
+  Check
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useBinanceMarketSentiment } from "@/features/binance";
+import { useTradingPairs } from "@/hooks/use-trading-pairs";
 import type { OpenInterestPeriod } from "@/features/binance/market-data-types";
 import { cn } from "@/lib/utils";
 
@@ -30,10 +47,10 @@ interface MarketSentimentWidgetProps {
   className?: string;
 }
 
-const POPULAR_SYMBOLS = [
+// Default quick-access symbols shown before search
+const DEFAULT_QUICK_SYMBOLS = [
   { value: "BTCUSDT", label: "BTC" },
   { value: "ETHUSDT", label: "ETH" },
-  { value: "BNBUSDT", label: "BNB" },
   { value: "SOLUSDT", label: "SOL" },
   { value: "XRPUSDT", label: "XRP" },
 ];
@@ -52,8 +69,27 @@ export function MarketSentimentWidget({
 }: MarketSentimentWidgetProps) {
   const [symbol, setSymbol] = useState(defaultSymbol);
   const [period, setPeriod] = useState<OpenInterestPeriod>("1h");
+  const [open, setOpen] = useState(false);
   
   const { data: sentiment, isLoading, refetch } = useBinanceMarketSentiment(symbol, period);
+  const { data: tradingPairs = [], isLoading: pairsLoading } = useTradingPairs();
+  
+  // Build symbol options from trading pairs
+  const symbolOptions = useMemo(() => {
+    if (!tradingPairs.length) {
+      return DEFAULT_QUICK_SYMBOLS;
+    }
+    
+    return tradingPairs
+      .filter(p => p.quote_asset === 'USDT')
+      .map(p => ({
+        value: p.symbol,
+        label: p.base_asset,
+      }));
+  }, [tradingPairs]);
+  
+  // Get current symbol label
+  const currentLabel = symbolOptions.find(s => s.value === symbol)?.label || symbol.replace('USDT', '');
 
   const getSentimentColor = (score: number) => {
     if (score >= 60) return "text-green-500";
@@ -147,18 +183,74 @@ export function MarketSentimentWidget({
           </CardTitle>
           <div className="flex items-center gap-2">
             {showSymbolSelector && (
-              <Select value={symbol} onValueChange={setSymbol}>
-                <SelectTrigger className="h-8 w-20">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {POPULAR_SYMBOLS.map(s => (
-                    <SelectItem key={s.value} value={s.value}>
-                      {s.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={open} onOpenChange={setOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={open}
+                    className="h-8 w-24 justify-between"
+                    disabled={pairsLoading}
+                  >
+                    {currentLabel}
+                    <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-48 p-0" align="end">
+                  <Command>
+                    <CommandInput placeholder="Search pair..." className="h-9" />
+                    <CommandList>
+                      <CommandEmpty>No pair found.</CommandEmpty>
+                      {/* Quick access defaults */}
+                      <CommandGroup heading="Popular">
+                        {DEFAULT_QUICK_SYMBOLS.map((s) => (
+                          <CommandItem
+                            key={s.value}
+                            value={s.value}
+                            onSelect={() => {
+                              setSymbol(s.value);
+                              setOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                symbol === s.value ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {s.label}
+                            <span className="ml-auto text-xs text-muted-foreground">{s.value}</span>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                      {/* All pairs */}
+                      <CommandGroup heading="All Pairs">
+                        {symbolOptions
+                          .filter(s => !DEFAULT_QUICK_SYMBOLS.some(d => d.value === s.value))
+                          .map((s) => (
+                            <CommandItem
+                              key={s.value}
+                              value={s.value}
+                              onSelect={() => {
+                                setSymbol(s.value);
+                                setOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  symbol === s.value ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              {s.label}
+                              <span className="ml-auto text-xs text-muted-foreground">{s.value}</span>
+                            </CommandItem>
+                          ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             )}
             <Select value={period} onValueChange={(v) => setPeriod(v as OpenInterestPeriod)}>
               <SelectTrigger className="h-8 w-16">
