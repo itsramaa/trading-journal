@@ -1,6 +1,7 @@
 /**
  * Strategy Card - Individual strategy display card
  */
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,13 +29,19 @@ interface StrategyCardProps {
   performance?: StrategyPerformance;
   onEdit: (strategy: TradingStrategy) => void;
   onDelete: (strategy: TradingStrategy) => void;
-  onBacktest: () => void;
+  onBacktest: (strategyId: string) => void;
 }
 
 export function StrategyCard({ strategy, performance, onEdit, onDelete, onBacktest }: StrategyCardProps) {
+  const navigate = useNavigate();
   const qualityScore = performance?.aiQualityScore || 0;
   const scoreInfo = getQualityScoreLabel(qualityScore);
   const colorClass = colorClasses[strategy.color || 'blue'] || colorClasses.blue;
+
+  const handleBacktest = () => {
+    // Navigate to backtest page with strategy pre-selected
+    navigate(`/backtest?strategy=${strategy.id}`);
+  };
 
   return (
     <Card className={`border-l-4 ${colorClass.replace('bg-', 'border-l-').split(' ')[0] || 'border-l-blue-500'}`}>
@@ -83,7 +90,7 @@ export function StrategyCard({ strategy, performance, onEdit, onDelete, onBackte
                   <Edit className="h-4 w-4 mr-2" aria-hidden="true" />
                   Edit
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={onBacktest}>
+                <DropdownMenuItem onClick={handleBacktest}>
                   <Play className="h-4 w-4 mr-2" aria-hidden="true" />
                   Run Backtest
                 </DropdownMenuItem>
