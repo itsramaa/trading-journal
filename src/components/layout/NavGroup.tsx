@@ -1,6 +1,7 @@
 /**
  * NavGroup Component - Domain-based navigation group
  * Includes keyboard shortcut indicators in tooltips
+ * Persists collapse state to localStorage per group
  */
 import * as React from "react";
 import { ChevronRight, type LucideIcon } from "lucide-react";
@@ -21,6 +22,27 @@ import {
 import { cn } from "@/lib/utils";
 import { Link, useLocation } from "react-router-dom";
 import { Kbd } from "@/components/ui/keyboard-shortcut";
+
+// localStorage key for sidebar group states
+const SIDEBAR_GROUPS_KEY = "trading-journey-sidebar-groups";
+
+// Helper to get group states from localStorage
+function getGroupStates(): Record<string, boolean> {
+  if (typeof window === "undefined") return {};
+  try {
+    const stored = localStorage.getItem(SIDEBAR_GROUPS_KEY);
+    return stored ? JSON.parse(stored) : {};
+  } catch {
+    return {};
+  }
+}
+
+// Helper to set a single group state
+function setGroupState(groupTitle: string, isOpen: boolean) {
+  const states = getGroupStates();
+  states[groupTitle] = isOpen;
+  localStorage.setItem(SIDEBAR_GROUPS_KEY, JSON.stringify(states));
+}
 
 // Keyboard shortcut mapping for each route
 const ROUTE_SHORTCUTS: Record<string, string> = {
@@ -59,7 +81,18 @@ export function NavGroup({
   items,
   defaultOpen = true,
 }: NavGroupProps) {
-  const [isOpen, setIsOpen] = React.useState(defaultOpen);
+  // Initialize from localStorage, fallback to defaultOpen
+  const [isOpen, setIsOpen] = React.useState(() => {
+    const states = getGroupStates();
+    return states[title] !== undefined ? states[title] : defaultOpen;
+  });
+  
+  // Handler that persists state to localStorage
+  const handleOpenChange = React.useCallback((open: boolean) => {
+    setIsOpen(open);
+    setGroupState(title, open);
+  }, [title]);
+  
   const { state, setOpenMobile, isMobile } = useSidebar();
   const location = useLocation();
   const isCollapsed = state === "collapsed";
@@ -125,7 +158,7 @@ export function NavGroup({
   return (
     <Collapsible
       open={isOpen}
-      onOpenChange={setIsOpen}
+      onOpenChange={handleOpenChange}
       className="group/collapsible"
     >
       <SidebarGroup className="py-0 min-w-0">

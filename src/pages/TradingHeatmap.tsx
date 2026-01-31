@@ -1,58 +1,216 @@
 /**
- * Trading Heatmap Page - Standalone page for heatmap analysis
+ * Trading Heatmap Page - Advanced analytics for time-based performance
+ * Features: Filters, Session Breakdown, Streak Analysis, Export
  */
-import { useMemo } from "react";
+import { useState, useMemo } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Grid3X3, TrendingUp, TrendingDown, Clock } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { 
+  Grid3X3, TrendingUp, TrendingDown, Clock, Download, Sun, Moon, Sunrise,
+  Trophy, AlertTriangle, Flame, Snowflake
+} from "lucide-react";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { TradingHeatmap } from "@/components/analytics/TradingHeatmap";
+import { formatCurrency } from "@/lib/formatters";
+
+type DateRangeOption = '7d' | '30d' | '90d' | 'all';
+
+interface SessionStats {
+  trades: number;
+  pnl: number;
+  wins: number;
+  winRate: number;
+}
+
+interface StreakData {
+  longestWin: number;
+  longestLoss: number;
+  currentStreak: number;
+  isWinning: boolean;
+}
 
 export default function TradingHeatmapPage() {
   const { data: trades, isLoading } = useTradeEntries();
+  const [dateRange, setDateRange] = useState<DateRangeOption>('30d');
+  const [selectedPair, setSelectedPair] = useState<string>('all');
 
-  const closedTrades = useMemo(() => trades?.filter(t => t.status === 'closed') || [], [trades]);
+  // Get unique pairs from trades
+  const availablePairs = useMemo(() => {
+    if (!trades) return ['all'];
+    const pairs = new Set(trades.filter(t => t.pair).map(t => t.pair!));
+    return ['all', ...Array.from(pairs).sort()];
+  }, [trades]);
 
-  // Calculate heatmap insights
-  const heatmapInsights = useMemo(() => {
-    if (closedTrades.length === 0) return null;
+  // Filter trades by date range and pair
+  const filteredTrades = useMemo(() => {
+    if (!trades) return [];
     
+    let result = trades.filter(t => t.status === 'closed');
+    
+    // Date filter
+    if (dateRange !== 'all') {
+      const days = dateRange === '7d' ? 7 : dateRange === '30d' ? 30 : 90;
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - days);
+      result = result.filter(t => new Date(t.trade_date) >= cutoff);
+    }
+    
+    // Pair filter
+    if (selectedPair !== 'all') {
+      result = result.filter(t => t.pair === selectedPair);
+    }
+    
+    return result;
+  }, [trades, dateRange, selectedPair]);
+
+  // Session stats: Asia (00-08), London (08-16), NY (16-24)
+  const sessionStats = useMemo(() => {
+    const sessions: Record<'asia' | 'london' | 'ny', SessionStats> = {
+      asia: { trades: 0, pnl: 0, wins: 0, winRate: 0 },
+      london: { trades: 0, pnl: 0, wins: 0, winRate: 0 },
+      ny: { trades: 0, pnl: 0, wins: 0, winRate: 0 },
+    };
+    
+    filteredTrades.forEach(trade => {
+      const hour = new Date(trade.trade_date).getHours();
+      const pnl = trade.realized_pnl || trade.pnl || 0;
+      const session = hour < 8 ? 'asia' : hour < 16 ? 'london' : 'ny';
+      
+      sessions[session].trades++;
+      sessions[session].pnl += pnl;
+      if (pnl > 0) sessions[session].wins++;
+    });
+    
+    // Calculate win rates
+    Object.values(sessions).forEach(s => {
+      s.winRate = s.trades > 0 ? (s.wins / s.trades) * 100 : 0;
+    });
+    
+    return sessions;
+  }, [filteredTrades]);
+
+  // Streak analysis
+  const streakData = useMemo((): StreakData => {
+    if (filteredTrades.length === 0) {
+      return { longestWin: 0, longestLoss: 0, currentStreak: 0, isWinning: true };
+    }
+    
+    // Sort trades by date
+    const sorted = [...filteredTrades].sort((a, b) => 
+      new Date(a.trade_date).getTime() - new Date(b.trade_date).getTime()
+    );
+    
+    let longestWin = 0;
+    let longestLoss = 0;
+    let currentWin = 0;
+    let currentLoss = 0;
+    
+    sorted.forEach(trade => {
+      const pnl = trade.realized_pnl || trade.pnl || 0;
+      if (pnl > 0) {
+        currentWin++;
+        currentLoss = 0;
+        longestWin = Math.max(longestWin, currentWin);
+      } else {
+        currentLoss++;
+        currentWin = 0;
+        longestLoss = Math.max(longestLoss, currentLoss);
+      }
+    });
+    
+    return {
+      longestWin,
+      longestLoss,
+      currentStreak: currentWin > 0 ? currentWin : -currentLoss,
+      isWinning: currentWin > 0,
+    };
+  }, [filteredTrades]);
+
+  // Best and worst hours
+  const hourlyStats = useMemo(() => {
+    const hourMap = new Map<number, { trades: number; pnl: number; wins: number }>();
+    
+    filteredTrades.forEach(trade => {
+      const hour = new Date(trade.trade_date).getHours();
+      const pnl = trade.realized_pnl || trade.pnl || 0;
+      const existing = hourMap.get(hour) || { trades: 0, pnl: 0, wins: 0 };
+      
+      existing.trades++;
+      existing.pnl += pnl;
+      if (pnl > 0) existing.wins++;
+      
+      hourMap.set(hour, existing);
+    });
+    
+    const hours = Array.from(hourMap.entries())
+      .filter(([_, v]) => v.trades >= 2) // Min 2 trades
+      .map(([hour, data]) => ({
+        hour,
+        ...data,
+        winRate: (data.wins / data.trades) * 100,
+      }));
+    
+    const best = hours.length > 0 
+      ? hours.reduce((a, b) => a.pnl > b.pnl ? a : b)
+      : null;
+    const worst = hours.length > 0 
+      ? hours.reduce((a, b) => a.pnl < b.pnl ? a : b)
+      : null;
+    
+    return { best, worst };
+  }, [filteredTrades]);
+
+  // Export to CSV
+  const exportToCSV = () => {
     const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const grid: Map<string, { day: string; hour: number; trades: number; wins: number }> = new Map();
+    const HOURS = [0, 4, 8, 12, 16, 20];
     
-    closedTrades.forEach((trade) => {
+    // Build grid data
+    const grid = new Map<string, { trades: number; wins: number; pnl: number }>();
+    
+    filteredTrades.forEach(trade => {
       const d = new Date(trade.trade_date);
-      const day = DAYS[d.getDay()];
+      const day = d.getDay();
       const hour = Math.floor(d.getHours() / 4) * 4;
       const key = `${day}-${hour}`;
-      const existing = grid.get(key) || { day, hour, trades: 0, wins: 0 };
+      
+      const existing = grid.get(key) || { trades: 0, wins: 0, pnl: 0 };
       existing.trades++;
-      if ((trade.realized_pnl || trade.pnl || 0) > 0) existing.wins++;
+      const pnl = trade.realized_pnl || trade.pnl || 0;
+      existing.pnl += pnl;
+      if (pnl > 0) existing.wins++;
       grid.set(key, existing);
     });
     
-    const slots = Array.from(grid.values())
-      .map(s => ({ ...s, winRate: s.trades > 0 ? (s.wins / s.trades) * 100 : 0 }))
-      .filter(s => s.trades >= 3);
+    // Build CSV
+    const rows = ['Day,Time,Trades,Wins,WinRate,TotalPNL'];
     
-    if (slots.length === 0) return null;
+    DAYS.forEach((dayName, dayIdx) => {
+      HOURS.forEach(hour => {
+        const data = grid.get(`${dayIdx}-${hour}`);
+        const trades = data?.trades || 0;
+        const wins = data?.wins || 0;
+        const winRate = trades > 0 ? ((wins / trades) * 100).toFixed(1) : '0.0';
+        const pnl = data?.pnl?.toFixed(2) || '0.00';
+        rows.push(`${dayName},${hour.toString().padStart(2, '0')}:00,${trades},${wins},${winRate}%,$${pnl}`);
+      });
+    });
     
-    const sorted = [...slots].sort((a, b) => b.winRate - a.winRate);
-    const byVolume = [...slots].sort((a, b) => b.trades - a.trades);
-    
-    return {
-      best: sorted[0],
-      worst: sorted[sorted.length - 1],
-      mostActive: byVolume[0],
-    };
-  }, [closedTrades]);
-
-  const formatTimeSlot = (hour: number) => {
-    const start = hour.toString().padStart(2, '0');
-    const end = ((hour + 4) % 24).toString().padStart(2, '0');
-    return `${start}:00-${end}:00`;
+    const csv = rows.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `trading-heatmap-${dateRange}-${selectedPair}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
+
+  const formatHour = (hour: number) => `${hour.toString().padStart(2, '0')}:00`;
 
   if (isLoading) {
     return (
@@ -70,18 +228,60 @@ export default function TradingHeatmapPage() {
     );
   }
 
+  const closedTrades = trades?.filter(t => t.status === 'closed') || [];
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Page Header */}
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Grid3X3 className="h-6 w-6 text-primary" />
-            Trading Heatmap
-          </h1>
-          <p className="text-muted-foreground">
-            Analyze your trading performance by time of day and day of week
-          </p>
+        {/* Page Header with Filters */}
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+              <Grid3X3 className="h-6 w-6 text-primary" />
+              Trading Heatmap
+            </h1>
+            <p className="text-muted-foreground">
+              Analyze your trading performance by time of day and day of week
+            </p>
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={dateRange} onValueChange={(v) => setDateRange(v as DateRangeOption)}>
+              <SelectTrigger className="w-[120px]">
+                <SelectValue placeholder="Date Range" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="7d">Last 7 Days</SelectItem>
+                <SelectItem value="30d">Last 30 Days</SelectItem>
+                <SelectItem value="90d">Last 90 Days</SelectItem>
+                <SelectItem value="all">All Time</SelectItem>
+              </SelectContent>
+            </Select>
+            
+            <Select value={selectedPair} onValueChange={setSelectedPair}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="Pair" />
+              </SelectTrigger>
+              <SelectContent>
+                {availablePairs.map(pair => (
+                  <SelectItem key={pair} value={pair}>
+                    {pair === 'all' ? 'All Pairs' : pair}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="gap-2"
+              onClick={exportToCSV}
+              disabled={filteredTrades.length === 0}
+            >
+              <Download className="h-4 w-4" />
+              Export CSV
+            </Button>
+          </div>
         </div>
 
         {closedTrades.length === 0 ? (
@@ -92,58 +292,158 @@ export default function TradingHeatmapPage() {
           />
         ) : (
           <>
-            {/* Heatmap Insights */}
-            {heatmapInsights && (
-              <div className="grid gap-4 md:grid-cols-3">
-                <Card className="border-profit/20">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium flex items-center gap-2">
-                      <TrendingUp className="h-4 w-4 text-profit" />
-                      Best Time to Trade
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-lg font-bold">{heatmapInsights.best.day} {formatTimeSlot(heatmapInsights.best.hour)}</div>
-                    <p className="text-sm text-muted-foreground">
-                      {heatmapInsights.best.winRate.toFixed(0)}% win rate ({heatmapInsights.best.trades} trades)
-                    </p>
-                  </CardContent>
-                </Card>
+            {/* Session Performance Cards */}
+            <div className="grid gap-4 md:grid-cols-3">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <Moon className="h-4 w-4 text-blue-500" />
+                    Asia Session
+                    <Badge variant="outline" className="ml-auto text-xs">00:00-08:00</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className={`text-xl font-bold ${sessionStats.asia.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                    {formatCurrency(sessionStats.asia.pnl, 'USD')}
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {sessionStats.asia.trades} trades • {sessionStats.asia.winRate.toFixed(0)}% win rate
+                  </p>
+                </CardContent>
+              </Card>
 
-                <Card className="border-loss/20">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium flex items-center gap-2">
-                      <TrendingDown className="h-4 w-4 text-loss" />
-                      Worst Time to Trade
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-lg font-bold">{heatmapInsights.worst.day} {formatTimeSlot(heatmapInsights.worst.hour)}</div>
-                    <p className="text-sm text-muted-foreground">
-                      {heatmapInsights.worst.winRate.toFixed(0)}% win rate ({heatmapInsights.worst.trades} trades)
-                    </p>
-                  </CardContent>
-                </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <Sunrise className="h-4 w-4 text-orange-500" />
+                    London Session
+                    <Badge variant="outline" className="ml-auto text-xs">08:00-16:00</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className={`text-xl font-bold ${sessionStats.london.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                    {formatCurrency(sessionStats.london.pnl, 'USD')}
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {sessionStats.london.trades} trades • {sessionStats.london.winRate.toFixed(0)}% win rate
+                  </p>
+                </CardContent>
+              </Card>
 
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium flex items-center gap-2">
-                      <Clock className="h-4 w-4" />
-                      Most Active Time
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-lg font-bold">{heatmapInsights.mostActive.day} {formatTimeSlot(heatmapInsights.mostActive.hour)}</div>
-                    <p className="text-sm text-muted-foreground">
-                      {heatmapInsights.mostActive.trades} trades executed
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <Sun className="h-4 w-4 text-yellow-500" />
+                    NY Session
+                    <Badge variant="outline" className="ml-auto text-xs">16:00-24:00</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className={`text-xl font-bold ${sessionStats.ny.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                    {formatCurrency(sessionStats.ny.pnl, 'USD')}
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {sessionStats.ny.trades} trades • {sessionStats.ny.winRate.toFixed(0)}% win rate
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
 
-            {/* Heatmap Component */}
-            <TradingHeatmap />
+            {/* Main Heatmap */}
+            <TradingHeatmap trades={filteredTrades} />
+
+            {/* Stats Cards Grid */}
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              {/* Best Hour */}
+              <Card className="border-profit/20">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4 text-profit" />
+                    Best Hour
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {hourlyStats.best ? (
+                    <>
+                      <div className="text-lg font-bold">{formatHour(hourlyStats.best.hour)}</div>
+                      <p className="text-sm text-profit">
+                        {formatCurrency(hourlyStats.best.pnl, 'USD')} ({hourlyStats.best.trades} trades)
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Not enough data</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Worst Hour */}
+              <Card className="border-loss/20">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <TrendingDown className="h-4 w-4 text-loss" />
+                    Worst Hour
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {hourlyStats.worst ? (
+                    <>
+                      <div className="text-lg font-bold">{formatHour(hourlyStats.worst.hour)}</div>
+                      <p className="text-sm text-loss">
+                        {formatCurrency(hourlyStats.worst.pnl, 'USD')} ({hourlyStats.worst.trades} trades)
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Not enough data</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Longest Win Streak */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <Flame className="h-4 w-4 text-orange-500" />
+                    Longest Win Streak
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-lg font-bold">{streakData.longestWin} trades</div>
+                  <p className="text-sm text-muted-foreground">
+                    Current: {streakData.currentStreak > 0 ? `${streakData.currentStreak} wins` : 'N/A'}
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Longest Loss Streak */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <Snowflake className="h-4 w-4 text-blue-500" />
+                    Longest Loss Streak
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-lg font-bold">{streakData.longestLoss} trades</div>
+                  <p className="text-sm text-muted-foreground">
+                    Current: {streakData.currentStreak < 0 ? `${Math.abs(streakData.currentStreak)} losses` : 'N/A'}
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Summary Footer */}
+            <div className="flex items-center justify-between text-xs text-muted-foreground border-t pt-4">
+              <span>
+                Showing {filteredTrades.length} closed trades
+                {selectedPair !== 'all' && ` for ${selectedPair}`}
+                {dateRange !== 'all' && ` in last ${dateRange.replace('d', ' days')}`}
+              </span>
+              <span>
+                Total P&L: <span className={filteredTrades.reduce((sum, t) => sum + (t.realized_pnl || t.pnl || 0), 0) >= 0 ? 'text-profit' : 'text-loss'}>
+                  {formatCurrency(filteredTrades.reduce((sum, t) => sum + (t.realized_pnl || t.pnl || 0), 0), 'USD')}
+                </span>
+              </span>
+            </div>
           </>
         )}
       </div>
