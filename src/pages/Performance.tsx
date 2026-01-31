@@ -395,11 +395,37 @@ export default function Performance() {
                   <CardContent><div className="text-xl font-bold">{stats.totalTrades}</div></CardContent>
                 </Card>
                 <Card>
-                  <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Total P&L</CardTitle></CardHeader>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium flex items-center gap-1">
+                      Total P&L
+                      <InfoTooltip content="Total P&L from trade_entries. For Binance users, see Daily P&L page for Net P&L breakdown (Gross - Fees + Funding)." />
+                    </CardTitle>
+                  </CardHeader>
                   <CardContent>
                     <div className={`text-xl font-bold ${stats.totalPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
                       {stats.totalPnl >= 0 ? '+' : ''}{formatCurrency(stats.totalPnl)}
                     </div>
+                    {/* Show Net P&L breakdown for Binance users */}
+                    {binanceStats.isConnected && binanceStats.grossPnl !== 0 && (
+                      <div className="mt-2 pt-2 border-t space-y-1">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-muted-foreground">Gross (Today)</span>
+                          <span className={binanceStats.grossPnl >= 0 ? 'text-profit' : 'text-loss'}>
+                            {formatCurrency(binanceStats.grossPnl)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-xs">
+                          <span className="text-muted-foreground">Fees</span>
+                          <span className="text-muted-foreground">-{formatCurrency(binanceStats.totalCommission)}</span>
+                        </div>
+                        <div className="flex justify-between text-xs font-medium">
+                          <span>Net P&L</span>
+                          <span className={binanceStats.netPnl >= 0 ? 'text-profit' : 'text-loss'}>
+                            {binanceStats.netPnl >= 0 ? '+' : ''}{formatCurrency(binanceStats.netPnl)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>

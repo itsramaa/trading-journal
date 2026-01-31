@@ -1,16 +1,31 @@
 /**
  * Risk Summary Card - Shows daily risk status on dashboard
  * Now displays Binance badge when using real data
+ * Enhanced with correlation warning for open positions
  */
+import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Shield, AlertTriangle, XCircle, CheckCircle, Wifi } from "lucide-react";
+import { Shield, AlertTriangle, XCircle, CheckCircle, Wifi, Link2 } from "lucide-react";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { useDailyRiskStatus } from "@/hooks/use-risk-profile";
+import { useBinancePositions, useBinanceConnectionStatus } from "@/features/binance";
+import { checkCorrelationRisk, extractSymbols, type CorrelationWarning } from "@/lib/correlation-utils";
 
 export function RiskSummaryCard() {
   const { data: riskStatus, riskProfile, isBinanceConnected } = useDailyRiskStatus();
+  const { data: positions = [] } = useBinancePositions();
+  const { data: connectionStatus } = useBinanceConnectionStatus();
+
+  // Check correlation risk for open positions
+  const correlationWarning = useMemo((): CorrelationWarning | null => {
+    if (!connectionStatus?.isConnected || !positions) return null;
+    const activePositions = positions.filter(p => p.positionAmt !== 0);
+    if (activePositions.length < 2) return null;
+    const symbols = extractSymbols(activePositions);
+    return checkCorrelationRisk(symbols);
+  }, [positions, connectionStatus]);
 
   if (!riskProfile) {
     return (
@@ -122,6 +137,26 @@ export function RiskSummaryCard() {
             <InfoTooltip content="Your trading status based on daily loss limit. Trading is disabled when you've used 100% of your allowed daily loss." />
           </span>
         </div>
+
+        {/* Correlation Warning */}
+        {correlationWarning && (
+          <div className="flex items-start gap-2 pt-2 border-t">
+            <Link2 className="h-4 w-4 text-warning mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <span className="text-sm font-medium text-warning">
+                Correlated Positions
+              </span>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {correlationWarning.pairs.length} pair{correlationWarning.pairs.length !== 1 ? 's' : ''} ({(correlationWarning.avgCorrelation * 100).toFixed(0)}% avg)
+                {correlationWarning.highRiskCount > 0 && (
+                  <Badge variant="outline" className="ml-1.5 text-xs border-warning/30 text-warning">
+                    High Risk
+                  </Badge>
+                )}
+              </p>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

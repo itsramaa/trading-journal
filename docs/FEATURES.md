@@ -8,14 +8,15 @@ Central hub untuk melihat trading performance overview dan quick insights.
 ### Components
 | Component | Purpose |
 |-----------|---------|
+| `PortfolioOverviewCard` | **NEW** Total Capital, Today's Net P&L, Weekly P&L, Win Rate |
 | `TodayPerformance` | 7-day stats (streak, trades, best/worst) |
 | `SmartQuickActions` | Context-aware action buttons |
 | `MarketScoreWidget` | Unified market score dengan bias |
 | `SystemStatusIndicator` | Trading gate status (green/yellow/red) |
 | `MarketSessionsWidget` | Active trading sessions (Asia/London/NY) |
 | `OpenPositionsTable` | Live Binance positions |
-| `RiskSummaryCard` | Daily loss limit usage |
-| `AIInsightsWidget` | AI-powered recommendations |
+| `RiskSummaryCard` | Daily loss limit usage + **Correlation Warning** |
+| `AIInsightsWidget` | AI recommendations + **Market Regime Badge** + **Correlation Warning** |
 | `VolatilityMeterWidget` | Market volatility indicator |
 | `DashboardAnalyticsSummary` | Quick performance metrics |
 
@@ -272,11 +273,12 @@ Calculate position size dengan context awareness.
 - Drawdown analysis
 - Trade distribution charts
 - Period comparison
+- **Net P&L Breakdown** (Gross - Fees + Funding) for Binance users
 
 ### Daily P&L Page
 - Today's P&L breakdown
 - Week-over-week comparison
-- Symbol breakdown
+- **Real Symbol Breakdown** (from `bySymbol` data, not mock)
 - Best/worst trade stats
 - Export to CSV/PDF
 

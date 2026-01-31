@@ -1,7 +1,7 @@
 /**
  * Trading Dashboard - Main overview showing trading performance
  * Layout order:
- * 1. Quick Actions (no title), 2. 7-Day Stats (no title), 3. Market Score, 4. System Status, 
+ * 0. Portfolio Overview (FIRST), 1. Quick Actions, 2. 7-Day Stats, 3. Market Score, 4. System Status, 
  * 5. Market Sessions, 6. Active Positions, 7. Today's Activity, 8. Risk & AI Insights
  */
 import { useMemo } from "react";
@@ -23,6 +23,7 @@ import { MarketScoreWidget } from "@/components/dashboard/MarketScoreWidget";
 import { DashboardAnalyticsSummary } from "@/components/dashboard/DashboardAnalyticsSummary";
 import { SmartQuickActions } from "@/components/dashboard/SmartQuickActions";
 import { StrategyCloneStatsWidget } from "@/components/dashboard/StrategyCloneStatsWidget";
+import { PortfolioOverviewCard } from "@/components/dashboard/PortfolioOverviewCard";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { useRealtime } from "@/hooks/use-realtime";
 import { 
@@ -124,6 +125,9 @@ const Dashboard = () => {
           <h1 className="text-2xl font-bold tracking-tight">{t('dashboard.title')}</h1>
           <p className="text-muted-foreground">{t('dashboard.welcome')}</p>
         </div>
+
+        {/* 0. Portfolio Overview - FIRST WIDGET */}
+        <PortfolioOverviewCard />
 
         {/* 1. 7-Day Stats - At top with title */}
         {hasTrades && (

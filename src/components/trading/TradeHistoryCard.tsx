@@ -147,7 +147,15 @@ export function TradeHistoryCard({
           <div className="flex items-center gap-1">
             <span className="text-muted-foreground">R:R:</span> 
             <RiskRewardTooltip />
-            <span>{rr > 0 ? `${rr.toFixed(2)}:1` : '-'}</span>
+            {rr > 0 ? (
+              <span>{rr.toFixed(2)}:1</span>
+            ) : isBinance && !entry.stop_loss ? (
+              <span className="text-muted-foreground text-xs italic">
+                Add via Journal
+              </span>
+            ) : (
+              <span>-</span>
+            )}
           </div>
           <div className="flex items-center gap-1">
             <span className="text-muted-foreground">Confluence:</span>
