@@ -1,297 +1,142 @@
 
-# Plan: Fix Sidebar Group Persistence, Market Data Widgets & Advanced Heatmap
+# Plan: Fix Whale Tracking & Trading Opportunities
 
-## Ringkasan Masalah
+## 🔍 Root Cause Analysis
 
-### 1. Sidebar Group Collapse State Tidak Persist
-**Root Cause**: `NavGroup` menggunakan `useState(defaultOpen)` yang di-inisialisasi ulang setiap render/navigasi karena:
-- `defaultOpen={true}` selalu di-pass dari `AppSidebar`
-- State collapse per-group tidak disimpan ke localStorage
+### Perbedaan Kunci antara Widget
 
-**Solusi**: Buat sistem persistence untuk setiap group collapse state:
-- Simpan state collapse tiap group ke localStorage dengan key unik per group title
-- Inisialisasi state dari localStorage saat mount
+| Aspek | Volatility Meter ✅ | Whale Tracking ❌ | Trading Opportunities ❌ |
+|-------|---------------------|-------------------|--------------------------|
+| **Data Source** | `useMultiSymbolVolatility(symbols)` - fetch LANGSUNG per symbol | `useMarketSentiment()` - response dari edge function | `useMarketSentiment()` - response dari edge function |
+| **Cara Fetch** | Hook menerima array `symbols[]` dan fetch data untuk SETIAP symbol secara individual via `Promise.all()` | Mengambil dari field `sentimentData.whaleActivity` - data STATIC dari edge function | Mengambil dari field `sentimentData.opportunities` - data STATIC dari edge function |
+| **Dynamic Selection** | ✅ Jika user pilih DOTUSDT, hook langsung fetch volatility data untuk DOTUSDT | ❌ Edge function HANYA return data untuk BTC, ETH, SOL (hardcoded) | ❌ Edge function HANYA return data untuk BTC, ETH, SOL (hardcoded) |
 
-### 2. Whale Tracking & Trading Opportunities Tidak Menampilkan Data
-**Root Cause**: Data dari API `market-insight` menggunakan format berbeda:
-- Whale: `{ asset: 'BTC' }` - bukan `'BTCUSDT'`
-- Opportunities: `{ pair: 'BTC/USDT' }` - bukan `'BTCUSDT'`
+### Masalah Utama
 
-Setelah review ulang, logika filter sudah benar tapi perlu dipastikan data tersedia. Jika API tidak mengembalikan data untuk top 5, widget akan kosong.
+1. **Edge function `market-insight`** hanya fetch data untuk 3 asset: `BTC`, `ETH`, `SOL` (hardcoded di lines 229-247)
 
-**Catatan**: Konsep Volatility Meter menggunakan hook `useMultiSymbolVolatility` yang fetch data langsung dari Binance. Whale Tracking dan Trading Opportunities menggunakan data dari edge function `market-insight`. Konsepnya BERBEDA - Volatility fetches real-time, sedangkan Whale/Opportunities bergantung pada respons edge function.
+2. **Tidak ada mekanisme request dynamic symbol** - Berbeda dengan `useMultiSymbolVolatility` yang menerima array symbols dan fetch per symbol
 
-**Solusi**: 
-- Pastikan menampilkan data yang ada tanpa filter ketat jika top 5 tidak tersedia
-- Fallback ke semua data yang ada, limit 5
+3. **Data filter di MarketData.tsx** mencari TOP_5_ASSETS yang tidak pernah dikembalikan oleh edge function:
+   - TOP_5_ASSETS = `['BTC', 'ETH', 'SOL', 'XRP', 'BNB']`
+   - Edge function hanya return: `['BTC', 'ETH', 'SOL']`
+   - XRP dan BNB TIDAK PERNAH ADA dalam response!
 
-### 3. Heatmap Perlu Ditingkatkan
-**Current State**: Heatmap dasar dengan PNL di cell dan tooltip untuk trades/winrate.
-
-**Enhancement Plan**:
-- Tambah filter by pair dan date range
-- Tambah session breakdown (Asia, London, NY)
-- Tambah average PNL per session summary cards
-- Tambah streak analysis (consecutive winning/losing hours)
-- Improve visual dengan gradient yang lebih halus
-- Tambah export capability
+4. **Selected pair tidak di-fetch** - Jika user pilih DOGEUSDT, tidak ada mekanisme untuk fetch whale/opportunity data untuk DOGE
 
 ---
 
-## Bagian 1: Fix Sidebar Group Collapse Persistence
+## ✅ Solusi: Buat Hook Khusus + Update Edge Function
 
-### File: `src/components/layout/NavGroup.tsx`
+### Pendekatan: Samakan arsitektur dengan Volatility Meter
 
-**Perubahan**:
+**Volatility Meter Flow:**
+```
+MarketData.tsx
+    ↓
+<VolatilityMeterWidget symbols={volatilitySymbols} />
+    ↓
+useMultiSymbolVolatility(symbols) ← Hook terima array symbols
+    ↓
+Promise.all(symbols.map(fetch)) ← Fetch SETIAP symbol
+    ↓
+Binance API (historical-volatility) per symbol
+```
+
+**Yang perlu dibuat untuk Whale & Opportunities:**
+```
+MarketData.tsx
+    ↓
+<WhaleTrackingWidget symbols={whaleSymbols} />
+<TradingOpportunitiesWidget pairs={opportunityPairs} />
+    ↓
+useMultiSymbolWhaleActivity(symbols) ← Hook BARU
+useMultiSymbolOpportunities(pairs) ← Hook BARU
+    ↓
+Promise.all(symbols.map(fetch)) ← Fetch SETIAP symbol
+    ↓
+Edge function dengan parameter symbol
+```
+
+---
+
+## Implementasi Detail
+
+### 1. Update Edge Function `market-insight`
+
+Modifikasi untuk menerima parameter `symbols`:
+
 ```typescript
-// Tambah localStorage key per group
-const SIDEBAR_GROUPS_KEY = "trading-journey-sidebar-groups";
+// supabase/functions/market-insight/index.ts
 
-// Helper untuk get/set group states dari localStorage
-function getGroupStates(): Record<string, boolean> {
-  if (typeof window === "undefined") return {};
-  const stored = localStorage.getItem(SIDEBAR_GROUPS_KEY);
-  if (!stored) return {};
+serve(async (req) => {
+  // Parse request body untuk symbols (opsional)
+  let requestedSymbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT']; // default
+  
   try {
-    return JSON.parse(stored);
+    const body = await req.json();
+    if (body.symbols && Array.isArray(body.symbols)) {
+      // User bisa request specific symbols
+      requestedSymbols = body.symbols;
+    }
   } catch {
-    return {};
+    // No body, use defaults
   }
-}
-
-function setGroupState(groupTitle: string, isOpen: boolean) {
-  const states = getGroupStates();
-  states[groupTitle] = isOpen;
-  localStorage.setItem(SIDEBAR_GROUPS_KEY, JSON.stringify(states));
-}
-
-// Dalam NavGroup component:
-export function NavGroup({ title, items, defaultOpen = true }) {
-  // Inisialisasi dari localStorage
-  const [isOpen, setIsOpen] = React.useState(() => {
-    const states = getGroupStates();
-    return states[title] ?? defaultOpen;
-  });
   
-  // Handler yang persist ke localStorage
-  const handleOpenChange = (open: boolean) => {
-    setIsOpen(open);
-    setGroupState(title, open);
-  };
-  
-  return (
-    <Collapsible
-      open={isOpen}
-      onOpenChange={handleOpenChange}
-      ...
-    />
+  // Fetch data untuk SEMUA requested symbols
+  const symbolData = await Promise.all(
+    requestedSymbols.map(async (symbol) => {
+      const klines = await fetchBinanceKlines(symbol, '1h', 200);
+      const ticker = await fetchBinanceTicker(symbol);
+      // ... calculate whale, volatility, opportunity per symbol
+    })
   );
-}
+  
+  // Build response arrays
+  return { whaleActivity: [...], opportunities: [...], volatility: [...] };
+});
 ```
 
----
-
-## Bagian 2: Fix Whale Tracking & Trading Opportunities
-
-### File: `src/pages/MarketData.tsx`
-
-**Perubahan pada `getWhaleData()`**:
-```typescript
-const getWhaleData = () => {
-  if (!sentimentData?.whaleActivity) return [];
-  
-  const allWhales = sentimentData.whaleActivity;
-  if (allWhales.length === 0) return [];
-  
-  // Check if selected asset is in top 5
-  const isSelectedInTop5 = TOP_5_ASSETS.includes(selectedAsset);
-  
-  // Filter for top 5 first
-  let top5Data = allWhales.filter(w => TOP_5_ASSETS.includes(w.asset));
-  
-  // If no top 5 data, fallback to first 5 available
-  if (top5Data.length === 0) {
-    top5Data = allWhales.slice(0, 5);
-  }
-  
-  // If selected NOT in top 5 and exists in data, prepend it
-  if (!isSelectedInTop5) {
-    const selectedWhale = allWhales.find(w => w.asset === selectedAsset);
-    if (selectedWhale) {
-      return [selectedWhale, ...top5Data.slice(0, 4)];
-    }
-  }
-  
-  return top5Data.slice(0, 5);
-};
-```
-
-**Perubahan pada `getOpportunitiesData()`**:
-```typescript
-const getOpportunitiesData = () => {
-  if (!sentimentData?.opportunities) return [];
-  
-  const allOpps = sentimentData.opportunities;
-  if (allOpps.length === 0) return [];
-  
-  // Check if selected pair is in top 5
-  const isSelectedInTop5 = TOP_5_OPP_PAIRS.includes(selectedOppPair);
-  
-  // Filter for top 5 first
-  let top5Data = allOpps.filter(o => TOP_5_OPP_PAIRS.includes(o.pair));
-  
-  // If no top 5 data, fallback to first 5 available
-  if (top5Data.length === 0) {
-    top5Data = allOpps.slice(0, 5);
-  }
-  
-  // If selected NOT in top 5 and exists in data, prepend it
-  if (!isSelectedInTop5) {
-    const selectedOpp = allOpps.find(o => o.pair === selectedOppPair);
-    if (selectedOpp) {
-      return [selectedOpp, ...top5Data.slice(0, 4)];
-    }
-  }
-  
-  return top5Data.slice(0, 5);
-};
-```
-
----
-
-## Bagian 3: Advanced Heatmap Features
-
-### File: `src/pages/TradingHeatmap.tsx` (Major Enhancement)
-
-**New Features**:
-1. **Date Range Filter** - Filter trades by week/month/quarter
-2. **Pair Filter** - Filter by specific trading pair
-3. **Session Summary Cards** - Asia (00-08), London (08-16), NY (16-24) performance
-4. **Streak Analysis** - Consecutive winning/losing periods
-5. **Best/Worst Hour Stats** - Detailed breakdown
-6. **Export Button** - Export heatmap data as CSV
-
-**New Structure**:
-```
-Page Header + Filters (Pair, Date Range)
-↓
-Session Performance Cards (3 cards: Asia, London, NY)
-↓
-Main Heatmap Grid (enhanced with smoother gradients)
-↓
-Stats Cards (Best Hour, Worst Hour, Longest Win Streak, Longest Loss Streak)
-↓
-Export Button
-```
-
-### File: `src/components/analytics/TradingHeatmap.tsx` (Enhanced)
-
-**Enhancements**:
-1. Accept filters as props (pair, dateRange)
-2. Dynamic color scale based on max/min PNL
-3. Better text contrast for light/dark values
-4. Session indicators on time rows
-
----
-
-## Technical Implementation Details
-
-### NavGroup Persistence - Full Code
+### 2. Buat Hook `useMultiSymbolMarketInsight`
 
 ```typescript
-// src/components/layout/NavGroup.tsx (partial)
+// src/features/market-insight/useMultiSymbolMarketInsight.ts
 
-const SIDEBAR_GROUPS_KEY = "trading-journey-sidebar-groups";
-
-function getGroupStates(): Record<string, boolean> {
-  if (typeof window === "undefined") return {};
-  try {
-    const stored = localStorage.getItem(SIDEBAR_GROUPS_KEY);
-    return stored ? JSON.parse(stored) : {};
-  } catch {
-    return {};
-  }
-}
-
-function setGroupState(groupTitle: string, isOpen: boolean) {
-  const states = getGroupStates();
-  states[groupTitle] = isOpen;
-  localStorage.setItem(SIDEBAR_GROUPS_KEY, JSON.stringify(states));
-}
-
-export function NavGroup({ title, items, defaultOpen = true }) {
-  const [isOpen, setIsOpen] = React.useState(() => {
-    const states = getGroupStates();
-    return states[title] !== undefined ? states[title] : defaultOpen;
+export function useMultiSymbolMarketInsight(symbols: string[]) {
+  return useQuery({
+    queryKey: ['market-insight-multi', symbols.join(',')],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke('market-insight', {
+        body: { symbols }
+      });
+      
+      if (error) throw error;
+      return data;
+    },
+    staleTime: 5 * 60 * 1000,
+    enabled: symbols.length > 0,
   });
-
-  const handleOpenChange = React.useCallback((open: boolean) => {
-    setIsOpen(open);
-    setGroupState(title, open);
-  }, [title]);
-
-  // ... rest of component
 }
 ```
 
-### Heatmap Page - New State
+### 3. Update MarketData.tsx
 
 ```typescript
-// src/pages/TradingHeatmap.tsx
+// src/pages/MarketData.tsx
 
-const [dateRange, setDateRange] = useState<'7d' | '30d' | '90d' | 'all'>('30d');
-const [selectedPair, setSelectedPair] = useState<string>('all');
-
-// Unique pairs from trades
-const availablePairs = useMemo(() => {
-  if (!trades) return [];
-  const pairs = new Set(trades.map(t => t.pair || 'Unknown'));
-  return ['all', ...Array.from(pairs)];
-}, [trades]);
-
-// Filter trades by date range and pair
-const filteredTrades = useMemo(() => {
-  if (!trades) return [];
-  
-  let result = trades.filter(t => t.status === 'closed');
-  
-  // Date filter
-  if (dateRange !== 'all') {
-    const days = dateRange === '7d' ? 7 : dateRange === '30d' ? 30 : 90;
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - days);
-    result = result.filter(t => new Date(t.trade_date) >= cutoff);
+// Compute symbols to fetch (Top 5 + selected if not in top 5)
+const symbolsToFetch = useMemo(() => {
+  const base = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'XRPUSDT', 'BNBUSDT'];
+  if (selectedPair && !base.includes(selectedPair)) {
+    return [selectedPair, ...base];
   }
-  
-  // Pair filter
-  if (selectedPair !== 'all') {
-    result = result.filter(t => t.pair === selectedPair);
-  }
-  
-  return result;
-}, [trades, dateRange, selectedPair]);
+  return base;
+}, [selectedPair]);
 
-// Session stats
-const sessionStats = useMemo(() => {
-  // Asia: 00:00-08:00, London: 08:00-16:00, NY: 16:00-24:00
-  const sessions = {
-    asia: { trades: 0, pnl: 0, wins: 0 },
-    london: { trades: 0, pnl: 0, wins: 0 },
-    ny: { trades: 0, pnl: 0, wins: 0 },
-  };
-  
-  filteredTrades.forEach(trade => {
-    const hour = new Date(trade.trade_date).getHours();
-    const pnl = trade.realized_pnl || trade.pnl || 0;
-    const session = hour < 8 ? 'asia' : hour < 16 ? 'london' : 'ny';
-    
-    sessions[session].trades++;
-    sessions[session].pnl += pnl;
-    if (pnl > 0) sessions[session].wins++;
-  });
-  
-  return sessions;
-}, [filteredTrades]);
+// Use new hook
+const { data: marketData, isLoading } = useMultiSymbolMarketInsight(symbolsToFetch);
+
+// Now whaleActivity and opportunities will have data for ALL requested symbols!
 ```
 
 ---
@@ -300,19 +145,28 @@ const sessionStats = useMemo(() => {
 
 | File | Action | Description |
 |------|--------|-------------|
-| `src/components/layout/NavGroup.tsx` | EDIT | Add localStorage persistence per group |
-| `src/pages/MarketData.tsx` | EDIT | Fix whale/opportunities data filtering with fallbacks |
-| `src/pages/TradingHeatmap.tsx` | REWRITE | Add filters, session cards, streak analysis, export |
-| `src/components/analytics/TradingHeatmap.tsx` | EDIT | Accept filter props, improve gradients |
+| `supabase/functions/market-insight/index.ts` | EDIT | Accept `symbols` parameter, fetch dynamic symbols |
+| `src/features/market-insight/useMultiSymbolMarketInsight.ts` | CREATE | New hook yang pass symbols ke edge function |
+| `src/features/market-insight/index.ts` | EDIT | Export hook baru |
+| `src/pages/MarketData.tsx` | EDIT | Gunakan hook baru dengan dynamic symbols |
 
 ---
 
 ## Catatan Teknis
 
-1. **Sidebar State Key**: Menggunakan `"trading-journey-sidebar-groups"` sebagai key terpisah dari sidebar main state untuk isolasi.
+1. **Backward Compatibility**: Edge function tetap default ke BTC/ETH/SOL jika tidak ada body
 
-2. **Fallback Strategy**: Whale Tracking dan Trading Opportunities akan menampilkan data yang ada jika top 5 tidak tersedia, mencegah widget kosong.
+2. **Rate Limit**: Dengan 5-6 symbols, akan ada 5-6 parallel fetch ke Binance (masih dalam limit 1200/min)
 
-3. **Heatmap Sessions**: Menggunakan UTC atau local time tergantung zona waktu user. Implementasi menggunakan local time untuk konsistensi dengan trade entry.
+3. **Caching**: TanStack Query akan cache berdasarkan `queryKey` yang include symbols, jadi different symbol sets = different cache entries
 
-4. **Export Format**: CSV dengan kolom: Day, Time, Trades, Wins, WinRate, TotalPNL untuk mudah dianalisis di Excel/Google Sheets.
+4. **Performance**: Promise.all() di edge function untuk parallel fetching (sama seperti Volatility Meter)
+
+---
+
+## Expected Behavior After Fix
+
+1. **Whale Tracking**: Menampilkan data untuk Top 5 (BTC, ETH, SOL, XRP, BNB) + selected pair
+2. **Trading Opportunities**: Menampilkan data untuk Top 5 + selected pair
+3. **Dynamic Selection**: Ketika user pilih DOGEUSDT di Market Sentiment, DOGE akan muncul di paling atas kedua widget
+4. **Konsisten dengan Volatility Meter**: Semua 3 widget menggunakan pola yang sama - pass symbols, fetch per symbol, display results
