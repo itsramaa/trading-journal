@@ -20,6 +20,7 @@ import { useNavigationShortcuts, Kbd } from "@/components/ui/keyboard-shortcut";
 import { CommandPalette, useCommandPalette } from "./CommandPalette";
 import { useSidebarPersistence } from "@/hooks/use-sidebar-persistence";
 import { useNotificationsRealtime } from "@/hooks/use-notifications";
+import { useNotificationTriggers } from "@/hooks/use-notification-triggers";
 import { Button } from "@/components/ui/button";
 import { Search } from "lucide-react";
 
@@ -82,6 +83,13 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   
   // Enable realtime notifications
   useNotificationsRealtime();
+  
+  // Enable automatic notification triggers (trade closed, risk warnings, market alerts)
+  useNotificationTriggers({
+    enableTradeNotifications: true,
+    enableRiskNotifications: true,
+    enableMarketAlerts: true,
+  });
 
   return (
     <SidebarProvider 
