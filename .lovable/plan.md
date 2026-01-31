@@ -1,16 +1,16 @@
 
-
-# Page Analysis: Risk Calculator (`/calculator`)
+# Page Analysis: Performance Overview (`/performance`)
 
 ## Page Intent
 
 **Primary Job-to-be-Done (JTBD):**
-> "Sebagai trader, saya ingin menghitung ukuran posisi yang optimal berdasarkan parameter risiko saya sehingga saya dapat masuk trade dengan ukuran yang tepat tanpa overexposure."
+> "Sebagai trader, saya ingin melihat analisis mendalam tentang performa trading saya secara keseluruhan sehingga saya dapat mengidentifikasi kekuatan, kelemahan, dan area yang perlu diperbaiki."
 
 **Secondary JTBD:**
-- Mendapatkan rekomendasi stop-loss berbasis volatilitas
-- Melihat context warnings sebelum sizing
-- Memahami bagaimana risk adjustment bekerja
+- Membandingkan performa antar strategi
+- Melihat equity curve dengan anotasi event makro
+- Menganalisis performa berdasarkan konteks pasar (Fear/Greed, Volatility, Event Days)
+- Export laporan performa ke CSV/PDF
 
 ---
 
@@ -19,170 +19,276 @@
 ### Page Header
 | Element | Status | Notes |
 |---------|--------|-------|
-| Title: "Risk Calculator" | ✅ OK | Icon + title sesuai standard |
-| Description | ✅ OK | Jelas dan informatif |
+| Title: "Performance Analytics" | ✅ OK | Icon + title sesuai standard |
+| Description | ✅ OK | "Deep dive into your trading performance metrics" |
+| Export Buttons | ✅ OK | CSV + PDF export buttons di header |
 
-### Top Section (Above Tabs) - 2 Column Grid
-| Card | Component | Status | Notes |
-|------|-----------|--------|-------|
-| Market Score Widget | `MarketScoreWidget` (compact) | ✅ OK | Shows bias, score, high-impact event warning |
-| Context Warnings | `ContextWarnings` | ✅ OK | Volatility, events, correlation warnings |
-
-### Tab 1: Position Size Calculator
-| Section | Status | Issues Found |
-|---------|--------|--------------|
-| Calculator Inputs | ✅ OK | 6 inputs: Balance, Risk%, Entry, Stop Loss, Direction, Leverage |
-| Calculator Results | ✅ OK | Position size, value, risk amount, potential profit |
-| Commission Rates | ⚠️ Minor | Uses local `selectedSymbol` instead of global MarketContext |
-| Max Leverage Info | ✅ OK | Shows max leverage for notional |
-| Quick Reference R | ✅ OK | 1R, 2R, 3R badges |
-| Risk Adjustment Breakdown | ✅ OK | Full breakdown card at bottom |
-
-### Tab 2: Volatility-Based Stop Loss
-| Section | Status | Notes |
+### Filters Card
+| Element | Status | Notes |
 |---------|--------|-------|
-| Volatility Stats | ✅ OK | Daily vol, ATR, annualized |
-| Recommendation Message | ✅ OK | Context-aware |
-| Stop Loss Suggestions | ✅ OK | Tight, 1x ATR, 1.5x ATR, 2x ATR |
-| Apply buttons | ✅ OK | Arrows to apply SL to calculator |
+| DateRangeFilter | ✅ OK | Date picker untuk filter periode |
+| Strategy Filter | ✅ OK | Badge-based multi-select untuk strategy |
+| Event Days Toggle | ✅ OK | Switch untuk filter hanya event days |
+
+### Tabs Structure
+| Tab | Content | Status |
+|-----|---------|--------|
+| **Overview** | Key metrics, equity curve, contextual charts | ✅ Comprehensive |
+| **Strategies** | Strategy performance breakdown | ✅ OK |
+
+---
+
+## Overview Tab Content Analysis
+
+### Section 1: 7-Day Stats Card (`SevenDayStatsCard`)
+| Card | Metric | Status |
+|------|--------|--------|
+| Current Streak | Win/Loss streak count | ✅ OK |
+| Trades (7D) | Trade count in 7 days | ✅ OK |
+| Best Day | Best P&L day | ✅ OK - uses `formatCurrency()` |
+| Worst Day | Worst P&L day | ✅ OK - uses `formatCurrency()` |
+
+### Section 2: Key Metrics (4-Column Grid)
+| Card | Metric | Status | Decimal Issue |
+|------|--------|--------|---------------|
+| Win Rate | `stats.winRate.toFixed(1)%` | ⚠️ Minor | Should use `formatWinRate()` |
+| Profit Factor | `stats.profitFactor.toFixed(2)` | ✅ OK | Handles Infinity case |
+| Expectancy | `formatCurrency(stats.expectancy)` | ✅ OK | Local formatter |
+| Max Drawdown | `stats.maxDrawdownPercent.toFixed(1)%` | ⚠️ Minor | Should use `formatPercentUnsigned()` |
+
+### Section 3: Additional Metrics (4-Column Grid)
+| Card | Metric | Status | Decimal Issue |
+|------|--------|--------|---------------|
+| Sharpe Ratio | `stats.sharpeRatio.toFixed(2)` | ✅ OK | 2 decimals appropriate |
+| Avg R:R | `stats.avgRR.toFixed(2):1` | ✅ OK | Should use `formatRatio()` |
+| Total Trades | `stats.totalTrades` | ✅ OK | Integer |
+| Total P&L | `formatCurrency(stats.totalPnl)` | ✅ OK | With Binance breakdown |
+
+### Section 4: Equity Curve (`EquityCurveWithEvents`)
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Area chart | ✅ OK | Cumulative P&L |
+| Event annotations | ✅ OK | Diamond markers for FOMC/CPI/NFP |
+| Custom tooltip | ✅ OK | Shows P&L + event info |
+| Event legend | ✅ OK | Lists event days |
+
+### Section 5: Contextual Charts (2-Column Grid)
+| Component | Purpose | Status |
+|-----------|---------|--------|
+| `CombinedContextualScore` | Unified context score | ✅ OK |
+| `TradingHeatmapChart` | Time-based win rate | ✅ OK |
+
+### Section 6: Event & Fear/Greed Charts (2-Column Grid)
+| Component | Purpose | Status |
+|-----------|---------|--------|
+| `EventDayComparison` | Event days vs normal days | ✅ OK |
+| `FearGreedZoneChart` | Performance by F/G zone | ✅ OK |
+
+### Section 7: Volatility Chart
+| Component | Purpose | Status |
+|-----------|---------|--------|
+| `VolatilityLevelChart` | Performance by vol level | ✅ OK |
+
+### Section 8: Drawdown Chart
+| Component | Purpose | Status |
+|-----------|---------|--------|
+| `DrawdownChart` | Equity drawdown over time | ✅ OK - uses `.toFixed(2)%` |
+
+---
+
+## Strategies Tab Content Analysis
+
+### Strategy Performance Table
+| Column | Status | Decimal Issue |
+|--------|--------|---------------|
+| Win Rate | `sp.winRate.toFixed(1)%` | ⚠️ Should use `formatWinRate()` |
+| Avg R:R | `sp.avgRR.toFixed(2):1` | ⚠️ Should use `formatRatio()` |
+| Avg P&L | `formatCurrency(sp.avgPnl)` | ✅ OK |
+| Contribution | `sp.contribution.toFixed(1)%` | ⚠️ Should use `formatWinRate()` |
+| Total P&L | `formatCurrency(sp.totalPnl)` | ✅ OK |
+
+### Strategy Comparison Chart
+| Feature | Status |
+|---------|--------|
+| Horizontal bar chart | ✅ OK |
+| P&L by strategy | ✅ OK |
+| Color coding | ✅ OK (profit/loss) |
 
 ---
 
 ## Issues Identified
 
-### Issue 1: Symbol Selection Not Connected to MarketContext (MEDIUM)
-**Current:** `selectedSymbol` is local state hardcoded to `"BTCUSDT"`
-**Expected:** Should use `useMarketContext()` for global symbol selection
-**Impact:** User changes symbol elsewhere, calculator doesn't reflect it
-
+### Issue 1: Local `formatCurrency` Function (MEDIUM)
+**Current:** Page defines its own `formatCurrency` function
 ```typescript
-// Current (PositionCalculator.tsx:29)
-const [selectedSymbol, setSelectedSymbol] = useState("BTCUSDT");
-
-// Expected
-const { selectedSymbol, setSelectedSymbol } = useMarketContext();
+const formatCurrency = (v: number) => {
+  if (Math.abs(v) >= 1000) return `$${(v / 1000).toFixed(1)}k`;
+  return `$${v.toFixed(0)}`;
+};
 ```
+**Expected:** Should use centralized `formatCurrency` or `formatCompactCurrency` from `@/lib/formatters`
+**Impact:** Inconsistent formatting with rest of app
 
-### Issue 2: No Symbol Selector UI (HIGH)
-**Current:** User cannot change symbol on this page
-**Expected:** Should have `TradingPairCombobox` to select symbol
-**Impact:** User stuck with BTCUSDT, cannot calculate for other pairs
+### Issue 2: Inconsistent Percent Formatting (LOW)
+**Current:** Uses `.toFixed(1)%` directly
+```typescript
+<div className="text-2xl font-bold">{stats.winRate.toFixed(1)}%</div>
+```
+**Expected:** Should use `formatWinRate()` from formatters
+**Impact:** Minor inconsistency
 
-### Issue 3: Link to Risk Profile Settings Uses Query Param (LOW)
-**Current:** `<Link to="/risk?tab=settings">Using your Risk Profile settings</Link>`
-**Status:** This is OK - but should verify Risk page handles `?tab=settings` query param
+### Issue 3: Ratio Formatting (LOW)
+**Current:** Uses `.toFixed(2):1` directly
+**Expected:** Should use `formatRatio()` from formatters
 
-### Issue 4: Responsive Layout on Tabs (MINOR)
-**Current:** `<TabsList className="grid w-full grid-cols-2 max-w-md">`
-**Status:** Good constraint on max-width, but tabs may be cramped on mobile
+### Issue 4: Export Not Using Centralized Formatters (MEDIUM)
+**Current:** Export functions use inline `.toFixed()` calls
+**Expected:** Should leverage `formatCurrency`, `formatPercent` etc.
+**Impact:** Export data may have different precision than UI
 
-### Issue 5: Commission Rate Decimals (MINOR - Already Fixed)
-**Current:** Uses `.toFixed(2)%` and `.toFixed(4)` for fees
-**Status:** ✅ Already aligned with decimal standards from previous work
+### Issue 5: No Link to Related Pages (LOW)
+**Current:** Page is standalone
+**Suggestion:** Add quick links to Daily P&L, Heatmap, AI Insights
 
 ---
 
 ## Ordering & Hierarchy Analysis
 
-### Current Flow
+### Current Flow (Overview Tab)
 ```
-1. Page Header
-2. [MarketScoreWidget] [ContextWarnings] ← 2-col grid
-3. Tabs:
-   ├─ Position Size Calculator
-   │  ├─ Inputs (2-col grid)
-   │  ├─ Separator
-   │  ├─ Results (2x2 grid)
-   │  ├─ Commission Rates
-   │  ├─ Max Leverage Info
-   │  └─ Quick Reference R
-   └─ Volatility-Based Stop Loss
-       ├─ Volatility Stats
-       ├─ Recommendation
-       └─ Stop Loss Suggestions
-4. Risk Adjustment Breakdown (outside tabs, calculator tab only)
+1. 7-Day Stats (4 cards)
+2. Key Metrics (4 cards: Win Rate, PF, Expectancy, DD)
+3. Additional Metrics (4 cards: Sharpe, R:R, Trades, P&L)
+4. Equity Curve with Events
+5. [CombinedContextualScore] [TradingHeatmapChart]
+6. [EventDayComparison] [FearGreedZoneChart]
+7. VolatilityLevelChart
+8. DrawdownChart
 ```
 
-### Recommended Flow (Improved)
-```
-1. Page Header
-2. [Symbol Selector] ← NEW: TradingPairCombobox
-3. [MarketScoreWidget] [ContextWarnings] ← 2-col grid
-4. Tabs:
-   └─ (same structure)
-5. Risk Adjustment Breakdown (same)
-```
+### Evaluation
+| Aspect | Status | Notes |
+|--------|--------|-------|
+| Information priority | ✅ Good | Key metrics at top |
+| Visual hierarchy | ✅ Good | Progressively detailed |
+| Chart grouping | ✅ Good | Related charts together |
+| Cognitive load | ⚠️ Heavy | 8 sections may be overwhelming |
+
+### Recommended Flow (No Change Needed)
+The current flow is logical and follows a good pattern:
+1. Recent snapshot (7-day)
+2. Core metrics (what matters most)
+3. Extended metrics (deeper analysis)
+4. Equity visualization
+5. Contextual analysis (drilling down)
+6. Risk visualization (drawdown)
 
 ---
 
 ## Proposed Changes
 
-### Phase 1: Add Symbol Selector (HIGH PRIORITY)
+### Phase 1: Use Centralized Formatters (HIGH PRIORITY)
+
+**File:** `src/pages/Performance.tsx`
 
 **Changes:**
-1. Add `TradingPairCombobox` component below page header
-2. Connect to `useMarketContext()` instead of local state
-3. All child components will automatically use the selected symbol
+1. Remove local `formatCurrency` function
+2. Import and use centralized formatters
+3. Replace inline `.toFixed()` calls
 
 ```typescript
-// In PositionCalculator.tsx
-import { useMarketContext } from "@/contexts/MarketContext";
-import { TradingPairCombobox } from "@/components/ui/trading-pair-combobox";
+// Remove local formatter
+- const formatCurrency = (v: number) => {
+-   if (Math.abs(v) >= 1000) return `$${(v / 1000).toFixed(1)}k`;
+-   return `$${v.toFixed(0)}`;
+- };
 
-export default function PositionCalculator() {
-  const { selectedSymbol, setSelectedSymbol } = useMarketContext();
-  // ... rest of component uses this instead of local state
-}
+// Import centralized formatters
+import { 
+  formatCurrency, 
+  formatCompactCurrency, 
+  formatWinRate, 
+  formatRatio, 
+  formatPercentUnsigned 
+} from "@/lib/formatters";
+
+// Win Rate card
+- <div className="text-2xl font-bold">{stats.winRate.toFixed(1)}%</div>
++ <div className="text-2xl font-bold">{formatWinRate(stats.winRate)}</div>
+
+// Max Drawdown card
+- <div className="text-2xl font-bold text-destructive">{stats.maxDrawdownPercent.toFixed(1)}%</div>
++ <div className="text-2xl font-bold text-destructive">{formatPercentUnsigned(stats.maxDrawdownPercent)}</div>
+
+// Avg R:R card
+- <div className="text-xl font-bold">{stats.avgRR.toFixed(2)}:1</div>
++ <div className="text-xl font-bold">{formatRatio(stats.avgRR)}</div>
+
+// Strategy Performance section
+- <div className="font-medium">{sp.winRate.toFixed(1)}%</div>
++ <div className="font-medium">{formatWinRate(sp.winRate)}</div>
+
+- <div className="font-medium">{sp.avgRR.toFixed(2)}:1</div>
++ <div className="font-medium">{formatRatio(sp.avgRR)}</div>
+
+- <div className="font-medium">{sp.contribution.toFixed(1)}%</div>
++ <div className="font-medium">{formatWinRate(sp.contribution)}</div>
 ```
 
-### Phase 2: Improve Mobile Layout (MEDIUM PRIORITY)
+### Phase 2: Fix Equity Curve Formatter (MEDIUM PRIORITY)
+
+**File:** `src/pages/Performance.tsx`
 
 **Changes:**
-1. Stack MarketScore and ContextWarnings on mobile (single column)
-2. Improve tab responsiveness with shorter labels on mobile
-3. Add breakpoint handling for calculator inputs grid
+Use `formatCompactCurrency` for chart axis formatter (keeps K/M suffix behavior):
+```typescript
+// For the equity curve
+<EquityCurveWithEvents 
+  equityData={equityData} 
+  formatCurrency={formatCompactCurrency} // Use compact version
+/>
+```
 
-### Phase 3: UI Polish (LOW PRIORITY)
+Or create a chart-specific formatter:
+```typescript
+const chartFormatCurrency = (v: number) => formatCompactCurrency(v, 'USD');
+```
+
+### Phase 3: Update DrawdownChart (LOW PRIORITY)
+
+**File:** `src/components/analytics/DrawdownChart.tsx`
 
 **Changes:**
-1. Add tooltips on commission rate section explaining maker vs taker
-2. Add loading skeleton for commission rates when loading
-3. Improve empty state for leverage brackets
+```typescript
+import { formatPercentUnsigned } from "@/lib/formatters";
+
+// Replace
+- <p className="text-xl font-bold text-loss">-{maxDrawdown.toFixed(2)}%</p>
++ <p className="text-xl font-bold text-loss">-{formatPercentUnsigned(maxDrawdown)}</p>
+```
 
 ---
 
 ## Technical Implementation
 
-### File Changes
+### Files to Modify
 
-| File | Changes |
-|------|---------|
-| `src/pages/PositionCalculator.tsx` | Replace local `selectedSymbol` with `useMarketContext()`, add symbol selector UI |
-| `src/components/risk/PositionSizeCalculator.tsx` | Update to accept symbol as prop instead of local state (for standalone use) |
+| File | Priority | Changes |
+|------|----------|---------|
+| `src/pages/Performance.tsx` | High | Replace local formatCurrency, use centralized formatters |
+| `src/components/analytics/DrawdownChart.tsx` | Low | Use formatPercentUnsigned |
 
 ### Code Changes Summary
 
-**PositionCalculator.tsx:**
-```typescript
-// Import additions
-import { useMarketContext } from "@/contexts/MarketContext";
-import { TradingPairCombobox } from "@/components/ui/trading-pair-combobox";
-import { Label } from "@/components/ui/label";
-
-// Replace local state
-- const [selectedSymbol, setSelectedSymbol] = useState("BTCUSDT");
-+ const { selectedSymbol, setSelectedSymbol } = useMarketContext();
-
-// Add symbol selector below page header
-<div className="space-y-2">
-  <Label>Trading Pair</Label>
-  <TradingPairCombobox 
-    value={selectedSymbol}
-    onValueChange={setSelectedSymbol}
-    className="max-w-xs"
-  />
-</div>
-```
+**Performance.tsx:**
+1. Remove local `formatCurrency` function (lines 114-117)
+2. Import centralized formatters
+3. Update Win Rate card (line 330)
+4. Update Max Drawdown card (line 371)
+5. Update Sharpe Ratio card (line 386)
+6. Update Avg R:R card (line 395)
+7. Update Strategy Performance section (lines 518, 522, 534)
+8. Update Equity Curve prop (line 440)
 
 ---
 
@@ -190,12 +296,12 @@ import { Label } from "@/components/ui/label";
 
 | Criteria | Expected Behavior |
 |----------|-------------------|
-| Symbol Selection | User can change symbol, all widgets update |
-| Context Sync | Symbol persists across page navigation |
-| Volatility Data | Updates based on selected symbol |
-| Commission Rates | Fetches rates for selected symbol |
-| Context Warnings | Shows warnings for selected symbol |
-| Risk Adjustment | Calculates based on selected symbol's data |
+| Win Rate | Displays as `65.5%` (1 decimal via formatWinRate) |
+| Drawdown | Displays as `12.50%` (2 decimals via formatPercentUnsigned) |
+| Avg R:R | Displays as `2.50:1` (via formatRatio) |
+| Equity Chart | Uses formatCompactCurrency for K/M notation |
+| Strategy metrics | All use centralized formatters |
+| Consistency | All metrics match formatting in other pages |
 
 ---
 
@@ -203,16 +309,9 @@ import { Label } from "@/components/ui/label";
 
 | Risk | Mitigation |
 |------|------------|
-| Breaking existing calculator | Local state can be fallback if context fails |
-| Loading states | Already handled in child components |
-| Symbol not in trading_pairs | Combobox only shows available pairs |
-
----
-
-## Files to Modify
-
-1. `src/pages/PositionCalculator.tsx` - Main page with symbol selector
-2. `src/components/risk/PositionSizeCalculator.tsx` - Update to accept symbol prop (optional refactor)
+| Chart axis formatting breaks | Test compact currency formatter with small/large values |
+| Export precision changes | Keep export functions separate if needed |
+| Visual differences | Minor - standardization is the goal |
 
 ---
 
@@ -220,7 +319,17 @@ import { Label } from "@/components/ui/label";
 
 | Phase | Effort | Priority |
 |-------|--------|----------|
-| Phase 1: Symbol Selector | Low | High |
-| Phase 2: Mobile Layout | Low | Medium |
-| Phase 3: UI Polish | Very Low | Low |
+| Phase 1: Centralized Formatters | Low | High |
+| Phase 2: Chart Formatter | Very Low | Medium |
+| Phase 3: DrawdownChart | Very Low | Low |
 
+---
+
+## File Impact Summary
+
+| File | Changes |
+|------|---------|
+| `src/pages/Performance.tsx` | ~15 line changes |
+| `src/components/analytics/DrawdownChart.tsx` | ~2 line changes |
+
+**Total Estimated Changes:** ~17 lines
