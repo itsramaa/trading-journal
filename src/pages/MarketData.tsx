@@ -2,7 +2,7 @@
  * Market Data Page - Standalone page for market data tab content
  * Primary entry point for Market domain
  * Layout: 1. Market Sentiment (full), 2. Volatility+Whale grid, 3. Trading Opportunities
- * Top 5 for all widgets + selected pair sync
+ * Dynamic symbol fetching for all widgets (same pattern as Volatility Meter)
  */
 import { useState, useMemo } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -13,26 +13,31 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BarChart3, RefreshCw, Target, Activity } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useMarketSentiment } from "@/features/market-insight";
+import { useMultiSymbolMarketInsight } from "@/features/market-insight";
 import { cn } from "@/lib/utils";
 import type { WhaleSignal } from "@/features/market-insight/types";
 
-// Top 5 assets (format used by whale API: 'BTC', 'ETH', etc.)
-const TOP_5_ASSETS = ['BTC', 'ETH', 'SOL', 'XRP', 'BNB'];
-// Top 5 pairs (format used by volatility API: 'BTCUSDT', etc.)
-const TOP_5_PAIRS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'XRPUSDT', 'BNBUSDT'];
-// Top 5 opportunity pairs (format used by opportunities API: 'BTC/USDT', etc.)
-const TOP_5_OPP_PAIRS = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'XRP/USDT', 'BNB/USDT'];
+// Base top 5 symbols (USDT format for API)
+const TOP_5_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'XRPUSDT', 'BNBUSDT'];
 
 export default function MarketData() {
   // Selected pair from Market Sentiment widget
   const [selectedPair, setSelectedPair] = useState('BTCUSDT');
   
+  // Compute symbols to fetch - Top 5 + selected if not in top 5 (same pattern as Volatility)
+  const symbolsToFetch = useMemo(() => {
+    if (selectedPair && !TOP_5_SYMBOLS.includes(selectedPair)) {
+      return [selectedPair, ...TOP_5_SYMBOLS];
+    }
+    return TOP_5_SYMBOLS;
+  }, [selectedPair]);
+
+  // Use new hook that passes symbols to edge function (dynamic fetching)
   const { 
-    data: sentimentData, 
-    isLoading: sentimentLoading, 
-    refetch: refetchSentiment 
-  } = useMarketSentiment();
+    data: marketData, 
+    isLoading, 
+    refetch 
+  } = useMultiSymbolMarketInsight(symbolsToFetch);
 
   // Derived formats for selected pair
   const selectedAsset = useMemo(() => selectedPair.replace('USDT', ''), [selectedPair]);
@@ -46,74 +51,26 @@ export default function MarketData() {
     }
   };
 
-  // Volatility symbols - add selected pair at top if not in top 5
-  const volatilitySymbols = useMemo(() => {
-    if (selectedPair && !TOP_5_PAIRS.includes(selectedPair)) {
-      return [selectedPair, ...TOP_5_PAIRS];
-    }
-    return TOP_5_PAIRS;
-  }, [selectedPair]);
+  // Get whale data - already fetched for all requested symbols
+  const whaleData = useMemo(() => {
+    if (!marketData?.whaleActivity) return [];
+    
+    const allWhales = marketData.whaleActivity;
+    
+    // If selected is not in top 5, it will be first in the array (edge function logic)
+    // Just slice to max 5
+    return allWhales.slice(0, 6);
+  }, [marketData?.whaleActivity]);
 
-  // Get whale data - top 5 assets + selected if not in top 5
-  // With fallback to any available data if top 5 not present
-  const getWhaleData = () => {
-    if (!sentimentData?.whaleActivity) return [];
+  // Get opportunities data - already fetched for all requested symbols
+  const opportunitiesData = useMemo(() => {
+    if (!marketData?.opportunities) return [];
     
-    const allWhales = sentimentData.whaleActivity;
-    if (allWhales.length === 0) return [];
-    
-    const isSelectedInTop5 = TOP_5_ASSETS.includes(selectedAsset);
-    
-    // Get top 5 whale data
-    let result = allWhales.filter(w => TOP_5_ASSETS.includes(w.asset));
-    
-    // Fallback: if no top 5 data, use first 5 available
-    if (result.length === 0) {
-      result = allWhales.slice(0, 5);
-    }
-    
-    // If selected is NOT in top 5, find it and add to front
-    if (!isSelectedInTop5) {
-      const selectedWhale = allWhales.find(w => w.asset === selectedAsset);
-      if (selectedWhale) {
-        result = [selectedWhale, ...result.filter(w => w.asset !== selectedAsset).slice(0, 4)];
-      }
-    }
-    
-    return result.slice(0, 5);
-  };
+    // Already sorted by confidence in edge function
+    return marketData.opportunities.slice(0, 6);
+  }, [marketData?.opportunities]);
 
-  // Get opportunities data - top 5 pairs + selected if not in top 5
-  // With fallback to any available data if top 5 not present
-  const getOpportunitiesData = () => {
-    if (!sentimentData?.opportunities) return [];
-    
-    const allOpps = sentimentData.opportunities;
-    if (allOpps.length === 0) return [];
-    
-    const isSelectedInTop5 = TOP_5_OPP_PAIRS.includes(selectedOppPair);
-    
-    // Get top 5 opportunity data
-    let result = allOpps.filter(o => TOP_5_OPP_PAIRS.includes(o.pair));
-    
-    // Fallback: if no top 5 data, use first 5 available
-    if (result.length === 0) {
-      result = allOpps.slice(0, 5);
-    }
-    
-    // If selected is NOT in top 5, find it and add to front
-    if (!isSelectedInTop5) {
-      const selectedOpp = allOpps.find(o => o.pair === selectedOppPair);
-      if (selectedOpp) {
-        result = [selectedOpp, ...result.filter(o => o.pair !== selectedOppPair).slice(0, 4)];
-      }
-    }
-    
-    return result.slice(0, 5);
-  };
-
-  const whaleData = getWhaleData();
-  const opportunitiesData = getOpportunitiesData();
+  const isSelectedInTop5 = TOP_5_SYMBOLS.includes(selectedPair);
 
   return (
     <DashboardLayout>
@@ -133,10 +90,10 @@ export default function MarketData() {
             variant="outline" 
             size="sm" 
             className="gap-2" 
-            onClick={() => refetchSentiment()}
-            disabled={sentimentLoading}
+            onClick={() => refetch()}
+            disabled={isLoading}
           >
-            <RefreshCw className={cn("h-4 w-4", sentimentLoading && "animate-spin")} />
+            <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
             Refresh
           </Button>
         </div>
@@ -150,7 +107,7 @@ export default function MarketData() {
 
         {/* 2. Volatility Meter + Whale Tracker - Grid 2 */}
         <div className="grid gap-4 md:grid-cols-2">
-          <VolatilityMeterWidget symbols={volatilitySymbols} />
+          <VolatilityMeterWidget symbols={symbolsToFetch} />
           
           {/* AI Whale Tracking - Top 5 + selected */}
           <Card>
@@ -161,7 +118,7 @@ export default function MarketData() {
                   <CardTitle className="text-lg">Whale Tracking</CardTitle>
                 </div>
                 <Badge variant="outline">
-                  {!TOP_5_ASSETS.includes(selectedAsset) ? `+${selectedAsset}` : 'Top 5'}
+                  {!isSelectedInTop5 ? `+${selectedAsset}` : 'Top 5'}
                 </Badge>
               </div>
               <CardDescription>
@@ -169,7 +126,7 @@ export default function MarketData() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {sentimentLoading ? (
+              {isLoading ? (
                 <div className="space-y-3">
                   <Skeleton className="h-14" />
                   <Skeleton className="h-14" />
@@ -232,7 +189,7 @@ export default function MarketData() {
                 <CardTitle className="text-lg">Trading Opportunities</CardTitle>
               </div>
               <Badge variant="outline">
-                {!TOP_5_OPP_PAIRS.includes(selectedOppPair) ? `+${selectedAsset}` : 'Top 5'}
+                {!isSelectedInTop5 ? `+${selectedAsset}` : 'Top 5'}
               </Badge>
             </div>
             <CardDescription>
@@ -240,7 +197,7 @@ export default function MarketData() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {sentimentLoading ? (
+            {isLoading ? (
               <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
                 <Skeleton className="h-24" />
                 <Skeleton className="h-24" />
@@ -285,9 +242,9 @@ export default function MarketData() {
         {/* Data Quality Footer */}
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span>
-            Data quality: {sentimentData?.dataQuality ?? '-'}% • 
-            Last updated: {sentimentData?.lastUpdated 
-              ? new Date(sentimentData.lastUpdated).toLocaleTimeString() 
+            Data quality: {marketData?.dataQuality ?? '-'}% • 
+            Last updated: {marketData?.lastUpdated 
+              ? new Date(marketData.lastUpdated).toLocaleTimeString() 
               : '-'}
           </span>
           <span>

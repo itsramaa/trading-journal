@@ -217,70 +217,125 @@ function generateRecommendation(
   return 'Market consolidating. Wait for breakout confirmation before entering.';
 }
 
+// Helper to process single symbol data
+async function processSymbol(symbol: string) {
+  const [klines, ticker] = await Promise.all([
+    fetchBinanceKlines(symbol, '1h', 200),
+    fetchBinanceTicker(symbol),
+  ]);
+  
+  const closes = klines.map((k) => parseFloat(String(k[4]))).reverse();
+  const asset = symbol.replace('USDT', '');
+  
+  const signal = generateTechnicalSignal(asset, closes, ticker.price, ticker.change);
+  const volatility = calculateVolatility(closes);
+  const whale = calculateWhaleSignal(klines, ticker.change);
+  
+  return {
+    symbol,
+    asset,
+    klines,
+    closes,
+    ticker,
+    signal,
+    volatility,
+    whale,
+  };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    console.log('Fetching market insight data...');
+    // Parse request body for dynamic symbols
+    let requestedSymbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'XRPUSDT', 'BNBUSDT'];
     
-    // Fetch all data in parallel
-    const [
-      fearGreed,
-      btcKlines,
-      ethKlines,
-      solKlines,
-      btcTicker,
-      ethTicker,
-      solTicker,
-      globalData,
-    ] = await Promise.all([
+    try {
+      const body = await req.json();
+      if (body.symbols && Array.isArray(body.symbols) && body.symbols.length > 0) {
+        // Validate and normalize symbols
+        requestedSymbols = body.symbols
+          .map((s: string) => s.toUpperCase())
+          .filter((s: string) => s.endsWith('USDT'));
+        
+        // Limit to 10 symbols to prevent abuse
+        requestedSymbols = requestedSymbols.slice(0, 10);
+      }
+    } catch {
+      // No body or invalid JSON, use defaults
+    }
+
+    console.log('Fetching market insight data for symbols:', requestedSymbols);
+    
+    // Fetch global data + all symbol data in parallel
+    const [fearGreed, globalData, ...symbolsData] = await Promise.all([
       fetchFearGreedIndex(),
-      fetchBinanceKlines('BTCUSDT', '1h', 200),
-      fetchBinanceKlines('ETHUSDT', '1h', 200),
-      fetchBinanceKlines('SOLUSDT', '1h', 200),
-      fetchBinanceTicker('BTCUSDT'),
-      fetchBinanceTicker('ETHUSDT'),
-      fetchBinanceTicker('SOLUSDT'),
       fetchCoinGeckoGlobal(),
+      ...requestedSymbols.map(processSymbol),
     ]);
 
-    // Extract closing prices (index 4 in klines)
-    const btcCloses = btcKlines.map((k) => parseFloat(String(k[4]))).reverse();
-    const ethCloses = ethKlines.map((k) => parseFloat(String(k[4]))).reverse();
-    const solCloses = solKlines.map((k) => parseFloat(String(k[4]))).reverse();
+    // Build response arrays from symbol data
+    const signals: Array<{ asset: string; trend: string; direction: 'up' | 'down' | 'neutral'; price: number; change24h: number }> = [];
+    const volatilityData: Array<{ asset: string; level: string; value: number; status: string }> = [];
+    const opportunities: Array<{ pair: string; confidence: number; direction: string; reason: string }> = [];
+    const whaleActivity: Array<{ asset: string; signal: string; volumeChange24h: number; exchangeFlowEstimate: string; confidence: number; description: string }> = [];
 
-    // Generate technical signals
-    const btcSignal = generateTechnicalSignal('BTC', btcCloses, btcTicker.price, btcTicker.change);
-    const ethSignal = generateTechnicalSignal('ETH', ethCloses, ethTicker.price, ethTicker.change);
-    const solSignal = generateTechnicalSignal('SOL', solCloses, solTicker.price, solTicker.change);
+    symbolsData.forEach((data) => {
+      // Technical signals
+      signals.push({
+        asset: data.asset,
+        trend: data.signal.trend,
+        direction: data.signal.direction,
+        price: data.ticker.price,
+        change24h: data.ticker.change,
+      });
+      
+      // Volatility
+      const vol = data.volatility;
+      volatilityData.push({
+        asset: data.asset,
+        level: vol > 4 ? 'high' : vol > 2 ? 'medium' : 'low',
+        value: Math.min(100, Math.round(vol * 12)),
+        status: vol > 4 ? 'Elevated - caution' : vol > 2 ? 'Normal range' : 'Low volatility',
+      });
+      
+      // Opportunities
+      opportunities.push({
+        pair: `${data.asset}/USDT`,
+        confidence: Math.round(data.signal.score * 100),
+        direction: data.signal.direction === 'up' ? 'LONG' : data.signal.direction === 'down' ? 'SHORT' : 'WAIT',
+        reason: data.signal.trend,
+      });
+      
+      // Whale activity
+      whaleActivity.push({
+        asset: data.asset,
+        signal: data.whale.signal,
+        volumeChange24h: data.whale.volumeChange,
+        exchangeFlowEstimate: data.whale.volumeChange > 20 ? (data.ticker.change > 0 ? 'outflow' : 'inflow') : 'balanced',
+        confidence: data.whale.confidence,
+        description: data.whale.signal === 'ACCUMULATION'
+          ? `High volume with price increase. Whales accumulating ${data.asset}.`
+          : data.whale.signal === 'DISTRIBUTION'
+          ? `High volume with price decrease. Distribution detected for ${data.asset}.`
+          : `Normal trading activity for ${data.asset}. No clear whale signal.`,
+      });
+    });
 
-    // Calculate volatility
-    const btcVol = calculateVolatility(btcCloses);
-    const ethVol = calculateVolatility(ethCloses);
-    const solVol = calculateVolatility(solCloses);
+    // Sort opportunities by confidence
+    opportunities.sort((a, b) => b.confidence - a.confidence);
 
-    // Whale signals
-    const btcWhale = calculateWhaleSignal(btcKlines, btcTicker.change);
-    const ethWhale = calculateWhaleSignal(ethKlines, ethTicker.change);
-    const solWhale = calculateWhaleSignal(solKlines, solTicker.change);
-
-    // Calculate weighted sentiment score
-    // (Tech×0.30) + (OnChain×0.25) + (Social×0.25) + (Macro×0.20)
-    const technicalScore = (btcSignal.score + ethSignal.score + solSignal.score) / 3;
+    // Calculate overall sentiment scores
+    const technicalScore = symbolsData.reduce((sum, d) => sum + d.signal.score, 0) / symbolsData.length;
     
-    // OnChain proxy: use whale signals as indicator
-    const onChainScore = 
-      (btcWhale.signal === 'ACCUMULATION' ? 0.7 : btcWhale.signal === 'DISTRIBUTION' ? 0.3 : 0.5) * 0.5 +
-      (ethWhale.signal === 'ACCUMULATION' ? 0.7 : ethWhale.signal === 'DISTRIBUTION' ? 0.3 : 0.5) * 0.3 +
-      (solWhale.signal === 'ACCUMULATION' ? 0.7 : solWhale.signal === 'DISTRIBUTION' ? 0.3 : 0.5) * 0.2;
+    const onChainScore = symbolsData.reduce((sum, d) => {
+      return sum + (d.whale.signal === 'ACCUMULATION' ? 0.7 : d.whale.signal === 'DISTRIBUTION' ? 0.3 : 0.5);
+    }, 0) / symbolsData.length;
     
-    // Macro score from F&G and market cap trend
     const fearGreedNormalized = fearGreed.value / 100;
     const macroScore = (fearGreedNormalized * 0.6) + (globalData.marketCapChange > 0 ? 0.6 : 0.4) * 0.4;
-    
-    // Social score proxy (using momentum as substitute)
     const socialScore = (technicalScore + macroScore) / 2;
     
     const overallScore = 
@@ -289,116 +344,26 @@ serve(async (req) => {
       socialScore * 0.25 + 
       macroScore * 0.20;
 
-    // Determine sentiment label
     let overallSentiment: 'bullish' | 'bearish' | 'neutral' = 'neutral';
     if (overallScore > 0.60) overallSentiment = 'bullish';
     else if (overallScore < 0.45) overallSentiment = 'bearish';
 
-    // Calculate confidence
     const agreement = Math.abs(technicalScore - onChainScore) < 0.15 && Math.abs(technicalScore - macroScore) < 0.15;
     const distanceFromNeutral = Math.abs(overallScore - 0.5) * 2;
-    const dataQuality = btcKlines.length > 100 ? 0.95 : 0.7;
+    const dataQuality = symbolsData.every(d => d.klines.length > 100) ? 0.95 : 0.7;
     
     const confidence = Math.round(
       (agreement ? 0.4 : 0.2) * 100 +
       distanceFromNeutral * 30 +
       dataQuality * 20 +
-      10 // Base confidence
+      10
     );
-
-    // Generate volatility assessment
-    const volatilityData = [
-      {
-        asset: 'BTC',
-        level: btcVol > 3 ? 'high' : btcVol > 1.5 ? 'medium' : 'low',
-        value: Math.min(100, Math.round(btcVol * 15)),
-        status: btcVol > 3 ? 'Elevated - caution' : btcVol > 1.5 ? 'Normal range' : 'Low volatility',
-      },
-      {
-        asset: 'ETH',
-        level: ethVol > 4 ? 'high' : ethVol > 2 ? 'medium' : 'low',
-        value: Math.min(100, Math.round(ethVol * 12)),
-        status: ethVol > 4 ? 'Elevated - caution' : ethVol > 2 ? 'Normal range' : 'Low volatility',
-      },
-      {
-        asset: 'SOL',
-        level: solVol > 5 ? 'high' : solVol > 2.5 ? 'medium' : 'low',
-        value: Math.min(100, Math.round(solVol * 10)),
-        status: solVol > 5 ? 'Elevated - caution' : solVol > 2.5 ? 'Normal range' : 'Low volatility',
-      },
-    ];
-
-    // Generate trading opportunities
-    const opportunities = [
-      {
-        pair: 'BTC/USDT',
-        confidence: Math.round(btcSignal.score * 100),
-        direction: btcSignal.direction === 'up' ? 'LONG' : btcSignal.direction === 'down' ? 'SHORT' : 'WAIT',
-        reason: btcSignal.trend,
-      },
-      {
-        pair: 'ETH/USDT',
-        confidence: Math.round(ethSignal.score * 100),
-        direction: ethSignal.direction === 'up' ? 'LONG' : ethSignal.direction === 'down' ? 'SHORT' : 'WAIT',
-        reason: ethSignal.trend,
-      },
-      {
-        pair: 'SOL/USDT',
-        confidence: Math.round(solSignal.score * 100),
-        direction: solSignal.direction === 'up' ? 'LONG' : solSignal.direction === 'down' ? 'SHORT' : 'WAIT',
-        reason: solSignal.trend,
-      },
-    ].sort((a, b) => b.confidence - a.confidence);
-
-    // Generate whale activity
-    const whaleActivity = [
-      {
-        asset: 'BTC',
-        signal: btcWhale.signal,
-        volumeChange24h: btcWhale.volumeChange,
-        exchangeFlowEstimate: btcWhale.volumeChange > 20 ? (btcTicker.change > 0 ? 'outflow' : 'inflow') : 'balanced',
-        confidence: btcWhale.confidence,
-        description: btcWhale.signal === 'ACCUMULATION' 
-          ? `High volume with price increase. Whales accumulating.`
-          : btcWhale.signal === 'DISTRIBUTION'
-          ? `High volume with price decrease. Distribution detected.`
-          : `Normal trading activity. No clear whale signal.`,
-      },
-      {
-        asset: 'ETH',
-        signal: ethWhale.signal,
-        volumeChange24h: ethWhale.volumeChange,
-        exchangeFlowEstimate: ethWhale.volumeChange > 20 ? (ethTicker.change > 0 ? 'outflow' : 'inflow') : 'balanced',
-        confidence: ethWhale.confidence,
-        description: ethWhale.signal === 'ACCUMULATION'
-          ? `Significant volume spike with bullish price action.`
-          : ethWhale.signal === 'DISTRIBUTION'
-          ? `Heavy selling pressure with elevated volume.`
-          : `Stable trading patterns. Monitor for breakout.`,
-      },
-      {
-        asset: 'SOL',
-        signal: solWhale.signal,
-        volumeChange24h: solWhale.volumeChange,
-        exchangeFlowEstimate: solWhale.volumeChange > 20 ? (solTicker.change > 0 ? 'outflow' : 'inflow') : 'balanced',
-        confidence: solWhale.confidence,
-        description: solWhale.signal === 'ACCUMULATION'
-          ? `Smart money accumulating. Watch for momentum.`
-          : solWhale.signal === 'DISTRIBUTION'
-          ? `Large holders reducing positions.`
-          : `Consolidation phase. Wait for direction.`,
-      },
-    ];
 
     const response = {
       sentiment: {
         overall: overallSentiment,
         confidence: Math.min(95, Math.max(30, confidence)),
-        signals: [
-          { asset: 'BTC', trend: btcSignal.trend, direction: btcSignal.direction, price: btcTicker.price, change24h: btcTicker.change },
-          { asset: 'ETH', trend: ethSignal.trend, direction: ethSignal.direction, price: ethTicker.price, change24h: ethTicker.change },
-          { asset: 'SOL', trend: solSignal.trend, direction: solSignal.direction, price: solTicker.price, change24h: solTicker.change },
-        ],
+        signals,
         fearGreed,
         recommendation: generateRecommendation(overallScore, confidence, fearGreed.value),
         technicalScore: Math.round(technicalScore * 100),
@@ -409,11 +374,12 @@ serve(async (req) => {
       volatility: volatilityData,
       opportunities,
       whaleActivity,
+      requestedSymbols,
       lastUpdated: new Date().toISOString(),
       dataQuality: Math.round(dataQuality * 100),
     };
 
-    console.log('Market insight generated successfully');
+    console.log('Market insight generated successfully for', requestedSymbols.length, 'symbols');
 
     return new Response(JSON.stringify(response), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
