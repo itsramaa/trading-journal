@@ -2,12 +2,12 @@
  * Risk Adjustment Breakdown Component
  * Visual breakdown of all risk adjustment factors and reasoning
  * Shows how base risk is modified by market conditions
+ * 
+ * Uses useContextAwareRisk hook for calculation logic (Phase 2)
  */
 
-import { useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Separator } from "@/components/ui/separator";
 import { 
@@ -19,11 +19,10 @@ import {
   ArrowRight,
   CheckCircle,
   AlertTriangle,
-  Minus
+  Minus,
+  BarChart3
 } from "lucide-react";
-import { useRiskProfile } from "@/hooks/use-risk-profile";
-import { useUnifiedMarketScore } from "@/hooks/use-unified-market-score";
-import { useBinanceVolatility } from "@/features/binance/useBinanceAdvancedAnalytics";
+import { useContextAwareRisk, type AdjustmentLevel, type AdjustmentFactor } from "@/hooks/use-context-aware-risk";
 import { cn } from "@/lib/utils";
 
 interface RiskAdjustmentBreakdownProps {
@@ -31,177 +30,28 @@ interface RiskAdjustmentBreakdownProps {
   baseRiskPercent?: number;
 }
 
-interface AdjustmentFactor {
-  id: string;
-  name: string;
-  icon: typeof Scale;
-  multiplier: number;
-  reason: string;
-  level: 'positive' | 'neutral' | 'warning' | 'danger';
-  value?: string;
-}
+// Icon mapping for adjustment factors
+const FACTOR_ICONS: Record<string, typeof Scale> = {
+  volatility: Activity,
+  event: Calendar,
+  sentiment: TrendingUp,
+  momentum: History,
+  performance: BarChart3,
+};
 
 export function RiskAdjustmentBreakdown({ 
   symbol = 'BTCUSDT',
-  baseRiskPercent: propBaseRisk 
+  baseRiskPercent 
 }: RiskAdjustmentBreakdownProps) {
-  const { data: riskProfile } = useRiskProfile();
-  const { 
-    score, 
-    bias, 
-    components, 
-    volatilityLabel,
-    hasHighImpactEvent,
-    positionSizeAdjustment,
-    isLoading: marketLoading 
-  } = useUnifiedMarketScore({ symbol });
-  const { data: volatilityData, isLoading: volLoading } = useBinanceVolatility(symbol);
-
-  const baseRisk = propBaseRisk ?? riskProfile?.risk_per_trade_percent ?? 2;
-
-  // Calculate all adjustment factors
-  const adjustmentFactors = useMemo<AdjustmentFactor[]>(() => {
-    const factors: AdjustmentFactor[] = [];
-
-    // 1. Volatility Adjustment
-    if (volatilityData?.risk) {
-      const { level } = volatilityData.risk;
-      let volMultiplier = 1.0;
-      let volLevel: AdjustmentFactor['level'] = 'neutral';
-      let volReason = '';
-
-      switch (level) {
-        case 'extreme':
-          volMultiplier = 0.5;
-          volLevel = 'danger';
-          volReason = 'Extreme volatility detected - halve position size';
-          break;
-        case 'high':
-          volMultiplier = 0.75;
-          volLevel = 'warning';
-          volReason = 'High volatility - reduce position by 25%';
-          break;
-        case 'medium':
-          volMultiplier = 1.0;
-          volLevel = 'neutral';
-          volReason = 'Normal volatility conditions';
-          break;
-        case 'low':
-          volMultiplier = 1.1;
-          volLevel = 'positive';
-          volReason = 'Low volatility - can increase slightly';
-          break;
-      }
-
-      factors.push({
-        id: 'volatility',
-        name: 'Volatility',
-        icon: Activity,
-        multiplier: volMultiplier,
-        reason: volReason,
-        level: volLevel,
-        value: `ATR ${volatilityData.atrPercent.toFixed(2)}%`,
-      });
-    }
-
-    // 2. Event/Macro Adjustment
-    if (hasHighImpactEvent) {
-      factors.push({
-        id: 'event',
-        name: 'Economic Event',
-        icon: Calendar,
-        multiplier: 0.5,
-        reason: 'High-impact event today - reduce exposure significantly',
-        level: 'danger',
-        value: 'High Impact',
-      });
-    } else {
-      factors.push({
-        id: 'event',
-        name: 'Economic Event',
-        icon: Calendar,
-        multiplier: 1.0,
-        reason: 'No major events affecting this trade',
-        level: 'positive',
-        value: 'Clear',
-      });
-    }
-
-    // 3. Market Sentiment/Bias Adjustment
-    let sentimentMultiplier = 1.0;
-    let sentimentLevel: AdjustmentFactor['level'] = 'neutral';
-    let sentimentReason = '';
-
-    if (bias === 'AVOID') {
-      sentimentMultiplier = 0.5;
-      sentimentLevel = 'danger';
-      sentimentReason = 'Market conditions unfavorable - reduce size';
-    } else if (components.fearGreed < 25) {
-      sentimentMultiplier = 0.8;
-      sentimentLevel = 'warning';
-      sentimentReason = 'Extreme fear - proceed with caution';
-    } else if (components.fearGreed > 75) {
-      sentimentMultiplier = 0.9;
-      sentimentLevel = 'warning';
-      sentimentReason = 'Extreme greed - watch for reversals';
-    } else {
-      sentimentMultiplier = 1.0;
-      sentimentLevel = 'neutral';
-      sentimentReason = 'Neutral sentiment conditions';
-    }
-
-    factors.push({
-      id: 'sentiment',
-      name: 'Market Sentiment',
-      icon: TrendingUp,
-      multiplier: sentimentMultiplier,
-      reason: sentimentReason,
-      level: sentimentLevel,
-      value: `F&G: ${components.fearGreed}`,
-    });
-
-    // 4. Momentum Adjustment (based on market score)
-    let momentumMultiplier = 1.0;
-    let momentumLevel: AdjustmentFactor['level'] = 'neutral';
-    let momentumReason = '';
-
-    if (score >= 70) {
-      momentumMultiplier = 1.1;
-      momentumLevel = 'positive';
-      momentumReason = 'Strong bullish momentum - favorable conditions';
-    } else if (score <= 30) {
-      momentumMultiplier = 0.8;
-      momentumLevel = 'warning';
-      momentumReason = 'Weak momentum - reduce exposure';
-    } else {
-      momentumMultiplier = 1.0;
-      momentumLevel = 'neutral';
-      momentumReason = 'Neutral momentum';
-    }
-
-    factors.push({
-      id: 'momentum',
-      name: 'Momentum',
-      icon: History,
-      multiplier: momentumMultiplier,
-      reason: momentumReason,
-      level: momentumLevel,
-      value: `Score: ${score}`,
-    });
-
-    return factors;
-  }, [volatilityData, hasHighImpactEvent, bias, components, score]);
-
-  // Calculate final adjusted risk
-  const { totalMultiplier, adjustedRisk } = useMemo(() => {
-    const total = adjustmentFactors.reduce((acc, f) => acc * f.multiplier, 1);
-    return {
-      totalMultiplier: total,
-      adjustedRisk: Math.round(baseRisk * total * 100) / 100,
-    };
-  }, [adjustmentFactors, baseRisk]);
-
-  const isLoading = marketLoading || volLoading;
+  // Use the centralized hook for all calculations
+  const {
+    baseRisk,
+    adjustedRisk,
+    totalMultiplier,
+    adjustmentFactors,
+    recommendationLabel,
+    isLoading,
+  } = useContextAwareRisk({ symbol, baseRiskPercent });
 
   const getMultiplierColor = (multiplier: number) => {
     if (multiplier > 1) return 'text-profit';
@@ -210,7 +60,7 @@ export function RiskAdjustmentBreakdown({
     return 'text-muted-foreground';
   };
 
-  const getLevelIcon = (level: AdjustmentFactor['level']) => {
+  const getLevelIcon = (level: AdjustmentLevel) => {
     switch (level) {
       case 'positive': return CheckCircle;
       case 'warning': return AlertTriangle;
@@ -219,7 +69,7 @@ export function RiskAdjustmentBreakdown({
     }
   };
 
-  const getLevelStyles = (level: AdjustmentFactor['level']) => {
+  const getLevelStyles = (level: AdjustmentLevel) => {
     switch (level) {
       case 'positive':
         return 'border-profit/30 bg-profit/5';
@@ -232,7 +82,7 @@ export function RiskAdjustmentBreakdown({
     }
   };
 
-  const getLevelIconColor = (level: AdjustmentFactor['level']) => {
+  const getLevelIconColor = (level: AdjustmentLevel) => {
     switch (level) {
       case 'positive': return 'text-profit';
       case 'warning': return 'text-[hsl(var(--chart-4))]';
@@ -248,7 +98,7 @@ export function RiskAdjustmentBreakdown({
           <Scale className="h-5 w-5 text-primary" />
           Risk Adjustment Breakdown
           <InfoTooltip
-            content="Shows how your base risk is adjusted based on current market conditions including volatility, events, sentiment, and momentum."
+            content="Shows how your base risk is adjusted based on current market conditions including volatility, events, sentiment, momentum, and historical performance."
             variant="help"
           />
         </CardTitle>
@@ -277,7 +127,7 @@ export function RiskAdjustmentBreakdown({
             </div>
           ) : (
             adjustmentFactors.map((factor) => {
-              const FactorIcon = factor.icon;
+              const FactorIcon = FACTOR_ICONS[factor.id] || Scale;
               const LevelIcon = getLevelIcon(factor.level);
               
               return (
@@ -325,7 +175,7 @@ export function RiskAdjustmentBreakdown({
           {/* Calculation Formula */}
           <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground flex-wrap">
             <span>{baseRisk}%</span>
-            {adjustmentFactors.map((f, i) => (
+            {adjustmentFactors.map((f) => (
               <span key={f.id} className="flex items-center gap-1">
                 <span>×</span>
                 <span className={getMultiplierColor(f.multiplier)}>
@@ -369,10 +219,7 @@ export function RiskAdjustmentBreakdown({
                   variant={totalMultiplier < 0.7 ? "destructive" : totalMultiplier < 1 ? "secondary" : "default"}
                   className="mt-1"
                 >
-                  {totalMultiplier < 0.5 ? 'Significantly Reduce' :
-                   totalMultiplier < 0.8 ? 'Reduce Size' :
-                   totalMultiplier < 1 ? 'Slightly Reduce' :
-                   totalMultiplier > 1 ? 'Normal/Increase' : 'Normal Size'}
+                  {recommendationLabel}
                 </Badge>
               </div>
             </div>
