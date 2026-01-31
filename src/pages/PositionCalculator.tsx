@@ -22,9 +22,12 @@ import { MarketScoreWidget } from "@/components/dashboard/MarketScoreWidget";
 import { TradingPairCombobox } from "@/components/ui/trading-pair-combobox";
 import { useMarketContext } from "@/contexts/MarketContext";
 import { trackEvent, ANALYTICS_EVENTS } from "@/lib/analytics";
+import { formatPercentUnsigned, formatCurrency } from "@/lib/formatters";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export default function PositionCalculator() {
   const [activeTab, setActiveTab] = useState("calculator");
+  const isMobile = useIsMobile();
   const { data: riskProfile, isLoading: profileLoading } = useRiskProfile();
   const { balance: combinedBalance, source, isLoading: balanceLoading } = useBestAvailableBalance();
   
@@ -162,11 +165,11 @@ export default function PositionCalculator() {
           <TabsList className="grid w-full grid-cols-2 max-w-md">
             <TabsTrigger value="calculator" className="gap-2">
               <Calculator className="h-4 w-4" />
-              Position Size Calculator
+              {isMobile ? "Calculator" : "Position Size Calculator"}
             </TabsTrigger>
             <TabsTrigger value="volatility" className="gap-2">
               <Activity className="h-4 w-4" />
-              Volatility-Based Stop Loss
+              {isMobile ? "Vol. Stop Loss" : "Volatility-Based Stop Loss"}
             </TabsTrigger>
           </TabsList>
 
@@ -223,19 +226,19 @@ export default function PositionCalculator() {
                       <div>
                         <span className="text-muted-foreground">Maker Fee:</span>
                         <span className="ml-2 font-medium">
-                          {(commissionRate.makerCommissionRate * 100).toFixed(3)}%
+                          {formatPercentUnsigned(commissionRate.makerCommissionRate * 100)}
                         </span>
                         <span className="text-xs text-muted-foreground ml-1">
-                          (${estimatedFees.makerFee.toFixed(2)})
+                          ({formatCurrency(estimatedFees.makerFee)})
                         </span>
                       </div>
                       <div>
                         <span className="text-muted-foreground">Taker Fee:</span>
                         <span className="ml-2 font-medium">
-                          {(commissionRate.takerCommissionRate * 100).toFixed(3)}%
+                          {formatPercentUnsigned(commissionRate.takerCommissionRate * 100)}
                         </span>
                         <span className="text-xs text-muted-foreground ml-1">
-                          (${estimatedFees.takerFee.toFixed(2)})
+                          ({formatCurrency(estimatedFees.takerFee)})
                         </span>
                       </div>
                     </div>
@@ -258,11 +261,13 @@ export default function PositionCalculator() {
                   potential2R={result.potential_profit_2r}
                   potential3R={result.potential_profit_3r}
                 />
+                
+                {/* Risk Adjustment Breakdown - moved inside CardContent for better grouping */}
+                <div className="pt-4">
+                  <RiskAdjustmentBreakdown symbol={selectedSymbol} baseRiskPercent={riskPercent} />
+                </div>
               </CardContent>
             </Card>
-            
-            {/* Risk Adjustment Breakdown */}
-            <RiskAdjustmentBreakdown symbol={selectedSymbol} baseRiskPercent={riskPercent} />
           </TabsContent>
 
           {/* Volatility-Based Stop Loss Tab */}
