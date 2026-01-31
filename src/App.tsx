@@ -30,6 +30,7 @@ import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
 import Notifications from "./pages/Notifications";
 import Auth from "./pages/Auth";
+import SharedStrategy from "./pages/SharedStrategy";
 import NotFound from "./pages/NotFound";
 
 // Components
@@ -151,6 +152,12 @@ const App = () => (
             <Route path="/backtest" element={
               <ProtectedRoute>
                 <Backtest />
+              </ProtectedRoute>
+            } />
+            {/* Shared Strategy - requires auth but accessed via share link */}
+            <Route path="/shared/strategy/:token" element={
+              <ProtectedRoute>
+                <SharedStrategy />
               </ProtectedRoute>
             } />
             

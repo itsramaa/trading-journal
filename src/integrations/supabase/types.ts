@@ -667,10 +667,12 @@ export type Database = {
           exit_rules: Json | null
           id: string
           is_active: boolean | null
+          is_shared: boolean | null
           market_type: string | null
           min_confluences: number | null
           min_rr: number | null
           name: string
+          share_token: string | null
           source: string | null
           source_url: string | null
           status: string | null
@@ -692,10 +694,12 @@ export type Database = {
           exit_rules?: Json | null
           id?: string
           is_active?: boolean | null
+          is_shared?: boolean | null
           market_type?: string | null
           min_confluences?: number | null
           min_rr?: number | null
           name: string
+          share_token?: string | null
           source?: string | null
           source_url?: string | null
           status?: string | null
@@ -717,10 +721,12 @@ export type Database = {
           exit_rules?: Json | null
           id?: string
           is_active?: boolean | null
+          is_shared?: boolean | null
           market_type?: string | null
           min_confluences?: number | null
           min_rr?: number | null
           name?: string
+          share_token?: string | null
           source?: string | null
           source_url?: string | null
           status?: string | null
@@ -865,6 +871,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_share_token: { Args: never; Returns: string }
       get_user_subscription: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["subscription_tier"]
