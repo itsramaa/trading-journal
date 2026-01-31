@@ -1,6 +1,6 @@
 /**
  * Trading Gate Hook - Central control for trading permissions
- * Checks daily loss limits and determines if trading is allowed
+ * Checks daily loss limits and AI quality scores to determine if trading is allowed
  * Now uses Binance balance as primary source when connected
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -8,6 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { useRiskProfile } from '@/hooks/use-risk-profile';
 import { useBinanceDailyPnl, useBinanceTotalBalance } from '@/hooks/use-binance-daily-pnl';
+import { useTradeEntries } from '@/hooks/use-trade-entries';
 import { useMemo } from 'react';
 
 export interface TradingGateState {
@@ -20,12 +21,23 @@ export interface TradingGateState {
   currentPnl: number;
   startingBalance: number;
   source: 'binance' | 'local';
+  // AI Quality gate
+  aiQualityWarning: boolean;
+  aiQualityBlocked: boolean;
+  avgRecentQuality: number;
 }
 
 const THRESHOLDS = {
   warning: 70,
   danger: 90,
   disabled: 100,
+};
+
+// AI Quality thresholds
+const AI_QUALITY_THRESHOLDS = {
+  warningBelow: 50, // Warn if avg quality < 50
+  blockBelow: 30,   // Block if avg quality < 30
+  tradeCount: 3,    // Check last 3 trades
 };
 
 export function useTradingGate() {
@@ -36,6 +48,9 @@ export function useTradingGate() {
   // Binance data
   const { totalBalance: binanceBalance, isConnected: isBinanceConnected } = useBinanceTotalBalance();
   const binancePnl = useBinanceDailyPnl();
+  
+  // Trade entries for AI quality check
+  const { data: trades = [] } = useTradeEntries();
 
   // Get today's risk snapshot (for Paper Trading fallback)
   const { data: snapshot, isLoading: snapshotLoading } = useQuery({
@@ -60,9 +75,28 @@ export function useTradingGate() {
     refetchInterval: 60 * 1000,
   });
 
+  // Calculate AI quality from recent trades
+  const aiQualityData = useMemo(() => {
+    const closedTrades = trades
+      .filter(t => t.status === 'closed' && t.ai_quality_score !== null)
+      .sort((a, b) => new Date(b.trade_date).getTime() - new Date(a.trade_date).getTime())
+      .slice(0, AI_QUALITY_THRESHOLDS.tradeCount);
+    
+    if (closedTrades.length < AI_QUALITY_THRESHOLDS.tradeCount) {
+      return { avgQuality: 100, hasEnoughData: false };
+    }
+    
+    const avgQuality = closedTrades.reduce((sum, t) => sum + (t.ai_quality_score || 0), 0) / closedTrades.length;
+    return { avgQuality, hasEnoughData: true };
+  }, [trades]);
+
   // Calculate trading gate state
   const gateState = useMemo((): TradingGateState => {
     const maxDailyLossPercent = riskProfile?.max_daily_loss_percent || 5;
+    
+    // AI Quality checks (applied to all modes)
+    const aiQualityWarning = aiQualityData.hasEnoughData && aiQualityData.avgQuality < AI_QUALITY_THRESHOLDS.warningBelow;
+    const aiQualityBlocked = aiQualityData.hasEnoughData && aiQualityData.avgQuality < AI_QUALITY_THRESHOLDS.blockBelow;
     
     // Use Binance data if connected
     if (isBinanceConnected && binanceBalance > 0) {
@@ -82,9 +116,17 @@ export function useTradingGate() {
         status = 'disabled';
         canTrade = false;
         reason = 'Daily loss limit reached. Trading disabled for today.';
-      } else if (lossUsedPercent >= THRESHOLDS.warning) {
+      } else if (aiQualityBlocked) {
+        status = 'disabled';
+        canTrade = false;
+        reason = `Low AI quality score (${aiQualityData.avgQuality.toFixed(0)}%). Review recent trades before continuing.`;
+      } else if (lossUsedPercent >= THRESHOLDS.warning || aiQualityWarning) {
         status = 'warning';
-        reason = `Warning: ${lossUsedPercent.toFixed(0)}% of daily loss limit used.`;
+        if (aiQualityWarning) {
+          reason = `AI quality warning: Average score ${aiQualityData.avgQuality.toFixed(0)}% on last ${AI_QUALITY_THRESHOLDS.tradeCount} trades.`;
+        } else {
+          reason = `Warning: ${lossUsedPercent.toFixed(0)}% of daily loss limit used.`;
+        }
       }
 
       return {
@@ -97,6 +139,9 @@ export function useTradingGate() {
         currentPnl,
         startingBalance,
         source: 'binance',
+        aiQualityWarning,
+        aiQualityBlocked,
+        avgRecentQuality: aiQualityData.avgQuality,
       };
     }
     
@@ -118,9 +163,17 @@ export function useTradingGate() {
       status = 'disabled';
       canTrade = false;
       reason = 'Daily loss limit reached. Trading disabled for today.';
-    } else if (lossUsedPercent >= THRESHOLDS.warning) {
+    } else if (aiQualityBlocked) {
+      status = 'disabled';
+      canTrade = false;
+      reason = `Low AI quality score (${aiQualityData.avgQuality.toFixed(0)}%). Review recent trades before continuing.`;
+    } else if (lossUsedPercent >= THRESHOLDS.warning || aiQualityWarning) {
       status = 'warning';
-      reason = `Warning: ${lossUsedPercent.toFixed(0)}% of daily loss limit used.`;
+      if (aiQualityWarning) {
+        reason = `AI quality warning: Average score ${aiQualityData.avgQuality.toFixed(0)}% on last ${AI_QUALITY_THRESHOLDS.tradeCount} trades.`;
+      } else {
+        reason = `Warning: ${lossUsedPercent.toFixed(0)}% of daily loss limit used.`;
+      }
     }
 
     // Also check if explicitly disabled in snapshot
@@ -140,8 +193,11 @@ export function useTradingGate() {
       currentPnl,
       startingBalance,
       source: 'local',
+      aiQualityWarning,
+      aiQualityBlocked,
+      avgRecentQuality: aiQualityData.avgQuality,
     };
-  }, [snapshot, riskProfile, isBinanceConnected, binanceBalance, binancePnl]);
+  }, [snapshot, riskProfile, isBinanceConnected, binanceBalance, binancePnl, aiQualityData]);
 
   // Create or update today's snapshot (for Paper Trading)
   const initializeSnapshot = useMutation({

@@ -36,6 +36,7 @@ import NotFound from "./pages/NotFound";
 // Components
 import { AIChatbot } from "./components/chat/AIChatbot";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { MarketContextProvider } from "./contexts/MarketContext";
 
 const queryClient = new QueryClient();
 
@@ -83,6 +84,7 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
+          <MarketContextProvider>
           <PageViewTracker />
           <SessionTracker />
           <Routes>
@@ -223,6 +225,7 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
           <AIChatbot />
+          </MarketContextProvider>
         </BrowserRouter>
       </TooltipProvider>
     </ThemeProvider>

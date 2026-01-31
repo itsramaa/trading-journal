@@ -20,6 +20,8 @@ import { SystemStatusIndicator } from "@/components/dashboard/SystemStatusIndica
 import { MarketSessionsWidget } from "@/components/dashboard/MarketSessionsWidget";
 import { ADLRiskWidget } from "@/components/dashboard/ADLRiskWidget";
 import { MarketScoreWidget } from "@/components/dashboard/MarketScoreWidget";
+import { DashboardAnalyticsSummary } from "@/components/dashboard/DashboardAnalyticsSummary";
+import { SmartQuickActions } from "@/components/dashboard/SmartQuickActions";
 import { StrategyCloneStatsWidget } from "@/components/dashboard/StrategyCloneStatsWidget";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { useRealtime } from "@/hooks/use-realtime";
@@ -31,11 +33,8 @@ import { formatCurrency } from "@/lib/formatters";
 import { 
   ChevronRight,
   LineChart,
-  BookOpen,
-  Shield,
   AlertTriangle,
   Activity,
-  CandlestickChart,
   ExternalLink,
   Flame,
   Trophy,
@@ -185,33 +184,11 @@ const Dashboard = () => {
           </>
         )}
 
-        {/* 2. Quick Actions - No title */}
-        <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
-          <Button variant="outline" className="h-auto py-4 flex flex-col gap-2" asChild>
-            <Link to="/trading">
-              <BookOpen className="h-5 w-5 text-primary" />
-              <span className="text-sm">Add Trade</span>
-            </Link>
-          </Button>
-          <Button variant="outline" className="h-auto py-4 flex flex-col gap-2" asChild>
-            <Link to="/accounts">
-              <CandlestickChart className="h-5 w-5 text-primary" />
-              <span className="text-sm">Add Account</span>
-            </Link>
-          </Button>
-          <Button variant="outline" className="h-auto py-4 flex flex-col gap-2" asChild>
-            <Link to="/strategies">
-              <LineChart className="h-5 w-5 text-primary" />
-              <span className="text-sm">Add Strategy</span>
-            </Link>
-          </Button>
-          <Button variant="outline" className="h-auto py-4 flex flex-col gap-2" asChild>
-            <Link to="/risk">
-              <Shield className="h-5 w-5 text-primary" />
-              <span className="text-sm">Risk Check</span>
-            </Link>
-          </Button>
-        </div>
+        {/* 2. Smart Quick Actions - Context-aware */}
+        <SmartQuickActions />
+
+        {/* 2b. Analytics Summary with Sparkline */}
+        <DashboardAnalyticsSummary />
 
         {/* 3. Market Score Widget */}
         <MarketScoreWidget symbol="BTCUSDT" />

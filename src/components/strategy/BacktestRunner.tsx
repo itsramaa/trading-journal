@@ -8,12 +8,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Slider } from "@/components/ui/slider";
+import { Badge } from "@/components/ui/badge";
 import { 
   Play, 
   Loader2, 
   Calendar as CalendarIcon, 
   TrendingUp,
-  AlertTriangle 
+  AlertTriangle,
+  Filter,
+  ChevronDown,
+  Clock,
+  Activity,
+  Zap
 } from "lucide-react";
 import { format, subMonths } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -21,13 +30,20 @@ import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { useRunBacktest } from "@/hooks/use-backtest";
 import { useBaseAssets } from "@/hooks/use-trading-pairs";
 import { BacktestResults } from "./BacktestResults";
-import type { BacktestConfig, BacktestResult } from "@/types/backtest";
+import type { 
+  BacktestConfig, 
+  BacktestResult, 
+  BacktestEventFilter, 
+  BacktestSessionFilter, 
+  BacktestVolatilityFilter 
+} from "@/types/backtest";
 import { COMMON_PAIRS } from "@/types/strategy";
 
 export function BacktestRunner() {
   const [searchParams] = useSearchParams();
   const strategyFromUrl = searchParams.get('strategy');
   
+  // Basic config
   const [selectedStrategyId, setSelectedStrategyId] = useState<string>(strategyFromUrl || '');
   const [selectedPair, setSelectedPair] = useState('BTC');
   const [periodStart, setPeriodStart] = useState<Date>(subMonths(new Date(), 3));
@@ -35,6 +51,15 @@ export function BacktestRunner() {
   const [initialCapital, setInitialCapital] = useState(10000);
   const [commissionRate, setCommissionRate] = useState(0.04); // 0.04%
   const [result, setResult] = useState<BacktestResult | null>(null);
+
+  // Enhanced filters
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [eventFilter, setEventFilter] = useState<BacktestEventFilter>({
+    excludeHighImpact: false,
+    bufferHours: 4,
+  });
+  const [sessionFilter, setSessionFilter] = useState<BacktestSessionFilter>('all');
+  const [volatilityFilter, setVolatilityFilter] = useState<BacktestVolatilityFilter>('all');
 
   const { data: strategies, isLoading: strategiesLoading } = useTradingStrategies();
   const { data: baseAssets } = useBaseAssets();
@@ -49,6 +74,9 @@ export function BacktestRunner() {
 
   const availablePairs = baseAssets.length > 0 ? baseAssets : COMMON_PAIRS;
 
+  // Check if any filter is active
+  const hasActiveFilters = eventFilter.excludeHighImpact || sessionFilter !== 'all' || volatilityFilter !== 'all';
+
   const handleRunBacktest = async () => {
     if (!selectedStrategyId) return;
 
@@ -59,6 +87,10 @@ export function BacktestRunner() {
       periodEnd: periodEnd.toISOString(),
       initialCapital,
       commissionRate: commissionRate / 100, // Convert percentage to decimal
+      // Enhanced filters
+      eventFilter: eventFilter.excludeHighImpact ? eventFilter : undefined,
+      sessionFilter: sessionFilter !== 'all' ? sessionFilter : undefined,
+      volatilityFilter: volatilityFilter !== 'all' ? volatilityFilter : undefined,
     };
 
     try {
@@ -213,6 +245,115 @@ export function BacktestRunner() {
             </div>
           </div>
 
+          {/* Advanced Filters */}
+          <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
+            <CollapsibleTrigger asChild>
+              <Button variant="outline" className="w-full justify-between">
+                <div className="flex items-center gap-2">
+                  <Filter className="h-4 w-4" />
+                  <span>Advanced Filters</span>
+                  {hasActiveFilters && (
+                    <Badge variant="secondary" className="text-xs">Active</Badge>
+                  )}
+                </div>
+                <ChevronDown className={cn("h-4 w-4 transition-transform", filtersOpen && "rotate-180")} />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-4 space-y-4">
+              {/* Event Filter */}
+              <div className="space-y-3 p-4 rounded-lg border">
+                <div className="flex items-center gap-2">
+                  <Zap className="h-4 w-4 text-primary" />
+                  <Label className="font-medium">Economic Event Filter</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="excludeEvents"
+                    checked={eventFilter.excludeHighImpact}
+                    onCheckedChange={(checked) => 
+                      setEventFilter(prev => ({ ...prev, excludeHighImpact: !!checked }))
+                    }
+                  />
+                  <label htmlFor="excludeEvents" className="text-sm cursor-pointer">
+                    Exclude high-impact event days (FOMC, CPI, etc.)
+                  </label>
+                </div>
+                {eventFilter.excludeHighImpact && (
+                  <div className="space-y-2 pt-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm text-muted-foreground">Buffer hours around events</Label>
+                      <span className="text-sm font-medium">{eventFilter.bufferHours}h</span>
+                    </div>
+                    <Slider
+                      value={[eventFilter.bufferHours]}
+                      onValueChange={([value]) => 
+                        setEventFilter(prev => ({ ...prev, bufferHours: value }))
+                      }
+                      min={0}
+                      max={48}
+                      step={4}
+                      className="w-full"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Session Filter */}
+              <div className="space-y-3 p-4 rounded-lg border">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-primary" />
+                  <Label className="font-medium">Trading Session Filter</Label>
+                </div>
+                <Select value={sessionFilter} onValueChange={(v) => setSessionFilter(v as BacktestSessionFilter)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Sessions</SelectItem>
+                    <SelectItem value="asian">Asian Session (00:00-08:00 UTC)</SelectItem>
+                    <SelectItem value="london">London Session (08:00-16:00 UTC)</SelectItem>
+                    <SelectItem value="ny">New York Session (13:00-22:00 UTC)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Only backtest trades that would occur during selected session hours
+                </p>
+              </div>
+
+              {/* Volatility Filter */}
+              <div className="space-y-3 p-4 rounded-lg border">
+                <div className="flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-primary" />
+                  <Label className="font-medium">Volatility Filter</Label>
+                </div>
+                <Select value={volatilityFilter} onValueChange={(v) => setVolatilityFilter(v as BacktestVolatilityFilter)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Volatility Levels</SelectItem>
+                    <SelectItem value="low">Low Volatility Only</SelectItem>
+                    <SelectItem value="medium">Medium Volatility Only</SelectItem>
+                    <SelectItem value="high">High Volatility Only</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Based on ATR percentile classification (requires sufficient data)
+                </p>
+              </div>
+
+              {/* Filter Warning */}
+              {hasActiveFilters && (
+                <Alert>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription className="text-sm">
+                    Filters will reduce the sample size. Results may be less reliable with fewer than 30 trades.
+                  </AlertDescription>
+                </Alert>
+              )}
+            </CollapsibleContent>
+          </Collapsible>
+
           {/* Strategy Info */}
           {selectedStrategy && (
             <Alert>
@@ -224,6 +365,7 @@ export function BacktestRunner() {
                   <li>Market: {selectedStrategy.market_type || 'spot'}</li>
                   <li>Min confluences: {selectedStrategy.min_confluences || 4}</li>
                   <li>TP/SL from exit rules</li>
+                  {hasActiveFilters && <li className="text-primary">+ Advanced filters applied</li>}
                 </ul>
               </AlertDescription>
             </Alert>
