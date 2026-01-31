@@ -59,6 +59,12 @@ import {
   calculateStrategyPerformance,
   generateEquityCurve,
 } from "@/lib/trading-calculations";
+import { 
+  formatCompactCurrency, 
+  formatWinRate, 
+  formatRatio, 
+  formatPercentUnsigned,
+} from "@/lib/formatters";
 import { format } from "date-fns";
 import type { UnifiedMarketContext } from "@/types/market-context";
 
@@ -111,10 +117,8 @@ export default function Performance() {
 
   const equityData = useMemo(() => generateEquityCurve(filteredTrades), [filteredTrades]);
 
-  const formatCurrency = (v: number) => {
-    if (Math.abs(v) >= 1000) return `$${(v / 1000).toFixed(1)}k`;
-    return `$${v.toFixed(0)}`;
-  };
+  // Chart-specific formatter for compact currency display
+  const chartFormatCurrency = (v: number) => formatCompactCurrency(v, 'USD');
 
   // Export handlers
   const handleExportCSV = () => {
@@ -327,7 +331,7 @@ export default function Performance() {
                     <Target className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">{stats.winRate.toFixed(1)}%</div>
+                    <div className="text-2xl font-bold">{formatWinRate(stats.winRate)}</div>
                     <Progress value={stats.winRate} className="h-2 mt-2" />
                   </CardContent>
                 </Card>
@@ -355,7 +359,7 @@ export default function Performance() {
                     <BarChart3 className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">{formatCurrency(stats.expectancy)}</div>
+                    <div className="text-2xl font-bold">{chartFormatCurrency(stats.expectancy)}</div>
                     <p className="text-xs text-muted-foreground">Per trade average</p>
                   </CardContent>
                 </Card>
@@ -368,7 +372,7 @@ export default function Performance() {
                     <AlertTriangle className="h-4 w-4 text-destructive" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-destructive">{stats.maxDrawdownPercent.toFixed(1)}%</div>
+                    <div className="text-2xl font-bold text-destructive">{formatPercentUnsigned(stats.maxDrawdownPercent)}</div>
                     <p className="text-xs text-muted-foreground">Peak to trough</p>
                   </CardContent>
                 </Card>
@@ -392,7 +396,7 @@ export default function Performance() {
                       <InfoTooltip content="Average Reward-to-Risk ratio. 2:1 means you make $2 for every $1 risked. Higher is better." />
                     </CardTitle>
                   </CardHeader>
-                  <CardContent><div className="text-xl font-bold">{stats.avgRR.toFixed(2)}:1</div></CardContent>
+                  <CardContent><div className="text-xl font-bold">{formatRatio(stats.avgRR)}</div></CardContent>
                 </Card>
                 <Card>
                   <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Total Trades</CardTitle></CardHeader>
@@ -407,7 +411,7 @@ export default function Performance() {
                   </CardHeader>
                   <CardContent>
                     <div className={`text-xl font-bold ${stats.totalPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                      {stats.totalPnl >= 0 ? '+' : ''}{formatCurrency(stats.totalPnl)}
+                      {stats.totalPnl >= 0 ? '+' : ''}{chartFormatCurrency(stats.totalPnl)}
                     </div>
                     {/* Show Net P&L breakdown for Binance users */}
                     {binanceStats.isConnected && binanceStats.grossPnl !== 0 && (
@@ -415,17 +419,17 @@ export default function Performance() {
                         <div className="flex justify-between text-xs">
                           <span className="text-muted-foreground">Gross (Today)</span>
                           <span className={binanceStats.grossPnl >= 0 ? 'text-profit' : 'text-loss'}>
-                            {formatCurrency(binanceStats.grossPnl)}
+                            {chartFormatCurrency(binanceStats.grossPnl)}
                           </span>
                         </div>
                         <div className="flex justify-between text-xs">
                           <span className="text-muted-foreground">Fees</span>
-                          <span className="text-muted-foreground">-{formatCurrency(binanceStats.totalCommission)}</span>
+                          <span className="text-muted-foreground">-{chartFormatCurrency(binanceStats.totalCommission)}</span>
                         </div>
                         <div className="flex justify-between text-xs font-medium">
                           <span>Net P&L</span>
                           <span className={binanceStats.netPnl >= 0 ? 'text-profit' : 'text-loss'}>
-                            {binanceStats.netPnl >= 0 ? '+' : ''}{formatCurrency(binanceStats.netPnl)}
+                            {binanceStats.netPnl >= 0 ? '+' : ''}{chartFormatCurrency(binanceStats.netPnl)}
                           </span>
                         </div>
                       </div>
@@ -437,7 +441,7 @@ export default function Performance() {
               {/* Equity Curve with Event Annotations */}
               <EquityCurveWithEvents 
                 equityData={equityData} 
-                formatCurrency={formatCurrency} 
+                formatCurrency={chartFormatCurrency} 
               />
 
               {/* Combined Contextual Score + Time-Based Win Rate */}
@@ -507,23 +511,23 @@ export default function Performance() {
                                     {sp.totalTrades} trades
                                   </span>
                                 </div>
-                                <div className={`font-bold ${sp.totalPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                                  {sp.totalPnl >= 0 ? '+' : ''}{formatCurrency(sp.totalPnl)}
+                              <div className={`font-bold ${sp.totalPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                                  {sp.totalPnl >= 0 ? '+' : ''}{chartFormatCurrency(sp.totalPnl)}
                                 </div>
                               </div>
                               
                               <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
                                 <div>
                                   <span className="text-muted-foreground">Win Rate</span>
-                                  <div className="font-medium">{sp.winRate.toFixed(1)}%</div>
+                                  <div className="font-medium">{formatWinRate(sp.winRate)}</div>
                                 </div>
                                 <div>
                                   <span className="text-muted-foreground">Avg R:R</span>
-                                  <div className="font-medium">{sp.avgRR.toFixed(2)}:1</div>
+                                  <div className="font-medium">{formatRatio(sp.avgRR)}</div>
                                 </div>
                                 <div>
                                   <span className="text-muted-foreground">Avg P&L</span>
-                                  <div className="font-medium">{formatCurrency(sp.avgPnl)}</div>
+                                  <div className="font-medium">{chartFormatCurrency(sp.avgPnl)}</div>
                                 </div>
                                 <div>
                                   <span className="text-muted-foreground">W/L</span>
@@ -531,7 +535,7 @@ export default function Performance() {
                                 </div>
                                 <div>
                                   <span className="text-muted-foreground">Contribution</span>
-                                  <div className="font-medium">{sp.contribution.toFixed(1)}%</div>
+                                  <div className="font-medium">{formatWinRate(sp.contribution)}</div>
                                 </div>
                               </div>
                               
@@ -564,14 +568,14 @@ export default function Performance() {
                               layout="vertical"
                             >
                               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                              <XAxis type="number" tickFormatter={(v) => formatCurrency(v)} />
+                              <XAxis type="number" tickFormatter={(v) => chartFormatCurrency(v)} />
                               <YAxis 
                                 type="category" 
                                 dataKey="strategy.name" 
                                 width={100}
                                 className="text-xs"
                               />
-                              <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                              <Tooltip formatter={(v: number) => chartFormatCurrency(v)} />
                               <Bar dataKey="totalPnl" radius={4}>
                                 {strategyPerformance.filter(sp => sp.totalTrades > 0).map((entry, index) => (
                                   <Cell 

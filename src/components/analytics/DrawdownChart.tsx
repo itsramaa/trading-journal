@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { format } from "date-fns";
+import { formatPercentUnsigned } from "@/lib/formatters";
 
 export function DrawdownChart() {
   const { data: trades } = useTradeEntries();
@@ -79,7 +80,7 @@ export function DrawdownChart() {
           </div>
           <div className="text-right">
             <p className="text-sm text-muted-foreground">Max Drawdown</p>
-            <p className="text-xl font-bold text-loss">-{maxDrawdown.toFixed(2)}%</p>
+            <p className="text-xl font-bold text-loss">-{formatPercentUnsigned(maxDrawdown)}</p>
           </div>
         </div>
       </CardHeader>
