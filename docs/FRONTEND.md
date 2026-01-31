@@ -210,8 +210,197 @@ use-binance-daily-pnl.ts      // Binance daily P&L
 use-binance-weekly-pnl.ts     // Weekly P&L
 use-binance-week-comparison.ts// Week over week
 use-contextual-analytics.ts   // Context-based stats
-use-unified-market-score.ts   // Market score
 use-strategy-performance.ts   // Strategy metrics
+```
+
+### MARKET Domain Hooks
+
+#### Core Market Hooks (`src/hooks/` & `src/features/market-insight/`)
+
+| Hook | Location | Purpose |
+|------|----------|---------|
+| `useUnifiedMarketScore` | `hooks/use-unified-market-score.ts` | Composite market score (0-100) with trading bias |
+| `useMarketSentiment` | `features/market-insight/useMarketSentiment.ts` | Binance sentiment aggregation |
+| `useMacroAnalysis` | `features/market-insight/useMacroAnalysis.ts` | AI-powered macro narrative |
+| `useMarketAlerts` | `features/market-insight/useMarketAlerts.ts` | Extreme condition notifications |
+| `useEconomicCalendar` | `features/calendar/useEconomicCalendar.ts` | Economic event fetching |
+| `useEconomicEvents` | `hooks/use-economic-events.ts` | Event filtering & processing |
+| `useCombinedAnalysis` | `features/market-insight/useCombinedAnalysis.ts` | Unified market recommendation |
+| `useMultiSymbolMarketInsight` | `features/market-insight/useMultiSymbolMarketInsight.ts` | Multi-symbol technical data |
+
+#### Hook Dependency Graph
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│                         MARKET DOMAIN HOOKS                              │
+├──────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  External APIs                                                           │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐     │
+│  │ Binance API │  │ Fear/Greed  │  │  Calendar   │  │  Lovable AI │     │
+│  │ (sentiment) │  │   API       │  │    API      │  │  (macro)    │     │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘     │
+│         │                │                │                │            │
+│         ▼                ▼                ▼                ▼            │
+│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐    │
+│  │useMarket     │ │(internal)    │ │useEconomic   │ │useMacro      │    │
+│  │Sentiment     │ │Fear/Greed    │ │Calendar      │ │Analysis      │    │
+│  │              │ │fetch         │ │              │ │              │    │
+│  └──────┬───────┘ └──────┬───────┘ └──────┬───────┘ └──────┬───────┘    │
+│         │                │                │                │            │
+│         └────────┬───────┴────────┬───────┴────────┬───────┘            │
+│                  │                │                │                     │
+│                  ▼                ▼                ▼                     │
+│         ┌─────────────────────────────────────────────────┐             │
+│         │            useUnifiedMarketScore                │             │
+│         │                                                 │             │
+│         │  Aggregates:                                    │             │
+│         │  • Technical Score (25%)                        │             │
+│         │  • Fear/Greed (25%)                             │             │
+│         │  • Macro Score (25%)                            │             │
+│         │  • Event Safety (25%)                           │             │
+│         │                                                 │             │
+│         │  Outputs:                                       │             │
+│         │  • score: 0-100                                 │             │
+│         │  • bias: LONG_FAVORABLE | SHORT | NEUTRAL | ... │             │
+│         │  • components: { tech, fg, macro, event }       │             │
+│         │  • warnings: string[]                           │             │
+│         └──────────────────────┬──────────────────────────┘             │
+│                                │                                        │
+│         ┌──────────────────────┼──────────────────────┐                 │
+│         │                      │                      │                 │
+│         ▼                      ▼                      ▼                 │
+│  ┌──────────────┐      ┌──────────────┐      ┌──────────────┐          │
+│  │useMarket     │      │useContext    │      │useStrategy   │          │
+│  │Alerts        │      │AwareRisk     │      │Context       │          │
+│  │              │      │              │      │              │          │
+│  │ Monitors:    │      │ Adjusts:     │      │ Evaluates:   │          │
+│  │ • F&G ≤25/≥75│      │ • Vol factor │      │ • Market fit │          │
+│  │ • Conflicts  │      │ • Event mult │      │ • Trend align│          │
+│  │ • Events     │      │ • Sentiment  │      │ • Vol match  │          │
+│  └──────────────┘      └──────────────┘      └──────────────┘          │
+│                                                                          │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Detailed Hook Specifications
+
+**`useUnifiedMarketScore(symbol?: string)`**
+```typescript
+// Returns
+{
+  score: number;                    // 0-100 composite
+  bias: TradingBias;               // Enum: LONG_FAVORABLE, SHORT_FAVORABLE, NEUTRAL, CAUTION, AVOID
+  components: {
+    technical: number;             // 0-100
+    fearGreed: number;             // 0-100
+    macro: number;                 // 0-100
+    eventSafety: number;           // 0-100
+  };
+  warnings: string[];              // Active warnings
+  recommendation: string;          // Human-readable
+  isLoading: boolean;
+  error: Error | null;
+}
+
+// Consumers: MarketScoreWidget, PositionCalculator, TradeEntryWizard, useTradingGate
+```
+
+**`useMarketSentiment(symbol: string)`**
+```typescript
+// Returns
+{
+  sentimentScore: number;          // 0-100 (0=bearish, 100=bullish)
+  topTraderRatio: number;          // Long/short ratio
+  globalRatio: number;             // Global L/S
+  openInterestChange: number;      // OI % change
+  takerVolume: { buy: number; sell: number };
+  fundingRate: number;
+  bias: 'bullish' | 'bearish' | 'neutral';
+  isLoading: boolean;
+}
+
+// Data Source: binance-market-data edge function
+// Consumers: MarketSentimentWidget, useUnifiedMarketScore
+```
+
+**`useMacroAnalysis()`**
+```typescript
+// Returns
+{
+  narrative: string;               // AI-generated analysis
+  keyDrivers: string[];           // Main market drivers
+  riskFactors: string[];          // Current risks
+  outlook: 'bullish' | 'bearish' | 'neutral';
+  confidence: number;             // 0-100
+  isLoading: boolean;
+}
+
+// Data Source: macro-analysis edge function (Lovable AI)
+// Consumers: AIAnalysisTab, useUnifiedMarketScore
+```
+
+**`useEconomicCalendar({ startDate, endDate, impact? })`**
+```typescript
+// Returns
+{
+  events: EconomicEvent[];
+  upcomingHighImpact: EconomicEvent[];  // Next 24h high-impact
+  isEventDay: boolean;                   // High-impact today
+  nextEvent: EconomicEvent | null;
+  isLoading: boolean;
+}
+
+// Data Source: economic-calendar edge function
+// Consumers: CalendarTab, useUnifiedMarketScore, ContextWarnings
+```
+
+**`useMarketAlerts()`**
+```typescript
+// Side-effect hook - monitors conditions and triggers toasts
+// Monitors:
+// - Fear & Greed extremes (≤25 or ≥75)
+// - Sentiment conflicts (Crypto vs Macro)
+// - High-impact events within 1 hour
+
+// Usage: Called once in MarketInsight or Dashboard
+```
+
+**`useContextAwareRisk(symbol: string, baseRisk: number)`**
+```typescript
+// Returns
+{
+  adjustedRisk: number;            // Final risk % after adjustments
+  multipliers: {
+    volatility: number;            // 0.5-1.5 based on ATR
+    event: number;                 // 0.5-1.0 based on calendar
+    sentiment: number;             // 0.7-1.3 based on F&G
+    momentum: number;              // 0.8-1.2 based on score
+    performance: number;           // 0.8-1.0 based on pair history
+  };
+  warnings: string[];
+  breakdown: string;               // Human-readable explanation
+}
+
+// Consumers: PositionCalculator, TradeEntryWizard, RiskAdjustmentBreakdown
+```
+
+**`useStrategyContext(strategyId: string)`**
+```typescript
+// Returns
+{
+  marketFit: number;               // 0-100 strategy-market alignment
+  fitLevel: 'optimal' | 'acceptable' | 'poor';
+  factors: {
+    volatilityMatch: number;       // Timeframe vs ATR
+    trendAlignment: number;        // Strategy vs market bias
+    eventRisk: number;             // High-impact proximity
+    pairHistory: number;           // Historical performance
+  };
+  recommendation: string;
+}
+
+// Consumers: StrategyCard (Market Fit Badge), MarketFitSection
 ```
 
 ### AI Hooks (`src/features/ai/`)
@@ -231,6 +420,7 @@ use-notifications.ts          // Notification system
 use-user-settings.ts          // User preferences
 use-language.ts               // i18n
 use-mobile.tsx                // Mobile detection
+use-ai-settings-enforcement.ts // AI feature gating
 ```
 
 ## State Management
