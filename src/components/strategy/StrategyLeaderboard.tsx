@@ -18,6 +18,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+  PaginationEllipsis,
+} from "@/components/ui/pagination";
 import { 
   Trophy, 
   Medal, 
@@ -78,12 +87,15 @@ const SORT_OPTIONS = [
   { value: "last_cloned_asc", label: "Oldest Cloned" },
 ];
 
+const ITEMS_PER_PAGE = 10;
+
 export function StrategyLeaderboard() {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [timeframeFilter, setTimeframeFilter] = useState("all");
   const [marketTypeFilter, setMarketTypeFilter] = useState("all");
   const [sortBy, setSortBy] = useState("clone_count_desc");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const { data: strategies, isLoading } = useQuery({
     queryKey: ["strategy-leaderboard"],
@@ -94,7 +106,7 @@ export function StrategyLeaderboard() {
         .eq("is_shared", true)
         .gt("clone_count", 0)
         .order("clone_count", { ascending: false })
-        .limit(50); // Fetch more to allow filtering
+        .limit(100); // Fetch more for pagination
 
       if (error) throw error;
       return data || [];
@@ -102,8 +114,8 @@ export function StrategyLeaderboard() {
     staleTime: 5 * 60_000, // 5 minutes
   });
 
-  // Filter and sort strategies
-  const filteredStrategies = useMemo(() => {
+  // Filter and sort strategies (without pagination)
+  const allFilteredStrategies = useMemo(() => {
     if (!strategies) return [];
     
     // First filter
@@ -152,8 +164,21 @@ export function StrategyLeaderboard() {
       }
     });
 
-    return sorted.slice(0, 10); // Limit to top 10 after filtering and sorting
+    return sorted;
   }, [strategies, searchQuery, timeframeFilter, marketTypeFilter, sortBy]);
+
+  // Calculate pagination
+  const totalPages = Math.ceil(allFilteredStrategies.length / ITEMS_PER_PAGE);
+  const paginatedStrategies = useMemo(() => {
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    return allFilteredStrategies.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [allFilteredStrategies, currentPage]);
+
+  // Reset to page 1 when filters change
+  const handleFilterChange = (setter: (value: string) => void, value: string) => {
+    setter(value);
+    setCurrentPage(1);
+  };
 
   const hasActiveFilters = searchQuery.trim() !== "" || timeframeFilter !== "all" || marketTypeFilter !== "all" || sortBy !== "clone_count_desc";
 
@@ -162,6 +187,24 @@ export function StrategyLeaderboard() {
     setTimeframeFilter("all");
     setMarketTypeFilter("all");
     setSortBy("clone_count_desc");
+    setCurrentPage(1);
+  };
+
+  // Generate page numbers to display
+  const getPageNumbers = () => {
+    const pages: (number | "ellipsis")[] = [];
+    if (totalPages <= 5) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      if (currentPage <= 3) {
+        pages.push(1, 2, 3, "ellipsis", totalPages);
+      } else if (currentPage >= totalPages - 2) {
+        pages.push(1, "ellipsis", totalPages - 2, totalPages - 1, totalPages);
+      } else {
+        pages.push(1, "ellipsis", currentPage, "ellipsis", totalPages);
+      }
+    }
+    return pages;
   };
 
   if (isLoading) {
@@ -191,14 +234,14 @@ export function StrategyLeaderboard() {
             </CardTitle>
             <CardDescription>
               {hasActiveFilters 
-                ? `Showing ${filteredStrategies.length} filtered strategies`
-                : "Top cloned strategies globally"
+                ? `Showing ${allFilteredStrategies.length} filtered strategies`
+                : `Top ${allFilteredStrategies.length} cloned strategies globally`
               }
             </CardDescription>
           </div>
           <Badge variant="outline" className="gap-1">
             <Star className="h-3 w-3" />
-            Top 10
+            Page {currentPage} of {totalPages || 1}
           </Badge>
         </div>
 
@@ -210,7 +253,7 @@ export function StrategyLeaderboard() {
             <Input
               placeholder="Search strategies by name, description, or tags..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => handleFilterChange(setSearchQuery, e.target.value)}
               className="pl-9 h-9"
             />
             {searchQuery && (
@@ -218,7 +261,7 @@ export function StrategyLeaderboard() {
                 variant="ghost"
                 size="icon"
                 className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
-                onClick={() => setSearchQuery("")}
+                onClick={() => handleFilterChange(setSearchQuery, "")}
               >
                 <X className="h-4 w-4" />
               </Button>
@@ -232,7 +275,7 @@ export function StrategyLeaderboard() {
               <span>Filters:</span>
             </div>
           
-          <Select value={timeframeFilter} onValueChange={setTimeframeFilter}>
+          <Select value={timeframeFilter} onValueChange={(v) => handleFilterChange(setTimeframeFilter, v)}>
             <SelectTrigger className="w-[140px] h-8">
               <SelectValue placeholder="Timeframe" />
             </SelectTrigger>
@@ -245,7 +288,7 @@ export function StrategyLeaderboard() {
             </SelectContent>
           </Select>
 
-          <Select value={marketTypeFilter} onValueChange={setMarketTypeFilter}>
+          <Select value={marketTypeFilter} onValueChange={(v) => handleFilterChange(setMarketTypeFilter, v)}>
             <SelectTrigger className="w-[130px] h-8">
               <SelectValue placeholder="Market" />
             </SelectTrigger>
@@ -263,7 +306,7 @@ export function StrategyLeaderboard() {
             <span>Sort:</span>
           </div>
 
-          <Select value={sortBy} onValueChange={setSortBy}>
+          <Select value={sortBy} onValueChange={(v) => handleFilterChange(setSortBy, v)}>
             <SelectTrigger className="w-[150px] h-8">
               <SelectValue placeholder="Sort by" />
             </SelectTrigger>
@@ -292,7 +335,7 @@ export function StrategyLeaderboard() {
       </CardHeader>
 
       <CardContent className="space-y-2">
-        {filteredStrategies.length === 0 ? (
+        {paginatedStrategies.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             <TrendingUp className="h-12 w-12 mx-auto mb-3 opacity-50" />
             {hasActiveFilters ? (
@@ -310,10 +353,13 @@ export function StrategyLeaderboard() {
             )}
           </div>
         ) : (
-          filteredStrategies.map((strategy, index) => {
-            const RankIcon = RANK_ICONS[index] || null;
-            const rankColor = RANK_COLORS[index] || "text-muted-foreground";
-            const isOwner = user?.id === strategy.user_id;
+          <>
+            {paginatedStrategies.map((strategy, index) => {
+              // Calculate the actual rank based on current page
+              const actualRank = (currentPage - 1) * ITEMS_PER_PAGE + index;
+              const RankIcon = RANK_ICONS[actualRank] || null;
+              const rankColor = RANK_COLORS[actualRank] || "text-muted-foreground";
+              const isOwner = user?.id === strategy.user_id;
             
             return (
               <div
@@ -326,7 +372,7 @@ export function StrategyLeaderboard() {
                     <RankIcon className={`h-6 w-6 ${rankColor}`} />
                   ) : (
                     <span className="text-lg font-bold text-muted-foreground">
-                      {index + 1}
+                      {actualRank + 1}
                     </span>
                   )}
                 </div>
@@ -390,7 +436,45 @@ export function StrategyLeaderboard() {
                 </div>
               </div>
             );
-          })
+          })}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <Pagination className="mt-4">
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious 
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                  />
+                </PaginationItem>
+                
+                {getPageNumbers().map((page, idx) => (
+                  <PaginationItem key={idx}>
+                    {page === "ellipsis" ? (
+                      <PaginationEllipsis />
+                    ) : (
+                      <PaginationLink
+                        onClick={() => setCurrentPage(page)}
+                        isActive={currentPage === page}
+                        className="cursor-pointer"
+                      >
+                        {page}
+                      </PaginationLink>
+                    )}
+                  </PaginationItem>
+                ))}
+                
+                <PaginationItem>
+                  <PaginationNext 
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          )}
+          </>
         )}
       </CardContent>
     </Card>
