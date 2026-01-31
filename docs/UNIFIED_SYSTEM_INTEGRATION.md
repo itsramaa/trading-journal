@@ -304,15 +304,113 @@ function calculateCompositeScore(context: UnifiedMarketContext): number {
 
 ---
 
+## Risk Management Integration
+
+### Linkage dengan Risk Group
+
+Risk Management adalah **silo terbesar** - tidak terhubung dengan Market, Journal, atau AI. Integrasi yang diperlukan:
+
+```
+Market Data ────────► Risk Calculator
+• Volatility level     • Adjust position size
+• Event risk           • Reduce before FOMC/CPI
+• Fear/Greed           • Context warnings
+
+Journal ────────────► Risk Profile
+• Win rate per pair    • Performance adjustment
+• Losing streak        • Cool down factor
+• Strategy edge        • Strategy-aware sizing
+
+AI Analysis ────────► Trading Gate
+• Trading bias         • Align with recommendation
+• Composite score      • Inform go/no-go decision
+```
+
+### New Hook: useContextAwareRisk
+
+Detailed specification available in `docs/RISK_MANAGEMENT_INTEGRATION_ANALYSIS.md`.
+
+Key adjustment factors:
+| Condition | Factor | Impact |
+|-----------|--------|--------|
+| High Volatility | ×0.7 | Reduce exposure |
+| Event in <1h | ×0.5 | Minimal positions |
+| Top Loser Asset | ×0.7 | Avoid catching knife |
+| Win rate <40% | ×0.8 | Weak edge on pair |
+| 2+ Correlated Positions | ×0.7 | Overlap risk |
+
+---
+
+## Complete System Architecture
+
+```
+                    ┌─────────────────────────────────────────────────────────────────┐
+                    │                    UNIFIED MARKET CONTEXT                        │
+                    │  (Single Source of Truth for all trading decisions)             │
+                    └─────────────────────────────┬───────────────────────────────────┘
+                                                  │
+        ┌─────────────────────────────────────────┼─────────────────────────────────────────┐
+        │                                         │                                         │
+        ▼                                         ▼                                         ▼
+┌───────────────────┐                   ┌───────────────────┐                   ┌───────────────────┐
+│   MARKET DATA     │                   │   RISK MANAGEMENT │                   │     JOURNAL       │
+│   DOMAIN          │◄─────────────────►│   DOMAIN          │◄─────────────────►│     DOMAIN        │
+│                   │                   │                   │                   │                   │
+│ • Sentiment       │ volatility        │ • Trading Gate    │ historical perf   │ • Trade Entries   │
+│ • Fear/Greed      │ momentum          │ • Risk Profile    │ win rate by pair  │ • Trade History   │
+│ • Top Movers      │ event risk        │ • Daily Tracker   │ correlation data  │ • Enrichment      │
+│ • Calendar        │────────────►      │ • Calculator      │ ◄────────────     │ • Screenshots     │
+│ • Whale Tracking  │                   │ • Correlation     │                   │ • Strategies      │
+│ • AI Analysis     │                   │ • Event Log       │                   │ • AI Analysis     │
+└───────────────────┘                   └───────────────────┘                   └───────────────────┘
+        │                                         │                                         │
+        │                                         │                                         │
+        └─────────────────────────────────────────┼─────────────────────────────────────────┘
+                                                  │
+                                                  ▼
+                              ┌─────────────────────────────────────────┐
+                              │         TRADE ENTRY WIZARD              │
+                              │                                         │
+                              │  Step 1: Setup + Context Capture        │
+                              │  Step 2: Position Sizing (Context-Aware)│
+                              │  Step 3: Confluence Check               │
+                              │  Step 4: Pre-Trade Validation           │
+                              │  Step 5: Confirmation                   │
+                              └─────────────────────────────────────────┘
+```
+
+---
+
+## Related Documents
+
+| Document | Focus |
+|----------|-------|
+| `MARKET_DATA_INTEGRATION_ANALYSIS.md` | Market Data, Calendar, Top Movers, AI Analysis |
+| `JOURNAL_INTEGRATION_ANALYSIS.md` | Trading Journal, Trade History, Enrichment |
+| `RISK_MANAGEMENT_INTEGRATION_ANALYSIS.md` | Risk Overview, Risk Calculator, Trading Gate |
+| `Trading_Journey_User_Flow.md` | Complete user flow specification |
+
+---
+
 ## Conclusion
 
 Sistem saat ini memiliki **data vertikal yang solid** (Binance → DB → UI) tetapi **horizontal integration yang lemah** (Market ↔ Journal ↔ Risk). 
 
-Dengan menerapkan `UnifiedMarketContext`, kita menciptakan **single source of truth** yang:
+Dengan mengimplementasikan integrasi yang diusulkan:
 
-1. Menghubungkan semua sumber data pasar
-2. Menyimpan snapshot saat trade entry
-3. Memungkinkan analisis korelasi AI
-4. Otomatis menyesuaikan position sizing
+### Fase 1: UnifiedMarketContext
+- Menghubungkan semua sumber data pasar
+- Menyimpan snapshot saat trade entry
+- Memungkinkan analisis korelasi AI
 
-Ini mengubah sistem dari **reactive journaling** menjadi **proactive decision support**.
+### Fase 2: Context-Aware Risk
+- Otomatis menyesuaikan position sizing
+- Memberikan warning untuk kondisi berbahaya
+- Belajar dari historical performance
+
+### Fase 3: Complete Decision Support
+- Trade Entry Wizard terintegrasi penuh
+- AI recommendations dengan full context
+- Proactive protection dari market conditions
+
+Ini mengubah sistem dari **reactive journaling** menjadi **proactive decision support** yang melindungi trader secara otomatis.
