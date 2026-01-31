@@ -6,13 +6,9 @@
  */
 import { useState, useMemo } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { MarketSentimentWidget } from "@/components/market";
-import { WhaleTrackingWidget } from "@/components/market/WhaleTrackingWidget";
+import { MarketSentimentWidget, WhaleTrackingWidget, TradingOpportunitiesWidget } from "@/components/market";
 import { VolatilityMeterWidget } from "@/components/dashboard/VolatilityMeterWidget";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { BarChart3, RefreshCw, Target } from "lucide-react";
+import { BarChart3, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMultiSymbolMarketInsight } from "@/features/market-insight";
 import { cn } from "@/lib/utils";
@@ -42,7 +38,6 @@ export default function MarketData() {
 
   // Derived formats for selected pair
   const selectedAsset = useMemo(() => selectedPair.replace('USDT', ''), [selectedPair]);
-  const selectedOppPair = useMemo(() => `${selectedAsset}/USDT`, [selectedAsset]);
 
   // Get whale data - already fetched for all requested symbols
   const whaleData = useMemo(() => {
@@ -53,12 +48,11 @@ export default function MarketData() {
   // Get opportunities data - already fetched for all requested symbols
   const opportunitiesData = useMemo(() => {
     if (!marketData?.opportunities) return [];
-    
-    // Already sorted by confidence in edge function
     return marketData.opportunities.slice(0, 6);
   }, [marketData?.opportunities]);
 
   const isSelectedInTop5 = TOP_5_SYMBOLS.includes(selectedPair);
+  const apiError = error instanceof Error ? error : error ? new Error(String(error)) : null;
 
   return (
     <DashboardLayout>
@@ -108,63 +102,14 @@ export default function MarketData() {
         </div>
 
         {/* 3. Trading Opportunities - Full Width at Bottom - Top 5 + selected */}
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Target className="h-5 w-5 text-primary" />
-                <CardTitle className="text-lg">Trading Opportunities</CardTitle>
-              </div>
-              <Badge variant="outline">
-                {!isSelectedInTop5 ? `+${selectedAsset}` : 'Top 5'}
-              </Badge>
-            </div>
-            <CardDescription>
-              AI-ranked setups based on technicals
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                <Skeleton className="h-24" />
-                <Skeleton className="h-24" />
-                <Skeleton className="h-24" />
-                <Skeleton className="h-24" />
-                <Skeleton className="h-24" />
-              </div>
-            ) : opportunitiesData.length === 0 ? (
-              <div className="text-center py-6 text-muted-foreground">
-                <Target className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">No trading opportunities found</p>
-              </div>
-            ) : (
-              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                {opportunitiesData.map((opp, idx) => (
-                  <div 
-                    key={idx} 
-                    className="p-3 rounded-lg border"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{opp.pair}</span>
-                        <Badge 
-                          variant={opp.direction === 'LONG' ? 'default' : opp.direction === 'SHORT' ? 'destructive' : 'secondary'}
-                        >
-                          {opp.direction}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <span className="text-sm font-bold">{opp.confidence}%</span>
-                        <span className="text-xs text-muted-foreground">conf.</span>
-                      </div>
-                    </div>
-                    <p className="text-xs text-muted-foreground">{opp.reason}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <TradingOpportunitiesWidget
+          opportunities={opportunitiesData}
+          isLoading={isLoading}
+          error={apiError}
+          selectedAsset={selectedAsset}
+          isSelectedInTop5={isSelectedInTop5}
+          onRetry={() => refetch()}
+        />
 
         {/* Data Quality Footer */}
         <div className="flex items-center justify-between text-xs text-muted-foreground">

@@ -4,3 +4,4 @@
 export * from './MarketSentimentWidget';
 export * from './MarketContextBadge';
 export * from './WhaleTrackingWidget';
+export * from './TradingOpportunitiesWidget';
