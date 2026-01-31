@@ -20,6 +20,7 @@ import { useTradeEntries, useDeleteTradeEntry, TradeEntry } from "@/hooks/use-tr
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { useBinanceConnectionStatus } from "@/features/binance";
 import { useBinanceAutoSync } from "@/hooks/use-binance-auto-sync";
+import { useTradeEnrichment } from "@/hooks/use-trade-enrichment";
 import { filterTradesByDateRange, filterTradesByStrategies } from "@/lib/trading-calculations";
 import { formatCurrency as formatCurrencyUtil } from "@/lib/formatters";
 import { useUserSettings } from "@/hooks/use-user-settings";
@@ -56,6 +57,14 @@ export default function TradeHistory() {
     autoSyncOnMount: false,
     enablePeriodicSync: false,
   });
+
+  // Quick Note
+  const { addQuickNote } = useTradeEnrichment();
+  
+  const handleQuickNote = async (tradeId: string, note: string) => {
+    await addQuickNote(tradeId, note);
+    queryClient.invalidateQueries({ queryKey: ['trade-entries'] });
+  };
 
   // Currency helper
   const displayCurrency = userSettings?.default_currency || 'USD';
@@ -275,6 +284,7 @@ export default function TradeHistory() {
                         entry={entry} 
                         onDelete={setDeletingTrade}
                         onEnrich={handleEnrichTrade}
+                        onQuickNote={handleQuickNote}
                         calculateRR={calculateRR}
                         formatCurrency={formatCurrency}
                         isBinance={entry.source === 'binance'}
@@ -331,6 +341,7 @@ export default function TradeHistory() {
                         entry={entry} 
                         onDelete={setDeletingTrade}
                         onEnrich={handleEnrichTrade}
+                        onQuickNote={handleQuickNote}
                         calculateRR={calculateRR}
                         formatCurrency={formatCurrency}
                         isBinance={true}
@@ -357,6 +368,7 @@ export default function TradeHistory() {
                         entry={entry} 
                         onDelete={setDeletingTrade}
                         onEnrich={handleEnrichTrade}
+                        onQuickNote={handleQuickNote}
                         calculateRR={calculateRR}
                         formatCurrency={formatCurrency}
                         isBinance={false}
