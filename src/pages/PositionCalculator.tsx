@@ -1,7 +1,8 @@
 /**
  * Position Calculator Page - Standalone page with tabs for calculator and volatility stop-loss
+ * Includes compact market score widget for quick assessment before sizing
  */
-import { useState } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,8 +17,8 @@ import { useBestAvailableBalance } from "@/hooks/use-combined-balance";
 import { useBinanceCommissionRate, useBinanceLeverageBrackets, getMaxLeverageForNotional } from "@/features/binance";
 import { CalculatorInputs, CalculatorResults, QuickReferenceR } from "@/components/risk/calculator";
 import { VolatilityStopLoss } from "@/components/risk/calculator/VolatilityStopLoss";
+import { MarketScoreWidget } from "@/components/dashboard/MarketScoreWidget";
 import { trackEvent, ANALYTICS_EVENTS } from "@/lib/analytics";
-import { useMemo, useEffect, useRef } from "react";
 
 export default function PositionCalculator() {
   const [activeTab, setActiveTab] = useState("calculator");
@@ -136,6 +137,9 @@ export default function PositionCalculator() {
             Calculate position sizes and manage risk before entering trades
           </p>
         </div>
+
+        {/* Market Score Widget - Quick Assessment */}
+        <MarketScoreWidget symbol={selectedSymbol} compact />
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
