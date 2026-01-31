@@ -1,6 +1,7 @@
 /**
  * Daily P&L Page - Standalone page for daily P&L analysis
  */
+import { useMemo } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -54,21 +55,26 @@ export default function DailyPnL() {
     return <span className="text-muted-foreground flex items-center gap-1"><Minus className="h-3 w-3" />0{suffix}</span>;
   };
 
-  // Calculate symbol breakdown from daily data
-  const symbolBreakdown = (() => {
-    if (!weeklyStats.dailyData || weeklyStats.dailyData.length === 0) return [];
+  // Calculate symbol breakdown from REAL bySymbol data
+  const symbolBreakdown = useMemo(() => {
+    // Use real data from binanceStats.bySymbol instead of mock data
+    if (!binanceStats.bySymbol || Object.keys(binanceStats.bySymbol).length === 0) {
+      return [];
+    }
     
-    // Use mock aggregation - in real implementation this would come from detailed API
-    const symbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'XRPUSDT', 'DOGEUSDT'];
-    return symbols.slice(0, 5).map((symbol, i) => ({
-      symbol,
-      trades: Math.floor(weeklyStats.totalTrades / symbols.length) + (i < weeklyStats.totalTrades % symbols.length ? 1 : 0),
-      pnl: weeklyStats.totalGross / symbols.length * (1 - i * 0.1),
-      fees: Math.abs(weeklyStats.dailyData.reduce((acc, d) => acc + d.fees, 0)) / symbols.length,
-      funding: weeklyStats.dailyData.reduce((acc, d) => acc + d.funding, 0) / symbols.length,
-      net: weeklyStats.totalNet / symbols.length * (1 - i * 0.1),
-    })).filter(s => s.trades > 0);
-  })();
+    return Object.entries(binanceStats.bySymbol)
+      .filter(([symbol]) => symbol !== 'N/A')
+      .map(([symbol, data]) => ({
+        symbol,
+        trades: data.count,
+        pnl: data.pnl,
+        fees: data.fees,
+        funding: data.funding,
+        net: data.pnl - data.fees + data.funding + data.rebates,
+      }))
+      .filter(s => s.trades > 0)
+      .sort((a, b) => b.pnl - a.pnl);
+  }, [binanceStats.bySymbol]);
 
   const handleExportCSV = () => {
     exportToCSV({

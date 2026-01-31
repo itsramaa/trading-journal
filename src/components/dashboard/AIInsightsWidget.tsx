@@ -1,7 +1,7 @@
 /**
  * AI Insights Widget for Dashboard
  * Shows AI-generated portfolio analysis and recommendations
- * Enhanced: Respects user AI settings (confidence threshold, feature toggle)
+ * Enhanced: Market Regime badge, Correlation warnings, user AI settings
  */
 import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,13 +21,18 @@ import {
   ThumbsUp,
   ThumbsDown,
   Settings,
+  Link2,
+  Minus,
 } from "lucide-react";
 import { useDashboardInsights, type DashboardInsights } from "@/features/ai/useDashboardInsights";
 import { useAISettingsEnforcement } from "@/hooks/use-ai-settings-enforcement";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { useAccounts } from "@/hooks/use-accounts";
+import { useBinancePositions, useBinanceConnectionStatus } from "@/features/binance";
+import { useUnifiedMarketScore } from "@/hooks/use-unified-market-score";
 import { useAppStore } from "@/store/app-store";
+import { checkCorrelationRisk, extractSymbols, type CorrelationWarning } from "@/lib/correlation-utils";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
@@ -72,6 +77,9 @@ export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
   const { data: trades = [] } = useTradeEntries();
   const { data: strategies = [] } = useTradingStrategies();
   const { data: accounts = [] } = useAccounts();
+  const { data: positions = [] } = useBinancePositions();
+  const { data: connectionStatus } = useBinanceConnectionStatus();
+  const { score, bias, scoreLabel, volatilityLabel, isLoading: marketLoading } = useUnifiedMarketScore({ symbol: 'BTCUSDT' });
   const { setChatbotOpen, setChatbotInitialPrompt } = useAppStore();
   
   const [hasLoaded, setHasLoaded] = useState(false);
@@ -79,6 +87,15 @@ export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
   // Check if AI feature is enabled based on user settings
   const isDailySuggestionsEnabled = shouldRunAIFeature('daily_suggestions');
   const confidenceThreshold = getConfidenceThreshold();
+
+  // Check correlation risk for open positions
+  const correlationWarning = useMemo((): CorrelationWarning | null => {
+    if (!connectionStatus?.isConnected || !positions) return null;
+    const activePositions = positions.filter(p => p.positionAmt !== 0);
+    if (activePositions.length < 2) return null;
+    const symbols = extractSymbols(activePositions);
+    return checkCorrelationRisk(symbols);
+  }, [positions, connectionStatus]);
 
   // Calculate pair-specific recommendations
   const pairRecommendations = useMemo(() => {
@@ -208,7 +225,7 @@ export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
   return (
     <Card className={cn("", className)}>
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <Sparkles className="h-5 w-5 text-primary" />
             AI Insights
@@ -218,17 +235,63 @@ export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
               </Badge>
             )}
           </CardTitle>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleRefresh}
-            disabled={isLoading || !isDailySuggestionsEnabled}
-          >
-            <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
-          </Button>
+          <div className="flex items-center gap-2">
+            {/* Market Regime Badge */}
+            {!marketLoading && (
+              <Badge 
+                variant="outline" 
+                className={cn(
+                  "text-xs gap-1",
+                  bias === 'LONG_FAVORABLE'
+                    ? "border-profit/30 text-profit bg-profit/10" 
+                    : bias === 'SHORT_FAVORABLE'
+                    ? "border-loss/30 text-loss bg-loss/10"
+                    : bias === 'AVOID'
+                    ? "border-destructive/30 text-destructive bg-destructive/10"
+                    : "border-muted-foreground/30"
+                )}
+              >
+                {bias === 'LONG_FAVORABLE' ? (
+                  <TrendingUp className="h-3 w-3" />
+                ) : bias === 'SHORT_FAVORABLE' ? (
+                  <TrendingDown className="h-3 w-3" />
+                ) : bias === 'AVOID' ? (
+                  <AlertTriangle className="h-3 w-3" />
+                ) : (
+                  <Minus className="h-3 w-3" />
+                )}
+                {scoreLabel} | {score}
+              </Badge>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={isLoading || !isDailySuggestionsEnabled}
+            >
+              <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Correlation Warning */}
+        {correlationWarning && (
+          <div className="flex items-start gap-2 p-3 rounded-lg bg-warning/10 border border-warning/30 text-sm">
+            <Link2 className="h-4 w-4 text-warning mt-0.5 shrink-0" />
+            <div>
+              <p className="font-medium text-warning">
+                Correlation Risk: {correlationWarning.pairs.length} pair{correlationWarning.pairs.length !== 1 ? 's' : ''} ({(correlationWarning.avgCorrelation * 100).toFixed(0)}% avg)
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {correlationWarning.pairs.slice(0, 2).map(p => 
+                  `${p.pair1.replace('USDT', '')}↔${p.pair2.replace('USDT', '')}`
+                ).join(', ')}
+                {correlationWarning.pairs.length > 2 && ` +${correlationWarning.pairs.length - 2} more`}
+              </p>
+            </div>
+          </div>
+        )}
         {isLoading && !insights && (
           <div className="space-y-3">
             <Skeleton className="h-4 w-full" />
