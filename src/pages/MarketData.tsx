@@ -55,51 +55,61 @@ export default function MarketData() {
   }, [selectedPair]);
 
   // Get whale data - top 5 assets + selected if not in top 5
+  // With fallback to any available data if top 5 not present
   const getWhaleData = () => {
     if (!sentimentData?.whaleActivity) return [];
+    
+    const allWhales = sentimentData.whaleActivity;
+    if (allWhales.length === 0) return [];
     
     const isSelectedInTop5 = TOP_5_ASSETS.includes(selectedAsset);
     
     // Get top 5 whale data
-    let result = sentimentData.whaleActivity.filter(w => 
-      TOP_5_ASSETS.includes(w.asset)
-    ).slice(0, 5);
+    let result = allWhales.filter(w => TOP_5_ASSETS.includes(w.asset));
+    
+    // Fallback: if no top 5 data, use first 5 available
+    if (result.length === 0) {
+      result = allWhales.slice(0, 5);
+    }
     
     // If selected is NOT in top 5, find it and add to front
     if (!isSelectedInTop5) {
-      const selectedWhale = sentimentData.whaleActivity.find(w => 
-        w.asset === selectedAsset
-      );
+      const selectedWhale = allWhales.find(w => w.asset === selectedAsset);
       if (selectedWhale) {
-        result = [selectedWhale, ...result.slice(0, 4)];
+        result = [selectedWhale, ...result.filter(w => w.asset !== selectedAsset).slice(0, 4)];
       }
     }
     
-    return result;
+    return result.slice(0, 5);
   };
 
   // Get opportunities data - top 5 pairs + selected if not in top 5
+  // With fallback to any available data if top 5 not present
   const getOpportunitiesData = () => {
     if (!sentimentData?.opportunities) return [];
+    
+    const allOpps = sentimentData.opportunities;
+    if (allOpps.length === 0) return [];
     
     const isSelectedInTop5 = TOP_5_OPP_PAIRS.includes(selectedOppPair);
     
     // Get top 5 opportunity data
-    let result = sentimentData.opportunities.filter(o => 
-      TOP_5_OPP_PAIRS.includes(o.pair)
-    ).slice(0, 5);
+    let result = allOpps.filter(o => TOP_5_OPP_PAIRS.includes(o.pair));
+    
+    // Fallback: if no top 5 data, use first 5 available
+    if (result.length === 0) {
+      result = allOpps.slice(0, 5);
+    }
     
     // If selected is NOT in top 5, find it and add to front
     if (!isSelectedInTop5) {
-      const selectedOpp = sentimentData.opportunities.find(o => 
-        o.pair === selectedOppPair
-      );
+      const selectedOpp = allOpps.find(o => o.pair === selectedOppPair);
       if (selectedOpp) {
-        result = [selectedOpp, ...result.slice(0, 4)];
+        result = [selectedOpp, ...result.filter(o => o.pair !== selectedOppPair).slice(0, 4)];
       }
     }
     
-    return result;
+    return result.slice(0, 5);
   };
 
   const whaleData = getWhaleData();

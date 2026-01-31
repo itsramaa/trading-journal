@@ -1,5 +1,6 @@
 /**
- * Trading Heatmap - Shows total PNL by day of week and hour
+ * Trading Heatmap Component - Shows total PNL by day of week and hour
+ * Accepts optional filtered trades, otherwise fetches all trades
  * Card cells show total PNL, hover shows trade count and win rate
  */
 import { useMemo } from "react";
@@ -8,7 +9,15 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
+import type { Tables } from "@/integrations/supabase/types";
 
+// Generic trade type for the heatmap - only needs these fields
+interface HeatmapTrade {
+  trade_date: string;
+  status: string;
+  realized_pnl?: number | null;
+  pnl?: number | null;
+}
 interface HeatmapCell {
   dayOfWeek: number;
   hour: number;
@@ -18,22 +27,33 @@ interface HeatmapCell {
   totalPnl: number;
 }
 
+interface TradingHeatmapProps {
+  trades?: HeatmapTrade[];
+  className?: string;
+}
+
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const HOURS = [0, 4, 8, 12, 16, 20];
 
-export function TradingHeatmap() {
-  const { data: trades } = useTradeEntries();
+export function TradingHeatmap({ trades: externalTrades, className }: TradingHeatmapProps) {
+  const { data: fetchedTrades } = useTradeEntries();
+  
+  // Use external trades if provided, otherwise use fetched
+  const trades = externalTrades || fetchedTrades;
 
   const heatmapData = useMemo(() => {
     if (!trades || trades.length === 0) return [];
+
+    // Only process closed trades if using fetched data
+    const closedTrades = externalTrades 
+      ? trades // Already filtered externally
+      : trades.filter(t => t.status === 'closed');
 
     // Initialize grid
     const grid: Map<string, HeatmapCell> = new Map();
 
     // Process each trade
-    trades.forEach((trade) => {
-      if (trade.status !== 'closed') return;
-
+    closedTrades.forEach((trade) => {
       const tradeDate = new Date(trade.trade_date);
       const dayOfWeek = tradeDate.getDay();
       // Round hour to nearest 4-hour block
@@ -62,32 +82,51 @@ export function TradingHeatmap() {
     });
 
     return Array.from(grid.values());
-  }, [trades]);
+  }, [trades, externalTrades]);
+
+  // Calculate dynamic color thresholds based on data
+  const { maxPnl, minPnl } = useMemo(() => {
+    if (heatmapData.length === 0) return { maxPnl: 100, minPnl: -100 };
+    const pnls = heatmapData.map(c => c.totalPnl);
+    return {
+      maxPnl: Math.max(...pnls, 100),
+      minPnl: Math.min(...pnls, -100),
+    };
+  }, [heatmapData]);
 
   const getCellColor = (cell: HeatmapCell | undefined) => {
     if (!cell || cell.trades === 0) return 'bg-muted/30';
     
-    // Color based on PNL
-    if (cell.totalPnl > 100) return 'bg-profit/60';
-    if (cell.totalPnl > 0) return 'bg-profit/30';
-    if (cell.totalPnl > -100) return 'bg-loss/30';
-    return 'bg-loss/60';
+    const pnl = cell.totalPnl;
+    
+    // Dynamic thresholds based on data range
+    if (pnl >= maxPnl * 0.5) return 'bg-profit/70';
+    if (pnl > 0) return 'bg-profit/35';
+    if (pnl >= minPnl * 0.5) return 'bg-loss/35';
+    return 'bg-loss/70';
   };
 
   const getCellData = (day: number, hour: number) => {
     return heatmapData.find(c => c.dayOfWeek === day && c.hour === hour);
   };
 
-const formatPnlDisplay = (pnl: number) => {
+  const formatPnlDisplay = (pnl: number) => {
     if (Math.abs(pnl) >= 1000) {
       return `$${pnl >= 0 ? '+' : ''}${(pnl / 1000).toFixed(1)}k`;
     }
     return `$${pnl >= 0 ? '+' : ''}${pnl.toFixed(0)}`;
   };
 
+  // Session labels for rows
+  const getSessionLabel = (hour: number) => {
+    if (hour < 8) return 'Asia';
+    if (hour < 16) return 'London';
+    return 'NY';
+  };
+
   if (!trades || trades.length === 0) {
     return (
-      <Card>
+      <Card className={className}>
         <CardHeader>
           <CardTitle>Trading Heatmap</CardTitle>
           <CardDescription>P&L by time of day and day of week</CardDescription>
@@ -103,7 +142,7 @@ const formatPnlDisplay = (pnl: number) => {
   }
 
   return (
-    <Card>
+    <Card className={className}>
       <CardHeader>
         <CardTitle>Trading Heatmap</CardTitle>
         <CardDescription>Total P&L by time of day and day of week</CardDescription>
@@ -114,55 +153,66 @@ const formatPnlDisplay = (pnl: number) => {
             <div className="inline-block min-w-full">
               {/* Header row */}
               <div className="flex items-center mb-1">
-                <div className="w-14 text-xs text-muted-foreground text-left pr-2">Time</div>
+                <div className="w-20 text-xs text-muted-foreground text-left pr-2">Time</div>
                 {DAYS.map((day) => (
-                  <div key={day} className="w-12 text-xs text-muted-foreground text-center">
+                  <div key={day} className="w-14 text-xs text-muted-foreground text-center font-medium">
                     {day}
                   </div>
                 ))}
               </div>
+              
               {/* Data rows */}
-              {HOURS.map((hour) => (
+              {HOURS.map((hour, hourIdx) => (
                 <div key={hour} className="flex items-center mb-1">
-                  <div className="w-14 text-xs text-muted-foreground pr-2">
-                    {hour.toString().padStart(2, '0')}:00
+                  <div className="w-20 text-xs text-muted-foreground pr-2 flex items-center gap-1">
+                    <span className="w-10">{hour.toString().padStart(2, '0')}:00</span>
+                    {(hourIdx === 0 || hour === 8 || hour === 16) && (
+                      <span className="text-[9px] text-muted-foreground/60">
+                        {getSessionLabel(hour)}
+                      </span>
+                    )}
                   </div>
                   {DAYS.map((_, dayIndex) => {
                     const cell = getCellData(dayIndex, hour);
                     return (
-                      <div key={dayIndex} className="w-12 flex justify-center">
+                      <div key={dayIndex} className="w-14 flex justify-center">
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <div
                               className={cn(
-                                "w-10 h-10 rounded flex items-center justify-center text-xs font-medium cursor-default",
+                                "w-12 h-12 rounded-md flex items-center justify-center text-xs font-medium cursor-default transition-all hover:scale-105",
                                 getCellColor(cell)
                               )}
                             >
                               {cell && cell.trades > 0 ? (
                                 <span className={cn(
-                                  "text-[9px] font-semibold",
+                                  "text-[10px] font-semibold",
                                   cell.totalPnl >= 0 ? "text-profit" : "text-loss"
                                 )}>
                                   {formatPnlDisplay(cell.totalPnl)}
                                 </span>
                               ) : (
-                                <span className="text-muted-foreground/50">-</span>
+                                <span className="text-muted-foreground/40">-</span>
                               )}
                             </div>
                           </TooltipTrigger>
-                          <TooltipContent side="top">
+                          <TooltipContent side="top" className="p-3">
                             {cell && cell.trades > 0 ? (
                               <div className="text-xs space-y-1">
-                                <div className="font-semibold">{DAYS[dayIndex]} {hour.toString().padStart(2, '0')}:00</div>
-                                <div className={cell.totalPnl >= 0 ? "text-profit" : "text-loss"}>
+                                <div className="font-semibold text-sm">
+                                  {DAYS[dayIndex]} {hour.toString().padStart(2, '0')}:00 - {((hour + 4) % 24).toString().padStart(2, '0')}:00
+                                </div>
+                                <div className={cn("font-medium", cell.totalPnl >= 0 ? "text-profit" : "text-loss")}>
                                   Total P&L: {formatCurrency(cell.totalPnl, 'USD')}
                                 </div>
                                 <div>Trades: {cell.trades}</div>
-                                <div>Win Rate: {cell.winRate.toFixed(0)}%</div>
+                                <div>Wins: {cell.wins} ({cell.winRate.toFixed(0)}%)</div>
+                                <div className="text-muted-foreground pt-1 border-t">
+                                  Avg: {formatCurrency(cell.totalPnl / cell.trades, 'USD')}/trade
+                                </div>
                               </div>
                             ) : (
-                              <span>No trades</span>
+                              <span className="text-muted-foreground">No trades in this period</span>
                             )}
                           </TooltipContent>
                         </Tooltip>
@@ -176,22 +226,26 @@ const formatPnlDisplay = (pnl: number) => {
         </TooltipProvider>
         
         {/* Legend */}
-        <div className="flex items-center justify-center gap-4 mt-4 text-xs text-muted-foreground">
+        <div className="flex flex-wrap items-center justify-center gap-4 mt-6 text-xs text-muted-foreground">
           <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded bg-loss/60" />
-            <span>&lt;-$100</span>
+            <div className="w-4 h-4 rounded bg-loss/70" />
+            <span>High Loss</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded bg-loss/30" />
-            <span>-$100 to $0</span>
+            <div className="w-4 h-4 rounded bg-loss/35" />
+            <span>Low Loss</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded bg-profit/30" />
-            <span>$0 to $100</span>
+            <div className="w-4 h-4 rounded bg-muted/30" />
+            <span>No Data</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded bg-profit/60" />
-            <span>&gt;$100</span>
+            <div className="w-4 h-4 rounded bg-profit/35" />
+            <span>Low Profit</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-4 h-4 rounded bg-profit/70" />
+            <span>High Profit</span>
           </div>
         </div>
       </CardContent>
