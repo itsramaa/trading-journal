@@ -1,389 +1,233 @@
 
-
-# Deep-Dive Evaluasi UI: Performance Overview (`/performance`)
-
----
-
-## 1. PAGE INTENT
-
-### Primary Intent
-> "Sebagai trader, saya ingin melihat analisis mendalam tentang performa trading saya secara keseluruhan sehingga saya dapat mengidentifikasi kekuatan, kelemahan, dan area yang perlu diperbaiki."
-
-### Secondary Intents
-1. Membandingkan performa antar strategi yang berbeda
-2. Melihat equity curve dengan anotasi event makro (FOMC, CPI, dll)
-3. Menganalisis performa berdasarkan konteks pasar (Fear/Greed, Volatility, Event Days)
-4. Export laporan performa ke CSV/PDF
-5. Melihat temporal patterns (jam, hari, session)
-
-### Overlap Check dengan Page Lain
-| Page | Potensi Overlap | Status |
-|------|----------------|--------|
-| Dashboard | 30-day summary widget (`DashboardAnalyticsSummary`) | ✅ OK - Dashboard = ringkas, Performance = detail |
-| Daily P&L | Daily breakdown | ✅ OK - Daily P&L fokus per-hari, Performance fokus agregat |
-| AI Insights | Emotional patterns | ✅ OK - AI Insights fokus behavioral, Performance fokus quantitative |
-| Trading Heatmap (standalone) | Time-based heatmap | ⚠️ Perlu dicek - mungkin duplikasi dengan `TradingHeatmapChart` di sini |
-
-**Kesimpulan:** Page ini adalah **analytics hub utama** untuk deep-dive performa. Intent jelas dan tidak significant overlap.
+# Rencana Perbaikan Multi-Issue: Accounts, Transactions, Performance, Trade History
 
 ---
 
-## 2. CONTENT & CARD INVENTORY (LENGKAP)
+## Ringkasan Issues
 
-### A. Page Header
-| Element | Tujuan | Domain | Status |
-|---------|--------|--------|--------|
-| Title "Performance Analytics" + Icon | Identifikasi page | UI/Layout | ✅ Sesuai standard |
-| Description | Penjelasan konteks | UI/Layout | ✅ Clear |
-| Export CSV Button | Export data | Analytics/Export | ✅ OK |
-| Export PDF Button | Export report | Analytics/Export | ✅ OK |
-
-**Alasan Eksistensi:** Export di header = quick access untuk power users.
-
-### B. Filters Card
-| Element | Tujuan | Domain | Status |
-|---------|--------|--------|--------|
-| DateRangeFilter | Filter periode analisis | Analytics | ✅ Essential |
-| Strategy Filter (Badges) | Filter per strategi | Strategy/Analytics | ✅ Multi-select dengan "All" option |
-| Event Days Toggle | Filter hanya event days | Analytics/Context | ✅ Unique insight toggle |
-| Event Day Count Badge | Show filtered count | UX | ✅ Good feedback |
-
-**Alasan Eksistensi:** Filters memungkinkan segmentasi data untuk analisis targeted.
-
-### C. Tabs Structure
-| Tab | Content | Tujuan |
-|-----|---------|--------|
-| **Overview** | Key metrics, equity curve, contextual charts | Comprehensive performance view |
-| **Strategies** | Strategy breakdown with AI scores | Per-strategy performance |
+| # | Issue | Lokasi | Severity |
+|---|-------|--------|----------|
+| 1 | API Settings Button redirect salah | `Accounts.tsx` line 103, 220 | LOW |
+| 2 | Transactions Tab infinite empty | `BinanceTransactionHistory.tsx` | MEDIUM |
+| 3 | Financial Tab filter tanggal terbatas | `FinancialSummaryCard.tsx` | LOW |
+| 4 | Paper Account tidak muncul di Accounts page | `Accounts.tsx` & `use-trading-accounts.ts` | HIGH |
+| 5 | AI Insights referensi akun tidak ada | `AIInsightsWidget.tsx` | MEDIUM |
+| 6 | Performance Analysis filters bukan dropdown | `Performance.tsx` | LOW |
+| 7 | Trade History Import tab redundan | `TradeHistory.tsx` | LOW |
 
 ---
 
-## 3. OVERVIEW TAB - CONTENT INVENTORY
+## Issue 1: API Settings Button Redirect Salah
 
-### Section 1: 7-Day Stats (`SevenDayStatsCard`)
-| Card | Metric | Status | Notes |
-|------|--------|--------|-------|
-| Current Streak | Win/Loss streak | ✅ OK | Uses `formatCurrency()` |
-| Trades (7D) | Recent activity | ✅ OK | Integer |
-| Best Day | Highest P&L day | ✅ OK | Color-coded |
-| Worst Day | Lowest P&L day | ✅ OK | Color-coded |
+**Problem:** Link `to="/settings?tab=exchange"` seharusnya bekerja, tapi Settings page tidak handle URL query parameter untuk default tab.
 
-**Alasan Eksistensi:** Quick snapshot sebelum deep-dive. Recency bias penting untuk trader.
+**Root Cause:** Settings.tsx tidak read `?tab=` dari URL untuk set initial tab.
 
-### Section 2: Key Metrics (4-Column Grid)
-| Card | Metric | Status | Formatter | Notes |
-|------|--------|--------|-----------|-------|
-| Win Rate | % wins | ✅ OK | `formatWinRate()` | With progress bar |
-| Profit Factor | Gross P / Gross L | ✅ OK | `.toFixed(2)` | Handles Infinity |
-| Expectancy | Per-trade average | ✅ OK | `chartFormatCurrency()` | Uses compact format |
-| Max Drawdown | Peak-to-trough | ✅ OK | `formatPercentUnsigned()` | Destructive color |
+**Solution:**
+```typescript
+// Settings.tsx - Tambah useSearchParams
+import { useSearchParams } from "react-router-dom";
 
-**Alasan Eksistensi:** Core metrics setiap trader harus monitor. **Essential.**
-
-### Section 3: Additional Metrics (4-Column Grid)
-| Card | Metric | Status | Formatter | Notes |
-|------|--------|--------|-----------|-------|
-| Sharpe Ratio | Risk-adjusted return | ✅ OK | `.toFixed(2)` | Standard 2 decimals |
-| Avg R:R | Reward-to-Risk | ✅ OK | `formatRatio()` | Displays as `X.XX:1` |
-| Total Trades | Count | ✅ OK | Integer | Simple |
-| Total P&L | Aggregate P&L | ✅ OK | `chartFormatCurrency()` | With Binance breakdown (Net P&L) |
-
-**Alasan Eksistensi:** Extended metrics untuk advanced analysis.
-
-### Section 4: Equity Curve (`EquityCurveWithEvents`)
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Area chart | ✅ OK | Cumulative P&L over time |
-| Event annotations (diamonds) | ✅ OK | FOMC, CPI, NFP markers |
-| Custom tooltip | ✅ OK | Shows event info on hover |
-| Event legend | ✅ OK | Lists annotated events |
-| Event day badge | ✅ OK | Count of event days |
-
-**Alasan Eksistensi:** Visual equity progression + context correlation. **High value chart.**
-
-### Section 5: Contextual Charts Row 1 (2-Column Grid)
-| Component | Tujuan | Status | Notes |
-|-----------|--------|--------|-------|
-| `CombinedContextualScore` | Unified context score 0-100 | ✅ OK | Combines F/G + Volatility + Events |
-| `TradingHeatmapChart` | Time-based win rate | ✅ OK | Tabs: Daily/Hourly/Session |
-
-**Alasan Eksistensi:** Contextual performance segmentation.
-
-### Section 6: Contextual Charts Row 2 (2-Column Grid) - Conditional
-| Component | Tujuan | Status | Notes |
-|-----------|--------|--------|-------|
-| `EventDayComparison` | Event days vs normal days | ✅ OK | Side-by-side comparison |
-| `FearGreedZoneChart` | Performance by F/G zone | ✅ OK | 5 zones: Extreme Fear → Extreme Greed |
-
-**Alasan Eksistensi:** Deeper contextual drill-down.
-
-### Section 7: Volatility Chart - Conditional
-| Component | Tujuan | Status |
-|-----------|--------|--------|
-| `VolatilityLevelChart` | Win rate by volatility level | ✅ OK |
-
-**Alasan Eksistensi:** Volatility context performance.
-
-### Section 8: Drawdown Chart
-| Component | Tujuan | Status |
-|-----------|--------|--------|
-| `DrawdownChart` | Equity drawdown over time | ✅ OK |
-
-**Alasan Eksistensi:** Risk visualization - drawdown adalah metrik risiko penting.
-
----
-
-## 4. STRATEGIES TAB - CONTENT INVENTORY
-
-### Strategy Performance Table
-| Element | Status | Notes |
-|---------|--------|-------|
-| Strategy badge | ✅ OK | Name identifier |
-| AI Quality Score badge | ✅ OK | AI-calculated score with label |
-| Trade count | ✅ OK | Sample size |
-| Total P&L | ✅ OK | `chartFormatCurrency()` |
-| Win Rate | ✅ OK | `formatWinRate()` |
-| Avg R:R | ✅ OK | `formatRatio()` |
-| Avg P&L | ✅ OK | `chartFormatCurrency()` |
-| W/L ratio | ✅ OK | Raw wins/losses |
-| Contribution | ✅ OK | % of total P&L |
-| Progress bar | ✅ OK | Win rate visual |
-
-### Strategy Comparison Chart
-| Feature | Status |
-|---------|--------|
-| Horizontal bar chart | ✅ OK |
-| P&L by strategy | ✅ OK |
-| Color coding | ✅ OK (profit/loss) |
-
----
-
-## 5. ORDERING & HIERARCHY ANALYSIS
-
-### Current Flow (Overview Tab)
-```
-1. Filters (Date, Strategy, Event Days)
-2. 7-Day Stats (4 cards) ← Quick snapshot
-3. Key Metrics (4 cards) ← Core KPIs
-4. Additional Metrics (4 cards) ← Extended KPIs
-5. Equity Curve with Events ← Primary visualization
-6. [CombinedContextualScore] [TradingHeatmapChart] ← Context row 1
-7. [EventDayComparison] [FearGreedZoneChart] ← Context row 2 (conditional)
-8. VolatilityLevelChart ← Context (conditional)
-9. DrawdownChart ← Risk visualization
+const Settings = () => {
+  const [searchParams] = useSearchParams();
+  const defaultTab = searchParams.get('tab') || 'trading';
+  
+  // Use defaultTab in Tabs component
+  <Tabs defaultValue={defaultTab} className="space-y-4">
 ```
 
-### Evaluation per Level
-
-| Level | Content | Cognitive Load | Verdict |
-|-------|---------|----------------|---------|
-| 1 | Filters | Low | ✅ Control first |
-| 2 | 7-Day Stats | Low | ✅ Recency snapshot |
-| 3 | Key Metrics | Medium | ✅ Core KPIs |
-| 4 | Additional Metrics | Medium | ✅ Extended |
-| 5 | Equity Curve | Medium | ✅ Visual story |
-| 6 | Context Row 1 | Medium | ✅ Grouped context |
-| 7 | Context Row 2 | Medium | ⚠️ Could be grouped with row 1 |
-| 8 | Volatility | Low | ✅ Single chart |
-| 9 | Drawdown | Low | ✅ Risk at bottom |
-
-### Flow Logic Check
-1. **Control → Summary → Detail → Context → Risk** ✅
-   - Logical progression from filters to insights
-2. **Progressive Disclosure** ✅
-   - Contextual charts conditionally render based on data availability
-3. **Related Charts Grouped** ✅
-   - 2-column grids for related visualizations
+**Files:** `src/pages/Settings.tsx`
 
 ---
 
-## 6. ISSUES IDENTIFIED
+## Issue 2: Transactions Tab Infinite Empty
 
-### Issue 1: TradingHeatmapChart vs Standalone Heatmap Page (MEDIUM)
-**Current:** `TradingHeatmapChart` embedded di Performance, plus standalone `/heatmap` page
-**Question:** Apakah ada duplikasi?
-**Investigation Needed:** Check if `/heatmap` page memiliki fungsi berbeda atau sama
+**Problem:** `BinanceTransactionHistoryTab` selalu menampilkan "No transactions found".
 
-### Issue 2: Contextual Charts Conditional Rendering (LOW)
-**Current:** Rows 6-8 hanya muncul jika `contextualData` tersedia
-**Status:** ✅ Actually OK - proper conditional rendering
-**Note:** User tanpa market context data tidak akan confused
+**Root Cause Analysis:**
+1. Hook `useTransactionSummary` calls `useRecentTransactions`
+2. `useRecentTransactions` calls `useBinanceTransactionHistory`
+3. Edge function endpoint `transaction-history` mungkin belum di-implement atau return data kosong
 
-### Issue 3: Binance P&L Breakdown Placement (LOW)
-**Current:** Total P&L card includes inline Binance breakdown (Gross, Fees, Net)
-**Status:** ✅ OK - informative for Binance users
-**Alternative:** Could be separate card, tapi current implementation tidak crowded
+**Investigation needed:** Check edge function `binance-futures` for action `transaction-history`.
 
-### Issue 4: Section Headers Missing (VERY LOW)
-**Current:** Sections tidak punya headers (kecuali 7-Day Stats)
-**Suggestion:** Add section separators atau headers untuk:
-- "Key Metrics"
-- "Equity Performance"
-- "Contextual Analysis"
-- "Risk Analysis"
+**Solution:** 
+- Add proper error state handling
+- Add loading indicator
+- Show meaningful message jika endpoint belum didukung atau data memang kosong
 
-### Issue 5: Export Functions Inline Formatting (LOW - Already Fixed)
-**Status:** Previous edit sudah fix formatters di page ini.
+**Files:** `src/components/trading/BinanceTransactionHistory.tsx`, `src/features/binance/useBinanceTransactionHistory.ts`
 
 ---
 
-## 7. PLACEMENT DECISIONS PER CARD/SECTION
+## Issue 3: Financial Tab Filter Tanggal Terbatas
 
-### A. Page Header + Export Buttons
-| Decision | Reasoning |
-|----------|-----------|
-| ✅ TETAP | Standard header, export buttons accessible |
+**Current:** Hanya 7, 30, 90 days preset.
+**Required:** Flexible date filter max 1 tahun kebelakang + filter di View Details.
 
-### B. Filters Card
-| Decision | Reasoning |
-|----------|-----------|
-| ✅ TETAP | Essential control, position correct |
-
-### C. 7-Day Stats
-| Decision | Reasoning |
-|----------|-----------|
-| ✅ TETAP | Quick snapshot before deep-dive, good recency focus |
-
-### D. Key Metrics (Win Rate, PF, Expectancy, DD)
-| Decision | Reasoning |
-|----------|-----------|
-| ✅ TETAP | Core KPIs, 4-column balanced |
-
-### E. Additional Metrics (Sharpe, R:R, Trades, P&L)
-| Decision | Reasoning |
-|----------|-----------|
-| ✅ TETAP | Extended metrics, appropriate grouping |
-
-### F. Equity Curve with Events
-| Decision | Reasoning |
-|----------|-----------|
-| ✅ TETAP | Primary visualization, position correct |
-
-### G. CombinedContextualScore
-| Decision | Reasoning |
-|----------|-----------|
-| ✅ TETAP | Unified context score, paired with heatmap |
-
-### H. TradingHeatmapChart
-| Decision | Reasoning |
-|----------|-----------|
-| ⚠️ EVALUATE | Check overlap with `/heatmap` page |
-| Recommendation | Keep if `/heatmap` has more features, or consider consolidation |
-
-### I. EventDayComparison
-| Decision | Reasoning |
-|----------|-----------|
-| ✅ TETAP | Unique insight, conditionally rendered |
-
-### J. FearGreedZoneChart
-| Decision | Reasoning |
-|----------|-----------|
-| ✅ TETAP | Sentiment analysis, conditionally rendered |
-
-### K. VolatilityLevelChart
-| Decision | Reasoning |
-|----------|-----------|
-| ✅ TETAP | Volatility context, conditionally rendered |
-
-### L. DrawdownChart
-| Decision | Reasoning |
-|----------|-----------|
-| ✅ TETAP | Risk visualization at bottom = appropriate |
-
----
-
-## 8. REKOMENDASI IMPROVEMENT
-
-### Priority 1: Add Section Headers (LOW PRIORITY)
-**Recommendation:** Add subtle section dividers for better cognitive organization
+**Solution:**
+1. Extend filter options dengan 180 days dan 365 days
+2. Add custom date range picker (DateRangeFilter component)
+3. Add filter inside collapsible detail section
 
 ```typescript
-// Before Key Metrics
-<div className="space-y-4">
-  <h3 className="text-lg font-semibold text-muted-foreground">Key Metrics</h3>
-  <div className="grid gap-4 md:grid-cols-4">...</div>
-</div>
+// FinancialSummaryCard.tsx
+<SelectContent>
+  <SelectItem value="7">7 days</SelectItem>
+  <SelectItem value="30">30 days</SelectItem>
+  <SelectItem value="90">90 days</SelectItem>
+  <SelectItem value="180">6 months</SelectItem>
+  <SelectItem value="365">1 year</SelectItem>
+</SelectContent>
 
-// Before Equity Curve
-<h3 className="text-lg font-semibold text-muted-foreground">Equity Performance</h3>
-
-// Before Contextual Charts
-<h3 className="text-lg font-semibold text-muted-foreground">Contextual Analysis</h3>
+// Add type filter in details
+<Select value={typeFilter} onValueChange={setTypeFilter}>
+  <SelectContent>
+    <SelectItem value="all">All Types</SelectItem>
+    <SelectItem value="COMMISSION">Fees Only</SelectItem>
+    <SelectItem value="FUNDING_FEE">Funding Only</SelectItem>
+  </SelectContent>
+</Select>
 ```
 
-**Impact:** Improved scanability, reduced cognitive load
-
-### Priority 2: Verify TradingHeatmapChart vs /heatmap (INVESTIGATION)
-**Action:** Check if standalone `/heatmap` page offers additional features beyond what's in `TradingHeatmapChart`
-- If same: Consider removing standalone page
-- If different: Keep both, clarify purpose
-
-### Priority 3: No Changes Needed for Core Structure
-**Status:** The page structure is well-organized:
-- Filters → Snapshot → KPIs → Visual → Context → Risk
-- Progressive disclosure via conditional rendering
-- Formatters already standardized in previous edit
+**Files:** `src/components/accounts/FinancialSummaryCard.tsx`
 
 ---
 
-## 9. FINAL VERDICT
+## Issue 4: Paper Account Tidak Muncul di Accounts Page (HIGH PRIORITY)
 
-### Page Status: ✅ COMPLETE (Minor Polish Optional)
+**Problem:** Trade Entry Wizard shows Paper accounts tapi Accounts page tidak.
 
-| Criteria | Status | Notes |
-|----------|--------|-------|
-| Page intent jelas | ✅ Pass | Deep-dive analytics hub |
-| Semua card terinventarisasi | ✅ Pass | 15+ components documented |
-| Urutan konten masuk akal | ✅ Pass | Filters → Snapshot → KPIs → Visual → Context → Risk |
-| Tidak ada konten numpuk | ✅ Pass | Conditional rendering handles empty states |
-| Keputusan placement per card | ✅ Pass | All decisions documented |
-| Formatters konsisten | ✅ Pass | Fixed in previous edit |
+**Root Cause Analysis:**
+1. Trade Entry Wizard uses `useTradingAccounts()` → fetches accounts with `is_backtest=true`
+2. Accounts page `AccountCardList` dengan prop `filterType="trading"` dan `backtestOnly` 
+3. `AccountCardList` mungkin filter berbeda dari `useTradingAccounts`
 
-### Summary of Optional Changes
+**Verification:** Check `AccountCardList` component logic.
 
-| Priority | Change | Impact | Effort |
-|----------|--------|--------|--------|
-| Low | Add section headers | Better scanability | Very Low |
-| Investigation | Check /heatmap overlap | Potential simplification | Low |
+**Solution:**
+- Ensure `AccountCardList` correctly filters for `is_backtest: true` accounts
+- Verify data consistency antara `useAccounts` dan `useTradingAccounts`
+
+**Files:** `src/components/accounts/AccountCardList.tsx`
 
 ---
 
-## 10. FILES STATUS
+## Issue 5: AI Insights Referensi Akun Tidak Ada
 
-| File | Status |
-|------|--------|
-| `src/pages/Performance.tsx` | ✅ Formatters already fixed |
-| `src/components/analytics/SevenDayStatsCard.tsx` | ✅ Uses `formatCurrency` |
-| `src/components/analytics/EquityCurveWithEvents.tsx` | ✅ Uses prop formatter |
-| `src/components/analytics/DrawdownChart.tsx` | ✅ Uses `formatPercentUnsigned` |
-| `src/components/analytics/EventDayComparison.tsx` | ✅ Uses `formatCurrency` |
-| `src/components/analytics/FearGreedZoneChart.tsx` | ⚠️ Uses `.toFixed()` inline |
-| `src/components/analytics/VolatilityLevelChart.tsx` | ⚠️ Uses `.toFixed()` inline |
-| `src/components/analytics/CombinedContextualScore.tsx` | ⚠️ Uses `.toFixed()` inline |
-| `src/components/analytics/TradingHeatmapChart.tsx` | ⚠️ Uses `$` prefix inline |
+**Problem:** AI Insights widget menggunakan data akun yang mungkin sudah tidak ada.
 
----
+**Root Cause:** Widget menggunakan `useAccounts()` yang returns database accounts, tapi Trade Entry bisa reference "paper" accounts.
 
-## 11. OPTIONAL FOLLOW-UP
+**Solution:**
+1. Filter accounts to only active accounts
+2. Handle case when referenced account doesn't exist
+3. Show warning/fallback message
 
-Jika ingin polish lebih lanjut:
+```typescript
+// AIInsightsWidget.tsx
+const { data: accounts = [] } = useAccounts();
+const activeAccounts = accounts.filter(a => a.is_active);
+```
 
-1. **Section Headers** - Add untuk improved scanability
-2. **Formatter Cleanup in Charts** - Replace inline `.toFixed()` dengan centralized formatters di:
-   - `FearGreedZoneChart.tsx`
-   - `VolatilityLevelChart.tsx`
-   - `CombinedContextualScore.tsx`
-   - `TradingHeatmapChart.tsx`
-
-**Estimated Impact:** Minor visual consistency improvement
-**Estimated Effort:** Very Low (~10-15 line changes per file)
+**Files:** `src/components/dashboard/AIInsightsWidget.tsx`
 
 ---
 
-**Page "Performance Overview" SELESAI untuk evaluasi.**
+## Issue 6: Performance Analysis Filters Bukan Dropdown
 
-Apakah user ingin:
-1. Melanjutkan ke page berikutnya (Daily P&L)?
-2. Implement optional section headers?
-3. Implement formatter cleanup di chart components?
+**Problem:** Strategy filter pakai Badges toggle, bukan dropdown select.
+
+**Current:** Badges untuk multi-select
+**Expected:** Dropdown/Select semua (konsisten dengan Trade History filters)
+
+**Solution:**
+Replace Badge-based strategy filter dengan Popover + Command (sama seperti TradeHistoryFilters)
+
+```typescript
+// Performance.tsx - Replace badges with Popover
+<Popover open={strategyOpen} onOpenChange={setStrategyOpen}>
+  <PopoverTrigger asChild>
+    <Button variant="outline">
+      {selectedStrategyIds.length === 0 
+        ? "All Strategies" 
+        : `${selectedStrategyIds.length} selected`}
+    </Button>
+  </PopoverTrigger>
+  <PopoverContent>
+    <Command>
+      {strategies.map((strategy) => (
+        <CommandItem key={strategy.id} onSelect={() => toggleStrategy(strategy.id)}>
+          {strategy.name}
+        </CommandItem>
+      ))}
+    </Command>
+  </PopoverContent>
+</Popover>
+```
+
+**Files:** `src/pages/Performance.tsx`
+
+---
+
+## Issue 7: Trade History Import Tab Redundan
+
+**Problem:** Import tab tidak diperlukan karena trades auto-sync dari Binance.
+
+**Solution:**
+1. Remove `import` tab dari TabsList
+2. Integrate sync button directly ke Binance tab header
+3. Keep max 1 year data limit (already implemented via date range filter)
+
+```typescript
+// TradeHistory.tsx - Remove import tab
+<TabsList className="mb-4">
+  <TabsTrigger value="all">All</TabsTrigger>
+  <TabsTrigger value="binance">Binance</TabsTrigger>
+  <TabsTrigger value="paper">Paper</TabsTrigger>
+  {/* Remove: <TabsTrigger value="import">Import</TabsTrigger> */}
+</TabsList>
+```
+
+**Files:** `src/pages/TradeHistory.tsx`
+
+---
+
+## Implementasi Urutan
+
+| Priority | Issue | Effort |
+|----------|-------|--------|
+| 1 | Issue 4: Paper Account visibility | Medium |
+| 2 | Issue 1: Settings tab redirect | Low |
+| 3 | Issue 7: Remove Import tab | Low |
+| 4 | Issue 6: Performance filters to dropdown | Medium |
+| 5 | Issue 3: Financial Tab date filter | Low |
+| 6 | Issue 2: Transactions empty state | Medium |
+| 7 | Issue 5: AI Insights account reference | Low |
+
+---
+
+## Files yang Akan Dimodifikasi
+
+| File | Changes |
+|------|---------|
+| `src/pages/Settings.tsx` | Add URL query param handling for default tab |
+| `src/pages/Accounts.tsx` | Verify paper account display logic |
+| `src/pages/Performance.tsx` | Convert strategy badges to dropdown |
+| `src/pages/TradeHistory.tsx` | Remove Import tab |
+| `src/components/accounts/FinancialSummaryCard.tsx` | Extend date options + add detail filters |
+| `src/components/accounts/AccountCardList.tsx` | Verify backtest filter logic |
+| `src/components/trading/BinanceTransactionHistory.tsx` | Improve empty state messaging |
+| `src/components/dashboard/AIInsightsWidget.tsx` | Handle missing account references |
+
+**Estimated Total Lines Changed:** ~150-200 lines
+
+---
+
+## Technical Notes
+
+1. **URL Query Params:** Gunakan `useSearchParams` dari react-router-dom
+2. **Date Range Filter:** Reuse existing `DateRangeFilter` component
+3. **Dropdown Pattern:** Copy pattern dari `TradeHistoryFilters.tsx`
+4. **Account Sync:** Trade Entry Wizard dan Accounts page harus use same hook untuk konsistensi
 
