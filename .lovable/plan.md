@@ -34,8 +34,13 @@
 - Auto-expands when high correlation warnings exist
 - Added "Advanced" badge to indicate feature complexity
 
-## Phase 3: LOW PRIORITY
-- [ ] Trade History - Add saved filters
+## ✅ PHASE 3 COMPLETED
+
+### Trade History - Saved Filters ✅
+- Created `src/hooks/use-saved-filters.ts` for localStorage persistence
+- Updated `TradeHistoryFilters.tsx` with save/load preset UI
+- Features: Save current filters, load presets, delete presets
+- Auto-detects if current filters match a saved preset
 - [ ] Accounts - Add risk settings link
 
 ---
