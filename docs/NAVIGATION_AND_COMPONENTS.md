@@ -703,7 +703,7 @@ src/components/
 ## Related Documentation
 
 - [Test Suite Documentation](./TEST_SUITE_DOCUMENTATION.md)
-- [Trading Journey User Flow](./Trading_Journey_User_Flow.md)
+- [Trading Journey Documentation](./Trading_Journey_Documentation.md)
 - [AI Integration Documentation](./ai_plan.md)
 - [Binance Futures Implementation](./binance/BINANCE_FUTURES_API_IMPLEMENTATION.md)
 

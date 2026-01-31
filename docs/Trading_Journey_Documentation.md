@@ -6,8 +6,8 @@
 **Teknologi:** React + Vite + TypeScript + Tailwind CSS + Supabase (Lovable Cloud)  
 **Tujuan:** Aplikasi trading journal dengan AI integration untuk membantu trader crypto meningkatkan performa trading
 
-### Single Source of Truth
-`docs/Trading_Journey_User_Flow.md` (1950 lines) - Semua keputusan arsitektur mengikuti dokumen ini
+### Core Documentation
+Dokumentasi arsitektur utama tersebar di folder `docs/` dengan fokus per domain
 
 ---
 
@@ -528,8 +528,8 @@ src/
 └── types/                  # TypeScript interfaces (5)
 
 docs/
-├── Trading_Journey_User_Flow.md    # Single source of truth
-├── Trading_Journey_Documentation.md # This file
+├── Trading_Journey_Documentation.md # This file (main documentation)
+├── GAP_ANALYSIS_COMPREHENSIVE.md   # Gap analysis and remediation
 └── AI_Floating_Chatbot.md          # Chatbot documentation
 
 supabase/functions/                  # Edge functions (8)
@@ -615,6 +615,6 @@ npm run preview # Preview production build
 
 ## 16. Related Documentation
 
-- **Single Source of Truth:** `docs/Trading_Journey_User_Flow.md`
+- **Gap Analysis:** `docs/GAP_ANALYSIS_COMPREHENSIVE.md`
 - **AI Chatbot Details:** `docs/AI_Floating_Chatbot.md`
 - **Plan File:** `.lovable/plan.md`
