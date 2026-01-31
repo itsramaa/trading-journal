@@ -4,13 +4,11 @@
  */
 import { useState } from "react";
 import { format } from "date-fns";
-import { AlertCircle, Clock, Filter, Loader2, Target, TrendingDown, TrendingUp } from "lucide-react";
+import { AlertCircle, Clock, Filter, Target, TrendingDown, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Skeleton } from "@/components/ui/skeleton";
 import { 
   useBinanceAlgoOrders, 
   useBinanceAlgoOpenOrders, 
@@ -21,12 +19,21 @@ import { formatCurrency } from "@/lib/formatters";
 
 export function AlgoOrdersTab() {
   const [symbolFilter, setSymbolFilter] = useState("");
-  const { data: openOrders, isLoading: openLoading } = useBinanceAlgoOpenOrders();
-  const { data: historicalOrders, isLoading: historyLoading } = useBinanceAlgoOrders({
+  const { data: openOrders, isLoading: openLoading, error: openError } = useBinanceAlgoOpenOrders();
+  const { data: historicalOrders, isLoading: historyLoading, error: historyError } = useBinanceAlgoOrders({
     limit: 50,
   });
 
   const isLoading = openLoading || historyLoading;
+  const hasError = openError || historyError;
+  
+  // Check if error is related to VIP access
+  const isVipError = hasError && (
+    (openError as Error)?.message?.includes('VIP') || 
+    (historyError as Error)?.message?.includes('VIP') ||
+    (openError as Error)?.message?.includes('not available') ||
+    (historyError as Error)?.message?.includes('not available')
+  );
 
   // Filter orders
   const filteredOpenOrders = openOrders?.filter(o => 
@@ -41,9 +48,26 @@ export function AlgoOrdersTab() {
     return (
       <div className="space-y-4">
         {[...Array(3)].map((_, i) => (
-          <Skeleton key={i} className="h-16 w-full" />
+          <div key={i} className="h-16 w-full animate-pulse bg-muted rounded-md" />
         ))}
       </div>
+    );
+  }
+
+  // Show VIP access required message
+  if (isVipError) {
+    return (
+      <Card>
+        <CardContent className="py-8">
+          <div className="text-center">
+            <Target className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+            <h3 className="text-lg font-semibold mb-2">Algo Orders Not Available</h3>
+            <p className="text-muted-foreground max-w-md mx-auto">
+              Algo Orders (VP, TWAP) require VIP access on Binance. Standard TP/SL orders can be viewed in the regular Trade History.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
     );
   }
 

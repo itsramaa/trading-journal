@@ -630,6 +630,33 @@ async function getAllOrders(
 // =============================================================================
 
 /**
+ * Helper to safely parse JSON response, returning error if HTML is received
+ */
+async function safeJsonParse(response: Response, endpointName: string) {
+  const text = await response.text();
+  
+  // Check if response is HTML (error page from Binance)
+  if (text.startsWith('<!DOCTYPE') || text.startsWith('<html')) {
+    return {
+      isError: true,
+      error: `${endpointName} endpoint not available. This feature may require VIP access or is not supported for your account.`,
+      code: -1,
+    };
+  }
+  
+  try {
+    const data = JSON.parse(text);
+    return { isError: false, data };
+  } catch {
+    return {
+      isError: true,
+      error: `Invalid response from ${endpointName}: ${text.substring(0, 100)}`,
+      code: -1,
+    };
+  }
+}
+
+/**
  * Get algo orders history (historical algo/conditional orders)
  * Phase 6: Algo Orders
  */
@@ -653,8 +680,13 @@ async function getAlgoOrders(
     queryParams.limit = params.limit || 100;
     
     const response = await binanceRequest('/fapi/v1/algo/futures/historicalOrders', 'GET', queryParams, apiKey, apiSecret);
-    const data = await response.json();
+    const parsed = await safeJsonParse(response, 'Algo Orders');
     
+    if (parsed.isError) {
+      return { success: false, error: parsed.error, code: parsed.code };
+    }
+    
+    const data = parsed.data;
     if (data.code && data.code < 0) {
       return { success: false, error: data.msg, code: data.code };
     }
@@ -691,8 +723,13 @@ async function getAlgoOrders(
 async function getAlgoOpenOrders(apiKey: string, apiSecret: string) {
   try {
     const response = await binanceRequest('/fapi/v1/algo/futures/openOrders', 'GET', {}, apiKey, apiSecret);
-    const data = await response.json();
+    const parsed = await safeJsonParse(response, 'Algo Open Orders');
     
+    if (parsed.isError) {
+      return { success: false, error: parsed.error, code: parsed.code };
+    }
+    
+    const data = parsed.data;
     if (data.code && data.code < 0) {
       return { success: false, error: data.msg, code: data.code };
     }
@@ -729,8 +766,13 @@ async function getAlgoOpenOrders(apiKey: string, apiSecret: string) {
 async function getAlgoOrder(apiKey: string, apiSecret: string, algoId: number) {
   try {
     const response = await binanceRequest('/fapi/v1/algo/futures/subOrders', 'GET', { algoId }, apiKey, apiSecret);
-    const data = await response.json();
+    const parsed = await safeJsonParse(response, 'Algo Sub Orders');
     
+    if (parsed.isError) {
+      return { success: false, error: parsed.error, code: parsed.code };
+    }
+    
+    const data = parsed.data;
     if (data.code && data.code < 0) {
       return { success: false, error: data.msg, code: data.code };
     }
