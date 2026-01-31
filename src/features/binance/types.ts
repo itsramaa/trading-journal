@@ -115,7 +115,12 @@ export type BinanceAction =
   | 'order-rate-limit'
   // Phase 5: Bulk Export
   | 'request-download'
-  | 'get-download';
+  | 'get-download'
+  // Phase 6: Algo Orders, Transaction History
+  | 'algo-orders'
+  | 'algo-open-orders'
+  | 'algo-order'
+  | 'transaction-history';
 
 /**
  * Phase 2: Commission Rate for accurate fee calculation
