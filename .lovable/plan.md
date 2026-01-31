@@ -1,10 +1,12 @@
 
-# Comprehensive Trading Domain Cross-Check Audit & Remediation Plan V7
+# Comprehensive Trading Domain Cross-Check Audit & Remediation Plan V8
 
-## Status: 🔄 DOMAIN IDENTIFICATION CORRECTED - READY FOR STEP 2
+## Status: ✅ STEP 3 COMPLETE - ANALYTICS DOMAIN AUDIT DONE
 **Tanggal Audit**: 2026-01-31
 **Domain Identification**: COMPLETED (Step 1)
-**Next Step**: ACCOUNTS Domain Audit (Step 2)
+**ACCOUNTS Domain**: COMPLETED (Step 2)
+**ANALYTICS Domain**: COMPLETED (Step 3)
+**Next Step**: RISK Domain Audit (Step 4)
 **Basis Audit**: Menu-based domain analysis + Binance Futures Domain Model
 
 ---
@@ -13,18 +15,18 @@
 
 ### Audit Sequence (CORRECTED)
 
-| Step | Domain | Dependencies | Rationale |
-|------|--------|--------------|-----------|
-| 1 | ACCOUNTS | None | Foundation - balance, capital, wallet |
-| 2 | JOURNAL | ACCOUNTS | Core trading - trade recordings |
-| 3 | ANALYTICS | JOURNAL, ACCOUNTS | Aggregation - provides daily P&L for RISK |
-| 4 | RISK | ACCOUNTS, ANALYTICS | Uses daily P&L from ANALYTICS |
-| 5 | STRATEGY | External market data | Strategy management |
-| 6 | MARKET | None (external APIs) | External data source |
-| 7 | DASHBOARD | All domains (1-6) | Entry point - aggregates all |
-| 8 | SETTINGS | None | Configuration |
-| 9 | USER | Auth system | Identity & session |
-| 10 | INFRASTRUCTURE | None | Cross-cutting platform layer |
+| Step | Domain | Dependencies | Status |
+|------|--------|--------------|--------|
+| 1 | ACCOUNTS | None | ✅ DONE |
+| 2 | JOURNAL | ACCOUNTS | 🔜 PENDING |
+| 3 | ANALYTICS | JOURNAL, ACCOUNTS | ✅ DONE |
+| 4 | RISK | ACCOUNTS, ANALYTICS | 🔜 PENDING |
+| 5 | STRATEGY | External market data | 🔜 PENDING |
+| 6 | MARKET | None (external APIs) | 🔜 PENDING |
+| 7 | DASHBOARD | All domains (1-6) | 🔜 PENDING |
+| 8 | SETTINGS | None | 🔜 PENDING |
+| 9 | USER | Auth system | 🔜 PENDING |
+| 10 | INFRASTRUCTURE | None | 🔜 PENDING |
 
 ### Domain Map (CORRECTED)
 
@@ -302,6 +304,319 @@ return allIncome.filter((item: BinanceIncome) => {
 |-------------|----------|----------------|
 | AccountDetail page links to `/trading-journey/journal` (old route) | LOW | Update to `/trading` |
 | Paper account doesn't show P&L in AccountDetail | INFO | P&L comes from linked trades (by design) |
+
+---
+
+## STEP 3: ANALYTICS DOMAIN AUDIT
+
+**Audit Date**: 2026-01-31
+**Status**: ✅ COMPLETED
+
+### 3.1 Domain Definition
+
+**Menu Entry Points**: 
+- Performance Overview (`/performance`)
+- Daily P&L (`/daily-pnl`)
+- Trading Heatmap (`/heatmap`)
+- AI Insights (`/ai-insights`)
+- Bulk Export (`/export`) - moved from SETTINGS
+
+**Fungsi Domain**:
+- Mengagregasi trade data untuk performance metrics (Win Rate, Profit Factor, Sharpe)
+- Menyediakan Daily/Weekly P&L breakdown dengan symbol analysis
+- Visualisasi temporal performance (Heatmap, Session, Streak)
+- AI-powered pattern recognition dan recommendations
+- Export data untuk tax reporting dan backup
+
+**Domain Boundary**:
+- **IN**: 
+  - JOURNAL (`trade_entries` via `useTradeEntries()`)
+  - ACCOUNTS (`balance` via `useBinanceDailyPnl()`, `useBinanceWeeklyPnl()`)
+  - MARKET (context via `market_context` column in trade_entries)
+- **OUT**: 
+  - Daily P&L data ke RISK (via `useUnifiedDailyPnl()`)
+  - Performance metrics ke DASHBOARD
+
+### 3.2 Pages & Components Audit
+
+#### 3.2.1 Performance Overview (`/performance`)
+
+**File**: `src/pages/Performance.tsx` (598 lines)
+
+**Tabs**:
+| Tab | Content | Status |
+|-----|---------|--------|
+| Overview | Key metrics + Equity curve + Charts | ✅ CORRECT |
+| Strategies | Per-strategy performance breakdown | ✅ CORRECT |
+
+**Key Metrics Cards**:
+| Metric | Calculation | Status |
+|--------|-------------|--------|
+| Win Rate | `wins / totalTrades * 100` | ✅ CORRECT |
+| Profit Factor | `grossProfit / grossLoss` | ✅ CORRECT |
+| Expectancy | `(winRate * avgWin - lossRate * avgLoss)` | ✅ CORRECT |
+| Max Drawdown | Peak-to-trough calculation | ✅ CORRECT |
+| Sharpe Ratio | Risk-adjusted return | ✅ CORRECT |
+| Avg R:R | Average reward-to-risk ratio | ✅ CORRECT |
+
+**Contextual Features**:
+| Feature | Component | Status |
+|---------|-----------|--------|
+| Event Day Filter | Switch + Badge | ✅ CORRECT |
+| Equity Curve with Events | `EquityCurveWithEvents` | ✅ CORRECT |
+| Fear/Greed Zone Chart | `FearGreedZoneChart` | ✅ CORRECT |
+| Volatility Level Chart | `VolatilityLevelChart` | ✅ CORRECT |
+| Combined Contextual Score | `CombinedContextualScore` | ✅ CORRECT |
+
+**Data Sources**:
+| Hook | Purpose | Status |
+|------|---------|--------|
+| `useTradeEntries()` | Trade data | ✅ CORRECT |
+| `useTradingStrategies()` | Strategy filtering | ✅ CORRECT |
+| `useBinanceDailyPnl()` | Live Binance P&L | ✅ CORRECT |
+| `useBinanceWeeklyPnl()` | 7-day P&L | ✅ CORRECT |
+| `useContextualAnalytics()` | Market context analysis | ✅ CORRECT |
+
+**Export**:
+| Format | Handler | Status |
+|--------|---------|--------|
+| CSV | `exportToCSV()` | ✅ CORRECT |
+| PDF | `exportToPDF()` | ✅ CORRECT |
+
+#### 3.2.2 Daily P&L (`/daily-pnl`)
+
+**File**: `src/pages/DailyPnL.tsx` (383 lines)
+
+**Binance Requirement**: ✅ Shows empty state if not connected
+
+**Sections**:
+| Section | Content | Status |
+|---------|---------|--------|
+| Today's P&L | Realized P&L, Commission, Trades, Win Rate | ✅ CORRECT |
+| Week Comparison | This Week vs Last Week (P&L, Trades, WinRate) | ✅ CORRECT |
+| Best/Worst Trade | 7-day best and worst trade | ✅ CORRECT |
+| 7-Day Trend | Bar chart with daily P&L | ✅ CORRECT |
+| Symbol Breakdown | Per-pair P&L with fees | ✅ CORRECT |
+
+**Data Sources**:
+| Hook | Purpose | Status |
+|------|---------|--------|
+| `useBinanceDailyPnl()` | Today's P&L from income endpoint | ✅ CORRECT |
+| `useBinanceWeeklyPnl()` | 7-day data | ✅ CORRECT |
+| `useBinanceWeekComparison()` | Week-over-week comparison | ✅ CORRECT |
+
+**Symbol Breakdown Logic**:
+```typescript
+// Line 59-77: Correctly uses binanceStats.bySymbol
+return Object.entries(binanceStats.bySymbol)
+  .filter(([symbol]) => symbol !== 'N/A')
+  .map(([symbol, data]) => ({
+    symbol,
+    trades: data.count,
+    pnl: data.pnl,
+    fees: data.fees,
+    net: data.pnl - data.fees + data.funding + data.rebates,
+  }))
+```
+
+**Status**: ✅ CORRECT - Uses real Binance data, properly segregated
+
+#### 3.2.3 Trading Heatmap (`/heatmap`)
+
+**File**: `src/pages/TradingHeatmap.tsx` (452 lines)
+
+**Filters**:
+| Filter | Options | Status |
+|--------|---------|--------|
+| Date Range | 7d, 30d, 90d, All | ✅ CORRECT |
+| Pair | All pairs + specific | ✅ CORRECT |
+
+**Session Performance**:
+| Session | Hours | Status |
+|---------|-------|--------|
+| Asia | 00:00-08:00 | ✅ CORRECT |
+| London | 08:00-16:00 | ✅ CORRECT |
+| NY | 16:00-24:00 | ✅ CORRECT |
+
+**Stats Cards**:
+| Card | Calculation | Status |
+|------|-------------|--------|
+| Best Hour | Max P&L hour (min 2 trades) | ✅ CORRECT |
+| Worst Hour | Min P&L hour (min 2 trades) | ✅ CORRECT |
+| Longest Win Streak | Consecutive wins | ✅ CORRECT |
+| Longest Loss Streak | Consecutive losses | ✅ CORRECT |
+
+**Data Source**: `useTradeEntries()` → filters closed trades
+
+**Export**: CSV export with day/hour grid data
+
+**Status**: ✅ CORRECT
+
+#### 3.2.4 AI Insights (`/ai-insights`)
+
+**File**: `src/pages/AIInsights.tsx` (626 lines)
+
+**Tabs**:
+| Tab | Content | Status |
+|-----|---------|--------|
+| Pattern Analysis | AI-generated insights | ✅ CORRECT |
+| Contextual Performance | Fear/Greed & Volatility segmentation | ✅ CORRECT |
+
+**Pattern Analysis Features**:
+| Feature | Component | Status |
+|---------|-----------|--------|
+| Quick Stats | Total P&L, Win Rate, Profit Factor, Streak | ✅ CORRECT |
+| Pattern Insights | Generated from trade analysis | ✅ CORRECT |
+| Action Items | Priority-based recommendations | ✅ CORRECT |
+| Pair Rankings | Best/worst pairs with stats | ✅ CORRECT |
+| Emotional Patterns | `EmotionalPatternAnalysis` | ✅ CORRECT |
+
+**Contextual Performance**:
+| Chart | Data | Status |
+|-------|------|--------|
+| Fear/Greed Bar Chart | Win rate by zone | ✅ CORRECT |
+| Volatility Bar Chart | Win rate by level | ✅ CORRECT |
+| Event Day Comparison | Event vs Normal day | ✅ CORRECT |
+
+**Data Sources**:
+| Hook | Purpose | Status |
+|------|---------|--------|
+| `useTradeEntries()` | Trade data | ✅ CORRECT |
+| `useTradingStrategies()` | Strategy context | ✅ CORRECT |
+| `useContextualAnalytics()` | Market context analysis | ✅ CORRECT |
+| `useContextualExport()` | PDF export | ✅ CORRECT |
+
+**Status**: ✅ CORRECT
+
+#### 3.2.5 Bulk Export (`/export`)
+
+**File**: `src/pages/BulkExport.tsx` (379 lines)
+
+**Location Update**: ✅ Moved from SETTINGS to ANALYTICS (sidebar corrected)
+
+**Tabs**:
+| Tab | Content | Status |
+|-----|---------|--------|
+| Binance | Transaction/Order/Trade export | ✅ CORRECT |
+| Journal | Trade entries export | ✅ CORRECT |
+| Backup | Settings backup/restore | ✅ CORRECT |
+
+**Binance Export Types**:
+| Type | Data | Status |
+|------|------|--------|
+| Transaction | All income types (P&L, fees, funding) | ✅ CORRECT |
+| Order | Order history | ✅ CORRECT |
+| Trade | Trade execution history | ✅ CORRECT |
+
+**Binance Requirement**: ✅ Shows alert if not connected
+
+**Status**: ✅ CORRECT
+
+### 3.3 Key Hooks Audit
+
+#### 3.3.1 `useContextualAnalytics()` (367 lines)
+
+**Purpose**: Segments trade performance by market conditions
+
+**Segmentation Categories**:
+| Category | Zones | Status |
+|----------|-------|--------|
+| Fear/Greed | extremeFear, fear, neutral, greed, extremeGreed | ✅ CORRECT |
+| Volatility | low, medium, high | ✅ CORRECT |
+| Event Proximity | eventDay, dayBefore, dayAfter, normalDay | ✅ CORRECT |
+
+**Metrics Calculated**:
+- trades, wins, losses, winRate, totalPnl, avgPnl, profitFactor
+
+**Correlations** (Pearson):
+- volatilityVsWinRate
+- fearGreedVsWinRate
+- eventDayVsPnl
+
+**Insights Generated**:
+| Insight Type | Trigger | Status |
+|--------------|---------|--------|
+| Fear Markets Favor You | Fear WR > Greed WR + 10% | ✅ CORRECT |
+| Volatility Trading Edge | High WR > Low WR + 15% | ✅ CORRECT |
+| Event Days Reduce Edge | Event WR < Normal WR - 10% | ✅ CORRECT |
+
+**Data Quality Check**:
+```typescript
+dataQualityPercent: (tradesWithContext / closedTrades) * 100
+```
+
+**Status**: ✅ CORRECT
+
+#### 3.3.2 `useUnifiedDailyPnl()` (NEW)
+
+**Purpose**: Unified P&L source for Trading Gate (RISK domain)
+
+**Logic**:
+1. Checks `useBinanceConnectionStatus()`
+2. If Binance connected → use `useBinanceDailyPnl()`
+3. Else → calculate from `useTradeEntries()` for today
+
+**Status**: ✅ CORRECT - Fixed after initial hook ordering issue
+
+### 3.4 Data Flow OUT (to Other Domains)
+
+#### To RISK Domain
+
+| Hook/Component | Data Provided | Consumer | Status |
+|----------------|---------------|----------|--------|
+| `useUnifiedDailyPnl()` | `totalPnl`, `source` | `useTradingGate()` | ✅ CORRECT |
+| `useBinanceDailyPnl()` | `grossPnl`, `totalCommission` | `RiskSummaryCard` | ✅ CORRECT |
+
+#### To DASHBOARD Domain
+
+| Component | Data | Consumer | Status |
+|-----------|------|----------|--------|
+| `useBinanceDailyPnl()` | Today's P&L | `TodayPerformance` | ✅ CORRECT |
+| `useBinanceWeeklyPnl()` | 7-day trend | `DashboardAnalyticsSummary` | ✅ CORRECT |
+
+### 3.5 Gap Analysis
+
+| Area | Expected | Actual | Gap? |
+|------|----------|--------|------|
+| Performance Metrics | Win Rate, PF, Sharpe, Drawdown | All present | ✅ NO GAP |
+| Daily P&L Breakdown | Gross, Fees, Net, Symbol | All present | ✅ NO GAP |
+| Contextual Analytics | Fear/Greed, Vol, Event segmentation | All present | ✅ NO GAP |
+| Temporal Analysis | Session, Day, Hour breakdown | All present | ✅ NO GAP |
+| AI Insights | Patterns, Actions, Pair rankings | All present | ✅ NO GAP |
+| Export Capabilities | CSV, PDF, Bulk | All present | ✅ NO GAP |
+| Data Flow to RISK | Daily P&L | `useUnifiedDailyPnl()` | ✅ NO GAP |
+| Bulk Export Location | ANALYTICS group | Moved to ANALYTICS | ✅ NO GAP |
+
+### 3.6 UI/UX Audit
+
+| Aspect | Status | Notes |
+|--------|--------|-------|
+| Empty States | ✅ GOOD | All pages handle no-data gracefully |
+| Loading States | ✅ GOOD | Skeletons present |
+| Binance Not Connected | ✅ GOOD | Clear messaging with CTA |
+| Filters | ✅ GOOD | Date range, strategy, pair filters |
+| Export Actions | ✅ GOOD | Prominent buttons in headers |
+| Contextual Visuals | ✅ GOOD | Charts with proper legends |
+
+### 3.7 Audit Result Summary
+
+| Category | Result |
+|----------|--------|
+| Data Sources | ✅ CORRECT |
+| Data Aggregation | ✅ CORRECT |
+| Calculations | ✅ CORRECT |
+| UI Display | ✅ CORRECT |
+| Dependencies | ✅ CORRECT |
+| Data Flow OUT | ✅ CORRECT |
+
+**ANALYTICS Domain Status**: ✅ **PASS** - No gaps identified
+
+### 3.8 Fixes Applied During Audit
+
+| Issue | Fix | Status |
+|-------|-----|--------|
+| Bulk Export in wrong sidebar group | Moved from SETTINGS to ANALYTICS | ✅ FIXED |
+| `useUnifiedDailyPnl` nested hook error | Refactored to use `useBinanceConnectionStatus` directly | ✅ FIXED |
 
 ---
 
