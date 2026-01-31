@@ -2,6 +2,7 @@
  * Today's Performance - 24H trading stats with full income breakdown
  * Uses Binance income API for real trades (all symbols, all income types)
  * Shows: Gross P&L, Net P&L, Fees, Funding, Rebates
+ * Wrapped with error boundary for Binance API timeout handling
  */
 import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ErrorBoundary, AsyncErrorFallback } from "@/components/ui/error-boundary";
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -27,7 +29,7 @@ import { useBinanceConnectionStatus } from "@/features/binance";
 import { formatCurrency } from "@/lib/formatters";
 import { WinRateTooltip, InfoTooltip } from "@/components/ui/info-tooltip";
 
-export function TodayPerformance() {
+function TodayPerformanceContent() {
   const [isFeeBreakdownOpen, setIsFeeBreakdownOpen] = useState(false);
   
   const { data: connectionStatus } = useBinanceConnectionStatus();
@@ -297,5 +299,19 @@ export function TodayPerformance() {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * Exported component wrapped with ErrorBoundary
+ */
+export function TodayPerformance() {
+  return (
+    <ErrorBoundary 
+      title="Today's Performance" 
+      compact={false}
+    >
+      <TodayPerformanceContent />
+    </ErrorBoundary>
   );
 }
