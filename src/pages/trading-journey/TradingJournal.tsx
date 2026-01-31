@@ -1,6 +1,9 @@
 /**
  * Trading Journal - Trade Management Hub
  * Tabs: Pending, Active
+ * 
+ * REMOVED (moved to Performance page per UX audit):
+ * - Portfolio Performance cards (Win Rate, PF, Expectancy)
  */
 import { useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
@@ -21,14 +24,9 @@ import {
   Wifi, 
   Circle, 
   Clock, 
-  Target,
-  TrendingUp
 } from "lucide-react";
 import { useTradeEntries, useDeleteTradeEntry, useClosePosition, useUpdateTradeEntry, TradeEntry } from "@/hooks/use-trade-entries";
 import { useBinancePositions, useBinanceBalance, useBinanceConnectionStatus } from "@/features/binance";
-import { calculateTradingStats } from "@/lib/trading-calculations";
-import { WinRateTooltip, ProfitFactorTooltip, ProfitLossTooltip } from "@/components/ui/info-tooltip";
-import { InfoTooltip } from "@/components/ui/info-tooltip";
 
 import { formatCurrency as formatCurrencyUtil } from "@/lib/formatters";
 import { useUserSettings } from "@/hooks/use-user-settings";
@@ -106,11 +104,6 @@ export default function TradingJournal() {
   const totalUnrealizedPnL = useMemo(() => openPositions.reduce((sum, t) => sum + (t.pnl || 0), 0), [openPositions]);
   const totalRealizedPnL = useMemo(() => closedTrades.reduce((sum, t) => sum + (t.realized_pnl || 0), 0), [closedTrades]);
 
-  // Trading stats for performance cards
-  const tradingStats = useMemo(() => calculateTradingStats(trades || []), [trades]);
-
-  const hasTrades = closedTrades.length > 0;
-
   const handleClosePosition = async (values: ClosePositionFormValues) => {
     if (!closingPosition) return;
     
@@ -173,14 +166,6 @@ export default function TradingJournal() {
     }
   };
 
-  const calculateRR = (trade: TradeEntry): number => {
-    if (!trade.stop_loss || !trade.entry_price || !trade.exit_price) return 0;
-    const risk = Math.abs(trade.entry_price - trade.stop_loss);
-    if (risk === 0) return 0;
-    const reward = Math.abs(trade.exit_price - trade.entry_price);
-    return reward / risk;
-  };
-
   if (tradesLoading) {
     return (
       <DashboardLayout>
@@ -217,58 +202,6 @@ export default function TradingJournal() {
             New Trade
           </Button>
         </div>
-
-        {/* Portfolio Performance (at top, 7-Day Stats moved to Dashboard) */}
-        {hasTrades && (
-          <div className="grid gap-4 md:grid-cols-3">
-            <Card>
-              <CardContent className="pt-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground flex items-center gap-1">
-                      Win Rate
-                      <WinRateTooltip />
-                    </p>
-                    <p className="text-2xl font-bold">{tradingStats.winRate.toFixed(1)}%</p>
-                  </div>
-                  <Target className="h-8 w-8 text-primary" />
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground flex items-center gap-1">
-                      Profit Factor
-                      <ProfitFactorTooltip />
-                    </p>
-                    <p className={`text-2xl font-bold ${tradingStats.profitFactor >= 1 ? 'text-profit' : 'text-loss'}`}>
-                      {tradingStats.profitFactor.toFixed(2)}
-                    </p>
-                  </div>
-                  <TrendingUp className="h-8 w-8 text-muted-foreground" />
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground flex items-center gap-1">
-                      Expectancy
-                      <InfoTooltip content="Average expected profit per trade based on your historical performance." />
-                    </p>
-                    <p className={`text-2xl font-bold ${tradingStats.expectancy >= 0 ? 'text-profit' : 'text-loss'}`}>
-                      {tradingStats.expectancy >= 0 ? '+' : ''}{formatCurrency(tradingStats.expectancy)}
-                    </p>
-                  </div>
-                  <ProfitLossTooltip />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
         
         {/* Trade Entry Wizard Dialog */}
         <Dialog open={isWizardOpen} onOpenChange={setIsWizardOpen}>
@@ -283,7 +216,7 @@ export default function TradingJournal() {
           </DialogContent>
         </Dialog>
 
-        {/* P&L Summary Cards */}
+        {/* P&L Summary Cards (Operational context - NOT analytics metrics) */}
         <TradeSummaryStats
           openPositionsCount={openPositions.length}
           binancePositionsCount={binancePositions.filter(p => p.positionAmt !== 0).length}

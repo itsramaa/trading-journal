@@ -51,6 +51,7 @@ import { FearGreedZoneChart } from "@/components/analytics/FearGreedZoneChart";
 import { VolatilityLevelChart } from "@/components/analytics/VolatilityLevelChart";
 import { CombinedContextualScore } from "@/components/analytics/CombinedContextualScore";
 import { TradingHeatmapChart } from "@/components/analytics/TradingHeatmapChart";
+import { SevenDayStatsCard } from "@/components/analytics/SevenDayStatsCard";
 import { 
   filterTradesByDateRange, 
   filterTradesByStrategies,
@@ -312,6 +313,9 @@ export default function Performance() {
 
             {/* Tab 1: Overview */}
             <TabsContent value="overview" className="space-y-8">
+              {/* 7-Day Stats (moved from Dashboard) */}
+              <SevenDayStatsCard />
+
               {/* Key Metrics */}
               <div className="grid gap-4 md:grid-cols-4">
                 <Card>
