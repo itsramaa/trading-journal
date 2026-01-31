@@ -267,38 +267,6 @@ export function AISettingsTab() {
           </div>
         </CardContent>
       </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>AI Learning Preferences</CardTitle>
-          <CardDescription>
-            What should AI learn from your trades?
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <Label>Learn from Wins</Label>
-              <p className="text-xs text-muted-foreground">Analyze winning patterns</p>
-            </div>
-            <Switch 
-              checked={settings.learn_from_wins}
-              onCheckedChange={() => handleToggle('learn_from_wins')}
-            />
-          </div>
-          <Separator />
-          <div className="flex items-center justify-between">
-            <div>
-              <Label>Learn from Losses</Label>
-              <p className="text-xs text-muted-foreground">Identify losing patterns to avoid</p>
-            </div>
-            <Switch 
-              checked={settings.learn_from_losses}
-              onCheckedChange={() => handleToggle('learn_from_losses')}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Save Button */}
       {hasChanges && (
         <div className="flex justify-end">

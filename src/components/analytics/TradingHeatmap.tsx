@@ -78,11 +78,11 @@ export function TradingHeatmap() {
     return heatmapData.find(c => c.dayOfWeek === day && c.hour === hour);
   };
 
-  const formatPnlDisplay = (pnl: number) => {
+const formatPnlDisplay = (pnl: number) => {
     if (Math.abs(pnl) >= 1000) {
-      return `${pnl >= 0 ? '+' : ''}${(pnl / 1000).toFixed(1)}k`;
+      return `$${pnl >= 0 ? '+' : ''}${(pnl / 1000).toFixed(1)}k`;
     }
-    return `${pnl >= 0 ? '+' : ''}${pnl.toFixed(0)}`;
+    return `$${pnl >= 0 ? '+' : ''}${pnl.toFixed(0)}`;
   };
 
   if (!trades || trades.length === 0) {
@@ -111,69 +111,67 @@ export function TradingHeatmap() {
       <CardContent>
         <TooltipProvider>
           <div className="overflow-x-auto">
-            <table className="w-full border-separate border-spacing-1">
-              <thead>
-                <tr>
-                  <th className="text-xs text-muted-foreground text-left pb-2 pr-2 w-14 align-middle">Time</th>
-                  {DAYS.map((day) => (
-                    <th key={day} className="text-xs text-muted-foreground text-center pb-2 px-1 align-middle">
-                      {day}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {HOURS.map((hour) => (
-                  <tr key={hour}>
-                    <td className="text-xs text-muted-foreground pr-2 align-middle h-10">
-                      {hour.toString().padStart(2, '0')}:00
-                    </td>
-                    {DAYS.map((_, dayIndex) => {
-                      const cell = getCellData(dayIndex, hour);
-                      return (
-                        <td key={dayIndex} className="p-0 align-middle">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <div
-                                className={cn(
-                                  "w-10 h-10 rounded flex items-center justify-center text-xs font-medium cursor-default",
-                                  getCellColor(cell)
-                                )}
-                              >
-                                {cell && cell.trades > 0 ? (
-                                  <span className={cn(
-                                    "text-[10px] font-semibold",
-                                    cell.totalPnl >= 0 ? "text-profit" : "text-loss"
-                                  )}>
-                                    {formatPnlDisplay(cell.totalPnl)}
-                                  </span>
-                                ) : (
-                                  <span className="text-muted-foreground/50">-</span>
-                                )}
-                              </div>
-                            </TooltipTrigger>
-                            <TooltipContent side="top">
-                              {cell && cell.trades > 0 ? (
-                                <div className="text-xs space-y-1">
-                                  <div className="font-semibold">{DAYS[dayIndex]} {hour.toString().padStart(2, '0')}:00</div>
-                                  <div className={cell.totalPnl >= 0 ? "text-profit" : "text-loss"}>
-                                    Total P&L: {formatCurrency(cell.totalPnl, 'USD')}
-                                  </div>
-                                  <div>Trades: {cell.trades}</div>
-                                  <div>Win Rate: {cell.winRate.toFixed(0)}%</div>
-                                </div>
-                              ) : (
-                                <span>No trades</span>
-                              )}
-                            </TooltipContent>
-                          </Tooltip>
-                        </td>
-                      );
-                    })}
-                  </tr>
+            <div className="inline-block min-w-full">
+              {/* Header row */}
+              <div className="flex items-center mb-1">
+                <div className="w-14 text-xs text-muted-foreground text-left pr-2">Time</div>
+                {DAYS.map((day) => (
+                  <div key={day} className="w-12 text-xs text-muted-foreground text-center">
+                    {day}
+                  </div>
                 ))}
-              </tbody>
-            </table>
+              </div>
+              {/* Data rows */}
+              {HOURS.map((hour) => (
+                <div key={hour} className="flex items-center mb-1">
+                  <div className="w-14 text-xs text-muted-foreground pr-2">
+                    {hour.toString().padStart(2, '0')}:00
+                  </div>
+                  {DAYS.map((_, dayIndex) => {
+                    const cell = getCellData(dayIndex, hour);
+                    return (
+                      <div key={dayIndex} className="w-12 flex justify-center">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div
+                              className={cn(
+                                "w-10 h-10 rounded flex items-center justify-center text-xs font-medium cursor-default",
+                                getCellColor(cell)
+                              )}
+                            >
+                              {cell && cell.trades > 0 ? (
+                                <span className={cn(
+                                  "text-[9px] font-semibold",
+                                  cell.totalPnl >= 0 ? "text-profit" : "text-loss"
+                                )}>
+                                  {formatPnlDisplay(cell.totalPnl)}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground/50">-</span>
+                              )}
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            {cell && cell.trades > 0 ? (
+                              <div className="text-xs space-y-1">
+                                <div className="font-semibold">{DAYS[dayIndex]} {hour.toString().padStart(2, '0')}:00</div>
+                                <div className={cell.totalPnl >= 0 ? "text-profit" : "text-loss"}>
+                                  Total P&L: {formatCurrency(cell.totalPnl, 'USD')}
+                                </div>
+                                <div>Trades: {cell.trades}</div>
+                                <div>Win Rate: {cell.winRate.toFixed(0)}%</div>
+                              </div>
+                            ) : (
+                              <span>No trades</span>
+                            )}
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
           </div>
         </TooltipProvider>
         

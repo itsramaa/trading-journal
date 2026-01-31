@@ -199,37 +199,43 @@ export default function Performance() {
         </div>
 
         {/* Filters */}
-        <div className="flex flex-col gap-4 md:flex-row md:items-center">
-          <DateRangeFilter value={dateRange} onChange={setDateRange} />
-          {strategies.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {strategies.map((strategy) => (
-                <Badge
-                  key={strategy.id}
-                  variant={selectedStrategyIds.includes(strategy.id) ? "default" : "outline"}
-                  className="cursor-pointer"
-                  onClick={() => {
-                    setSelectedStrategyIds(prev =>
-                      prev.includes(strategy.id)
-                        ? prev.filter(id => id !== strategy.id)
-                        : [...prev, strategy.id]
-                    );
-                  }}
-                >
-                  {strategy.name}
-                </Badge>
-              ))}
-              {selectedStrategyIds.length > 0 && (
-                <button 
-                  className="text-sm text-muted-foreground hover:text-foreground"
-                  onClick={() => setSelectedStrategyIds([])}
-                >
-                  Clear
-                </button>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center">
+              <DateRangeFilter value={dateRange} onChange={setDateRange} />
+              {strategies.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Strategy:</span>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge
+                      variant={selectedStrategyIds.length === 0 ? "default" : "outline"}
+                      className="cursor-pointer"
+                      onClick={() => setSelectedStrategyIds([])}
+                    >
+                      All
+                    </Badge>
+                    {strategies.map((strategy) => (
+                      <Badge
+                        key={strategy.id}
+                        variant={selectedStrategyIds.includes(strategy.id) ? "default" : "outline"}
+                        className="cursor-pointer"
+                        onClick={() => {
+                          setSelectedStrategyIds(prev =>
+                            prev.includes(strategy.id)
+                              ? prev.filter(id => id !== strategy.id)
+                              : [...prev, strategy.id]
+                          );
+                        }}
+                      >
+                        {strategy.name}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
-          )}
-        </div>
+          </CardContent>
+        </Card>
 
         {trades && trades.length === 0 ? (
           <EmptyState
