@@ -41,11 +41,21 @@ export function TradeHistoryCard({
   const [isQuickNoteOpen, setIsQuickNoteOpen] = useState(false);
   const [quickNote, setQuickNote] = useState('');
   const [isSavingNote, setIsSavingNote] = useState(false);
+  const [isNotesExpanded, setIsNotesExpanded] = useState(false);
 
   const rr = calculateRR(entry);
   const hasScreenshots = entry.screenshots && Array.isArray(entry.screenshots) && entry.screenshots.length > 0;
   const screenshotCount = hasScreenshots ? entry.screenshots!.length : 0;
   const hasNotes = entry.notes && entry.notes.length > 0;
+  const notesLines = hasNotes ? entry.notes!.split('\n').filter(line => line.trim()) : [];
+  const hasMultipleNotes = notesLines.length > 2;
+  
+  // Check if notes contain recent timestamps (within 24h)
+  const hasRecentNote = hasNotes && entry.notes!.includes(`[${new Date().toLocaleDateString()}`) ||
+    (hasNotes && (() => {
+      const timestampMatch = entry.notes!.match(/\[(\d{1,2}:\d{2}:\d{2}\s*[AP]?M?)\]/g);
+      return timestampMatch && timestampMatch.length > 0;
+    })());
   
   // Parse market context from trade entry (may be partial or null)
   const rawMarketContext = entry.market_context as unknown;
@@ -225,7 +235,28 @@ export function TradeHistoryCard({
           )}
 
           {hasNotes && (
-            <p className="text-sm text-muted-foreground line-clamp-2">{entry.notes}</p>
+            <div className="space-y-1">
+              <div className={cn(
+                "text-sm text-muted-foreground whitespace-pre-line",
+                !isNotesExpanded && "line-clamp-2"
+              )}>
+                {entry.notes}
+              </div>
+              {hasMultipleNotes && (
+                <button
+                  type="button"
+                  onClick={() => setIsNotesExpanded(!isNotesExpanded)}
+                  className="text-xs text-primary hover:underline"
+                >
+                  {isNotesExpanded ? 'Show less' : `Show more (${notesLines.length} notes)`}
+                </button>
+              )}
+              {hasRecentNote && !isNotesExpanded && (
+                <Badge variant="outline" className="text-xs border-primary/50 text-primary">
+                  Recently updated
+                </Badge>
+              )}
+            </div>
           )}
 
           {entry.tags && entry.tags.length > 0 && (
