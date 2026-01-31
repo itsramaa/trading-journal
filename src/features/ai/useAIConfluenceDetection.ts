@@ -1,9 +1,10 @@
 /**
  * AI Confluence Detection Hook
- * Calls confluence-detection edge function
+ * Calls confluence-detection edge function with settings enforcement
  */
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAISettingsEnforcement } from "@/hooks/use-ai-settings-enforcement";
 import type { AIConfluenceResult, ConfluenceDetail } from "@/types/ai";
 import type { EntryRule } from "@/types/strategy";
 
@@ -28,8 +29,15 @@ export function useAIConfluenceDetection() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AIConfluenceResult | null>(null);
+  const { shouldRunAIFeature, meetsConfidenceThreshold } = useAISettingsEnforcement();
 
   const detectConfluences = async (params: DetectionParams): Promise<AIConfluenceResult | null> => {
+    // Check if confluence detection is enabled
+    if (!shouldRunAIFeature('confluence_detection')) {
+      console.log('Confluence detection is disabled in AI settings');
+      return null;
+    }
+
     setIsLoading(true);
     setError(null);
 
@@ -47,8 +55,15 @@ export function useAIConfluenceDetection() {
         throw new Error(data?.error || 'Confluence detection failed');
       }
 
-      setResult(data.data || null);
-      return data.data || null;
+      const resultData = data.data || null;
+      
+      // Log if confidence is below threshold (don't mutate the verdict type)
+      if (resultData && !meetsConfidenceThreshold(resultData.overall_confidence)) {
+        console.log('Confluence result has low confidence:', resultData.overall_confidence);
+      }
+
+      setResult(resultData);
+      return resultData;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       setError(message);
@@ -70,5 +85,6 @@ export function useAIConfluenceDetection() {
     error,
     result,
     reset,
+    isFeatureEnabled: shouldRunAIFeature('confluence_detection'),
   };
 }

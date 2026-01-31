@@ -1,9 +1,10 @@
 /**
  * AI Trade Quality Hook
- * Calls trade-quality edge function
+ * Calls trade-quality edge function with settings enforcement
  */
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAISettingsEnforcement } from "@/hooks/use-ai-settings-enforcement";
 import type { AITradeQualityScore } from "@/types/ai";
 
 interface QualityParams {
@@ -48,8 +49,15 @@ export function useAITradeQuality() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AITradeQualityScore | null>(null);
+  const { shouldRunAIFeature, meetsConfidenceThreshold } = useAISettingsEnforcement();
 
   const getQualityScore = async (params: QualityParams): Promise<AITradeQualityScore | null> => {
+    // Check if quality scoring is enabled
+    if (!shouldRunAIFeature('quality_scoring')) {
+      console.log('Trade quality scoring is disabled in AI settings');
+      return null;
+    }
+
     setIsLoading(true);
     setError(null);
 
@@ -67,8 +75,15 @@ export function useAITradeQuality() {
         throw new Error(data?.error || 'Trade quality analysis failed');
       }
 
-      setResult(data.data || null);
-      return data.data || null;
+      const resultData = data.data || null;
+      
+      // Log if confidence is below threshold
+      if (resultData && !meetsConfidenceThreshold(resultData.confidence)) {
+        console.log('Trade quality result has low confidence:', resultData.confidence);
+      }
+
+      setResult(resultData);
+      return resultData;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       setError(message);
@@ -90,5 +105,6 @@ export function useAITradeQuality() {
     error,
     result,
     reset,
+    isFeatureEnabled: shouldRunAIFeature('quality_scoring'),
   };
 }

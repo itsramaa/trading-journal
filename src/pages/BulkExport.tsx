@@ -1,6 +1,6 @@
 /**
- * Bulk Export Page - Tax Reporting
- * Phase 5: Download history exports for tax and accounting
+ * Bulk Export Page - Tax Reporting & Backup
+ * Phase 5: Download history exports for tax and accounting, backup/restore settings
  */
 import { useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -12,6 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Download, 
   FileSpreadsheet, 
@@ -23,7 +24,9 @@ import {
   FileText,
   Receipt,
   BarChart3,
-  Info
+  Info,
+  Settings2,
+  Database
 } from "lucide-react";
 import { format, subDays, startOfYear, endOfDay, startOfDay } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -34,6 +37,8 @@ import {
   getExportTypeDescription,
   type BulkExportType 
 } from "@/features/binance/useBinanceBulkExport";
+import { SettingsBackupRestore } from "@/components/settings/SettingsBackupRestore";
+import { JournalExportCard } from "@/components/settings/JournalExportCard";
 import { toast } from "sonner";
 
 const exportTypes: { type: BulkExportType; icon: typeof FileText }[] = [
@@ -106,22 +111,40 @@ export default function BulkExport() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <Download className="h-6 w-6 text-primary" />
-            Bulk Export
+            Bulk Export & Backup
           </h1>
           <p className="text-muted-foreground">
-            Download trading history for tax reporting and analysis
+            Download trading history, export journal, and backup settings
           </p>
         </div>
 
-        {/* Info Alert */}
-        <Alert>
-          <Info className="h-4 w-4" />
-          <AlertTitle>About Bulk Exports</AlertTitle>
-          <AlertDescription>
-            Binance processes bulk export requests asynchronously. Large date ranges may take 
-            a few minutes to prepare. The download will start automatically once ready.
-          </AlertDescription>
-        </Alert>
+        <Tabs defaultValue="binance" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-3 lg:w-[450px]">
+            <TabsTrigger value="binance" className="gap-2">
+              <Receipt className="h-4 w-4" />
+              <span className="hidden sm:inline">Binance</span>
+            </TabsTrigger>
+            <TabsTrigger value="journal" className="gap-2">
+              <Database className="h-4 w-4" />
+              <span className="hidden sm:inline">Journal</span>
+            </TabsTrigger>
+            <TabsTrigger value="backup" className="gap-2">
+              <Settings2 className="h-4 w-4" />
+              <span className="hidden sm:inline">Backup</span>
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Binance Export Tab */}
+          <TabsContent value="binance" className="space-y-6">
+            {/* Info Alert */}
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertTitle>About Binance Exports</AlertTitle>
+              <AlertDescription>
+                Binance processes bulk export requests asynchronously. Large date ranges may take 
+                a few minutes to prepare. The download will start automatically once ready.
+              </AlertDescription>
+            </Alert>
 
         {/* Date Range Selection */}
         <Card>
@@ -307,37 +330,49 @@ export default function BulkExport() {
               </Card>
             );
           })}
-        </div>
+            </div>
 
-        {/* Tax Reporting Tips */}
-        <Card className="border-chart-4/30 bg-chart-4/5">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Receipt className="h-5 w-5 text-chart-4" />
-              Tax Reporting Tips
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li className="flex items-start gap-2">
-                <span className="text-chart-4">•</span>
-                <span><strong>Transaction History</strong> contains all income types: realized P&L, funding fees, commissions, and rebates.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-chart-4">•</span>
-                <span><strong>Trade History</strong> includes individual trade details with entry/exit prices and quantities.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-chart-4">•</span>
-                <span>All amounts are in <strong>USDT</strong>. Convert to your local currency using the exchange rate on the transaction date.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-chart-4">•</span>
-                <span>Consult a tax professional for guidance on cryptocurrency taxation in your jurisdiction.</span>
-              </li>
-            </ul>
-          </CardContent>
-        </Card>
+            {/* Tax Reporting Tips */}
+            <Card className="border-chart-4/30 bg-chart-4/5">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Receipt className="h-5 w-5 text-chart-4" />
+                  Tax Reporting Tips
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2 text-sm text-muted-foreground">
+                  <li className="flex items-start gap-2">
+                    <span className="text-chart-4">•</span>
+                    <span><strong>Transaction History</strong> contains all income types: realized P&L, funding fees, commissions, and rebates.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-chart-4">•</span>
+                    <span><strong>Trade History</strong> includes individual trade details with entry/exit prices and quantities.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-chart-4">•</span>
+                    <span>All amounts are in <strong>USDT</strong>. Convert to your local currency using the exchange rate on the transaction date.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-chart-4">•</span>
+                    <span>Consult a tax professional for guidance on cryptocurrency taxation in your jurisdiction.</span>
+                  </li>
+                </ul>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Journal Export Tab */}
+          <TabsContent value="journal" className="space-y-6">
+            <JournalExportCard />
+          </TabsContent>
+
+          {/* Backup/Restore Tab */}
+          <TabsContent value="backup" className="space-y-6">
+            <SettingsBackupRestore />
+          </TabsContent>
+        </Tabs>
       </div>
     </DashboardLayout>
   );
