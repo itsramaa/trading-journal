@@ -23,23 +23,25 @@ Semua 7 issues sudah selesai diimplementasi.
 
 ---
 
+## New Feature: AI Trade Analysis
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| AI Analysis Button | ✅ **SELESAI** | Button di TradeEnrichmentDrawer |
+| Hook useTradeAIAnalysis | ✅ **SELESAI** | Calls post-trade-analysis edge function |
+| Analysis Display UI | ✅ **SELESAI** | Collapsible section with structured results |
+| Rate Limit Handling | ✅ **SELESAI** | 429/402 error toasts |
+
+---
+
 ## Phase Berikutnya: Deep-Dive Page Evaluation
-
-### Current: Daily P&L Page (`/daily-pnl`)
-
-**Evaluasi Akan Mencakup:**
-- Page intent dan purpose
-- Card inventory dan ordering
-- Formatter consistency check
-- Overlap dengan pages lain
-- UI/UX improvements
 
 ### Queue:
 | Priority | Page | Route | Domain | Status |
 |----------|------|-------|--------|--------|
-| 1 | **Daily P&L** | `/daily-pnl` | JOURNAL | 🔄 IN PROGRESS |
-| 2 | AI Insights | `/ai-insights` | AI/ANALYTICS | ⏳ Pending |
-| 3 | Strategy Management | `/strategies` | STRATEGY | ⏳ Pending |
+| 1 | Daily P&L | `/daily-pnl` | JOURNAL | ✅ Evaluated - OK |
+| 2 | AI Insights | `/ai-insights` | AI/ANALYTICS | ✅ Evaluated - OK |
+| 3 | **Strategy Management** | `/strategies` | STRATEGY | ⏳ Next |
 | 4 | Risk Management | `/risk` | RISK | ⏳ Pending |
 | 5 | Backtest | `/backtest` | STRATEGY | ⏳ Pending |
 | 6 | Market Insight | `/market-insight` | MARKET | ⏳ Pending |
