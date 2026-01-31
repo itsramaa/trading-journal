@@ -49,6 +49,8 @@ import { EquityCurveWithEvents } from "@/components/analytics/EquityCurveWithEve
 import { EventDayComparison } from "@/components/analytics/EventDayComparison";
 import { FearGreedZoneChart } from "@/components/analytics/FearGreedZoneChart";
 import { VolatilityLevelChart } from "@/components/analytics/VolatilityLevelChart";
+import { CombinedContextualScore } from "@/components/analytics/CombinedContextualScore";
+import { TradingHeatmapChart } from "@/components/analytics/TradingHeatmapChart";
 import { 
   filterTradesByDateRange, 
   filterTradesByStrategies,
@@ -408,6 +410,12 @@ export default function Performance() {
                 formatCurrency={formatCurrency} 
               />
 
+              {/* Combined Contextual Score + Time-Based Win Rate */}
+              <div className="grid gap-6 lg:grid-cols-2">
+                <CombinedContextualScore trades={filteredTrades} />
+                <TradingHeatmapChart trades={filteredTrades} />
+              </div>
+
               {/* Event Days vs Normal Days Comparison + Fear/Greed Chart */}
               {contextualData && (
                 <div className="grid gap-6 lg:grid-cols-2">
@@ -416,8 +424,12 @@ export default function Performance() {
                     normalDayMetrics={contextualData.byEventProximity.normalDay}
                   />
                   <FearGreedZoneChart byFearGreed={contextualData.byFearGreed} />
-                  <VolatilityLevelChart byVolatility={contextualData.byVolatility} />
                 </div>
+              )}
+
+              {/* Volatility Chart */}
+              {contextualData && (
+                <VolatilityLevelChart byVolatility={contextualData.byVolatility} />
               )}
 
               {/* Drawdown Chart */}
