@@ -19,6 +19,7 @@ import {
 } from "recharts";
 import type { PerformanceMetrics, VolatilityLevel } from "@/hooks/use-contextual-analytics";
 import { cn } from "@/lib/utils";
+import { formatWinRate, formatCurrency } from "@/lib/formatters";
 
 interface VolatilityLevelChartProps {
   byVolatility: Record<VolatilityLevel, PerformanceMetrics>;
@@ -91,15 +92,15 @@ export function VolatilityLevelChart({ byVolatility }: VolatilityLevelChartProps
         <div className="space-y-1 text-sm">
           <p>
             Win Rate: <span className={cn("font-medium", data.winRate >= 50 ? "text-profit" : "text-loss")}>
-              {data.winRate.toFixed(1)}%
+              {formatWinRate(data.winRate)}
             </span>
           </p>
           <p className="text-muted-foreground">{data.trades} trades ({data.wins}W / {data.losses}L)</p>
           <p className={cn("font-medium", data.totalPnl >= 0 ? "text-profit" : "text-loss")}>
-            P&L: ${data.totalPnl.toFixed(2)}
+            P&L: {formatCurrency(data.totalPnl)}
           </p>
           <p className="text-muted-foreground">
-            Avg: ${data.avgPnl.toFixed(2)} | PF: {data.profitFactor.toFixed(2)}
+            Avg: {formatCurrency(data.avgPnl)} | PF: {data.profitFactor.toFixed(2)}
           </p>
         </div>
       </div>
@@ -143,7 +144,7 @@ export function VolatilityLevelChart({ byVolatility }: VolatilityLevelChartProps
           <div className="flex gap-2">
             {bestLevel && bestLevel.winRate >= 50 && (
               <Badge variant="outline" className="border-profit text-profit">
-                Best: {bestLevel.label} ({bestLevel.winRate.toFixed(0)}%)
+                Best: {bestLevel.label} ({formatWinRate(bestLevel.winRate)})
               </Badge>
             )}
           </div>
@@ -224,7 +225,7 @@ export function VolatilityLevelChart({ byVolatility }: VolatilityLevelChartProps
               <span className="font-medium">Key Insight:</span>{' '}
               {bestLevel.winRate - worstLevel.winRate > 15 ? (
                 <>
-                  You perform <span className="text-profit font-medium">{(bestLevel.winRate - worstLevel.winRate).toFixed(0)}% better</span> in{' '}
+                  You perform <span className="text-profit font-medium">{Math.round(bestLevel.winRate - worstLevel.winRate)}% better</span> in{' '}
                   {bestLevel.label} volatility vs {worstLevel.label} volatility.
                   {worstLevel.level === 'high' && (
                     <> Consider reducing position sizes during high volatility.</>
@@ -233,7 +234,7 @@ export function VolatilityLevelChart({ byVolatility }: VolatilityLevelChartProps
               ) : (
                 <>
                   Your performance is relatively consistent across volatility levels 
-                  (range: {worstLevel.winRate.toFixed(0)}% - {bestLevel.winRate.toFixed(0)}%).
+                  (range: {formatWinRate(worstLevel.winRate)} - {formatWinRate(bestLevel.winRate)}).
                 </>
               )}
             </p>

@@ -19,6 +19,7 @@ import {
 } from "recharts";
 import type { PerformanceMetrics, FearGreedZone } from "@/hooks/use-contextual-analytics";
 import { cn } from "@/lib/utils";
+import { formatWinRate, formatCurrency } from "@/lib/formatters";
 
 interface FearGreedZoneChartProps {
   byFearGreed: Record<FearGreedZone, PerformanceMetrics>;
@@ -72,12 +73,12 @@ export function FearGreedZoneChart({ byFearGreed }: FearGreedZoneChartProps) {
         <div className="space-y-1 text-sm">
           <p>
             Win Rate: <span className={cn("font-medium", data.winRate >= 50 ? "text-profit" : "text-loss")}>
-              {data.winRate.toFixed(1)}%
+              {formatWinRate(data.winRate)}
             </span>
           </p>
           <p className="text-muted-foreground">{data.trades} trades ({data.wins}W / {data.losses}L)</p>
           <p className={cn("font-medium", data.totalPnl >= 0 ? "text-profit" : "text-loss")}>
-            P&L: ${data.totalPnl.toFixed(2)}
+            P&L: {formatCurrency(data.totalPnl)}
           </p>
         </div>
       </div>
@@ -121,7 +122,7 @@ export function FearGreedZoneChart({ byFearGreed }: FearGreedZoneChartProps) {
           <div className="flex gap-2">
             {bestZone && bestZone.winRate >= 50 && (
               <Badge variant="outline" className="border-profit text-profit">
-                Best: {bestZone.fullLabel} ({bestZone.winRate.toFixed(0)}%)
+                Best: {bestZone.fullLabel} ({formatWinRate(bestZone.winRate)})
               </Badge>
             )}
           </div>
@@ -196,13 +197,13 @@ export function FearGreedZoneChart({ byFearGreed }: FearGreedZoneChartProps) {
               <span className="font-medium">Key Insight:</span>{' '}
               {bestZone.winRate - worstZone.winRate > 20 ? (
                 <>
-                  You perform <span className="text-profit font-medium">{(bestZone.winRate - worstZone.winRate).toFixed(0)}% better</span> in{' '}
+                  You perform <span className="text-profit font-medium">{Math.round(bestZone.winRate - worstZone.winRate)}% better</span> in{' '}
                   {bestZone.fullLabel} markets vs {worstZone.fullLabel}.
                 </>
               ) : (
                 <>
                   Your performance is relatively consistent across sentiment zones 
-                  (range: {worstZone.winRate.toFixed(0)}% - {bestZone.winRate.toFixed(0)}%).
+                  (range: {formatWinRate(worstZone.winRate)} - {formatWinRate(bestZone.winRate)}).
                 </>
               )}
             </p>
