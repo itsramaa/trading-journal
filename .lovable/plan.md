@@ -1,13 +1,14 @@
 
-# Comprehensive Trading Domain Cross-Check Audit & Remediation Plan V9
+# Comprehensive Trading Domain Cross-Check Audit & Remediation Plan V10
 
-## Status: ✅ STEP 2 (JOURNAL) + STEP 3 (ANALYTICS) COMPLETE
+## Status: ✅ STEP 4 (RISK) COMPLETE
 **Tanggal Audit**: 2026-01-31
 **Domain Identification**: COMPLETED (Step 1)
 **ACCOUNTS Domain**: COMPLETED (Foundation)
 **JOURNAL Domain**: COMPLETED (Step 2)
 **ANALYTICS Domain**: COMPLETED (Step 3)
-**Next Step**: RISK Domain Audit (Step 4)
+**RISK Domain**: COMPLETED (Step 4)
+**Next Step**: STRATEGY Domain Audit (Step 5)
 **Basis Audit**: Menu-based domain analysis + Binance Futures Domain Model
 
 ---
@@ -21,13 +22,106 @@
 | 1 | ACCOUNTS | None | ✅ DONE |
 | 2 | JOURNAL | ACCOUNTS | ✅ DONE |
 | 3 | ANALYTICS | JOURNAL, ACCOUNTS | ✅ DONE |
-| 4 | RISK | ACCOUNTS, ANALYTICS | 🔜 PENDING |
+| 4 | RISK | ACCOUNTS, ANALYTICS | ✅ DONE |
 | 5 | STRATEGY | External market data | 🔜 PENDING |
 | 6 | MARKET | None (external APIs) | 🔜 PENDING |
 | 7 | DASHBOARD | All domains (1-6) | 🔜 PENDING |
 | 8 | SETTINGS | None | 🔜 PENDING |
 | 9 | USER | Auth system | 🔜 PENDING |
 | 10 | INFRASTRUCTURE | None | 🔜 PENDING |
+
+---
+
+## RISK DOMAIN AUDIT (STEP 4) - COMPLETED
+
+### 4.1 Domain Definition
+
+**Menu Entry Points**:
+- Risk Management (`/risk`) - Overview, Settings, History
+- Risk Calculator (`/calculator`) - Position sizing with context
+
+**Fungsi Domain**:
+- Menyediakan parameter risk profile (risk per trade, max daily loss, etc.)
+- Menghitung dan menampilkan Daily Loss Tracker dengan gauge visual
+- Menyediakan Trading Gate (auto-lock saat limit tercapai)
+- Menampilkan Correlation Matrix antar open positions
+- Menyediakan Position Size Calculator dengan context-aware risk
+
+### 4.2 Pages & Components Verified
+
+| Page | Route | Components | Status |
+|------|-------|------------|--------|
+| RiskManagement | `/risk` | DailyLossTracker, RiskSettingsForm, CorrelationMatrix, RiskEventLog | ✅ OK |
+| PositionCalculator | `/calculator` | CalculatorInputs/Results, VolatilityStopLoss, MarketScoreWidget, ContextWarnings | ✅ OK |
+
+### 4.3 Core Hooks Verified
+
+| Hook | File | Dependencies | Status |
+|------|------|--------------|--------|
+| `useRiskProfile` | use-risk-profile.ts | useAuth | ✅ OK |
+| `useTradingGate` | use-trading-gate.ts | useBestAvailableBalance, useUnifiedDailyPnl, useTradeEntries | ✅ OK |
+| `useDailyRiskStatus` | use-risk-profile.ts | useRiskProfile, useBinanceDailyPnl, useBinanceTotalBalance | ✅ OK |
+| `useContextAwareRisk` | use-context-aware-risk.ts | useRiskProfile, useUnifiedMarketScore, useBinanceVolatility, useTradeEntries | ✅ OK |
+| `usePreTradeValidation` | features/trade/ | useRiskProfile, useTradeEntries | ✅ OK |
+| `useRiskEvents` | use-risk-events.ts | useAuth | ✅ OK |
+
+### 4.4 Integration Points Verified
+
+| From | To | Data | Status |
+|------|-----|------|--------|
+| ACCOUNTS → RISK | useBestAvailableBalance | Wallet balance | ✅ OK |
+| ANALYTICS → RISK | useUnifiedDailyPnl | Today's P&L | ✅ OK |
+| RISK → JOURNAL | useTradingGate | canTrade boolean | ✅ OK |
+| RISK → DASHBOARD | SystemStatusIndicator | 🟢🟡🔴 status | ✅ OK |
+
+### 4.5 Business Rules Verified
+
+| Rule | Implementation | Status |
+|------|----------------|--------|
+| 70% Warning | `RISK_THRESHOLDS.warning_percent = 70` | ✅ OK |
+| 90% Danger | `RISK_THRESHOLDS.danger_percent = 90` | ✅ OK |
+| 100% Disabled | `useTradingGate.status === 'disabled'` | ✅ OK |
+| AI Quality Block | Avg score < 30% on last 3 trades | ✅ OK |
+| Correlation Warning | Static map with >70% threshold | ✅ OK |
+
+### 4.6 Data Flow Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                      RISK DOMAIN DATA FLOW                          │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  ┌─────────────────┐     ┌─────────────────┐                       │
+│  │ ACCOUNTS Domain │     │ ANALYTICS Domain│                       │
+│  │ ───────────────│     │ ────────────────│                       │
+│  │ useBestAvailable│     │ useUnifiedDaily │                       │
+│  │ Balance()       │     │ Pnl()           │                       │
+│  └────────┬────────┘     └────────┬────────┘                       │
+│           │                       │                                 │
+│           ▼                       ▼                                 │
+│  ┌─────────────────────────────────────────┐                       │
+│  │         useTradingGate()                │                       │
+│  │ ────────────────────────────────────────│                       │
+│  │ • Combines balance + P&L                │                       │
+│  │ • Calculates lossUsedPercent            │                       │
+│  │ • Returns canTrade, status, reason      │                       │
+│  └────────────────────┬────────────────────┘                       │
+│                       │                                             │
+│           ┌───────────┼───────────┐                                │
+│           ▼           ▼           ▼                                │
+│  ┌────────────┐ ┌────────────┐ ┌────────────┐                     │
+│  │ Dashboard  │ │ Journal    │ │ Risk Page  │                     │
+│  │ ──────────│ │ ──────────│ │ ──────────│                      │
+│  │ SystemStat│ │ PreTrade   │ │ DailyLoss  │                     │
+│  │ Indicator │ │ Validation │ │ Tracker    │                     │
+│  └────────────┘ └────────────┘ └────────────┘                     │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### 4.7 Audit Result
+
+**RISK Domain Status**: ✅ **PASS** - No gaps identified
 
 ---
 
