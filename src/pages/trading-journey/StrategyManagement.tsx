@@ -25,6 +25,7 @@ import {
   StrategyStats, 
   StrategyFormDialog,
   StrategyDetailDrawer,
+  StrategyShareDialog,
   YouTubeStrategyImporter,
 } from "@/components/strategy";
 import type { EntryRule, ExitRule } from "@/types/strategy";
@@ -36,6 +37,7 @@ export default function StrategyManagement() {
   const [editingStrategy, setEditingStrategy] = useState<TradingStrategy | null>(null);
   const [deletingStrategy, setDeletingStrategy] = useState<TradingStrategy | null>(null);
   const [viewingStrategy, setViewingStrategy] = useState<TradingStrategy | null>(null);
+  const [sharingStrategy, setSharingStrategy] = useState<TradingStrategy | null>(null);
 
   const { data: strategies, isLoading } = useTradingStrategies();
   const strategyPerformance = useStrategyPerformance();
@@ -255,6 +257,18 @@ export default function StrategyManagement() {
               setViewingStrategy(null);
             }
           }}
+          onShare={() => {
+            if (viewingStrategy) {
+              setSharingStrategy(viewingStrategy);
+            }
+          }}
+        />
+
+        {/* Strategy Share Dialog */}
+        <StrategyShareDialog
+          strategy={sharingStrategy}
+          open={!!sharingStrategy}
+          onOpenChange={(open) => !open && setSharingStrategy(null)}
         />
 
         {/* Delete Confirmation */}

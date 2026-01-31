@@ -3,6 +3,7 @@ export { StrategyCard } from './StrategyCard';
 export { StrategyStats } from './StrategyStats';
 export { StrategyFormDialog } from './StrategyFormDialog';
 export { StrategyDetailDrawer } from './StrategyDetailDrawer';
+export { StrategyShareDialog } from './StrategyShareDialog';
 export { StrategyValidationBadge } from './StrategyValidationBadge';
 export { EntryRulesBuilder } from './EntryRulesBuilder';
 export { ExitRulesBuilder } from './ExitRulesBuilder';

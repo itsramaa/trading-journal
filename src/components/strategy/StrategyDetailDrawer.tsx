@@ -19,7 +19,8 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
-  Download
+  Download,
+  Share2
 } from "lucide-react";
 import { format } from "date-fns";
 import type { TradingStrategy } from "@/hooks/use-trading-strategies";
@@ -50,6 +51,7 @@ interface StrategyDetailDrawerProps {
   onOpenChange: (open: boolean) => void;
   onEdit: () => void;
   onBacktest: () => void;
+  onShare: () => void;
 }
 
 export function StrategyDetailDrawer({
@@ -59,6 +61,7 @@ export function StrategyDetailDrawer({
   onOpenChange,
   onEdit,
   onBacktest,
+  onShare,
 }: StrategyDetailDrawerProps) {
   const strategyContext = useStrategyContext(strategy);
   const { exportToPDF } = useStrategyExport();
@@ -109,6 +112,13 @@ export function StrategyDetailDrawer({
             <Button onClick={onBacktest} variant="outline" className="flex-1">
               <Play className="h-4 w-4 mr-2" />
               Backtest
+            </Button>
+            <Button 
+              onClick={onShare} 
+              variant="outline"
+              aria-label="Share strategy"
+            >
+              <Share2 className="h-4 w-4" />
             </Button>
             <Button 
               onClick={handleExportPDF} 
