@@ -15,7 +15,7 @@ import { calculatePositionSize } from "@/lib/calculations/position-sizing";
 import { useRiskProfile } from "@/hooks/use-risk-profile";
 import { useBestAvailableBalance } from "@/hooks/use-combined-balance";
 import { useBinanceCommissionRate, useBinanceLeverageBrackets, getMaxLeverageForNotional } from "@/features/binance";
-import { CalculatorInputs, CalculatorResults, QuickReferenceR, ContextWarnings } from "@/components/risk/calculator";
+import { CalculatorInputs, CalculatorResults, QuickReferenceR, ContextWarnings, RiskAdjustmentBreakdown } from "@/components/risk/calculator";
 import { VolatilityStopLoss } from "@/components/risk/calculator/VolatilityStopLoss";
 import { MarketScoreWidget } from "@/components/dashboard/MarketScoreWidget";
 import { trackEvent, ANALYTICS_EVENTS } from "@/lib/analytics";
@@ -247,6 +247,9 @@ export default function PositionCalculator() {
                 />
               </CardContent>
             </Card>
+            
+            {/* Risk Adjustment Breakdown */}
+            <RiskAdjustmentBreakdown symbol={selectedSymbol} baseRiskPercent={riskPercent} />
           </TabsContent>
 
           {/* Volatility-Based Stop Loss Tab */}
