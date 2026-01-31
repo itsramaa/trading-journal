@@ -48,6 +48,7 @@ import { DrawdownChart } from "@/components/analytics/DrawdownChart";
 import { EquityCurveWithEvents } from "@/components/analytics/EquityCurveWithEvents";
 import { EventDayComparison } from "@/components/analytics/EventDayComparison";
 import { FearGreedZoneChart } from "@/components/analytics/FearGreedZoneChart";
+import { VolatilityLevelChart } from "@/components/analytics/VolatilityLevelChart";
 import { 
   filterTradesByDateRange, 
   filterTradesByStrategies,
@@ -415,6 +416,7 @@ export default function Performance() {
                     normalDayMetrics={contextualData.byEventProximity.normalDay}
                   />
                   <FearGreedZoneChart byFearGreed={contextualData.byFearGreed} />
+                  <VolatilityLevelChart byVolatility={contextualData.byVolatility} />
                 </div>
               )}
 
