@@ -15,13 +15,19 @@
 - `src/pages/trading-journey/TradingJournal.tsx` - Removed analytics metrics
 - `src/pages/Performance.tsx` - Added 7-Day Stats import
 - `src/components/analytics/SevenDayStatsCard.tsx` - NEW component
+- `src/pages/trading-journey/StrategyManagement.tsx` - Added StrategyCloneStatsWidget
 
 ---
 
-## Phase 2: MEDIUM PRIORITY (Next Steps)
+## ✅ PHASE 2 PARTIALLY COMPLETED
+
+### Strategy Page - Clone Stats Widget ✅
+- Added `StrategyCloneStatsWidget` import
+- Positioned at top of Library tab (before StrategyStats)
+
+### Remaining Phase 2 Tasks
 - [ ] AI Insights - Remove duplicate Quick Stats
 - [ ] Risk Management - Collapse correlation matrix by default
-- [ ] Strategy - Add StrategyCloneStatsWidget from Dashboard
 
 ## Phase 3: LOW PRIORITY
 - [ ] Trade History - Add saved filters

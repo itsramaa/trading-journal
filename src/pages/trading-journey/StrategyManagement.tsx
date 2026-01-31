@@ -1,6 +1,8 @@
 /**
  * Strategy Management - Refactored per Trading Journey Markdown spec
  * Components extracted: StrategyCard, StrategyFormDialog, StrategyStats
+ * 
+ * Includes StrategyCloneStatsWidget (moved from Dashboard per UX audit)
  */
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -29,6 +31,7 @@ import {
   StrategyLeaderboard,
   YouTubeStrategyImporter,
 } from "@/components/strategy";
+import { StrategyCloneStatsWidget } from "@/components/dashboard/StrategyCloneStatsWidget";
 import type { EntryRule, ExitRule } from "@/types/strategy";
 
 export default function StrategyManagement() {
@@ -181,6 +184,9 @@ export default function StrategyManagement() {
 
           {/* Library Tab */}
           <TabsContent value="library" className="space-y-6 mt-6">
+            {/* Strategy Clone Stats - Moved from Dashboard */}
+            <StrategyCloneStatsWidget />
+
             {/* Strategy Stats */}
             <StrategyStats strategies={strategies} />
 
