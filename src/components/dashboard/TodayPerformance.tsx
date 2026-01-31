@@ -258,7 +258,7 @@ function TodayPerformanceContent() {
                   <WinRateTooltip />
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold">{stats.winRate.toFixed(0)}%</span>
+                  <span className="font-semibold">{stats.winRate.toFixed(1)}%</span>
                   <span className="text-xs text-muted-foreground">
                     ({stats.wins}W / {stats.losses}L)
                   </span>

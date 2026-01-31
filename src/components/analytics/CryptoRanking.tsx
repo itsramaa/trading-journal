@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { TrendingUp, TrendingDown, Trophy, Medal, Award } from "lucide-react";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { cn } from "@/lib/utils";
+import { formatCurrency, formatWinRate } from "@/lib/formatters";
 
 interface PairStats {
   pair: string;
@@ -144,9 +145,9 @@ export function CryptoRanking() {
                 </div>
                 <div className={cn(
                   "font-bold text-lg",
-                  stat.totalPnl >= 0 ? "text-green-500" : "text-red-500"
+                  stat.totalPnl >= 0 ? "text-profit" : "text-loss"
                 )}>
-                  {stat.totalPnl >= 0 ? '+' : ''}${stat.totalPnl.toFixed(2)}
+                  {stat.totalPnl >= 0 ? '+' : ''}{formatCurrency(stat.totalPnl, 'USD')}
                 </div>
               </div>
 
@@ -159,12 +160,12 @@ export function CryptoRanking() {
                   <p className="text-muted-foreground">Win Rate</p>
                   <div className="flex items-center gap-1">
                     {stat.winRate >= 50 ? (
-                      <TrendingUp className="h-3 w-3 text-green-500" />
+                      <TrendingUp className="h-3 w-3 text-profit" />
                     ) : (
-                      <TrendingDown className="h-3 w-3 text-red-500" />
+                      <TrendingDown className="h-3 w-3 text-loss" />
                     )}
-                    <span className={stat.winRate >= 50 ? "text-green-500" : "text-red-500"}>
-                      {stat.winRate.toFixed(0)}%
+                    <span className={stat.winRate >= 50 ? "text-profit" : "text-loss"}>
+                      {formatWinRate(stat.winRate)}
                     </span>
                   </div>
                 </div>
@@ -174,8 +175,8 @@ export function CryptoRanking() {
                 </div>
                 <div>
                   <p className="text-muted-foreground">Avg P&L</p>
-                  <p className={stat.avgPnl >= 0 ? "text-green-500" : "text-red-500"}>
-                    ${stat.avgPnl.toFixed(2)}
+                  <p className={stat.avgPnl >= 0 ? "text-profit" : "text-loss"}>
+                    {formatCurrency(stat.avgPnl, 'USD')}
                   </p>
                 </div>
               </div>

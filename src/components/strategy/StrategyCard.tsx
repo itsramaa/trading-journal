@@ -12,6 +12,7 @@ import { format } from "date-fns";
 import type { TradingStrategy } from "@/hooks/use-trading-strategies";
 import { getQualityScoreLabel, type StrategyPerformance } from "@/hooks/use-strategy-performance";
 import { useStrategyContext } from "@/hooks/use-strategy-context";
+import { formatWinRate, formatNumber } from "@/lib/formatters";
 
 // Design system color tokens
 const colorClasses: Record<string, string> = {
@@ -97,9 +98,9 @@ export function StrategyCard({ strategy, performance, onEdit, onDelete, onBackte
                     <p className="font-medium">AI Quality Score: {scoreInfo.label}</p>
                     {performance && performance.totalTrades > 0 ? (
                       <>
-                        <p>Win Rate: {(performance.winRate * 100).toFixed(1)}%</p>
+                        <p>Win Rate: {formatWinRate(performance.winRate * 100)}</p>
                         <p>Trades: {performance.totalTrades}</p>
-                        <p>Profit Factor: {performance.profitFactor.toFixed(2)}</p>
+                        <p>Profit Factor: {formatNumber(performance.profitFactor, 2)}</p>
                       </>
                     ) : (
                       <p>No trade data available</p>
@@ -189,7 +190,7 @@ export function StrategyCard({ strategy, performance, onEdit, onDelete, onBackte
               </span>
               <span>|</span>
               <span className={performance.winRate >= 0.5 ? 'text-profit' : 'text-loss'}>
-                {(performance.winRate * 100).toFixed(0)}% WR
+                {formatWinRate(performance.winRate * 100).replace('%', '')}% WR
               </span>
             </div>
           )}

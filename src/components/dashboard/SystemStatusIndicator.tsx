@@ -17,6 +17,7 @@ import { useTradingGate } from "@/hooks/use-trading-gate";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { formatPercentUnsigned, formatCurrency } from "@/lib/formatters";
 
 interface SystemStatusIndicatorProps {
   compact?: boolean;
@@ -138,7 +139,7 @@ export function SystemStatusIndicator({ compact = false }: SystemStatusIndicator
               <InfoTooltip content="Percentage of your daily loss limit that has been used. At 70% you'll see a warning, at 100% trading is disabled to protect your capital." />
             </span>
             <span className={cn("font-medium", config.color)}>
-              {lossUsedPercent.toFixed(1)}%
+              {formatPercentUnsigned(lossUsedPercent, 1)}
             </span>
           </div>
           <Progress 
@@ -149,17 +150,17 @@ export function SystemStatusIndicator({ compact = false }: SystemStatusIndicator
               status === 'warning' && "[&>div]:bg-[hsl(var(--chart-4))]",
               status === 'disabled' && "[&>div]:bg-loss"
             )}
-            aria-label={`Daily loss limit usage: ${lossUsedPercent.toFixed(1)}%`}
+            aria-label={`Daily loss limit usage: ${formatPercentUnsigned(lossUsedPercent, 1)}`}
           />
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
               Today's P&L: <span className={currentPnl >= 0 ? 'text-profit' : 'text-loss'}>
-                {currentPnl >= 0 ? '+' : ''}${currentPnl.toFixed(2)}
+                {currentPnl >= 0 ? '+' : ''}{formatCurrency(currentPnl, 'USD')}
               </span>
               <InfoTooltip content="Your realized profit or loss for today. Negative values count against your daily loss limit." />
             </span>
             <span className="flex items-center gap-1">
-              Remaining: ${remainingBudget.toFixed(2)} of ${dailyLossLimit.toFixed(2)}
+              Remaining: {formatCurrency(remainingBudget, 'USD')} of {formatCurrency(dailyLossLimit, 'USD')}
               <InfoTooltip content="How much more you can lose today before hitting your limit and having trading disabled." />
             </span>
           </div>
