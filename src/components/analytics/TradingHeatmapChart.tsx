@@ -20,7 +20,8 @@ import {
 } from "recharts";
 import { Clock, Calendar, TrendingUp, TrendingDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { parseISO, getHours, getDay, format } from "date-fns";
+import { formatWinRate, formatCurrency } from "@/lib/formatters";
+import { parseISO, getHours, getDay } from "date-fns";
 
 interface TradeWithTime {
   id: string;
@@ -178,7 +179,7 @@ export function TradingHeatmapChart({ trades }: TradingHeatmapChartProps) {
               "font-medium",
               data.winRate >= 50 ? 'text-green-500' : 'text-red-500'
             )}>
-              {data.winRate.toFixed(1)}%
+              {formatWinRate(data.winRate)}
             </span>
           </div>
           <div className="flex justify-between gap-4">
@@ -191,7 +192,7 @@ export function TradingHeatmapChart({ trades }: TradingHeatmapChartProps) {
               "font-medium",
               data.totalPnl >= 0 ? 'text-green-500' : 'text-red-500'
             )}>
-              ${data.totalPnl.toFixed(2)}
+              {formatCurrency(data.totalPnl)}
             </span>
           </div>
           <div className="flex justify-between gap-4">
@@ -200,7 +201,7 @@ export function TradingHeatmapChart({ trades }: TradingHeatmapChartProps) {
               "font-medium",
               data.avgPnl >= 0 ? 'text-green-500' : 'text-red-500'
             )}>
-              ${data.avgPnl.toFixed(2)}
+              {formatCurrency(data.avgPnl)}
             </span>
           </div>
         </div>
@@ -258,13 +259,13 @@ export function TradingHeatmapChart({ trades }: TradingHeatmapChartProps) {
         {bestWorst.best && (
           <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-green-500/10 text-green-600 text-xs">
             <TrendingUp className="h-3 w-3" />
-            <span>Best: {bestWorst.best.label} ({bestWorst.best.winRate.toFixed(0)}%)</span>
+            <span>Best: {bestWorst.best.label} ({formatWinRate(bestWorst.best.winRate)})</span>
           </div>
         )}
         {bestWorst.worst && bestWorst.worst.label !== bestWorst.best?.label && (
           <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-red-500/10 text-red-600 text-xs">
             <TrendingDown className="h-3 w-3" />
-            <span>Worst: {bestWorst.worst.label} ({bestWorst.worst.winRate.toFixed(0)}%)</span>
+            <span>Worst: {bestWorst.worst.label} ({formatWinRate(bestWorst.worst.winRate)})</span>
           </div>
         )}
       </div>

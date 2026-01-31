@@ -17,6 +17,7 @@ import {
   Brain
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatWinRate } from "@/lib/formatters";
 import type { UnifiedMarketContext } from "@/types/market-context";
 
 interface TradeWithContext {
@@ -271,7 +272,7 @@ export function CombinedContextualScore({ trades }: CombinedContextualScoreProps
                     "text-xs font-medium",
                     zone.winRate >= 50 ? 'text-green-500' : 'text-red-500'
                   )}>
-                    {zone.tradeCount > 0 ? `${zone.winRate.toFixed(0)}%` : 'N/A'}
+                    {zone.tradeCount > 0 ? formatWinRate(zone.winRate) : 'N/A'}
                   </span>
                 </div>
                 <div className="w-12 text-right">
@@ -289,7 +290,7 @@ export function CombinedContextualScore({ trades }: CombinedContextualScoreProps
           <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/30">
             <p className="text-sm text-green-600">
               <span className="font-medium">Best Performance:</span>{' '}
-              {metrics.bestZone.zone} conditions ({metrics.bestZone.winRate.toFixed(0)}% win rate, {metrics.bestZone.tradeCount} trades)
+              {metrics.bestZone.zone} conditions ({formatWinRate(metrics.bestZone.winRate)} win rate, {metrics.bestZone.tradeCount} trades)
             </p>
           </div>
         )}

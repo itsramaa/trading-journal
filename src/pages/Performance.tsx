@@ -320,7 +320,9 @@ export default function Performance() {
               {/* 7-Day Stats (moved from Dashboard) */}
               <SevenDayStatsCard />
 
-              {/* Key Metrics */}
+              {/* Section: Key Metrics */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Key Metrics</h3>
               <div className="grid gap-4 md:grid-cols-4">
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -376,6 +378,7 @@ export default function Performance() {
                     <p className="text-xs text-muted-foreground">Peak to trough</p>
                   </CardContent>
                 </Card>
+              </div>
               </div>
 
               {/* Additional Metrics */}
@@ -438,36 +441,46 @@ export default function Performance() {
                 </Card>
               </div>
 
-              {/* Equity Curve with Event Annotations */}
-              <EquityCurveWithEvents 
+              {/* Section: Equity Performance */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Equity Performance</h3>
+                <EquityCurveWithEvents
                 equityData={equityData} 
-                formatCurrency={chartFormatCurrency} 
-              />
-
-              {/* Combined Contextual Score + Time-Based Win Rate */}
-              <div className="grid gap-6 lg:grid-cols-2">
-                <CombinedContextualScore trades={filteredTrades} />
-                <TradingHeatmapChart trades={filteredTrades} />
+                  formatCurrency={chartFormatCurrency} 
+                />
               </div>
 
-              {/* Event Days vs Normal Days Comparison + Fear/Greed Chart */}
-              {contextualData && (
+              {/* Section: Contextual Analysis */}
+              <div className="space-y-6">
+                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Contextual Analysis</h3>
+                {/* Combined Contextual Score + Time-Based Win Rate */}
                 <div className="grid gap-6 lg:grid-cols-2">
-                  <EventDayComparison 
-                    eventDayMetrics={contextualData.byEventProximity.eventDay}
-                    normalDayMetrics={contextualData.byEventProximity.normalDay}
-                  />
-                  <FearGreedZoneChart byFearGreed={contextualData.byFearGreed} />
+                  <CombinedContextualScore trades={filteredTrades} />
+                  <TradingHeatmapChart trades={filteredTrades} />
                 </div>
-              )}
 
-              {/* Volatility Chart */}
-              {contextualData && (
-                <VolatilityLevelChart byVolatility={contextualData.byVolatility} />
-              )}
+                {/* Event Days vs Normal Days Comparison + Fear/Greed Chart */}
+                {contextualData && (
+                  <div className="grid gap-6 lg:grid-cols-2">
+                    <EventDayComparison 
+                      eventDayMetrics={contextualData.byEventProximity.eventDay}
+                      normalDayMetrics={contextualData.byEventProximity.normalDay}
+                    />
+                    <FearGreedZoneChart byFearGreed={contextualData.byFearGreed} />
+                  </div>
+                )}
 
-              {/* Drawdown Chart */}
-              <DrawdownChart />
+                {/* Volatility Chart */}
+                {contextualData && (
+                  <VolatilityLevelChart byVolatility={contextualData.byVolatility} />
+                )}
+              </div>
+
+              {/* Section: Risk Analysis */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Risk Analysis</h3>
+                <DrawdownChart />
+              </div>
             </TabsContent>
 
             {/* Tab 2: Strategies */}
