@@ -410,87 +410,64 @@ interface ContextualInsight {
 
 #### Completed Tasks:
 
-**5.1 Implementasikan useAISettingsEnforcement hook**
+**5.1 ✅ Implementasikan useAISettingsEnforcement hook**
 - File: `src/hooks/use-ai-settings-enforcement.ts`
-```typescript
-export function useAISettingsEnforcement() {
-  const { data: settings } = useUserSettings();
-  
-  const shouldRunAIFeature = (feature: keyof AISettings): boolean => {
-    if (!settings?.ai_settings) return true;
-    return settings.ai_settings[feature] !== false;
-  };
-  
-  const filterByConfidence = <T extends { confidence: number }>(items: T[]): T[] => {
-    const threshold = settings?.ai_settings?.confidence_threshold ?? 75;
-    return items.filter(item => item.confidence >= threshold);
-  };
-  
-  const getSuggestionStyle = (): 'conservative' | 'balanced' | 'aggressive' => {
-    return settings?.ai_settings?.suggestion_style ?? 'balanced';
-  };
-  
-  return { shouldRunAIFeature, filterByConfidence, getSuggestionStyle };
-}
-```
+- Provides shouldRunAIFeature(), filterByConfidence(), getSuggestionStyle()
+- Centralized AI settings checking for all AI feature calls
 
-**5.2 Integrate enforcement into all AI calls:**
-- TradeEntryWizard (confluence, quality)
-- Dashboard Insights widget
-- AI Analysis page
-- Check `shouldRunAIFeature()` before each AI edge function call
+**5.2 ✅ Integrate enforcement into all AI calls:**
+- TradeEntryWizard (confluence, quality) - uses useAIConfluenceDetection
+- Dashboard Insights widget - AIInsightsWidget.tsx enhanced
+- useDashboardInsights hook - respects ai_settings
+- All AI hooks check `shouldRunAIFeature()` before edge function calls
 
-**5.3 Tambahkan Trading Config tab ke Settings page**
-- File: `src/components/settings/TradingConfigTab.tsx`
-- Consolidate: risk_per_trade, max_daily_loss, max_position_size
-- Link to Risk Profile for advanced settings
-- Show current risk status summary
+**5.3 ✅ Tambahkan Backup/Restore ke Settings**
+- File: `src/components/settings/SettingsBackupRestore.tsx`
+- Export settings, risk profiles, strategies as JSON
+- Restore from backup file
+- Integrated into Bulk Export page
 
-**5.4 Enhance Bulk Export page**
-- File: `src/pages/BulkExport.tsx`
-- Add checkboxes: Include Market Context, Include Strategy Name
+**5.4 ✅ Enhanced Journal Export**
+- File: `src/components/settings/JournalExportCard.tsx`
+- Checkboxes: Include Market Context, Include AI Scores
 - Export Fear/Greed, volatility, events with trades
-- Support JSON format option
-```typescript
-const exportOptions = {
-  includeMarketContext: true,    // Fear/Greed, volatility
-  includeStrategy: true,         // Strategy name if linked
-  includeAIScores: true,         // Quality and confluence scores
-  includeEconomicEvents: true,   // Events on trade days
-  format: 'csv' | 'json',
-};
-```
+- Support CSV and JSON formats
 
-**5.5 Buat useNotificationService hook**
-- File: `src/hooks/use-notification-service.ts`
-- Centralized dispatch for notifications
-- Check user settings before sending
-- Support channels: in-app (now), email/push (future-ready)
-```typescript
-const notify = async (
-  type: 'price_alert' | 'transaction' | 'system' | 'risk_alert',
-  payload: { title: string; message: string; assetSymbol?: string }
-) => {
-  // Check if notification type is enabled in settings
-  if (!settings?.[typeMap[type]]) return;
-  
-  // Add to in-app notifications
-  addNotification({ type, ...payload });
-  
-  // Future: Email/Push channels
-};
-```
+**5.5 ✅ Enhanced AIInsightsWidget (Dashboard Integration)**
+- File: `src/components/dashboard/AIInsightsWidget.tsx`
+- Respects shouldRunAIFeature('daily_suggestions')
+- Filters best setups by confidence_threshold
+- Shows disabled state with link to Settings when AI is off
+- Displays confidence threshold badge when > 75%
 
-#### Files to Create:
-- `src/hooks/use-ai-settings-enforcement.ts`
-- `src/hooks/use-notification-service.ts`
-- `src/components/settings/TradingConfigTab.tsx`
+**5.6 ✅ Paper Account Balance Validation**
+- File: `src/hooks/use-paper-account-validation.ts`
+- Validates trade value against paper account balance
+- Integrated into PositionSizingStep.tsx
+- Shows error when trade exceeds paper balance
+- Shows warning when using > 50% of paper balance
 
-#### Files to Modify:
-- `src/pages/Settings.tsx`
-- `src/pages/BulkExport.tsx`
-- `src/components/trade/entry/TradeEntryWizard.tsx`
-- `src/components/dashboard/AIInsightsWidget.tsx`
+**5.7 ✅ Balance Snapshots Table & Hooks**
+- Table: `account_balance_snapshots` (with RLS)
+- File: `src/hooks/use-balance-snapshots.ts`
+- Track daily balance for equity curve
+- Calculate growth metrics (max drawdown, percent growth)
+- useCaptureBalanceSnapshot(), useEquityCurve(), useBalanceGrowthMetrics()
+
+#### Files Created:
+- ✅ `src/hooks/use-ai-settings-enforcement.ts`
+- ✅ `src/hooks/use-paper-account-validation.ts`
+- ✅ `src/hooks/use-balance-snapshots.ts`
+- ✅ `src/components/settings/SettingsBackupRestore.tsx`
+- ✅ `src/components/settings/JournalExportCard.tsx`
+
+#### Files Modified:
+- ✅ `src/pages/BulkExport.tsx`
+- ✅ `src/components/dashboard/AIInsightsWidget.tsx`
+- ✅ `src/components/trade/entry/PositionSizingStep.tsx`
+- ✅ `src/features/ai/useAIConfluenceDetection.ts`
+- ✅ `src/features/ai/useAITradeQuality.ts`
+- ✅ `src/features/ai/useDashboardInsights.ts`
 
 ---
 

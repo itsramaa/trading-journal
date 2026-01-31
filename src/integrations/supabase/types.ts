@@ -14,6 +14,53 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_balance_snapshots: {
+        Row: {
+          account_id: string | null
+          balance: number
+          created_at: string
+          id: string
+          metadata: Json | null
+          realized_pnl_today: number | null
+          snapshot_date: string
+          source: string | null
+          unrealized_pnl: number | null
+          user_id: string
+        }
+        Insert: {
+          account_id?: string | null
+          balance?: number
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          realized_pnl_today?: number | null
+          snapshot_date: string
+          source?: string | null
+          unrealized_pnl?: number | null
+          user_id: string
+        }
+        Update: {
+          account_id?: string | null
+          balance?: number
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          realized_pnl_today?: number | null
+          snapshot_date?: string
+          source?: string | null
+          unrealized_pnl?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "account_balance_snapshots_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       account_transactions: {
         Row: {
           account_id: string

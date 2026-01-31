@@ -1,6 +1,7 @@
 /**
  * AI Insights Widget for Dashboard
  * Shows AI-generated portfolio analysis and recommendations
+ * Enhanced: Respects user AI settings (confidence threshold, feature toggle)
  */
 import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,14 +20,17 @@ import {
   ChevronRight,
   ThumbsUp,
   ThumbsDown,
+  Settings,
 } from "lucide-react";
 import { useDashboardInsights, type DashboardInsights } from "@/features/ai/useDashboardInsights";
+import { useAISettingsEnforcement } from "@/hooks/use-ai-settings-enforcement";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useAppStore } from "@/store/app-store";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { Link } from "react-router-dom";
 
 interface AIInsightsWidgetProps {
   className?: string;
@@ -58,13 +62,23 @@ function calculatePairStats(trades: any[]) {
 }
 
 export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
-  const { getInsights, isLoading, error, insights } = useDashboardInsights();
+  const { getInsights, isLoading, error, insights, isFeatureEnabled } = useDashboardInsights();
+  const { 
+    shouldRunAIFeature, 
+    filterByConfidence, 
+    getConfidenceThreshold,
+    isLoading: settingsLoading 
+  } = useAISettingsEnforcement();
   const { data: trades = [] } = useTradeEntries();
   const { data: strategies = [] } = useTradingStrategies();
   const { data: accounts = [] } = useAccounts();
   const { setChatbotOpen, setChatbotInitialPrompt } = useAppStore();
   
   const [hasLoaded, setHasLoaded] = useState(false);
+
+  // Check if AI feature is enabled based on user settings
+  const isDailySuggestionsEnabled = shouldRunAIFeature('daily_suggestions');
+  const confidenceThreshold = getConfidenceThreshold();
 
   // Calculate pair-specific recommendations
   const pairRecommendations = useMemo(() => {
@@ -73,6 +87,12 @@ export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
     const avoid = stats.filter(s => s.winRate < 50 && s.totalTrades >= 3);
     return { focus, avoid };
   }, [trades]);
+
+  // Filter best setups by confidence threshold
+  const filteredBestSetups = useMemo(() => {
+    if (!insights?.bestSetups) return [];
+    return filterByConfidence(insights.bestSetups);
+  }, [insights?.bestSetups, filterByConfidence]);
 
   // Calculate portfolio and risk status
   const portfolioData = useMemo(() => {
@@ -125,12 +145,12 @@ export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
     setHasLoaded(true);
   };
 
-  // Auto-load on mount if we have data
+  // Auto-load on mount if we have data and feature is enabled
   useEffect(() => {
-    if (!hasLoaded && trades.length > 0 && accounts.length > 0) {
+    if (!hasLoaded && trades.length > 0 && accounts.length > 0 && isDailySuggestionsEnabled && !settingsLoading) {
       handleRefresh();
     }
-  }, [trades.length, accounts.length, hasLoaded]);
+  }, [trades.length, accounts.length, hasLoaded, isDailySuggestionsEnabled, settingsLoading]);
 
   const getSentimentIcon = (sentiment: string) => {
     switch (sentiment) {
@@ -154,6 +174,37 @@ export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
     }
   };
 
+  // Render disabled state if AI feature is turned off
+  if (!isDailySuggestionsEnabled && !settingsLoading) {
+    return (
+      <Card className={cn("", className)}>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Sparkles className="h-5 w-5 text-muted-foreground" />
+              AI Insights
+              <Badge variant="secondary" className="text-xs">Disabled</Badge>
+            </CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-6">
+            <Settings className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
+            <p className="text-sm text-muted-foreground mb-4">
+              AI Daily Suggestions is disabled in your settings
+            </p>
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/settings?tab=ai">
+                <Settings className="h-4 w-4 mr-2" />
+                Enable in Settings
+              </Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card className={cn("", className)}>
       <CardHeader className="pb-3">
@@ -161,12 +212,17 @@ export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
           <CardTitle className="flex items-center gap-2 text-base">
             <Sparkles className="h-5 w-5 text-primary" />
             AI Insights
+            {confidenceThreshold > 75 && (
+              <Badge variant="outline" className="text-xs">
+                Min {confidenceThreshold}% confidence
+              </Badge>
+            )}
           </CardTitle>
           <Button
             variant="ghost"
             size="sm"
             onClick={handleRefresh}
-            disabled={isLoading}
+            disabled={isLoading || !isDailySuggestionsEnabled}
           >
             <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
           </Button>
@@ -253,26 +309,46 @@ export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
               </div>
             )}
 
-            {/* Best Setups */}
-            {insights.bestSetups.length > 0 && (
+            {/* Best Setups - Filtered by confidence threshold */}
+            {filteredBestSetups.length > 0 && (
               <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <Target className="h-4 w-4 text-primary" />
-                  Top Setups
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <Target className="h-4 w-4 text-primary" />
+                    Top Setups
+                  </div>
+                  {insights.bestSetups.length > filteredBestSetups.length && (
+                    <span className="text-xs text-muted-foreground">
+                      {insights.bestSetups.length - filteredBestSetups.length} filtered out
+                    </span>
+                  )}
                 </div>
                 <div className="space-y-2">
-                  {insights.bestSetups.slice(0, 2).map((setup, i) => (
+                  {filteredBestSetups.slice(0, 2).map((setup, i) => (
                     <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-muted/30">
                       <div>
                         <span className="font-medium text-sm">{setup.pair}</span>
                         <p className="text-xs text-muted-foreground">{setup.strategy}</p>
                       </div>
-                      <Badge variant="secondary" className="text-xs">
+                      <Badge 
+                        variant="secondary" 
+                        className={cn(
+                          "text-xs",
+                          setup.confidence >= 80 && "bg-profit/10 text-profit border-profit/30"
+                        )}
+                      >
                         {setup.confidence}%
                       </Badge>
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Show message if all setups were filtered out */}
+            {insights.bestSetups.length > 0 && filteredBestSetups.length === 0 && (
+              <div className="text-center py-2 text-sm text-muted-foreground">
+                No setups meet your confidence threshold ({confidenceThreshold}%)
               </div>
             )}
 

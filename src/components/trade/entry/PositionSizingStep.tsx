@@ -2,6 +2,7 @@
  * Step 3: Position Sizing & Price Levels
  * Entry, SL, TP inputs + position size calculator
  * Includes leverage tier warnings from Binance API
+ * Enhanced: Paper account balance validation
  */
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,10 +11,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
-import { Calculator, AlertTriangle, CheckCircle, DollarSign, Percent, TrendingUp, Gauge } from "lucide-react";
+import { Calculator, AlertTriangle, CheckCircle, DollarSign, Percent, TrendingUp, Gauge, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTradeEntryWizard } from "@/features/trade/useTradeEntryWizard";
 import { useRiskProfile } from "@/hooks/use-risk-profile";
+import { usePaperAccountValidation } from "@/hooks/use-paper-account-validation";
 import { calculatePositionSize, validateRiskLimits } from "@/lib/calculations/position-sizing";
 import { useBinanceLeverageBrackets, getMaxLeverageForNotional } from "@/features/binance";
 import type { PositionSizeResult } from "@/types/risk";
@@ -26,10 +28,15 @@ interface PositionSizingStepProps {
 export function PositionSizingStep({ onNext, onBack }: PositionSizingStepProps) {
   const wizard = useTradeEntryWizard();
   const { data: riskProfile } = useRiskProfile();
+  const { validateTradeBalance, isPaperAccount } = usePaperAccountValidation();
   
   const tradeDetails = wizard.tradeDetails;
   const accountBalance = wizard.accountBalance;
+  const tradingAccountId = wizard.tradingAccountId;
   const strategyDetails = wizard.strategyDetails;
+  
+  // Check if using paper account
+  const isUsingPaperAccount = isPaperAccount(tradingAccountId || null);
   
   // Fetch leverage brackets for the trading pair
   const symbol = tradeDetails?.pair || "BTCUSDT";
@@ -93,8 +100,13 @@ export function PositionSizingStep({ onNext, onBack }: PositionSizingStepProps) 
     ? validateRiskLimits(result, riskProfile, 0, 0, accountBalance)
     : { canTrade: true, warnings: [] };
 
+  // Paper account balance validation
+  const paperValidation = result && isUsingPaperAccount
+    ? validateTradeBalance(tradingAccountId || null, result.position_value)
+    : { valid: true, message: undefined };
+
   const pricesValid = entryPrice > 0 && stopLoss > 0 && takeProfit > 0;
-  const canProceed = pricesValid && result?.is_valid && riskValidation.canTrade;
+  const canProceed = pricesValid && result?.is_valid && riskValidation.canTrade && paperValidation.valid;
 
   const handleNext = () => {
     if (canProceed && result) {
@@ -132,6 +144,9 @@ export function PositionSizingStep({ onNext, onBack }: PositionSizingStepProps) 
             </div>
             <span className="text-sm text-muted-foreground">
               Balance: ${accountBalance.toLocaleString()}
+              {isUsingPaperAccount && (
+                <Badge variant="secondary" className="ml-2 text-xs">Paper</Badge>
+              )}
             </span>
           </div>
 
@@ -326,7 +341,7 @@ export function PositionSizingStep({ onNext, onBack }: PositionSizingStepProps) 
               </div>
 
               {/* Warnings */}
-              {(result.warnings.length > 0 || riskValidation.warnings.length > 0) && (
+              {(result.warnings.length > 0 || riskValidation.warnings.length > 0 || (paperValidation.message && !paperValidation.valid)) && (
                 <div className="space-y-2">
                   {[...result.warnings, ...riskValidation.warnings].map((warning, i) => (
                     <div key={i} className="flex items-center gap-2 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
@@ -334,6 +349,22 @@ export function PositionSizingStep({ onNext, onBack }: PositionSizingStepProps) 
                       <span className="text-sm text-yellow-600">{warning}</span>
                     </div>
                   ))}
+                  
+                  {/* Paper Account Balance Error */}
+                  {!paperValidation.valid && paperValidation.message && (
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/30">
+                      <Wallet className="h-4 w-4 text-red-500 shrink-0" />
+                      <span className="text-sm text-red-600">{paperValidation.message}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Paper Account Balance Warning (when valid but high usage) */}
+              {paperValidation.valid && paperValidation.message && isUsingPaperAccount && (
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
+                  <Wallet className="h-4 w-4 text-yellow-500 shrink-0" />
+                  <span className="text-sm text-yellow-600">{paperValidation.message}</span>
                 </div>
               )}
 
