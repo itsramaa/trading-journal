@@ -33,6 +33,7 @@ import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { useContextualAnalytics } from "@/hooks/use-contextual-analytics";
 import { useContextualExport } from "@/hooks/use-contextual-export";
 import { ContextualPerformance } from "@/components/analytics/ContextualPerformance";
+import { EmotionalPatternAnalysis } from "@/components/analytics/EmotionalPatternAnalysis";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import { format, subDays, isWithinInterval } from "date-fns";

@@ -2,6 +2,15 @@
  * Backtest Types - Per BACKTESTING_YOUTUBE_STRATEGY_GUIDE.md spec
  */
 
+// Enhanced filter types for contextual backtesting
+export interface BacktestEventFilter {
+  excludeHighImpact: boolean;
+  bufferHours: number;
+}
+
+export type BacktestSessionFilter = 'all' | 'asian' | 'london' | 'ny';
+export type BacktestVolatilityFilter = 'all' | 'low' | 'medium' | 'high';
+
 export interface BacktestConfig {
   strategyId: string;
   pair: string;
@@ -10,6 +19,10 @@ export interface BacktestConfig {
   initialCapital: number;
   commissionRate: number; // e.g., 0.0004 for 0.04%
   slippage?: number; // e.g., 0.001 for 0.1%
+  // Enhanced filters
+  eventFilter?: BacktestEventFilter;
+  sessionFilter?: BacktestSessionFilter;
+  volatilityFilter?: BacktestVolatilityFilter;
 }
 
 export interface BacktestTrade {
