@@ -43,6 +43,7 @@ export interface ContextAwareRiskResult {
   sentimentMultiplier: number;
   momentumMultiplier: number;
   performanceMultiplier: number;
+  strategyMultiplier: number; // NEW: Strategy-specific multiplier
   
   // Context flags
   hasHighImpactEvent: boolean;
@@ -52,10 +53,13 @@ export interface ContextAwareRiskResult {
   // Historical performance context
   pairWinRate: number | null;
   pairTradeCount: number;
+  strategyWinRate: number | null; // NEW: Strategy-specific win rate
+  strategyTradeCount: number; // NEW: Strategy-specific trade count
 }
 
 interface UseContextAwareRiskOptions {
   symbol?: string;
+  strategyId?: string; // NEW: Strategy ID for strategy-specific performance
   baseRiskPercent?: number;
   enabled?: boolean;
 }
@@ -63,7 +67,7 @@ interface UseContextAwareRiskOptions {
 export function useContextAwareRisk(
   options: UseContextAwareRiskOptions = {}
 ): ContextAwareRiskResult {
-  const { symbol = 'BTCUSDT', baseRiskPercent, enabled = true } = options;
+  const { symbol = 'BTCUSDT', strategyId, baseRiskPercent, enabled = true } = options;
 
   // Fetch required data
   const { data: riskProfile, isLoading: profileLoading } = useRiskProfile();
@@ -103,6 +107,29 @@ export function useContextAwareRisk(
 
     return { winRate, tradeCount: pairTrades.length };
   }, [tradeEntries, symbol]);
+
+  // Calculate strategy-specific performance (NEW)
+  const strategyPerformance = useMemo(() => {
+    if (!tradeEntries || tradeEntries.length === 0 || !strategyId) {
+      return { winRate: null, tradeCount: 0 };
+    }
+
+    // Filter trades linked to this strategy
+    const strategyTrades = tradeEntries.filter(trade => {
+      if (trade.status !== 'closed') return false;
+      // Check if trade has this strategy linked
+      return trade.strategies?.some(s => s.id === strategyId);
+    });
+
+    if (strategyTrades.length < 3) {
+      return { winRate: null, tradeCount: strategyTrades.length };
+    }
+
+    const wins = strategyTrades.filter(t => t.result === 'win').length;
+    const winRate = (wins / strategyTrades.length) * 100;
+
+    return { winRate, tradeCount: strategyTrades.length };
+  }, [tradeEntries, strategyId]);
 
   // Calculate all adjustment factors
   const adjustmentFactors = useMemo<AdjustmentFactor[]>(() => {
@@ -281,8 +308,55 @@ export function useContextAwareRisk(
       });
     }
 
+    // 6. Strategy-Specific Performance Adjustment (NEW)
+    if (strategyPerformance.winRate !== null) {
+      let stratMultiplier = 1.0;
+      let stratLevel: AdjustmentLevel = 'neutral';
+      let stratReason = '';
+
+      if (strategyPerformance.winRate >= 65) {
+        stratMultiplier = 1.2;
+        stratLevel = 'positive';
+        stratReason = `Excellent strategy performance (${strategyPerformance.winRate.toFixed(0)}% win rate)`;
+      } else if (strategyPerformance.winRate >= 55) {
+        stratMultiplier = 1.1;
+        stratLevel = 'positive';
+        stratReason = `Good strategy performance (${strategyPerformance.winRate.toFixed(0)}% win rate)`;
+      } else if (strategyPerformance.winRate >= 45) {
+        stratMultiplier = 1.0;
+        stratLevel = 'neutral';
+        stratReason = `Average strategy performance (${strategyPerformance.winRate.toFixed(0)}% win rate)`;
+      } else if (strategyPerformance.winRate >= 35) {
+        stratMultiplier = 0.8;
+        stratLevel = 'warning';
+        stratReason = `Below average strategy - reduce size (${strategyPerformance.winRate.toFixed(0)}% win rate)`;
+      } else {
+        stratMultiplier = 0.6;
+        stratLevel = 'danger';
+        stratReason = `Poor strategy performance - significantly reduce (${strategyPerformance.winRate.toFixed(0)}% win rate)`;
+      }
+
+      factors.push({
+        id: 'strategy',
+        name: 'Strategy Performance',
+        multiplier: stratMultiplier,
+        reason: stratReason,
+        level: stratLevel,
+        value: `${strategyPerformance.tradeCount} trades`,
+      });
+    } else if (strategyId && strategyPerformance.tradeCount > 0) {
+      factors.push({
+        id: 'strategy',
+        name: 'Strategy Performance',
+        multiplier: 1.0,
+        reason: `Insufficient strategy data (${strategyPerformance.tradeCount} trades, need 3+)`,
+        level: 'neutral',
+        value: 'Limited data',
+      });
+    }
+
     return factors;
-  }, [volatilityData, hasHighImpactEvent, bias, components, score, pairPerformance]);
+  }, [volatilityData, hasHighImpactEvent, bias, components, score, pairPerformance, strategyPerformance, strategyId]);
 
   // Calculate final adjusted risk
   const { totalMultiplier, adjustedRisk, recommendation, recommendationLabel } = useMemo(() => {
@@ -336,11 +410,14 @@ export function useContextAwareRisk(
     sentimentMultiplier: getMultiplier('sentiment'),
     momentumMultiplier: getMultiplier('momentum'),
     performanceMultiplier: getMultiplier('performance'),
+    strategyMultiplier: getMultiplier('strategy'),
     hasHighImpactEvent,
     volatilityLevel: volatilityLabel,
     marketBias: bias,
     pairWinRate: pairPerformance.winRate,
     pairTradeCount: pairPerformance.tradeCount,
+    strategyWinRate: strategyPerformance.winRate,
+    strategyTradeCount: strategyPerformance.tradeCount,
   };
 }
 
