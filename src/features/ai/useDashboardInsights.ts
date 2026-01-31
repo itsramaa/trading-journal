@@ -1,10 +1,11 @@
 /**
  * Dashboard AI Insights Hook
- * Calls dashboard-insights edge function
+ * Calls dashboard-insights edge function with settings enforcement
  */
 import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserSettings } from "@/hooks/use-user-settings";
+import { useAISettingsEnforcement } from "@/hooks/use-ai-settings-enforcement";
 
 export interface DashboardInsights {
   summary: string;
@@ -55,8 +56,15 @@ export function useDashboardInsights() {
   const [error, setError] = useState<string | null>(null);
   const [insights, setInsights] = useState<DashboardInsights | null>(null);
   const { data: settings } = useUserSettings();
+  const { shouldRunAIFeature, filterByConfidence } = useAISettingsEnforcement();
 
   const getInsights = useCallback(async (params: InsightsParams): Promise<DashboardInsights | null> => {
+    // Check if daily suggestions is enabled
+    if (!shouldRunAIFeature('daily_suggestions')) {
+      console.log('Daily suggestions is disabled in AI settings');
+      return null;
+    }
+
     setIsLoading(true);
     setError(null);
 
@@ -79,8 +87,18 @@ export function useDashboardInsights() {
         throw new Error(data?.error || 'Dashboard insights failed');
       }
 
-      setInsights(data.data || null);
-      return data.data || null;
+      let resultData = data.data || null;
+      
+      // Filter best setups by confidence threshold
+      if (resultData?.bestSetups) {
+        resultData = {
+          ...resultData,
+          bestSetups: filterByConfidence(resultData.bestSetups),
+        };
+      }
+
+      setInsights(resultData);
+      return resultData;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       setError(message);
@@ -89,7 +107,7 @@ export function useDashboardInsights() {
     } finally {
       setIsLoading(false);
     }
-  }, [settings?.language]);
+  }, [settings?.language, shouldRunAIFeature, filterByConfidence]);
 
   const refresh = useCallback((params: InsightsParams) => {
     return getInsights(params);
@@ -107,5 +125,6 @@ export function useDashboardInsights() {
     error,
     insights,
     reset,
+    isFeatureEnabled: shouldRunAIFeature('daily_suggestions'),
   };
 }
