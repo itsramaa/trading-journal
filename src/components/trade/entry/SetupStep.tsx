@@ -13,7 +13,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { 
   CheckCircle, XCircle, AlertTriangle, Loader2, ShieldCheck, 
   Building2, Brain, Sparkles, TrendingUp, TrendingDown, Target, 
-  Clock, ChevronDown, Layers, Wifi, Activity
+  Clock, ChevronDown, Layers, Wifi, Activity, Trophy, Ban
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePreTradeValidation } from "@/features/trade/usePreTradeValidation";
@@ -26,6 +26,7 @@ import { TIMEFRAME_OPTIONS, type TimeframeType } from "@/types/strategy";
 import { useBinanceBalance, useBinanceConnectionStatus } from "@/features/binance";
 import { useCaptureMarketContext } from "@/hooks/use-capture-market-context";
 import { MarketContextBadge } from "@/components/market/MarketContextBadge";
+import { useStrategyContext, type MarketFit } from "@/hooks/use-strategy-context";
 import type { ValidationResult } from "@/types/trade-wizard";
 
 interface SetupStepProps {
@@ -100,6 +101,9 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
   const [pair, setPair] = useState<string>("");
   const [direction, setDirection] = useState<'LONG' | 'SHORT'>('LONG');
   const [timeframe, setTimeframe] = useState<string>("1h");
+  
+  // Strategy context for pair recommendations (must be after pair state)
+  const strategyContext = useStrategyContext(selectedStrategy || null, pair);
 
   // Wizard & validation
   const wizard = useTradeEntryWizard();
@@ -358,7 +362,8 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
                 </Select>
 
                 {selectedStrategy && (
-                  <div className="p-3 rounded-lg bg-muted/30 space-y-2">
+                  <div className="p-3 rounded-lg bg-muted/30 space-y-3">
+                    {/* Strategy Quick Stats */}
                     <div className="grid grid-cols-3 gap-2 text-center text-xs">
                       <div>
                         <p className="text-muted-foreground">Timeframe</p>
@@ -373,6 +378,78 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
                         <p className="font-medium">{(selectedStrategy as any).min_confluences || 4}</p>
                       </div>
                     </div>
+                    
+                    {/* Market Fit Badge */}
+                    {strategyContext?.marketFit && (
+                      <div className="flex items-center justify-between pt-2 border-t">
+                        <span className="text-xs text-muted-foreground">Market Fit</span>
+                        <Badge className={cn(
+                          "text-xs",
+                          strategyContext.marketFit.overallFit === 'optimal' && "bg-profit/10 text-profit border-profit/30",
+                          strategyContext.marketFit.overallFit === 'acceptable' && "bg-muted text-muted-foreground border-border",
+                          strategyContext.marketFit.overallFit === 'poor' && "bg-loss/10 text-loss border-loss/30"
+                        )}>
+                          <Activity className="h-3 w-3 mr-1" />
+                          {strategyContext.marketFit.fitScore}% - {strategyContext.marketFit.overallFit}
+                        </Badge>
+                      </div>
+                    )}
+                    
+                    {/* Pair Recommendations */}
+                    {strategyContext && (strategyContext.recommendations.bestPairs.length > 0 || strategyContext.recommendations.avoidPairs.length > 0) && (
+                      <div className="pt-2 border-t space-y-2">
+                        {/* Best Pairs */}
+                        {strategyContext.recommendations.bestPairs.length > 0 && (
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1 text-xs text-profit">
+                              <Trophy className="h-3 w-3" />
+                              <span className="font-medium">Best Pairs</span>
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                              {strategyContext.recommendations.bestPairs.slice(0, 3).map(p => (
+                                <Badge 
+                                  key={p.pair} 
+                                  variant="outline" 
+                                  className="text-xs cursor-pointer bg-profit/5 border-profit/30 hover:bg-profit/10"
+                                  onClick={() => setPair(p.pair)}
+                                >
+                                  {p.pair} ({p.winRate.toFixed(0)}%)
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Avoid Pairs */}
+                        {strategyContext.recommendations.avoidPairs.length > 0 && (
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1 text-xs text-loss">
+                              <Ban className="h-3 w-3" />
+                              <span className="font-medium">Avoid</span>
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                              {strategyContext.recommendations.avoidPairs.slice(0, 3).map(p => (
+                                <Badge 
+                                  key={p.pair} 
+                                  variant="outline" 
+                                  className="text-xs bg-loss/5 border-loss/30 text-loss"
+                                >
+                                  {p.pair} ({p.winRate.toFixed(0)}%)
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Current Pair Warning */}
+                        {pair && strategyContext.recommendations.avoidPairs.some(p => p.pair === pair) && (
+                          <div className="flex items-center gap-2 p-2 rounded-md bg-loss/10 border border-loss/30 text-xs text-loss">
+                            <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                            <span>{pair} has poor historical performance with this strategy</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </CollapsibleContent>
