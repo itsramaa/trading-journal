@@ -1,16 +1,115 @@
 
-# Comprehensive Trading Domain Cross-Check Audit & Remediation Plan V6
+# Comprehensive Trading Domain Cross-Check Audit & Remediation Plan V7
 
-## Status: ✅ ALL PHASES IMPLEMENTED
+## Status: 🔄 DOMAIN IDENTIFICATION CORRECTED - READY FOR STEP 2
 **Tanggal Audit**: 2026-01-31
-**Implementation Complete**: 2026-01-31
-**Basis Audit**: Dokumentasi `docs/` + Implementasi aktual + Binance Futures Domain Model
+**Domain Identification**: COMPLETED (Step 1)
+**Next Step**: ACCOUNTS Domain Audit (Step 2)
+**Basis Audit**: Menu-based domain analysis + Binance Futures Domain Model
 
 ---
 
-## IMPLEMENTATION SUMMARY
+## DOMAIN IDENTIFICATION (STEP 1) - COMPLETED
 
-All 6 phases have been successfully implemented:
+### Audit Sequence (CORRECTED)
+
+| Step | Domain | Dependencies | Rationale |
+|------|--------|--------------|-----------|
+| 1 | ACCOUNTS | None | Foundation - balance, capital, wallet |
+| 2 | JOURNAL | ACCOUNTS | Core trading - trade recordings |
+| 3 | ANALYTICS | JOURNAL, ACCOUNTS | Aggregation - provides daily P&L for RISK |
+| 4 | RISK | ACCOUNTS, ANALYTICS | Uses daily P&L from ANALYTICS |
+| 5 | STRATEGY | External market data | Strategy management |
+| 6 | MARKET | None (external APIs) | External data source |
+| 7 | DASHBOARD | All domains (1-6) | Entry point - aggregates all |
+| 8 | SETTINGS | None | Configuration |
+| 9 | USER | Auth system | Identity & session |
+| 10 | INFRASTRUCTURE | None | Cross-cutting platform layer |
+
+### Domain Map (CORRECTED)
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│              TRADING JOURNEY - DOMAIN HIERARCHY                     │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  LAYER 1: FOUNDATION                                               │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │ ACCOUNTS Domain                                             │   │
+│  │ ├─ Balance & Capital management                             │   │
+│  │ └─ IN: Binance API, local paper accounts                    │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+│                 ↓                                                   │
+│  LAYER 2: CORE TRADING                                             │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │ JOURNAL Domain                                              │   │
+│  │ ├─ Trade entry & recording                                  │   │
+│  │ ├─ Trade history & lifecycle                                │   │
+│  │ └─ IN: Trade executions (Binance/manual)                    │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+│         ↓                ↓                ↓                         │
+│  LAYER 3: ANALYSIS & DECISION                                      │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐              │
+│  │ ANALYTICS    │  │ RISK         │  │ STRATEGY     │              │
+│  │ ─────────────│  │ ─────────────│  │ ─────────────│              │
+│  │ • Performance│  │ • Risk limit │  │ • Rules def. │              │
+│  │ • P&L charts│  │ • Position sz│  │ • Backtest   │              │
+│  │ • Heatmap   │  │ • Loss track │  │ • Sharing    │              │
+│  │ • Insights  │  │              │  │              │              │
+│  │ • Export    │  │              │  │              │              │
+│  └──────────────┘  └──────────────┘  └──────────────┘              │
+│         ↑                ↑                                          │
+│         └────────────────┘                                         │
+│         (P&L, daily limits)                                        │
+│                                                                     │
+│  LAYER 4: CONTEXT                                                  │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │ MARKET Domain                                               │   │
+│  │ ├─ Market data, events, sentiment                           │   │
+│  │ └─ IN: External APIs only                                   │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+│                 ↓                                                   │
+│  LAYER 5: ENTRY POINT                                              │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │ DASHBOARD Domain                                            │   │
+│  │ ├─ Overview & navigation                                    │   │
+│  │ └─ Aggregates: Accounts, Journal, Analytics, Risk, Market   │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+│                                                                     │
+│  LAYER 6: SUPPORTING                                               │
+│  ┌──────────────┐  ┌──────────────┐                               │
+│  │ SETTINGS     │  │ USER         │                               │
+│  │ ─────────────│  │ ─────────────│                               │
+│  │ • API config │  │ • Profile    │                               │
+│  │ • Preferences│  │ • Notif      │                               │
+│  └──────────────┘  └──────────────┘                               │
+│                                                                     │
+│  LAYER 7: PLATFORM                                                 │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │ INFRASTRUCTURE (Cross-cutting)                              │   │
+│  │ ├─ Command Palette (search)                                 │   │
+│  │ ├─ Theme toggle                                             │   │
+│  │ └─ Currency display                                         │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+│                                                                     │
+│  NOTE: Bulk Export moved from SETTINGS to ANALYTICS domain         │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Corrections Applied
+
+| No | Item | Original | Corrected | Impact |
+|----|------|----------|-----------|--------|
+| 1 | Audit Order | RISK→STRATEGY→ANALYTICS | ANALYTICS→RISK→STRATEGY | Critical |
+| 2 | Bulk Export | SETTINGS group | ANALYTICS domain | Structural |
+| 3 | Infrastructure | "Domain" label | "Platform Layer" | Terminology |
+
+---
+
+## PREVIOUS IMPLEMENTATION SUMMARY (V6)
+
+All 6 gap remediation phases have been successfully implemented:
 
 | Phase | Description | Status |
 |-------|-------------|--------|
@@ -20,19 +119,6 @@ All 6 phases have been successfully implemented:
 | Phase 4 | Performance Net P&L | ✅ DONE |
 | Phase 5 | DailyPnL Real Data | ✅ DONE |
 | Phase 6 | R:R Guidance | ✅ DONE |
-
-### Files Created
-- `src/components/dashboard/PortfolioOverviewCard.tsx` - Portfolio overview with Total Capital, Net P&L
-- `src/lib/correlation-utils.ts` - Reusable correlation check utilities
-
-### Files Modified
-- `src/pages/Dashboard.tsx` - Added PortfolioOverviewCard as first widget
-- `src/components/dashboard/AIInsightsWidget.tsx` - Market Regime badge + Correlation Warning
-- `src/components/risk/RiskSummaryCard.tsx` - Correlation Warning for open positions
-- `src/pages/Performance.tsx` - Net P&L breakdown (Gross - Fees)
-- `src/pages/DailyPnL.tsx` - Real symbol breakdown from bySymbol data
-- `src/components/trading/TradeHistoryCard.tsx` - R:R guidance for Binance trades
-- `docs/FEATURES.md` - Updated documentation
 
 ---
 
@@ -46,14 +132,14 @@ All 6 phases have been successfully implemented:
 | Trade Sync Logic | ✅ CORRECT | 0 | 0 | 0 |
 | Financial Summary | ✅ CORRECT | 0 | 0 | 0 |
 | Net P&L Calculation | ✅ CORRECT | 0 | 0 | 0 |
-| Dashboard Portfolio Overview | ❌ MISSING | 1 | 0 | 0 |
-| AI Insights Widget | ⚠️ INCOMPLETE | 0 | 2 | 0 |
-| Performance P&L Display | ⚠️ INCOMPLETE | 0 | 1 | 0 |
-| DailyPnL Symbol Breakdown | ❌ MOCK DATA | 0 | 1 | 0 |
-| Risk Correlation Warning | ⚠️ INCOMPLETE | 0 | 1 | 0 |
-| R:R Calculation | ⚠️ LIMITED | 0 | 1 | 0 |
+| Dashboard Portfolio Overview | ✅ DONE | 0 | 0 | 0 |
+| AI Insights Widget | ✅ DONE | 0 | 0 | 0 |
+| Performance P&L Display | ✅ DONE | 0 | 0 | 0 |
+| DailyPnL Symbol Breakdown | ✅ DONE | 0 | 0 | 0 |
+| Risk Correlation Warning | ✅ DONE | 0 | 0 | 0 |
+| R:R Calculation | ✅ DONE | 0 | 0 | 0 |
 
-**Total: 1 Critical, 6 Medium, 0 Low**
+**Total: 0 Critical, 0 Medium, 0 Low (All Resolved)**
 
 ---
 
