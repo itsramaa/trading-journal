@@ -1,6 +1,7 @@
 /**
  * MarketScoreWidget - Real-time composite market score display
  * Shows unified market analysis with trading bias recommendation
+ * Wrapped with error boundary for graceful external API failure handling
  */
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -28,7 +30,7 @@ interface MarketScoreWidgetProps {
   compact?: boolean;
 }
 
-export function MarketScoreWidget({ symbol = 'BTCUSDT', compact = false }: MarketScoreWidgetProps) {
+function MarketScoreWidgetContent({ symbol = 'BTCUSDT', compact = false }: MarketScoreWidgetProps) {
   const {
     score,
     bias,
@@ -267,5 +269,21 @@ export function MarketScoreWidget({ symbol = 'BTCUSDT', compact = false }: Marke
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * Exported component wrapped with ErrorBoundary
+ * Gracefully handles external API failures (market data, fear/greed, calendar)
+ */
+export function MarketScoreWidget(props: MarketScoreWidgetProps) {
+  return (
+    <ErrorBoundary 
+      title="Market Score" 
+      compact={props.compact}
+      onRetry={() => window.location.reload()}
+    >
+      <MarketScoreWidgetContent {...props} />
+    </ErrorBoundary>
   );
 }

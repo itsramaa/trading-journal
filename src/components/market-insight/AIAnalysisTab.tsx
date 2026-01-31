@@ -1,12 +1,14 @@
 /**
  * AI Analysis Tab Component - Sentiment & Macro Analysis
  * Extracted from MarketInsight.tsx for tabbed interface
+ * Wrapped with error boundary for graceful edge function failure handling
  */
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
+import { ErrorBoundary, AsyncErrorFallback } from "@/components/ui/error-boundary";
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -25,14 +27,26 @@ interface AIAnalysisTabProps {
   macroData?: MacroAnalysisResponse;
   isLoading: boolean;
   onRefresh: () => void;
+  error?: Error | null;
 }
 
 export function AIAnalysisTab({ 
   sentimentData, 
   macroData, 
   isLoading, 
-  onRefresh 
+  onRefresh,
+  error 
 }: AIAnalysisTabProps) {
+  // Handle async data errors gracefully
+  if (error) {
+    return (
+      <AsyncErrorFallback 
+        error={error} 
+        onRetry={onRefresh}
+        title="Failed to load AI analysis"
+      />
+    );
+  }
   const getSentimentIcon = (sentiment: string) => {
     switch (sentiment) {
       case 'bullish': return <TrendingUp className="h-5 w-5 text-profit" />;
@@ -58,6 +72,7 @@ export function AIAnalysisTab({
   };
 
   return (
+    <ErrorBoundary title="AI Analysis Error" onRetry={onRefresh}>
     <div className="space-y-6">
       {/* AI Market Sentiment */}
       <Card>
@@ -242,5 +257,6 @@ export function AIAnalysisTab({
         </CardContent>
       </Card>
     </div>
+    </ErrorBoundary>
   );
 }
