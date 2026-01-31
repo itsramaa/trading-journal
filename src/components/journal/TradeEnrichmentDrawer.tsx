@@ -1,6 +1,6 @@
 /**
  * TradeEnrichmentDrawer - Side panel for adding journal data to any trade
- * Supports strategies, screenshots, notes, emotional state, tags
+ * Supports strategies, screenshots, notes, emotional state, tags, AI Analysis
  * Refactored to use useTradeEnrichment hook
  */
 import { useState, useEffect } from "react";
@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScreenshotUploader } from "./ScreenshotUploader";
 import { 
   Lightbulb, 
@@ -36,12 +37,20 @@ import {
   FileText,
   Brain,
   Loader2,
+  ChevronDown,
+  ChevronUp,
+  CheckCircle,
+  XCircle,
+  AlertTriangle,
+  Sparkles,
 } from "lucide-react";
 import { TradeEntry } from "@/hooks/use-trade-entries";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { useTradeEnrichment } from "@/hooks/use-trade-enrichment";
+import { useTradeAIAnalysis, AITradeAnalysis } from "@/hooks/use-trade-ai-analysis";
 import { EMOTIONAL_STATES } from "@/types/trade-wizard";
 import type { UnifiedPosition } from "./AllPositionsTable";
+import { cn } from "@/lib/utils";
 
 interface TradeEnrichmentDrawerProps {
   position: UnifiedPosition | null;
@@ -65,6 +74,111 @@ const CHART_TIMEFRAMES = [
   { value: "1w", label: "1 Week" },
 ];
 
+// AI Analysis Display Component
+function AIAnalysisDisplay({ analysis }: { analysis: AITradeAnalysis }) {
+  return (
+    <div className="space-y-4 text-sm">
+      {/* Overall Assessment */}
+      <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
+        <p className="font-medium text-primary mb-1">Overall Assessment</p>
+        <p className="text-muted-foreground">{analysis.overallAssessment}</p>
+      </div>
+
+      {/* Win Factors */}
+      {analysis.winFactors.length > 0 && (
+        <div className="space-y-2">
+          <p className="font-medium flex items-center gap-2 text-profit">
+            <CheckCircle className="h-4 w-4" />
+            Win Factors
+          </p>
+          <ul className="space-y-1 ml-6">
+            {analysis.winFactors.map((factor, i) => (
+              <li key={i} className="text-muted-foreground list-disc">{factor}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Loss Factors */}
+      {analysis.lossFactors.length > 0 && (
+        <div className="space-y-2">
+          <p className="font-medium flex items-center gap-2 text-loss">
+            <XCircle className="h-4 w-4" />
+            Loss Factors
+          </p>
+          <ul className="space-y-1 ml-6">
+            {analysis.lossFactors.map((factor, i) => (
+              <li key={i} className="text-muted-foreground list-disc">{factor}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Lessons */}
+      {analysis.lessons.length > 0 && (
+        <div className="space-y-2">
+          <p className="font-medium flex items-center gap-2">
+            <Lightbulb className="h-4 w-4 text-chart-4" />
+            Lessons Learned
+          </p>
+          <ul className="space-y-1 ml-6">
+            {analysis.lessons.map((lesson, i) => (
+              <li key={i} className="text-muted-foreground list-disc">{lesson}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Improvements */}
+      {analysis.improvements.length > 0 && (
+        <div className="space-y-2">
+          <p className="font-medium flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-primary" />
+            Improvements
+          </p>
+          <ul className="space-y-1 ml-6">
+            {analysis.improvements.map((improvement, i) => (
+              <li key={i} className="text-muted-foreground list-disc">{improvement}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Pattern Update */}
+      <div className="p-3 rounded-lg bg-muted/50 border">
+        <p className="font-medium mb-2 flex items-center gap-2">
+          <Brain className="h-4 w-4" />
+          Pattern Recognition
+        </p>
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div>
+            <span className="text-muted-foreground">Est. Win Rate:</span>
+            <span className="ml-1 font-medium">{analysis.patternUpdate.newWinRate}%</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-muted-foreground">Confidence:</span>
+            <Badge 
+              variant="outline" 
+              className={cn(
+                "text-xs",
+                analysis.patternUpdate.confidenceChange === "increase" && "border-profit text-profit",
+                analysis.patternUpdate.confidenceChange === "decrease" && "border-loss text-loss",
+                analysis.patternUpdate.confidenceChange === "maintain" && "border-muted-foreground"
+              )}
+            >
+              {analysis.patternUpdate.confidenceChange === "increase" && "↑"}
+              {analysis.patternUpdate.confidenceChange === "decrease" && "↓"}
+              {analysis.patternUpdate.confidenceChange === "maintain" && "→"}
+              {" "}{analysis.patternUpdate.confidenceChange}
+            </Badge>
+          </div>
+        </div>
+        <p className="text-muted-foreground mt-2">{analysis.patternUpdate.recommendation}</p>
+      </div>
+    </div>
+  );
+}
+
 export function TradeEnrichmentDrawer({
   position,
   open,
@@ -73,6 +187,7 @@ export function TradeEnrichmentDrawer({
 }: TradeEnrichmentDrawerProps) {
   const { data: strategies = [] } = useTradingStrategies();
   const { isSaving, loadLinkedStrategies, saveEnrichment } = useTradeEnrichment();
+  const { analysis, isAnalyzing, requestAnalysis, clearAnalysis } = useTradeAIAnalysis();
   
   // Form state
   const [selectedStrategies, setSelectedStrategies] = useState<string[]>([]);
@@ -81,6 +196,7 @@ export function TradeEnrichmentDrawer({
   const [emotionalState, setEmotionalState] = useState<string>("");
   const [chartTimeframe, setChartTimeframe] = useState<string>("");
   const [customTags, setCustomTags] = useState<string>("");
+  const [isAnalysisOpen, setIsAnalysisOpen] = useState(false);
 
   // Load existing data when position changes
   useEffect(() => {
@@ -288,12 +404,69 @@ export function TradeEnrichmentDrawer({
               </p>
             </div>
 
-            {/* AI Analysis Button (placeholder) */}
-            <div className="pt-4">
-              <Button variant="outline" className="w-full" disabled>
-                <Brain className="h-4 w-4 mr-2" />
-                Request AI Analysis (Coming Soon)
-              </Button>
+            {/* AI Analysis Section */}
+            <Separator />
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                  AI Trade Analysis
+                </Label>
+                {analysis && (
+                  <Badge variant="outline" className="text-xs border-profit text-profit">
+                    <CheckCircle className="h-3 w-3 mr-1" />
+                    Ready
+                  </Badge>
+                )}
+              </div>
+              
+              {!analysis ? (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => {
+                    if (position) {
+                      const trade = position.originalData as TradeEntry;
+                      const strategyName = selectedStrategies.length > 0 
+                        ? strategies.find(s => s.id === selectedStrategies[0])?.name
+                        : undefined;
+                      requestAnalysis(trade, strategyName);
+                    }
+                  }}
+                  disabled={isAnalyzing}
+                >
+                  {isAnalyzing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <Brain className="h-4 w-4 mr-2" />
+                      Request AI Analysis
+                    </>
+                  )}
+                </Button>
+              ) : (
+                <Collapsible open={isAnalysisOpen} onOpenChange={setIsAnalysisOpen}>
+                  <CollapsibleTrigger asChild>
+                    <Button variant="outline" className="w-full justify-between">
+                      <span className="flex items-center gap-2">
+                        <Brain className="h-4 w-4" />
+                        View Analysis Results
+                      </span>
+                      {isAnalysisOpen ? (
+                        <ChevronUp className="h-4 w-4" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-3 space-y-4">
+                    <AIAnalysisDisplay analysis={analysis} />
+                  </CollapsibleContent>
+                </Collapsible>
+              )}
             </div>
           </div>
         </ScrollArea>
