@@ -9,3 +9,5 @@ export { YouTubeStrategyImporter } from './YouTubeStrategyImporter';
 export { BacktestRunner } from './BacktestRunner';
 export { BacktestComparison } from './BacktestComparison';
 export { BacktestResults } from './BacktestResults';
+export { MarketFitSection } from './MarketFitSection';
+export { PairRecommendations } from './PairRecommendations';

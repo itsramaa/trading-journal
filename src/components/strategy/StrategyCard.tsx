@@ -7,10 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { MoreVertical, Edit, Play, Trash2, Clock, TrendingUp, Shield, Target, Tag, Star, Brain } from "lucide-react";
+import { MoreVertical, Edit, Play, Trash2, Clock, TrendingUp, Shield, Target, Tag, Star, Brain, Activity } from "lucide-react";
 import { format } from "date-fns";
 import type { TradingStrategy } from "@/hooks/use-trading-strategies";
 import { getQualityScoreLabel, type StrategyPerformance } from "@/hooks/use-strategy-performance";
+import { useStrategyContext } from "@/hooks/use-strategy-context";
 
 // Design system color tokens
 const colorClasses: Record<string, string> = {
@@ -37,6 +38,10 @@ export function StrategyCard({ strategy, performance, onEdit, onDelete, onBackte
   const qualityScore = performance?.aiQualityScore || 0;
   const scoreInfo = getQualityScoreLabel(qualityScore);
   const colorClass = colorClasses[strategy.color || 'blue'] || colorClasses.blue;
+  
+  // Get market fit context for this strategy
+  const strategyContext = useStrategyContext(strategy);
+  const marketFit = strategyContext?.marketFit;
 
   const handleBacktest = () => {
     // Navigate to backtest page with strategy pre-selected
@@ -52,6 +57,32 @@ export function StrategyCard({ strategy, performance, onEdit, onDelete, onBackte
             <CardTitle className="text-lg">{strategy.name}</CardTitle>
           </div>
           <div className="flex items-center gap-1">
+            {/* Market Fit Badge */}
+            {marketFit && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge className={`text-xs ${
+                      marketFit.overallFit === 'optimal' ? 'bg-profit/10 text-profit border-profit/30' :
+                      marketFit.overallFit === 'poor' ? 'bg-loss/10 text-loss border-loss/30' :
+                      'bg-muted text-muted-foreground border-border'
+                    }`}>
+                      <Activity className="h-3 w-3 mr-1" aria-hidden="true" />
+                      {marketFit.fitScore}%
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <div className="text-sm space-y-1">
+                      <p className="font-medium">Market Fit: {marketFit.overallFit}</p>
+                      <p>Volatility: {marketFit.volatilityMatch}</p>
+                      <p>Trend: {marketFit.trendAlignment}</p>
+                      <p>Event Risk: {marketFit.eventRisk}</p>
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            
             {/* AI Quality Score Badge */}
             <TooltipProvider>
               <Tooltip>
