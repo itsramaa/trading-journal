@@ -1,8 +1,8 @@
 /**
  * Trading Dashboard - Main overview showing trading performance
  * Layout order:
- * 1. Quick Actions (no title), 2. 7-Day Stats (no title), 3. System Status, 4. Market Sessions,
- * 5. Active Positions, 6. Today's Activity, 7. Risk & AI Insights
+ * 1. Quick Actions (no title), 2. 7-Day Stats (no title), 3. Market Score, 4. System Status, 
+ * 5. Market Sessions, 6. Active Positions, 7. Today's Activity, 8. Risk & AI Insights
  */
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
@@ -19,6 +19,7 @@ import { TodayPerformance } from "@/components/dashboard/TodayPerformance";
 import { SystemStatusIndicator } from "@/components/dashboard/SystemStatusIndicator";
 import { MarketSessionsWidget } from "@/components/dashboard/MarketSessionsWidget";
 import { ADLRiskWidget } from "@/components/dashboard/ADLRiskWidget";
+import { MarketScoreWidget } from "@/components/dashboard/MarketScoreWidget";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { useRealtime } from "@/hooks/use-realtime";
 import { 
@@ -210,10 +211,14 @@ const Dashboard = () => {
             </Link>
           </Button>
         </div>
-        {/* 3. System Status - No title (already built-in) */}
+
+        {/* 3. Market Score Widget */}
+        <MarketScoreWidget symbol="BTCUSDT" />
+
+        {/* 4. System Status - No title (already built-in) */}
         <SystemStatusIndicator />
 
-        {/* 4. Market Sessions - No title */}
+        {/* 5. Market Sessions - No title */}
         <MarketSessionsWidget />
 
         {/* 5. Active Positions Card */}
