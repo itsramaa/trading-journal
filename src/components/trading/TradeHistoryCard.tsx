@@ -9,12 +9,13 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar, Tag, Target, MoreVertical, Trash2, Brain, Wifi, Edit3, ImageIcon, MessageSquarePlus, MessageSquare, Loader2 } from "lucide-react";
+import { Calendar, Tag, Target, MoreVertical, Trash2, Brain, Wifi, Edit3, ImageIcon, MessageSquarePlus, MessageSquare, Loader2, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 import { TradeEntry } from "@/hooks/use-trade-entries";
 import { cn } from "@/lib/utils";
-import { RiskRewardTooltip, ConfluenceScoreTooltip } from "@/components/ui/info-tooltip";
+import { RiskRewardTooltip, ConfluenceScoreTooltip, InfoTooltip } from "@/components/ui/info-tooltip";
 import { FearGreedBadge, EventDayBadge } from "@/components/market/MarketContextBadge";
+import { formatFee } from "@/lib/formatters";
 import type { UnifiedMarketContext } from "@/types/market-context";
 
 interface TradeHistoryCardProps {
@@ -218,8 +219,19 @@ export function TradeHistoryCard({
                 <Badge variant="outline" className="text-xs">{entry.confluence_score}/5</Badge>
               ) : '-'}
             </div>
-            {isBinance && entry.commission !== null && entry.commission !== undefined && (
-              <div><span className="text-muted-foreground">Fee:</span> {entry.commission.toFixed(4)} {entry.commission_asset || 'USDT'}</div>
+            {/* Fee Display - Improved handling for missing data */}
+            {isBinance && (
+              <div className="flex items-center gap-1">
+                <span className="text-muted-foreground">Fee:</span>
+                {entry.commission && entry.commission > 0 ? (
+                  <span className="font-mono">{formatFee(entry.commission, entry.commission_asset || 'USDT')}</span>
+                ) : (
+                  <span className="text-muted-foreground text-xs italic flex items-center gap-1">
+                    See Summary
+                    <InfoTooltip content="Trading fees are aggregated in the Accounts page Financial Summary. Individual trade fees from income sync are not available per-trade." />
+                  </span>
+                )}
+              </div>
             )}
           </div>
           

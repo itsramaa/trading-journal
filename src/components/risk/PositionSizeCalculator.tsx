@@ -184,19 +184,19 @@ export function PositionSizeCalculator({
                 <div>
                   <span className="text-muted-foreground">Maker Fee:</span>
                   <span className="ml-2 font-medium">
-                    {(commissionRate.makerCommissionRate * 100).toFixed(3)}%
+                    {(commissionRate.makerCommissionRate * 100).toFixed(2)}%
                   </span>
                   <span className="text-xs text-muted-foreground ml-1">
-                    (${estimatedFees.makerFee.toFixed(2)})
+                    (${estimatedFees.makerFee.toFixed(4)})
                   </span>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Taker Fee:</span>
                   <span className="ml-2 font-medium">
-                    {(commissionRate.takerCommissionRate * 100).toFixed(3)}%
+                    {(commissionRate.takerCommissionRate * 100).toFixed(2)}%
                   </span>
                   <span className="text-xs text-muted-foreground ml-1">
-                    (${estimatedFees.takerFee.toFixed(2)})
+                    (${estimatedFees.takerFee.toFixed(4)})
                   </span>
                 </div>
               </div>
