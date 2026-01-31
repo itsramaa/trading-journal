@@ -1,11 +1,13 @@
 /**
  * Volatility Meter Widget - Shows volatility levels for watchlist symbols
  * Uses Phase 3 useMultiSymbolVolatility hook
+ * Wrapped with ErrorBoundary for graceful API failure handling
  */
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { Activity, TrendingUp, AlertTriangle, Flame, Snowflake } from "lucide-react";
 import { useMultiSymbolVolatility, type VolatilityRisk } from "@/features/binance";
 import { cn } from "@/lib/utils";
@@ -66,7 +68,7 @@ function VolatilityBar({ value, max = 150 }: { value: number; max?: number }) {
   );
 }
 
-export function VolatilityMeterWidget({ 
+function VolatilityMeterContent({ 
   symbols = DEFAULT_WATCHLIST,
   className 
 }: VolatilityMeterWidgetProps) {
@@ -219,5 +221,20 @@ export function VolatilityMeterWidget({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * Exported component wrapped with ErrorBoundary
+ * Gracefully handles Binance API failures
+ */
+export function VolatilityMeterWidget(props: VolatilityMeterWidgetProps) {
+  return (
+    <ErrorBoundary 
+      title="Volatility Meter"
+      onRetry={() => window.location.reload()}
+    >
+      <VolatilityMeterContent {...props} />
+    </ErrorBoundary>
   );
 }

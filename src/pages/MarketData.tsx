@@ -7,15 +7,15 @@
 import { useState, useMemo } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { MarketSentimentWidget } from "@/components/market";
+import { WhaleTrackingWidget } from "@/components/market/WhaleTrackingWidget";
 import { VolatilityMeterWidget } from "@/components/dashboard/VolatilityMeterWidget";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BarChart3, RefreshCw, Target, Activity } from "lucide-react";
+import { BarChart3, RefreshCw, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMultiSymbolMarketInsight } from "@/features/market-insight";
 import { cn } from "@/lib/utils";
-import type { WhaleSignal } from "@/features/market-insight/types";
 
 // Base top 5 symbols (USDT format for API)
 const TOP_5_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'XRPUSDT', 'BNBUSDT'];
@@ -35,7 +35,8 @@ export default function MarketData() {
   // Use new hook that passes symbols to edge function (dynamic fetching)
   const { 
     data: marketData, 
-    isLoading, 
+    isLoading,
+    error,
     refetch 
   } = useMultiSymbolMarketInsight(symbolsToFetch);
 
@@ -43,23 +44,10 @@ export default function MarketData() {
   const selectedAsset = useMemo(() => selectedPair.replace('USDT', ''), [selectedPair]);
   const selectedOppPair = useMemo(() => `${selectedAsset}/USDT`, [selectedAsset]);
 
-  const getWhaleSignalColor = (signal: WhaleSignal) => {
-    switch (signal) {
-      case 'ACCUMULATION': return 'bg-profit';
-      case 'DISTRIBUTION': return 'bg-loss';
-      default: return 'bg-muted-foreground';
-    }
-  };
-
   // Get whale data - already fetched for all requested symbols
   const whaleData = useMemo(() => {
     if (!marketData?.whaleActivity) return [];
-    
-    const allWhales = marketData.whaleActivity;
-    
-    // If selected is not in top 5, it will be first in the array (edge function logic)
-    // Just slice to max 5
-    return allWhales.slice(0, 6);
+    return marketData.whaleActivity.slice(0, 6);
   }, [marketData?.whaleActivity]);
 
   // Get opportunities data - already fetched for all requested symbols
@@ -109,75 +97,14 @@ export default function MarketData() {
         <div className="grid gap-4 md:grid-cols-2">
           <VolatilityMeterWidget symbols={symbolsToFetch} />
           
-          {/* AI Whale Tracking - Top 5 + selected */}
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Activity className="h-5 w-5 text-primary" />
-                  <CardTitle className="text-lg">Whale Tracking</CardTitle>
-                </div>
-                <Badge variant="outline">
-                  {!isSelectedInTop5 ? `+${selectedAsset}` : 'Top 5'}
-                </Badge>
-              </div>
-              <CardDescription>
-                Volume-based whale activity detection
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {isLoading ? (
-                <div className="space-y-3">
-                  <Skeleton className="h-14" />
-                  <Skeleton className="h-14" />
-                  <Skeleton className="h-14" />
-                  <Skeleton className="h-14" />
-                  <Skeleton className="h-14" />
-                </div>
-              ) : whaleData.length === 0 ? (
-                <div className="text-center py-6 text-muted-foreground">
-                  <Activity className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">No whale activity detected</p>
-                </div>
-              ) : whaleData.map((whale, idx) => (
-                <div 
-                  key={idx} 
-                  className="flex items-center justify-between p-3 rounded-lg border"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={cn(
-                      "w-2 h-2 rounded-full",
-                      getWhaleSignalColor(whale.signal)
-                    )} />
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-xs">{whale.asset}</Badge>
-                        <Badge 
-                          variant="secondary" 
-                          className={cn(
-                            "text-xs",
-                            whale.signal === 'ACCUMULATION' && "bg-profit/20 text-profit",
-                            whale.signal === 'DISTRIBUTION' && "bg-loss/20 text-loss"
-                          )}
-                        >
-                          {whale.signal}
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{whale.description}</p>
-                    </div>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <span className="text-sm font-medium">
-                      {whale.volumeChange24h > 0 ? '+' : ''}{whale.volumeChange24h.toFixed(1)}%
-                    </span>
-                    <p className="text-xs text-muted-foreground">
-                      {whale.confidence}% conf.
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+          <WhaleTrackingWidget 
+            whaleData={whaleData}
+            isLoading={isLoading}
+            error={error}
+            selectedAsset={selectedAsset}
+            isSelectedInTop5={isSelectedInTop5}
+            onRetry={() => refetch()}
+          />
         </div>
 
         {/* 3. Trading Opportunities - Full Width at Bottom - Top 5 + selected */}
