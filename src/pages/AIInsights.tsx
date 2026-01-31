@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Brain, 
   TrendingUp, 
@@ -22,10 +23,12 @@ import {
   Trophy,
   Flame,
   Shield,
-  Calendar
+  Calendar,
+  Activity,
 } from "lucide-react";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
+import { ContextualPerformance } from "@/components/analytics/ContextualPerformance";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import { format, subDays, isWithinInterval } from "date-fns";
@@ -353,6 +356,21 @@ export default function AIInsights() {
           </p>
         </div>
 
+        {/* Tabs */}
+        <Tabs defaultValue="patterns" className="space-y-6">
+          <TabsList>
+            <TabsTrigger value="patterns" className="gap-2">
+              <Lightbulb className="h-4 w-4" />
+              Pattern Analysis
+            </TabsTrigger>
+            <TabsTrigger value="contextual" className="gap-2">
+              <Activity className="h-4 w-4" />
+              Contextual Performance
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="patterns" className="space-y-6 mt-0">
+
         {/* Quick Stats Overview */}
         <div className="grid gap-4 md:grid-cols-4">
           <Card>
@@ -576,6 +594,13 @@ export default function AIInsights() {
             </div>
           </CardContent>
         </Card>
+          </TabsContent>
+
+          {/* Contextual Performance Tab */}
+          <TabsContent value="contextual" className="mt-0">
+            <ContextualPerformance />
+          </TabsContent>
+        </Tabs>
       </div>
     </DashboardLayout>
   );
