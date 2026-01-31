@@ -2,6 +2,7 @@
  * Market Data Page - Standalone page for market data tab content
  * Primary entry point for Market domain
  * Layout: 1. Market Sentiment (full), 2. Volatility+Whale grid, 3. Trading Opportunities
+ * Top 5 for all widgets
  */
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { MarketSentimentWidget } from "@/components/market";
@@ -14,6 +15,9 @@ import { Button } from "@/components/ui/button";
 import { useMarketSentiment } from "@/features/market-insight";
 import { cn } from "@/lib/utils";
 import type { WhaleSignal } from "@/features/market-insight/types";
+
+// Top 5 pairs for default display
+const TOP_5_PAIRS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'XRPUSDT', 'BNBUSDT'];
 
 export default function MarketData() {
   const { 
@@ -29,6 +33,29 @@ export default function MarketData() {
       default: return 'bg-muted-foreground';
     }
   };
+
+  // Get whale data - top 5 pairs only
+  const getWhaleData = () => {
+    if (!sentimentData?.whaleActivity) return [];
+    
+    // Filter to top 5 pairs
+    return sentimentData.whaleActivity.filter(w => 
+      TOP_5_PAIRS.includes(w.asset)
+    ).slice(0, 5);
+  };
+
+  // Get opportunities data - top 5 pairs only
+  const getOpportunitiesData = () => {
+    if (!sentimentData?.opportunities) return [];
+    
+    // Filter to top 5 pairs
+    return sentimentData.opportunities.filter(o => 
+      TOP_5_PAIRS.includes(o.pair)
+    ).slice(0, 5);
+  };
+
+  const whaleData = getWhaleData();
+  const opportunitiesData = getOpportunitiesData();
 
   return (
     <DashboardLayout>
@@ -66,7 +93,7 @@ export default function MarketData() {
         <div className="grid gap-4 md:grid-cols-2">
           <VolatilityMeterWidget />
           
-          {/* AI Whale Tracking */}
+          {/* AI Whale Tracking - Top 5 */}
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
@@ -74,7 +101,7 @@ export default function MarketData() {
                   <Activity className="h-5 w-5 text-primary" />
                   <CardTitle className="text-lg">Whale Tracking</CardTitle>
                 </div>
-                <Badge variant="outline">Volume Proxy</Badge>
+                <Badge variant="outline">Top 5</Badge>
               </div>
               <CardDescription>
                 Volume-based whale activity detection
@@ -86,9 +113,14 @@ export default function MarketData() {
                   <Skeleton className="h-14" />
                   <Skeleton className="h-14" />
                   <Skeleton className="h-14" />
+                  <Skeleton className="h-14" />
+                  <Skeleton className="h-14" />
                 </div>
-              ) : sentimentData?.whaleActivity.map((whale, idx) => (
-                <div key={idx} className="flex items-center justify-between p-3 rounded-lg border">
+              ) : whaleData.map((whale, idx) => (
+                <div 
+                  key={idx} 
+                  className="flex items-center justify-between p-3 rounded-lg border"
+                >
                   <div className="flex items-center gap-3">
                     <div className={cn(
                       "w-2 h-2 rounded-full",
@@ -125,12 +157,15 @@ export default function MarketData() {
           </Card>
         </div>
 
-        {/* 3. Trading Opportunities - Full Width at Bottom */}
+        {/* 3. Trading Opportunities - Full Width at Bottom - Top 5 */}
         <Card>
           <CardHeader className="pb-3">
-            <div className="flex items-center gap-2">
-              <Target className="h-5 w-5 text-primary" />
-              <CardTitle className="text-lg">Trading Opportunities</CardTitle>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Target className="h-5 w-5 text-primary" />
+                <CardTitle className="text-lg">Trading Opportunities</CardTitle>
+              </div>
+              <Badge variant="outline">Top 5</Badge>
             </div>
             <CardDescription>
               AI-ranked setups based on technicals
@@ -142,11 +177,16 @@ export default function MarketData() {
                 <Skeleton className="h-24" />
                 <Skeleton className="h-24" />
                 <Skeleton className="h-24" />
+                <Skeleton className="h-24" />
+                <Skeleton className="h-24" />
               </div>
             ) : (
               <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                {sentimentData?.opportunities.map((opp, idx) => (
-                  <div key={idx} className="p-3 rounded-lg border">
+                {opportunitiesData.map((opp, idx) => (
+                  <div 
+                    key={idx} 
+                    className="p-3 rounded-lg border"
+                  >
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
                         <span className="font-medium">{opp.pair}</span>
