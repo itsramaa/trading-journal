@@ -320,10 +320,10 @@ FOR SELECT USING (
 ## Verification Checklist
 
 After implementation:
-- [ ] All CHECK constraints added successfully
-- [ ] Unique index on `(user_id, binance_trade_id)` exists
-- [ ] Pre-check queries return 0 invalid records
-- [ ] Documentation updated
+- [x] All CHECK constraints added successfully ✅ (2026-02-01)
+- [x] Unique index on `(user_id, binance_trade_id)` exists ✅ (2026-02-01)
+- [x] Pre-check queries return 0 invalid records ✅ (2026-02-01)
+- [x] Documentation updated ✅ (2026-02-01)
 - [ ] Retry utility tested
 - [ ] Reconciliation job tested
 
