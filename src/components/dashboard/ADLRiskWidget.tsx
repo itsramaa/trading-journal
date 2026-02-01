@@ -9,7 +9,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { AlertTriangle, CheckCircle, Shield, TrendingDown, TrendingUp } from "lucide-react";
-import { useBinanceAdlQuantile, useBinancePositions, getAdlRiskLevel } from "@/features/binance";
+import { useBinanceAdlQuantile, useBinancePositions, useBinanceConnectionStatus, getAdlRiskLevel } from "@/features/binance";
+import { BinanceNotConfiguredState } from "@/components/binance/BinanceNotConfiguredState";
 import type { AdlQuantile } from "@/features/binance/types";
 import { cn } from "@/lib/utils";
 
@@ -97,10 +98,16 @@ function PositionADLRow({ symbol, side, quantile }: PositionADLProps) {
 }
 
 export function ADLRiskWidget() {
+  // Check connection status first
+  const { data: connectionStatus, isLoading: statusLoading } = useBinanceConnectionStatus();
+  const isConfigured = connectionStatus?.isConfigured ?? false;
+  const isConnected = connectionStatus?.isConnected ?? false;
+
+  // Only fetch data if configured & connected
   const { data: positions, isLoading: positionsLoading } = useBinancePositions();
   const { data: adlData, isLoading: adlLoading } = useBinanceAdlQuantile();
 
-  const isLoading = positionsLoading || adlLoading;
+  const isLoading = statusLoading || positionsLoading || adlLoading;
 
   // Filter active positions (non-zero position amount)
   const activePositions = positions?.filter(p => parseFloat(String(p.positionAmt)) !== 0) || [];
@@ -126,6 +133,27 @@ export function ADLRiskWidget() {
   const maxQuantile = Math.max(...positionsWithADL.map(p => p.quantile), 0);
   const overallRiskLevel = getAdlRiskLevel(maxQuantile);
   const overallConfig = riskLevelConfig[overallRiskLevel];
+
+  // Show not configured state
+  if (!statusLoading && !isConfigured) {
+    return (
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Shield className="h-5 w-5 text-muted-foreground" />
+            ADL Risk
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <BinanceNotConfiguredState 
+            compact 
+            title="API Required"
+            description="Configure Binance API to see ADL risk"
+          />
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (isLoading) {
     return (

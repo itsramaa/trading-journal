@@ -75,9 +75,10 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
   // Account type: 'binance' or paper account ID
   const [selectedAccountType, setSelectedAccountType] = useState<'binance' | string>('');
   
-  // Binance connection
+  // Binance connection - check isConfigured for proper state handling
   const { data: connectionStatus } = useBinanceConnectionStatus();
   const { data: binanceBalance } = useBinanceBalance();
+  const isBinanceConfigured = connectionStatus?.isConfigured ?? false;
   const isBinanceConnected = connectionStatus?.isConnected ?? false;
   
   // Paper trading accounts
@@ -125,7 +126,7 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
   const [hasRunValidation, setHasRunValidation] = useState(false);
   const [sectionsOpen, setSectionsOpen] = useState({ validation: true, strategy: true, trade: true, context: true });
 
-  // Auto-select default account (priority: user preference > Binance if connected > first paper account)
+  // Auto-select default account (priority: user preference > Binance if configured & connected > first paper account)
   useEffect(() => {
     if (selectedAccountType) return; // Already selected
     
@@ -134,7 +135,7 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
     
     if (defaultAccountId) {
       // Check if it's 'binance' or a valid paper account
-      if (defaultAccountId === 'binance' && isBinanceConnected) {
+      if (defaultAccountId === 'binance' && isBinanceConfigured && isBinanceConnected) {
         setSelectedAccountType('binance');
         return;
       }
@@ -144,11 +145,11 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
       }
     }
     
-    // Fallback: auto-select Binance if connected
-    if (isBinanceConnected) {
+    // Fallback: auto-select Binance if configured & connected
+    if (isBinanceConfigured && isBinanceConnected) {
       setSelectedAccountType('binance');
     }
-  }, [isBinanceConnected, userSettings?.default_trading_account_id, activeTradingAccounts]);
+  }, [isBinanceConfigured, isBinanceConnected, userSettings?.default_trading_account_id, activeTradingAccounts]);
 
   // Initialize from wizard state
   useEffect(() => {
@@ -259,8 +260,8 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
                 <SelectValue placeholder={accountsLoading ? "Loading..." : "Select account"} />
               </SelectTrigger>
               <SelectContent>
-                {/* Binance Account Option (if connected) */}
-                {isBinanceConnected && binanceBalance && (
+                {/* Binance Account Option (if configured & connected) */}
+                {isBinanceConfigured && isBinanceConnected && binanceBalance && (
                   <SelectItem value="binance">
                     <div className="flex items-center gap-2">
                       <Wifi className="h-4 w-4 text-green-500" />
@@ -273,7 +274,7 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
                 )}
                 
                 {/* Separator if both options exist */}
-                {isBinanceConnected && activeTradingAccounts.length > 0 && (
+                {isBinanceConfigured && isBinanceConnected && activeTradingAccounts.length > 0 && (
                   <div className="px-2 py-1 text-xs text-muted-foreground border-t mt-1 pt-2">
                     Paper Trading
                   </div>
@@ -291,7 +292,7 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
                   </SelectItem>
                 ))}
                 
-                {!isBinanceConnected && activeTradingAccounts.length === 0 && (
+                {(!isBinanceConfigured || !isBinanceConnected) && activeTradingAccounts.length === 0 && (
                   <div className="px-2 py-4 text-center text-sm text-muted-foreground">
                     No trading accounts found
                   </div>
