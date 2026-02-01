@@ -1,302 +1,220 @@
 
-# Implementation Plan: Credential Rotation Test, Rate Limit Cleanup, Vault Verification, and Generic Position Hook
+# Implementation Plan: Coming Soon Exchange UI + Component Migration to Generic Hooks
 
-## Summary of Gaps Identified
+## Summary
 
-| Issue | Root Cause | Solution |
-|-------|------------|----------|
-| No credential rotation integration test | Missing test file | Create `credential-rotation.integration.test.tsx` |
-| `cleanup_old_rate_limits` no schedule | `pg_cron` extension not available | Add alternative: Edge Function cron via Supabase |
-| Encryption is base64 NOT Vault | `save_exchange_credential` uses `encode(..., 'base64')` not `vault.encrypt()` | **Document as acceptable** OR upgrade to true Vault |
-| UI uses `BinancePosition` directly | `BinancePositionsTab` defines inline type | Adopt `ExchangePosition` type via mapper |
-| No `usePositions(exchange)` wrapper | Missing abstraction hook | Create `useExchangePositions` hook |
+This plan addresses two tasks:
+1. **Add Coming Soon UI cards for Bybit and OKX** in Settings Exchange tab
+2. **Migrate existing components** to use the new generic `usePositions` hook
 
 ---
 
-## Phase 1: Integration Test for Credential Rotation
-
-**File**: `src/test/integration/credential-rotation.integration.test.tsx`
-
-### Test Cases
-
-```text
-describe('Credential Rotation Flow')
-├── it('should save new credentials and deactivate old')
-├── it('should validate credentials via edge function')
-├── it('should update validation status after test connection')
-├── it('should allow credential removal')
-└── it('should prevent operations without credentials')
-```
-
-### Implementation Details
-
-```typescript
-// Test flow:
-// 1. Save initial credentials → verify returned UUID
-// 2. Save new credentials → verify old deactivated
-// 3. Test connection → verify validation status updated
-// 4. Delete credentials → verify is_active = false
-// 5. Call edge function → verify error for missing credentials
-```
-
-### Mock Strategy
-
-- Mock `supabase.rpc()` for credential functions
-- Mock fetch for edge function calls
-- Verify query invalidation after operations
-
----
-
-## Phase 2: Rate Limit Cleanup Schedule
+## Part 1: Coming Soon Exchange Cards
 
 ### Current State
 
-- `cleanup_old_rate_limits()` function exists
-- No `pg_cron` extension available in Lovable Cloud
-- Old rate limit records accumulate indefinitely
+The Settings Exchange tab only shows `BinanceApiSettings` component:
 
-### Solution: Scheduled Edge Function
+```tsx
+<TabsContent value="exchange" className="space-y-4">
+  <BinanceApiSettings />
+</TabsContent>
+```
 
-**File**: `supabase/functions/cleanup-rate-limits/index.ts`
+### Target State (per MULTI_EXCHANGE_ARCHITECTURE.md mockup)
+
+```text
+┌────────────────────────────────────────────────────┐
+│ Settings > Exchange                                 │
+├────────────────────────────────────────────────────┤
+│  ┌─────────────────────────────────────────┐       │
+│  │ 🟡 Binance Futures           Connected  │       │
+│  │ API Key: abc1****xyz9                   │       │
+│  │ [Test Connection] [Remove]              │       │
+│  └─────────────────────────────────────────┘       │
+│                                                     │
+│  ┌─────────────────────────────────────────┐       │
+│  │ 🟠 Bybit Futures            Coming Soon │       │
+│  │ Connect your Bybit account when ready   │       │
+│  └─────────────────────────────────────────┘       │
+│                                                     │
+│  ┌─────────────────────────────────────────┐       │
+│  │ ⚪ OKX Futures              Coming Soon │       │
+│  │ Connect your OKX account when ready     │       │
+│  └─────────────────────────────────────────┘       │
+└────────────────────────────────────────────────────┘
+```
+
+### Implementation
+
+**New File: `src/components/settings/ExchangeCard.tsx`**
+
+A reusable card component for exchanges:
 
 ```typescript
-// Lightweight Edge Function to clean old rate limits
-// Intended to be called via external cron (e.g., GitHub Actions, Vercel Cron)
-// OR called manually from admin UI
-
-Deno.serve(async (req) => {
-  // Verify admin or service role key
-  const supabase = createClient(url, serviceKey);
-  
-  const { data, error } = await supabase.rpc('cleanup_old_rate_limits');
-  
-  return new Response(JSON.stringify({ 
-    success: !error, 
-    deleted: data 
-  }));
-});
-```
-
-### Alternative: Trigger on Insert
-
-Add database trigger to cleanup when table grows:
-
-```sql
-CREATE OR REPLACE FUNCTION auto_cleanup_rate_limits()
-RETURNS TRIGGER AS $$
-BEGIN
-  -- Cleanup if more than 10000 rows
-  IF (SELECT COUNT(*) FROM api_rate_limits) > 10000 THEN
-    DELETE FROM api_rate_limits 
-    WHERE window_end < now() - interval '1 hour';
-  END IF;
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER tr_auto_cleanup_rate_limits
-AFTER INSERT ON api_rate_limits
-FOR EACH STATEMENT
-EXECUTE FUNCTION auto_cleanup_rate_limits();
-```
-
----
-
-## Phase 3: Vault Encryption Verification & Documentation
-
-### Current Implementation Analysis
-
-Current `save_exchange_credential` uses:
-```sql
-v_encrypted_key := encode(convert_to(p_api_key, 'UTF8'), 'base64');
-```
-
-This is **base64 encoding**, NOT encryption!
-
-### Options
-
-| Option | Security Level | Effort |
-|--------|----------------|--------|
-| A. Document as "obfuscation" | Low | None |
-| B. Use `vault.encrypt()` | High | Medium |
-| C. Use `pgcrypto` with app key | Medium | Medium |
-
-### Recommended: Option B - True Vault Encryption
-
-Update `save_exchange_credential`:
-
-```sql
--- Store in vault.secrets and reference by secret_id
-INSERT INTO vault.secrets (name, description, secret)
-VALUES (
-  'api_key_' || v_credential_id::TEXT,
-  'Binance API Key for user ' || v_user_id::TEXT,
-  p_api_key
-)
-RETURNING id INTO v_secret_id;
-
--- Store secret_id in exchange_credentials instead of encrypted value
-UPDATE exchange_credentials 
-SET api_key_secret_id = v_secret_id
-WHERE id = v_credential_id;
-```
-
-### Alternative: Document Current State
-
-If true Vault is not required for MVP:
-
-```markdown
-## Security Note: Credential Storage
-
-Current implementation uses base64 encoding for API key storage.
-This provides obfuscation but NOT cryptographic security.
-
-For production multi-tenant deployment, upgrade to:
-1. Supabase Vault (vault.encrypt/decrypt)
-2. Or external KMS (AWS KMS, HashiCorp Vault)
-```
-
----
-
-## Phase 4: Adopt ExchangePosition Type in UI
-
-### Current: BinancePositionsTab
-
-```typescript
-// CURRENT: Inline Binance-specific type
-interface BinancePosition {
-  symbol: string;
-  positionAmt: number;  // Binance-specific naming
-  entryPrice: number;
-  ...
-}
-```
-
-### Target: Use ExchangePosition
-
-```typescript
-// NEW: Import from exchange types
-import type { ExchangePosition } from '@/types/exchange';
-
-interface PositionsTableProps {
-  positions: ExchangePosition[];
-  isLoading: boolean;
-  exchange?: ExchangeType;
+interface ExchangeCardProps {
+  exchange: ExchangeType;
+  status: 'connected' | 'not_configured' | 'coming_soon';
+  children?: React.ReactNode;
 }
 
-export function PositionsTable({ positions, isLoading }: PositionsTableProps) {
-  // No filter needed - positions are already non-zero from mapper
+function ExchangeCard({ exchange, status, children }: ExchangeCardProps) {
+  const meta = EXCHANGE_REGISTRY[exchange];
+  
   return (
-    <Table>
-      {positions.map((position) => (
-        <TableRow key={`${position.source}-${position.symbol}`}>
-          <TableCell>{position.symbol}</TableCell>
-          <TableCell>
-            <Badge variant={position.side === 'LONG' ? "default" : "secondary"}>
-              {position.side}
-            </Badge>
-          </TableCell>
-          <TableCell>{position.size.toFixed(4)}</TableCell>
-          <TableCell>${position.entryPrice.toFixed(2)}</TableCell>
-          <TableCell>${position.markPrice.toFixed(2)}</TableCell>
-          <TableCell className={position.unrealizedPnl >= 0 ? "text-profit" : "text-loss"}>
-            {position.unrealizedPnl >= 0 ? '+' : ''}${position.unrealizedPnl.toFixed(2)}
-          </TableCell>
-          <TableCell>${position.liquidationPrice.toFixed(2)}</TableCell>
-          <TableCell>{position.leverage}x</TableCell>
-        </TableRow>
-      ))}
-    </Table>
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <span>{meta.icon}</span>
+            {meta.name}
+          </CardTitle>
+          <Badge variant={status === 'coming_soon' ? 'secondary' : ...}>
+            {status === 'coming_soon' ? 'Coming Soon' : ...}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {status === 'coming_soon' ? (
+          <p className="text-muted-foreground">
+            Connect your {meta.name} account when this exchange becomes available.
+          </p>
+        ) : (
+          children
+        )}
+      </CardContent>
+    </Card>
   );
 }
 ```
 
-### Keep Backward Compatibility
+**Modify: `src/pages/Settings.tsx`**
 
-Rename and keep old component as alias:
+Update the exchange tab content:
+
+```tsx
+<TabsContent value="exchange" className="space-y-4">
+  {/* Active Exchange: Binance */}
+  <BinanceApiSettings />
+  
+  {/* Coming Soon: Bybit */}
+  <ComingSoonExchangeCard exchange="bybit" />
+  
+  {/* Coming Soon: OKX */}
+  <ComingSoonExchangeCard exchange="okx" />
+</TabsContent>
+```
+
+**New File: `src/components/settings/ComingSoonExchangeCard.tsx`**
+
+Simpler dedicated component for coming soon exchanges:
 
 ```typescript
-// Re-export for backward compatibility
-export { PositionsTable as BinancePositionsTab };
+export function ComingSoonExchangeCard({ exchange }: { exchange: ExchangeType }) {
+  const meta = EXCHANGE_REGISTRY[exchange];
+  
+  return (
+    <Card className="border-dashed opacity-75">
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2 text-muted-foreground">
+            <span>{meta.icon}</span>
+            {meta.name}
+          </CardTitle>
+          <Badge variant="secondary" className="gap-1">
+            <Clock className="h-3 w-3" />
+            Coming Soon
+          </Badge>
+        </div>
+        <CardDescription>
+          Connect your {meta.name} account when this exchange becomes available.
+        </CardDescription>
+      </CardHeader>
+    </Card>
+  );
+}
 ```
 
 ---
 
-## Phase 5: Create usePositions(exchange) Wrapper Hook
+## Part 2: Migrate Components to Generic usePositions Hook
 
-### File: `src/hooks/use-positions.ts`
+### Component Analysis
 
+Found 10 components using `useBinancePositions`:
+
+| Component | Location | Current Usage | Migration Strategy |
+|-----------|----------|---------------|-------------------|
+| TradingJournal | pages/trading-journey | Uses with AllPositionsTable | Keep raw Binance for AllPositionsTable (needs BinancePosition) |
+| Dashboard | pages | Display position count | Migrate to `usePositions` |
+| Accounts | pages | Display balance & positions | Keep raw for now (complex integration) |
+| ADLRiskWidget | dashboard | ADL quantile needs BinancePosition | Keep raw (needs exchange-specific data) |
+| MarginHistoryTab | risk | Symbol filter from positions | Migrate to `usePositions` |
+| RiskSummaryCard | risk | Correlation check | Migrate to `usePositions` |
+| AIInsightsWidget | dashboard | Context for AI | Keep raw (uses multiple Binance data) |
+
+### Migration Priority
+
+**High Priority (Simple, standalone usage):**
+1. `Dashboard.tsx` - Just counts positions
+2. `MarginHistoryTab.tsx` - Extracts symbols only
+3. `RiskSummaryCard.tsx` - Uses for correlation
+
+**Low Priority (Complex integrations, keep raw for now):**
+1. `TradingJournal.tsx` - Uses with AllPositionsTable that needs BinancePosition
+2. `Accounts.tsx` - Complex integration with balance
+3. `ADLRiskWidget.tsx` - Needs ADL quantile with raw position data
+4. `AIInsightsWidget.tsx` - Uses multiple Binance sources
+
+### Implementation Details
+
+**Dashboard.tsx Migration:**
+
+Before:
 ```typescript
-/**
- * usePositions - Exchange-agnostic position hook
- * Wraps exchange-specific hooks and returns generic ExchangePosition[]
- */
-import { useBinancePositions } from '@/features/binance/useBinanceFutures';
-import { mapBinancePositions } from '@/lib/exchange-mappers';
-import type { ExchangePosition, ExchangeType } from '@/types/exchange';
-
-interface UsePositionsOptions {
-  exchange?: ExchangeType;
-  symbol?: string;
-  enabled?: boolean;
-}
-
-interface UsePositionsResult {
-  positions: ExchangePosition[];
-  isLoading: boolean;
-  isError: boolean;
-  error: Error | null;
-  refetch: () => void;
-}
-
-export function usePositions(options: UsePositionsOptions = {}): UsePositionsResult {
-  const { exchange = 'binance', symbol, enabled = true } = options;
-  
-  // Currently only Binance is supported
-  const binanceQuery = useBinancePositions(symbol);
-  
-  // Map to generic positions
-  const positions: ExchangePosition[] = binanceQuery.data 
-    ? mapBinancePositions(binanceQuery.data)
-    : [];
-  
-  return {
-    positions,
-    isLoading: binanceQuery.isLoading,
-    isError: binanceQuery.isError,
-    error: binanceQuery.error as Error | null,
-    refetch: binanceQuery.refetch,
-  };
-}
-
-// Future: Add Bybit/OKX hooks here
-// When adding new exchange:
-// 1. Create useBybitPositions hook
-// 2. Add switch case based on exchange param
-// 3. Map using mapBybitPositions
+import { useBinancePositions } from "@/features/binance";
+const { data: positions } = useBinancePositions();
+const positionCount = positions?.filter(p => p.positionAmt !== 0).length || 0;
 ```
 
-### Additional Generic Hooks
-
+After:
 ```typescript
-// src/hooks/use-balance.ts
-export function useBalance(options: { exchange?: ExchangeType } = {}) {
-  const { exchange = 'binance' } = options;
-  
-  const binanceQuery = useBinanceBalance();
-  
-  const accountSummary = binanceQuery.data 
-    ? mapBinanceAccountSummary(binanceQuery.data)
-    : null;
-  
-  return {
-    balance: accountSummary,
-    isLoading: binanceQuery.isLoading,
-    isError: binanceQuery.isError,
-    error: binanceQuery.error as Error | null,
-    refetch: binanceQuery.refetch,
-  };
-}
+import { usePositions } from "@/hooks/use-positions";
+const { positions } = usePositions();
+// positions are already filtered to non-zero by mapper
+const positionCount = positions.length;
+```
+
+**MarginHistoryTab.tsx Migration:**
+
+Before:
+```typescript
+import { useBinancePositions } from "@/features/binance";
+const { data: positions } = useBinancePositions();
+const activeSymbols = positions?.filter(p => p.positionAmt !== 0).map(p => p.symbol) || [];
+```
+
+After:
+```typescript
+import { usePositions } from "@/hooks/use-positions";
+const { positions, isLoading } = usePositions();
+const activeSymbols = positions.map(p => p.symbol);
+```
+
+**RiskSummaryCard.tsx Migration:**
+
+Before:
+```typescript
+import { useBinancePositions } from "@/features/binance";
+const { data: positions = [] } = useBinancePositions();
+// Uses extractSymbols which works with any array with .symbol
+```
+
+After:
+```typescript
+import { usePositions } from "@/hooks/use-positions";
+const { positions } = usePositions();
+// extractSymbols still works - same interface
 ```
 
 ---
@@ -305,83 +223,58 @@ export function useBalance(options: { exchange?: ExchangeType } = {}) {
 
 | File | Purpose |
 |------|---------|
-| `src/test/integration/credential-rotation.integration.test.tsx` | Integration test for add→validate→update→remove flow |
-| `supabase/functions/cleanup-rate-limits/index.ts` | Optional cron Edge Function for cleanup |
-| `src/hooks/use-positions.ts` | Generic `usePositions(exchange)` wrapper |
-| `src/hooks/use-balance.ts` | Generic `useBalance(exchange)` wrapper |
+| `src/components/settings/ComingSoonExchangeCard.tsx` | Coming Soon exchange card component |
 
 ## Files to Modify
 
 | File | Changes |
 |------|---------|
-| `src/components/journal/BinancePositionsTab.tsx` | Refactor to use `ExchangePosition` type |
-| `supabase/migrations/..._auto_cleanup_trigger.sql` | Add auto-cleanup trigger |
-| `docs/MULTI_EXCHANGE_ARCHITECTURE.md` | Add security note about current encryption |
+| `src/pages/Settings.tsx` | Add Coming Soon cards for Bybit/OKX |
+| `src/pages/Dashboard.tsx` | Migrate from `useBinancePositions` to `usePositions` |
+| `src/components/risk/MarginHistoryTab.tsx` | Migrate to `usePositions` |
+| `src/components/risk/RiskSummaryCard.tsx` | Migrate to `usePositions` |
 
 ---
 
 ## Implementation Order
 
 ```text
-1. Create credential-rotation.integration.test.tsx (30 min)
-   └── Test add → validate → update → remove flow
+Phase 1: Settings UI (15 min)
+├── Create ComingSoonExchangeCard component
+└── Update Settings.tsx to include Coming Soon cards
 
-2. Add auto-cleanup trigger for rate limits (15 min)
-   └── Trigger-based cleanup when table grows
-
-3. Refactor BinancePositionsTab (30 min)
-   └── Adopt ExchangePosition type
-   └── Keep backward-compatible export
-
-4. Create usePositions hook (30 min)
-   └── Generic wrapper with exchange param
-   └── Maps to ExchangePosition[]
-
-5. Create useBalance hook (20 min)
-   └── Generic wrapper for account balance
-
-6. Update documentation (15 min)
-   └── Security note about base64 vs Vault
-   └── Document cleanup trigger
+Phase 2: Component Migration (30 min)
+├── Migrate Dashboard.tsx to usePositions
+├── Migrate MarginHistoryTab.tsx to usePositions  
+└── Migrate RiskSummaryCard.tsx to usePositions
 ```
 
 ---
 
 ## Technical Notes
 
-### Current Encryption Status
+### Why Keep Some Components Using useBinancePositions
 
-| Column | Claimed | Actual | Risk |
-|--------|---------|--------|------|
-| `api_key_encrypted` | Vault encrypted | base64 encoded | Medium - readable if DB leaked |
-| `api_secret_encrypted` | Vault encrypted | base64 encoded | Medium - readable if DB leaked |
+1. **AllPositionsTable (TradingJournal)**: Needs raw `BinancePosition` type for the `originalData` field in UnifiedPosition
+2. **ADLRiskWidget**: Requires ADL quantile data which is exchange-specific
+3. **Accounts.tsx**: Deep integration with balance, positions, and refresh logic
 
-**Mitigation**: 
-- RLS prevents other users from reading
-- Service role only used in Edge Function
-- For true security, upgrade to `vault.secrets` table
+These components are **acceptable technical debt** per the architecture principle:
+> "Binance-prefixed hooks are acceptable; add new hooks alongside"
 
-### Rate Limit Cleanup Options
+### Benefits of Migration
 
-| Approach | Pros | Cons |
-|----------|------|------|
-| Trigger on INSERT | Automatic, no external deps | Slight insert overhead |
-| Edge Function cron | Full control | Requires external scheduler |
-| Manual cleanup | Simple | Must remember to run |
-
-**Recommended**: Trigger-based auto-cleanup
+1. **Simpler consumption**: No need to filter `.positionAmt !== 0`
+2. **Type-safe**: Uses `ExchangePosition` with `side: 'LONG' | 'SHORT'`
+3. **Future-ready**: When Bybit is added, just change exchange param
 
 ---
 
-## Deliverables Checklist
+## Validation Checklist
 
-- [x] Integration test for credential rotation (`src/test/integration/credential-rotation.integration.test.tsx`)
-- [x] Auto-cleanup trigger for rate limits (`tr_auto_cleanup_rate_limits` trigger)
-- [x] `usePositions(exchange)` generic hook (`src/hooks/use-positions.ts`)
-- [x] `useExchangeBalance(exchange)` generic hook (`src/hooks/use-exchange-balance.ts`)
-- [x] Refactored PositionsTable using ExchangePosition (`src/components/journal/PositionsTable.tsx`)
-- [x] Documentation update for encryption status (`docs/MULTI_EXCHANGE_ARCHITECTURE.md`)
-
-## Implementation Complete
-
-All phases implemented on 2026-02-01.
+- [ ] Coming Soon cards display correctly in Settings > Exchange
+- [ ] Binance card still fully functional
+- [ ] Dashboard position count works correctly
+- [ ] MarginHistoryTab symbol filter works
+- [ ] RiskSummaryCard correlation check works
+- [ ] No console errors or type mismatches
