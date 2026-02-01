@@ -594,6 +594,55 @@ erDiagram
 }
 ```
 
+#### `exchange_credentials` Table
+
+**Purpose**: Secure storage for per-user exchange API credentials.
+
+| Column | Type | Nullable | Default | Business Meaning |
+|--------|------|----------|---------|------------------|
+| `id` | UUID | No | `gen_random_uuid()` | Primary key |
+| `user_id` | UUID | No | - | Credential owner |
+| `exchange` | TEXT | No | `'binance'` | Exchange identifier |
+| `api_key_encrypted` | TEXT | No | - | API key (should be encrypted) |
+| `api_secret_encrypted` | TEXT | No | - | API secret (should be encrypted) |
+| `label` | TEXT | Yes | `'Main Account'` | User-friendly label |
+| `permissions` | JSONB | Yes | `'[]'` | Detected API permissions |
+| `is_active` | BOOLEAN | No | `true` | Whether credential is active |
+| `is_valid` | BOOLEAN | Yes | `null` | Last validation result |
+| `last_validated_at` | TIMESTAMPTZ | Yes | - | Last validation timestamp |
+| `validation_error` | TEXT | Yes | - | Error message if invalid |
+
+**Security Notes**:
+- **Per-User Isolation**: Each user has their own credentials
+- **RLS Enforced**: Users can only see/manage their own credentials
+- **Multi-Exchange Ready**: `exchange` column allows future exchange support
+- **Deactivation**: Old credentials are set `is_active = false` when updated
+
+**Data Lifecycle**:
+- **Created**: User saves API keys in Settings
+- **Validated**: Edge function tests connection and updates `is_valid`
+- **Used**: Edge function reads per request (per-user lookup)
+- **Deleted**: User removes from Settings
+
+```mermaid
+sequenceDiagram
+    participant UI as Settings Page
+    participant Hook as useExchangeCredentials
+    participant DB as exchange_credentials
+    participant EF as binance-futures
+    participant Binance as Binance API
+
+    UI->>Hook: Save new credentials
+    Hook->>DB: INSERT (deactivate old first)
+    Hook->>EF: POST {action: 'validate'}
+    EF->>DB: Lookup per-user credentials
+    EF->>Binance: GET /fapi/v2/account
+    Binance-->>EF: Account info
+    EF->>DB: UPDATE is_valid, last_validated_at
+    EF-->>Hook: {success: true}
+    Hook-->>UI: Connected!
+```
+
 ### 4.5 Reference & Supporting Tables
 
 #### `trading_pairs` Table

@@ -354,6 +354,54 @@ export type Database = {
         }
         Relationships: []
       }
+      exchange_credentials: {
+        Row: {
+          api_key_encrypted: string
+          api_secret_encrypted: string
+          created_at: string
+          exchange: string
+          id: string
+          is_active: boolean
+          is_valid: boolean | null
+          label: string | null
+          last_validated_at: string | null
+          permissions: Json | null
+          updated_at: string
+          user_id: string
+          validation_error: string | null
+        }
+        Insert: {
+          api_key_encrypted: string
+          api_secret_encrypted: string
+          created_at?: string
+          exchange?: string
+          id?: string
+          is_active?: boolean
+          is_valid?: boolean | null
+          label?: string | null
+          last_validated_at?: string | null
+          permissions?: Json | null
+          updated_at?: string
+          user_id: string
+          validation_error?: string | null
+        }
+        Update: {
+          api_key_encrypted?: string
+          api_secret_encrypted?: string
+          created_at?: string
+          exchange?: string
+          id?: string
+          is_active?: boolean
+          is_valid?: boolean | null
+          label?: string | null
+          last_validated_at?: string | null
+          permissions?: Json | null
+          updated_at?: string
+          user_id?: string
+          validation_error?: string | null
+        }
+        Relationships: []
+      }
       feature_permissions: {
         Row: {
           admin_only: boolean

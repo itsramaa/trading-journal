@@ -15,14 +15,43 @@ Binance Futures API adalah **Source of Truth** untuk:
 │   Frontend      │────►│  Edge Function  │────►│  Binance API    │
 │   (React)       │     │  (binance-*)    │     │  (fapi.binance) │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
-        │                       │
-        │ React Query           │ HMAC SHA256
-        │ Cache                 │ Signature
-        ▼                       ▼
+        │                       │                       
+        │ JWT Token             │ Per-User              
+        │ React Query           │ HMAC Signature        
+        ▼                       ▼                       
 ┌─────────────────┐     ┌─────────────────┐
-│   Local State   │     │   API Response  │
-│   (Zustand)     │     │   (JSON)        │
+│   Local State   │     │ exchange_       │
+│   (Zustand)     │     │ credentials     │
 └─────────────────┘     └─────────────────┘
+                              │
+                              │ Per-user API keys
+                              ▼
+                        ┌─────────────────┐
+                        │   PostgreSQL    │
+                        │   (Supabase)    │
+                        └─────────────────┘
+```
+
+### Authentication Flow
+
+```
+1. User saves API keys in Settings
+        │
+        ▼
+2. Credentials stored in exchange_credentials table (per-user)
+        │
+        ▼
+3. Frontend sends request with JWT token
+        │
+        ▼
+4. Edge Function:
+   ├─ Verifies JWT
+   ├─ Looks up per-user credentials
+   ├─ Creates HMAC signature
+   └─ Forwards to Binance
+        │
+        ▼
+5. Response returned to frontend
 ```
 
 ## Edge Functions
@@ -376,12 +405,55 @@ const netPnl = grossPnl - totalCommission + totalFunding + totalRebates;
 
 ## Security
 
-### API Key Storage
+### API Key Architecture
 
-- Keys stored in user's browser (settings page)
-- Passed to Edge Function per request
-- Never stored in database
-- Edge Function creates signature, keys not logged
+Sistem menggunakan **per-user credential storage** di database:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│              exchange_credentials table                      │
+│                                                              │
+│  user_id | exchange | api_key_encrypted | api_secret_encrypted │
+│  --------|----------|-------------------|---------------------|
+│  user_1  | binance  | enc(api_key)      | enc(api_secret)     │
+│  user_2  | binance  | enc(api_key)      | enc(api_secret)     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Flow**:
+1. User memasukkan API Key di Settings page
+2. Credentials disimpan di `exchange_credentials` table
+3. Edge Function mengambil credentials per-user via JWT auth
+4. HMAC signature dibuat di server, keys tidak pernah di-log
+5. Fallback ke env credentials HANYA untuk migration (deprecated)
+
+### Per-User Credential Lookup
+
+```typescript
+// Edge Function
+async function getUserCredentials(userId: string) {
+  const { data } = await supabase
+    .from('exchange_credentials')
+    .select('api_key_encrypted, api_secret_encrypted')
+    .eq('user_id', userId)
+    .eq('exchange', 'binance')
+    .eq('is_active', true)
+    .single();
+  
+  return data;
+}
+```
+
+### JWT Authentication (REQUIRED)
+
+Edge Function **WAJIB** memverifikasi JWT token sebelum memproses request:
+
+```typescript
+const user = await getAuthenticatedUser(authHeader);
+if (!user) {
+  return { error: 'Authentication required', requiresAuth: true };
+}
+```
 
 ### Permissions Required
 
