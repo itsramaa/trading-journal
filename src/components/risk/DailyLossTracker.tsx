@@ -8,11 +8,39 @@ import { Badge } from "@/components/ui/badge";
 import { TrendingDown, AlertTriangle, CheckCircle, XCircle, Wifi } from "lucide-react";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { useDailyRiskStatus, useRiskProfile } from "@/hooks/use-risk-profile";
+import { useBinanceConnectionStatus } from "@/features/binance";
+import { BinanceNotConfiguredState } from "@/components/binance";
 import { RISK_THRESHOLDS } from "@/types/risk";
 
 export function DailyLossTracker() {
   const { data: riskStatus, isBinanceConnected } = useDailyRiskStatus();
   const { data: riskProfile } = useRiskProfile();
+  const { data: connectionStatus } = useBinanceConnectionStatus();
+  const isConfigured = connectionStatus?.isConfigured ?? true;
+
+  // Not configured state - show specific CTA
+  if (!isConfigured) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <TrendingDown className="h-5 w-5" />
+            Daily Loss Tracker
+          </CardTitle>
+          <CardDescription>
+            Track your daily loss limit usage
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <BinanceNotConfiguredState 
+            compact 
+            title="API Key Required"
+            description="Connect your Binance API to enable live loss tracking."
+          />
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (!riskProfile || !riskStatus) {
     return (

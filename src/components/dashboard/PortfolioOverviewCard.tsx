@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import { useBinanceDailyPnl, useBinanceTotalBalance } from "@/hooks/use-binance-daily-pnl";
 import { useBinanceWeeklyPnl } from "@/hooks/use-binance-weekly-pnl";
+import { useBinanceConnectionStatus } from "@/features/binance";
+import { BinanceNotConfiguredState } from "@/components/binance";
 import { formatCurrency, formatPercent, formatWinRate } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 
@@ -23,11 +25,14 @@ interface PortfolioOverviewCardProps {
 }
 
 export function PortfolioOverviewCard({ className }: PortfolioOverviewCardProps) {
+  const { data: connectionStatus } = useBinanceConnectionStatus();
+  const isConfigured = connectionStatus?.isConfigured ?? true;
+  const isConnected = connectionStatus?.isConnected ?? false;
+
   const { 
     netPnl: todayNetPnl, 
     winRate: todayWinRate, 
     totalTrades: todayTrades,
-    isConnected,
     isLoading: dailyLoading,
   } = useBinanceDailyPnl();
   
@@ -53,7 +58,28 @@ export function PortfolioOverviewCard({ className }: PortfolioOverviewCardProps)
     ? (weeklyNetPnl / totalBalance) * 100 
     : 0;
 
-  // Not connected state
+  // Not configured state - show specific CTA
+  if (!isConfigured) {
+    return (
+      <Card className={cn("border-primary/20", className)}>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Wallet className="h-5 w-5 text-primary" />
+            Portfolio Overview
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <BinanceNotConfiguredState 
+            compact 
+            title="API Key Required"
+            description="Connect your Binance API to view live portfolio data."
+          />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Not connected state (API configured but connection failed)
   if (!isConnected) {
     return (
       <Card className={cn("border-primary/20", className)}>
@@ -65,7 +91,7 @@ export function PortfolioOverviewCard({ className }: PortfolioOverviewCardProps)
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
-            Connect your Binance account in Settings to see portfolio overview.
+            Unable to connect to Binance. Check your API credentials in Settings.
           </p>
         </CardContent>
       </Card>
