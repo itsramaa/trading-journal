@@ -28,7 +28,7 @@ import { useDashboardInsights, type DashboardInsights } from "@/features/ai/useD
 import { useAISettingsEnforcement } from "@/hooks/use-ai-settings-enforcement";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
-import { useAccounts } from "@/hooks/use-accounts";
+import { useUnifiedPortfolioData } from "@/hooks/use-unified-portfolio-data";
 import { useBinancePositions, useBinanceConnectionStatus } from "@/features/binance";
 import { useUnifiedMarketScore } from "@/hooks/use-unified-market-score";
 import { useAppStore } from "@/store/app-store";
@@ -76,8 +76,7 @@ export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
   } = useAISettingsEnforcement();
   const { data: trades = [] } = useTradeEntries();
   const { data: strategies = [] } = useTradingStrategies();
-  const { data: allAccounts = [] } = useAccounts();
-  const accounts = useMemo(() => allAccounts.filter(a => a.is_active), [allAccounts]);
+  const portfolio = useUnifiedPortfolioData();
   const { data: positions = [] } = useBinancePositions();
   const { data: connectionStatus } = useBinanceConnectionStatus();
   const { score, bias, scoreLabel, volatilityLabel, isLoading: marketLoading } = useUnifiedMarketScore({ symbol: 'BTCUSDT' });
@@ -113,27 +112,33 @@ export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
     return filterByConfidence(insights.bestSetups);
   }, [insights?.bestSetups, filterByConfidence]);
 
-  // Calculate portfolio and risk status
+  // Calculate portfolio and risk status using unified data
   const portfolioData = useMemo(() => {
-    const totalBalance = accounts.reduce((sum, acc) => sum + Number(acc.balance), 0);
-    const openTrades = trades.filter(t => t.status === 'open');
-    const deployedCapital = openTrades.reduce((sum, t) => sum + (t.quantity * t.entry_price), 0);
+    // Use unified portfolio data (Binance if connected, Paper fallback)
+    const totalBalance = portfolio.totalCapital;
+    const deployedCapital = portfolio.source === 'binance' 
+      ? 0 // Binance positions tracked separately
+      : trades.filter(t => t.status === 'open').reduce((sum, t) => sum + (t.quantity * t.entry_price), 0);
     
-    // Calculate daily loss (simplified - trades from today)
-    const today = new Date().toISOString().split('T')[0];
-    const todayTrades = trades.filter(t => t.trade_date === today && t.status === 'closed');
-    const currentDailyLoss = todayTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
+    // Open positions count from appropriate source
+    const openPositions = portfolio.source === 'binance'
+      ? positions.filter(p => p.positionAmt !== 0).length
+      : trades.filter(t => t.status === 'open').length;
+    
+    // Use unified daily P&L data
+    const currentDailyLoss = Math.min(portfolio.todayNetPnl, 0);
+    const maxDailyLoss = totalBalance * 0.05;
 
     return {
       portfolioStatus: {
         totalBalance,
         deployedCapital,
-        openPositions: openTrades.length,
+        openPositions,
       },
       riskStatus: {
-        currentDailyLoss: Math.min(currentDailyLoss, 0),
-        maxDailyLoss: totalBalance * 0.05, // 5% default
-        tradingAllowed: Math.abs(currentDailyLoss) < totalBalance * 0.05,
+        currentDailyLoss,
+        maxDailyLoss,
+        tradingAllowed: Math.abs(currentDailyLoss) < maxDailyLoss,
       },
       recentTrades: trades.slice(0, 20).map(t => ({
         pair: t.pair,
@@ -142,17 +147,14 @@ export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
         pnl: t.pnl || 0,
         date: t.trade_date,
       })),
-      strategies: strategies.map(s => {
-        const stratTrades = trades.filter(t => t.id); // Would need trade_entry_strategies join
-        const wins = stratTrades.filter(t => t.result === 'win').length;
-        return {
-          name: s.name,
-          trades: stratTrades.length,
-          winRate: stratTrades.length > 0 ? (wins / stratTrades.length * 100) : 0,
-        };
-      }),
+      strategies: strategies.map(s => ({
+        name: s.name,
+        trades: 0,
+        winRate: 0,
+      })),
+      source: portfolio.source, // Pass source to AI for context
     };
-  }, [accounts, trades, strategies]);
+  }, [portfolio, trades, strategies, positions]);
 
   const handleRefresh = async () => {
     const result = await getInsights(portfolioData);
@@ -166,10 +168,10 @@ export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
 
   // Auto-load on mount if we have data and feature is enabled
   useEffect(() => {
-    if (!hasLoaded && trades.length > 0 && accounts.length > 0 && isDailySuggestionsEnabled && !settingsLoading) {
+    if (!hasLoaded && (trades.length > 0 || portfolio.hasData) && isDailySuggestionsEnabled && !settingsLoading) {
       handleRefresh();
     }
-  }, [trades.length, accounts.length, hasLoaded, isDailySuggestionsEnabled, settingsLoading]);
+  }, [trades.length, portfolio.hasData, hasLoaded, isDailySuggestionsEnabled, settingsLoading]);
 
   const getSentimentIcon = (sentiment: string) => {
     switch (sentiment) {
@@ -231,6 +233,9 @@ export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
           <CardTitle className="flex items-center gap-2 text-base">
             <Sparkles className="h-5 w-5 text-primary" />
             AI Insights
+            <Badge variant="outline" className="text-xs">
+              {portfolio.source === 'binance' ? '🔗 Live' : '📝 Paper'}
+            </Badge>
             {confidenceThreshold > 75 && (
               <Badge variant="outline" className="text-xs">
                 Min {confidenceThreshold}% confidence
