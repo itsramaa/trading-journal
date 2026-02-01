@@ -1,29 +1,39 @@
 /**
- * BinancePositionsTab - Displays live Binance Futures positions
+ * PositionsTable - Exchange-agnostic positions display component
+ * Uses generic ExchangePosition type for multi-exchange readiness
  */
+
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { RefreshCw, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { ExchangePosition, ExchangeType } from "@/types/exchange";
 
-interface BinancePosition {
-  symbol: string;
-  positionAmt: number;
-  entryPrice: number;
-  markPrice: number;
-  unrealizedProfit: number;
-  liquidationPrice: number;
-  leverage: number;
-}
-
-interface BinancePositionsTabProps {
-  positions: BinancePosition[];
+export interface PositionsTableProps {
+  /** Array of positions (already filtered to non-zero by mapper) */
+  positions: ExchangePosition[];
+  /** Loading state */
   isLoading: boolean;
+  /** Optional: Source exchange for display purposes */
+  exchange?: ExchangeType;
+  /** Optional: Custom empty state message */
+  emptyMessage?: string;
 }
 
-export function BinancePositionsTab({ positions, isLoading }: BinancePositionsTabProps) {
-  const activePositions = positions.filter(p => p.positionAmt !== 0);
-
+/**
+ * Generic positions table component
+ * Consumes ExchangePosition[] which is exchange-agnostic
+ * 
+ * @example
+ * const { positions, isLoading } = usePositions();
+ * return <PositionsTable positions={positions} isLoading={isLoading} />;
+ */
+export function PositionsTable({ 
+  positions, 
+  isLoading,
+  exchange = 'binance',
+  emptyMessage = "No active positions",
+}: PositionsTableProps) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -32,13 +42,13 @@ export function BinancePositionsTab({ positions, isLoading }: BinancePositionsTa
     );
   }
 
-  if (activePositions.length === 0) {
+  if (positions.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-8 text-center">
         <AlertCircle className="h-10 w-10 text-muted-foreground mb-3" aria-hidden="true" />
-        <h3 className="font-medium">No Active Positions on Binance</h3>
+        <h3 className="font-medium">{emptyMessage}</h3>
         <p className="text-sm text-muted-foreground">
-          Open a position on Binance Futures to see it here.
+          Open a position to see it here.
         </p>
       </div>
     );
@@ -59,16 +69,16 @@ export function BinancePositionsTab({ positions, isLoading }: BinancePositionsTa
         </TableRow>
       </TableHeader>
       <TableBody>
-        {activePositions.map((position) => (
-          <TableRow key={position.symbol}>
+        {positions.map((position) => (
+          <TableRow key={`${position.source}-${position.symbol}`}>
             <TableCell className="font-medium">{position.symbol}</TableCell>
             <TableCell>
-              <Badge variant={position.positionAmt > 0 ? "default" : "secondary"}>
-                {position.positionAmt > 0 ? 'LONG' : 'SHORT'}
+              <Badge variant={position.side === 'LONG' ? "default" : "secondary"}>
+                {position.side}
               </Badge>
             </TableCell>
             <TableCell className="text-right font-mono">
-              {Math.abs(position.positionAmt).toFixed(4)}
+              {position.size.toFixed(4)}
             </TableCell>
             <TableCell className="text-right font-mono">
               ${position.entryPrice.toFixed(2)}
@@ -78,9 +88,9 @@ export function BinancePositionsTab({ positions, isLoading }: BinancePositionsTa
             </TableCell>
             <TableCell className={cn(
               "text-right font-mono font-medium",
-              position.unrealizedProfit >= 0 ? "text-profit" : "text-loss"
+              position.unrealizedPnl >= 0 ? "text-profit" : "text-loss"
             )}>
-              {position.unrealizedProfit >= 0 ? '+' : ''}${position.unrealizedProfit.toFixed(2)}
+              {position.unrealizedPnl >= 0 ? '+' : ''}${position.unrealizedPnl.toFixed(2)}
             </TableCell>
             <TableCell className="text-right font-mono text-muted-foreground">
               ${position.liquidationPrice.toFixed(2)}
@@ -94,3 +104,6 @@ export function BinancePositionsTab({ positions, isLoading }: BinancePositionsTa
     </Table>
   );
 }
+
+// Re-export with old name for backward compatibility
+export { PositionsTable as BinancePositionsTab };

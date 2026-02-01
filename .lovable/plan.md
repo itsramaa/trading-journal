@@ -375,9 +375,13 @@ export function useBalance(options: { exchange?: ExchangeType } = {}) {
 
 ## Deliverables Checklist
 
-- [ ] Integration test for credential rotation
-- [ ] Auto-cleanup trigger for rate limits
-- [ ] `usePositions(exchange)` generic hook
-- [ ] `useBalance(exchange)` generic hook
-- [ ] Refactored PositionsTable using ExchangePosition
-- [ ] Documentation update for encryption status
+- [x] Integration test for credential rotation (`src/test/integration/credential-rotation.integration.test.tsx`)
+- [x] Auto-cleanup trigger for rate limits (`tr_auto_cleanup_rate_limits` trigger)
+- [x] `usePositions(exchange)` generic hook (`src/hooks/use-positions.ts`)
+- [x] `useExchangeBalance(exchange)` generic hook (`src/hooks/use-exchange-balance.ts`)
+- [x] Refactored PositionsTable using ExchangePosition (`src/components/journal/PositionsTable.tsx`)
+- [x] Documentation update for encryption status (`docs/MULTI_EXCHANGE_ARCHITECTURE.md`)
+
+## Implementation Complete
+
+All phases implemented on 2026-02-01.
