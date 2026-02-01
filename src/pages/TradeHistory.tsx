@@ -1,33 +1,44 @@
 /**
  * Trade History - Standalone page for closed trades with full journaling
- * Features: Comprehensive Filters, AI Sorting, Enrichment Drawer, Screenshot management, Import
+ * Features: Paginated data, List/Gallery toggle, Infinite scroll, AI Sorting, Enrichment
+ * Architecture: Cursor-based pagination with 1-year default lookback
  */
-import { useState, useMemo } from "react";
-import { Link } from "react-router-dom";
+import { useState, useMemo, useEffect } from "react";
+import { subYears } from "date-fns";
+import { useInView } from "react-intersection-observer";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 import { TradeHistoryCard } from "@/components/trading/TradeHistoryCard";
-import { BinanceTradeHistory } from "@/components/trading/BinanceTradeHistory";
-import { BinanceIncomeHistory } from "@/components/trading/BinanceIncomeHistory";
-import { History, Wifi, BookOpen, RefreshCw, FileText } from "lucide-react";
+import { TradeGalleryCard, TradeGalleryCardSkeleton } from "@/components/journal/TradeGalleryCard";
+import { History, Wifi, BookOpen, RefreshCw, FileText, Loader2, List, LayoutGrid, Calendar } from "lucide-react";
 import { format } from "date-fns";
-import { useTradeEntries, useDeleteTradeEntry, TradeEntry } from "@/hooks/use-trade-entries";
+import { useTradeEntriesPaginated, type TradeFilters } from "@/hooks/use-trade-entries-paginated";
+import type { TradeEntry } from "@/hooks/use-trade-entries";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { useBinanceConnectionStatus } from "@/features/binance";
 import { useBinanceAutoSync } from "@/hooks/use-binance-auto-sync";
 import { useTradeEnrichment } from "@/hooks/use-trade-enrichment";
-import { filterTradesByDateRange, filterTradesByStrategies } from "@/lib/trading-calculations";
 import { formatCurrency as formatCurrencyUtil } from "@/lib/formatters";
 import { useUserSettings } from "@/hooks/use-user-settings";
 import { useQueryClient } from "@tanstack/react-query";
 import { DateRange } from "@/components/trading/DateRangeFilter";
 import { TradeHistoryFilters, TradeEnrichmentDrawer, type ResultFilter, type DirectionFilter } from "@/components/journal";
 import type { UnifiedPosition } from "@/components/journal";
+
+type ViewMode = 'list' | 'gallery';
+
+// Default: 1 year lookback
+const DEFAULT_START_DATE = subYears(new Date(), 1).toISOString().split('T')[0];
+const PAGE_SIZE = 50;
 
 export default function TradeHistory() {
   // Filter states
@@ -37,6 +48,10 @@ export default function TradeHistory() {
   const [selectedStrategyIds, setSelectedStrategyIds] = useState<string[]>([]);
   const [selectedPairs, setSelectedPairs] = useState<string[]>([]);
   const [sortByAI, setSortByAI] = useState<'none' | 'asc' | 'desc'>('none');
+  const [showFullHistory, setShowFullHistory] = useState(false);
+  
+  // View mode state
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
   
   // UI states
   const [deletingTrade, setDeletingTrade] = useState<TradeEntry | null>(null);
@@ -44,9 +59,7 @@ export default function TradeHistory() {
 
   const queryClient = useQueryClient();
   const { data: userSettings } = useUserSettings();
-  const { data: trades, isLoading } = useTradeEntries();
   const { data: strategies = [] } = useTradingStrategies();
-  const deleteTrade = useDeleteTradeEntry();
   
   // Binance connection
   const { data: connectionStatus } = useBinanceConnectionStatus();
@@ -64,76 +77,73 @@ export default function TradeHistory() {
   const handleQuickNote = async (tradeId: string, note: string) => {
     await addQuickNote(tradeId, note);
     queryClient.invalidateQueries({ queryKey: ['trade-entries'] });
+    queryClient.invalidateQueries({ queryKey: ['trade-entries-paginated'] });
   };
 
   // Currency helper
   const displayCurrency = userSettings?.default_currency || 'USD';
   const formatCurrency = (value: number) => formatCurrencyUtil(value, displayCurrency);
 
-  // Separate closed trades by source
-  const closedTrades = useMemo(() => trades?.filter(t => t.status === 'closed') || [], [trades]);
-  const binanceTrades = useMemo(() => closedTrades.filter(t => t.source === 'binance'), [closedTrades]);
-  const paperTrades = useMemo(() => closedTrades.filter(t => t.source !== 'binance'), [closedTrades]);
+  // Build paginated filters - memoized for stability
+  const paginatedFilters: TradeFilters = useMemo(() => ({
+    status: 'closed' as const,
+    startDate: showFullHistory ? undefined : (dateRange.from?.toISOString().split('T')[0] || DEFAULT_START_DATE),
+    endDate: dateRange.to?.toISOString().split('T')[0],
+    pairs: selectedPairs.length > 0 ? selectedPairs : undefined,
+    result: resultFilter !== 'all' ? resultFilter as TradeFilters['result'] : undefined,
+    direction: directionFilter !== 'all' ? directionFilter : undefined,
+    strategyIds: selectedStrategyIds.length > 0 ? selectedStrategyIds : undefined,
+  }), [dateRange, selectedPairs, resultFilter, directionFilter, selectedStrategyIds, showFullHistory]);
 
-  // Get unique pairs from closed trades for filter
+  // Paginated query
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading,
+    isError,
+    error,
+  } = useTradeEntriesPaginated({ limit: PAGE_SIZE, filters: paginatedFilters });
+
+  // Flatten all pages
+  const allTrades = useMemo(() => 
+    data?.pages.flatMap(page => page.trades) ?? [], 
+    [data]
+  );
+  const totalCount = data?.pages[0]?.totalCount ?? 0;
+
+  // Sort by AI score (client-side after fetch)
+  const sortedTrades = useMemo(() => {
+    if (sortByAI === 'none') return allTrades;
+    return [...allTrades].sort((a, b) => {
+      const scoreA = a.ai_quality_score ?? -1;
+      const scoreB = b.ai_quality_score ?? -1;
+      return sortByAI === 'asc' ? scoreA - scoreB : scoreB - scoreA;
+    });
+  }, [allTrades, sortByAI]);
+
+  // Separate by source for tabs
+  const binanceTrades = useMemo(() => sortedTrades.filter(t => t.source === 'binance'), [sortedTrades]);
+  const paperTrades = useMemo(() => sortedTrades.filter(t => t.source !== 'binance'), [sortedTrades]);
+
+  // Get unique pairs for filter (from loaded trades)
   const availablePairs = useMemo(() => {
-    const pairs = new Set(closedTrades.map(t => t.pair));
+    const pairs = new Set(allTrades.map(t => t.pair));
     return Array.from(pairs).sort();
-  }, [closedTrades]);
+  }, [allTrades]);
 
-  // Comprehensive filter and sort function
-  const filterAndSortTrades = (tradesToFilter: typeof closedTrades) => {
-    let filtered = tradesToFilter;
+  // Infinite scroll trigger
+  const { ref: loadMoreRef, inView } = useInView({
+    threshold: 0.1,
+    rootMargin: "100px",
+  });
 
-    // Date range filter
-    filtered = filterTradesByDateRange(filtered, dateRange.from, dateRange.to);
-    
-    // Strategy filter
-    filtered = filterTradesByStrategies(filtered, selectedStrategyIds);
-    
-    // Result filter (profit/loss/breakeven)
-    if (resultFilter === 'profit') {
-      filtered = filtered.filter(t => (t.realized_pnl || 0) > 0);
-    } else if (resultFilter === 'loss') {
-      filtered = filtered.filter(t => (t.realized_pnl || 0) < 0);
-    } else if (resultFilter === 'breakeven') {
-      filtered = filtered.filter(t => (t.realized_pnl || 0) === 0);
+  useEffect(() => {
+    if (inView && hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
     }
-
-    // Direction filter
-    if (directionFilter !== 'all') {
-      filtered = filtered.filter(t => t.direction === directionFilter);
-    }
-
-    // Pair filter
-    if (selectedPairs.length > 0) {
-      filtered = filtered.filter(t => selectedPairs.includes(t.pair));
-    }
-    
-    // AI score sort
-    if (sortByAI !== 'none') {
-      filtered = [...filtered].sort((a, b) => {
-        const scoreA = a.ai_quality_score ?? -1;
-        const scoreB = b.ai_quality_score ?? -1;
-        return sortByAI === 'asc' ? scoreA - scoreB : scoreB - scoreA;
-      });
-    }
-    
-    return filtered;
-  };
-  
-  const filteredAllTrades = useMemo(
-    () => filterAndSortTrades(closedTrades), 
-    [closedTrades, dateRange, selectedStrategyIds, resultFilter, directionFilter, selectedPairs, sortByAI]
-  );
-  const filteredBinanceTrades = useMemo(
-    () => filterAndSortTrades(binanceTrades), 
-    [binanceTrades, dateRange, selectedStrategyIds, resultFilter, directionFilter, selectedPairs, sortByAI]
-  );
-  const filteredPaperTrades = useMemo(
-    () => filterAndSortTrades(paperTrades), 
-    [paperTrades, dateRange, selectedStrategyIds, resultFilter, directionFilter, selectedPairs, sortByAI]
-  );
+  }, [inView, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   // Calculate R:R
   const calculateRR = (trade: TradeEntry): number => {
@@ -144,13 +154,19 @@ export default function TradeHistory() {
     return reward / risk;
   };
 
-  const handleDelete = async () => {
+  const handleDeleteTrade = async () => {
     if (!deletingTrade) return;
     try {
-      await deleteTrade.mutateAsync(deletingTrade.id);
+      // Use soft delete from paginated hook exports
+      const { error } = await import("@/integrations/supabase/client").then(m => 
+        m.supabase.from("trade_entries").delete().eq("id", deletingTrade.id)
+      );
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ["trade-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["trade-entries-paginated"] });
       setDeletingTrade(null);
-    } catch (error) {
-      // Error handled by mutation
+    } catch (err) {
+      console.error("Delete failed:", err);
     }
   };
 
@@ -170,10 +186,84 @@ export default function TradeHistory() {
     setEnrichingPosition(unified);
   };
 
-  // Stats based on filtered trades
-  const totalPnL = filteredAllTrades.reduce((sum, t) => sum + (t.realized_pnl || 0), 0);
-  const winCount = filteredAllTrades.filter(t => (t.realized_pnl || 0) > 0).length;
-  const winRate = filteredAllTrades.length > 0 ? (winCount / filteredAllTrades.length) * 100 : 0;
+  // Stats based on loaded trades
+  const totalPnL = sortedTrades.reduce((sum, t) => sum + (t.realized_pnl || 0), 0);
+  const winCount = sortedTrades.filter(t => (t.realized_pnl || 0) > 0).length;
+  const winRate = sortedTrades.length > 0 ? (winCount / sortedTrades.length) * 100 : 0;
+
+  // Render trade list based on view mode
+  const renderTradeList = (trades: TradeEntry[]) => {
+    if (trades.length === 0) {
+      return (
+        <EmptyState
+          icon={History}
+          title="No trades found"
+          description="No trades match your current filters. Try adjusting the filters above."
+        />
+      );
+    }
+
+    if (viewMode === 'gallery') {
+      return (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {trades.map((entry) => (
+            <TradeGalleryCard 
+              key={entry.id} 
+              trade={entry}
+              onTradeClick={handleEnrichTrade}
+              displayCurrency={displayCurrency}
+            />
+          ))}
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        {trades.map((entry) => (
+          <TradeHistoryCard 
+            key={entry.id} 
+            entry={entry} 
+            onDelete={setDeletingTrade}
+            onEnrich={handleEnrichTrade}
+            onQuickNote={handleQuickNote}
+            calculateRR={calculateRR}
+            formatCurrency={formatCurrency}
+            isBinance={entry.source === 'binance'}
+            showEnrichButton={true}
+          />
+        ))}
+      </div>
+    );
+  };
+
+  // Loading skeleton based on view mode
+  const renderLoadingSkeleton = () => {
+    if (viewMode === 'gallery') {
+      return (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <TradeGalleryCardSkeleton key={i} />
+          ))}
+        </div>
+      );
+    }
+    return (
+      <div className="space-y-4">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <Card key={i}>
+            <CardContent className="py-4">
+              <div className="flex items-center justify-between gap-4">
+                <Skeleton className="h-6 w-32" />
+                <Skeleton className="h-6 w-20" />
+                <Skeleton className="h-6 w-24" />
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  };
 
   return (
     <DashboardLayout>
@@ -191,7 +281,12 @@ export default function TradeHistory() {
           {/* Stats Summary */}
           <div className="flex gap-4 text-sm">
             <div className="text-center">
-              <div className="text-2xl font-bold">{filteredAllTrades.length}</div>
+              <div className="text-2xl font-bold">
+                {sortedTrades.length}
+                {totalCount > sortedTrades.length && (
+                  <span className="text-sm text-muted-foreground font-normal">/{totalCount}</span>
+                )}
+              </div>
               <div className="text-muted-foreground">Trades</div>
             </div>
             <div className="text-center">
@@ -207,27 +302,62 @@ export default function TradeHistory() {
           </div>
         </div>
 
-        {/* Comprehensive Filters */}
+        {/* Filters */}
         <Card>
           <CardContent className="pt-6">
-            <TradeHistoryFilters
-              dateRange={dateRange}
-              onDateRangeChange={setDateRange}
-              resultFilter={resultFilter}
-              onResultFilterChange={setResultFilter}
-              directionFilter={directionFilter}
-              onDirectionFilterChange={setDirectionFilter}
-              strategies={strategies}
-              selectedStrategyIds={selectedStrategyIds}
-              onStrategyIdsChange={setSelectedStrategyIds}
-              availablePairs={availablePairs}
-              selectedPairs={selectedPairs}
-              onPairsChange={setSelectedPairs}
-              sortByAI={sortByAI}
-              onSortByAIChange={setSortByAI}
-              totalCount={closedTrades.length}
-              filteredCount={filteredAllTrades.length}
-            />
+            <div className="flex flex-col gap-4">
+              <TradeHistoryFilters
+                dateRange={dateRange}
+                onDateRangeChange={setDateRange}
+                resultFilter={resultFilter}
+                onResultFilterChange={setResultFilter}
+                directionFilter={directionFilter}
+                onDirectionFilterChange={setDirectionFilter}
+                strategies={strategies}
+                selectedStrategyIds={selectedStrategyIds}
+                onStrategyIdsChange={setSelectedStrategyIds}
+                availablePairs={availablePairs}
+                selectedPairs={selectedPairs}
+                onPairsChange={setSelectedPairs}
+                sortByAI={sortByAI}
+                onSortByAIChange={setSortByAI}
+                totalCount={totalCount}
+                filteredCount={sortedTrades.length}
+              />
+              
+              {/* Time Range & View Toggle Row */}
+              <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t">
+                {/* Time Range Toggle */}
+                <div className="flex items-center gap-3">
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                  <Label htmlFor="full-history" className="text-sm text-muted-foreground cursor-pointer">
+                    {showFullHistory ? "Showing full history" : "Last 12 months"}
+                  </Label>
+                  <Switch
+                    id="full-history"
+                    checked={showFullHistory}
+                    onCheckedChange={setShowFullHistory}
+                  />
+                </div>
+                
+                {/* View Mode Toggle */}
+                <ToggleGroup 
+                  type="single" 
+                  value={viewMode} 
+                  onValueChange={(v) => v && setViewMode(v as ViewMode)}
+                  className="border rounded-md"
+                >
+                  <ToggleGroupItem value="list" aria-label="List view" className="gap-1.5 px-3">
+                    <List className="h-4 w-4" />
+                    <span className="hidden sm:inline text-sm">List</span>
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value="gallery" aria-label="Gallery view" className="gap-1.5 px-3">
+                    <LayoutGrid className="h-4 w-4" />
+                    <span className="hidden sm:inline text-sm">Gallery</span>
+                  </ToggleGroupItem>
+                </ToggleGroup>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
@@ -246,137 +376,115 @@ export default function TradeHistory() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="all" className="w-full">
-              <TabsList className="mb-4">
-                <TabsTrigger value="all" className="gap-2">
-                  All
-                  <Badge variant="secondary" className="ml-1 h-5 px-1.5">{filteredAllTrades.length}</Badge>
-                </TabsTrigger>
-                <TabsTrigger value="binance" className="gap-2">
-                  <Wifi className="h-4 w-4" aria-hidden="true" />
-                  Binance
-                  <Badge variant="secondary" className="ml-1 h-5 px-1.5">{filteredBinanceTrades.length}</Badge>
-                </TabsTrigger>
-                <TabsTrigger value="paper" className="gap-2">
-                  <BookOpen className="h-4 w-4" aria-hidden="true" />
-                  Paper
-                  <Badge variant="secondary" className="ml-1 h-5 px-1.5">{filteredPaperTrades.length}</Badge>
-                </TabsTrigger>
-              </TabsList>
+            {isLoading ? (
+              renderLoadingSkeleton()
+            ) : isError ? (
+              <EmptyState
+                icon={History}
+                title="Failed to load trades"
+                description={error?.message || "An error occurred while loading trades."}
+              />
+            ) : (
+              <Tabs defaultValue="all" className="w-full">
+                <TabsList className="mb-4">
+                  <TabsTrigger value="all" className="gap-2">
+                    All
+                    <Badge variant="secondary" className="ml-1 h-5 px-1.5">{sortedTrades.length}</Badge>
+                  </TabsTrigger>
+                  <TabsTrigger value="binance" className="gap-2">
+                    <Wifi className="h-4 w-4" aria-hidden="true" />
+                    Binance
+                    <Badge variant="secondary" className="ml-1 h-5 px-1.5">{binanceTrades.length}</Badge>
+                  </TabsTrigger>
+                  <TabsTrigger value="paper" className="gap-2">
+                    <BookOpen className="h-4 w-4" aria-hidden="true" />
+                    Paper
+                    <Badge variant="secondary" className="ml-1 h-5 px-1.5">{paperTrades.length}</Badge>
+                  </TabsTrigger>
+                </TabsList>
 
-              {/* All Trades */}
-              <TabsContent value="all">
-                <div className="space-y-4">
-                  {filteredAllTrades.length === 0 ? (
-                    <EmptyState
-                      icon={History}
-                      title="No trades found"
-                      description="No trades match your current filters. Try adjusting the filters above."
-                    />
-                  ) : (
-                    filteredAllTrades.map((entry) => (
-                      <TradeHistoryCard 
-                        key={entry.id} 
-                        entry={entry} 
-                        onDelete={setDeletingTrade}
-                        onEnrich={handleEnrichTrade}
-                        onQuickNote={handleQuickNote}
-                        calculateRR={calculateRR}
-                        formatCurrency={formatCurrency}
-                        isBinance={entry.source === 'binance'}
-                        showEnrichButton={true}
-                      />
-                    ))
-                  )}
-                </div>
-              </TabsContent>
-              
-              {/* Binance Trades */}
-              <TabsContent value="binance">
-                <div className="space-y-4">
-                  {isBinanceConnected && (
-                    <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border">
-                      <div className="flex items-center gap-2 text-sm">
-                        <History className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                        <span className="text-muted-foreground">
-                          {lastSyncTime 
-                            ? `Last sync: ${format(lastSyncTime, 'HH:mm:ss')}`
-                            : 'Auto-sync enabled'}
-                        </span>
-                        {pendingRecords > 0 && (
-                          <Badge variant="secondary" className="text-xs">
-                            {pendingRecords} pending
-                          </Badge>
-                        )}
+                {/* All Trades */}
+                <TabsContent value="all">
+                  {renderTradeList(sortedTrades)}
+                </TabsContent>
+                
+                {/* Binance Trades */}
+                <TabsContent value="binance">
+                  <div className="space-y-4">
+                    {isBinanceConnected && (
+                      <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border">
+                        <div className="flex items-center gap-2 text-sm">
+                          <History className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                          <span className="text-muted-foreground">
+                            {lastSyncTime 
+                              ? `Last sync: ${format(lastSyncTime, 'HH:mm:ss')}`
+                              : 'Auto-sync enabled'}
+                          </span>
+                          {pendingRecords > 0 && (
+                            <Badge variant="secondary" className="text-xs">
+                              {pendingRecords} pending
+                            </Badge>
+                          )}
+                        </div>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={syncNow}
+                          disabled={isSyncing}
+                          aria-label="Sync trades from Binance"
+                        >
+                          <RefreshCw className={`h-4 w-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} aria-hidden="true" />
+                          {isSyncing ? 'Syncing...' : 'Sync Now'}
+                        </Button>
                       </div>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={syncNow}
-                        disabled={isSyncing}
-                        aria-label="Sync trades from Binance"
-                      >
-                        <RefreshCw className={`h-4 w-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} aria-hidden="true" />
-                        {isSyncing ? 'Syncing...' : 'Sync Now'}
-                      </Button>
-                    </div>
-                  )}
-                  
-                  {filteredBinanceTrades.length === 0 ? (
-                    <EmptyState
-                      icon={Wifi}
-                      title="No Binance trades"
-                      description={isBinanceConnected 
-                        ? "No Binance trades match your filters." 
-                        : "Connect Binance in Settings to import trades."}
-                    />
-                  ) : (
-                    filteredBinanceTrades.map((entry) => (
-                      <TradeHistoryCard 
-                        key={entry.id} 
-                        entry={entry} 
-                        onDelete={setDeletingTrade}
-                        onEnrich={handleEnrichTrade}
-                        onQuickNote={handleQuickNote}
-                        calculateRR={calculateRR}
-                        formatCurrency={formatCurrency}
-                        isBinance={true}
-                        showEnrichButton={true}
+                    )}
+                    
+                    {binanceTrades.length === 0 ? (
+                      <EmptyState
+                        icon={Wifi}
+                        title="No Binance trades"
+                        description={isBinanceConnected 
+                          ? "No Binance trades match your filters." 
+                          : "Connect Binance in Settings to import trades."}
                       />
-                    ))
-                  )}
-                </div>
-              </TabsContent>
+                    ) : renderTradeList(binanceTrades)}
+                  </div>
+                </TabsContent>
 
-              {/* Paper Trades */}
-              <TabsContent value="paper">
-                <div className="space-y-4">
-                  {filteredPaperTrades.length === 0 ? (
+                {/* Paper Trades */}
+                <TabsContent value="paper">
+                  {paperTrades.length === 0 ? (
                     <EmptyState
                       icon={BookOpen}
                       title="No paper trades"
                       description="No paper trades match your filters."
                     />
-                  ) : (
-                    filteredPaperTrades.map((entry) => (
-                      <TradeHistoryCard 
-                        key={entry.id} 
-                        entry={entry} 
-                        onDelete={setDeletingTrade}
-                        onEnrich={handleEnrichTrade}
-                        onQuickNote={handleQuickNote}
-                        calculateRR={calculateRR}
-                        formatCurrency={formatCurrency}
-                        isBinance={false}
-                        showEnrichButton={true}
-                      />
-                    ))
-                  )}
+                  ) : renderTradeList(paperTrades)}
+                </TabsContent>
+              </Tabs>
+            )}
+            
+            {/* Infinite Scroll Trigger */}
+            <div ref={loadMoreRef} className="py-4 flex justify-center">
+              {isFetchingNextPage ? (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="text-sm">Loading more trades...</span>
                 </div>
-              </TabsContent>
-
-              {/* Note: Import tab removed - trades auto-sync from Binance */}
-            </Tabs>
+              ) : hasNextPage ? (
+                <span className="text-sm text-muted-foreground">
+                  Scroll for more
+                </span>
+              ) : sortedTrades.length > 0 && totalCount > sortedTrades.length ? (
+                <span className="text-sm text-muted-foreground">
+                  {sortedTrades.length} of {totalCount} trades loaded
+                </span>
+              ) : sortedTrades.length > 0 ? (
+                <span className="text-sm text-muted-foreground">
+                  All {sortedTrades.length} trades loaded
+                </span>
+              ) : null}
+            </div>
           </CardContent>
         </Card>
 
@@ -387,6 +495,7 @@ export default function TradeHistory() {
           onOpenChange={(open) => !open && setEnrichingPosition(null)}
           onSaved={() => {
             queryClient.invalidateQueries({ queryKey: ["trade-entries"] });
+            queryClient.invalidateQueries({ queryKey: ["trade-entries-paginated"] });
           }}
         />
 
@@ -398,7 +507,7 @@ export default function TradeHistory() {
           description={`Are you sure you want to delete this ${deletingTrade?.pair} trade? This action cannot be undone.`}
           confirmLabel="Delete"
           variant="destructive"
-          onConfirm={handleDelete}
+          onConfirm={handleDeleteTrade}
         />
       </div>
     </DashboardLayout>
