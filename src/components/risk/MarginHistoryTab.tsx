@@ -13,14 +13,18 @@ import {
   Clock,
   Wallet
 } from "lucide-react";
-import { useBinanceMarginHistory } from "@/features/binance";
+import { useBinanceMarginHistory, useBinanceConnectionStatus } from "@/features/binance";
 import { usePositions } from "@/hooks/use-positions";
+import { BinanceNotConfiguredState } from "@/components/binance/BinanceNotConfiguredState";
 import { format, formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export function MarginHistoryTab() {
+  const { data: connectionStatus, isLoading: statusLoading } = useBinanceConnectionStatus();
+  const isConfigured = connectionStatus?.isConfigured ?? false;
+  
   const { positions, isLoading: positionsLoading } = usePositions();
   const [selectedSymbol, setSelectedSymbol] = useState<string>("");
 
@@ -33,7 +37,19 @@ export function MarginHistoryTab() {
     isLoading: historyLoading 
   } = useBinanceMarginHistory(selectedSymbol || symbols[0] || "", { limit: 50 });
 
-  const isLoading = positionsLoading || historyLoading;
+  const isLoading = statusLoading || positionsLoading || historyLoading;
+
+  // Show not configured state first
+  if (!statusLoading && !isConfigured) {
+    return (
+      <div className="mt-4">
+        <BinanceNotConfiguredState 
+          title="API Required"
+          description="Connect your Binance API to view margin history for your positions."
+        />
+      </div>
+    );
+  }
 
   if (isLoading && !marginHistory) {
     return (

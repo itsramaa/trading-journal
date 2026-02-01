@@ -57,6 +57,7 @@ try {
 
 | Code | Category | Retryable | User Action | Frontend Handling |
 |------|----------|-----------|-------------|-------------------|
+| `CREDENTIALS_NOT_CONFIGURED` | Not Configured | ❌ No | Configure API keys | Show configuration prompt |
 | `RATE_LIMITED` | Rate Limited | ✅ Yes | Wait, auto-retry | Show toast, auto-retry with backoff |
 | `AUTH_FAILED` | Authentication | ❌ No | Re-login or re-enter API keys | Redirect to login or settings |
 | `NETWORK_ERROR` | Network | ✅ Yes | Auto-retry | Show retry button |
@@ -68,6 +69,56 @@ try {
 | `BINANCE_API_ERROR` | Binance Error | Depends | Check Binance status | Show specific error |
 | `AI_GATEWAY_ERROR` | AI Error | ✅ Yes | Auto-retry | Show retry with delay |
 | `INSUFFICIENT_DATA` | Data Error | ❌ No | Provide more data | Show data requirements |
+
+### CREDENTIALS_NOT_CONFIGURED (New)
+
+This is a special case where the user hasn't configured their API credentials yet.
+This is **NOT an error** - it's a valid domain state that should be handled gracefully.
+
+**Edge Function Response:**
+```json
+{
+  "success": false,
+  "code": "CREDENTIALS_NOT_CONFIGURED",
+  "error": "Binance API credentials not configured",
+  "message": "Please configure your Binance API key and secret in Settings → Exchange to use this feature."
+}
+```
+
+**Important Notes:**
+- Returns HTTP 200 (not 4xx/5xx) because this is a valid state, not an error
+- Frontend hooks should check for this code and expose `isConfigured: false`
+- Components should show a helpful empty state with CTA to Settings page
+- Do NOT treat this as an error that needs retry
+
+**Frontend Handling:**
+```typescript
+// In useBinanceConnectionStatus hook
+const result = await callBinanceApi('validate');
+
+if (result.code === 'CREDENTIALS_NOT_CONFIGURED') {
+  return {
+    isConnected: false,
+    isConfigured: false,  // Key distinction
+    error: result.error,
+  };
+}
+```
+
+**UI Component Pattern:**
+```tsx
+import { BinanceNotConfiguredState } from '@/components/binance/BinanceNotConfiguredState';
+
+function MyWidget() {
+  const { data: status } = useBinanceConnectionStatus();
+  
+  if (!status?.isConfigured) {
+    return <BinanceNotConfiguredState />;
+  }
+  
+  // ... render widget
+}
+```
 
 ## Per-Function Error Handling
 
