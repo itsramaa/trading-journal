@@ -1267,14 +1267,23 @@ graph TB
 
 ## 12. Known Gaps & TODO
 
-### Confirmed Gaps
+### ✅ RESOLVED Issues (2026-02-01)
 
-| Gap | Area | Impact | Recommended Fix |
-|-----|------|--------|-----------------|
-| No unique constraint on `binance_trade_id` | `trade_entries` | Duplicate syncs possible | Add unique constraint per user |
-| No CHECK constraints for enums | Multiple tables | Invalid data possible | Add DB-level CHECK constraints |
-| Missing index for date range queries | `trade_entries` | Slow analytics | Add `(user_id, trade_date)` index |
-| No soft delete | `accounts`, `strategies` | Data loss on delete | Add `deleted_at` column |
+| Issue | Resolution | Migration |
+|-------|------------|-----------|
+| No unique constraint on `binance_trade_id` | ✅ **FIXED**: Added per-user unique index `idx_trade_entries_binance_trade_per_user` | TIER 1 Migration |
+| No CHECK constraints for enums | ✅ **FIXED**: Added `trade_entries_direction_check`, `trade_entries_source_check` | TIER 1 Migration |
+| No CHECK on amounts | ✅ **FIXED**: Added `account_transactions_amount_positive` | TIER 1 Migration |
+| No CHECK on risk percentages | ✅ **FIXED**: Added 6 constraints for `risk_profiles` | TIER 1 Migration |
+
+### Remaining Gaps
+
+| Gap | Area | Impact | Recommended Fix | Priority |
+|-----|------|--------|-----------------|----------|
+| Missing index for date range queries | `trade_entries` | Slow analytics | Add `(user_id, trade_date)` index | Medium |
+| No soft delete | `accounts`, `strategies` | Data loss on delete | Add `deleted_at` column | Medium |
+| No pagination in trade history | `trade_entries` | Performance | Cursor-based pagination | Medium |
+| AI analysis not versioned | `trade_entries` | Consistency | Add `ai_model_version` column | Low |
 
 ### Assumptions Made
 
@@ -1341,6 +1350,33 @@ app_role: admin | user
 -- Subscription tiers
 subscription_tier: free | pro | business
 ```
+
+## Appendix C: Database Constraints (Added 2026-02-01)
+
+### trade_entries Constraints
+
+| Constraint Name | Type | Definition |
+|-----------------|------|------------|
+| `trade_entries_direction_check` | CHECK | `direction IN ('LONG', 'SHORT', 'long', 'short')` |
+| `trade_entries_source_check` | CHECK | `source IS NULL OR source IN ('binance', 'manual', 'paper', 'import')` |
+| `idx_trade_entries_binance_trade_per_user` | UNIQUE INDEX | `(user_id, binance_trade_id) WHERE binance_trade_id IS NOT NULL` |
+
+### account_transactions Constraints
+
+| Constraint Name | Type | Definition |
+|-----------------|------|------------|
+| `account_transactions_amount_positive` | CHECK | `amount > 0` |
+
+### risk_profiles Constraints
+
+| Constraint Name | Type | Definition |
+|-----------------|------|------------|
+| `risk_profiles_risk_per_trade_check` | CHECK | `risk_per_trade_percent IS NULL OR (> 0 AND <= 100)` |
+| `risk_profiles_max_daily_loss_check` | CHECK | `max_daily_loss_percent IS NULL OR (> 0 AND <= 100)` |
+| `risk_profiles_max_weekly_drawdown_check` | CHECK | `max_weekly_drawdown_percent IS NULL OR (> 0 AND <= 100)` |
+| `risk_profiles_max_position_size_check` | CHECK | `max_position_size_percent IS NULL OR (> 0 AND <= 100)` |
+| `risk_profiles_max_correlated_exposure_check` | CHECK | `max_correlated_exposure IS NULL OR (> 0 AND <= 1)` |
+| `risk_profiles_max_concurrent_positions_check` | CHECK | `max_concurrent_positions IS NULL OR > 0` |
 
 ---
 
