@@ -1,394 +1,464 @@
 
-# Binance Integration Architecture Audit
+# Implementation Plan: API Key Flow, Vault Encryption, Rate Limit Tracking
 
 ## Executive Summary
 
-The current Binance Futures integration is **architecturally sound** for a single-exchange system with **identified limitations** for multi-exchange readiness. The system follows the principle of "Binance as Source of Truth" correctly, with clear separation between Edge Functions (gateway) and Frontend (consumer).
+Tiga task utama yang akan diimplementasikan:
+
+1. **Verifikasi & Lengkapi API Key Flow** - UI untuk add/test/remove API key
+2. **Vault Encryption** - Enkripsi api_key dan api_secret menggunakan Supabase Vault
+3. **Rate Limit Tracking** - Tracking per-user untuk mencegah API quota exhaustion
 
 ---
 
-## 1. Current Binance Integration Summary
+## Current State Analysis
 
-### Architecture Overview
+### Issues Found
+
+| Component | Current State | Issue |
+|-----------|---------------|-------|
+| Edge Function | Uses `Deno.env.get('BINANCE_API_KEY')` | Global keys, NOT per-user |
+| Settings UI | Shows "Test Connection" only | No add/remove API key UI |
+| Credentials Table | Exists with RLS | Empty, no UI to populate |
+| Encryption | Column named `api_key_encrypted` | But stored as plain text |
+| Rate Limiting | None | No tracking table exists |
+
+### What Works
+
+- `exchange_credentials` table with proper RLS policies
+- `supabase_vault` extension installed (v0.3.1)
+- `_shared/retry.ts` handles Binance rate limit errors
+- JWT auth header IS sent to Edge Function
+
+---
+
+## Implementation Plan
+
+### Phase 1: API Key Management Flow (Frontend + Hook)
+
+**Goal**: User dapat add, test, dan remove API key dari Settings page.
+
+#### 1.1 Create `useExchangeCredentials` Hook
 
 ```text
-┌─────────────────────┐
-│     Frontend        │
-│  (React + Hooks)    │
-│                     │
-│  useBinance*()      │
-│  React Query Cache  │
-└─────────┬───────────┘
-          │ HTTP POST
-          ▼
-┌─────────────────────┐
-│   Edge Functions    │
-│                     │
-│  binance-futures    │ ◄── Authenticated (HMAC SHA256)
-│  binance-market-data│ ◄── Public endpoints
-└─────────┬───────────┘
-          │ HTTPS
-          ▼
-┌─────────────────────┐
-│   Binance API       │
-│  fapi.binance.com   │
-└─────────────────────┘
+src/hooks/use-exchange-credentials.ts
 ```
 
-### Implementation Completeness
+Functions:
+- `fetchCredentials()` - Get current active credential
+- `saveCredentials({ apiKey, apiSecret, label })` - Insert new, deactivate old
+- `testCredentials()` - Call validate action
+- `deleteCredentials(id)` - Remove credential
+- `updateCredentials(id, updates)` - Update label/status
 
-| Category | Endpoints | Status |
-|----------|-----------|--------|
-| Account Data | 12 endpoints | ✅ Complete |
-| Market Data | 10 endpoints | ✅ Complete |
-| Advanced Analytics | 8 endpoints | ✅ Complete |
-| Bulk Export | 3 endpoints | ✅ Complete |
-| Transaction History | 1 endpoint | ✅ Complete |
-
-**Total: 34+ endpoints integrated across 6 phases**
-
----
-
-## 2. Binance Coupling Assessment
-
-### ⚠️ CRITICAL FINDING: Global API Keys (Not Per-User)
-
-**Current Implementation** (lines 1203-1205 in `binance-futures/index.ts`):
-```typescript
-const apiKey = Deno.env.get('BINANCE_API_KEY');
-const apiSecret = Deno.env.get('BINANCE_API_SECRET');
-```
-
-**Issue**: API keys are retrieved from **environment secrets** (global), NOT per-user storage.
-
-**Impact**:
-- ❌ ALL users share the SAME Binance API credentials
-- ❌ Cannot support multi-user production deployment
-- ❌ Security risk: one user's actions appear as another's
-- ❌ Contradicts documentation claiming "user-specific API keys"
-
-**Evidence from `docs/BINANCE_INTEGRATION.md` (line 379-383)**:
-> "Keys stored in user's browser (settings page)... Passed to Edge Function per request"
-
-This is **INCORRECT** based on actual implementation.
-
-### Coupling Level Analysis
-
-| Layer | Coupling | Assessment |
-|-------|----------|------------|
-| Edge Function | HIGH | Hardcoded `fapi.binance.com` URL, Binance-specific response parsing |
-| Types | MODERATE | Types named `Binance*` but could be aliased |
-| Hooks | MODERATE | Named `useBinance*` but internally generic |
-| UI Components | LOW | Uses generic props, not Binance-specific |
-| Domain Model | LOW | Uses generic trading terms (P&L, positions) |
-
----
-
-## 3. API Key Architecture Review
-
-### Current State (PROBLEMATIC)
+#### 1.2 Update Settings UI
 
 ```text
-┌──────────────────────────────────────────────┐
-│           Environment Secrets                │
-│                                              │
-│  BINANCE_API_KEY = "single_global_key"       │
-│  BINANCE_API_SECRET = "single_global_secret" │
-│                                              │
-└──────────────────────────────────────────────┘
-                    │
-                    ▼
-           ALL users share this
+src/components/settings/BinanceApiSettings.tsx
 ```
 
-### Expected State (Per-User)
+Add:
+- API Key input form (masked)
+- API Secret input form (masked)  
+- Save button (with validation)
+- Delete button (with confirmation)
+- Connection status display
+- Last validated timestamp
+
+UI Flow:
+```text
+┌─────────────────────────────────────────────────────┐
+│  Binance Futures API                    [Connected] │
+├─────────────────────────────────────────────────────┤
+│                                                     │
+│  API Key: ████████████████████████xxxx    [Show]    │
+│  API Secret: ••••••••••••••••••••••••     [Show]    │
+│                                                     │
+│  Label: [Main Account        ]                      │
+│                                                     │
+│  [Test Connection]  [Save Changes]  [Remove]        │
+│                                                     │
+│  Last validated: 2 minutes ago ✅                    │
+│  Permissions: Read, Futures                          │
+│                                                     │
+└─────────────────────────────────────────────────────┘
+```
+
+#### 1.3 Update Edge Function for Per-User Credentials
 
 ```text
-┌────────────────────────────────────────────────┐
-│              User Settings Table               │
-│                                                │
-│  user_id | exchange | api_key_enc | secret_enc │
-│  --------|----------|-------------|------------|
-│  user_1  | binance  | enc(...)    | enc(...)   │
-│  user_2  | binance  | enc(...)    | enc(...)   │
-│  user_N  | bybit    | enc(...)    | enc(...)   │ ◄── Future
-└────────────────────────────────────────────────┘
-                    │
-                    ▼
-           Per-user credential lookup
+supabase/functions/binance-futures/index.ts
 ```
 
-### Database Schema Gap
-
-The `accounts` table has:
-- `metadata JSONB` - could store encrypted API keys
-- But NO dedicated `api_credentials` table exists
-
-**OPEN QUESTION**: Where should per-user API credentials be stored?
-
-Options:
-1. `accounts.metadata` (current implicit assumption)
-2. New `exchange_credentials` table (recommended)
-3. External secrets manager (Vault pattern)
+Changes:
+1. Extract user_id from JWT
+2. Lookup credentials from `exchange_credentials` table
+3. Decrypt using Vault
+4. Use per-user credentials for HMAC signing
+5. Remove fallback to env vars
 
 ---
 
-## 4. Edge Function Gateway Review
+### Phase 2: Supabase Vault Encryption
 
-### Positive Findings
+**Goal**: API keys dienkripsi at-rest menggunakan Supabase Vault.
 
-| Aspect | Status | Notes |
-|--------|--------|-------|
-| CORS Handling | ✅ Good | Proper preflight response |
-| HMAC Signature | ✅ Secure | Standard implementation |
-| Error Handling | ✅ Good | Binance error codes preserved |
-| Response Normalization | ✅ Good | Consistent `{success, data, error}` format |
-| Retry Logic | ⚠️ Partial | Exists in `_shared/retry.ts` but not used everywhere |
+#### 2.1 Database Migration
 
-### Issues Identified
+Create database functions for encrypt/decrypt:
 
-1. **No Authentication on Edge Function**
-   - Anyone with Supabase anon key can call `binance-futures`
-   - Should verify user JWT and match to their API keys
+```sql
+-- Function to encrypt and store credentials
+CREATE OR REPLACE FUNCTION public.save_exchange_credential(
+  p_api_key TEXT,
+  p_api_secret TEXT,
+  p_exchange TEXT DEFAULT 'binance',
+  p_label TEXT DEFAULT 'Main Account'
+)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, vault
+AS $$
+DECLARE
+  v_user_id UUID := auth.uid();
+  v_credential_id UUID;
+BEGIN
+  -- Deactivate existing credentials for this exchange
+  UPDATE exchange_credentials 
+  SET is_active = false, updated_at = now()
+  WHERE user_id = v_user_id 
+    AND exchange = p_exchange 
+    AND is_active = true;
+  
+  -- Insert new credential with encrypted values
+  INSERT INTO exchange_credentials (
+    user_id,
+    exchange,
+    api_key_encrypted,
+    api_secret_encrypted,
+    label,
+    is_active
+  )
+  VALUES (
+    v_user_id,
+    p_exchange,
+    vault.encrypt(p_api_key::BYTEA),
+    vault.encrypt(p_api_secret::BYTEA),
+    p_label,
+    true
+  )
+  RETURNING id INTO v_credential_id;
+  
+  RETURN v_credential_id;
+END;
+$$;
 
-2. **No Rate Limit Protection**
-   - No tracking of Binance weight usage per user
-   - Could exhaust shared API quota quickly
-
-3. **Response Parsing Coupled to Binance**
-   - Field names like `positionAmt`, `unrealizedProfit` are Binance-specific
-   - Normalization happens but uses Binance field names in internal types
-
-### Isolation Quality
-
-```text
-┌─────────────────────────────────────────────────────────┐
-│                 Edge Function Layer                      │
-│                                                          │
-│  ┌─────────────────┐    ┌─────────────────────────────┐ │
-│  │ Binance API     │───►│ Response Normalization      │ │
-│  │ (Raw Response)  │    │ (Still Binance-shaped)      │ │
-│  └─────────────────┘    └─────────────────────────────┘ │
-│                                      │                   │
-└──────────────────────────────────────│───────────────────┘
-                                       ▼
-                              Frontend receives
-                              Binance-shaped data
+-- Function to decrypt credentials (for Edge Function)
+CREATE OR REPLACE FUNCTION public.get_decrypted_credential(
+  p_user_id UUID,
+  p_exchange TEXT DEFAULT 'binance'
+)
+RETURNS TABLE (
+  api_key TEXT,
+  api_secret TEXT,
+  label TEXT,
+  permissions JSONB
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, vault
+AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    convert_from(vault.decrypt(ec.api_key_encrypted::BYTEA), 'UTF8'),
+    convert_from(vault.decrypt(ec.api_secret_encrypted::BYTEA), 'UTF8'),
+    ec.label,
+    ec.permissions
+  FROM exchange_credentials ec
+  WHERE ec.user_id = p_user_id
+    AND ec.exchange = p_exchange
+    AND ec.is_active = true
+  LIMIT 1;
+END;
+$$;
 ```
 
-**Assessment**: Normalization exists but is **not exchange-agnostic**.
+#### 2.2 Edge Function Integration
 
----
-
-## 5. Domain Normalization Findings
-
-### Type System Analysis
-
-| Type Name | Exchange-Specific | Recommendation |
-|-----------|-------------------|----------------|
-| `BinancePosition` | ✅ Yes | Should alias to `ExchangePosition` |
-| `BinanceBalance` | ✅ Yes | Should alias to `ExchangeBalance` |
-| `BinanceTrade` | ✅ Yes | Should alias to `ExchangeTrade` |
-| `BinanceIncome` | ✅ Yes | Should alias to `ExchangeIncome` |
-| `BinanceIncomeType` | ✅ Yes | Should map to generic `IncomeType` |
-
-### Domain Terms Used
-
-| Binance Term | Domain Term | Status |
-|--------------|-------------|--------|
-| `REALIZED_PNL` | Gross P&L | ⚠️ Used directly |
-| `COMMISSION` | Fee | ⚠️ Used directly |
-| `FUNDING_FEE` | Funding | ⚠️ Used directly |
-| `positionAmt` | Quantity | ⚠️ Used directly |
-| `unrealizedProfit` | Unrealized P&L | ⚠️ Used directly |
-
-**Issue**: Binance-specific terms leak into domain layer.
-
-### Sync Logic (use-binance-sync.ts)
+Update `binance-futures/index.ts`:
 
 ```typescript
-// Line 50-51
-const direction = binanceTrade.side === "BUY" ? "LONG" : "SHORT";
-const result = binanceTrade.realizedPnl > 0 ? "win" : ...;
+async function getUserCredentials(supabase: SupabaseClient, userId: string) {
+  const { data, error } = await supabase
+    .rpc('get_decrypted_credential', {
+      p_user_id: userId,
+      p_exchange: 'binance'
+    })
+    .single();
+  
+  if (error || !data) {
+    throw new Error('No valid API credentials found');
+  }
+  
+  return {
+    apiKey: data.api_key,
+    apiSecret: data.api_secret
+  };
+}
 ```
-
-**Assessment**: Mapping logic is correct but hardcoded to Binance conventions.
 
 ---
 
-## 6. Multi-Exchange Readiness (COMING SOON)
+### Phase 3: Rate Limit Tracking
 
-### Readiness Checklist
+**Goal**: Track API usage per-user untuk mencegah quota exhaustion.
 
-| Requirement | Ready? | Notes |
-|-------------|--------|-------|
-| Per-user API key storage | ❌ NO | Global env var currently |
-| Exchange identifier in DB | ⚠️ PARTIAL | `source` field exists but not exchange-agnostic |
-| Type abstraction | ⚠️ PARTIAL | Types exist but named Binance* |
-| Edge function routing | ❌ NO | `binance-futures` is monolithic |
-| UI exchange selector | ❌ NO | Not needed now per spec |
-| Rate limit per exchange | ❌ NO | No tracking |
+#### 3.1 Create Rate Limit Table
 
-### What Would Be Needed
+```sql
+CREATE TABLE IF NOT EXISTS public.api_rate_limits (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  exchange TEXT NOT NULL DEFAULT 'binance',
+  endpoint_category TEXT NOT NULL, -- 'account', 'market', 'order'
+  weight_used INTEGER NOT NULL DEFAULT 0,
+  window_start TIMESTAMPTZ NOT NULL DEFAULT now(),
+  window_end TIMESTAMPTZ NOT NULL,
+  last_request_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  
+  CONSTRAINT unique_user_exchange_window 
+    UNIQUE (user_id, exchange, endpoint_category, window_start)
+);
+
+-- Enable RLS
+ALTER TABLE api_rate_limits ENABLE ROW LEVEL SECURITY;
+
+-- Policies
+CREATE POLICY "Users can view their own rate limits"
+  ON api_rate_limits FOR SELECT
+  USING (auth.uid() = user_id);
+```
+
+#### 3.2 Rate Limit Functions
+
+```sql
+-- Function to check and update rate limit
+CREATE OR REPLACE FUNCTION public.check_rate_limit(
+  p_exchange TEXT,
+  p_category TEXT,
+  p_weight INTEGER DEFAULT 1
+)
+RETURNS TABLE (
+  allowed BOOLEAN,
+  current_weight INTEGER,
+  max_weight INTEGER,
+  reset_at TIMESTAMPTZ
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_user_id UUID := auth.uid();
+  v_window_start TIMESTAMPTZ;
+  v_window_end TIMESTAMPTZ;
+  v_current_weight INTEGER;
+  v_max_weight INTEGER;
+BEGIN
+  -- Binance limits: 2400/min for most, 1200/min for orders
+  v_max_weight := CASE p_category
+    WHEN 'order' THEN 1200
+    ELSE 2400
+  END;
+  
+  -- Current minute window
+  v_window_start := date_trunc('minute', now());
+  v_window_end := v_window_start + interval '1 minute';
+  
+  -- Get or create rate limit record
+  INSERT INTO api_rate_limits (
+    user_id, exchange, endpoint_category, 
+    weight_used, window_start, window_end
+  )
+  VALUES (
+    v_user_id, p_exchange, p_category,
+    p_weight, v_window_start, v_window_end
+  )
+  ON CONFLICT (user_id, exchange, endpoint_category, window_start)
+  DO UPDATE SET 
+    weight_used = api_rate_limits.weight_used + p_weight,
+    last_request_at = now()
+  RETURNING weight_used INTO v_current_weight;
+  
+  RETURN QUERY SELECT 
+    v_current_weight <= v_max_weight,
+    v_current_weight,
+    v_max_weight,
+    v_window_end;
+END;
+$$;
+```
+
+#### 3.3 Edge Function Rate Limit Check
+
+```typescript
+// Before each Binance API call
+async function checkRateLimit(
+  supabase: SupabaseClient, 
+  category: string, 
+  weight: number
+) {
+  const { data, error } = await supabase
+    .rpc('check_rate_limit', {
+      p_exchange: 'binance',
+      p_category: category,
+      p_weight: weight
+    })
+    .single();
+  
+  if (!data?.allowed) {
+    const retryAfter = Math.ceil(
+      (new Date(data.reset_at).getTime() - Date.now()) / 1000
+    );
+    throw new RateLimitError(
+      `Rate limit exceeded. Retry after ${retryAfter}s`,
+      retryAfter
+    );
+  }
+}
+```
+
+#### 3.4 Frontend Rate Limit Hook
 
 ```text
-Phase A: Foundation (Required First)
-├── Per-user API credential storage
-├── Generic exchange types (ExchangePosition, etc.)
-└── Exchange credential lookup in Edge Functions
-
-Phase B: Abstraction (Before Adding Exchange)
-├── Exchange factory pattern in Edge Functions
-├── Unified response transformer
-└── Exchange-agnostic hooks (useExchangeBalance)
-
-Phase C: Implementation (Per Exchange)
-├── Bybit Edge Function
-├── OKX Edge Function
-└── Exchange-specific type mappings
+src/hooks/use-api-rate-limit.ts
 ```
 
-### Estimated Effort to Add Bybit
+```typescript
+export function useApiRateLimit() {
+  return useQuery({
+    queryKey: ['api-rate-limit'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('api_rate_limits')
+        .select('*')
+        .gte('window_end', new Date().toISOString())
+        .order('window_start', { ascending: false });
+      
+      return data;
+    },
+    refetchInterval: 10000, // 10s refresh
+  });
+}
+```
 
-| Task | Effort | Blocked By |
-|------|--------|------------|
-| Create `bybit-futures` Edge Function | 2-3 days | Nothing |
-| Add per-user credential storage | 2-3 days | Schema design |
-| Update frontend hooks | 1-2 days | Type abstraction |
-| Exchange selector UI | 1 day | Per-user credentials |
-| **Total** | **6-9 days** | Credential architecture |
+#### 3.5 Rate Limit Widget (Optional)
 
----
-
-## 7. Acceptable vs Risky Technical Debt
-
-### ✅ Acceptable Debt (Single Exchange Focus)
-
-| Debt | Reason Acceptable |
-|------|-------------------|
-| Binance-prefixed types | Clear naming, easy to alias later |
-| Hardcoded `fapi.binance.com` | Only one exchange now |
-| Binance-specific income types | Category mapping exists |
-| No exchange selector UI | Not needed per spec |
-
-### ❌ Risky Debt (Must Fix Soon)
-
-| Debt | Risk Level | Impact |
-|------|------------|--------|
-| Global API keys | 🔴 CRITICAL | Cannot support multi-user production |
-| No Edge Function auth | 🔴 HIGH | Anyone can call with anon key |
-| No rate limit tracking | 🟡 MEDIUM | Could exhaust Binance quota |
-| Documentation mismatch | 🟡 MEDIUM | Claims per-user keys but isn't |
-
-### Debt Prioritization
+Display in Settings or Dashboard:
 
 ```text
-Priority 1 (Block Production):
-└── Fix API key architecture (per-user)
-
-Priority 2 (Security):
-└── Add JWT verification to Edge Functions
-
-Priority 3 (Reliability):
-└── Add rate limit tracking
-└── Add retry logic to all endpoints
-
-Priority 4 (Multi-Exchange Prep):
-└── Create type aliases
-└── Document exchange abstraction pattern
+┌───────────────────────────────────┐
+│  API Usage (Current Minute)       │
+├───────────────────────────────────┤
+│  Account: ████████░░ 1850/2400    │
+│  Orders:  ███░░░░░░░ 350/1200     │
+│  Resets in: 23s                   │
+└───────────────────────────────────┘
 ```
 
 ---
 
-## 8. High-Level Improvement Recommendations
+## Files to Create/Modify
 
-### Immediate (Before Production)
+### New Files
 
-1. **Implement Per-User API Credentials**
-   - Create `exchange_credentials` table
-   - Encrypt API secrets at rest
-   - Lookup credentials per-user in Edge Functions
+| File | Purpose |
+|------|---------|
+| `src/hooks/use-exchange-credentials.ts` | CRUD hook for credentials |
+| `src/hooks/use-api-rate-limit.ts` | Rate limit monitoring |
+| `src/components/settings/ApiKeyForm.tsx` | API key input form |
 
-2. **Secure Edge Functions**
-   - Verify JWT in all authenticated endpoints
-   - Match user_id to their credentials
+### Modified Files
 
-3. **Update Documentation**
-   - Clarify actual API key storage (not browser)
-   - Document security model accurately
+| File | Changes |
+|------|---------|
+| `src/components/settings/BinanceApiSettings.tsx` | Add full API key management UI |
+| `supabase/functions/binance-futures/index.ts` | Per-user credential lookup, rate limit check |
+| `supabase/functions/_shared/rate-limit.ts` | Shared rate limit utility |
 
-### Short-Term (This Quarter)
+### Database Migrations
 
-4. **Add Type Aliases**
-   ```typescript
-   // In src/types/exchange.ts
-   export type ExchangePosition = BinancePosition;
-   export type ExchangeBalance = BinanceAccountSummary;
-   ```
-
-5. **Create Exchange Abstraction Layer**
-   ```typescript
-   // In src/services/exchange.ts
-   export function getExchangeAdapter(exchange: 'binance' | 'bybit') {
-     // Factory pattern for future exchanges
-   }
-   ```
-
-6. **Add Rate Limit Tracking**
-   - Track weight usage per user
-   - Implement backoff on 429
-
-### Long-Term (Multi-Exchange Prep)
-
-7. **Modular Edge Functions**
-   - Create shared exchange interface
-   - Per-exchange implementation files
-
-8. **Database Schema Update**
-   - Add `exchange` column to relevant tables
-   - Create `exchange_credentials` table
+| Migration | Purpose |
+|-----------|---------|
+| `..._create_vault_functions.sql` | Encrypt/decrypt functions |
+| `..._create_rate_limits_table.sql` | Rate limit tracking table |
 
 ---
 
-## 9. Open Questions / Assumptions
+## Implementation Order
 
-### Open Questions
+```text
+Phase 1: API Key Flow (3-4 hours)
+├── 1.1 Create useExchangeCredentials hook
+├── 1.2 Create ApiKeyForm component
+├── 1.3 Update BinanceApiSettings UI
+└── 1.4 Test add/test/remove flow
 
-1. **API Key Storage**: Current implementation uses global env vars. Is this intentional for MVP/demo, or is this a bug?
+Phase 2: Vault Encryption (2-3 hours)
+├── 2.1 Create migration for Vault functions
+├── 2.2 Update Edge Function credential lookup
+├── 2.3 Update hook to use RPC functions
+└── 2.4 Test encryption/decryption
 
-2. **Multi-User Support**: Is the system intended to support multiple users with their own Binance accounts?
+Phase 3: Rate Limit Tracking (2-3 hours)
+├── 3.1 Create rate_limits table migration
+├── 3.2 Create check_rate_limit function
+├── 3.3 Integrate into Edge Function
+├── 3.4 Create useApiRateLimit hook
+└── 3.5 Add rate limit display (optional)
 
-3. **Testnet vs Mainnet**: Is there support for Binance testnet? Not found in current implementation.
-
-4. **API Key Rotation**: What's the process for rotating API keys? Currently would require secret update.
-
-### Assumptions Made
-
-1. The global API key is a temporary/demo configuration
-2. Production will require per-user credential storage
-3. Multi-exchange is truly "COMING SOON" (not imminent)
-4. Current Binance-centric naming is acceptable for now
+Documentation Update (30 min)
+├── Update BINANCE_INTEGRATION.md
+└── Update COMPLETE_DATABASE_ANALYSIS.md
+```
 
 ---
 
-## Conclusion
+## Security Considerations
 
-### Strengths
-- Clean Edge Function gateway pattern
-- Proper HMAC signature implementation
-- Comprehensive endpoint coverage (34+ endpoints)
-- Good type definitions
-- Correct domain model for trading lifecycle
+| Aspect | Implementation |
+|--------|----------------|
+| Encryption at Rest | Vault encrypt/decrypt |
+| Encryption in Transit | HTTPS only |
+| Access Control | RLS + SECURITY DEFINER |
+| Key Visibility | Masked in UI, never logged |
+| Credential Rotation | Deactivate old on save new |
 
-### Critical Issues
-- 🔴 **Global API keys** - Cannot support multiple users
-- 🔴 **No Edge Function auth** - Security vulnerability
-- 🟡 **Documentation mismatch** - Claims per-user, isn't
+---
 
-### Multi-Exchange Readiness
-- **Architecture**: 60% ready (structure exists)
-- **Implementation**: 20% ready (too Binance-specific)
-- **Blocking Factor**: Per-user credential storage
+## Technical Notes
 
-### Recommended Next Step
-Fix the API key architecture before any production deployment. This is the single most critical blocker for both multi-user support and multi-exchange readiness.
+### Vault Encryption Format
+
+Supabase Vault menggunakan `pgsodium` untuk enkripsi:
+- Algorithm: `xchacha20poly1305`
+- Key management: Automatic via Vault extension
+- Decryption: Only via `vault.decrypt()` function
+
+### Binance Rate Limits
+
+| Endpoint Type | Weight Limit | Window |
+|---------------|--------------|--------|
+| General (account, positions) | 2400 | 1 minute |
+| Order placement | 1200 | 1 minute |
+| IP-based (if no API key) | 1200 | 1 minute |
+
+### Error Handling
+
+Rate limit exceeded flow:
+1. Edge Function returns `{ error: 'Rate limited', retryAfter: 30 }`
+2. Frontend shows toast with countdown
+3. React Query auto-retries after `retryAfter` seconds
