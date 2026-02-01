@@ -1,9 +1,14 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createErrorResponse, ErrorCode, type EdgeFunctionError } from "../_shared/error-response.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
+
+// AI Model Version Tracking
+const AI_MODEL_VERSION = "gemini-2.5-flash-2026-02";
+const PROMPT_VERSION = 3;
 
 interface PostTradeRequest {
   trade: {
@@ -171,23 +176,22 @@ Provide analysis in ${isIndonesian ? 'Indonesian' : 'English'}.`;
 
     if (!response.ok) {
       if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Rate limits exceeded, please try again later." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        return createErrorResponse(
+          "Rate limits exceeded, please try again later.",
+          429,
+          ErrorCode.RATE_LIMITED
         );
       }
       if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "Payment required, please add funds to your workspace." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        return createErrorResponse(
+          "Payment required, please add funds to your workspace.",
+          402,
+          ErrorCode.PAYMENT_REQUIRED
         );
       }
       const errorText = await response.text();
       console.error("AI gateway error:", response.status, errorText);
-      return new Response(
-        JSON.stringify({ error: "AI gateway error" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return createErrorResponse("AI gateway error", 500, ErrorCode.AI_ERROR);
     }
 
     const data = await response.json();
@@ -199,21 +203,32 @@ Provide analysis in ${isIndonesian ? 'Indonesian' : 'English'}.`;
 
     const analysisResult = JSON.parse(toolCall.function.arguments);
 
+    // Add AI version metadata
+    const resultWithMetadata = {
+      ...analysisResult,
+      _metadata: {
+        model: AI_MODEL_VERSION,
+        generatedAt: new Date().toISOString(),
+        promptVersion: PROMPT_VERSION,
+      },
+    };
+
     return new Response(
       JSON.stringify({
         success: true,
-        data: analysisResult,
+        data: resultWithMetadata,
+        // Also return versioning info at top level for easy access
+        ai_model_version: AI_MODEL_VERSION,
+        ai_analysis_generated_at: resultWithMetadata._metadata.generatedAt,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
     console.error("Post-trade analysis error:", error);
-    return new Response(
-      JSON.stringify({ 
-        error: error instanceof Error ? error.message : "Unknown error",
-        success: false,
-      }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    return createErrorResponse(
+      error instanceof Error ? error.message : "Unknown error",
+      500,
+      ErrorCode.INTERNAL_ERROR
     );
   }
 });

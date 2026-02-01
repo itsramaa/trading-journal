@@ -203,6 +203,7 @@ export type Database = {
           color: string | null
           created_at: string
           currency: string
+          deleted_at: string | null
           description: string | null
           icon: string | null
           id: string
@@ -220,6 +221,7 @@ export type Database = {
           color?: string | null
           created_at?: string
           currency?: string
+          deleted_at?: string | null
           description?: string | null
           icon?: string | null
           id?: string
@@ -237,6 +239,7 @@ export type Database = {
           color?: string | null
           created_at?: string
           currency?: string
+          deleted_at?: string | null
           description?: string | null
           icon?: string | null
           id?: string
@@ -497,7 +500,9 @@ export type Database = {
       }
       trade_entries: {
         Row: {
+          ai_analysis_generated_at: string | null
           ai_confidence: number | null
+          ai_model_version: string | null
           ai_quality_score: number | null
           binance_order_id: number | null
           binance_trade_id: string | null
@@ -507,6 +512,7 @@ export type Database = {
           confluence_score: number | null
           confluences_met: Json | null
           created_at: string
+          deleted_at: string | null
           direction: string
           emotional_state: string | null
           entry_datetime: string | null
@@ -538,7 +544,9 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          ai_analysis_generated_at?: string | null
           ai_confidence?: number | null
+          ai_model_version?: string | null
           ai_quality_score?: number | null
           binance_order_id?: number | null
           binance_trade_id?: string | null
@@ -548,6 +556,7 @@ export type Database = {
           confluence_score?: number | null
           confluences_met?: Json | null
           created_at?: string
+          deleted_at?: string | null
           direction: string
           emotional_state?: string | null
           entry_datetime?: string | null
@@ -579,7 +588,9 @@ export type Database = {
           user_id: string
         }
         Update: {
+          ai_analysis_generated_at?: string | null
           ai_confidence?: number | null
+          ai_model_version?: string | null
           ai_quality_score?: number | null
           binance_order_id?: number | null
           binance_trade_id?: string | null
@@ -589,6 +600,7 @@ export type Database = {
           confluence_score?: number | null
           confluences_met?: Json | null
           created_at?: string
+          deleted_at?: string | null
           direction?: string
           emotional_state?: string | null
           entry_datetime?: string | null
@@ -707,6 +719,7 @@ export type Database = {
           clone_count: number | null
           color: string | null
           created_at: string
+          deleted_at: string | null
           description: string | null
           difficulty_level: string | null
           entry_rules: Json | null
@@ -736,6 +749,7 @@ export type Database = {
           clone_count?: number | null
           color?: string | null
           created_at?: string
+          deleted_at?: string | null
           description?: string | null
           difficulty_level?: string | null
           entry_rules?: Json | null
@@ -765,6 +779,7 @@ export type Database = {
           clone_count?: number | null
           color?: string | null
           created_at?: string
+          deleted_at?: string | null
           description?: string | null
           difficulty_level?: string | null
           entry_rules?: Json | null
@@ -955,6 +970,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      increment_clone_count: {
+        Args: { p_strategy_id: string }
+        Returns: undefined
       }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
     }

@@ -13,8 +13,27 @@ export type ErrorCode =
   | 'INTERNAL_ERROR'
   | 'BINANCE_API_ERROR'
   | 'AI_GATEWAY_ERROR'
+  | 'AI_ERROR'
+  | 'PAYMENT_REQUIRED'
   | 'TIMEOUT'
   | 'INSUFFICIENT_DATA';
+
+// Error code constants for easy use
+export const ErrorCode = {
+  RATE_LIMITED: 'RATE_LIMITED' as ErrorCode,
+  AUTH_FAILED: 'AUTH_FAILED' as ErrorCode,
+  NETWORK_ERROR: 'NETWORK_ERROR' as ErrorCode,
+  VALIDATION_ERROR: 'VALIDATION_ERROR' as ErrorCode,
+  NOT_FOUND: 'NOT_FOUND' as ErrorCode,
+  PERMISSION_DENIED: 'PERMISSION_DENIED' as ErrorCode,
+  INTERNAL_ERROR: 'INTERNAL_ERROR' as ErrorCode,
+  BINANCE_API_ERROR: 'BINANCE_API_ERROR' as ErrorCode,
+  AI_GATEWAY_ERROR: 'AI_GATEWAY_ERROR' as ErrorCode,
+  AI_ERROR: 'AI_ERROR' as ErrorCode,
+  PAYMENT_REQUIRED: 'PAYMENT_REQUIRED' as ErrorCode,
+  TIMEOUT: 'TIMEOUT' as ErrorCode,
+  INSUFFICIENT_DATA: 'INSUFFICIENT_DATA' as ErrorCode,
+} as const;
 
 export interface EdgeFunctionError {
   success: false;
