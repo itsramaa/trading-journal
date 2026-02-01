@@ -31,7 +31,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { useBinanceAllIncome } from "@/features/binance";
+import { useBinanceAllIncome, useBinanceConnectionStatus } from "@/features/binance";
+import { BinanceNotConfiguredState } from "@/components/binance/BinanceNotConfiguredState";
 import { getIncomeTypeCategory, type BinanceIncome } from "@/features/binance/types";
 import { formatCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
@@ -74,7 +75,34 @@ export function FinancialSummaryCard({
   const [days, setDays] = useState<number>(defaultDays);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   
+  // Internal guard: check connection status (component self-defense)
+  const { data: connectionStatus } = useBinanceConnectionStatus();
+  const isConnected = connectionStatus?.isConnected ?? false;
+  
   const { data: allIncome, isLoading, refetch } = useBinanceAllIncome(days, 1000);
+
+  // Guard: show empty state if not connected
+  if (!isConnected) {
+    return (
+      <Card className={className}>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <CircleDollarSign className="h-5 w-5 text-primary" />
+            Financial Summary
+          </CardTitle>
+          <CardDescription>
+            Trading fees, funding rates, and rebates
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <BinanceNotConfiguredState
+            title="Financial Data Requires Exchange"
+            description="Connect your Binance API to view trading fees, funding rates, and rebates."
+          />
+        </CardContent>
+      </Card>
+    );
+  }
 
   // Filter to only non-trade income types
   const financialIncome = useMemo(() => {

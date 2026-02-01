@@ -21,21 +21,39 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { 
-  useRecentTransactions, 
   useTransactionSummary,
   getTransactionTypeLabel,
   getTransactionTypeVariant,
+  useBinanceConnectionStatus,
 } from "@/features/binance";
+import { BinanceNotConfiguredState } from "@/components/binance/BinanceNotConfiguredState";
 import { formatCurrency } from "@/lib/formatters";
 
 export function BinanceTransactionHistoryTab() {
   const [days, setDays] = useState<number>(30);
+  
+  // Internal guard: check connection status (component self-defense)
+  const { data: connectionStatus } = useBinanceConnectionStatus();
+  const isConnected = connectionStatus?.isConnected ?? false;
+  
   const { data: summary, transactions, isLoading, refetch } = useTransactionSummary(days);
 
   const sortedTransactions = useMemo(() => {
     if (!transactions) return [];
     return [...transactions].sort((a, b) => b.time - a.time);
   }, [transactions]);
+
+  // Guard: show empty state if not connected
+  if (!isConnected) {
+    return (
+      <div className="py-8">
+        <BinanceNotConfiguredState
+          title="Transaction History Requires Exchange"
+          description="Connect your Binance API to view deposits, withdrawals, and transfer history."
+        />
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
