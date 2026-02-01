@@ -32,10 +32,8 @@ import { PortfolioOverviewCard } from "@/components/dashboard/PortfolioOverviewC
 import { DashboardAnalyticsSummary } from "@/components/dashboard/DashboardAnalyticsSummary";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { useRealtime } from "@/hooks/use-realtime";
-import { 
-  useBinanceConnectionStatus, 
-  useBinancePositions
-} from "@/features/binance";
+import { useBinanceConnectionStatus } from "@/features/binance";
+import { usePositions } from "@/hooks/use-positions";
 import { formatCurrency } from "@/lib/formatters";
 import { 
   ChevronRight,
@@ -79,10 +77,9 @@ const Dashboard = () => {
   
   // Binance data for Active Positions
   const { data: connectionStatus } = useBinanceConnectionStatus();
-  const { data: positions } = useBinancePositions();
+  const { positions: activePositions } = usePositions();
   
   const isConnected = connectionStatus?.isConnected;
-  const activePositions = positions?.filter(p => p.positionAmt !== 0) || [];
 
   return (
     <DashboardLayout>
@@ -132,23 +129,23 @@ const Dashboard = () => {
             <CardContent>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {activePositions.map((position) => {
-                  const isLong = position.positionAmt > 0;
-                  const pnl = position.unrealizedProfit;
+                  const isLong = position.side === 'LONG';
+                  const pnl = position.unrealizedPnl;
                   return (
                     <div 
-                      key={position.symbol}
+                      key={`${position.source}-${position.symbol}`}
                       className="p-3 rounded-lg border bg-card"
                     >
                       <div className="flex items-center justify-between mb-2">
                         <span className="font-medium">{position.symbol}</span>
                         <Badge variant={isLong ? "default" : "destructive"} className="text-xs">
-                          {isLong ? 'LONG' : 'SHORT'}
+                          {position.side}
                         </Badge>
                       </div>
                       <div className="text-sm text-muted-foreground space-y-1">
                         <div className="flex justify-between">
                           <span>Size</span>
-                          <span className="font-mono-numbers">{Math.abs(position.positionAmt)}</span>
+                          <span className="font-mono-numbers">{position.size}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Entry</span>

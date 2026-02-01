@@ -2,6 +2,7 @@ import { useSearchParams } from "react-router-dom";
 import { Bell, Palette, Bot, Link, Settings as SettingsIcon, TrendingUp } from "lucide-react";
 import { AISettingsTab } from "@/components/settings/AISettingsTab";
 import { BinanceApiSettings } from "@/components/settings/BinanceApiSettings";
+import { ComingSoonExchangeCard } from "@/components/settings/ComingSoonExchangeCard";
 import { TradingConfigTab } from "@/components/settings/TradingConfigTab";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -238,6 +239,8 @@ const Settings = () => {
 
           <TabsContent value="exchange" className="space-y-4">
             <BinanceApiSettings />
+            <ComingSoonExchangeCard exchange="bybit" />
+            <ComingSoonExchangeCard exchange="okx" />
           </TabsContent>
 
           <TabsContent value="ai" className="space-y-4">
