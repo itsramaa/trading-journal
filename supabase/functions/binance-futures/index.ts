@@ -81,9 +81,20 @@ interface DecryptedCredential {
 }
 
 /**
- * Get decrypted credentials for user
+ * Custom error for missing credentials
  */
-async function getUserCredentials(userId: string): Promise<{ apiKey: string; apiSecret: string; credentialId: string }> {
+class CredentialsNotConfiguredError extends Error {
+  constructor() {
+    super('Binance API credentials not configured');
+    this.name = 'CredentialsNotConfiguredError';
+  }
+}
+
+/**
+ * Get decrypted credentials for user
+ * Returns null if no credentials configured (not an error state)
+ */
+async function getUserCredentials(userId: string): Promise<{ apiKey: string; apiSecret: string; credentialId: string } | null> {
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   
@@ -96,8 +107,9 @@ async function getUserCredentials(userId: string): Promise<{ apiKey: string; api
     })
     .single();
   
+  // No credentials configured - this is NOT an error, just a state
   if (error || !data) {
-    throw new Error('No valid API credentials found. Please add your Binance API keys in Settings.');
+    return null;
   }
   
   const credential = data as DecryptedCredential;
@@ -1160,7 +1172,25 @@ Deno.serve(async (req) => {
     const { userId } = await getAuthenticatedUser(authHeader);
     
     // Get user's API credentials (encrypted)
-    const { apiKey, apiSecret, credentialId } = await getUserCredentials(userId);
+    const credentials = await getUserCredentials(userId);
+    
+    // Return structured response if credentials not configured
+    if (!credentials) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          code: 'CREDENTIALS_NOT_CONFIGURED',
+          error: 'Binance API credentials not configured',
+          message: 'Please configure your Binance API key and secret in Settings → Exchange to use this feature.',
+        }),
+        { 
+          status: 200, // 200 because this is a valid domain state, not a server error
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+    
+    const { apiKey, apiSecret, credentialId } = credentials;
     
     // Parse request body
     const body = await req.json().catch(() => ({}));
