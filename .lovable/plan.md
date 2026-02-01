@@ -1,667 +1,394 @@
 
-# Comprehensive Plan: Remaining Issues Resolution
+# Binance Integration Architecture Audit
 
 ## Executive Summary
 
-Plan ini mengatasi **semua remaining issues** yang diidentifikasi dalam audit:
-- 3 Critical Issues (Balance Verification, Error Handling, Backtest Accuracy)
-- 5 Medium-Term Risks (Pagination, Soft Delete, AI Versioning, Clone Atomicity, Snapshot Duplicates)
+The current Binance Futures integration is **architecturally sound** for a single-exchange system with **identified limitations** for multi-exchange readiness. The system follows the principle of "Binance as Source of Truth" correctly, with clear separation between Edge Functions (gateway) and Frontend (consumer).
 
 ---
 
-## Issue Mapping & Priority
+## 1. Current Binance Integration Summary
 
-| # | Issue | Severity | Effort | Phase | Status |
-|---|-------|----------|--------|-------|--------|
-| 1 | Balance Reconciliation | 🔴 CRITICAL | 4h | 1 | ✅ DONE |
-| 2 | Error Handling Documentation | 🔴 CRITICAL | 3h | 1 | ✅ DONE |
-| 3 | Backtest Accuracy Disclaimer | 🔴 CRITICAL | 2h | 1 | ✅ DONE |
-| 4 | Trade History Pagination | 🟡 MEDIUM | 3h | 2 | ✅ DONE |
-| 5 | Soft Delete Support | 🟡 MEDIUM | 4h | 2 | ✅ DONE |
-| 6 | AI Analysis Versioning | 🟡 MEDIUM | 2h | 2 | ✅ DONE |
-| 7 | Clone Count Atomicity | 🟢 LOW | 1h | 3 | ✅ DONE |
-| 8 | Daily Snapshot Unique | ✅ DONE | - | - | ✅ DONE |
+### Architecture Overview
 
-**All issues resolved!** Phase 1, 2, and 3 complete.
+```text
+┌─────────────────────┐
+│     Frontend        │
+│  (React + Hooks)    │
+│                     │
+│  useBinance*()      │
+│  React Query Cache  │
+└─────────┬───────────┘
+          │ HTTP POST
+          ▼
+┌─────────────────────┐
+│   Edge Functions    │
+│                     │
+│  binance-futures    │ ◄── Authenticated (HMAC SHA256)
+│  binance-market-data│ ◄── Public endpoints
+└─────────┬───────────┘
+          │ HTTPS
+          ▼
+┌─────────────────────┐
+│   Binance API       │
+│  fapi.binance.com   │
+└─────────────────────┘
+```
+
+### Implementation Completeness
+
+| Category | Endpoints | Status |
+|----------|-----------|--------|
+| Account Data | 12 endpoints | ✅ Complete |
+| Market Data | 10 endpoints | ✅ Complete |
+| Advanced Analytics | 8 endpoints | ✅ Complete |
+| Bulk Export | 3 endpoints | ✅ Complete |
+| Transaction History | 1 endpoint | ✅ Complete |
+
+**Total: 34+ endpoints integrated across 6 phases**
 
 ---
 
-## Phase 1: Critical Issues (8-10 hours)
+## 2. Binance Coupling Assessment
 
-### 1.1 Balance Reconciliation System
+### ⚠️ CRITICAL FINDING: Global API Keys (Not Per-User)
 
-**Problem:** Trigger-based balance updates tidak diverifikasi. Jika trigger gagal, balance bisa stale.
-
-**Solution:** Create reconciliation job + discrepancy tracking.
-
-#### Database Changes
-
-```sql
--- New table: Track balance discrepancies
-CREATE TABLE account_balance_discrepancies (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL,
-  account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-  expected_balance NUMERIC NOT NULL,
-  actual_balance NUMERIC NOT NULL,
-  discrepancy NUMERIC NOT NULL,
-  detected_at TIMESTAMPTZ DEFAULT NOW(),
-  resolved BOOLEAN DEFAULT FALSE,
-  resolved_at TIMESTAMPTZ,
-  resolution_method TEXT, -- 'auto_fix' | 'manual' | 'ignored'
-  resolution_notes TEXT
-);
-
--- RLS Policy
-ALTER TABLE account_balance_discrepancies ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can view own discrepancies" 
-ON account_balance_discrepancies FOR SELECT 
-USING (auth.uid() = user_id);
-
-CREATE POLICY "System can insert discrepancies"
-ON account_balance_discrepancies FOR INSERT
-WITH CHECK (true);
-```
-
-#### Edge Function: `reconcile-balances`
-
-**File:** `supabase/functions/reconcile-balances/index.ts`
-
+**Current Implementation** (lines 1203-1205 in `binance-futures/index.ts`):
 ```typescript
-// Purpose: Verify balance integrity across all accounts
-// Trigger: On-demand or scheduled (daily)
-// Logic:
-// 1. Fetch all accounts
-// 2. For each account, sum transactions
-// 3. Compare with stored balance
-// 4. If discrepancy > $0.01, log to discrepancies table
-// 5. Optionally auto-fix if discrepancy is small
-
-interface ReconciliationResult {
-  accountsChecked: number;
-  discrepanciesFound: number;
-  autoFixed: number;
-  requiresReview: number;
-}
+const apiKey = Deno.env.get('BINANCE_API_KEY');
+const apiSecret = Deno.env.get('BINANCE_API_SECRET');
 ```
 
-**Internal Flow:**
-```
-Start
-  ↓
-Fetch accounts (with user filter if provided)
-  ↓
-For each account:
-  ├─ Calculate expected = SUM(transactions)
-  ├─ Get actual = account.balance
-  ├─ If |expected - actual| > 0.01:
-  │     ├─ Log to discrepancies table
-  │     ├─ If auto_fix enabled AND discrepancy < $10:
-  │     │     └─ UPDATE accounts SET balance = expected
-  │     └─ Else: Mark for manual review
-  └─ Continue to next account
-  ↓
-Return summary
-```
+**Issue**: API keys are retrieved from **environment secrets** (global), NOT per-user storage.
 
-#### Frontend Hook: `use-balance-reconciliation.ts`
+**Impact**:
+- ❌ ALL users share the SAME Binance API credentials
+- ❌ Cannot support multi-user production deployment
+- ❌ Security risk: one user's actions appear as another's
+- ❌ Contradicts documentation claiming "user-specific API keys"
 
-```typescript
-// Hook to trigger reconciliation from Settings page
-// Shows discrepancies to user
-// Allows manual resolution
-```
+**Evidence from `docs/BINANCE_INTEGRATION.md` (line 379-383)**:
+> "Keys stored in user's browser (settings page)... Passed to Edge Function per request"
+
+This is **INCORRECT** based on actual implementation.
+
+### Coupling Level Analysis
+
+| Layer | Coupling | Assessment |
+|-------|----------|------------|
+| Edge Function | HIGH | Hardcoded `fapi.binance.com` URL, Binance-specific response parsing |
+| Types | MODERATE | Types named `Binance*` but could be aliased |
+| Hooks | MODERATE | Named `useBinance*` but internally generic |
+| UI Components | LOW | Uses generic props, not Binance-specific |
+| Domain Model | LOW | Uses generic trading terms (P&L, positions) |
 
 ---
 
-### 1.2 Error Handling Documentation & Retry Utility
+## 3. API Key Architecture Review
 
-**Problem:** Edge functions tidak memiliki retry logic yang konsisten. Error handling tidak terdokumentasi.
+### Current State (PROBLEMATIC)
 
-**Solution:** Create shared retry utility + document error scenarios.
-
-#### Shared Retry Utility
-
-**File:** `supabase/functions/_shared/retry.ts`
-
-```typescript
-export interface RetryConfig {
-  maxRetries: number;
-  baseDelayMs: number;
-  maxDelayMs: number;
-  retryableErrors: number[]; // HTTP codes
-}
-
-export const DEFAULT_RETRY_CONFIG: RetryConfig = {
-  maxRetries: 3,
-  baseDelayMs: 1000,
-  maxDelayMs: 30000,
-  retryableErrors: [429, 500, 502, 503, 504],
-};
-
-export async function withRetry<T>(
-  fn: () => Promise<T>,
-  config: Partial<RetryConfig> = {}
-): Promise<T>;
-
-export function isRetryableError(error: unknown): boolean;
-
-export function getRetryDelay(attempt: number, config: RetryConfig): number;
+```text
+┌──────────────────────────────────────────────┐
+│           Environment Secrets                │
+│                                              │
+│  BINANCE_API_KEY = "single_global_key"       │
+│  BINANCE_API_SECRET = "single_global_secret" │
+│                                              │
+└──────────────────────────────────────────────┘
+                    │
+                    ▼
+           ALL users share this
 ```
 
-#### Apply to Edge Functions
+### Expected State (Per-User)
 
-**Files to update:**
-1. `supabase/functions/binance-futures/index.ts`
-2. `supabase/functions/binance-market-data/index.ts`
-3. `supabase/functions/backtest-strategy/index.ts`
-
-**Pattern:**
-```typescript
-import { withRetry, DEFAULT_RETRY_CONFIG } from "../_shared/retry.ts";
-
-// Before
-const response = await fetch(binanceUrl);
-
-// After
-const response = await withRetry(
-  () => fetch(binanceUrl),
-  { ...DEFAULT_RETRY_CONFIG, maxRetries: 3 }
-);
+```text
+┌────────────────────────────────────────────────┐
+│              User Settings Table               │
+│                                                │
+│  user_id | exchange | api_key_enc | secret_enc │
+│  --------|----------|-------------|------------|
+│  user_1  | binance  | enc(...)    | enc(...)   │
+│  user_2  | binance  | enc(...)    | enc(...)   │
+│  user_N  | bybit    | enc(...)    | enc(...)   │ ◄── Future
+└────────────────────────────────────────────────┘
+                    │
+                    ▼
+           Per-user credential lookup
 ```
 
-#### Error Response Standard
+### Database Schema Gap
 
-**File:** `supabase/functions/_shared/error-response.ts`
+The `accounts` table has:
+- `metadata JSONB` - could store encrypted API keys
+- But NO dedicated `api_credentials` table exists
 
-```typescript
-export interface EdgeFunctionError {
-  success: false;
-  error: string;
-  code: string; // 'RATE_LIMITED' | 'AUTH_FAILED' | 'NETWORK_ERROR' | 'VALIDATION_ERROR'
-  retryable: boolean;
-  retryAfter?: number; // seconds
-  details?: Record<string, unknown>;
-}
+**OPEN QUESTION**: Where should per-user API credentials be stored?
 
-export function createErrorResponse(
-  error: unknown,
-  statusCode: number
-): Response;
-```
-
-#### Documentation Update
-
-**File:** `docs/EDGE_FUNCTION_ERROR_HANDLING.md`
-
-```markdown
-# Edge Function Error Handling Guide
-
-## Error Categories
-
-| Code | Category | Retryable | User Action |
-|------|----------|-----------|-------------|
-| 429 | Rate Limited | Yes | Wait, auto-retry |
-| 401 | Auth Failed | No | Re-enter API keys |
-| 500+ | Server Error | Yes | Auto-retry |
-| NETWORK | Network | Yes | Auto-retry |
-
-## Per-Function Error Handling
-
-### binance-futures
-- Rate limit: Backoff 60s
-- Invalid credentials: Return immediately
-- Partial sync failure: Mark partial, retry remaining
-
-### backtest-strategy
-- Insufficient data: Return error, no retry
-- Timeout: Return partial results if available
-
-### AI Functions
-- Rate limit: Queue request
-- Model error: Fallback to cached analysis
-```
+Options:
+1. `accounts.metadata` (current implicit assumption)
+2. New `exchange_credentials` table (recommended)
+3. External secrets manager (Vault pattern)
 
 ---
 
-### 1.3 Backtest Accuracy Disclaimer
+## 4. Edge Function Gateway Review
 
-**Problem:** Backtest simulation adalah simplified. User mungkin mempercayai hasil yang tidak akurat.
+### Positive Findings
 
-**Solution:** Add explicit disclaimers dan accuracy metadata.
+| Aspect | Status | Notes |
+|--------|--------|-------|
+| CORS Handling | ✅ Good | Proper preflight response |
+| HMAC Signature | ✅ Secure | Standard implementation |
+| Error Handling | ✅ Good | Binance error codes preserved |
+| Response Normalization | ✅ Good | Consistent `{success, data, error}` format |
+| Retry Logic | ⚠️ Partial | Exists in `_shared/retry.ts` but not used everywhere |
 
-#### Database Changes
+### Issues Identified
 
-```sql
--- Add columns to backtest_results
-ALTER TABLE backtest_results 
-ADD COLUMN assumptions JSONB DEFAULT '{}'::jsonb,
-ADD COLUMN accuracy_notes TEXT,
-ADD COLUMN simulation_version TEXT DEFAULT 'v1-simplified';
+1. **No Authentication on Edge Function**
+   - Anyone with Supabase anon key can call `binance-futures`
+   - Should verify user JWT and match to their API keys
+
+2. **No Rate Limit Protection**
+   - No tracking of Binance weight usage per user
+   - Could exhaust shared API quota quickly
+
+3. **Response Parsing Coupled to Binance**
+   - Field names like `positionAmt`, `unrealizedProfit` are Binance-specific
+   - Normalization happens but uses Binance field names in internal types
+
+### Isolation Quality
+
+```text
+┌─────────────────────────────────────────────────────────┐
+│                 Edge Function Layer                      │
+│                                                          │
+│  ┌─────────────────┐    ┌─────────────────────────────┐ │
+│  │ Binance API     │───►│ Response Normalization      │ │
+│  │ (Raw Response)  │    │ (Still Binance-shaped)      │ │
+│  └─────────────────┘    └─────────────────────────────┘ │
+│                                      │                   │
+└──────────────────────────────────────│───────────────────┘
+                                       ▼
+                              Frontend receives
+                              Binance-shaped data
 ```
 
-#### Update backtest-strategy Edge Function
-
-**File:** `supabase/functions/backtest-strategy/index.ts`
-
-**Changes:**
-1. Store simulation assumptions in result
-2. Add version tracking
-3. Include accuracy caveats
-
-```typescript
-const assumptions = {
-  slippage: config.slippage || 0.001,
-  slippageModel: 'fixed_percentage',
-  commissionModel: 'maker_taker_average',
-  executionModel: 'instant_fill', // vs 'realistic_partial_fill'
-  liquidationRisk: 'not_modeled',
-  fundingRates: 'not_included',
-  marketImpact: 'not_modeled',
-};
-
-const accuracyNotes = `
-This backtest uses simplified simulation:
-- Instant order fills (no partial fills)
-- Fixed slippage (${assumptions.slippage * 100}%)
-- No funding rate costs
-- No liquidation modeling
-- No market impact for large orders
-Actual results may vary significantly.
-`;
-
-// Include in saved result
-await supabase.from("backtest_results").insert({
-  ...result,
-  assumptions,
-  accuracy_notes: accuracyNotes,
-  simulation_version: 'v1-simplified',
-});
-```
-
-#### UI Disclaimer Component
-
-**File:** `src/components/strategy/BacktestDisclaimer.tsx`
-
-```tsx
-export function BacktestDisclaimer({ 
-  assumptions, 
-  className 
-}: BacktestDisclaimerProps) {
-  return (
-    <Alert variant="warning" className={className}>
-      <AlertTriangle className="h-4 w-4" />
-      <AlertTitle>Simulated Results</AlertTitle>
-      <AlertDescription>
-        This backtest uses simplified modeling. Key limitations:
-        <ul className="list-disc ml-4 mt-2 text-sm">
-          <li>Instant order fills (no slippage beyond {assumptions?.slippage}%)</li>
-          <li>Funding rates not included</li>
-          <li>Liquidation risk not modeled</li>
-          <li>Market impact not considered</li>
-        </ul>
-        <p className="mt-2 font-medium">
-          Actual trading results may differ significantly.
-        </p>
-      </AlertDescription>
-    </Alert>
-  );
-}
-```
-
-**Update:** `src/components/strategy/BacktestResults.tsx`
-
-Add `<BacktestDisclaimer />` component at the top of results.
+**Assessment**: Normalization exists but is **not exchange-agnostic**.
 
 ---
 
-## Phase 2: Medium-Term Fixes (10-12 hours)
+## 5. Domain Normalization Findings
 
-### 2.1 Trade History Pagination
+### Type System Analysis
 
-**Problem:** User dengan 50K+ trades akan mengalami performance issues.
+| Type Name | Exchange-Specific | Recommendation |
+|-----------|-------------------|----------------|
+| `BinancePosition` | ✅ Yes | Should alias to `ExchangePosition` |
+| `BinanceBalance` | ✅ Yes | Should alias to `ExchangeBalance` |
+| `BinanceTrade` | ✅ Yes | Should alias to `ExchangeTrade` |
+| `BinanceIncome` | ✅ Yes | Should alias to `ExchangeIncome` |
+| `BinanceIncomeType` | ✅ Yes | Should map to generic `IncomeType` |
 
-**Solution:** Implement cursor-based pagination.
+### Domain Terms Used
 
-#### Hook Update: `use-trade-entries.ts`
+| Binance Term | Domain Term | Status |
+|--------------|-------------|--------|
+| `REALIZED_PNL` | Gross P&L | ⚠️ Used directly |
+| `COMMISSION` | Fee | ⚠️ Used directly |
+| `FUNDING_FEE` | Funding | ⚠️ Used directly |
+| `positionAmt` | Quantity | ⚠️ Used directly |
+| `unrealizedProfit` | Unrealized P&L | ⚠️ Used directly |
 
-```typescript
-interface UseTradeEntriesOptions {
-  limit?: number; // Default 100
-  cursor?: string; // trade_id of last item
-  filters?: TradeFilters;
-}
+**Issue**: Binance-specific terms leak into domain layer.
 
-interface TradeEntriesResult {
-  trades: TradeEntry[];
-  nextCursor: string | null;
-  hasMore: boolean;
-  totalCount: number;
-}
-
-export function useTradeEntriesPaginated(options: UseTradeEntriesOptions) {
-  // Implement cursor-based pagination
-  // Uses trade_date + id as cursor for stable ordering
-}
-```
-
-#### Query Pattern
+### Sync Logic (use-binance-sync.ts)
 
 ```typescript
-// Fetch page
-let query = supabase
-  .from("trade_entries")
-  .select("*", { count: "exact" })
-  .eq("user_id", userId)
-  .order("trade_date", { ascending: false })
-  .limit(limit + 1); // +1 to detect hasMore
-
-if (cursor) {
-  const { data: cursorTrade } = await supabase
-    .from("trade_entries")
-    .select("trade_date")
-    .eq("id", cursor)
-    .single();
-  
-  query = query.lt("trade_date", cursorTrade.trade_date);
-}
-
-// Return with pagination info
-return {
-  trades: data.slice(0, limit),
-  nextCursor: data.length > limit ? data[limit - 1].id : null,
-  hasMore: data.length > limit,
-};
+// Line 50-51
+const direction = binanceTrade.side === "BUY" ? "LONG" : "SHORT";
+const result = binanceTrade.realizedPnl > 0 ? "win" : ...;
 ```
 
-#### UI Component: Infinite Scroll
+**Assessment**: Mapping logic is correct but hardcoded to Binance conventions.
 
-**File:** `src/components/journal/TradeHistoryInfiniteScroll.tsx`
+---
 
-```tsx
-// Uses react-intersection-observer
-// Loads more when user scrolls near bottom
-// Shows loading skeleton while fetching
+## 6. Multi-Exchange Readiness (COMING SOON)
+
+### Readiness Checklist
+
+| Requirement | Ready? | Notes |
+|-------------|--------|-------|
+| Per-user API key storage | ❌ NO | Global env var currently |
+| Exchange identifier in DB | ⚠️ PARTIAL | `source` field exists but not exchange-agnostic |
+| Type abstraction | ⚠️ PARTIAL | Types exist but named Binance* |
+| Edge function routing | ❌ NO | `binance-futures` is monolithic |
+| UI exchange selector | ❌ NO | Not needed now per spec |
+| Rate limit per exchange | ❌ NO | No tracking |
+
+### What Would Be Needed
+
+```text
+Phase A: Foundation (Required First)
+├── Per-user API credential storage
+├── Generic exchange types (ExchangePosition, etc.)
+└── Exchange credential lookup in Edge Functions
+
+Phase B: Abstraction (Before Adding Exchange)
+├── Exchange factory pattern in Edge Functions
+├── Unified response transformer
+└── Exchange-agnostic hooks (useExchangeBalance)
+
+Phase C: Implementation (Per Exchange)
+├── Bybit Edge Function
+├── OKX Edge Function
+└── Exchange-specific type mappings
+```
+
+### Estimated Effort to Add Bybit
+
+| Task | Effort | Blocked By |
+|------|--------|------------|
+| Create `bybit-futures` Edge Function | 2-3 days | Nothing |
+| Add per-user credential storage | 2-3 days | Schema design |
+| Update frontend hooks | 1-2 days | Type abstraction |
+| Exchange selector UI | 1 day | Per-user credentials |
+| **Total** | **6-9 days** | Credential architecture |
+
+---
+
+## 7. Acceptable vs Risky Technical Debt
+
+### ✅ Acceptable Debt (Single Exchange Focus)
+
+| Debt | Reason Acceptable |
+|------|-------------------|
+| Binance-prefixed types | Clear naming, easy to alias later |
+| Hardcoded `fapi.binance.com` | Only one exchange now |
+| Binance-specific income types | Category mapping exists |
+| No exchange selector UI | Not needed per spec |
+
+### ❌ Risky Debt (Must Fix Soon)
+
+| Debt | Risk Level | Impact |
+|------|------------|--------|
+| Global API keys | 🔴 CRITICAL | Cannot support multi-user production |
+| No Edge Function auth | 🔴 HIGH | Anyone can call with anon key |
+| No rate limit tracking | 🟡 MEDIUM | Could exhaust Binance quota |
+| Documentation mismatch | 🟡 MEDIUM | Claims per-user keys but isn't |
+
+### Debt Prioritization
+
+```text
+Priority 1 (Block Production):
+└── Fix API key architecture (per-user)
+
+Priority 2 (Security):
+└── Add JWT verification to Edge Functions
+
+Priority 3 (Reliability):
+└── Add rate limit tracking
+└── Add retry logic to all endpoints
+
+Priority 4 (Multi-Exchange Prep):
+└── Create type aliases
+└── Document exchange abstraction pattern
 ```
 
 ---
 
-### 2.2 Soft Delete Implementation
+## 8. High-Level Improvement Recommendations
 
-**Problem:** Hard delete = data gone forever. No recovery possible.
+### Immediate (Before Production)
 
-**Solution:** Add `deleted_at` column to key tables.
+1. **Implement Per-User API Credentials**
+   - Create `exchange_credentials` table
+   - Encrypt API secrets at rest
+   - Lookup credentials per-user in Edge Functions
 
-#### Database Changes
+2. **Secure Edge Functions**
+   - Verify JWT in all authenticated endpoints
+   - Match user_id to their credentials
 
-```sql
--- Add deleted_at to key tables
-ALTER TABLE trade_entries ADD COLUMN deleted_at TIMESTAMPTZ;
-ALTER TABLE trading_strategies ADD COLUMN deleted_at TIMESTAMPTZ;
-ALTER TABLE accounts ADD COLUMN deleted_at TIMESTAMPTZ;
+3. **Update Documentation**
+   - Clarify actual API key storage (not browser)
+   - Document security model accurately
 
--- Create indexes for efficient filtering
-CREATE INDEX idx_trade_entries_deleted_at ON trade_entries (deleted_at) WHERE deleted_at IS NULL;
-CREATE INDEX idx_trading_strategies_deleted_at ON trading_strategies (deleted_at) WHERE deleted_at IS NULL;
-CREATE INDEX idx_accounts_deleted_at ON accounts (deleted_at) WHERE deleted_at IS NULL;
+### Short-Term (This Quarter)
 
--- Update RLS policies to exclude deleted
--- Example for trade_entries:
-DROP POLICY IF EXISTS "Users can view their own trade entries" ON trade_entries;
-CREATE POLICY "Users can view their own active trade entries" 
-ON trade_entries FOR SELECT 
-USING (auth.uid() = user_id AND deleted_at IS NULL);
-```
+4. **Add Type Aliases**
+   ```typescript
+   // In src/types/exchange.ts
+   export type ExchangePosition = BinancePosition;
+   export type ExchangeBalance = BinanceAccountSummary;
+   ```
 
-#### Hook Updates
+5. **Create Exchange Abstraction Layer**
+   ```typescript
+   // In src/services/exchange.ts
+   export function getExchangeAdapter(exchange: 'binance' | 'bybit') {
+     // Factory pattern for future exchanges
+   }
+   ```
 
-**Pattern for all affected hooks:**
+6. **Add Rate Limit Tracking**
+   - Track weight usage per user
+   - Implement backoff on 429
 
-```typescript
-// use-trade-entries.ts
-export function useDeleteTradeEntry() {
-  return useMutation({
-    mutationFn: async (id: string) => {
-      // Soft delete instead of hard delete
-      const { error } = await supabase
-        .from("trade_entries")
-        .update({ deleted_at: new Date().toISOString() })
-        .eq("id", id);
+### Long-Term (Multi-Exchange Prep)
 
-      if (error) throw error;
-    },
-  });
-}
+7. **Modular Edge Functions**
+   - Create shared exchange interface
+   - Per-exchange implementation files
 
-// Optional: restore function
-export function useRestoreTradeEntry() {
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("trade_entries")
-        .update({ deleted_at: null })
-        .eq("id", id);
-
-      if (error) throw error;
-    },
-  });
-}
-```
+8. **Database Schema Update**
+   - Add `exchange` column to relevant tables
+   - Create `exchange_credentials` table
 
 ---
 
-### 2.3 AI Analysis Versioning
+## 9. Open Questions / Assumptions
 
-**Problem:** AI analysis tidak ada version tracking. Sulit debug atau replay.
+### Open Questions
 
-**Solution:** Add version metadata to AI analysis fields.
+1. **API Key Storage**: Current implementation uses global env vars. Is this intentional for MVP/demo, or is this a bug?
 
-#### Database Changes
+2. **Multi-User Support**: Is the system intended to support multiple users with their own Binance accounts?
 
-```sql
--- Add versioning columns
-ALTER TABLE trade_entries 
-ADD COLUMN ai_model_version TEXT,
-ADD COLUMN ai_analysis_generated_at TIMESTAMPTZ;
-```
+3. **Testnet vs Mainnet**: Is there support for Binance testnet? Not found in current implementation.
 
-#### Edge Function Updates
+4. **API Key Rotation**: What's the process for rotating API keys? Currently would require secret update.
 
-**Files:**
-- `supabase/functions/post-trade-analysis/index.ts`
-- `supabase/functions/trade-quality/index.ts`
-- `supabase/functions/confluence-detection/index.ts`
+### Assumptions Made
 
-**Pattern:**
-
-```typescript
-const AI_MODEL_VERSION = 'gemini-2.5-flash-2026-02';
-
-// When generating analysis
-const analysisWithMetadata = {
-  ...analysis,
-  _metadata: {
-    model: AI_MODEL_VERSION,
-    generatedAt: new Date().toISOString(),
-    promptVersion: 3,
-  },
-};
-
-// Store in DB
-await supabase.from('trade_entries').update({
-  post_trade_analysis: analysisWithMetadata,
-  ai_model_version: AI_MODEL_VERSION,
-  ai_analysis_generated_at: new Date().toISOString(),
-});
-```
-
-#### Frontend Display
-
-**Update:** `src/components/journal/TradeEnrichmentDrawer.tsx`
-
-Show AI version in analysis section:
-```tsx
-{analysis && (
-  <div className="text-xs text-muted-foreground mt-2">
-    Generated: {format(new Date(analysis._metadata?.generatedAt), 'PPp')}
-    {' • '}
-    Model: {analysis._metadata?.model || 'unknown'}
-  </div>
-)}
-```
+1. The global API key is a temporary/demo configuration
+2. Production will require per-user credential storage
+3. Multi-exchange is truly "COMING SOON" (not imminent)
+4. Current Binance-centric naming is acceptable for now
 
 ---
 
-## Phase 3: Low Priority Fixes (2 hours)
+## Conclusion
 
-### 3.1 Clone Count Atomicity
+### Strengths
+- Clean Edge Function gateway pattern
+- Proper HMAC signature implementation
+- Comprehensive endpoint coverage (34+ endpoints)
+- Good type definitions
+- Correct domain model for trading lifecycle
 
-**Problem:** Clone count increment bisa race condition pada concurrent clones.
+### Critical Issues
+- 🔴 **Global API keys** - Cannot support multiple users
+- 🔴 **No Edge Function auth** - Security vulnerability
+- 🟡 **Documentation mismatch** - Claims per-user, isn't
 
-**Current Code (strategy-clone-notify/index.ts):**
-```typescript
-// Non-atomic: Read then write
-const { data: currentStrategy } = await supabase
-  .from("trading_strategies")
-  .select("clone_count")
-  .eq("id", strategyId)
-  .single();
+### Multi-Exchange Readiness
+- **Architecture**: 60% ready (structure exists)
+- **Implementation**: 20% ready (too Binance-specific)
+- **Blocking Factor**: Per-user credential storage
 
-const newCloneCount = (currentStrategy?.clone_count || 0) + 1;
-
-await supabase
-  .from("trading_strategies")
-  .update({ clone_count: newCloneCount })
-  .eq("id", strategyId);
-```
-
-**Solution A: Database Trigger (Recommended)**
-
-```sql
--- Create trigger for atomic increment
-CREATE OR REPLACE FUNCTION increment_strategy_clone_count()
-RETURNS TRIGGER AS $$
-BEGIN
-  -- Called when a new strategy is created with source='shared'
-  IF NEW.source = 'shared' AND NEW.source_url IS NOT NULL THEN
-    -- Extract original strategy share_token from URL
-    -- And increment the original's clone_count atomically
-    UPDATE trading_strategies 
-    SET clone_count = clone_count + 1,
-        last_cloned_at = NOW()
-    WHERE share_token = (
-      SELECT regexp_replace(NEW.source_url, '.*/shared/strategy/([^/]+)$', '\1')
-    );
-  END IF;
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER on_strategy_cloned
-AFTER INSERT ON trading_strategies
-FOR EACH ROW
-EXECUTE FUNCTION increment_strategy_clone_count();
-```
-
-**Solution B: Atomic SQL in Edge Function**
-
-```typescript
-// Use Supabase RPC for atomic increment
-await supabase.rpc('increment_clone_count', { strategy_id: strategyId });
-
-// Where increment_clone_count is:
-CREATE FUNCTION increment_clone_count(strategy_id UUID)
-RETURNS void AS $$
-BEGIN
-  UPDATE trading_strategies 
-  SET clone_count = clone_count + 1, 
-      last_cloned_at = NOW()
-  WHERE id = strategy_id;
-END;
-$$ LANGUAGE plpgsql;
-```
-
----
-
-## Files Summary
-
-### Phase 1: Critical
-
-| File | Action | Changes |
-|------|--------|---------|
-| `supabase/migrations/XXX.sql` | Create | Discrepancy table, backtest columns |
-| `supabase/functions/_shared/retry.ts` | Create | Retry utility |
-| `supabase/functions/_shared/error-response.ts` | Create | Error standards |
-| `supabase/functions/reconcile-balances/index.ts` | Create | Reconciliation job |
-| `supabase/functions/binance-futures/index.ts` | Modify | Add retry logic |
-| `supabase/functions/backtest-strategy/index.ts` | Modify | Add assumptions, disclaimer |
-| `src/components/strategy/BacktestDisclaimer.tsx` | Create | Disclaimer component |
-| `src/components/strategy/BacktestResults.tsx` | Modify | Add disclaimer |
-| `docs/EDGE_FUNCTION_ERROR_HANDLING.md` | Create | Error handling guide |
-
-### Phase 2: Medium
-
-| File | Action | Changes |
-|------|--------|---------|
-| `supabase/migrations/XXX.sql` | Create | Soft delete columns, indexes |
-| `src/hooks/use-trade-entries.ts` | Modify | Pagination, soft delete |
-| `src/components/journal/TradeHistoryInfiniteScroll.tsx` | Create | Infinite scroll |
-| `supabase/functions/post-trade-analysis/index.ts` | Modify | AI versioning |
-| `supabase/functions/trade-quality/index.ts` | Modify | AI versioning |
-
-### Phase 3: Low Priority
-
-| File | Action | Changes |
-|------|--------|---------|
-| `supabase/migrations/XXX.sql` | Create | Clone count trigger |
-| `supabase/functions/strategy-clone-notify/index.ts` | Modify | Remove manual increment |
-
----
-
-## Verification Checklist
-
-### Phase 1 Complete When:
-- [x] Balance reconciliation detects intentional discrepancy
-- [x] Edge functions retry on 429
-- [x] Backtest results show disclaimer
-- [x] Error handling documented
-
-### Phase 2 Complete When:
-- [x] Trade history loads in chunks (100 at a time)
-- [x] Deleted trades can be restored within 30 days
-- [x] AI analysis shows generation timestamp and model
-
-### Phase 3 Complete When:
-- [x] Concurrent strategy clones don't lose count
-
----
-
-## ✅ ALL PHASES COMPLETE
-
-**Completed**: 2026-02-01
-
-All 8 identified issues have been resolved:
-
-| # | Issue | Status |
-|---|-------|--------|
-| 1 | Balance Reconciliation | ✅ DONE |
-| 2 | Error Handling Documentation | ✅ DONE |
-| 3 | Backtest Accuracy Disclaimer | ✅ DONE |
-| 4 | Trade History Pagination | ✅ DONE |
-| 5 | Soft Delete Support | ✅ DONE |
-| 6 | AI Analysis Versioning | ✅ DONE |
-| 7 | Clone Count Atomicity | ✅ DONE |
-| 8 | Daily Snapshot Unique | ✅ DONE |
-
----
-
-## Next Steps (Post-Resolution)
-
-With all critical and medium-term issues resolved, the system is now production-ready. Recommended next steps:
-
-1. **End-to-End Testing**: Verify all implemented features work correctly in production environment
-2. **Performance Testing**: Test pagination with large datasets (50K+ trades)
-3. **Security Audit**: Review RLS policies and soft delete implementation
-4. **Documentation Review**: Ensure all docs are up-to-date with new features
-5. **Feature Development**: Continue with remaining page implementations
+### Recommended Next Step
+Fix the API key architecture before any production deployment. This is the single most critical blocker for both multi-user support and multi-exchange readiness.
