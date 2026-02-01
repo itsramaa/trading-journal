@@ -1,174 +1,127 @@
 
-
-# Implementation Plan: Database Integrity Hardening (TIER 1 Critical Fixes)
+# Comprehensive Plan: Remaining Issues Resolution
 
 ## Executive Summary
 
-Berdasarkan System Architecture Review yang diberikan, plan ini fokus pada **TIER 1 Critical Fixes** yang harus diselesaikan sebelum production scale. Audit mengidentifikasi beberapa gap yang sudah ada constraint-nya, jadi plan ini akan mengklarifikasi dan memfokuskan pada yang benar-benar missing.
+Plan ini mengatasi **semua remaining issues** yang diidentifikasi dalam audit:
+- 3 Critical Issues (Balance Verification, Error Handling, Backtest Accuracy)
+- 5 Medium-Term Risks (Pagination, Soft Delete, AI Versioning, Clone Atomicity, Snapshot Duplicates)
 
 ---
 
-## Current State vs Audit Findings
+## Issue Mapping & Priority
 
-| Issue dari Audit | Status Aktual | Action Required |
-|------------------|---------------|-----------------|
-| Missing CHECK on direction | ❌ Benar missing | **ADD constraint** |
-| Missing CHECK on status | ✅ Sudah ada | No action |
-| No UNIQUE on binance_trade_id | ⚠️ Partial - hanya global | **MODIFY ke per-user** |
-| No UNIQUE on daily_risk_snapshots | ✅ Sudah ada | No action |
-| No CHECK on amounts | ❌ Benar missing | **ADD constraint** |
-| No CHECK on percentages | ❌ Benar missing | **ADD constraint** |
+| # | Issue | Severity | Effort | Phase |
+|---|-------|----------|--------|-------|
+| 1 | Balance Reconciliation | 🔴 CRITICAL | 4h | 1 |
+| 2 | Error Handling Documentation | 🔴 CRITICAL | 3h | 1 |
+| 3 | Backtest Accuracy Disclaimer | 🔴 CRITICAL | 2h | 1 |
+| 4 | Trade History Pagination | 🟡 MEDIUM | 3h | 2 |
+| 5 | Soft Delete Support | 🟡 MEDIUM | 4h | 2 |
+| 6 | AI Analysis Versioning | 🟡 MEDIUM | 2h | 2 |
+| 7 | Clone Count Atomicity | 🟢 LOW | 1h | 3 |
+| 8 | Daily Snapshot Unique | ✅ DONE | - | - |
 
----
-
-## Phase 1: Database Schema Hardening (Estimated: 2-3 hours)
-
-### 1.1 Add Direction CHECK Constraint
-
-**Tabel:** `trade_entries`  
-**Problem:** Kolom `direction` tidak di-enforce, bisa diisi nilai invalid
-
-```sql
-ALTER TABLE trade_entries 
-ADD CONSTRAINT trade_entries_direction_check 
-CHECK (direction IN ('LONG', 'SHORT', 'long', 'short'));
-```
-
-**Note:** Include lowercase karena beberapa source menggunakan lowercase.
-
-### 1.2 Modify binance_trade_id Unique Constraint
-
-**Problem:** Unique index saat ini adalah global, bukan per-user. Ini memblokir skenario edge case di mana dua user berbeda melakukan trade berbeda yang kebetulan memiliki ID sama (sangat unlikely, tapi secara desain salah).
-
-**Current Index:**
-```sql
-CREATE UNIQUE INDEX idx_trade_entries_binance_trade_id 
-ON public.trade_entries USING btree (binance_trade_id) 
-WHERE (binance_trade_id IS NOT NULL)
-```
-
-**Migration:**
-```sql
--- Drop existing global unique index
-DROP INDEX IF EXISTS idx_trade_entries_binance_trade_id;
-
--- Create per-user unique index
-CREATE UNIQUE INDEX idx_trade_entries_binance_trade_per_user 
-ON public.trade_entries (user_id, binance_trade_id) 
-WHERE (binance_trade_id IS NOT NULL);
-```
-
-### 1.3 Add Amount Constraints
-
-**Tabel:** `account_transactions`  
-**Problem:** `amount` bisa negatif
-
-```sql
-ALTER TABLE account_transactions 
-ADD CONSTRAINT account_transactions_amount_positive 
-CHECK (amount > 0);
-```
-
-### 1.4 Add Risk Profile Percentage Constraints
-
-**Tabel:** `risk_profiles`  
-**Problem:** Percentage values bisa > 100% atau negatif
-
-```sql
-ALTER TABLE risk_profiles 
-ADD CONSTRAINT risk_profiles_risk_per_trade_check 
-CHECK (risk_per_trade_percent > 0 AND risk_per_trade_percent <= 100);
-
-ALTER TABLE risk_profiles 
-ADD CONSTRAINT risk_profiles_max_daily_loss_check 
-CHECK (max_daily_loss_percent > 0 AND max_daily_loss_percent <= 100);
-
-ALTER TABLE risk_profiles 
-ADD CONSTRAINT risk_profiles_max_weekly_drawdown_check 
-CHECK (max_weekly_drawdown_percent > 0 AND max_weekly_drawdown_percent <= 100);
-
-ALTER TABLE risk_profiles 
-ADD CONSTRAINT risk_profiles_max_position_size_check 
-CHECK (max_position_size_percent > 0 AND max_position_size_percent <= 100);
-
-ALTER TABLE risk_profiles 
-ADD CONSTRAINT risk_profiles_max_correlated_exposure_check 
-CHECK (max_correlated_exposure > 0 AND max_correlated_exposure <= 1);
-
-ALTER TABLE risk_profiles 
-ADD CONSTRAINT risk_profiles_max_concurrent_positions_check 
-CHECK (max_concurrent_positions > 0);
-```
-
-### 1.5 Add Source CHECK Constraint
-
-**Tabel:** `trade_entries`  
-**Problem:** Source tidak di-enforce
-
-```sql
-ALTER TABLE trade_entries 
-ADD CONSTRAINT trade_entries_source_check 
-CHECK (source IN ('binance', 'manual', 'paper', 'import'));
-```
+**Note:** Issue #8 sudah ter-resolve (unique constraint sudah ada).
 
 ---
 
-## Phase 2: Data Validation Pre-Check (Before Constraints)
+## Phase 1: Critical Issues (8-10 hours)
 
-Sebelum menjalankan migration, perlu verifikasi tidak ada data invalid yang akan menyebabkan constraint gagal.
+### 1.1 Balance Reconciliation System
 
-### 2.1 Check Invalid Direction Values
+**Problem:** Trigger-based balance updates tidak diverifikasi. Jika trigger gagal, balance bisa stale.
+
+**Solution:** Create reconciliation job + discrepancy tracking.
+
+#### Database Changes
+
 ```sql
-SELECT DISTINCT direction, COUNT(*) 
-FROM trade_entries 
-GROUP BY direction;
+-- New table: Track balance discrepancies
+CREATE TABLE account_balance_discrepancies (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL,
+  account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  expected_balance NUMERIC NOT NULL,
+  actual_balance NUMERIC NOT NULL,
+  discrepancy NUMERIC NOT NULL,
+  detected_at TIMESTAMPTZ DEFAULT NOW(),
+  resolved BOOLEAN DEFAULT FALSE,
+  resolved_at TIMESTAMPTZ,
+  resolution_method TEXT, -- 'auto_fix' | 'manual' | 'ignored'
+  resolution_notes TEXT
+);
+
+-- RLS Policy
+ALTER TABLE account_balance_discrepancies ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own discrepancies" 
+ON account_balance_discrepancies FOR SELECT 
+USING (auth.uid() = user_id);
+
+CREATE POLICY "System can insert discrepancies"
+ON account_balance_discrepancies FOR INSERT
+WITH CHECK (true);
 ```
 
-### 2.2 Check Negative Amounts
-```sql
-SELECT COUNT(*) 
-FROM account_transactions 
-WHERE amount <= 0;
+#### Edge Function: `reconcile-balances`
+
+**File:** `supabase/functions/reconcile-balances/index.ts`
+
+```typescript
+// Purpose: Verify balance integrity across all accounts
+// Trigger: On-demand or scheduled (daily)
+// Logic:
+// 1. Fetch all accounts
+// 2. For each account, sum transactions
+// 3. Compare with stored balance
+// 4. If discrepancy > $0.01, log to discrepancies table
+// 5. Optionally auto-fix if discrepancy is small
+
+interface ReconciliationResult {
+  accountsChecked: number;
+  discrepanciesFound: number;
+  autoFixed: number;
+  requiresReview: number;
+}
 ```
 
-### 2.3 Check Invalid Risk Percentages
-```sql
-SELECT * 
-FROM risk_profiles 
-WHERE risk_per_trade_percent <= 0 
-   OR risk_per_trade_percent > 100
-   OR max_daily_loss_percent <= 0 
-   OR max_daily_loss_percent > 100;
+**Internal Flow:**
+```
+Start
+  ↓
+Fetch accounts (with user filter if provided)
+  ↓
+For each account:
+  ├─ Calculate expected = SUM(transactions)
+  ├─ Get actual = account.balance
+  ├─ If |expected - actual| > 0.01:
+  │     ├─ Log to discrepancies table
+  │     ├─ If auto_fix enabled AND discrepancy < $10:
+  │     │     └─ UPDATE accounts SET balance = expected
+  │     └─ Else: Mark for manual review
+  └─ Continue to next account
+  ↓
+Return summary
 ```
 
-### 2.4 Check Invalid Source Values
-```sql
-SELECT DISTINCT source, COUNT(*) 
-FROM trade_entries 
-GROUP BY source;
+#### Frontend Hook: `use-balance-reconciliation.ts`
+
+```typescript
+// Hook to trigger reconciliation from Settings page
+// Shows discrepancies to user
+// Allows manual resolution
 ```
 
 ---
 
-## Phase 3: Documentation Update
+### 1.2 Error Handling Documentation & Retry Utility
 
-### 3.1 Update COMPLETE_DATABASE_ANALYSIS.md
+**Problem:** Edge functions tidak memiliki retry logic yang konsisten. Error handling tidak terdokumentasi.
 
-**Section: Known Gaps & TODO**
-- Mark constraint issues as RESOLVED
-- Document new constraints
-- Update Appendix with constraint list
+**Solution:** Create shared retry utility + document error scenarios.
 
-### 3.2 Update DATABASE.md
-
-- Add constraint documentation
-- Update table schemas with constraint info
-
----
-
-## Phase 4: Edge Function Error Handling (Estimated: 4-6 hours)
-
-### 4.1 Create Shared Retry Utility
+#### Shared Retry Utility
 
 **File:** `supabase/functions/_shared/retry.ts`
 
@@ -177,170 +130,529 @@ export interface RetryConfig {
   maxRetries: number;
   baseDelayMs: number;
   maxDelayMs: number;
+  retryableErrors: number[]; // HTTP codes
 }
+
+export const DEFAULT_RETRY_CONFIG: RetryConfig = {
+  maxRetries: 3,
+  baseDelayMs: 1000,
+  maxDelayMs: 30000,
+  retryableErrors: [429, 500, 502, 503, 504],
+};
 
 export async function withRetry<T>(
   fn: () => Promise<T>,
-  config: RetryConfig = { maxRetries: 3, baseDelayMs: 1000, maxDelayMs: 10000 }
-): Promise<T> {
-  let lastError: Error;
-  
-  for (let attempt = 0; attempt < config.maxRetries; attempt++) {
-    try {
-      return await fn();
-    } catch (error) {
-      lastError = error as Error;
-      
-      // Check if retryable
-      if (isRateLimitError(error) || isNetworkError(error)) {
-        const delay = Math.min(
-          config.baseDelayMs * Math.pow(2, attempt),
-          config.maxDelayMs
-        );
-        await sleep(delay);
-        continue;
-      }
-      
-      throw error; // Non-retryable error
-    }
-  }
-  
-  throw lastError!;
-}
+  config: Partial<RetryConfig> = {}
+): Promise<T>;
 
-function isRateLimitError(error: any): boolean {
-  return error?.statusCode === 429 || error?.code === -1015;
-}
+export function isRetryableError(error: unknown): boolean;
 
-function isNetworkError(error: any): boolean {
-  return error?.message?.includes('fetch failed') || 
-         error?.message?.includes('network');
-}
+export function getRetryDelay(attempt: number, config: RetryConfig): number;
 ```
 
-### 4.2 Apply Retry to binance-futures
+#### Apply to Edge Functions
 
-**File:** `supabase/functions/binance-futures/index.ts`
+**Files to update:**
+1. `supabase/functions/binance-futures/index.ts`
+2. `supabase/functions/binance-market-data/index.ts`
+3. `supabase/functions/backtest-strategy/index.ts`
 
-Integrate retry utility untuk semua Binance API calls.
+**Pattern:**
+```typescript
+import { withRetry, DEFAULT_RETRY_CONFIG } from "../_shared/retry.ts";
 
-### 4.3 Create Error Response Standards
+// Before
+const response = await fetch(binanceUrl);
+
+// After
+const response = await withRetry(
+  () => fetch(binanceUrl),
+  { ...DEFAULT_RETRY_CONFIG, maxRetries: 3 }
+);
+```
+
+#### Error Response Standard
+
+**File:** `supabase/functions/_shared/error-response.ts`
 
 ```typescript
-interface EdgeFunctionError {
+export interface EdgeFunctionError {
   success: false;
   error: string;
-  code?: string;
+  code: string; // 'RATE_LIMITED' | 'AUTH_FAILED' | 'NETWORK_ERROR' | 'VALIDATION_ERROR'
   retryable: boolean;
   retryAfter?: number; // seconds
+  details?: Record<string, unknown>;
 }
+
+export function createErrorResponse(
+  error: unknown,
+  statusCode: number
+): Response;
+```
+
+#### Documentation Update
+
+**File:** `docs/EDGE_FUNCTION_ERROR_HANDLING.md`
+
+```markdown
+# Edge Function Error Handling Guide
+
+## Error Categories
+
+| Code | Category | Retryable | User Action |
+|------|----------|-----------|-------------|
+| 429 | Rate Limited | Yes | Wait, auto-retry |
+| 401 | Auth Failed | No | Re-enter API keys |
+| 500+ | Server Error | Yes | Auto-retry |
+| NETWORK | Network | Yes | Auto-retry |
+
+## Per-Function Error Handling
+
+### binance-futures
+- Rate limit: Backoff 60s
+- Invalid credentials: Return immediately
+- Partial sync failure: Mark partial, retry remaining
+
+### backtest-strategy
+- Insufficient data: Return error, no retry
+- Timeout: Return partial results if available
+
+### AI Functions
+- Rate limit: Queue request
+- Model error: Fallback to cached analysis
 ```
 
 ---
 
-## Phase 5: Balance Reconciliation Job (Estimated: 4 hours)
+### 1.3 Backtest Accuracy Disclaimer
 
-### 5.1 Create Reconciliation Edge Function
+**Problem:** Backtest simulation adalah simplified. User mungkin mempercayai hasil yang tidak akurat.
 
-**File:** `supabase/functions/reconcile-balances/index.ts`
+**Solution:** Add explicit disclaimers dan accuracy metadata.
 
-```typescript
-// Pseudocode
-async function reconcileBalances() {
-  // 1. Get all accounts
-  const accounts = await getAccounts();
-  
-  // 2. For each account, calculate expected balance from transactions
-  for (const account of accounts) {
-    const expectedBalance = await calculateFromTransactions(account.id);
-    const actualBalance = account.balance;
-    
-    // 3. If discrepancy, log and optionally fix
-    if (Math.abs(expectedBalance - actualBalance) > 0.01) {
-      await logDiscrepancy({
-        account_id: account.id,
-        expected: expectedBalance,
-        actual: actualBalance,
-        discrepancy: expectedBalance - actualBalance,
-      });
-    }
-  }
-}
-```
-
-### 5.2 Create Discrepancy Tracking Table
+#### Database Changes
 
 ```sql
-CREATE TABLE account_balance_discrepancies (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  account_id UUID REFERENCES accounts(id) ON DELETE CASCADE,
-  expected_balance NUMERIC NOT NULL,
-  actual_balance NUMERIC NOT NULL,
-  discrepancy NUMERIC NOT NULL,
-  detected_at TIMESTAMPTZ DEFAULT NOW(),
-  resolved BOOLEAN DEFAULT FALSE,
-  resolved_at TIMESTAMPTZ,
-  resolution_notes TEXT
-);
+-- Add columns to backtest_results
+ALTER TABLE backtest_results 
+ADD COLUMN assumptions JSONB DEFAULT '{}'::jsonb,
+ADD COLUMN accuracy_notes TEXT,
+ADD COLUMN simulation_version TEXT DEFAULT 'v1-simplified';
+```
 
--- RLS
-ALTER TABLE account_balance_discrepancies ENABLE ROW LEVEL SECURITY;
+#### Update backtest-strategy Edge Function
 
-CREATE POLICY "Users can view own discrepancies" ON account_balance_discrepancies
-FOR SELECT USING (
-  account_id IN (SELECT id FROM accounts WHERE user_id = auth.uid())
-);
+**File:** `supabase/functions/backtest-strategy/index.ts`
+
+**Changes:**
+1. Store simulation assumptions in result
+2. Add version tracking
+3. Include accuracy caveats
+
+```typescript
+const assumptions = {
+  slippage: config.slippage || 0.001,
+  slippageModel: 'fixed_percentage',
+  commissionModel: 'maker_taker_average',
+  executionModel: 'instant_fill', // vs 'realistic_partial_fill'
+  liquidationRisk: 'not_modeled',
+  fundingRates: 'not_included',
+  marketImpact: 'not_modeled',
+};
+
+const accuracyNotes = `
+This backtest uses simplified simulation:
+- Instant order fills (no partial fills)
+- Fixed slippage (${assumptions.slippage * 100}%)
+- No funding rate costs
+- No liquidation modeling
+- No market impact for large orders
+Actual results may vary significantly.
+`;
+
+// Include in saved result
+await supabase.from("backtest_results").insert({
+  ...result,
+  assumptions,
+  accuracy_notes: accuracyNotes,
+  simulation_version: 'v1-simplified',
+});
+```
+
+#### UI Disclaimer Component
+
+**File:** `src/components/strategy/BacktestDisclaimer.tsx`
+
+```tsx
+export function BacktestDisclaimer({ 
+  assumptions, 
+  className 
+}: BacktestDisclaimerProps) {
+  return (
+    <Alert variant="warning" className={className}>
+      <AlertTriangle className="h-4 w-4" />
+      <AlertTitle>Simulated Results</AlertTitle>
+      <AlertDescription>
+        This backtest uses simplified modeling. Key limitations:
+        <ul className="list-disc ml-4 mt-2 text-sm">
+          <li>Instant order fills (no slippage beyond {assumptions?.slippage}%)</li>
+          <li>Funding rates not included</li>
+          <li>Liquidation risk not modeled</li>
+          <li>Market impact not considered</li>
+        </ul>
+        <p className="mt-2 font-medium">
+          Actual trading results may differ significantly.
+        </p>
+      </AlertDescription>
+    </Alert>
+  );
+}
+```
+
+**Update:** `src/components/strategy/BacktestResults.tsx`
+
+Add `<BacktestDisclaimer />` component at the top of results.
+
+---
+
+## Phase 2: Medium-Term Fixes (10-12 hours)
+
+### 2.1 Trade History Pagination
+
+**Problem:** User dengan 50K+ trades akan mengalami performance issues.
+
+**Solution:** Implement cursor-based pagination.
+
+#### Hook Update: `use-trade-entries.ts`
+
+```typescript
+interface UseTradeEntriesOptions {
+  limit?: number; // Default 100
+  cursor?: string; // trade_id of last item
+  filters?: TradeFilters;
+}
+
+interface TradeEntriesResult {
+  trades: TradeEntry[];
+  nextCursor: string | null;
+  hasMore: boolean;
+  totalCount: number;
+}
+
+export function useTradeEntriesPaginated(options: UseTradeEntriesOptions) {
+  // Implement cursor-based pagination
+  // Uses trade_date + id as cursor for stable ordering
+}
+```
+
+#### Query Pattern
+
+```typescript
+// Fetch page
+let query = supabase
+  .from("trade_entries")
+  .select("*", { count: "exact" })
+  .eq("user_id", userId)
+  .order("trade_date", { ascending: false })
+  .limit(limit + 1); // +1 to detect hasMore
+
+if (cursor) {
+  const { data: cursorTrade } = await supabase
+    .from("trade_entries")
+    .select("trade_date")
+    .eq("id", cursor)
+    .single();
+  
+  query = query.lt("trade_date", cursorTrade.trade_date);
+}
+
+// Return with pagination info
+return {
+  trades: data.slice(0, limit),
+  nextCursor: data.length > limit ? data[limit - 1].id : null,
+  hasMore: data.length > limit,
+};
+```
+
+#### UI Component: Infinite Scroll
+
+**File:** `src/components/journal/TradeHistoryInfiniteScroll.tsx`
+
+```tsx
+// Uses react-intersection-observer
+// Loads more when user scrolls near bottom
+// Shows loading skeleton while fetching
 ```
 
 ---
 
-## Summary: Files to Create/Modify
+### 2.2 Soft Delete Implementation
 
-| File | Action | Priority |
-|------|--------|----------|
-| **Migration SQL** | Create | CRITICAL |
-| `docs/COMPLETE_DATABASE_ANALYSIS.md` | Update | HIGH |
-| `docs/DATABASE.md` | Update | HIGH |
-| `supabase/functions/_shared/retry.ts` | Create | MEDIUM |
-| `supabase/functions/binance-futures/index.ts` | Modify | MEDIUM |
-| `supabase/functions/reconcile-balances/index.ts` | Create | MEDIUM |
+**Problem:** Hard delete = data gone forever. No recovery possible.
+
+**Solution:** Add `deleted_at` column to key tables.
+
+#### Database Changes
+
+```sql
+-- Add deleted_at to key tables
+ALTER TABLE trade_entries ADD COLUMN deleted_at TIMESTAMPTZ;
+ALTER TABLE trading_strategies ADD COLUMN deleted_at TIMESTAMPTZ;
+ALTER TABLE accounts ADD COLUMN deleted_at TIMESTAMPTZ;
+
+-- Create indexes for efficient filtering
+CREATE INDEX idx_trade_entries_deleted_at ON trade_entries (deleted_at) WHERE deleted_at IS NULL;
+CREATE INDEX idx_trading_strategies_deleted_at ON trading_strategies (deleted_at) WHERE deleted_at IS NULL;
+CREATE INDEX idx_accounts_deleted_at ON accounts (deleted_at) WHERE deleted_at IS NULL;
+
+-- Update RLS policies to exclude deleted
+-- Example for trade_entries:
+DROP POLICY IF EXISTS "Users can view their own trade entries" ON trade_entries;
+CREATE POLICY "Users can view their own active trade entries" 
+ON trade_entries FOR SELECT 
+USING (auth.uid() = user_id AND deleted_at IS NULL);
+```
+
+#### Hook Updates
+
+**Pattern for all affected hooks:**
+
+```typescript
+// use-trade-entries.ts
+export function useDeleteTradeEntry() {
+  return useMutation({
+    mutationFn: async (id: string) => {
+      // Soft delete instead of hard delete
+      const { error } = await supabase
+        .from("trade_entries")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("id", id);
+
+      if (error) throw error;
+    },
+  });
+}
+
+// Optional: restore function
+export function useRestoreTradeEntry() {
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("trade_entries")
+        .update({ deleted_at: null })
+        .eq("id", id);
+
+      if (error) throw error;
+    },
+  });
+}
+```
 
 ---
 
-## Risk Mitigation
+### 2.3 AI Analysis Versioning
 
-| Risk | Mitigation |
-|------|------------|
-| Constraint breaks existing invalid data | Pre-check queries before migration |
-| Migration downtime | Run during low-traffic period |
-| Retry logic causes infinite loops | Max retry limit + exponential backoff |
+**Problem:** AI analysis tidak ada version tracking. Sulit debug atau replay.
+
+**Solution:** Add version metadata to AI analysis fields.
+
+#### Database Changes
+
+```sql
+-- Add versioning columns
+ALTER TABLE trade_entries 
+ADD COLUMN ai_model_version TEXT,
+ADD COLUMN ai_analysis_generated_at TIMESTAMPTZ;
+```
+
+#### Edge Function Updates
+
+**Files:**
+- `supabase/functions/post-trade-analysis/index.ts`
+- `supabase/functions/trade-quality/index.ts`
+- `supabase/functions/confluence-detection/index.ts`
+
+**Pattern:**
+
+```typescript
+const AI_MODEL_VERSION = 'gemini-2.5-flash-2026-02';
+
+// When generating analysis
+const analysisWithMetadata = {
+  ...analysis,
+  _metadata: {
+    model: AI_MODEL_VERSION,
+    generatedAt: new Date().toISOString(),
+    promptVersion: 3,
+  },
+};
+
+// Store in DB
+await supabase.from('trade_entries').update({
+  post_trade_analysis: analysisWithMetadata,
+  ai_model_version: AI_MODEL_VERSION,
+  ai_analysis_generated_at: new Date().toISOString(),
+});
+```
+
+#### Frontend Display
+
+**Update:** `src/components/journal/TradeEnrichmentDrawer.tsx`
+
+Show AI version in analysis section:
+```tsx
+{analysis && (
+  <div className="text-xs text-muted-foreground mt-2">
+    Generated: {format(new Date(analysis._metadata?.generatedAt), 'PPp')}
+    {' • '}
+    Model: {analysis._metadata?.model || 'unknown'}
+  </div>
+)}
+```
+
+---
+
+## Phase 3: Low Priority Fixes (2 hours)
+
+### 3.1 Clone Count Atomicity
+
+**Problem:** Clone count increment bisa race condition pada concurrent clones.
+
+**Current Code (strategy-clone-notify/index.ts):**
+```typescript
+// Non-atomic: Read then write
+const { data: currentStrategy } = await supabase
+  .from("trading_strategies")
+  .select("clone_count")
+  .eq("id", strategyId)
+  .single();
+
+const newCloneCount = (currentStrategy?.clone_count || 0) + 1;
+
+await supabase
+  .from("trading_strategies")
+  .update({ clone_count: newCloneCount })
+  .eq("id", strategyId);
+```
+
+**Solution A: Database Trigger (Recommended)**
+
+```sql
+-- Create trigger for atomic increment
+CREATE OR REPLACE FUNCTION increment_strategy_clone_count()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Called when a new strategy is created with source='shared'
+  IF NEW.source = 'shared' AND NEW.source_url IS NOT NULL THEN
+    -- Extract original strategy share_token from URL
+    -- And increment the original's clone_count atomically
+    UPDATE trading_strategies 
+    SET clone_count = clone_count + 1,
+        last_cloned_at = NOW()
+    WHERE share_token = (
+      SELECT regexp_replace(NEW.source_url, '.*/shared/strategy/([^/]+)$', '\1')
+    );
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER on_strategy_cloned
+AFTER INSERT ON trading_strategies
+FOR EACH ROW
+EXECUTE FUNCTION increment_strategy_clone_count();
+```
+
+**Solution B: Atomic SQL in Edge Function**
+
+```typescript
+// Use Supabase RPC for atomic increment
+await supabase.rpc('increment_clone_count', { strategy_id: strategyId });
+
+// Where increment_clone_count is:
+CREATE FUNCTION increment_clone_count(strategy_id UUID)
+RETURNS void AS $$
+BEGIN
+  UPDATE trading_strategies 
+  SET clone_count = clone_count + 1, 
+      last_cloned_at = NOW()
+  WHERE id = strategy_id;
+END;
+$$ LANGUAGE plpgsql;
+```
+
+---
+
+## Files Summary
+
+### Phase 1: Critical
+
+| File | Action | Changes |
+|------|--------|---------|
+| `supabase/migrations/XXX.sql` | Create | Discrepancy table, backtest columns |
+| `supabase/functions/_shared/retry.ts` | Create | Retry utility |
+| `supabase/functions/_shared/error-response.ts` | Create | Error standards |
+| `supabase/functions/reconcile-balances/index.ts` | Create | Reconciliation job |
+| `supabase/functions/binance-futures/index.ts` | Modify | Add retry logic |
+| `supabase/functions/backtest-strategy/index.ts` | Modify | Add assumptions, disclaimer |
+| `src/components/strategy/BacktestDisclaimer.tsx` | Create | Disclaimer component |
+| `src/components/strategy/BacktestResults.tsx` | Modify | Add disclaimer |
+| `docs/EDGE_FUNCTION_ERROR_HANDLING.md` | Create | Error handling guide |
+
+### Phase 2: Medium
+
+| File | Action | Changes |
+|------|--------|---------|
+| `supabase/migrations/XXX.sql` | Create | Soft delete columns, indexes |
+| `src/hooks/use-trade-entries.ts` | Modify | Pagination, soft delete |
+| `src/components/journal/TradeHistoryInfiniteScroll.tsx` | Create | Infinite scroll |
+| `supabase/functions/post-trade-analysis/index.ts` | Modify | AI versioning |
+| `supabase/functions/trade-quality/index.ts` | Modify | AI versioning |
+
+### Phase 3: Low Priority
+
+| File | Action | Changes |
+|------|--------|---------|
+| `supabase/migrations/XXX.sql` | Create | Clone count trigger |
+| `supabase/functions/strategy-clone-notify/index.ts` | Modify | Remove manual increment |
 
 ---
 
 ## Verification Checklist
 
-After implementation:
-- [x] All CHECK constraints added successfully ✅ (2026-02-01)
-- [x] Unique index on `(user_id, binance_trade_id)` exists ✅ (2026-02-01)
-- [x] Pre-check queries return 0 invalid records ✅ (2026-02-01)
-- [x] Documentation updated ✅ (2026-02-01)
-- [ ] Retry utility tested
-- [ ] Reconciliation job tested
+### Phase 1 Complete When:
+- [ ] Balance reconciliation detects intentional discrepancy
+- [ ] Edge functions retry on 429
+- [ ] Backtest results show disclaimer
+- [ ] Error handling documented
+
+### Phase 2 Complete When:
+- [ ] Trade history loads in chunks (100 at a time)
+- [ ] Deleted trades can be restored within 30 days
+- [ ] AI analysis shows generation timestamp and model
+
+### Phase 3 Complete When:
+- [ ] Concurrent strategy clones don't lose count
 
 ---
 
-## Technical Notes
+## Estimated Total Effort
 
-### Catatan Penting dari Audit:
+| Phase | Effort | Priority |
+|-------|--------|----------|
+| Phase 1 | 8-10 hours | CRITICAL - Do immediately |
+| Phase 2 | 10-12 hours | MEDIUM - Do within 2 weeks |
+| Phase 3 | 2 hours | LOW - Do when convenient |
+| **Total** | **20-24 hours** | |
 
-1. **Status CHECK sudah ada** - Audit mengatakan missing tapi sebenarnya sudah ada
-2. **binance_trade_id unique sudah ada** - Tapi perlu diubah ke per-user
-3. **daily_risk_snapshots unique sudah ada** - Audit concern sudah ter-address
+---
 
-### Mengapa CHECK Constraint, Bukan Trigger:
+## Risk Assessment
 
-- CHECK lebih performant (validation at insert time)
-- CHECK tidak bisa di-bypass
-- CHECK self-documenting
-- Trigger lebih fleksibel tapi bisa di-skip dengan `SET session_replication_role = 'replica'`
-
+| Risk | Mitigation |
+|------|------------|
+| Soft delete breaks existing queries | Update all queries to filter `deleted_at IS NULL` |
+| Pagination breaks existing components | Keep backward compatible hook, add paginated variant |
+| Retry causes timeout for slow operations | Set reasonable retry limits (3 max) |
+| AI versioning clutters data | Store in `_metadata` sub-object |
