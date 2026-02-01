@@ -1,241 +1,346 @@
 
-# Rencana: Deep Check Accounts & Remove Trading Sessions
 
----
+# Implementation Plan: Database Integrity Hardening (TIER 1 Critical Fixes)
 
 ## Executive Summary
 
-Analisis mendalam terhadap `accounts`, `account_transactions`, dan `trading_sessions` mengungkapkan beberapa **gap** dan **legacy artifacts** yang perlu dibersihkan agar sistem sepenuhnya align dengan arsitektur **Binance-Centered**.
+Berdasarkan System Architecture Review yang diberikan, plan ini fokus pada **TIER 1 Critical Fixes** yang harus diselesaikan sebelum production scale. Audit mengidentifikasi beberapa gap yang sudah ada constraint-nya, jadi plan ini akan mengklarifikasi dan memfokuskan pada yang benar-benar missing.
 
 ---
 
-## Findings Summary
+## Current State vs Audit Findings
 
-### 1. Trading Sessions (REMOVE)
-
-| Item | Status | Action |
-|------|--------|--------|
-| Table `trading_sessions` | 0 rows di DB | **DROP TABLE** |
-| Column `session_id` di `trade_entries` | 0 rows dengan value | **DROP COLUMN** |
-| FK constraint `trade_entries_session_id_fkey` | Exists | **DROP FK** |
-| Docs reference di `DATABASE.md` | Multiple mentions | **Update docs** |
-| Docs reference di `ARCHITECTURE.md` | None | No change |
-| Test references in contract tests | Multiple mentions | **Update tests** |
-| Frontend references | `use-trade-entries.ts` (interface), `use-realtime.ts` | **Clean up** |
-
-### 2. Account Table - Enum Mismatch
-
-**Problem:** Database `account_type` enum memiliki 9 values (bank, ewallet, broker, cash, soft_wallet, investment, emergency, goal_savings, trading), tapi frontend hanya menggunakan 2 (`trading`, `backtest` via metadata).
-
-| DB Enum Value | Used in App | Action |
-|---------------|-------------|--------|
-| `trading` | ✅ Yes | Keep |
-| `broker` | ❌ Legacy | Consider removing |
-| `bank`, `ewallet`, `cash`, `investment`, `emergency`, `goal_savings`, `soft_wallet` | ❌ Not used | Consider removing |
-
-**Recommendation:** Keep enum di DB karena Supabase enum alteration is risky. Frontend sudah handle mapping dengan benar via `mapAccountType()`.
-
-### 3. Account Transactions - Unused Columns
-
-**Problem:** Table `account_transactions` memiliki kolom legacy yang tidak digunakan:
-
-| Column | Purpose | Used in App | Action |
-|--------|---------|-------------|--------|
-| `category_id` | Financial category | ❌ No | Keep (nullable, no harm) |
-| `portfolio_transaction_id` | Portfolio link | ❌ No | Keep (nullable, no harm) |
-| `counterparty_account_id` | Transfer between accounts | ❌ No | Keep (for potential transfer feature) |
-| `trade_entry_id` | Link to trade | ❌ No | Keep (for potential P&L tracking) |
-
-**Recommendation:** Keep columns karena nullable dan tidak menganggu. Bisa berguna untuk fitur future.
-
-### 4. Transaction Type Enum Check
-
-Query menunjukkan transaction_type enum kosong di pg_enum - perlu verify bahwa `deposit` dan `withdrawal` berfungsi dengan benar.
-
-### 5. Default Currency Mismatch
-
-**Problem:** DB default currency adalah `'IDR'::text` tapi app mostly uses `'USD'` untuk trading context.
-
-**Recommendation:** Keep as-is, frontend already handles this via user settings.
+| Issue dari Audit | Status Aktual | Action Required |
+|------------------|---------------|-----------------|
+| Missing CHECK on direction | ❌ Benar missing | **ADD constraint** |
+| Missing CHECK on status | ✅ Sudah ada | No action |
+| No UNIQUE on binance_trade_id | ⚠️ Partial - hanya global | **MODIFY ke per-user** |
+| No UNIQUE on daily_risk_snapshots | ✅ Sudah ada | No action |
+| No CHECK on amounts | ❌ Benar missing | **ADD constraint** |
+| No CHECK on percentages | ❌ Benar missing | **ADD constraint** |
 
 ---
 
-## Implementation Plan
+## Phase 1: Database Schema Hardening (Estimated: 2-3 hours)
 
-### Phase 1: Database Migration - Drop Trading Sessions
+### 1.1 Add Direction CHECK Constraint
+
+**Tabel:** `trade_entries`  
+**Problem:** Kolom `direction` tidak di-enforce, bisa diisi nilai invalid
 
 ```sql
--- Step 1: Drop FK constraint on trade_entries
 ALTER TABLE trade_entries 
-DROP CONSTRAINT IF EXISTS trade_entries_session_id_fkey;
+ADD CONSTRAINT trade_entries_direction_check 
+CHECK (direction IN ('LONG', 'SHORT', 'long', 'short'));
+```
 
--- Step 2: Drop session_id column from trade_entries
+**Note:** Include lowercase karena beberapa source menggunakan lowercase.
+
+### 1.2 Modify binance_trade_id Unique Constraint
+
+**Problem:** Unique index saat ini adalah global, bukan per-user. Ini memblokir skenario edge case di mana dua user berbeda melakukan trade berbeda yang kebetulan memiliki ID sama (sangat unlikely, tapi secara desain salah).
+
+**Current Index:**
+```sql
+CREATE UNIQUE INDEX idx_trade_entries_binance_trade_id 
+ON public.trade_entries USING btree (binance_trade_id) 
+WHERE (binance_trade_id IS NOT NULL)
+```
+
+**Migration:**
+```sql
+-- Drop existing global unique index
+DROP INDEX IF EXISTS idx_trade_entries_binance_trade_id;
+
+-- Create per-user unique index
+CREATE UNIQUE INDEX idx_trade_entries_binance_trade_per_user 
+ON public.trade_entries (user_id, binance_trade_id) 
+WHERE (binance_trade_id IS NOT NULL);
+```
+
+### 1.3 Add Amount Constraints
+
+**Tabel:** `account_transactions`  
+**Problem:** `amount` bisa negatif
+
+```sql
+ALTER TABLE account_transactions 
+ADD CONSTRAINT account_transactions_amount_positive 
+CHECK (amount > 0);
+```
+
+### 1.4 Add Risk Profile Percentage Constraints
+
+**Tabel:** `risk_profiles`  
+**Problem:** Percentage values bisa > 100% atau negatif
+
+```sql
+ALTER TABLE risk_profiles 
+ADD CONSTRAINT risk_profiles_risk_per_trade_check 
+CHECK (risk_per_trade_percent > 0 AND risk_per_trade_percent <= 100);
+
+ALTER TABLE risk_profiles 
+ADD CONSTRAINT risk_profiles_max_daily_loss_check 
+CHECK (max_daily_loss_percent > 0 AND max_daily_loss_percent <= 100);
+
+ALTER TABLE risk_profiles 
+ADD CONSTRAINT risk_profiles_max_weekly_drawdown_check 
+CHECK (max_weekly_drawdown_percent > 0 AND max_weekly_drawdown_percent <= 100);
+
+ALTER TABLE risk_profiles 
+ADD CONSTRAINT risk_profiles_max_position_size_check 
+CHECK (max_position_size_percent > 0 AND max_position_size_percent <= 100);
+
+ALTER TABLE risk_profiles 
+ADD CONSTRAINT risk_profiles_max_correlated_exposure_check 
+CHECK (max_correlated_exposure > 0 AND max_correlated_exposure <= 1);
+
+ALTER TABLE risk_profiles 
+ADD CONSTRAINT risk_profiles_max_concurrent_positions_check 
+CHECK (max_concurrent_positions > 0);
+```
+
+### 1.5 Add Source CHECK Constraint
+
+**Tabel:** `trade_entries`  
+**Problem:** Source tidak di-enforce
+
+```sql
 ALTER TABLE trade_entries 
-DROP COLUMN IF EXISTS session_id;
-
--- Step 3: Drop trading_sessions table
-DROP TABLE IF EXISTS trading_sessions;
+ADD CONSTRAINT trade_entries_source_check 
+CHECK (source IN ('binance', 'manual', 'paper', 'import'));
 ```
-
-### Phase 2: Frontend Cleanup
-
-| File | Changes |
-|------|---------|
-| `src/hooks/use-trade-entries.ts` | Remove `session_id` from interface |
-| `src/hooks/use-realtime.ts` | Already cleaned (no trading_sessions reference) |
-| `src/test/contracts/supabase-tables.contract.test.ts` | Remove session_id from tests |
-| `src/test/contracts/hooks.contract.test.tsx` | Remove session_id from mock data |
-
-### Phase 3: Documentation Update
-
-| File | Changes |
-|------|---------|
-| `docs/DATABASE.md` | Remove trading_sessions table, update ERD |
 
 ---
 
-## Detailed File Changes
+## Phase 2: Data Validation Pre-Check (Before Constraints)
 
-### 1. Migration SQL
+Sebelum menjalankan migration, perlu verifikasi tidak ada data invalid yang akan menyebabkan constraint gagal.
+
+### 2.1 Check Invalid Direction Values
+```sql
+SELECT DISTINCT direction, COUNT(*) 
+FROM trade_entries 
+GROUP BY direction;
+```
+
+### 2.2 Check Negative Amounts
+```sql
+SELECT COUNT(*) 
+FROM account_transactions 
+WHERE amount <= 0;
+```
+
+### 2.3 Check Invalid Risk Percentages
+```sql
+SELECT * 
+FROM risk_profiles 
+WHERE risk_per_trade_percent <= 0 
+   OR risk_per_trade_percent > 100
+   OR max_daily_loss_percent <= 0 
+   OR max_daily_loss_percent > 100;
+```
+
+### 2.4 Check Invalid Source Values
+```sql
+SELECT DISTINCT source, COUNT(*) 
+FROM trade_entries 
+GROUP BY source;
+```
+
+---
+
+## Phase 3: Documentation Update
+
+### 3.1 Update COMPLETE_DATABASE_ANALYSIS.md
+
+**Section: Known Gaps & TODO**
+- Mark constraint issues as RESOLVED
+- Document new constraints
+- Update Appendix with constraint list
+
+### 3.2 Update DATABASE.md
+
+- Add constraint documentation
+- Update table schemas with constraint info
+
+---
+
+## Phase 4: Edge Function Error Handling (Estimated: 4-6 hours)
+
+### 4.1 Create Shared Retry Utility
+
+**File:** `supabase/functions/_shared/retry.ts`
+
+```typescript
+export interface RetryConfig {
+  maxRetries: number;
+  baseDelayMs: number;
+  maxDelayMs: number;
+}
+
+export async function withRetry<T>(
+  fn: () => Promise<T>,
+  config: RetryConfig = { maxRetries: 3, baseDelayMs: 1000, maxDelayMs: 10000 }
+): Promise<T> {
+  let lastError: Error;
+  
+  for (let attempt = 0; attempt < config.maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error as Error;
+      
+      // Check if retryable
+      if (isRateLimitError(error) || isNetworkError(error)) {
+        const delay = Math.min(
+          config.baseDelayMs * Math.pow(2, attempt),
+          config.maxDelayMs
+        );
+        await sleep(delay);
+        continue;
+      }
+      
+      throw error; // Non-retryable error
+    }
+  }
+  
+  throw lastError!;
+}
+
+function isRateLimitError(error: any): boolean {
+  return error?.statusCode === 429 || error?.code === -1015;
+}
+
+function isNetworkError(error: any): boolean {
+  return error?.message?.includes('fetch failed') || 
+         error?.message?.includes('network');
+}
+```
+
+### 4.2 Apply Retry to binance-futures
+
+**File:** `supabase/functions/binance-futures/index.ts`
+
+Integrate retry utility untuk semua Binance API calls.
+
+### 4.3 Create Error Response Standards
+
+```typescript
+interface EdgeFunctionError {
+  success: false;
+  error: string;
+  code?: string;
+  retryable: boolean;
+  retryAfter?: number; // seconds
+}
+```
+
+---
+
+## Phase 5: Balance Reconciliation Job (Estimated: 4 hours)
+
+### 5.1 Create Reconciliation Edge Function
+
+**File:** `supabase/functions/reconcile-balances/index.ts`
+
+```typescript
+// Pseudocode
+async function reconcileBalances() {
+  // 1. Get all accounts
+  const accounts = await getAccounts();
+  
+  // 2. For each account, calculate expected balance from transactions
+  for (const account of accounts) {
+    const expectedBalance = await calculateFromTransactions(account.id);
+    const actualBalance = account.balance;
+    
+    // 3. If discrepancy, log and optionally fix
+    if (Math.abs(expectedBalance - actualBalance) > 0.01) {
+      await logDiscrepancy({
+        account_id: account.id,
+        expected: expectedBalance,
+        actual: actualBalance,
+        discrepancy: expectedBalance - actualBalance,
+      });
+    }
+  }
+}
+```
+
+### 5.2 Create Discrepancy Tracking Table
 
 ```sql
--- Drop trading_sessions completely
-ALTER TABLE trade_entries DROP CONSTRAINT IF EXISTS trade_entries_session_id_fkey;
-ALTER TABLE trade_entries DROP COLUMN IF EXISTS session_id;
-DROP TABLE IF EXISTS trading_sessions;
-```
+CREATE TABLE account_balance_discrepancies (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  account_id UUID REFERENCES accounts(id) ON DELETE CASCADE,
+  expected_balance NUMERIC NOT NULL,
+  actual_balance NUMERIC NOT NULL,
+  discrepancy NUMERIC NOT NULL,
+  detected_at TIMESTAMPTZ DEFAULT NOW(),
+  resolved BOOLEAN DEFAULT FALSE,
+  resolved_at TIMESTAMPTZ,
+  resolution_notes TEXT
+);
 
-### 2. use-trade-entries.ts
+-- RLS
+ALTER TABLE account_balance_discrepancies ENABLE ROW LEVEL SECURITY;
 
-**Before (line 15):**
-```typescript
-session_id: string | null;
-```
-
-**After:**
-```typescript
-// session_id removed - trading sessions feature deprecated
-```
-
-### 3. supabase-tables.contract.test.ts
-
-**Before (lines 10-48):**
-```typescript
-const tableColumns = [
-  "id",
-  "user_id",
-  "trading_account_id",
-  "session_id",  // REMOVE
-  ...
-];
-
-const mockRow = {
-  ...
-  session_id: null,  // REMOVE
-  ...
-};
-```
-
-### 4. hooks.contract.test.tsx
-
-**Before (line 88):**
-```typescript
-session_id: null,  // REMOVE
-```
-
-### 5. DATABASE.md
-
-**Remove from Core Tables Overview:**
-```markdown
-| `trading_sessions` | Trading session tracking | ✅ |
-```
-
-**Remove from ERD:**
-```
-├──► trading_sessions (1:N)
-│       │
-│       └──► trade_entries (1:N via session_id)
-```
-
-**Remove from trade_entries schema:**
-```sql
-session_id UUID REFERENCES trading_sessions(id),
+CREATE POLICY "Users can view own discrepancies" ON account_balance_discrepancies
+FOR SELECT USING (
+  account_id IN (SELECT id FROM accounts WHERE user_id = auth.uid())
+);
 ```
 
 ---
 
-## Accounts & Transactions Alignment Summary
+## Summary: Files to Create/Modify
 
-### Already Aligned ✅
-
-1. **`useAccounts()`** - Correctly maps DB types to frontend types
-2. **`useTradingAccounts()`** - Correctly filters by `is_backtest` metadata
-3. **`useAccountTransactions()`** - Correctly filters `deposit`/`withdrawal` only
-4. **Balance Updates** - DB trigger `update_account_balance` handles balance sync
-5. **Realtime** - Already subscribes to `accounts` and `account_transactions`
-
-### Gap Analysis Result
-
-| Area | Status | Notes |
-|------|--------|-------|
-| Account creation | ✅ OK | Creates with `trading` type, uses metadata for backtest |
-| Transaction recording | ✅ OK | Only deposit/withdrawal supported |
-| Balance calculation | ✅ OK | DB trigger handles balance update |
-| Binance integration | ✅ OK | Separate Binance balance display |
-| Paper trading | ✅ OK | Uses `is_backtest` in metadata |
-
-### No Changes Needed for Accounts
-
-Sistem akun sudah **fully aligned** dengan Binance-Centered architecture:
-- Binance wallet balance displayed from API (source of truth)
-- Paper accounts stored locally dengan `is_backtest: true`
-- Transactions for paper accounts (deposit/withdraw) work correctly
+| File | Action | Priority |
+|------|--------|----------|
+| **Migration SQL** | Create | CRITICAL |
+| `docs/COMPLETE_DATABASE_ANALYSIS.md` | Update | HIGH |
+| `docs/DATABASE.md` | Update | HIGH |
+| `supabase/functions/_shared/retry.ts` | Create | MEDIUM |
+| `supabase/functions/binance-futures/index.ts` | Modify | MEDIUM |
+| `supabase/functions/reconcile-balances/index.ts` | Create | MEDIUM |
 
 ---
 
-## Risk Assessment
+## Risk Mitigation
 
-| Risk | Likelihood | Mitigation |
-|------|-----------|------------|
-| Drop session_id breaks existing data | ❌ None | 0 rows have session_id |
-| Drop trading_sessions loses data | ❌ None | 0 rows in table |
-| TypeScript compile errors | Medium | Update all interfaces |
-| Test failures | High | Update contract tests |
-
----
-
-## Estimated Effort
-
-| Task | Effort |
-|------|--------|
-| DB Migration | 5 min |
-| Frontend cleanup (3 files) | 10 min |
-| Docs update | 5 min |
-| Testing | 5 min |
-| **Total** | **~25 min** |
-
----
-
-## Files to Modify
-
-| File | Type | Changes |
-|------|------|---------|
-| **Database Migration** | SQL | Drop FK, column, table |
-| `src/hooks/use-trade-entries.ts` | Edit | Remove `session_id` from interface |
-| `src/test/contracts/supabase-tables.contract.test.ts` | Edit | Remove `session_id` from tests |
-| `src/test/contracts/hooks.contract.test.tsx` | Edit | Remove `session_id` from mock |
-| `docs/DATABASE.md` | Edit | Remove trading_sessions, update ERD |
+| Risk | Mitigation |
+|------|------------|
+| Constraint breaks existing invalid data | Pre-check queries before migration |
+| Migration downtime | Run during low-traffic period |
+| Retry logic causes infinite loops | Max retry limit + exponential backoff |
 
 ---
 
 ## Verification Checklist
 
 After implementation:
-- [ ] `trading_sessions` table tidak ada di DB
-- [ ] `session_id` column tidak ada di `trade_entries`
-- [ ] TypeScript compiles tanpa error
-- [ ] Contract tests pass
-- [ ] Accounts page berfungsi normal
-- [ ] Trade History page berfungsi normal
-- [ ] Paper account creation works
-- [ ] Deposit/withdrawal works for paper accounts
+- [ ] All CHECK constraints added successfully
+- [ ] Unique index on `(user_id, binance_trade_id)` exists
+- [ ] Pre-check queries return 0 invalid records
+- [ ] Documentation updated
+- [ ] Retry utility tested
+- [ ] Reconciliation job tested
+
+---
+
+## Technical Notes
+
+### Catatan Penting dari Audit:
+
+1. **Status CHECK sudah ada** - Audit mengatakan missing tapi sebenarnya sudah ada
+2. **binance_trade_id unique sudah ada** - Tapi perlu diubah ke per-user
+3. **daily_risk_snapshots unique sudah ada** - Audit concern sudah ter-address
+
+### Mengapa CHECK Constraint, Bukan Trigger:
+
+- CHECK lebih performant (validation at insert time)
+- CHECK tidak bisa di-bypass
+- CHECK self-documenting
+- Trigger lebih fleksibel tapi bisa di-skip dengan `SET session_replication_role = 'replica'`
+
