@@ -253,6 +253,42 @@ export type Database = {
         }
         Relationships: []
       }
+      api_rate_limits: {
+        Row: {
+          created_at: string
+          endpoint_category: string
+          exchange: string
+          id: string
+          last_request_at: string
+          user_id: string
+          weight_used: number
+          window_end: string
+          window_start: string
+        }
+        Insert: {
+          created_at?: string
+          endpoint_category: string
+          exchange?: string
+          id?: string
+          last_request_at?: string
+          user_id: string
+          weight_used?: number
+          window_end?: string
+          window_start?: string
+        }
+        Update: {
+          created_at?: string
+          endpoint_category?: string
+          exchange?: string
+          id?: string
+          last_request_at?: string
+          user_id?: string
+          weight_used?: number
+          window_end?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
       backtest_results: {
         Row: {
           accuracy_notes: string | null
@@ -996,7 +1032,61 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_rate_limit: {
+        Args: {
+          p_category: string
+          p_exchange: string
+          p_user_id: string
+          p_weight?: number
+        }
+        Returns: {
+          allowed: boolean
+          current_weight: number
+          max_weight: number
+          reset_at: string
+        }[]
+      }
+      cleanup_old_rate_limits: { Args: never; Returns: number }
+      delete_exchange_credential: {
+        Args: { p_credential_id: string }
+        Returns: boolean
+      }
       generate_share_token: { Args: never; Returns: string }
+      get_credential_status: {
+        Args: { p_exchange?: string }
+        Returns: {
+          api_key_masked: string
+          created_at: string
+          exchange: string
+          id: string
+          is_valid: boolean
+          label: string
+          last_validated_at: string
+          permissions: Json
+        }[]
+      }
+      get_decrypted_credential: {
+        Args: { p_exchange?: string; p_user_id: string }
+        Returns: {
+          api_key: string
+          api_secret: string
+          id: string
+          is_valid: boolean
+          label: string
+          last_validated_at: string
+          permissions: Json
+        }[]
+      }
+      get_rate_limit_status: {
+        Args: { p_exchange?: string }
+        Returns: {
+          endpoint_category: string
+          max_weight: number
+          reset_at: string
+          usage_percent: number
+          weight_used: number
+        }[]
+      }
       get_user_subscription: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["subscription_tier"]
@@ -1024,6 +1114,24 @@ export type Database = {
         Returns: undefined
       }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
+      save_exchange_credential: {
+        Args: {
+          p_api_key: string
+          p_api_secret: string
+          p_exchange?: string
+          p_label?: string
+        }
+        Returns: string
+      }
+      update_credential_validation: {
+        Args: {
+          p_credential_id: string
+          p_error?: string
+          p_is_valid: boolean
+          p_permissions?: Json
+        }
+        Returns: boolean
+      }
     }
     Enums: {
       account_transaction_type:

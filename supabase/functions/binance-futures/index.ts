@@ -1,7 +1,10 @@
 /**
  * Binance Futures Edge Function
  * Secure proxy for Binance Futures API with HMAC SHA256 signature generation
+ * NOW WITH: Per-user credential lookup and rate limit tracking
  */
+
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
 
 const BINANCE_FUTURES_BASE = 'https://fapi.binance.com';
 
@@ -9,6 +12,170 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
+
+/**
+ * Get authenticated user from JWT
+ */
+async function getAuthenticatedUser(authHeader: string) {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+  
+  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    global: { headers: { Authorization: authHeader } },
+  });
+  
+  // Get the user from the auth token
+  const { data: { user }, error } = await supabase.auth.getUser();
+  
+  if (error || !user) {
+    throw new Error('Unauthorized: Invalid token');
+  }
+  
+  return {
+    userId: user.id,
+    supabase,
+  };
+}
+
+interface DecryptedCredential {
+  id: string;
+  api_key: string;
+  api_secret: string;
+  label: string;
+  permissions: Record<string, unknown> | null;
+  is_valid: boolean | null;
+  last_validated_at: string | null;
+}
+
+/**
+ * Get decrypted credentials for user
+ */
+async function getUserCredentials(userId: string): Promise<{ apiKey: string; apiSecret: string; credentialId: string }> {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  
+  const supabase = createClient(supabaseUrl, serviceRoleKey);
+  
+  const { data, error } = await supabase
+    .rpc('get_decrypted_credential', {
+      p_user_id: userId,
+      p_exchange: 'binance',
+    })
+    .single();
+  
+  if (error || !data) {
+    throw new Error('No valid API credentials found. Please add your Binance API keys in Settings.');
+  }
+  
+  const credential = data as DecryptedCredential;
+  
+  return {
+    apiKey: credential.api_key,
+    apiSecret: credential.api_secret,
+    credentialId: credential.id,
+  };
+}
+
+/**
+ * Update credential validation status
+ */
+async function updateCredentialValidation(
+  credentialId: string,
+  isValid: boolean,
+  permissions: Record<string, unknown> | null,
+  error: string | null
+) {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  
+  const supabase = createClient(supabaseUrl, serviceRoleKey);
+  
+  await supabase.rpc('update_credential_validation', {
+    p_credential_id: credentialId,
+    p_is_valid: isValid,
+    p_permissions: permissions,
+    p_error: error,
+  });
+}
+
+interface RateLimitResult {
+  allowed: boolean;
+  current_weight: number;
+  max_weight: number;
+  reset_at: string;
+}
+
+/**
+ * Check and update rate limit
+ */
+async function checkRateLimit(userId: string, category: string, weight: number = 1) {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  
+  const supabase = createClient(supabaseUrl, serviceRoleKey);
+  
+  const { data, error } = await supabase
+    .rpc('check_rate_limit', {
+      p_user_id: userId,
+      p_exchange: 'binance',
+      p_category: category,
+      p_weight: weight,
+    })
+    .single();
+  
+  if (error) {
+    console.error('Rate limit check error:', error);
+    // Don't block on rate limit check errors
+    return { allowed: true };
+  }
+  
+  const rateLimitData = data as RateLimitResult;
+  
+  if (!rateLimitData?.allowed) {
+    const resetAt = new Date(rateLimitData.reset_at).getTime();
+    const retryAfter = Math.ceil((resetAt - Date.now()) / 1000);
+    throw new RateLimitError(
+      `Rate limit exceeded (${rateLimitData.current_weight}/${rateLimitData.max_weight}). Retry after ${retryAfter}s`,
+      retryAfter
+    );
+  }
+  
+  return rateLimitData;
+}
+
+class RateLimitError extends Error {
+  retryAfter: number;
+  
+  constructor(message: string, retryAfter: number) {
+    super(message);
+    this.name = 'RateLimitError';
+    this.retryAfter = retryAfter;
+  }
+}
+
+/**
+ * Get endpoint weight for rate limiting
+ */
+function getEndpointWeight(action: string): { category: string; weight: number } {
+  switch (action) {
+    case 'place-order':
+    case 'cancel-order':
+      return { category: 'order', weight: 1 };
+    case 'balance':
+    case 'positions':
+      return { category: 'account', weight: 5 };
+    case 'trades':
+    case 'all-orders':
+      return { category: 'account', weight: 5 };
+    case 'income':
+      return { category: 'account', weight: 30 };
+    case 'request-download':
+    case 'get-download':
+      return { category: 'account', weight: 10 };
+    default:
+      return { category: 'account', weight: 1 };
+  }
+}
 
 /**
  * Generate HMAC SHA256 signature for Binance API
@@ -353,7 +520,6 @@ async function cancelOrder(apiKey: string, apiSecret: string, params: any) {
 
 /**
  * Get income history - fetches all realized PnL, commissions, funding fees across all symbols
- * This endpoint does NOT require a symbol parameter, making it ideal for aggregated stats
  */
 async function getIncomeHistory(
   apiKey: string, 
@@ -397,8 +563,7 @@ async function getIncomeHistory(
 }
 
 /**
- * Get user commission rate for accurate fee calculation
- * Phase 2: Account Data Enhancement
+ * Get user commission rate
  */
 async function getCommissionRate(apiKey: string, apiSecret: string, symbol: string) {
   try {
@@ -430,8 +595,7 @@ async function getCommissionRate(apiKey: string, apiSecret: string, symbol: stri
 }
 
 /**
- * Get leverage brackets for position sizing limits
- * Phase 2: Account Data Enhancement
+ * Get leverage brackets
  */
 async function getLeverageBrackets(apiKey: string, apiSecret: string, symbol?: string) {
   try {
@@ -445,7 +609,6 @@ async function getLeverageBrackets(apiKey: string, apiSecret: string, symbol?: s
       return { success: false, error: data.msg, code: data.code };
     }
     
-    // Handle single symbol vs all symbols response
     const brackets = Array.isArray(data) ? data : [data];
     
     const formattedBrackets = brackets.map((item: any) => ({
@@ -471,8 +634,7 @@ async function getLeverageBrackets(apiKey: string, apiSecret: string, symbol?: s
 }
 
 /**
- * Get force orders (liquidation history) - CRITICAL for risk management
- * Phase 2: Account Data Enhancement
+ * Get force orders (liquidation history)
  */
 async function getForceOrders(
   apiKey: string, 
@@ -500,27 +662,21 @@ async function getForceOrders(
       return { success: false, error: data.msg, code: data.code };
     }
     
-    const forceOrders = data.map((order: any) => ({
-      orderId: order.orderId,
-      symbol: order.symbol,
-      status: order.status,
-      clientOrderId: order.clientOrderId,
-      price: parseFloat(order.price),
-      avgPrice: parseFloat(order.avgPrice),
-      origQty: parseFloat(order.origQty),
-      executedQty: parseFloat(order.executedQty),
-      cumQuote: parseFloat(order.cumQuote),
-      timeInForce: order.timeInForce,
-      type: order.type,
-      reduceOnly: order.reduceOnly,
-      closePosition: order.closePosition,
-      side: order.side,
-      positionSide: order.positionSide,
-      stopPrice: parseFloat(order.stopPrice),
-      workingType: order.workingType,
-      origType: order.origType,
-      time: order.time,
-      updateTime: order.updateTime,
+    const forceOrders = data.map((o: any) => ({
+      orderId: o.orderId,
+      symbol: o.symbol,
+      status: o.status,
+      side: o.side,
+      price: parseFloat(o.price),
+      avgPrice: parseFloat(o.avgPrice),
+      origQty: parseFloat(o.origQty),
+      executedQty: parseFloat(o.executedQty),
+      cumQuote: parseFloat(o.cumQuote),
+      timeInForce: o.timeInForce,
+      type: o.type,
+      positionSide: o.positionSide,
+      time: o.time,
+      updateTime: o.updateTime,
     }));
     
     return { success: true, data: forceOrders };
@@ -533,8 +689,7 @@ async function getForceOrders(
 }
 
 /**
- * Get position mode (hedge vs one-way)
- * Phase 2: Account Data Enhancement
+ * Get position mode (hedge mode or one-way)
  */
 async function getPositionMode(apiKey: string, apiSecret: string) {
   try {
@@ -549,6 +704,7 @@ async function getPositionMode(apiKey: string, apiSecret: string) {
       success: true,
       data: {
         dualSidePosition: data.dualSidePosition,
+        mode: data.dualSidePosition ? 'hedge' : 'one-way',
       },
     };
   } catch (error) {
@@ -560,27 +716,20 @@ async function getPositionMode(apiKey: string, apiSecret: string) {
 }
 
 /**
- * Get all orders history (not just trades)
- * Phase 2: Account Data Enhancement
+ * Get all orders for a symbol
  */
 async function getAllOrders(
   apiKey: string, 
   apiSecret: string, 
   symbol: string,
-  params: {
-    orderId?: number;
-    startTime?: number;
-    endTime?: number;
-    limit?: number;
-  } = {}
+  params: { startTime?: number; endTime?: number; limit?: number } = {}
 ) {
   try {
     if (!symbol) {
-      return { success: false, error: 'Symbol is required for all orders history' };
+      return { success: false, error: 'Symbol is required for order history' };
     }
     
     const queryParams: Record<string, any> = { symbol };
-    if (params.orderId) queryParams.orderId = params.orderId;
     if (params.startTime) queryParams.startTime = params.startTime;
     if (params.endTime) queryParams.endTime = params.endTime;
     queryParams.limit = params.limit || 500;
@@ -610,8 +759,6 @@ async function getAllOrders(
       positionSide: o.positionSide,
       stopPrice: parseFloat(o.stopPrice),
       workingType: o.workingType,
-      priceProtect: o.priceProtect,
-      origType: o.origType,
       time: o.time,
       updateTime: o.updateTime,
     }));
@@ -625,258 +772,44 @@ async function getAllOrders(
   }
 }
 
-// =============================================================================
-// Phase 6: Algo Orders, Trading Schedule, Transaction History
-// =============================================================================
-
 /**
- * Helper to safely parse JSON response, returning error if HTML is received
+ * Get symbol configuration
  */
-async function safeJsonParse(response: Response, endpointName: string) {
-  const text = await response.text();
-  
-  // Check if response is HTML (error page from Binance)
-  if (text.startsWith('<!DOCTYPE') || text.startsWith('<html')) {
-    return {
-      isError: true,
-      error: `${endpointName} endpoint not available. This feature may require VIP access or is not supported for your account.`,
-      code: -1,
-    };
-  }
-  
+async function getSymbolConfig(apiKey: string, apiSecret: string, symbol: string) {
   try {
-    const data = JSON.parse(text);
-    return { isError: false, data };
-  } catch {
-    return {
-      isError: true,
-      error: `Invalid response from ${endpointName}: ${text.substring(0, 100)}`,
-      code: -1,
-    };
-  }
-}
-
-/**
- * Get algo orders history (historical algo/conditional orders)
- * Phase 6: Algo Orders
- */
-async function getAlgoOrders(
-  apiKey: string,
-  apiSecret: string,
-  params: {
-    symbol?: string;
-    side?: 'BUY' | 'SELL';
-    startTime?: number;
-    endTime?: number;
-    limit?: number;
-  } = {}
-) {
-  try {
-    const queryParams: Record<string, any> = {};
-    if (params.symbol) queryParams.symbol = params.symbol;
-    if (params.side) queryParams.side = params.side;
-    if (params.startTime) queryParams.startTime = params.startTime;
-    if (params.endTime) queryParams.endTime = params.endTime;
-    queryParams.limit = params.limit || 100;
-    
-    const response = await binanceRequest('/fapi/v1/algo/futures/historicalOrders', 'GET', queryParams, apiKey, apiSecret);
-    const parsed = await safeJsonParse(response, 'Algo Orders');
-    
-    if (parsed.isError) {
-      return { success: false, error: parsed.error, code: parsed.code };
+    if (!symbol) {
+      return { success: false, error: 'Symbol is required' };
     }
     
-    const data = parsed.data;
-    if (data.code && data.code < 0) {
-      return { success: false, error: data.msg, code: data.code };
-    }
-    
-    const orders = (data.orders || []).map((o: any) => ({
-      algoId: o.algoId,
-      symbol: o.symbol,
-      orderId: o.orderId,
-      side: o.side,
-      positionSide: o.positionSide,
-      totalQty: parseFloat(o.totalQty || '0'),
-      executedQty: parseFloat(o.executedQty || '0'),
-      avgPrice: parseFloat(o.avgPrice || '0'),
-      status: o.status,
-      triggerPrice: parseFloat(o.triggerPrice || '0'),
-      algoType: o.algoType,
-      createTime: o.createTime,
-      updateTime: o.updateTime,
-    }));
-    
-    return { success: true, data: orders };
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to fetch algo orders',
-    };
-  }
-}
-
-/**
- * Get open algo orders (active conditional orders)
- * Phase 6: Algo Orders
- */
-async function getAlgoOpenOrders(apiKey: string, apiSecret: string) {
-  try {
-    const response = await binanceRequest('/fapi/v1/algo/futures/openOrders', 'GET', {}, apiKey, apiSecret);
-    const parsed = await safeJsonParse(response, 'Algo Open Orders');
-    
-    if (parsed.isError) {
-      return { success: false, error: parsed.error, code: parsed.code };
-    }
-    
-    const data = parsed.data;
-    if (data.code && data.code < 0) {
-      return { success: false, error: data.msg, code: data.code };
-    }
-    
-    const orders = (data.orders || []).map((o: any) => ({
-      algoId: o.algoId,
-      symbol: o.symbol,
-      orderId: o.orderId,
-      side: o.side,
-      positionSide: o.positionSide,
-      totalQty: parseFloat(o.totalQty || '0'),
-      executedQty: parseFloat(o.executedQty || '0'),
-      avgPrice: parseFloat(o.avgPrice || '0'),
-      status: o.status,
-      triggerPrice: parseFloat(o.triggerPrice || '0'),
-      algoType: o.algoType,
-      createTime: o.createTime,
-      updateTime: o.updateTime,
-    }));
-    
-    return { success: true, data: orders };
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to fetch open algo orders',
-    };
-  }
-}
-
-/**
- * Get specific algo order by ID
- * Phase 6: Algo Orders
- */
-async function getAlgoOrder(apiKey: string, apiSecret: string, algoId: number) {
-  try {
-    const response = await binanceRequest('/fapi/v1/algo/futures/subOrders', 'GET', { algoId }, apiKey, apiSecret);
-    const parsed = await safeJsonParse(response, 'Algo Sub Orders');
-    
-    if (parsed.isError) {
-      return { success: false, error: parsed.error, code: parsed.code };
-    }
-    
-    const data = parsed.data;
-    if (data.code && data.code < 0) {
-      return { success: false, error: data.msg, code: data.code };
-    }
-    
-    const subOrders = (data.subOrders || []).map((o: any) => ({
-      algoId: o.algoId,
-      orderId: o.orderId,
-      symbol: o.symbol,
-      side: o.side,
-      price: parseFloat(o.price || '0'),
-      qty: parseFloat(o.qty || '0'),
-      executedQty: parseFloat(o.executedQty || '0'),
-      status: o.status,
-      time: o.time,
-    }));
-    
-    return { success: true, data: subOrders };
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to fetch algo order',
-    };
-  }
-}
-
-/**
- * Get account transaction history (deposits, withdrawals, transfers)
- * Phase 6: Transaction History
- * Note: Using income endpoint with TRANSFER type for futures wallet transactions
- */
-async function getTransactionHistory(
-  apiKey: string,
-  apiSecret: string,
-  params: {
-    startTime?: number;
-    endTime?: number;
-    limit?: number;
-  } = {}
-) {
-  try {
-    const queryParams: Record<string, any> = {
-      incomeType: 'TRANSFER',
-      limit: params.limit || 1000,
-    };
-    if (params.startTime) queryParams.startTime = params.startTime;
-    if (params.endTime) queryParams.endTime = params.endTime;
-    
-    const response = await binanceRequest('/fapi/v1/income', 'GET', queryParams, apiKey, apiSecret);
+    const response = await binanceRequest('/fapi/v1/exchangeInfo', 'GET', {}, apiKey, apiSecret);
     const data = await response.json();
     
     if (data.code && data.code < 0) {
       return { success: false, error: data.msg, code: data.code };
     }
     
-    const transactions = data.map((t: any) => ({
-      tranId: t.tranId,
-      asset: t.asset,
-      amount: parseFloat(t.income),
-      type: parseFloat(t.income) > 0 ? 'DEPOSIT' : 'WITHDRAWAL',
-      time: t.time,
-      info: t.info || '',
-    }));
+    const symbolInfo = data.symbols?.find((s: any) => s.symbol === symbol);
     
-    return { success: true, data: transactions };
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to fetch transaction history',
-    };
-  }
-}
-
-// =============================================================================
-// Phase 4: Extended Account Data
-// =============================================================================
-
-/**
- * Get user symbol configuration with trading rules
- * Phase 4: Extended Account Data
- */
-async function getSymbolConfig(apiKey: string, apiSecret: string, symbol?: string) {
-  try {
-    const params: Record<string, string> = {};
-    if (symbol) params.symbol = symbol;
-    
-    const response = await binanceRequest('/fapi/v1/symbolConfig', 'GET', params, apiKey, apiSecret);
-    const data = await response.json();
-    
-    if (data.code && data.code < 0) {
-      return { success: false, error: data.msg, code: data.code };
+    if (!symbolInfo) {
+      return { success: false, error: `Symbol ${symbol} not found` };
     }
     
-    // Handle array response
-    const configs = Array.isArray(data) ? data : [data];
-    
-    const formattedConfigs = configs.map((c: any) => ({
-      symbol: c.symbol,
-      marginType: c.marginType,
-      isAutoAddMargin: c.isAutoAddMargin,
-      leverage: parseInt(c.leverage),
-      maxNotionalValue: parseFloat(c.maxNotionalValue),
-    }));
-    
-    return { success: true, data: symbol ? formattedConfigs[0] : formattedConfigs };
+    return {
+      success: true,
+      data: {
+        symbol: symbolInfo.symbol,
+        status: symbolInfo.status,
+        maintMarginPercent: parseFloat(symbolInfo.maintMarginPercent),
+        requiredMarginPercent: parseFloat(symbolInfo.requiredMarginPercent),
+        baseAsset: symbolInfo.baseAsset,
+        quoteAsset: symbolInfo.quoteAsset,
+        pricePrecision: symbolInfo.pricePrecision,
+        quantityPrecision: symbolInfo.quantityPrecision,
+        orderTypes: symbolInfo.orderTypes,
+        timeInForce: symbolInfo.timeInForce,
+        filters: symbolInfo.filters,
+      },
+    };
   } catch (error) {
     return {
       success: false,
@@ -886,8 +819,7 @@ async function getSymbolConfig(apiKey: string, apiSecret: string, symbol?: strin
 }
 
 /**
- * Get multi-assets margin mode status
- * Phase 4: Extended Account Data
+ * Get multi-assets mode status
  */
 async function getMultiAssetsMode(apiKey: string, apiSecret: string) {
   try {
@@ -914,29 +846,23 @@ async function getMultiAssetsMode(apiKey: string, apiSecret: string) {
 
 /**
  * Get position margin change history
- * Phase 4: Extended Account Data
  */
 async function getPositionMarginHistory(
   apiKey: string, 
   apiSecret: string, 
   symbol: string,
-  params: {
-    type?: number;  // 1: Add margin, 2: Reduce margin
-    startTime?: number;
-    endTime?: number;
-    limit?: number;
-  } = {}
+  params: { type?: number; startTime?: number; endTime?: number; limit?: number } = {}
 ) {
   try {
     if (!symbol) {
-      return { success: false, error: 'Symbol is required for margin history' };
+      return { success: false, error: 'Symbol is required' };
     }
     
     const queryParams: Record<string, any> = { symbol };
-    if (params.type) queryParams.type = params.type;
+    if (params.type !== undefined) queryParams.type = params.type;
     if (params.startTime) queryParams.startTime = params.startTime;
     if (params.endTime) queryParams.endTime = params.endTime;
-    queryParams.limit = params.limit || 100;
+    queryParams.limit = params.limit || 50;
     
     const response = await binanceRequest('/fapi/v1/positionMargin/history', 'GET', queryParams, apiKey, apiSecret);
     const data = await response.json();
@@ -945,16 +871,7 @@ async function getPositionMarginHistory(
       return { success: false, error: data.msg, code: data.code };
     }
     
-    const history = data.map((h: any) => ({
-      symbol: h.symbol,
-      type: h.type === 1 ? 'ADD' : 'REDUCE',
-      amount: parseFloat(h.amount),
-      asset: h.asset,
-      time: h.time,
-      positionSide: h.positionSide,
-    }));
-    
-    return { success: true, data: history };
+    return { success: true, data };
   } catch (error) {
     return {
       success: false,
@@ -964,8 +881,7 @@ async function getPositionMarginHistory(
 }
 
 /**
- * Get account configuration (margin mode, position mode)
- * Phase 4: Extended Account Data
+ * Get account configuration
  */
 async function getAccountConfig(apiKey: string, apiSecret: string) {
   try {
@@ -983,9 +899,7 @@ async function getAccountConfig(apiKey: string, apiSecret: string) {
         canTrade: data.canTrade,
         canDeposit: data.canDeposit,
         canWithdraw: data.canWithdraw,
-        dualSidePosition: data.dualSidePosition,
-        multiAssetsMargin: data.multiAssetsMargin,
-        tradeGroupId: data.tradeGroupId,
+        updateTime: data.updateTime,
       },
     };
   } catch (error) {
@@ -997,8 +911,7 @@ async function getAccountConfig(apiKey: string, apiSecret: string) {
 }
 
 /**
- * Get BNB burn status for fee discount
- * Phase 4: Extended Account Data
+ * Get BNB burn status
  */
 async function getBnbBurnStatus(apiKey: string, apiSecret: string) {
   try {
@@ -1024,8 +937,7 @@ async function getBnbBurnStatus(apiKey: string, apiSecret: string) {
 }
 
 /**
- * Get ADL quantile for position risk assessment
- * Phase 4: Extended Account Data
+ * Get ADL quantile
  */
 async function getAdlQuantile(apiKey: string, apiSecret: string, symbol?: string) {
   try {
@@ -1039,19 +951,7 @@ async function getAdlQuantile(apiKey: string, apiSecret: string, symbol?: string
       return { success: false, error: data.msg, code: data.code };
     }
     
-    const quantiles = Array.isArray(data) ? data : [data];
-    
-    const formattedQuantiles = quantiles.map((q: any) => ({
-      symbol: q.symbol,
-      adlQuantile: {
-        LONG: q.adlQuantile?.LONG || 0,
-        SHORT: q.adlQuantile?.SHORT || 0,
-        BOTH: q.adlQuantile?.BOTH || 0,
-        HEDGE: q.adlQuantile?.HEDGE || 0,
-      },
-    }));
-    
-    return { success: true, data: symbol ? formattedQuantiles[0] : formattedQuantiles };
+    return { success: true, data };
   } catch (error) {
     return {
       success: false,
@@ -1062,7 +962,6 @@ async function getAdlQuantile(apiKey: string, apiSecret: string, symbol?: string
 
 /**
  * Get order rate limit status
- * Phase 4: Extended Account Data
  */
 async function getOrderRateLimit(apiKey: string, apiSecret: string) {
   try {
@@ -1073,15 +972,7 @@ async function getOrderRateLimit(apiKey: string, apiSecret: string) {
       return { success: false, error: data.msg, code: data.code };
     }
     
-    const rateLimits = data.map((r: any) => ({
-      rateLimitType: r.rateLimitType,
-      interval: r.interval,
-      intervalNum: r.intervalNum,
-      limit: r.limit,
-      count: r.count,
-    }));
-    
-    return { success: true, data: rateLimits };
+    return { success: true, data };
   } catch (error) {
     return {
       success: false,
@@ -1090,36 +981,30 @@ async function getOrderRateLimit(apiKey: string, apiSecret: string) {
   }
 }
 
-// ============================================================================
-// Phase 5: Bulk Export Functions
-// ============================================================================
-
-type DownloadType = 'transaction' | 'order' | 'trade';
-
 /**
  * Request download ID for bulk export
- * Phase 5: Bulk Export
  */
 async function requestDownloadId(
-  apiKey: string, 
-  apiSecret: string, 
-  type: DownloadType,
+  apiKey: string,
+  apiSecret: string,
+  downloadType: 'trade' | 'order' | 'income',
   startTime: number,
   endTime: number
 ) {
   try {
-    const endpoints: Record<DownloadType, string> = {
-      transaction: '/fapi/v1/income/asyn',
-      order: '/fapi/v1/order/asyn',
-      trade: '/fapi/v1/trade/asyn',
+    const endpointMap: Record<string, string> = {
+      'trade': '/fapi/v1/trade/asyn',
+      'order': '/fapi/v1/order/asyn',
+      'income': '/fapi/v1/income/asyn',
     };
     
-    const params: Record<string, any> = {
-      startTime,
-      endTime,
-    };
+    const endpoint = endpointMap[downloadType];
+    if (!endpoint) {
+      return { success: false, error: 'Invalid download type' };
+    }
     
-    const response = await binanceRequest(endpoints[type], 'GET', params, apiKey, apiSecret);
+    const params = { startTime, endTime };
+    const response = await binanceRequest(endpoint, 'GET', params, apiKey, apiSecret);
     const data = await response.json();
     
     if (data.code && data.code < 0) {
@@ -1130,10 +1015,7 @@ async function requestDownloadId(
       success: true,
       data: {
         downloadId: data.downloadId,
-        type,
-        startTime,
-        endTime,
-        status: 'pending',
+        avgCostTimestampOfLast30d: data.avgCostTimestampOfLast30d,
       },
     };
   } catch (error) {
@@ -1145,42 +1027,41 @@ async function requestDownloadId(
 }
 
 /**
- * Get download link for bulk export
- * Phase 5: Bulk Export
+ * Get download link
  */
 async function getDownloadLink(
-  apiKey: string, 
-  apiSecret: string, 
-  type: DownloadType,
+  apiKey: string,
+  apiSecret: string,
+  downloadType: 'trade' | 'order' | 'income',
   downloadId: string
 ) {
   try {
-    const endpoints: Record<DownloadType, string> = {
-      transaction: '/fapi/v1/income/asyn/id',
-      order: '/fapi/v1/order/asyn/id',
-      trade: '/fapi/v1/trade/asyn/id',
+    const endpointMap: Record<string, string> = {
+      'trade': '/fapi/v1/trade/asyn/id',
+      'order': '/fapi/v1/order/asyn/id',
+      'income': '/fapi/v1/income/asyn/id',
     };
     
-    const params = { downloadId };
+    const endpoint = endpointMap[downloadType];
+    if (!endpoint) {
+      return { success: false, error: 'Invalid download type' };
+    }
     
-    const response = await binanceRequest(endpoints[type], 'GET', params, apiKey, apiSecret);
+    const response = await binanceRequest(endpoint, 'GET', { downloadId }, apiKey, apiSecret);
     const data = await response.json();
     
     if (data.code && data.code < 0) {
       return { success: false, error: data.msg, code: data.code };
     }
     
-    // Status can be: 'pending', 'processing', 'completed'
-    const isReady = data.status === 'completed' || !!data.url;
-    
     return {
       success: true,
       data: {
-        downloadId: data.downloadId || downloadId,
-        status: isReady ? 'completed' : (data.status || 'pending'),
-        url: data.url || null,
-        expirationTimestamp: data.expirationTimestamp || null,
-        notified: data.notified || false,
+        downloadId: data.downloadId,
+        status: data.status,
+        url: data.url,
+        notified: data.notified,
+        expirationTimestamp: data.expirationTimestamp,
       },
     };
   } catch (error) {
@@ -1191,8 +1072,41 @@ async function getDownloadLink(
   }
 }
 
+/**
+ * Get transaction history (deposits, withdrawals, transfers)
+ */
+async function getTransactionHistory(
+  apiKey: string,
+  apiSecret: string,
+  params: { asset?: string; startTime?: number; endTime?: number; limit?: number } = {}
+) {
+  try {
+    const queryParams: Record<string, any> = {};
+    if (params.asset) queryParams.asset = params.asset;
+    if (params.startTime) queryParams.startTime = params.startTime;
+    if (params.endTime) queryParams.endTime = params.endTime;
+    queryParams.limit = params.limit || 100;
+    
+    const response = await binanceRequest('/fapi/v1/income', 'GET', {
+      ...queryParams,
+      incomeType: 'TRANSFER',
+    }, apiKey, apiSecret);
+    const data = await response.json();
+    
+    if (data.code && data.code < 0) {
+      return { success: false, error: data.msg, code: data.code };
+    }
+    
+    return { success: true, data };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch transaction history',
+    };
+  }
+}
 
-
+// ============= MAIN HANDLER =============
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -1200,29 +1114,49 @@ Deno.serve(async (req) => {
   }
   
   try {
-    // Get API credentials from environment
-    const apiKey = Deno.env.get('BINANCE_API_KEY');
-    const apiSecret = Deno.env.get('BINANCE_API_SECRET');
-    
-    if (!apiKey || !apiSecret) {
+    // Verify authentication
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
       return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Binance API credentials not configured. Please add BINANCE_API_KEY and BINANCE_API_SECRET.',
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'Unauthorized: Missing or invalid Authorization header' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    
+    // Get authenticated user
+    const { userId } = await getAuthenticatedUser(authHeader);
+    
+    // Get user's API credentials (encrypted)
+    const { apiKey, apiSecret, credentialId } = await getUserCredentials(userId);
     
     // Parse request body
     const body = await req.json().catch(() => ({}));
     const { action, symbol, limit, orderParams, incomeType, startTime, endTime } = body;
+    
+    // Check rate limit before making API call
+    const { category, weight } = getEndpointWeight(action);
+    await checkRateLimit(userId, category, weight);
     
     let result;
     
     switch (action) {
       case 'validate':
         result = await validateCredentials(apiKey, apiSecret);
+        // Update credential validation status
+        if (result.success && result.data) {
+          await updateCredentialValidation(
+            credentialId, 
+            true, 
+            {
+              canTrade: result.data.canTrade,
+              canDeposit: result.data.canDeposit,
+              canWithdraw: result.data.canWithdraw,
+            },
+            null
+          );
+        } else {
+          await updateCredentialValidation(credentialId, false, null, result.error || 'Validation failed');
+        }
         break;
         
       case 'balance':
@@ -1253,7 +1187,6 @@ Deno.serve(async (req) => {
         result = await getIncomeHistory(apiKey, apiSecret, incomeType, startTime, endTime, limit || 1000);
         break;
         
-      // Phase 2: Account Data Enhancement
       case 'commission-rate':
         result = await getCommissionRate(apiKey, apiSecret, symbol);
         break;
@@ -1274,7 +1207,6 @@ Deno.serve(async (req) => {
         result = await getAllOrders(apiKey, apiSecret, symbol, body.params || {});
         break;
         
-      // Phase 4: Extended Account Data
       case 'symbol-config':
         result = await getSymbolConfig(apiKey, apiSecret, symbol);
         break;
@@ -1303,7 +1235,6 @@ Deno.serve(async (req) => {
         result = await getOrderRateLimit(apiKey, apiSecret);
         break;
         
-      // Phase 5: Bulk Export
       case 'request-download':
         if (!body.downloadType || !body.startTime || !body.endTime) {
           result = { success: false, error: 'downloadType, startTime, and endTime are required' };
@@ -1327,7 +1258,7 @@ Deno.serve(async (req) => {
       default:
         result = {
           success: false,
-          error: `Unknown action: ${action}. Valid actions: validate, balance, positions, trades, open-orders, place-order, cancel-order, income, commission-rate, leverage-brackets, force-orders, position-mode, all-orders, symbol-config, multi-assets-mode, position-margin-history, account-config, bnb-burn, adl-quantile, order-rate-limit, request-download, get-download`,
+          error: `Unknown action: ${action}. Valid actions: validate, balance, positions, trades, open-orders, place-order, cancel-order, income, commission-rate, leverage-brackets, force-orders, position-mode, all-orders, symbol-config, multi-assets-mode, position-margin-history, account-config, bnb-burn, adl-quantile, order-rate-limit, request-download, get-download, transaction-history`,
         };
     }
     
@@ -1341,12 +1272,33 @@ Deno.serve(async (req) => {
     
   } catch (error) {
     console.error('Binance Futures Error:', error);
+    
+    // Handle rate limit errors specially
+    if (error instanceof RateLimitError) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: error.message,
+          retryAfter: error.retryAfter,
+          code: 'RATE_LIMITED',
+        }),
+        { 
+          status: 429, 
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json',
+            'Retry-After': error.retryAfter.toString(),
+          } 
+        }
+      );
+    }
+    
     return new Response(
       JSON.stringify({
         success: false,
         error: error instanceof Error ? error.message : 'Internal server error',
       }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: error instanceof Error && error.message.includes('Unauthorized') ? 401 : 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
