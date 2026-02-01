@@ -1303,14 +1303,17 @@ graph TB
 | Data retention policy | Not defined | Medium |
 | Backup/restore procedures | Not documented | Low |
 
-### Potential Design Issues
+### Resolved Design Issues (2026-02-01)
 
-| Issue | Risk | Notes |
-|-------|------|-------|
-| No pagination in trade history query | Performance | Works for <1000 trades |
-| Backtest simulation is simplified | Accuracy | Real strategy rules not fully interpreted |
-| AI analysis not versioned | Consistency | Analysis may vary over time |
-| Clone count not transaction-safe | Data integrity | Very low impact |
+| Issue | Resolution | Implementation |
+|-------|------------|----------------|
+| No pagination in trade history query | ✅ RESOLVED | Cursor-based pagination with `useTradeEntriesPaginated` hook and `TradeHistoryInfiniteScroll` component |
+| Backtest simulation is simplified | ✅ RESOLVED | Added `BacktestDisclaimer` component, `assumptions` JSONB, `accuracy_notes` TEXT, and `simulation_version` columns |
+| AI analysis not versioned | ✅ RESOLVED | Added `ai_model_version` and `ai_analysis_generated_at` columns, `_metadata` object in JSONB |
+| Clone count not transaction-safe | ✅ RESOLVED | Created `increment_clone_count(p_strategy_id UUID)` RPC function for atomic operations |
+| Balance verification missing | ✅ RESOLVED | Created `account_balance_discrepancies` table, `reconcile-balances` Edge Function, and `useBalanceReconciliation` hook |
+| No soft delete support | ✅ RESOLVED | Added `deleted_at` columns to `trade_entries`, `trading_strategies`, `accounts` with RLS policies |
+| Error handling not documented | ✅ RESOLVED | Created `docs/EDGE_FUNCTION_ERROR_HANDLING.md`, shared `retry.ts` and `error-response.ts` utilities |
 
 ### Future Considerations
 
@@ -1318,6 +1321,7 @@ graph TB
 2. **Read Replicas**: For analytics-heavy workloads
 3. **Event Sourcing**: For audit-critical operations
 4. **Caching Layer**: Redis for market data caching
+5. **Automated Reconciliation**: Schedule daily balance reconciliation job
 
 ---
 
@@ -1333,6 +1337,9 @@ has_role(_role app_role, _user_id UUID) → BOOLEAN
 has_subscription(_min_tier subscription_tier, _user_id UUID) → BOOLEAN
 is_admin(_user_id UUID) → BOOLEAN
 get_user_subscription(_user_id UUID) → subscription_tier
+
+-- Atomic operations (Added 2026-02-01)
+increment_clone_count(p_strategy_id UUID) → VOID
 ```
 
 ## Appendix B: Enum Types
@@ -1378,6 +1385,71 @@ subscription_tier: free | pro | business
 | `risk_profiles_max_correlated_exposure_check` | CHECK | `max_correlated_exposure IS NULL OR (> 0 AND <= 1)` |
 | `risk_profiles_max_concurrent_positions_check` | CHECK | `max_concurrent_positions IS NULL OR > 0` |
 
+## Appendix D: Soft Delete Support (Added 2026-02-01)
+
+### Tables with Soft Delete
+
+| Table | Column | RLS Filter |
+|-------|--------|------------|
+| `trade_entries` | `deleted_at TIMESTAMPTZ` | `deleted_at IS NULL` |
+| `trading_strategies` | `deleted_at TIMESTAMPTZ` | `deleted_at IS NULL` |
+| `accounts` | `deleted_at TIMESTAMPTZ` | `deleted_at IS NULL` |
+
+### Partial Indexes for Performance
+
+```sql
+CREATE INDEX idx_trade_entries_deleted_at ON trade_entries (deleted_at) WHERE deleted_at IS NULL;
+CREATE INDEX idx_trading_strategies_deleted_at ON trading_strategies (deleted_at) WHERE deleted_at IS NULL;
+CREATE INDEX idx_accounts_deleted_at ON accounts (deleted_at) WHERE deleted_at IS NULL;
+```
+
+## Appendix E: Balance Reconciliation System (Added 2026-02-01)
+
+### account_balance_discrepancies Table
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID | Primary key |
+| `user_id` | UUID | Owner |
+| `account_id` | UUID | FK to accounts |
+| `expected_balance` | NUMERIC | Calculated from transactions |
+| `actual_balance` | NUMERIC | Stored in accounts table |
+| `discrepancy` | NUMERIC | Difference |
+| `detected_at` | TIMESTAMPTZ | When detected |
+| `resolved` | BOOLEAN | Resolution status |
+| `resolution_method` | TEXT | auto_fix / manual / ignored |
+
+### Reconciliation Edge Function
+
+- **Endpoint**: `reconcile-balances`
+- **Trigger**: On-demand via Settings page
+- **Auto-fix threshold**: $10 (configurable)
+- **Logs**: All discrepancies stored for audit
+
+## Appendix F: AI Analysis Versioning (Added 2026-02-01)
+
+### Version Tracking Columns
+
+| Table | Column | Description |
+|-------|--------|-------------|
+| `trade_entries` | `ai_model_version` | Model identifier (e.g., `gemini-2.5-flash-2026-02`) |
+| `trade_entries` | `ai_analysis_generated_at` | Timestamp of AI generation |
+
+### Metadata Object in JSONB
+
+```json
+{
+  "_metadata": {
+    "model": "gemini-2.5-flash-2026-02",
+    "generatedAt": "2026-02-01T08:00:00Z",
+    "promptVersion": 3
+  },
+  "lessons": [...],
+  "improvements": [...]
+}
+```
+
 ---
 
 *Document generated for Trading Journey project. For updates, see version control history.*
+*Last comprehensive update: 2026-02-01 - All Phase 1-3 issues resolved.*
