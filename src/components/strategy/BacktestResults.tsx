@@ -22,6 +22,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import type { BacktestResult } from "@/types/backtest";
 import { cn } from "@/lib/utils";
 import { formatPercent, formatCurrency, formatWinRate, formatNumber } from "@/lib/formatters";
+import { BacktestDisclaimer } from "./BacktestDisclaimer";
 
 interface BacktestResultsProps {
   result: BacktestResult;
@@ -41,6 +42,14 @@ export function BacktestResults({ result }: BacktestResultsProps) {
 
   return (
     <div className="space-y-6">
+      {/* Backtest Disclaimer */}
+      <BacktestDisclaimer 
+        assumptions={result.assumptions}
+        accuracyNotes={result.accuracyNotes}
+        simulationVersion={result.simulationVersion}
+        variant="compact"
+      />
+
       {/* Summary Card */}
       <Card>
         <CardHeader>

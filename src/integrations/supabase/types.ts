@@ -14,6 +14,59 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_balance_discrepancies: {
+        Row: {
+          account_id: string
+          actual_balance: number
+          created_at: string | null
+          detected_at: string | null
+          discrepancy: number
+          expected_balance: number
+          id: string
+          resolution_method: string | null
+          resolution_notes: string | null
+          resolved: boolean | null
+          resolved_at: string | null
+          user_id: string
+        }
+        Insert: {
+          account_id: string
+          actual_balance: number
+          created_at?: string | null
+          detected_at?: string | null
+          discrepancy: number
+          expected_balance: number
+          id?: string
+          resolution_method?: string | null
+          resolution_notes?: string | null
+          resolved?: boolean | null
+          resolved_at?: string | null
+          user_id: string
+        }
+        Update: {
+          account_id?: string
+          actual_balance?: number
+          created_at?: string | null
+          detected_at?: string | null
+          discrepancy?: number
+          expected_balance?: number
+          id?: string
+          resolution_method?: string | null
+          resolution_notes?: string | null
+          resolved?: boolean | null
+          resolved_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "account_balance_discrepancies_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       account_balance_snapshots: {
         Row: {
           account_id: string | null
@@ -199,6 +252,8 @@ export type Database = {
       }
       backtest_results: {
         Row: {
+          accuracy_notes: string | null
+          assumptions: Json | null
           created_at: string
           equity_curve: Json
           final_capital: number
@@ -208,11 +263,14 @@ export type Database = {
           pair: string
           period_end: string
           period_start: string
+          simulation_version: string | null
           strategy_id: string | null
           trades: Json
           user_id: string
         }
         Insert: {
+          accuracy_notes?: string | null
+          assumptions?: Json | null
           created_at?: string
           equity_curve?: Json
           final_capital?: number
@@ -222,11 +280,14 @@ export type Database = {
           pair: string
           period_end: string
           period_start: string
+          simulation_version?: string | null
           strategy_id?: string | null
           trades?: Json
           user_id: string
         }
         Update: {
+          accuracy_notes?: string | null
+          assumptions?: Json | null
           created_at?: string
           equity_curve?: Json
           final_capital?: number
@@ -236,6 +297,7 @@ export type Database = {
           pair?: string
           period_end?: string
           period_start?: string
+          simulation_version?: string | null
           strategy_id?: string | null
           trades?: Json
           user_id?: string

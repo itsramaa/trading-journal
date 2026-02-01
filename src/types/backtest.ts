@@ -67,6 +67,17 @@ export interface EquityCurvePoint {
   tradeId?: string;
 }
 
+// Simulation assumptions metadata for transparency
+export interface BacktestAssumptions {
+  slippage?: number;
+  slippageModel?: string;
+  commissionModel?: string;
+  executionModel?: string;
+  liquidationRisk?: string;
+  fundingRates?: string;
+  marketImpact?: string;
+}
+
 export interface BacktestResult {
   id: string;
   strategyId: string;
@@ -80,6 +91,10 @@ export interface BacktestResult {
   trades: BacktestTrade[];
   equityCurve: EquityCurvePoint[];
   createdAt: string;
+  // Phase 1: Accuracy metadata
+  assumptions?: BacktestAssumptions;
+  accuracyNotes?: string;
+  simulationVersion?: string;
 }
 
 // YouTube Strategy Import Types
