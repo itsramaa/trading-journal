@@ -41,25 +41,56 @@ async function callBinanceApi<T>(
 }
 
 /**
+ * Extended connection status with isConfigured flag
+ */
+interface ExtendedConnectionStatus extends BinanceConnectionStatus {
+  /** True if API credentials have been configured (regardless of validity) */
+  isConfigured: boolean;
+  /** Error code from edge function (e.g., 'CREDENTIALS_NOT_CONFIGURED') */
+  code?: string;
+}
+
+/**
  * Hook to get Binance connection status (cached)
  * Use this for UI components that need to check if connected
+ * 
+ * Key states:
+ * - isConfigured: false → Credentials not set up, show configuration prompt
+ * - isConfigured: true, isConnected: false → Credentials invalid, show error
+ * - isConfigured: true, isConnected: true → Ready to use
  */
 export function useBinanceConnectionStatus() {
-  return useQuery<BinanceConnectionStatus>({
+  return useQuery<ExtendedConnectionStatus>({
     queryKey: ['binance', 'connection-status'],
     queryFn: async () => {
       const result = await callBinanceApi<{ canTrade: boolean; permissions: string[] }>('validate');
       
+      // Check for CREDENTIALS_NOT_CONFIGURED code from edge function
+      const code = (result as any).code;
+      if (code === 'CREDENTIALS_NOT_CONFIGURED') {
+        return {
+          isConnected: false,
+          isConfigured: false,
+          lastChecked: new Date().toISOString(),
+          permissions: [],
+          code,
+          error: result.error || 'Credentials not configured',
+        };
+      }
+      
       if (result.success && result.data) {
         return {
           isConnected: true,
+          isConfigured: true,
           lastChecked: new Date().toISOString(),
           permissions: result.data.permissions || [],
         };
       }
       
+      // Credentials configured but invalid/error
       return {
         isConnected: false,
+        isConfigured: true,
         lastChecked: new Date().toISOString(),
         permissions: [],
         error: result.error || 'Connection failed',

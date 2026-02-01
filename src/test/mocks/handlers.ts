@@ -25,6 +25,16 @@ export const handlers = [
     const { action } = body;
 
     switch (action) {
+      case "validate":
+        // Default: return successful validation (credentials configured)
+        return HttpResponse.json({
+          success: true,
+          data: {
+            canTrade: true,
+            permissions: ["futures"],
+          },
+        });
+
       case "balance":
         return HttpResponse.json({
           success: true,
@@ -221,6 +231,20 @@ export const handlers = [
 
 // Error handlers for testing error scenarios
 export const errorHandlers = {
+  // Credentials not configured response (HTTP 200 with error code)
+  binanceNotConfigured: http.post(
+    `${SUPABASE_URL}/functions/v1/binance-futures`,
+    async () => {
+      await delay(100);
+      return HttpResponse.json({
+        success: false,
+        code: "CREDENTIALS_NOT_CONFIGURED",
+        error: "Binance API credentials not configured",
+        message: "Please configure your Binance API key and secret in Settings → Exchange to use this feature.",
+      });
+    }
+  ),
+
   binanceFuturesError: http.post(
     `${SUPABASE_URL}/functions/v1/binance-futures`,
     async () => {

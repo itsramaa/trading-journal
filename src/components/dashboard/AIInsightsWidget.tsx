@@ -89,14 +89,15 @@ export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
   const isDailySuggestionsEnabled = shouldRunAIFeature('daily_suggestions');
   const confidenceThreshold = getConfidenceThreshold();
 
-  // Check correlation risk for open positions
+  // Check correlation risk for open positions (only if configured)
+  const isConfigured = connectionStatus?.isConfigured ?? false;
   const correlationWarning = useMemo((): CorrelationWarning | null => {
-    if (!connectionStatus?.isConnected || !positions) return null;
+    if (!isConfigured || !connectionStatus?.isConnected || !positions) return null;
     const activePositions = positions.filter(p => p.positionAmt !== 0);
     if (activePositions.length < 2) return null;
     const symbols = extractSymbols(activePositions);
     return checkCorrelationRisk(symbols);
-  }, [positions, connectionStatus]);
+  }, [positions, connectionStatus, isConfigured]);
 
   // Calculate pair-specific recommendations
   const pairRecommendations = useMemo(() => {
