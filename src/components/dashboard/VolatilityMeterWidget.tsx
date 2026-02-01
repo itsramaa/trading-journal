@@ -1,6 +1,6 @@
 /**
  * Volatility Meter Widget - Shows volatility levels for watchlist symbols
- * System-First: Shows informative empty state when Binance not configured
+ * Uses public Binance Klines API - no authentication required
  * Wrapped with ErrorBoundary for graceful API failure handling
  */
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,10 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
-import { Activity, TrendingUp, AlertTriangle, Flame, Snowflake, Wifi } from "lucide-react";
-import { useMultiSymbolVolatility, useBinanceConnectionStatus, type VolatilityRisk } from "@/features/binance";
+import { Activity, TrendingUp, AlertTriangle, Flame, Snowflake } from "lucide-react";
+import { useMultiSymbolVolatility, type VolatilityRisk } from "@/features/binance";
 import { cn } from "@/lib/utils";
-import { Link } from "react-router-dom";
 
 // Default watchlist symbols
 const DEFAULT_WATCHLIST = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT'];
@@ -73,13 +72,8 @@ function VolatilityMeterContent({
   symbols = DEFAULT_WATCHLIST,
   className 
 }: VolatilityMeterWidgetProps) {
-  const { data: connectionStatus } = useBinanceConnectionStatus();
-  const isConfigured = connectionStatus?.isConfigured ?? false;
-  
-  // Only fetch volatility data when Binance is configured
-  const { data: volatilityData, isLoading, isError } = useMultiSymbolVolatility(
-    isConfigured ? symbols : []
-  );
+  // Volatility data uses public Binance endpoints - no API key required
+  const { data: volatilityData, isLoading, isError } = useMultiSymbolVolatility(symbols);
   
   // Calculate average volatility
   const avgVolatility = volatilityData && volatilityData.length > 0
@@ -95,38 +89,6 @@ function VolatilityMeterContent({
   };
   
   const marketCondition = getMarketCondition();
-  
-  // System-First: Show informative empty state when not configured
-  if (!isConfigured) {
-    return (
-      <Card className={className}>
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Activity className="h-4 w-4" />
-            Volatility Meter
-          </CardTitle>
-          <CardDescription>
-            Real-time market volatility analysis
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="text-center py-6">
-            <Activity className="h-10 w-10 mx-auto mb-3 text-muted-foreground/30" />
-            <p className="text-sm font-medium mb-1">Connect Exchange</p>
-            <p className="text-xs text-muted-foreground mb-4">
-              View real-time volatility levels for top assets
-            </p>
-            <Button asChild variant="outline" size="sm">
-              <Link to="/settings?tab=exchange">
-                <Wifi className="h-4 w-4 mr-2" />
-                Connect Binance
-              </Link>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
 
   if (isLoading) {
     return (
