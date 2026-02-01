@@ -1,306 +1,383 @@
 
-# Gap Completion Plan: Multi-Exchange Readiness Architecture
+# Implementation Plan: Credential Rotation Test, Rate Limit Cleanup, Vault Verification, and Generic Position Hook
 
-## Executive Summary
+## Summary of Gaps Identified
 
-Berdasarkan evaluasi terhadap permintaan original Anda, berikut adalah item yang **belum terpenuhi** dan rencana penyelesaiannya:
-
-| Gap | Description | Priority |
-|-----|-------------|----------|
-| 1 | Domain Type Abstraction | High |
-| 2 | Multi-Exchange Readiness Documentation | High |
-| 3 | Exchange Boundary Architecture | Medium |
-| 4 | Technical Debt Documentation | Medium |
-| 5 | Vault Encryption Verification | Low (already works) |
+| Issue | Root Cause | Solution |
+|-------|------------|----------|
+| No credential rotation integration test | Missing test file | Create `credential-rotation.integration.test.tsx` |
+| `cleanup_old_rate_limits` no schedule | `pg_cron` extension not available | Add alternative: Edge Function cron via Supabase |
+| Encryption is base64 NOT Vault | `save_exchange_credential` uses `encode(..., 'base64')` not `vault.encrypt()` | **Document as acceptable** OR upgrade to true Vault |
+| UI uses `BinancePosition` directly | `BinancePositionsTab` defines inline type | Adopt `ExchangePosition` type via mapper |
+| No `usePositions(exchange)` wrapper | Missing abstraction hook | Create `useExchangePositions` hook |
 
 ---
 
-## Gap 1: Domain Type Abstraction
+## Phase 1: Integration Test for Credential Rotation
 
-### Problem
-Types saat ini **terlalu coupled ke Binance**:
-```typescript
-// Current: Binance-specific
-interface BinancePosition { ... }
-interface BinanceTrade { ... }
-interface BinanceBalance { ... }
+**File**: `src/test/integration/credential-rotation.integration.test.tsx`
+
+### Test Cases
+
+```text
+describe('Credential Rotation Flow')
+├── it('should save new credentials and deactivate old')
+├── it('should validate credentials via edge function')
+├── it('should update validation status after test connection')
+├── it('should allow credential removal')
+└── it('should prevent operations without credentials')
 ```
 
-### Solution
-Create **Exchange-Agnostic Types** sebagai domain layer:
+### Implementation Details
 
 ```typescript
-// New: Generic domain types
-interface ExchangePosition {
+// Test flow:
+// 1. Save initial credentials → verify returned UUID
+// 2. Save new credentials → verify old deactivated
+// 3. Test connection → verify validation status updated
+// 4. Delete credentials → verify is_active = false
+// 5. Call edge function → verify error for missing credentials
+```
+
+### Mock Strategy
+
+- Mock `supabase.rpc()` for credential functions
+- Mock fetch for edge function calls
+- Verify query invalidation after operations
+
+---
+
+## Phase 2: Rate Limit Cleanup Schedule
+
+### Current State
+
+- `cleanup_old_rate_limits()` function exists
+- No `pg_cron` extension available in Lovable Cloud
+- Old rate limit records accumulate indefinitely
+
+### Solution: Scheduled Edge Function
+
+**File**: `supabase/functions/cleanup-rate-limits/index.ts`
+
+```typescript
+// Lightweight Edge Function to clean old rate limits
+// Intended to be called via external cron (e.g., GitHub Actions, Vercel Cron)
+// OR called manually from admin UI
+
+Deno.serve(async (req) => {
+  // Verify admin or service role key
+  const supabase = createClient(url, serviceKey);
+  
+  const { data, error } = await supabase.rpc('cleanup_old_rate_limits');
+  
+  return new Response(JSON.stringify({ 
+    success: !error, 
+    deleted: data 
+  }));
+});
+```
+
+### Alternative: Trigger on Insert
+
+Add database trigger to cleanup when table grows:
+
+```sql
+CREATE OR REPLACE FUNCTION auto_cleanup_rate_limits()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Cleanup if more than 10000 rows
+  IF (SELECT COUNT(*) FROM api_rate_limits) > 10000 THEN
+    DELETE FROM api_rate_limits 
+    WHERE window_end < now() - interval '1 hour';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER tr_auto_cleanup_rate_limits
+AFTER INSERT ON api_rate_limits
+FOR EACH STATEMENT
+EXECUTE FUNCTION auto_cleanup_rate_limits();
+```
+
+---
+
+## Phase 3: Vault Encryption Verification & Documentation
+
+### Current Implementation Analysis
+
+Current `save_exchange_credential` uses:
+```sql
+v_encrypted_key := encode(convert_to(p_api_key, 'UTF8'), 'base64');
+```
+
+This is **base64 encoding**, NOT encryption!
+
+### Options
+
+| Option | Security Level | Effort |
+|--------|----------------|--------|
+| A. Document as "obfuscation" | Low | None |
+| B. Use `vault.encrypt()` | High | Medium |
+| C. Use `pgcrypto` with app key | Medium | Medium |
+
+### Recommended: Option B - True Vault Encryption
+
+Update `save_exchange_credential`:
+
+```sql
+-- Store in vault.secrets and reference by secret_id
+INSERT INTO vault.secrets (name, description, secret)
+VALUES (
+  'api_key_' || v_credential_id::TEXT,
+  'Binance API Key for user ' || v_user_id::TEXT,
+  p_api_key
+)
+RETURNING id INTO v_secret_id;
+
+-- Store secret_id in exchange_credentials instead of encrypted value
+UPDATE exchange_credentials 
+SET api_key_secret_id = v_secret_id
+WHERE id = v_credential_id;
+```
+
+### Alternative: Document Current State
+
+If true Vault is not required for MVP:
+
+```markdown
+## Security Note: Credential Storage
+
+Current implementation uses base64 encoding for API key storage.
+This provides obfuscation but NOT cryptographic security.
+
+For production multi-tenant deployment, upgrade to:
+1. Supabase Vault (vault.encrypt/decrypt)
+2. Or external KMS (AWS KMS, HashiCorp Vault)
+```
+
+---
+
+## Phase 4: Adopt ExchangePosition Type in UI
+
+### Current: BinancePositionsTab
+
+```typescript
+// CURRENT: Inline Binance-specific type
+interface BinancePosition {
   symbol: string;
-  side: 'LONG' | 'SHORT';
+  positionAmt: number;  // Binance-specific naming
   entryPrice: number;
-  markPrice: number;
-  size: number;
-  unrealizedPnl: number;
-  leverage: number;
-  marginType: 'isolated' | 'cross';
-  liquidationPrice: number;
-  source: ExchangeType;
+  ...
+}
+```
+
+### Target: Use ExchangePosition
+
+```typescript
+// NEW: Import from exchange types
+import type { ExchangePosition } from '@/types/exchange';
+
+interface PositionsTableProps {
+  positions: ExchangePosition[];
+  isLoading: boolean;
+  exchange?: ExchangeType;
 }
 
-interface ExchangeBalance {
-  asset: string;
-  total: number;
-  available: number;
-  unrealizedPnl: number;
-  source: ExchangeType;
+export function PositionsTable({ positions, isLoading }: PositionsTableProps) {
+  // No filter needed - positions are already non-zero from mapper
+  return (
+    <Table>
+      {positions.map((position) => (
+        <TableRow key={`${position.source}-${position.symbol}`}>
+          <TableCell>{position.symbol}</TableCell>
+          <TableCell>
+            <Badge variant={position.side === 'LONG' ? "default" : "secondary"}>
+              {position.side}
+            </Badge>
+          </TableCell>
+          <TableCell>{position.size.toFixed(4)}</TableCell>
+          <TableCell>${position.entryPrice.toFixed(2)}</TableCell>
+          <TableCell>${position.markPrice.toFixed(2)}</TableCell>
+          <TableCell className={position.unrealizedPnl >= 0 ? "text-profit" : "text-loss"}>
+            {position.unrealizedPnl >= 0 ? '+' : ''}${position.unrealizedPnl.toFixed(2)}
+          </TableCell>
+          <TableCell>${position.liquidationPrice.toFixed(2)}</TableCell>
+          <TableCell>{position.leverage}x</TableCell>
+        </TableRow>
+      ))}
+    </Table>
+  );
+}
+```
+
+### Keep Backward Compatibility
+
+Rename and keep old component as alias:
+
+```typescript
+// Re-export for backward compatibility
+export { PositionsTable as BinancePositionsTab };
+```
+
+---
+
+## Phase 5: Create usePositions(exchange) Wrapper Hook
+
+### File: `src/hooks/use-positions.ts`
+
+```typescript
+/**
+ * usePositions - Exchange-agnostic position hook
+ * Wraps exchange-specific hooks and returns generic ExchangePosition[]
+ */
+import { useBinancePositions } from '@/features/binance/useBinanceFutures';
+import { mapBinancePositions } from '@/lib/exchange-mappers';
+import type { ExchangePosition, ExchangeType } from '@/types/exchange';
+
+interface UsePositionsOptions {
+  exchange?: ExchangeType;
+  symbol?: string;
+  enabled?: boolean;
 }
 
-interface ExchangeTrade {
-  id: string;
-  symbol: string;
-  side: 'BUY' | 'SELL';
-  price: number;
-  quantity: number;
-  realizedPnl: number;
-  commission: number;
-  timestamp: number;
-  source: ExchangeType;
+interface UsePositionsResult {
+  positions: ExchangePosition[];
+  isLoading: boolean;
+  isError: boolean;
+  error: Error | null;
+  refetch: () => void;
 }
 
-type ExchangeType = 'binance' | 'bybit' | 'okx'; // Coming soon
+export function usePositions(options: UsePositionsOptions = {}): UsePositionsResult {
+  const { exchange = 'binance', symbol, enabled = true } = options;
+  
+  // Currently only Binance is supported
+  const binanceQuery = useBinancePositions(symbol);
+  
+  // Map to generic positions
+  const positions: ExchangePosition[] = binanceQuery.data 
+    ? mapBinancePositions(binanceQuery.data)
+    : [];
+  
+  return {
+    positions,
+    isLoading: binanceQuery.isLoading,
+    isError: binanceQuery.isError,
+    error: binanceQuery.error as Error | null,
+    refetch: binanceQuery.refetch,
+  };
+}
+
+// Future: Add Bybit/OKX hooks here
+// When adding new exchange:
+// 1. Create useBybitPositions hook
+// 2. Add switch case based on exchange param
+// 3. Map using mapBybitPositions
 ```
 
-### Files to Create
-- `src/types/exchange.ts` - Generic exchange types
-- `src/lib/exchange-mappers.ts` - Binance → Generic mappers
+### Additional Generic Hooks
 
----
-
-## Gap 2: Multi-Exchange Readiness Documentation
-
-### Problem
-Tidak ada dokumentasi arsitektur untuk exchange lain yang "Coming Soon"
-
-### Solution
-Create comprehensive documentation:
-
-```text
-docs/MULTI_EXCHANGE_ARCHITECTURE.md
-```
-
-Content:
-1. Current State (Binance-only)
-2. Future State Architecture Diagram
-3. Exchange Interface Contract
-4. What's Ready vs What Needs Work
-5. Migration Path for New Exchanges
-6. UX Principles (No exchange selector complexity)
-
-### Architecture Diagram (untuk dokumentasi)
-
-```text
-┌─────────────────────────────────────────────────────────────┐
-│                    Frontend (React)                          │
-├─────────────────────────────────────────────────────────────┤
-│  useExchangePositions()  useExchangeBalance()  etc.         │
-│  ↓ (uses generic types)                                     │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│              Edge Function Gateway Layer                     │
-├─────────────────────────────────────────────────────────────┤
-│  exchange-gateway/index.ts                                   │
-│  ├── routes to: binance-futures/                            │
-│  ├── routes to: bybit-futures/  (COMING SOON)               │
-│  └── routes to: okx-futures/    (COMING SOON)               │
-└─────────────────────────────────────────────────────────────┘
-                              │
-              ┌───────────────┼───────────────┐
-              ▼               ▼               ▼
-     ┌───────────────┐ ┌───────────────┐ ┌───────────────┐
-     │ Binance API   │ │ Bybit API     │ │ OKX API       │
-     │ (ACTIVE)      │ │ (COMING SOON) │ │ (COMING SOON) │
-     └───────────────┘ └───────────────┘ └───────────────┘
+```typescript
+// src/hooks/use-balance.ts
+export function useBalance(options: { exchange?: ExchangeType } = {}) {
+  const { exchange = 'binance' } = options;
+  
+  const binanceQuery = useBinanceBalance();
+  
+  const accountSummary = binanceQuery.data 
+    ? mapBinanceAccountSummary(binanceQuery.data)
+    : null;
+  
+  return {
+    balance: accountSummary,
+    isLoading: binanceQuery.isLoading,
+    isError: binanceQuery.isError,
+    error: binanceQuery.error as Error | null,
+    refetch: binanceQuery.refetch,
+  };
+}
 ```
 
 ---
 
-## Gap 3: Exchange Boundary Architecture
+## Files to Create
 
-### Problem
-Naming dan struktur saat ini mengunci ke Binance:
-- Hook: `useBinancePositions()` bukan `usePositions()`
-- Edge Function: `binance-futures` bukan `exchange-gateway`
+| File | Purpose |
+|------|---------|
+| `src/test/integration/credential-rotation.integration.test.tsx` | Integration test for add→validate→update→remove flow |
+| `supabase/functions/cleanup-rate-limits/index.ts` | Optional cron Edge Function for cleanup |
+| `src/hooks/use-positions.ts` | Generic `usePositions(exchange)` wrapper |
+| `src/hooks/use-balance.ts` | Generic `useBalance(exchange)` wrapper |
 
-### Solution (Design-Only, No Implementation Now)
-Document the **ideal architecture** tanpa implementasi:
+## Files to Modify
 
-**Current State (Acceptable for now):**
-```text
-Frontend → useBinancePositions() → binance-futures edge function
-```
-
-**Future State (When adding exchanges):**
-```text
-Frontend → usePositions(exchange) → exchange-gateway edge function
-           ↓
-           Routes to correct exchange-specific handler
-```
-
-**Principle:**
-> "Add layer, don't rewrite layer"
-
----
-
-## Gap 4: Technical Debt Documentation
-
-### Problem
-Tidak ada dokumentasi yang membedakan acceptable vs dangerous debt
-
-### Solution
-Add section to `docs/MULTI_EXCHANGE_ARCHITECTURE.md`:
-
-```text
-## Technical Debt Analysis
-
-### Acceptable Debt (Fokus Binance Now)
-| Item | Reason | Impact When Adding Exchange |
-|------|--------|----------------------------|
-| Binance-prefixed hooks | Single exchange focus | Add new hooks, not rewrite |
-| binance-futures edge function | Direct implementation | Add new functions |
-| BinancePosition types in UI | Clarity over abstraction | Add mappers |
-
-### Risky Debt (Fix Before Multi-Exchange)
-| Item | Risk | Mitigation |
-|------|------|------------|
-| No generic types | UI coupled to Binance | Create exchange.ts |
-| No credential rotation | Security concern | Already has lifecycle |
-| No exchange selector UX | User confusion | Keep single-exchange UX |
-```
-
----
-
-## Gap 5: Vault Encryption Verification
-
-### Current Status
-RPC functions exist:
-- `save_exchange_credential` (with vault.encrypt)
-- `get_decrypted_credential` (with vault.decrypt)
-
-### Verification Needed
-Test that:
-1. Saving credentials encrypts them properly
-2. Edge function can decrypt and use them
-3. Error handling for decryption failures
-
-This appears to be working (per-user credentials are being looked up), but needs explicit verification.
-
----
-
-## Gap 6: High-Level Recommendations Document
-
-### Solution
-Create final section in documentation:
-
-```text
-## Recommendations for Multi-Exchange Expansion
-
-### Phase 1: Foundation (DONE)
-✅ Per-user credential storage
-✅ Rate limit tracking
-✅ Exchange column in credentials table
-
-### Phase 2: Type Abstraction (TODO)
-□ Create src/types/exchange.ts with generic types
-□ Create mappers from Binance → Generic
-□ Document mapping rules for future exchanges
-
-### Phase 3: When Adding Bybit/OKX (FUTURE)
-□ Create bybit-futures edge function (copy structure)
-□ Create BybitMapper implements ExchangeMapper
-□ Add to credential UI (still same flow, just dropdown)
-□ No UX complexity - same Settings page
-
-### Anti-Patterns to Avoid
-1. Don't create abstract ExchangeGateway class now
-2. Don't add exchange selector to every page
-3. Don't force polymorphism before needed
-4. Don't rewrite hooks - add new ones alongside
-```
+| File | Changes |
+|------|---------|
+| `src/components/journal/BinancePositionsTab.tsx` | Refactor to use `ExchangePosition` type |
+| `supabase/migrations/..._auto_cleanup_trigger.sql` | Add auto-cleanup trigger |
+| `docs/MULTI_EXCHANGE_ARCHITECTURE.md` | Add security note about current encryption |
 
 ---
 
 ## Implementation Order
 
 ```text
-Phase A: Documentation (1-2 hours)
-├── Create docs/MULTI_EXCHANGE_ARCHITECTURE.md
-├── Document current state diagram
-├── Document future state (Coming Soon)
-├── Technical debt analysis table
-└── Recommendations section
+1. Create credential-rotation.integration.test.tsx (30 min)
+   └── Test add → validate → update → remove flow
 
-Phase B: Type Abstraction (2-3 hours)
-├── Create src/types/exchange.ts
-│   ├── ExchangePosition
-│   ├── ExchangeBalance
-│   ├── ExchangeTrade
-│   └── ExchangeType union
-├── Create src/lib/exchange-mappers.ts
-│   └── binancePositionToExchange()
-│   └── binanceTradeToExchange()
-└── Update docs with type mapping rules
+2. Add auto-cleanup trigger for rate limits (15 min)
+   └── Trigger-based cleanup when table grows
 
-Phase C: Verification (30 min)
-├── Verify Vault encryption works end-to-end
-├── Test API key flow: add → test → remove
-└── Document any issues found
+3. Refactor BinancePositionsTab (30 min)
+   └── Adopt ExchangePosition type
+   └── Keep backward-compatible export
+
+4. Create usePositions hook (30 min)
+   └── Generic wrapper with exchange param
+   └── Maps to ExchangePosition[]
+
+5. Create useBalance hook (20 min)
+   └── Generic wrapper for account balance
+
+6. Update documentation (15 min)
+   └── Security note about base64 vs Vault
+   └── Document cleanup trigger
 ```
 
 ---
 
-## Files to Create/Modify
+## Technical Notes
 
-### New Files
-| File | Purpose |
-|------|---------|
-| `docs/MULTI_EXCHANGE_ARCHITECTURE.md` | Complete multi-exchange readiness documentation |
-| `src/types/exchange.ts` | Generic exchange types (domain layer) |
-| `src/lib/exchange-mappers.ts` | Binance → Generic type mappers |
+### Current Encryption Status
 
-### Files to Update
-| File | Changes |
-|------|---------|
-| `docs/COMPLETE_DATABASE_ANALYSIS.md` | Add reference to multi-exchange doc |
-| `docs/BINANCE_INTEGRATION.md` | Add note about generic types |
+| Column | Claimed | Actual | Risk |
+|--------|---------|--------|------|
+| `api_key_encrypted` | Vault encrypted | base64 encoded | Medium - readable if DB leaked |
+| `api_secret_encrypted` | Vault encrypted | base64 encoded | Medium - readable if DB leaked |
 
----
+**Mitigation**: 
+- RLS prevents other users from reading
+- Service role only used in Edge Function
+- For true security, upgrade to `vault.secrets` table
 
-## Deliverables Summary
+### Rate Limit Cleanup Options
 
-Setelah implementasi selesai:
+| Approach | Pros | Cons |
+|----------|------|------|
+| Trigger on INSERT | Automatic, no external deps | Slight insert overhead |
+| Edge Function cron | Full control | Requires external scheduler |
+| Manual cleanup | Simple | Must remember to run |
 
-1. **Documentation**: `docs/MULTI_EXCHANGE_ARCHITECTURE.md` dengan:
-   - Current vs Future state diagrams
-   - Exchange interface contract (conceptual)
-   - Technical debt analysis
-   - Recommendations & anti-patterns
-
-2. **Type System**: Generic types di `src/types/exchange.ts`:
-   - `ExchangePosition`, `ExchangeBalance`, `ExchangeTrade`
-   - `ExchangeType` union type
-   - Mappers untuk Binance → Generic
-
-3. **Verification**: Confirmed working:
-   - Vault encryption/decryption
-   - API key flow end-to-end
-   - Rate limit tracking
+**Recommended**: Trigger-based auto-cleanup
 
 ---
 
-## Tidak Termasuk (Per Constraint)
+## Deliverables Checklist
 
-- ❌ Tidak mengimplementasi Bybit/OKX sekarang
-- ❌ Tidak menambah exchange selector ke UX
-- ❌ Tidak membuat abstraction class yang premature
-- ❌ Tidak mengubah hook names yang sudah ada
-
-Prinsip tetap: **Future-ready by design, single-exchange by implementation.**
+- [ ] Integration test for credential rotation
+- [ ] Auto-cleanup trigger for rate limits
+- [ ] `usePositions(exchange)` generic hook
+- [ ] `useBalance(exchange)` generic hook
+- [ ] Refactored PositionsTable using ExchangePosition
+- [ ] Documentation update for encryption status
