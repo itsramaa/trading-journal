@@ -407,10 +407,52 @@ function mapBinanceBalance(bb: BinanceBalance): ExchangeBalance
 
 ---
 
+## Security Notes
+
+### Credential Storage
+
+Current implementation uses **base64 encoding** for API key storage in `exchange_credentials` table:
+
+```sql
+-- Current: Base64 encoding (obfuscation, NOT encryption)
+v_encrypted_key := encode(convert_to(p_api_key, 'UTF8'), 'base64');
+```
+
+| Column | Format | Security Level | Risk |
+|--------|--------|----------------|------|
+| `api_key_encrypted` | Base64 | Obfuscation | Medium - readable if DB leaked |
+| `api_secret_encrypted` | Base64 | Obfuscation | Medium - readable if DB leaked |
+
+**Mitigations in Place:**
+- Row Level Security (RLS) prevents other users from reading
+- Service role key only used in Edge Functions (server-side)
+- Credentials never sent to frontend
+
+**For Production Multi-Tenant:**
+Consider upgrading to Supabase Vault (`vault.secrets` table) or external KMS.
+
+### Rate Limit Cleanup
+
+Auto-cleanup is handled via database trigger:
+
+```sql
+-- Trigger: tr_auto_cleanup_rate_limits
+-- Fires: AFTER INSERT on api_rate_limits
+-- Behavior: Deletes records older than 1 hour when table > 10000 rows
+```
+
+This eliminates the need for `pg_cron` extension.
+
+---
+
 ## Changelog
 
 | Date | Change |
 |------|--------|
 | 2026-02-01 | Initial architecture documentation created |
 | 2026-02-01 | Added generic types (`src/types/exchange.ts`) |
+| 2026-02-01 | Added security notes section |
+| 2026-02-01 | Created `usePositions()` and `useExchangeBalance()` wrapper hooks |
+| 2026-02-01 | Added auto-cleanup trigger for rate limits |
+| 2026-02-01 | Created credential rotation integration tests |
 | 2026-02-01 | Added mappers (`src/lib/exchange-mappers.ts`) |
