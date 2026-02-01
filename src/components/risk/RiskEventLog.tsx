@@ -1,18 +1,19 @@
 /**
  * Risk Event Log - Displays history of risk events + Binance liquidations + Margin History
- * Phase 2: Integrated with useBinanceForceOrders for liquidation history
- * Phase 4: Integrated with MarginHistoryTab for margin additions/reductions
+ * System-First: Risk Events tab works without Binance, Liquidations/Margin require connection
  */
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AlertTriangle, Shield, XCircle, CheckCircle, Clock, Skull, TrendingDown, Wallet } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { AlertTriangle, Shield, XCircle, CheckCircle, Clock, Skull, TrendingDown, Wallet, Wifi } from "lucide-react";
 import { useRiskEvents } from "@/hooks/use-risk-events";
-import { useBinanceForceOrders } from "@/features/binance";
+import { useBinanceForceOrders, useBinanceConnectionStatus } from "@/features/binance";
 import { format, formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { MarginHistoryTab } from "./MarginHistoryTab";
+import { Link } from "react-router-dom";
 
 const eventTypeConfig: Record<string, { icon: typeof AlertTriangle; color: string; label: string }> = {
   warning_70: {
@@ -64,7 +65,14 @@ const eventTypeConfig: Record<string, { icon: typeof AlertTriangle; color: strin
 
 export function RiskEventLog() {
   const { events, isLoading } = useRiskEvents();
-  const { data: forceOrders, isLoading: liquidationsLoading } = useBinanceForceOrders({ limit: 50 });
+  const { data: connectionStatus } = useBinanceConnectionStatus();
+  const isConfigured = connectionStatus?.isConfigured ?? false;
+  
+  // Only fetch Binance data when configured
+  const { data: forceOrders, isLoading: liquidationsLoading } = useBinanceForceOrders(
+    { limit: 50 },
+    { enabled: isConfigured }
+  );
 
   const hasLiquidations = forceOrders && forceOrders.length > 0;
 
@@ -108,16 +116,40 @@ export function RiskEventLog() {
                 <Badge variant="secondary" className="ml-2">{events.length}</Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="liquidations">
-              Liquidations
-              {hasLiquidations && (
-                <Badge variant="destructive" className="ml-2">{forceOrders.length}</Badge>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <TabsTrigger value="liquidations" disabled={!isConfigured}>
+                    Liquidations
+                    {hasLiquidations && (
+                      <Badge variant="destructive" className="ml-2">{forceOrders.length}</Badge>
+                    )}
+                    {!isConfigured && <Wifi className="h-3 w-3 ml-1 opacity-50" />}
+                  </TabsTrigger>
+                </span>
+              </TooltipTrigger>
+              {!isConfigured && (
+                <TooltipContent>
+                  <p>Connect Binance to view liquidation history</p>
+                </TooltipContent>
               )}
-            </TabsTrigger>
-            <TabsTrigger value="margin" className="gap-1">
-              <Wallet className="h-3 w-3" />
-              Margin
-            </TabsTrigger>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <TabsTrigger value="margin" className="gap-1" disabled={!isConfigured}>
+                    <Wallet className="h-3 w-3" />
+                    Margin
+                    {!isConfigured && <Wifi className="h-3 w-3 ml-1 opacity-50" />}
+                  </TabsTrigger>
+                </span>
+              </TooltipTrigger>
+              {!isConfigured && (
+                <TooltipContent>
+                  <p>Connect Binance to view margin history</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
           </TabsList>
           
           <TabsContent value="events" className="mt-4">
@@ -178,7 +210,19 @@ export function RiskEventLog() {
           </TabsContent>
           
           <TabsContent value="liquidations" className="mt-4">
-            {!hasLiquidations ? (
+            {!isConfigured ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Wifi className="h-12 w-12 mx-auto mb-4 opacity-30" />
+                <p>Connect Exchange Required</p>
+                <p className="text-sm">Link your Binance account to view liquidation history</p>
+                <Link 
+                  to="/settings?tab=exchange" 
+                  className="inline-block mt-4 text-sm text-primary hover:underline"
+                >
+                  Go to Settings →
+                </Link>
+              </div>
+            ) : !hasLiquidations ? (
               <div className="text-center py-8 text-muted-foreground">
                 <CheckCircle className="h-12 w-12 mx-auto mb-4 text-green-500/50" />
                 <p>No liquidations recorded</p>

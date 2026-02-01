@@ -308,6 +308,14 @@ The application follows a **System-First, Exchange-Second** data architecture:
 2. **Exchange data is enrichment** - Binance API adds real-time accuracy when connected
 3. **No component should break** without exchange connection
 
+### Component Classification
+
+| Category | Description | Examples |
+|----------|-------------|----------|
+| **Core System** | Works entirely without Exchange | PortfolioOverviewCard, DailyLossTracker, DashboardAnalyticsSummary, SmartQuickActions, StrategyCloneStatsWidget |
+| **Exchange-Enriched** | Works with internal data, enhanced by Exchange | RiskSummaryCard, TodayPerformance, MarketScoreWidget |
+| **Exchange-Exclusive** | Only relevant with Exchange connection | ADLRiskWidget, MarginHistoryTab, VolatilityMeterWidget (shows CTA when not connected) |
+
 ### Unified Data Hooks
 
 These hooks aggregate data from multiple sources with graceful fallbacks:
@@ -337,9 +345,9 @@ function useUnifiedWeeklyPnl(): UnifiedWeeklyPnlResult {
 
 | Condition | Data Source | Badge Display |
 |-----------|-------------|---------------|
-| Binance connected + has balance | Binance API | "Binance Live" |
-| Paper accounts exist | Paper Trading accounts | "Paper" |
-| Trade entries exist | trade_entries table | "Trade Journal" |
+| Binance connected + has balance | Binance API | "Binance Live" (green) |
+| Paper accounts exist | Paper Trading accounts | "Paper" (blue) |
+| Trade entries exist | trade_entries table | "Journal" (gray) |
 | No data | Empty state | Onboarding CTA |
 
 ### Empty State Strategy
@@ -363,6 +371,56 @@ if (!portfolio.hasData) {
     />
   );
 }
+```
+
+### Exchange-Exclusive Component Pattern
+
+For components that are only meaningful with Exchange data:
+
+```tsx
+// Example: VolatilityMeterWidget
+const { data: connectionStatus } = useBinanceConnectionStatus();
+const isConfigured = connectionStatus?.isConfigured ?? false;
+
+if (!isConfigured) {
+  return (
+    <Card>
+      <CardContent className="text-center py-6">
+        <Activity className="h-10 w-10 mx-auto mb-3 text-muted-foreground/30" />
+        <p className="text-sm font-medium mb-1">Connect Exchange</p>
+        <p className="text-xs text-muted-foreground mb-4">
+          View real-time volatility levels for top assets
+        </p>
+        <Button asChild variant="outline" size="sm">
+          <Link to="/settings?tab=exchange">Connect Binance</Link>
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+```
+
+### Disabled Tab Pattern
+
+For tabs that require Exchange data within otherwise system-first components:
+
+```tsx
+// Example: RiskEventLog Liquidations tab
+<Tooltip>
+  <TooltipTrigger asChild>
+    <span>
+      <TabsTrigger value="liquidations" disabled={!isConfigured}>
+        Liquidations
+        {!isConfigured && <Wifi className="h-3 w-3 ml-1 opacity-50" />}
+      </TabsTrigger>
+    </span>
+  </TooltipTrigger>
+  {!isConfigured && (
+    <TooltipContent>
+      <p>Connect Binance to view liquidation history</p>
+    </TooltipContent>
+  )}
+</Tooltip>
 ```
 
 ## Data Flow Diagram
