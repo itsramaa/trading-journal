@@ -134,8 +134,10 @@ const queryClient = new QueryClient({
 ['binance', 'leverage-brackets']
 ['binance', 'adl-quantile']
 
-// Risk
-['risk-profile', userId]
+// Unified Data (System-First Pattern)
+['unified-portfolio-data']       // Aggregates paper + Binance
+['unified-daily-pnl']           // Daily P&L from any source
+['unified-weekly-pnl']          // Weekly P&L from any source
 ['risk-events', userId]
 ['daily-risk-snapshot', userId, date]
 
@@ -295,6 +297,73 @@ function useRealtime({ tables, enabled }: UseRealtimeOptions) {
 | `account_transactions` | account-transactions, accounts |
 | `trade_entries` | trade-entries |
 | `trading_strategies` | trading-strategies |
+
+## System-First Data Pattern
+
+### Philosophy
+
+The application follows a **System-First, Exchange-Second** data architecture:
+
+1. **Internal data is always primary** - Paper accounts, trade entries, and snapshots
+2. **Exchange data is enrichment** - Binance API adds real-time accuracy when connected
+3. **No component should break** without exchange connection
+
+### Unified Data Hooks
+
+These hooks aggregate data from multiple sources with graceful fallbacks:
+
+```typescript
+// src/hooks/use-unified-portfolio-data.ts
+function useUnifiedPortfolioData(): UnifiedPortfolioData {
+  // Priority 1: Binance connected → Live wallet + income data
+  // Priority 2: Paper accounts → Aggregated balance + trade_entries P&L
+  // Priority 3: Trade entries only → P&L stats without capital
+  // Priority 4: Empty state → Onboarding CTA
+}
+
+// src/hooks/use-unified-daily-pnl.ts
+function useUnifiedDailyPnl(): UnifiedDailyPnlResult {
+  // Priority 1: Binance → Income endpoint
+  // Priority 2: Paper → trade_entries calculation
+}
+
+// src/hooks/use-unified-weekly-pnl.ts
+function useUnifiedWeeklyPnl(): UnifiedWeeklyPnlResult {
+  // Same priority pattern
+}
+```
+
+### Data Source Priority
+
+| Condition | Data Source | Badge Display |
+|-----------|-------------|---------------|
+| Binance connected + has balance | Binance API | "Binance Live" |
+| Paper accounts exist | Paper Trading accounts | "Paper" |
+| Trade entries exist | trade_entries table | "Trade Journal" |
+| No data | Empty state | Onboarding CTA |
+
+### Empty State Strategy
+
+**System-First UX Philosophy:**
+- Empty state is NOT an error
+- Empty state shows onboarding actions
+- Exchange connection is presented as an upgrade, not a requirement
+
+```tsx
+// Example: PortfolioOverviewCard
+if (!portfolio.hasData) {
+  return (
+    <EmptyState
+      title="Start Your Trading Journey"
+      description="Create paper account or connect exchange"
+      actions={[
+        { label: "Create Account", to: "/accounts" },
+        { label: "Connect Exchange", to: "/settings?tab=exchange", variant: "outline" },
+      ]}
+    />
+  );
+}
+```
 
 ## Data Flow Diagram
 
