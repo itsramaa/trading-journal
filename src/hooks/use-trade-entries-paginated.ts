@@ -11,12 +11,14 @@ import type { TradeEntry, TradingStrategy, TradeScreenshot } from "./use-trade-e
 export interface TradeFilters {
   status?: 'open' | 'closed' | 'all';
   pair?: string;
+  pairs?: string[];               // Multi-select pairs
   direction?: 'LONG' | 'SHORT';
-  result?: 'win' | 'loss' | 'breakeven';
+  result?: 'win' | 'loss' | 'breakeven' | 'profit' | 'loss';  // Added profit alias
   source?: 'manual' | 'binance';
   startDate?: string;
   endDate?: string;
   strategyId?: string;
+  strategyIds?: string[];         // Multi-select strategies
 }
 
 export interface PaginatedTradeEntriesOptions {
@@ -48,13 +50,19 @@ export function useTradeEntriesPaginated(options: PaginatedTradeEntriesOptions =
       if (filters?.status && filters.status !== 'all') {
         query = query.eq("status", filters.status);
       }
+      // Single pair filter
       if (filters?.pair) {
         query = query.eq("pair", filters.pair);
+      }
+      // Multi-pair filter (takes precedence if both are set)
+      if (filters?.pairs && filters.pairs.length > 0) {
+        query = query.in("pair", filters.pairs);
       }
       if (filters?.direction) {
         query = query.eq("direction", filters.direction);
       }
-      if (filters?.result) {
+      // Result filter - map 'profit' to positive pnl check handled post-filter
+      if (filters?.result && filters.result !== 'profit' && filters.result !== 'loss') {
         query = query.eq("result", filters.result);
       }
       if (filters?.source) {
@@ -123,12 +131,28 @@ export function useTradeEntriesPaginated(options: PaginatedTradeEntriesOptions =
         ? { cursorDate: lastTrade.trade_date, cursorId: lastTrade.id }
         : null;
 
-      // Filter by strategy if needed (post-filter since we need join data)
+      // Post-query filters (need join data or complex logic)
       let finalTrades = transformedTrades;
+      
+      // Single strategy filter
       if (filters?.strategyId) {
-        finalTrades = transformedTrades.filter(t => 
+        finalTrades = finalTrades.filter(t => 
           t.strategies?.some(s => s.id === filters.strategyId)
         );
+      }
+      
+      // Multi-strategy filter
+      if (filters?.strategyIds && filters.strategyIds.length > 0) {
+        finalTrades = finalTrades.filter(t => 
+          t.strategies?.some(s => filters.strategyIds!.includes(s.id))
+        );
+      }
+      
+      // Profit/Loss filter (based on realized_pnl since result may not be set)
+      if (filters?.result === 'profit') {
+        finalTrades = finalTrades.filter(t => (t.realized_pnl ?? t.pnl ?? 0) > 0);
+      } else if (filters?.result === 'loss') {
+        finalTrades = finalTrades.filter(t => (t.realized_pnl ?? t.pnl ?? 0) < 0);
       }
 
       return {

@@ -10,5 +10,6 @@ export { AllPositionsTable } from './AllPositionsTable';
 export { TradeEnrichmentDrawer } from './TradeEnrichmentDrawer';
 export { ScreenshotUploader } from './ScreenshotUploader';
 export { TradeHistoryInfiniteScroll } from './TradeHistoryInfiniteScroll';
+export { TradeGalleryCard, TradeGalleryCardSkeleton } from './TradeGalleryCard';
 export type { UnifiedPosition } from './AllPositionsTable';
 export type { PositionsTableProps } from './PositionsTable';

@@ -116,7 +116,19 @@ Trade History
 ## Trade History
 
 ### Purpose
-Standalone page untuk viewing dan filtering closed trades.
+Standalone page untuk viewing dan filtering closed trades dengan pagination dan dual view mode.
+
+### Architecture Principles
+1. **Pagination WAJIB** - Cursor-based pagination (trade_date + id)
+2. **Default 1 year lookback** - Tidak fetch full history kecuali user request
+3. **View toggle = cheap** - Satu data source, multiple representation
+4. **Images = enhancement** - LazyImage + IntersectionObserver
+
+### View Modes
+| Mode | Description |
+|------|-------------|
+| **List View** | Data-dense cards dengan full trade details |
+| **Gallery View** | Visual grid dengan screenshot thumbnails |
 
 ### Tabs
 | Tab | Content |
@@ -124,19 +136,49 @@ Standalone page untuk viewing dan filtering closed trades.
 | All | Semua closed trades |
 | Binance | Trades dari Binance sync |
 | Paper | Paper trading entries |
-| Import | Binance sync controls |
 
 ### Filters
-- Result: Profit / Loss
+- Date Range: Custom range atau full history toggle
+- Result: Profit / Loss / Breakeven
 - Strategy: Multi-select
 - Pair: Multi-select
 - Direction: Long / Short
 - AI Quality Sort
 
 ### Features
-- Trade enrichment drawer
-- CSV export
-- R:R calculation (if SL data available)
+- **Infinite Scroll** - 50 trades per page, cursor-based
+- **Trade Enrichment Drawer** - Notes, screenshots, analysis
+- **Gallery View** - Visual chart thumbnails dengan lazy loading
+- **Full History Toggle** - Override default 1 year limit
+- **CSV Export** (planned)
+- **R:R Calculation** (if SL data available)
+
+### Data Flow
+```
+Filter UI → paginatedFilters (memoized)
+                    ↓
+        useTradeEntriesPaginated()
+        - limit: 50
+        - cursor-based pagination
+                    ↓
+        trades = pages.flatMap()
+                    ↓
+    ┌───────────────┼───────────────┐
+    ↓               ↓               ↓
+List View     Gallery View      Stats
+(cards)       (grid+lazy)     (summary)
+                    ↓
+        loadMoreRef (infinite scroll)
+```
+
+### Components
+| Component | Purpose |
+|-----------|---------|
+| `TradeHistoryFilters` | Comprehensive filter controls |
+| `TradeHistoryCard` | List view trade card |
+| `TradeGalleryCard` | Gallery view visual card |
+| `LazyImage` | Image with IntersectionObserver |
+| `TradeEnrichmentDrawer` | Edit trade metadata |
 
 ---
 
