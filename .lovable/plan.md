@@ -1,280 +1,229 @@
 
-# Implementation Plan: Coming Soon Exchange UI + Component Migration to Generic Hooks
+# System-First Pattern Implementation Plan
 
-## Summary
-
-This plan addresses two tasks:
-1. **Add Coming Soon UI cards for Bybit and OKX** in Settings Exchange tab
-2. **Migrate existing components** to use the new generic `usePositions` hook
+## Objective
+Apply the "System-First, Exchange-Second" architecture pattern to all remaining Exchange-dependent components, ensuring every widget renders meaningfully without Binance API connection.
 
 ---
 
-## Part 1: Coming Soon Exchange Cards
+## Component Classification
 
-### Current State
+Based on codebase analysis, I've classified all components by their Exchange dependency:
 
-The Settings Exchange tab only shows `BinanceApiSettings` component:
+### Category A: Exchange-Exclusive (Require Special Handling)
+These components are meaningless without Exchange data - they need clear "Exchange Required" states:
 
-```tsx
-<TabsContent value="exchange" className="space-y-4">
-  <BinanceApiSettings />
-</TabsContent>
+| Component | Current State | Action |
+|-----------|---------------|--------|
+| `ADLRiskWidget` | ✅ Already has `BinanceNotConfiguredState` | No change needed |
+| `MarginHistoryTab` | ✅ Already has `BinanceNotConfiguredState` | No change needed |
+| `RiskEventLog` (Liquidations tab) | ⚠️ Shows loading/empty if no API | Add graceful fallback |
+
+### Category B: Exchange-Enriched (Need Unified Data Layer)
+These components should work with internal data and get enhanced with Exchange data:
+
+| Component | Current Issue | Solution |
+|-----------|---------------|----------|
+| `RiskSummaryCard` | Hard-depends on `useDailyRiskStatus` which expects Binance | Use unified risk data with paper fallback |
+| `TodayPerformance` | Falls back to local but still loads Binance | Clean fallback, remove loading dependency |
+| `VolatilityMeterWidget` | 100% Binance-dependent | Add "Market Data" public API fallback or informative empty state |
+| `MarketSentimentWidget` | Uses `useBinanceMarketSentiment` | Already uses public Binance data (no auth), just add error handling |
+| `MarketScoreWidget` | Mixed sources via `useUnifiedMarketScore` | Already System-First, verify fallback quality |
+
+### Category C: Core System Components (Already Correct)
+These use internal data as primary source:
+
+| Component | Status |
+|-----------|--------|
+| `PortfolioOverviewCard` | ✅ Phase 1 complete - uses unified data |
+| `DailyLossTracker` | ✅ Phase 1 complete - uses unified data |
+| `DashboardAnalyticsSummary` | ✅ Uses `useTradeEntries` (internal) |
+| `SmartQuickActions` | ✅ Uses `useTradingGate` (internal) |
+| `StrategyCloneStatsWidget` | ✅ Uses database directly |
+| `AIInsightsWidget` | ✅ Already guards correlation with `isConfigured` |
+| `SystemStatusIndicator` | ✅ Uses unified risk hooks |
+
+---
+
+## Implementation Details
+
+### 1. RiskSummaryCard Enhancement
+
+**Current Problem:**
+```typescript
+const { data: riskStatus, riskProfile, isBinanceConnected } = useDailyRiskStatus();
+// If no Binance AND no snapshot → shows "No trading activity today"
 ```
 
-### Target State (per MULTI_EXCHANGE_ARCHITECTURE.md mockup)
+**Solution:**
+- Add explicit detection of data source
+- Show meaningful state even with zero activity
+- Add badge indicating data source (Binance Live / Paper / No Data)
 
-```text
-┌────────────────────────────────────────────────────┐
-│ Settings > Exchange                                 │
-├────────────────────────────────────────────────────┤
-│  ┌─────────────────────────────────────────┐       │
-│  │ 🟡 Binance Futures           Connected  │       │
-│  │ API Key: abc1****xyz9                   │       │
-│  │ [Test Connection] [Remove]              │       │
-│  └─────────────────────────────────────────┘       │
-│                                                     │
-│  ┌─────────────────────────────────────────┐       │
-│  │ 🟠 Bybit Futures            Coming Soon │       │
-│  │ Connect your Bybit account when ready   │       │
-│  └─────────────────────────────────────────┘       │
-│                                                     │
-│  ┌─────────────────────────────────────────┐       │
-│  │ ⚪ OKX Futures              Coming Soon │       │
-│  │ Connect your OKX account when ready     │       │
-│  └─────────────────────────────────────────┘       │
-└────────────────────────────────────────────────────┘
+**Changes:**
+```
+src/components/risk/RiskSummaryCard.tsx
+├── Import unified data hooks
+├── Add `hasAnyDataSource` check
+├── Show "Configure Risk" CTA if no risk profile
+├── Show "No Trading Today" only if risk profile exists but no trades
+└── Add source badge (Binance/Paper/Internal)
 ```
 
-### Implementation
+### 2. TodayPerformance Clean Fallback
 
-**New File: `src/components/settings/ExchangeCard.tsx`**
+**Current Problem:**
+```typescript
+const useBinance = isConnected && binanceStats.isConnected && binanceStats.totalTrades > 0;
+// Falls back correctly but still shows loading while checking Binance
+```
 
-A reusable card component for exchanges:
+**Solution:**
+- Prioritize local data loading, check Binance in parallel
+- Don't block render waiting for Binance if local data ready
+- Add explicit "Source" badge showing Paper vs Binance
+
+**Changes:**
+```
+src/components/dashboard/TodayPerformance.tsx
+├── Reorder loading logic: show local immediately if available
+├── Add source indicator badge
+└── Clarify empty state messaging
+```
+
+### 3. VolatilityMeterWidget System-First Refactor
+
+**Current Problem:**
+```typescript
+const { data: volatilityData, isLoading, isError } = useMultiSymbolVolatility(symbols);
+// 100% Binance-dependent - no fallback
+```
+
+**Solution Options:**
+- **Option A (Recommended):** Show informative "Connect Exchange" empty state
+- **Option B:** Use public Binance market data (no auth required)
+
+Since volatility is exchange-specific market data, Option A is cleaner:
+
+**Changes:**
+```
+src/components/dashboard/VolatilityMeterWidget.tsx
+├── Import useBinanceConnectionStatus
+├── Check isConfigured before data fetch
+├── If not configured → Show descriptive empty state with CTA
+└── Keep existing behavior when connected
+```
+
+### 4. MarketSentimentWidget Error Handling
+
+**Current Analysis:**
+This widget uses `useBinanceMarketSentiment` which calls public Binance endpoints (no auth required). However, it should handle API failures gracefully.
+
+**Changes:**
+```
+src/components/market/MarketSentimentWidget.tsx
+├── Already has error state for no data
+├── Add explicit isError handling
+└── Show "Unable to fetch market data" with retry CTA
+```
+
+### 5. RiskEventLog Liquidations Graceful Fallback
+
+**Current Problem:**
+The Liquidations tab uses `useBinanceForceOrders` which requires auth.
+
+**Changes:**
+```
+src/components/risk/RiskEventLog.tsx
+├── Import useBinanceConnectionStatus
+├── If not configured, hide Liquidations tab OR show "Connect Exchange to view liquidation history"
+└── Keep Risk Events tab as primary (internal data)
+```
+
+---
+
+## File Changes Summary
+
+| File | Type | Change Description |
+|------|------|-------------------|
+| `src/components/risk/RiskSummaryCard.tsx` | Modify | Add unified data source detection, improve empty states |
+| `src/components/dashboard/TodayPerformance.tsx` | Modify | Clean loading priority, add source badges |
+| `src/components/dashboard/VolatilityMeterWidget.tsx` | Modify | Add isConfigured guard with informative empty state |
+| `src/components/market/MarketSentimentWidget.tsx` | Modify | Enhance error handling |
+| `src/components/risk/RiskEventLog.tsx` | Modify | Guard Liquidations tab with isConfigured check |
+| `docs/STATE_MANAGEMENT.md` | Modify | Document component classification and patterns |
+
+---
+
+## Technical Implementation Notes
+
+### Unified Empty State Pattern
+All Exchange-Enriched components should follow this pattern:
 
 ```typescript
-interface ExchangeCardProps {
-  exchange: ExchangeType;
-  status: 'connected' | 'not_configured' | 'coming_soon';
-  children?: React.ReactNode;
+// 1. Check configuration first
+const { data: connectionStatus } = useBinanceConnectionStatus();
+const isConfigured = connectionStatus?.isConfigured ?? false;
+const isConnected = connectionStatus?.isConnected ?? false;
+
+// 2. Use unified data hooks that have internal fallbacks
+const portfolioData = useUnifiedPortfolioData();
+
+// 3. Render based on data availability, not connection status
+if (!portfolioData.hasData) {
+  return <EmptyState actions={[/* onboarding CTAs */]} />;
 }
 
-function ExchangeCard({ exchange, status, children }: ExchangeCardProps) {
-  const meta = EXCHANGE_REGISTRY[exchange];
-  
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <span>{meta.icon}</span>
-            {meta.name}
-          </CardTitle>
-          <Badge variant={status === 'coming_soon' ? 'secondary' : ...}>
-            {status === 'coming_soon' ? 'Coming Soon' : ...}
-          </Badge>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {status === 'coming_soon' ? (
-          <p className="text-muted-foreground">
-            Connect your {meta.name} account when this exchange becomes available.
-          </p>
-        ) : (
-          children
-        )}
-      </CardContent>
-    </Card>
-  );
-}
+// 4. Add source indicator
+return (
+  <>
+    {isConnected && <Badge>Binance Live</Badge>}
+    {!isConnected && portfolioData.source === 'paper' && <Badge>Paper</Badge>}
+    {/* ... rest of UI */}
+  </>
+);
 ```
 
-**Modify: `src/pages/Settings.tsx`**
+### Badge Hierarchy for Data Sources
 
-Update the exchange tab content:
-
-```tsx
-<TabsContent value="exchange" className="space-y-4">
-  {/* Active Exchange: Binance */}
-  <BinanceApiSettings />
-  
-  {/* Coming Soon: Bybit */}
-  <ComingSoonExchangeCard exchange="bybit" />
-  
-  {/* Coming Soon: OKX */}
-  <ComingSoonExchangeCard exchange="okx" />
-</TabsContent>
-```
-
-**New File: `src/components/settings/ComingSoonExchangeCard.tsx`**
-
-Simpler dedicated component for coming soon exchanges:
-
-```typescript
-export function ComingSoonExchangeCard({ exchange }: { exchange: ExchangeType }) {
-  const meta = EXCHANGE_REGISTRY[exchange];
-  
-  return (
-    <Card className="border-dashed opacity-75">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-muted-foreground">
-            <span>{meta.icon}</span>
-            {meta.name}
-          </CardTitle>
-          <Badge variant="secondary" className="gap-1">
-            <Clock className="h-3 w-3" />
-            Coming Soon
-          </Badge>
-        </div>
-        <CardDescription>
-          Connect your {meta.name} account when this exchange becomes available.
-        </CardDescription>
-      </CardHeader>
-    </Card>
-  );
-}
-```
+| Condition | Badge | Color |
+|-----------|-------|-------|
+| Binance connected + active | "Binance Live" | Green |
+| Paper account data | "Paper" | Blue |
+| Trade entries only | "Journal" | Gray |
+| No data | (No badge, show empty state) | - |
 
 ---
 
-## Part 2: Migrate Components to Generic usePositions Hook
+## Testing Scenarios
 
-### Component Analysis
+After implementation, verify these scenarios:
 
-Found 10 components using `useBinancePositions`:
+1. **New User (no accounts, no trades)**
+   - Dashboard shows onboarding CTAs
+   - No error messages or loading spinners
+   - All widgets render in empty/welcome state
 
-| Component | Location | Current Usage | Migration Strategy |
-|-----------|----------|---------------|-------------------|
-| TradingJournal | pages/trading-journey | Uses with AllPositionsTable | Keep raw Binance for AllPositionsTable (needs BinancePosition) |
-| Dashboard | pages | Display position count | Migrate to `usePositions` |
-| Accounts | pages | Display balance & positions | Keep raw for now (complex integration) |
-| ADLRiskWidget | dashboard | ADL quantile needs BinancePosition | Keep raw (needs exchange-specific data) |
-| MarginHistoryTab | risk | Symbol filter from positions | Migrate to `usePositions` |
-| RiskSummaryCard | risk | Correlation check | Migrate to `usePositions` |
-| AIInsightsWidget | dashboard | Context for AI | Keep raw (uses multiple Binance data) |
+2. **Paper Trading User (no Binance)**
+   - Portfolio shows paper account balance
+   - Risk tracking uses paper snapshots
+   - Performance uses trade_entries data
+   - Exchange-exclusive widgets show "Connect for more features"
 
-### Migration Priority
+3. **Binance Connected User**
+   - All widgets show live data with "Binance Live" badge
+   - Paper data still aggregated where applicable
 
-**High Priority (Simple, standalone usage):**
-1. `Dashboard.tsx` - Just counts positions
-2. `MarginHistoryTab.tsx` - Extracts symbols only
-3. `RiskSummaryCard.tsx` - Uses for correlation
-
-**Low Priority (Complex integrations, keep raw for now):**
-1. `TradingJournal.tsx` - Uses with AllPositionsTable that needs BinancePosition
-2. `Accounts.tsx` - Complex integration with balance
-3. `ADLRiskWidget.tsx` - Needs ADL quantile with raw position data
-4. `AIInsightsWidget.tsx` - Uses multiple Binance sources
-
-### Implementation Details
-
-**Dashboard.tsx Migration:**
-
-Before:
-```typescript
-import { useBinancePositions } from "@/features/binance";
-const { data: positions } = useBinancePositions();
-const positionCount = positions?.filter(p => p.positionAmt !== 0).length || 0;
-```
-
-After:
-```typescript
-import { usePositions } from "@/hooks/use-positions";
-const { positions } = usePositions();
-// positions are already filtered to non-zero by mapper
-const positionCount = positions.length;
-```
-
-**MarginHistoryTab.tsx Migration:**
-
-Before:
-```typescript
-import { useBinancePositions } from "@/features/binance";
-const { data: positions } = useBinancePositions();
-const activeSymbols = positions?.filter(p => p.positionAmt !== 0).map(p => p.symbol) || [];
-```
-
-After:
-```typescript
-import { usePositions } from "@/hooks/use-positions";
-const { positions, isLoading } = usePositions();
-const activeSymbols = positions.map(p => p.symbol);
-```
-
-**RiskSummaryCard.tsx Migration:**
-
-Before:
-```typescript
-import { useBinancePositions } from "@/features/binance";
-const { data: positions = [] } = useBinancePositions();
-// Uses extractSymbols which works with any array with .symbol
-```
-
-After:
-```typescript
-import { usePositions } from "@/hooks/use-positions";
-const { positions } = usePositions();
-// extractSymbols still works - same interface
-```
+4. **Binance Disconnected (API error)**
+   - System falls back to internal data gracefully
+   - User sees "Connection issue" but app remains functional
 
 ---
 
-## Files to Create
+## Open Questions
 
-| File | Purpose |
-|------|---------|
-| `src/components/settings/ComingSoonExchangeCard.tsx` | Coming Soon exchange card component |
+1. **VolatilityMeterWidget Placement:** Should this widget be hidden entirely for non-Binance users, or shown with an empty state? Recommendation: Show empty state with CTA to maintain layout consistency.
 
-## Files to Modify
+2. **MarketSentimentWidget:** This uses PUBLIC Binance endpoints (no auth). Should we still guard it with isConfigured? Recommendation: No - it should work for everyone since it doesn't need user credentials.
 
-| File | Changes |
-|------|---------|
-| `src/pages/Settings.tsx` | Add Coming Soon cards for Bybit/OKX |
-| `src/pages/Dashboard.tsx` | Migrate from `useBinancePositions` to `usePositions` |
-| `src/components/risk/MarginHistoryTab.tsx` | Migrate to `usePositions` |
-| `src/components/risk/RiskSummaryCard.tsx` | Migrate to `usePositions` |
-
----
-
-## Implementation Order
-
-```text
-Phase 1: Settings UI (15 min)
-├── Create ComingSoonExchangeCard component
-└── Update Settings.tsx to include Coming Soon cards
-
-Phase 2: Component Migration (30 min)
-├── Migrate Dashboard.tsx to usePositions
-├── Migrate MarginHistoryTab.tsx to usePositions  
-└── Migrate RiskSummaryCard.tsx to usePositions
-```
-
----
-
-## Technical Notes
-
-### Why Keep Some Components Using useBinancePositions
-
-1. **AllPositionsTable (TradingJournal)**: Needs raw `BinancePosition` type for the `originalData` field in UnifiedPosition
-2. **ADLRiskWidget**: Requires ADL quantile data which is exchange-specific
-3. **Accounts.tsx**: Deep integration with balance, positions, and refresh logic
-
-These components are **acceptable technical debt** per the architecture principle:
-> "Binance-prefixed hooks are acceptable; add new hooks alongside"
-
-### Benefits of Migration
-
-1. **Simpler consumption**: No need to filter `.positionAmt !== 0`
-2. **Type-safe**: Uses `ExchangePosition` with `side: 'LONG' | 'SHORT'`
-3. **Future-ready**: When Bybit is added, just change exchange param
-
----
-
-## Validation Checklist
-
-- [ ] Coming Soon cards display correctly in Settings > Exchange
-- [ ] Binance card still fully functional
-- [ ] Dashboard position count works correctly
-- [ ] MarginHistoryTab symbol filter works
-- [ ] RiskSummaryCard correlation check works
-- [ ] No console errors or type mismatches
+3. **RiskEventLog Tab Order:** Should "Liquidations" tab be hidden or disabled when not configured? Recommendation: Disable with tooltip explaining why.
