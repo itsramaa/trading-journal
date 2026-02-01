@@ -1,10 +1,12 @@
 /**
  * Accounts Page - Binance-centered account management
  * Tabs: Accounts (merged Binance + Paper), Transactions, and Financial Summary
+ * System-First: Aggregates Paper + Binance data in overview cards
  */
 import { useState, useMemo } from "react";
 import { Helmet } from "react-helmet";
 import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { 
   CandlestickChart, 
   FlaskConical, 
@@ -16,13 +18,15 @@ import {
   TrendingDown,
   ArrowDownUp,
   CircleDollarSign,
-  Shield
+  Shield,
+  Wifi
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { AddAccountForm } from "@/components/accounts/AddAccountForm";
 import { AccountCardList } from "@/components/accounts/AccountCardList";
@@ -39,6 +43,7 @@ import {
   useBinancePositions,
   useRefreshBinanceData
 } from "@/features/binance";
+import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
 import type { Account } from "@/types/account";
 
@@ -57,6 +62,25 @@ export default function Accounts() {
   // Enable realtime updates for accounts
   useAccountsRealtime();
 
+  // Query for open paper trades (System-First: internal data)
+  const { data: paperOpenTradesCount } = useQuery({
+    queryKey: ['paper-open-trades-count'],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return 0;
+      
+      const { count } = await supabase
+        .from('trade_entries')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('status', 'open')
+        .not('trading_account_id', 'is', null);
+      
+      return count || 0;
+    },
+    staleTime: 30 * 1000,
+  });
+
   const handleTransact = (accountId: string, type: 'deposit' | 'withdraw') => {
     const account = accounts?.find(a => a.id === accountId);
     setSelectedAccount(account);
@@ -67,7 +91,25 @@ export default function Accounts() {
   const isConfigured = connectionStatus?.isConfigured ?? false;
   const isConnected = connectionStatus?.isConnected ?? false;
   const activePositions = positions?.filter(p => p.positionAmt !== 0) || [];
-  const paperAccountsCount = accounts?.filter(a => a.account_type === 'trading' && a.metadata?.is_backtest).length || 0;
+  
+  // Paper accounts calculation (System-First)
+  const paperAccounts = useMemo(() => 
+    accounts?.filter(a => a.account_type === 'backtest' || a.metadata?.is_backtest) || [],
+    [accounts]
+  );
+  const paperAccountsCount = paperAccounts.length;
+  const paperTotalBalance = useMemo(() => 
+    paperAccounts.reduce((sum, a) => sum + (Number(a.balance) || 0), 0),
+    [paperAccounts]
+  );
+  
+  // Combined totals (System-First: Paper + Binance)
+  const binanceBalance = isConnected ? (Number(balance?.totalWalletBalance) || 0) : 0;
+  const combinedTotalBalance = binanceBalance + paperTotalBalance;
+  
+  const binancePositionsCount = activePositions.length;
+  const totalActivePositions = binancePositionsCount + (paperOpenTradesCount || 0);
+  
   const totalAccounts = (isConnected ? 1 : 0) + paperAccountsCount;
 
   return (
@@ -116,7 +158,7 @@ export default function Accounts() {
           </div>
         </div>
 
-        {/* Accounts Overview Cards */}
+        {/* Accounts Overview Cards - System-First: Aggregated Data */}
         <div className="grid gap-4 md:grid-cols-3">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -131,6 +173,7 @@ export default function Accounts() {
             </CardContent>
           </Card>
           
+          {/* Total Balance - Aggregated Binance + Paper */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Balance</CardTitle>
@@ -142,16 +185,29 @@ export default function Accounts() {
               ) : (
                 <>
                   <div className="text-2xl font-bold font-mono-numbers">
-                    {formatCurrency(balance?.totalWalletBalance || 0, 'USD')}
+                    {formatCurrency(combinedTotalBalance, 'USD')}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Binance wallet balance
-                  </p>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    {isConnected && binanceBalance > 0 && (
+                      <Badge variant="outline" className="text-xs">
+                        Binance: {formatCurrency(binanceBalance, 'USD')}
+                      </Badge>
+                    )}
+                    {paperTotalBalance > 0 && (
+                      <Badge variant="secondary" className="text-xs">
+                        Paper: {formatCurrency(paperTotalBalance, 'USD')}
+                      </Badge>
+                    )}
+                    {combinedTotalBalance === 0 && (
+                      <span className="text-xs text-muted-foreground">No accounts with balance</span>
+                    )}
+                  </div>
                 </>
               )}
             </CardContent>
           </Card>
 
+          {/* Active Positions - Aggregated Binance + Paper */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Active Positions</CardTitle>
@@ -162,15 +218,32 @@ export default function Accounts() {
               )}
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{activePositions.length}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {(balance?.totalUnrealizedProfit || 0) >= 0 ? '+' : ''}{formatCurrency(balance?.totalUnrealizedProfit || 0, 'USD')} unrealized
-              </p>
+              <div className="text-2xl font-bold">{totalActivePositions}</div>
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                {isConnected && binancePositionsCount > 0 && (
+                  <Badge variant="outline" className="text-xs">
+                    {binancePositionsCount} Binance
+                  </Badge>
+                )}
+                {(paperOpenTradesCount || 0) > 0 && (
+                  <Badge variant="secondary" className="text-xs">
+                    {paperOpenTradesCount} Paper
+                  </Badge>
+                )}
+                {isConnected && binancePositionsCount > 0 && (
+                  <span className={`text-xs ${(balance?.totalUnrealizedProfit || 0) >= 0 ? 'text-profit' : 'text-loss'}`}>
+                    {(balance?.totalUnrealizedProfit || 0) >= 0 ? '+' : ''}{formatCurrency(balance?.totalUnrealizedProfit || 0, 'USD')} unrealized
+                  </span>
+                )}
+                {totalActivePositions === 0 && (
+                  <span className="text-xs text-muted-foreground">No open positions</span>
+                )}
+              </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Account Tabs */}
+        {/* Account Tabs - Always visible, exchange tabs disabled when not connected */}
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
           <TabsList className="grid w-full grid-cols-3 lg:w-[500px]" aria-label="Account type tabs">
             <TabsTrigger value="accounts" className="gap-2" aria-label={`All Accounts - ${totalAccounts} accounts`}>
@@ -182,18 +255,56 @@ export default function Accounts() {
                 </Badge>
               )}
             </TabsTrigger>
-            {isConnected && (
-              <>
-                <TabsTrigger value="transactions" className="gap-2" aria-label="Transaction History">
-                  <ArrowDownUp className="h-4 w-4" aria-hidden="true" />
-                  Transactions
-                </TabsTrigger>
-                <TabsTrigger value="financial" className="gap-2" aria-label="Financial Summary">
-                  <CircleDollarSign className="h-4 w-4" aria-hidden="true" />
-                  Financial
-                </TabsTrigger>
-              </>
-            )}
+            
+            {/* Transactions Tab - Always visible */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex w-full">
+                  <TabsTrigger 
+                    value="transactions" 
+                    className="gap-2 w-full" 
+                    disabled={!isConnected}
+                    aria-label="Transaction History"
+                  >
+                    <ArrowDownUp className="h-4 w-4" aria-hidden="true" />
+                    Transactions
+                    {!isConnected && (
+                      <Wifi className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
+                    )}
+                  </TabsTrigger>
+                </span>
+              </TooltipTrigger>
+              {!isConnected && (
+                <TooltipContent>
+                  <p>Requires Binance connection</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
+            
+            {/* Financial Tab - Always visible */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex w-full">
+                  <TabsTrigger 
+                    value="financial" 
+                    className="gap-2 w-full" 
+                    disabled={!isConnected}
+                    aria-label="Financial Summary"
+                  >
+                    <CircleDollarSign className="h-4 w-4" aria-hidden="true" />
+                    Financial
+                    {!isConnected && (
+                      <Wifi className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
+                    )}
+                  </TabsTrigger>
+                </span>
+              </TooltipTrigger>
+              {!isConnected && (
+                <TooltipContent>
+                  <p>Requires Binance connection</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
           </TabsList>
 
           {/* Accounts Tab - Merged Binance + Paper */}
@@ -339,19 +450,15 @@ export default function Accounts() {
             </div>
           </TabsContent>
 
-          {/* Transactions Tab */}
-          {isConnected && (
-            <TabsContent value="transactions" className="mt-6">
-              <BinanceTransactionHistoryTab />
-            </TabsContent>
-          )}
+          {/* Transactions Tab - Always rendered, component handles empty state */}
+          <TabsContent value="transactions" className="mt-6">
+            <BinanceTransactionHistoryTab />
+          </TabsContent>
 
-          {/* Financial Summary Tab */}
-          {isConnected && (
-            <TabsContent value="financial" className="mt-6">
-              <FinancialSummaryCard showDetails={true} />
-            </TabsContent>
-          )}
+          {/* Financial Summary Tab - Always rendered, component handles empty state */}
+          <TabsContent value="financial" className="mt-6">
+            <FinancialSummaryCard showDetails={true} />
+          </TabsContent>
         </Tabs>
       </div>
 
