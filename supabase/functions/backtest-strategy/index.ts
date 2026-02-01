@@ -105,6 +105,27 @@ serve(async (req) => {
     // Run backtest simulation
     const result = runBacktest(candles, strategy, config);
 
+    // Build simulation assumptions metadata
+    const assumptions = {
+      slippage: config.slippage || 0.001,
+      slippageModel: 'fixed_percentage',
+      commissionModel: 'maker_taker_average',
+      executionModel: 'instant_fill',
+      liquidationRisk: 'not_modeled',
+      fundingRates: 'not_included',
+      marketImpact: 'not_modeled',
+    };
+
+    const accuracyNotes = `This backtest uses simplified simulation:
+- Instant order fills (no partial fills)
+- Fixed slippage (${(assumptions.slippage * 100).toFixed(2)}%)
+- No funding rate costs
+- No liquidation modeling
+- No market impact for large orders
+Actual results may vary significantly.`;
+
+    const simulationVersion = 'v1-simplified';
+
     // Save result to database
     const { error: saveError } = await supabase
       .from("backtest_results")
@@ -119,6 +140,9 @@ serve(async (req) => {
         metrics: result.metrics,
         trades: result.trades,
         equity_curve: result.equityCurve,
+        assumptions,
+        accuracy_notes: accuracyNotes,
+        simulation_version: simulationVersion,
       }]);
 
     if (saveError) {
@@ -136,6 +160,9 @@ serve(async (req) => {
         initialCapital: config.initialCapital,
         finalCapital: config.initialCapital + result.metrics.totalReturnAmount,
         ...result,
+        assumptions,
+        accuracyNotes,
+        simulationVersion,
         createdAt: new Date().toISOString(),
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
