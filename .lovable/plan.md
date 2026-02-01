@@ -1,541 +1,355 @@
 
-# Trade History System - Phased Implementation Plan
+# Fix Plan: Complete Trade History with Binance Full Sync
 
-## Current State Analysis
+## Problem Analysis
 
-### What Exists
-| Component | Status | Issue |
-|-----------|--------|-------|
-| `useTradeEntriesPaginated()` | ✅ Exists | Not used on TradeHistory page |
-| `TradeHistoryInfiniteScroll` | ✅ Exists | Not integrated to main page |
-| `TradeHistoryFilters` | ✅ Exists | Needs minor adjustments for paginated hook |
-| `TradeHistoryCard` | ✅ Exists | Works fine, no changes needed |
-| Gallery View | ❌ Missing | Needs creation |
-| Default Time Range | ❌ Missing | No 1-year limit enforced |
-| View Toggle | ❌ Missing | No List/Gallery switch |
+### What's Actually Happening
 
-### Critical Problem
+```text
+Network Log Analysis:
+GET /trade_entries?...&trade_date=gte.2025-02-01
 
-```typescript
-// TradeHistory.tsx Line 47 - CURRENT (BAD)
-const { data: trades, isLoading } = useTradeEntries(); // Fetches ALL trades
+✅ startDate filter IS working correctly
+✅ Pagination is working
+✅ 12 trades returned (all that exist in database)
 
-// SHOULD BE
-const { data, fetchNextPage, hasNextPage } = useTradeEntriesPaginated({
-  limit: 50,
-  filters: { startDate: subYears(new Date(), 1).toISOString() }
-});
+Root Cause: Not a filter bug - LIMITED BINANCE SYNC
+```
+
+### The Real Issues
+
+| Issue | Current State | Desired State |
+|-------|---------------|---------------|
+| Binance Sync Range | Default 7 days (`daysToSync = 7`) | Full history support (up to 1 year+) |
+| Full History Toggle | Only queries local DB | Should also trigger Binance sync for older data |
+| Sync Visibility | No UI indication of sync range | Show user what date range is synced |
+
+### Data Timeline
+
+```text
+Binance Account Trading History (hypothetical):
+├── 2025-02-01: 50 trades (NOT synced - outside 7-day window)
+├── 2025-06-15: 30 trades (NOT synced - outside 7-day window)  
+├── 2026-01-20: 15 trades (NOT synced - outside 7-day window)
+└── 2026-01-26-30: 12 trades (SYNCED - within 7-day window)
+
+Local Database:
+└── Only 12 trades from Jan 26-30, 2026
 ```
 
 ---
 
-## Phase 1: Foundation - Migrate to Paginated Hook
+## Solution Architecture
 
-**Goal**: Replace full-fetch with paginated fetch on TradeHistory page
+### Phased Approach
 
-### 1.1 Update TradeFilters Interface
+```text
+Phase A: Fix Binance Sync to Support Full History
+Phase B: Connect Full History Toggle to Extended Sync
+Phase C: Add Sync Status & Progress UI
+```
 
-**File**: `src/hooks/use-trade-entries-paginated.ts`
+---
 
-Add missing filter properties to `TradeFilters`:
+## Phase A: Extended Binance Income History Fetching
 
+### A.1 - Update `useBinanceAllIncome` Hook
+
+**File**: `src/features/binance/useBinanceFutures.ts`
+
+Current limitation:
 ```typescript
-export interface TradeFilters {
-  status?: 'open' | 'closed' | 'all';
-  pair?: string;
-  pairs?: string[];           // NEW: Multi-select pairs
-  direction?: 'LONG' | 'SHORT';
-  result?: 'win' | 'loss' | 'breakeven';
-  source?: 'manual' | 'binance';
-  startDate?: string;
-  endDate?: string;
-  strategyId?: string;
-  strategyIds?: string[];     // NEW: Multi-select strategies
+export function useBinanceAllIncome(daysBack = 7, limit = 1000) {
+  const startTime = Date.now() - (daysBack * 24 * 60 * 60 * 1000);
+  // Only fetches last 7 days by default
 }
 ```
 
-### 1.2 Add Multi-Filter Support to Hook
+**Problem**: Binance `/fapi/v1/income` API has a **3-month window limit** per request. To get 1 year of data, we need **chunked fetching**.
 
-Update query builder to handle array filters:
+**Solution**: Create new hook `useBinanceFullIncomeHistory`:
 
 ```typescript
-// Handle multiple pairs
-if (filters?.pairs && filters.pairs.length > 0) {
-  query = query.in("pair", filters.pairs);
+/**
+ * Fetch complete income history with chunked requests
+ * Binance limit: 3 months per request, so we chunk by quarters
+ */
+export function useBinanceFullIncomeHistory(options: {
+  enabled?: boolean;
+  monthsBack?: number; // default 12 (1 year)
+  onProgress?: (progress: number) => void;
+}) {
+  // Implementation:
+  // 1. Calculate date chunks (3-month intervals)
+  // 2. Fetch each chunk sequentially (rate limit aware)
+  // 3. Merge and deduplicate results
+  // 4. Return combined income records
 }
-
-// Handle multiple strategies (post-filter approach already exists)
 ```
 
-### 1.3 Replace Hook in TradeHistory.tsx
+### A.2 - Create Chunked Fetch Utility
 
-**Before (Line 47)**:
+**File**: `src/features/binance/useBinanceExtendedData.ts` (modify existing)
+
+Add function to fetch income in chunks:
+
 ```typescript
-const { data: trades, isLoading } = useTradeEntries();
-```
-
-**After**:
-```typescript
-import { subYears } from "date-fns";
-import { 
-  useTradeEntriesPaginated, 
-  useFlattenedPaginatedTrades 
-} from "@/hooks/use-trade-entries-paginated";
-
-// Default: 1 year lookback, closed trades only
-const defaultStartDate = subYears(new Date(), 1).toISOString().split('T')[0];
-
-const paginatedFilters = useMemo(() => ({
-  status: 'closed' as const,
-  startDate: dateRange.from?.toISOString().split('T')[0] || defaultStartDate,
-  endDate: dateRange.to?.toISOString().split('T')[0],
-  pairs: selectedPairs.length > 0 ? selectedPairs : undefined,
-  result: resultFilter !== 'all' ? resultFilter : undefined,
-  direction: directionFilter !== 'all' ? directionFilter : undefined,
-  strategyIds: selectedStrategyIds.length > 0 ? selectedStrategyIds : undefined,
-}), [dateRange, selectedPairs, resultFilter, directionFilter, selectedStrategyIds]);
-
-const {
-  data,
-  fetchNextPage,
-  hasNextPage,
-  isFetchingNextPage,
-  isLoading,
-} = useTradeEntriesPaginated({ limit: 50, filters: paginatedFilters });
-
-const trades = data?.pages.flatMap(page => page.trades) ?? [];
-const totalCount = data?.pages[0]?.totalCount ?? 0;
-```
-
-### 1.4 Add Infinite Scroll Trigger
-
-Add scroll detection at bottom of trade list:
-
-```tsx
-import { useInView } from "react-intersection-observer";
-
-// Inside component
-const { ref: loadMoreRef, inView } = useInView({
-  threshold: 0.1,
-  rootMargin: "100px",
-});
-
-useEffect(() => {
-  if (inView && hasNextPage && !isFetchingNextPage) {
-    fetchNextPage();
+/**
+ * Fetch income history in 3-month chunks to work around Binance API limits
+ */
+export async function fetchChunkedIncomeHistory(
+  monthsBack: number = 12,
+  onProgress?: (progress: number) => void
+): Promise<BinanceIncome[]> {
+  const chunks = [];
+  const now = Date.now();
+  const threeMonthsMs = 90 * 24 * 60 * 60 * 1000;
+  
+  // Build chunk ranges
+  for (let i = 0; i < Math.ceil(monthsBack / 3); i++) {
+    const endTime = now - (i * threeMonthsMs);
+    const startTime = endTime - threeMonthsMs;
+    chunks.push({ startTime, endTime });
   }
-}, [inView, hasNextPage, isFetchingNextPage, fetchNextPage]);
-
-// In JSX, after trade list
-<div ref={loadMoreRef} className="py-4 flex justify-center">
-  {isFetchingNextPage ? (
-    <div className="flex items-center gap-2 text-muted-foreground">
-      <Loader2 className="h-4 w-4 animate-spin" />
-      <span className="text-sm">Loading more...</span>
-    </div>
-  ) : hasNextPage ? (
-    <span className="text-sm text-muted-foreground">Scroll for more</span>
-  ) : trades.length > 0 ? (
-    <span className="text-sm text-muted-foreground">
-      All {totalCount} trades loaded
-    </span>
-  ) : null}
-</div>
-```
-
-### 1.5 Update Stats Calculation
-
-Current stats use client-side filter. With pagination, we need to:
-- Keep using flattened paginated data for accurate counts
-- OR create a separate stats query (for full accuracy)
-
-For Phase 1, use flattened data:
-
-```typescript
-// Stats based on loaded trades (good enough for UX)
-const loadedCount = trades.length;
-const totalPnL = trades.reduce((sum, t) => sum + (t.realized_pnl || 0), 0);
-const winCount = trades.filter(t => (t.realized_pnl || 0) > 0).length;
-const winRate = loadedCount > 0 ? (winCount / loadedCount) * 100 : 0;
-```
-
-### Files Changed in Phase 1
-| File | Action |
-|------|--------|
-| `src/hooks/use-trade-entries-paginated.ts` | MODIFY - Add multi-filter support |
-| `src/pages/TradeHistory.tsx` | MODIFY - Replace hook, add infinite scroll |
-
----
-
-## Phase 2: Default Time Range & Filter Integration
-
-**Goal**: Enforce 1-year default, allow override via filter UI
-
-### 2.1 Add "Full History" Button to Filters
-
-**File**: `src/components/journal/TradeHistoryFilters.tsx`
-
-Add a toggle for full history:
-
-```tsx
-interface TradeHistoryFiltersProps {
-  // ...existing props
-  showFullHistory?: boolean;
-  onShowFullHistoryChange?: (show: boolean) => void;
-}
-
-// In JSX
-<div className="flex items-center gap-2">
-  <span className="text-sm text-muted-foreground">
-    {showFullHistory ? "Showing full history" : "Last 12 months"}
-  </span>
-  <Switch
-    checked={showFullHistory}
-    onCheckedChange={onShowFullHistoryChange}
-  />
-</div>
-```
-
-### 2.2 Sync Filter State with Pagination
-
-When `showFullHistory` is false (default):
-- `startDate` = 1 year ago
-- `endDate` = today
-
-When `showFullHistory` is true:
-- No date constraints
-
-### 2.3 Preserve Filter State in URL (Optional)
-
-Use URL search params to persist filter state:
-
-```typescript
-import { useSearchParams } from "react-router-dom";
-
-const [searchParams, setSearchParams] = useSearchParams();
-
-// Initialize from URL
-const initialResult = searchParams.get('result') as ResultFilter || 'all';
-const initialFullHistory = searchParams.get('full') === 'true';
-```
-
-### Files Changed in Phase 2
-| File | Action |
-|------|--------|
-| `src/components/journal/TradeHistoryFilters.tsx` | MODIFY - Add full history toggle |
-| `src/pages/TradeHistory.tsx` | MODIFY - Connect toggle to filter state |
-
----
-
-## Phase 3: View Toggle Infrastructure
-
-**Goal**: Add List/Gallery toggle that shares the same data source
-
-### 3.1 Create View Mode State
-
-```typescript
-type ViewMode = 'list' | 'gallery';
-
-const [viewMode, setViewMode] = useState<ViewMode>('list');
-
-// Persist preference
-const { data: userSettings, updateSettings } = useUserSettings();
-useEffect(() => {
-  if (userSettings?.trade_history_view) {
-    setViewMode(userSettings.trade_history_view);
+  
+  // Fetch each chunk
+  const allIncome: BinanceIncome[] = [];
+  for (let i = 0; i < chunks.length; i++) {
+    const chunk = chunks[i];
+    const result = await callBinanceApi('income', {
+      startTime: chunk.startTime,
+      endTime: chunk.endTime,
+      limit: 1000,
+    });
+    
+    if (result.success && result.data) {
+      allIncome.push(...result.data);
+    }
+    
+    onProgress?.((i + 1) / chunks.length * 100);
+    
+    // Rate limit delay
+    await new Promise(r => setTimeout(r, 200));
   }
-}, [userSettings]);
+  
+  // Deduplicate by tranId
+  const unique = new Map<number, BinanceIncome>();
+  allIncome.forEach(r => unique.set(r.tranId, r));
+  
+  return Array.from(unique.values()).sort((a, b) => b.time - a.time);
+}
+```
 
-const handleViewModeChange = (mode: ViewMode) => {
-  setViewMode(mode);
-  updateSettings({ trade_history_view: mode });
+---
+
+## Phase B: Connect Full History Toggle to Extended Sync
+
+### B.1 - Add Sync Full History Button to TradeHistory Page
+
+**File**: `src/pages/TradeHistory.tsx`
+
+When user toggles "Full History" ON and Binance is connected:
+1. Show info: "Syncing full Binance history (up to 1 year)..."
+2. Trigger chunked income fetch
+3. Sync new records to database
+4. Refresh trade list
+
+```typescript
+// Add state for full sync
+const [isFullSyncing, setIsFullSyncing] = useState(false);
+const [syncProgress, setSyncProgress] = useState(0);
+
+// Handler for full history toggle
+const handleShowFullHistoryChange = async (show: boolean) => {
+  setShowFullHistory(show);
+  
+  // If enabling full history AND Binance connected, trigger extended sync
+  if (show && isBinanceConnected && !isFullSyncing) {
+    setIsFullSyncing(true);
+    try {
+      await syncFullBinanceHistory({
+        monthsBack: 12,
+        onProgress: setSyncProgress,
+      });
+      
+      // Refresh trade entries after sync
+      queryClient.invalidateQueries({ queryKey: ['trade-entries-paginated'] });
+      toast.success('Full Binance history synced!');
+    } catch (error) {
+      toast.error('Failed to sync full history');
+    } finally {
+      setIsFullSyncing(false);
+      setSyncProgress(0);
+    }
+  }
 };
 ```
 
-### 3.2 Add Toggle Button Group to Header
+### B.2 - Create Full Sync Hook
 
-```tsx
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { List, Grid } from "lucide-react";
-
-<ToggleGroup type="single" value={viewMode} onValueChange={handleViewModeChange}>
-  <ToggleGroupItem value="list" aria-label="List view">
-    <List className="h-4 w-4" />
-  </ToggleGroupItem>
-  <ToggleGroupItem value="gallery" aria-label="Gallery view">
-    <Grid className="h-4 w-4" />
-  </ToggleGroupItem>
-</ToggleGroup>
-```
-
-### 3.3 Create TradeGalleryCard Component
-
-**File**: `src/components/journal/TradeGalleryCard.tsx` (NEW)
-
-```tsx
-interface TradeGalleryCardProps {
-  trade: TradeEntry;
-  onTradeClick: (trade: TradeEntry) => void;
-}
-
-function TradeGalleryCard({ trade, onTradeClick }: TradeGalleryCardProps) {
-  const hasScreenshots = trade.screenshots && trade.screenshots.length > 0;
-  const thumbnailUrl = hasScreenshots ? trade.screenshots[0].url : null;
-  const pnl = trade.realized_pnl ?? 0;
-  
-  return (
-    <Card 
-      className="cursor-pointer hover:border-primary transition-colors overflow-hidden"
-      onClick={() => onTradeClick(trade)}
-    >
-      {/* Thumbnail Section */}
-      <div className="aspect-video bg-muted relative">
-        {thumbnailUrl ? (
-          <LazyImage 
-            src={thumbnailUrl} 
-            alt={`${trade.pair} chart`}
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <ImageOff className="h-8 w-8 text-muted-foreground/50" />
-          </div>
-        )}
-        {/* Overlay badges */}
-        <div className="absolute top-2 left-2 flex gap-1">
-          <Badge variant={trade.direction === 'LONG' ? 'default' : 'secondary'}>
-            {trade.direction}
-          </Badge>
-        </div>
-        <div className="absolute top-2 right-2">
-          <Badge 
-            variant={pnl >= 0 ? 'default' : 'destructive'}
-            className={pnl >= 0 ? 'bg-profit text-white' : ''}
-          >
-            {pnl >= 0 ? '+' : ''}{formatCurrency(pnl)}
-          </Badge>
-        </div>
-      </div>
-      
-      {/* Info Section */}
-      <CardContent className="p-3">
-        <div className="flex justify-between items-center">
-          <span className="font-semibold">{trade.pair}</span>
-          <span className="text-xs text-muted-foreground">
-            {format(new Date(trade.trade_date), "MMM d")}
-          </span>
-        </div>
-        {trade.strategies?.[0] && (
-          <Badge variant="outline" className="mt-1 text-xs">
-            {trade.strategies[0].name}
-          </Badge>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-```
-
-### 3.4 Create LazyImage Component for Gallery
-
-**File**: `src/components/ui/lazy-image.tsx` (NEW)
-
-```tsx
-import { useState, useEffect, useRef } from "react";
-import { useInView } from "react-intersection-observer";
-import { Skeleton } from "@/components/ui/skeleton";
-
-interface LazyImageProps {
-  src: string;
-  alt: string;
-  className?: string;
-}
-
-export function LazyImage({ src, alt, className }: LazyImageProps) {
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [hasError, setHasError] = useState(false);
-  const { ref, inView } = useInView({
-    triggerOnce: true,
-    rootMargin: "100px",
-  });
-
-  return (
-    <div ref={ref} className={className}>
-      {!inView ? (
-        <Skeleton className="w-full h-full" />
-      ) : hasError ? (
-        <div className="w-full h-full bg-muted flex items-center justify-center">
-          <ImageOff className="h-6 w-6 text-muted-foreground" />
-        </div>
-      ) : (
-        <>
-          {!isLoaded && <Skeleton className="w-full h-full absolute inset-0" />}
-          <img
-            src={src}
-            alt={alt}
-            className={cn(className, !isLoaded && "opacity-0")}
-            onLoad={() => setIsLoaded(true)}
-            onError={() => setHasError(true)}
-          />
-        </>
-      )}
-    </div>
-  );
-}
-```
-
-### Files Changed in Phase 3
-| File | Action |
-|------|--------|
-| `src/components/journal/TradeGalleryCard.tsx` | CREATE |
-| `src/components/ui/lazy-image.tsx` | CREATE |
-| `src/pages/TradeHistory.tsx` | MODIFY - Add view toggle |
-| `src/components/journal/index.ts` | MODIFY - Export new components |
-
----
-
-## Phase 4: Gallery View Rendering
-
-**Goal**: Render gallery grid using same paginated data
-
-### 4.1 Conditional Rendering Based on ViewMode
-
-```tsx
-{viewMode === 'list' ? (
-  // Existing list rendering
-  <div className="space-y-4">
-    {trades.map((entry) => (
-      <TradeHistoryCard key={entry.id} {...cardProps} />
-    ))}
-  </div>
-) : (
-  // Gallery grid
-  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-    {trades.map((entry) => (
-      <TradeGalleryCard 
-        key={entry.id} 
-        trade={entry}
-        onTradeClick={handleEnrichTrade}
-      />
-    ))}
-  </div>
-)}
-```
-
-### 4.2 Share Infinite Scroll Between Views
-
-The `loadMoreRef` div remains at the bottom regardless of view mode.
-
-### 4.3 Filter by "Has Screenshots" (Optional Enhancement)
-
-Add filter option to show only trades with images in gallery mode:
-
-```tsx
-{viewMode === 'gallery' && (
-  <div className="flex items-center gap-2">
-    <Checkbox 
-      id="hasImages"
-      checked={filterHasImages}
-      onCheckedChange={setFilterHasImages}
-    />
-    <Label htmlFor="hasImages">Only show trades with screenshots</Label>
-  </div>
-)}
-```
-
-### Files Changed in Phase 4
-| File | Action |
-|------|--------|
-| `src/pages/TradeHistory.tsx` | MODIFY - Add gallery rendering |
-
----
-
-## Phase 5: Polish & Optimization
-
-### 5.1 Prefetch Thumbnails
-
-When gallery mode is active, prefetch next batch of thumbnails:
+**File**: `src/hooks/use-binance-full-sync.ts` (NEW)
 
 ```typescript
-useEffect(() => {
-  if (viewMode === 'gallery' && hasNextPage) {
-    // Prefetch next page images in background
-    const prefetchImages = async () => {
-      // Implementation depends on cache strategy
-    };
-    prefetchImages();
-  }
-}, [viewMode, hasNextPage]);
-```
-
-### 5.2 Add Skeleton States for Gallery
-
-```tsx
-function TradeGalleryCardSkeleton() {
-  return (
-    <Card className="overflow-hidden">
-      <Skeleton className="aspect-video" />
-      <CardContent className="p-3">
-        <div className="flex justify-between">
-          <Skeleton className="h-4 w-20" />
-          <Skeleton className="h-3 w-12" />
-        </div>
-      </CardContent>
-    </Card>
-  );
+/**
+ * Hook for syncing complete Binance history to local database
+ */
+export function useBinanceFullSync() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  
+  const syncFullHistory = useMutation({
+    mutationFn: async (options: { 
+      monthsBack?: number;
+      onProgress?: (progress: number) => void;
+    }) => {
+      const { monthsBack = 12, onProgress } = options;
+      
+      // Step 1: Fetch all income from Binance (chunked)
+      const allIncome = await fetchChunkedIncomeHistory(monthsBack, onProgress);
+      
+      // Step 2: Filter to REALIZED_PNL only
+      const pnlRecords = allIncome.filter(r => 
+        r.incomeType === 'REALIZED_PNL' && r.income !== 0
+      );
+      
+      // Step 3: Check for duplicates
+      const incomeIds = pnlRecords.map(r => `income_${r.tranId}`);
+      const { data: existing } = await supabase
+        .from('trade_entries')
+        .select('binance_trade_id')
+        .in('binance_trade_id', incomeIds);
+      
+      const existingSet = new Set(existing?.map(t => t.binance_trade_id) || []);
+      const newRecords = pnlRecords.filter(r => !existingSet.has(`income_${r.tranId}`));
+      
+      if (newRecords.length === 0) {
+        return { synced: 0, skipped: pnlRecords.length };
+      }
+      
+      // Step 4: Insert new trades
+      const entries = newRecords.map(r => incomeToTradeEntry(r, user.id));
+      
+      // Batch insert in chunks of 100
+      let synced = 0;
+      for (let i = 0; i < entries.length; i += 100) {
+        const batch = entries.slice(i, i + 100);
+        const { data } = await supabase.from('trade_entries').insert(batch).select();
+        synced += data?.length || 0;
+      }
+      
+      return { synced, skipped: pnlRecords.length - newRecords.length };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['trade-entries'] });
+      queryClient.invalidateQueries({ queryKey: ['trade-entries-paginated'] });
+    },
+  });
+  
+  return syncFullHistory;
 }
 ```
 
-### 5.3 Handle Empty Gallery State
+---
+
+## Phase C: Enhanced Sync Status UI
+
+### C.1 - Add Sync Progress Indicator
+
+**File**: `src/pages/TradeHistory.tsx`
 
 ```tsx
-{viewMode === 'gallery' && trades.length === 0 && (
-  <EmptyState
-    icon={ImageOff}
-    title="No trades with screenshots"
-    description="Upload screenshots via the Journal button to see them here"
-  />
-)}
+{/* Full History Toggle with Sync Status */}
+<div className="flex items-center gap-3">
+  <Calendar className="h-4 w-4 text-muted-foreground" />
+  
+  {isFullSyncing ? (
+    <div className="flex items-center gap-2">
+      <Loader2 className="h-4 w-4 animate-spin text-primary" />
+      <span className="text-sm text-muted-foreground">
+        Syncing Binance history... {syncProgress.toFixed(0)}%
+      </span>
+      <Progress value={syncProgress} className="w-24 h-2" />
+    </div>
+  ) : (
+    <>
+      <Label htmlFor="full-history" className="text-sm text-muted-foreground cursor-pointer">
+        {showFullHistory ? "Showing full history" : "Last 12 months"}
+      </Label>
+      <Switch
+        id="full-history"
+        checked={showFullHistory}
+        onCheckedChange={handleShowFullHistoryChange}
+        disabled={isFullSyncing}
+      />
+      {isBinanceConnected && showFullHistory && (
+        <Badge variant="outline" className="text-xs">
+          Includes Binance
+        </Badge>
+      )}
+    </>
+  )}
+</div>
 ```
 
-### 5.4 Update Memory docs
+### C.2 - Add First-Time Sync Prompt
 
-Update `docs/` with new architecture notes for future reference.
+When user first toggles "Full History" with Binance connected:
+
+```tsx
+<AlertDialog open={showSyncConfirm} onOpenChange={setShowSyncConfirm}>
+  <AlertDialogContent>
+    <AlertDialogHeader>
+      <AlertDialogTitle>Sync Full Binance History?</AlertDialogTitle>
+      <AlertDialogDescription>
+        This will fetch your complete trading history from Binance (up to 1 year). 
+        This may take a few minutes depending on your trading volume.
+      </AlertDialogDescription>
+    </AlertDialogHeader>
+    <AlertDialogFooter>
+      <AlertDialogCancel>Just Local Data</AlertDialogCancel>
+      <AlertDialogAction onClick={confirmFullSync}>
+        <Download className="h-4 w-4 mr-2" />
+        Sync from Binance
+      </AlertDialogAction>
+    </AlertDialogFooter>
+  </AlertDialogContent>
+</AlertDialog>
+```
 
 ---
 
-## Implementation Order
+## Phase D: Update Auto-Sync Default
 
-```text
-Phase 1: Foundation (CRITICAL)
-├── 1.1 Update TradeFilters interface
-├── 1.2 Add multi-filter support
-├── 1.3 Replace hook in TradeHistory
-├── 1.4 Add infinite scroll
-└── 1.5 Update stats calculation
+### D.1 - Increase Default Sync Window
 
-Phase 2: Time Range
-├── 2.1 Add full history toggle
-├── 2.2 Sync filter state
-└── 2.3 Optional URL persistence
+**File**: `src/hooks/use-binance-auto-sync.ts`
 
-Phase 3: View Toggle Infrastructure
-├── 3.1 Create view mode state
-├── 3.2 Add toggle buttons
-├── 3.3 Create TradeGalleryCard
-└── 3.4 Create LazyImage component
-
-Phase 4: Gallery Rendering
-├── 4.1 Conditional rendering
-├── 4.2 Shared infinite scroll
-└── 4.3 Optional "has images" filter
-
-Phase 5: Polish
-├── 5.1 Prefetch optimization
-├── 5.2 Skeleton states
-├── 5.3 Empty states
-└── 5.4 Documentation
+Current:
+```typescript
+const {
+  daysToSync = 7,  // Only 7 days
+} = options;
 ```
+
+Change to:
+```typescript
+const {
+  daysToSync = 30,  // Last 30 days for auto-sync
+} = options;
+```
+
+---
+
+## Files Summary
+
+| Phase | File | Action |
+|-------|------|--------|
+| A | `src/features/binance/useBinanceFutures.ts` | MODIFY - Add chunked fetch capability |
+| A | `src/features/binance/useBinanceExtendedData.ts` | MODIFY - Add `fetchChunkedIncomeHistory` |
+| B | `src/hooks/use-binance-full-sync.ts` | CREATE - Full history sync hook |
+| B | `src/pages/TradeHistory.tsx` | MODIFY - Connect toggle to sync |
+| C | `src/pages/TradeHistory.tsx` | MODIFY - Add progress UI |
+| D | `src/hooks/use-binance-auto-sync.ts` | MODIFY - Increase default to 30 days |
 
 ---
 
@@ -546,66 +360,90 @@ Phase 5: Polish
 │ TradeHistory.tsx                                                │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  ┌─────────────┐     ┌──────────────────────────────────────┐  │
-│  │ Filter UI   │────▶│ paginatedFilters (memoized)          │  │
-│  └─────────────┘     └──────────────────────────────────────┘  │
-│                                      │                          │
-│                                      ▼                          │
-│                      ┌──────────────────────────────────────┐  │
-│                      │ useTradeEntriesPaginated()           │  │
-│                      │ - limit: 50                          │  │
-│                      │ - cursor-based pagination            │  │
-│                      │ - returns { pages, fetchNextPage }   │  │
-│                      └──────────────────────────────────────┘  │
-│                                      │                          │
-│                                      ▼                          │
-│                      ┌──────────────────────────────────────┐  │
-│                      │ trades = pages.flatMap(p => p.trades)│  │
-│                      └──────────────────────────────────────┘  │
-│                                      │                          │
-│                     ┌────────────────┼────────────────┐        │
-│                     ▼                ▼                ▼        │
-│              ┌──────────┐    ┌─────────────┐   ┌──────────┐   │
-│              │ List View│    │ Gallery View│   │ Stats    │   │
-│              │ (cards)  │    │ (grid+lazy) │   │ (summary)│   │
-│              └──────────┘    └─────────────┘   └──────────┘   │
-│                     │                │                          │
-│                     └────────┬───────┘                          │
-│                              ▼                                  │
-│                      ┌──────────────────────────────────────┐  │
-│                      │ loadMoreRef (infinite scroll trigger)│  │
-│                      └──────────────────────────────────────┘  │
+│  User toggles "Full History" ON                                 │
+│                 │                                               │
+│                 ▼                                               │
+│  ┌────────────────────────────────────────────┐                │
+│  │ Is Binance Connected?                       │                │
+│  └────────────────────────────────────────────┘                │
+│           │                      │                              │
+│          YES                    NO                              │
+│           │                      │                              │
+│           ▼                      ▼                              │
+│  ┌─────────────────┐   ┌─────────────────────┐                 │
+│  │ Show Sync Dialog │   │ Query local DB only │                 │
+│  │ "Sync from      │   │ (no startDate)      │                 │
+│  │  Binance?"      │   └─────────────────────┘                 │
+│  └─────────────────┘                                           │
+│           │                                                     │
+│    User confirms                                                │
+│           │                                                     │
+│           ▼                                                     │
+│  ┌─────────────────────────────────────────┐                   │
+│  │ useBinanceFullSync()                    │                   │
+│  │  1. Fetch income (12 months, chunked)   │                   │
+│  │  2. Deduplicate against existing        │                   │
+│  │  3. Insert new trades to DB             │                   │
+│  │  4. Invalidate trade-entries queries    │                   │
+│  └─────────────────────────────────────────┘                   │
+│           │                                                     │
+│           ▼                                                     │
+│  ┌─────────────────────────────────────────┐                   │
+│  │ useTradeEntriesPaginated (no startDate) │                   │
+│  │ → Now includes all synced trades        │                   │
+│  └─────────────────────────────────────────┘                   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Key Principles Enforced
+## Binance API Considerations
 
-| Principle | Implementation |
-|-----------|---------------|
-| Pagination WAJIB | `useTradeEntriesPaginated` with cursor |
-| Default 1 year | `startDate = subYears(now, 1)` |
-| View toggle = cheap | Same data source, different render |
-| Images = enhancement | `LazyImage` + `IntersectionObserver` |
-| No over-fetch | Only 50 trades per page, lazy load images |
+### Rate Limits
 
----
+The `/fapi/v1/income` endpoint has:
+- Weight: 30 per request
+- Account category limit: 1200/minute
 
-## Files Summary
+For 1-year history (4 chunks):
+- Total weight: 4 × 30 = 120
+- With 200ms delay between chunks: Safe
 
-| Phase | File | Action |
-|-------|------|--------|
-| 1 | `src/hooks/use-trade-entries-paginated.ts` | MODIFY |
-| 1 | `src/pages/TradeHistory.tsx` | MODIFY |
-| 2 | `src/components/journal/TradeHistoryFilters.tsx` | MODIFY |
-| 3 | `src/components/journal/TradeGalleryCard.tsx` | CREATE |
-| 3 | `src/components/ui/lazy-image.tsx` | CREATE |
-| 3 | `src/components/journal/index.ts` | MODIFY |
-| 5 | `docs/FEATURES.md` or memory | UPDATE |
+### Response Size
+
+Each chunk returns max 1000 records. For active traders:
+- 1000 records/3 months × 4 = ~4000 records max
+- This is manageable for client-side processing
 
 ---
 
-## Recommendation
+## Behavior Matrix After Fix
 
-Start with **Phase 1** as it addresses the critical performance issue. Each subsequent phase builds on the previous one without breaking changes.
+| Scenario | Binance Status | Toggle State | Result |
+|----------|---------------|--------------|--------|
+| Initial load | Connected | OFF | Last 12 months from local DB |
+| Initial load | Connected | ON | Prompt to sync, then all history |
+| Initial load | Disconnected | ON | All local DB (no Binance) |
+| Returning user | Connected | ON | All synced history (no re-fetch) |
+| Manual sync | Connected | ON | "Sync Now" button available |
+
+---
+
+## Edge Cases Handled
+
+1. **User has never synced**: First "Full History" toggle triggers full sync
+2. **User already synced**: Deduplication prevents duplicate trades
+3. **Rate limit hit**: 200ms delay between chunks, graceful error handling
+4. **Binance disconnected mid-sync**: Partial data saved, can resume later
+5. **Very active trader (>4000 trades/year)**: Pagination handles overflow
+
+---
+
+## Testing Checklist
+
+- [ ] Toggle "Full History" with Binance connected → Shows sync dialog
+- [ ] Confirm sync → Progress indicator shows, trades appear after completion
+- [ ] Toggle off then on again → No re-sync (data already exists)
+- [ ] Binance disconnected → "Full History" only queries local DB
+- [ ] Default 30-day auto-sync captures recent trades automatically
