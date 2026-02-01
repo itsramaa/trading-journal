@@ -177,12 +177,12 @@ export function useUpdateDailyRiskSnapshot() {
   });
 }
 
-// Calculate daily risk status - Now Binance-centered
+// Calculate daily risk status - System-first with Binance enrichment
 export function useDailyRiskStatus() {
-  const { data: riskProfile } = useRiskProfile();
-  const { data: snapshot } = useDailyRiskSnapshot();
+  const { data: riskProfile, isLoading: profileLoading } = useRiskProfile();
+  const { data: snapshot, isLoading: snapshotLoading } = useDailyRiskSnapshot();
   
-  // Binance data
+  // Binance data (optional enrichment)
   const { totalBalance: binanceBalance, isConnected: isBinanceConnected } = useBinanceTotalBalance();
   const binancePnl = useBinanceDailyPnl();
 
@@ -191,7 +191,7 @@ export function useDailyRiskStatus() {
     
     const maxDailyLossPercent = riskProfile.max_daily_loss_percent || 5;
     
-    // Use Binance data if connected
+    // Priority 1: Use Binance data if connected and has balance
     if (isBinanceConnected && binanceBalance > 0) {
       const startingBalance = binanceBalance;
       const currentPnl = binancePnl.totalPnl;
@@ -220,32 +220,35 @@ export function useDailyRiskStatus() {
       };
     }
     
-    // Fallback to local snapshot (Paper Trading)
-    if (!snapshot) return null;
+    // Priority 2: Fallback to local snapshot (Paper Trading)
+    if (snapshot && snapshot.starting_balance > 0) {
+      const lossLimit = snapshot.starting_balance * (maxDailyLossPercent / 100);
+      const lossUsedPercent = snapshot.starting_balance > 0 
+        ? (Math.abs(Math.min(0, snapshot.current_pnl || 0)) / lossLimit) * 100 
+        : 0;
+      const remainingBudget = lossLimit + Math.min(0, snapshot.current_pnl || 0);
+      
+      let status: 'ok' | 'warning' | 'disabled' = 'ok';
+      if (lossUsedPercent >= 100) {
+        status = 'disabled';
+      } else if (lossUsedPercent >= 70) {
+        status = 'warning';
+      }
 
-    const lossLimit = snapshot.starting_balance * (maxDailyLossPercent / 100);
-    const lossUsedPercent = snapshot.starting_balance > 0 
-      ? (Math.abs(Math.min(0, snapshot.current_pnl)) / lossLimit) * 100 
-      : 0;
-    const remainingBudget = lossLimit + Math.min(0, snapshot.current_pnl);
-    
-    let status: 'ok' | 'warning' | 'disabled' = 'ok';
-    if (lossUsedPercent >= 100) {
-      status = 'disabled';
-    } else if (lossUsedPercent >= 70) {
-      status = 'warning';
+      return {
+        date: snapshot.snapshot_date,
+        starting_balance: snapshot.starting_balance,
+        current_pnl: snapshot.current_pnl || 0,
+        loss_limit: lossLimit,
+        loss_used_percent: lossUsedPercent,
+        remaining_budget: Math.max(0, remainingBudget),
+        trading_allowed: status !== 'disabled',
+        status,
+      };
     }
-
-    return {
-      date: snapshot.snapshot_date,
-      starting_balance: snapshot.starting_balance,
-      current_pnl: snapshot.current_pnl,
-      loss_limit: lossLimit,
-      loss_used_percent: lossUsedPercent,
-      remaining_budget: Math.max(0, remainingBudget),
-      trading_allowed: status !== 'disabled',
-      status,
-    };
+    
+    // No data source available
+    return null;
   };
 
   return {
@@ -253,5 +256,6 @@ export function useDailyRiskStatus() {
     riskProfile,
     snapshot,
     isBinanceConnected,
+    isLoading: profileLoading || snapshotLoading,
   };
 }

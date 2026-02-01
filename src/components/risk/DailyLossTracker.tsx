@@ -1,25 +1,26 @@
 /**
- * Daily Loss Tracker - Visual gauge for daily loss limit
- * Now Binance-centered with badge indicator
+ * Daily Loss Tracker - System-First Design
+ * Visual gauge for daily loss limit tracking
+ * Works with both Paper Trading accounts and Binance (enrichment)
+ * 
+ * Philosophy: Always functional with internal data, Binance adds real-time accuracy
  */
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { TrendingDown, AlertTriangle, CheckCircle, XCircle, Wifi } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { TrendingDown, AlertTriangle, CheckCircle, XCircle, Wifi, Settings } from "lucide-react";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { useDailyRiskStatus, useRiskProfile } from "@/hooks/use-risk-profile";
-import { useBinanceConnectionStatus } from "@/features/binance";
-import { BinanceNotConfiguredState } from "@/components/binance";
 import { RISK_THRESHOLDS } from "@/types/risk";
+import { Link } from "react-router-dom";
 
 export function DailyLossTracker() {
   const { data: riskStatus, isBinanceConnected } = useDailyRiskStatus();
-  const { data: riskProfile } = useRiskProfile();
-  const { data: connectionStatus } = useBinanceConnectionStatus();
-  const isConfigured = connectionStatus?.isConfigured ?? true;
+  const { data: riskProfile, isLoading: profileLoading } = useRiskProfile();
 
-  // Not configured state - show specific CTA
-  if (!isConfigured) {
+  // Loading state
+  if (profileLoading) {
     return (
       <Card>
         <CardHeader>
@@ -27,22 +28,14 @@ export function DailyLossTracker() {
             <TrendingDown className="h-5 w-5" />
             Daily Loss Tracker
           </CardTitle>
-          <CardDescription>
-            Track your daily loss limit usage
-          </CardDescription>
+          <CardDescription>Loading risk profile...</CardDescription>
         </CardHeader>
-        <CardContent>
-          <BinanceNotConfiguredState 
-            compact 
-            title="API Key Required"
-            description="Connect your Binance API to enable live loss tracking."
-          />
-        </CardContent>
       </Card>
     );
   }
 
-  if (!riskProfile || !riskStatus) {
+  // No risk profile configured - prompt to set up
+  if (!riskProfile) {
     return (
       <Card>
         <CardHeader>
@@ -54,6 +47,55 @@ export function DailyLossTracker() {
             Configure your risk profile to enable loss tracking
           </CardDescription>
         </CardHeader>
+        <CardContent>
+          <div className="flex flex-col items-center justify-center py-4 text-center">
+            <p className="text-sm text-muted-foreground mb-4">
+              Set your daily loss limits to protect your capital and track your risk in real-time.
+            </p>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/settings?tab=trading">
+                <Settings className="h-4 w-4 mr-2" />
+                Configure Risk Profile
+              </Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // No risk status data yet (no balance source)
+  if (!riskStatus) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <TrendingDown className="h-5 w-5" />
+            Daily Loss Tracker
+          </CardTitle>
+          <CardDescription>
+            {riskProfile.max_daily_loss_percent}% max daily loss limit
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col items-center justify-center py-4 text-center">
+            <p className="text-sm text-muted-foreground mb-4">
+              Create a paper trading account or connect Binance to start tracking your daily loss limit.
+            </p>
+            <div className="flex gap-2">
+              <Button asChild variant="outline" size="sm">
+                <Link to="/accounts">
+                  Create Paper Account
+                </Link>
+              </Button>
+              <Button asChild variant="ghost" size="sm">
+                <Link to="/settings?tab=exchange">
+                  Connect Exchange
+                </Link>
+              </Button>
+            </div>
+          </div>
+        </CardContent>
       </Card>
     );
   }
@@ -90,10 +132,14 @@ export function DailyLossTracker() {
             <CardTitle className="flex items-center gap-2">
               <TrendingDown className="h-5 w-5" />
               Daily Loss Tracker
-              {isBinanceConnected && (
-                <Badge variant="outline" className="text-xs gap-1 ml-1">
+              {isBinanceConnected ? (
+                <Badge variant="outline" className="text-xs gap-1 ml-1 border-profit/30 text-profit">
                   <Wifi className="h-3 w-3" />
                   Live
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-xs ml-1">
+                  Paper
                 </Badge>
               )}
             </CardTitle>
@@ -182,6 +228,22 @@ export function DailyLossTracker() {
             </Badge>
           )}
         </div>
+
+        {/* Enhancement CTA for non-Binance users */}
+        {!isBinanceConnected && (
+          <div className="pt-2 border-t">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground text-xs">
+                Using paper account data
+              </span>
+              <Button variant="ghost" size="sm" asChild className="h-7 text-xs">
+                <Link to="/settings?tab=exchange">
+                  Upgrade to live tracking
+                </Link>
+              </Button>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
