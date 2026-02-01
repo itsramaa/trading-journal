@@ -465,7 +465,6 @@ export type Database = {
           realized_pnl: number | null
           result: string | null
           screenshots: Json | null
-          session_id: string | null
           source: string | null
           status: string
           stop_loss: number | null
@@ -507,7 +506,6 @@ export type Database = {
           realized_pnl?: number | null
           result?: string | null
           screenshots?: Json | null
-          session_id?: string | null
           source?: string | null
           status?: string
           stop_loss?: number | null
@@ -549,7 +547,6 @@ export type Database = {
           realized_pnl?: number | null
           result?: string | null
           screenshots?: Json | null
-          session_id?: string | null
           source?: string | null
           status?: string
           stop_loss?: number | null
@@ -561,13 +558,6 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "trade_entries_session_id_fkey"
-            columns: ["session_id"]
-            isOneToOne: false
-            referencedRelation: "trading_sessions"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "trade_entries_trading_account_id_fkey"
             columns: ["trading_account_id"]
@@ -646,60 +636,6 @@ export type Database = {
           quote_asset?: string
           source?: string | null
           symbol?: string
-        }
-        Relationships: []
-      }
-      trading_sessions: {
-        Row: {
-          created_at: string
-          end_time: string | null
-          id: string
-          is_active: boolean
-          market_condition: string | null
-          mood: string
-          notes: string | null
-          pnl: number
-          rating: number
-          session_date: string
-          start_time: string
-          tags: string[] | null
-          trades_count: number
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          end_time?: string | null
-          id?: string
-          is_active?: boolean
-          market_condition?: string | null
-          mood?: string
-          notes?: string | null
-          pnl?: number
-          rating?: number
-          session_date?: string
-          start_time: string
-          tags?: string[] | null
-          trades_count?: number
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          end_time?: string | null
-          id?: string
-          is_active?: boolean
-          market_condition?: string | null
-          mood?: string
-          notes?: string | null
-          pnl?: number
-          rating?: number
-          session_date?: string
-          start_time?: string
-          tags?: string[] | null
-          trades_count?: number
-          updated_at?: string
-          user_id?: string
         }
         Relationships: []
       }

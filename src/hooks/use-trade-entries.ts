@@ -12,7 +12,6 @@ export interface TradeEntry {
   id: string;
   user_id: string;
   trading_account_id: string | null;
-  session_id: string | null;
   pair: string;
   direction: string;
   entry_price: number;
