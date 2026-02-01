@@ -8,4 +8,5 @@ export { ClosePositionDialog, EditPositionDialog } from './PositionDialogs';
 export { AllPositionsTable } from './AllPositionsTable';
 export { TradeEnrichmentDrawer } from './TradeEnrichmentDrawer';
 export { ScreenshotUploader } from './ScreenshotUploader';
+export { TradeHistoryInfiniteScroll } from './TradeHistoryInfiniteScroll';
 export type { UnifiedPosition } from './AllPositionsTable';
