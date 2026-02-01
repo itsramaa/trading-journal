@@ -1,19 +1,21 @@
 /**
  * Risk Summary Card - Shows daily risk status on dashboard
- * Now displays Binance badge when using real data
+ * System-First: Works with paper accounts, enriched with Binance
  * Enhanced with correlation warning for open positions
  */
 import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Shield, AlertTriangle, XCircle, CheckCircle, Wifi, Link2 } from "lucide-react";
+import { Shield, AlertTriangle, XCircle, CheckCircle, Wifi, Link2, FileText, Settings } from "lucide-react";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { useDailyRiskStatus } from "@/hooks/use-risk-profile";
 import { useBinanceConnectionStatus } from "@/features/binance";
 import { usePositions } from "@/hooks/use-positions";
 import { checkCorrelationRisk, extractSymbols, type CorrelationWarning } from "@/lib/correlation-utils";
 import { formatPercentUnsigned, formatCurrency } from "@/lib/formatters";
+import { Link } from "react-router-dom";
 
 export function RiskSummaryCard() {
   const { data: riskStatus, riskProfile, isBinanceConnected } = useDailyRiskStatus();
@@ -27,6 +29,14 @@ export function RiskSummaryCard() {
     return checkCorrelationRisk(symbols);
   }, [positions, connectionStatus]);
 
+  // Determine data source for badge display
+  const dataSource = useMemo(() => {
+    if (isBinanceConnected) return 'binance';
+    if (riskStatus) return 'paper';
+    return 'none';
+  }, [isBinanceConnected, riskStatus]);
+
+  // No risk profile - show CTA to configure
   if (!riskProfile) {
     return (
       <Card>
@@ -36,28 +46,53 @@ export function RiskSummaryCard() {
             Risk Status
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            No risk profile configured
-          </p>
+        <CardContent className="space-y-3">
+          <div className="text-center py-2">
+            <Settings className="h-8 w-8 mx-auto mb-2 text-muted-foreground/50" />
+            <p className="text-sm text-muted-foreground">
+              Configure risk limits to track daily loss
+            </p>
+          </div>
+          <Button asChild variant="outline" size="sm" className="w-full">
+            <Link to="/risk-management">
+              <Settings className="h-4 w-4 mr-2" />
+              Set Up Risk Profile
+            </Link>
+          </Button>
         </CardContent>
       </Card>
     );
   }
 
+  // Has risk profile but no trading activity today - show clean state
   if (!riskStatus) {
     return (
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <Shield className="h-4 w-4" />
-            Risk Status
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Shield className="h-4 w-4" />
+              Risk Status
+            </CardTitle>
+            {dataSource === 'paper' && (
+              <Badge variant="outline" className="text-xs gap-1">
+                <FileText className="h-3 w-3" />
+                Paper
+              </Badge>
+            )}
+          </div>
         </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            No trading activity today
-          </p>
+        <CardContent className="space-y-3">
+          <div className="flex items-center gap-2">
+            <CheckCircle className="h-4 w-4 text-green-500" />
+            <span className="text-sm">No trading activity today</span>
+          </div>
+          <div className="text-xs text-muted-foreground">
+            Daily loss limit: {formatCurrency(
+              (riskProfile.max_daily_loss_percent ?? 5) / 100 * 10000, 
+              'USD'
+            )}
+          </div>
         </CardContent>
       </Card>
     );
@@ -92,13 +127,21 @@ export function RiskSummaryCard() {
           <CardTitle className="text-sm font-medium flex items-center gap-2">
             <Shield className="h-4 w-4" />
             Risk Status
-            {isBinanceConnected && (
-              <Badge variant="outline" className="text-xs gap-1 ml-1">
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            {dataSource === 'binance' && (
+              <Badge variant="outline" className="text-xs gap-1 text-profit">
                 <Wifi className="h-3 w-3" />
                 Binance
               </Badge>
             )}
-          </CardTitle>
+            {dataSource === 'paper' && (
+              <Badge variant="outline" className="text-xs gap-1">
+                <FileText className="h-3 w-3" />
+                Paper
+              </Badge>
+            )}
+          </div>
           {getStatusBadge()}
         </div>
       </CardHeader>

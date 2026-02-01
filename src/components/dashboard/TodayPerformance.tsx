@@ -1,8 +1,8 @@
 /**
  * Today's Performance - 24H trading stats with full income breakdown
- * Uses Binance income API for real trades (all symbols, all income types)
+ * System-First: Shows local data immediately, enriched with Binance when available
  * Shows: Gross P&L, Net P&L, Fees, Funding, Rebates
- * Wrapped with error boundary for Binance API timeout handling
+ * Wrapped with error boundary for API timeout handling
  */
 import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ErrorBoundary, AsyncErrorFallback } from "@/components/ui/error-boundary";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -21,7 +21,8 @@ import {
   Zap,
   ChevronDown,
   Wallet,
-  ArrowUpDown
+  ArrowUpDown,
+  FileText
 } from "lucide-react";
 import { useDailyPnl } from "@/hooks/use-daily-pnl";
 import { useBinanceDailyPnl } from "@/hooks/use-binance-daily-pnl";
@@ -69,9 +70,11 @@ function TodayPerformanceContent() {
     };
   }, [binanceStats.bySymbol]);
 
-  const isLoading = localLoading || binanceStats.isLoading;
+  // System-First: Only show loading if we have NO data source ready
+  // If local data is ready, render it immediately even if Binance is still loading
+  const showLoading = localLoading && binanceStats.isLoading;
 
-  if (isLoading) {
+  if (showLoading) {
     return (
       <Card>
         <CardHeader className="pb-3">
@@ -134,10 +137,15 @@ function TodayPerformanceContent() {
             Today's Performance
           </CardTitle>
           <div className="flex items-center gap-2">
-            {useBinance && (
+            {useBinance ? (
               <Badge variant="outline" className="text-xs text-profit">
                 <Zap className="h-3 w-3 mr-1" />
                 Binance
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-xs">
+                <FileText className="h-3 w-3 mr-1" />
+                Journal
               </Badge>
             )}
             <Badge variant="outline" className="text-xs">24H</Badge>

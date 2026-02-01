@@ -118,7 +118,7 @@ export function useBinanceLeverageBrackets(symbol?: string) {
  * const { data: liquidations } = useBinanceForceOrders({ limit: 100 });
  * // Display in Risk Event Log
  */
-export function useBinanceForceOrders(params?: ForceOrderParams) {
+export function useBinanceForceOrders(params?: ForceOrderParams, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ["binance", "force-orders", params || {}],
     queryFn: async () => {
@@ -132,6 +132,7 @@ export function useBinanceForceOrders(params?: ForceOrderParams) {
     },
     staleTime: 60 * 1000, // 1 minute - historical but important to stay updated
     gcTime: 10 * 60 * 1000,
+    enabled: options?.enabled !== false,
   });
 }
 

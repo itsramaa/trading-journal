@@ -392,7 +392,17 @@ export function MarketSentimentWidget({
         ) : (
           <div className="text-center py-8 text-muted-foreground">
             <Activity className="h-8 w-8 mx-auto mb-2 opacity-50" />
-            <p className="text-sm">No sentiment data available</p>
+            <p className="text-sm">Unable to fetch market data</p>
+            <p className="text-xs mt-1">Check your connection and try again</p>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="mt-3"
+              onClick={() => refetch()}
+            >
+              <RefreshCw className="h-3 w-3 mr-1" />
+              Retry
+            </Button>
           </div>
         )}
       </CardContent>
