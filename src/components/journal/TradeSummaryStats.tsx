@@ -1,5 +1,7 @@
 /**
  * Trade Summary Stats - P&L summary cards for Trading Journal
+ * System-First: Aggregates both Binance and Paper data sources
+ * Shows breakdown in subtitle when both sources have data
  */
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Circle, TrendingUp, TrendingDown, CheckCircle, DollarSign, Wifi } from "lucide-react";
@@ -26,13 +28,16 @@ export function TradeSummaryStats({
   isBinanceConnected,
   formatCurrency,
 }: TradeSummaryStatsProps) {
-  const displayUnrealizedPnL = isBinanceConnected 
-    ? (binanceUnrealizedPnL ?? 0) 
-    : unrealizedPnL;
-  
-  const displayPositionsCount = isBinanceConnected 
-    ? binancePositionsCount 
-    : openPositionsCount;
+  // Aggregate both sources - System-First principle
+  const binancePnL = binanceUnrealizedPnL ?? 0;
+  const paperPnL = unrealizedPnL;
+  const displayUnrealizedPnL = binancePnL + paperPnL;
+
+  const displayPositionsCount = binancePositionsCount + openPositionsCount;
+
+  // For breakdown display
+  const hasBinanceData = isBinanceConnected && binancePositionsCount > 0;
+  const hasPaperData = openPositionsCount > 0;
 
   return (
     <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
@@ -40,14 +45,18 @@ export function TradeSummaryStats({
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium flex items-center gap-1">
             Open Positions
-            {isBinanceConnected && <Wifi className="h-3 w-3 text-profit" aria-hidden="true" />}
+            {hasBinanceData && <Wifi className="h-3 w-3 text-profit" aria-hidden="true" />}
           </CardTitle>
           <Circle className="h-4 w-4 text-primary" aria-hidden="true" />
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">{displayPositionsCount}</div>
           <p className="text-xs text-muted-foreground">
-            {isBinanceConnected ? 'From Binance' : 'Paper Trading'}
+            {hasBinanceData && hasPaperData 
+              ? `${binancePositionsCount} Binance + ${openPositionsCount} Paper`
+              : hasBinanceData 
+                ? 'From Binance'
+                : 'Paper Trading'}
           </p>
         </CardContent>
       </Card>
@@ -71,7 +80,11 @@ export function TradeSummaryStats({
             {formatCurrency(displayUnrealizedPnL, "USD")}
           </div>
           <p className="text-xs text-muted-foreground">
-            {isBinanceConnected ? 'Live from Binance' : 'From paper positions'}
+            {hasBinanceData && hasPaperData 
+              ? 'Combined: Binance + Paper'
+              : hasBinanceData 
+                ? 'Live from Binance'
+                : 'From paper positions'}
           </p>
         </CardContent>
       </Card>
