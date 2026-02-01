@@ -85,7 +85,6 @@ describe("Hook Contracts", () => {
         id: "uuid",
         user_id: "uuid",
         trading_account_id: null,
-        session_id: null,
         pair: "BTCUSDT",
         direction: "long",
         entry_price: 50000,

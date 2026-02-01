@@ -8,7 +8,6 @@
 | `trade_entries` | Individual trades (40+ fields) | ✅ |
 | `trade_entry_strategies` | Trade-Strategy junction | ✅ |
 | `trading_strategies` | Strategy definitions | ✅ |
-| `trading_sessions` | Trading session tracking | ✅ |
 | `risk_profiles` | User risk parameters | ✅ |
 | `daily_risk_snapshots` | Daily risk tracking | ✅ |
 | `risk_events` | Risk event audit trail | ✅ |
@@ -39,10 +38,6 @@ auth.users (Supabase Auth)
     ├──► trading_strategies (1:N)
     │       │
     │       └──► backtest_results (1:N)
-    │
-    ├──► trading_sessions (1:N)
-    │       │
-    │       └──► trade_entries (1:N via session_id)
     │
     ├──► risk_profiles (1:1)
     │
@@ -154,7 +149,6 @@ CREATE TABLE trade_entries (
   tags TEXT[],
   
   -- Relations
-  session_id UUID REFERENCES trading_sessions(id),
   trading_account_id UUID REFERENCES accounts(id),
   
   created_at TIMESTAMPTZ DEFAULT now(),
