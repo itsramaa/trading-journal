@@ -29,6 +29,7 @@ import { AccountCardList } from "@/components/accounts/AccountCardList";
 import { AccountTransactionDialog } from "@/components/accounts/AccountTransactionDialog";
 import { BinanceTransactionHistoryTab } from "@/components/trading/BinanceTransactionHistory";
 import { FinancialSummaryCard } from "@/components/accounts/FinancialSummaryCard";
+import { BinanceNotConfiguredState } from "@/components/binance/BinanceNotConfiguredState";
 
 import { useAccounts } from "@/hooks/use-accounts";
 import { useAccountsRealtime } from "@/hooks/use-realtime";
@@ -63,7 +64,8 @@ export default function Accounts() {
     setTransactionDialogOpen(true);
   };
 
-  const isConnected = connectionStatus?.isConnected;
+  const isConfigured = connectionStatus?.isConfigured ?? false;
+  const isConnected = connectionStatus?.isConnected ?? false;
   const activePositions = positions?.filter(p => p.positionAmt !== 0) || [];
   const paperAccountsCount = accounts?.filter(a => a.account_type === 'trading' && a.metadata?.is_backtest).length || 0;
   const totalAccounts = (isConnected ? 1 : 0) + paperAccountsCount;
@@ -207,19 +209,28 @@ export default function Accounts() {
                 </div>
               </div>
               
-              {!isConnected ? (
+              {!isConfigured ? (
+                <Card className="border-dashed">
+                  <CardContent className="py-0">
+                    <BinanceNotConfiguredState 
+                      title="Binance Not Configured"
+                      description="Connect your Binance Futures API to view real-time balance and positions."
+                    />
+                  </CardContent>
+                </Card>
+              ) : !isConnected ? (
                 <Card className="border-dashed">
                   <CardContent className="py-8">
                     <div className="text-center max-w-md mx-auto">
-                      <XCircle className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                      <h3 className="text-lg font-semibold mb-2">Binance Not Connected</h3>
+                      <XCircle className="h-12 w-12 mx-auto mb-4 text-loss/60" />
+                      <h3 className="text-lg font-semibold mb-2">Connection Error</h3>
                       <p className="text-muted-foreground mb-4">
-                        Connect your Binance Futures API to view real-time balance and positions.
+                        Unable to connect to Binance. Please check your API credentials.
                       </p>
                       <Button asChild>
                         <Link to="/settings?tab=exchange">
                           <Settings className="h-4 w-4 mr-2" />
-                          Configure API Keys
+                          Check API Settings
                         </Link>
                       </Button>
                     </div>
