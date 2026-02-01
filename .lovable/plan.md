@@ -1,182 +1,234 @@
 
-# Make Bulk Export Page System-First Compliant
+# Fix AI Insights Widget to Use Unified Portfolio Data (System-First Compliant)
 
-## Problem Summary
+## Problem Analysis
 
-The **Bulk Export page** (`src/pages/BulkExport.tsx`) blocks the entire page with an `EmptyState` when Binance is not connected (Lines 81-105), even though 2 of 3 tabs work perfectly without exchange connection:
+The **AI Insights Widget** (`src/components/dashboard/AIInsightsWidget.tsx`) always uses Paper Trading data, even when Binance is connected. This violates the System-First architecture where Binance should **enrich** the data when available.
 
-| Tab | Data Source | Exchange Required? |
-|-----|-------------|-------------------|
-| Binance | Binance API | ✅ Yes |
-| Journal | `useTradeEntries()` local DB | ❌ No |
-| Backup | Local settings | ❌ No |
-
-## Current Flow (Broken)
+### Root Cause
 
 ```
-User WITHOUT Binance:
-┌─────────────────────────────────────┐
-│ ⚠️ Binance Not Connected            │
-│                                     │
-│    Connect your Binance account     │
-│    in Settings → Exchange           │
-│                                     │
-│        [ENTIRE PAGE BLOCKED]        │
-└─────────────────────────────────────┘
+Current Flow (Broken):
+┌─────────────────────────────────────────────────────────┐
+│ AIInsightsWidget                                        │
+├─────────────────────────────────────────────────────────┤
+│ portfolioData = useMemo(() => {                         │
+│   totalBalance = accounts.reduce(...)  ← Paper only ❌  │
+│   openTrades = trades.filter(...)      ← Paper only ❌  │
+│ })                                                      │
+│                                                         │
+│ Result: Always shows Paper data even if Binance live    │
+└─────────────────────────────────────────────────────────┘
 
-Journal Export: ❌ BLOCKED (but should work)
-Backup/Restore: ❌ BLOCKED (but should work)
+Correct Flow (System-First):
+┌─────────────────────────────────────────────────────────┐
+│ AIInsightsWidget                                        │
+├─────────────────────────────────────────────────────────┤
+│ portfolio = useUnifiedPortfolioData()  ← Unified hook   │
+│                                                         │
+│ if (portfolio.source === 'binance')                     │
+│   → Use Binance balance + P&L               ✅          │
+│ else                                                    │
+│   → Use Paper accounts + trade_entries      ✅          │
+└─────────────────────────────────────────────────────────┘
 ```
 
-## Target Flow (System-First)
+### Comparison with PortfolioOverviewCard
 
+`PortfolioOverviewCard.tsx` correctly uses:
+```typescript
+const portfolio = useUnifiedPortfolioData(); // ✅ Correct
 ```
-User WITHOUT Binance:
-┌──────────────────────────────────────────────────┐
-│ 📥 Bulk Export & Backup                          │
-├──────────────────────────────────────────────────┤
-│ [Binance] [Journal] [Backup]                     │
-│                                                  │
-│ ┌── Binance Tab ───────────────────────────────┐ │
-│ │ ⚠️ Binance Not Connected                     │ │
-│ │    Connect in Settings → Exchange            │ │
-│ │    to export transaction history             │ │
-│ └──────────────────────────────────────────────┘ │
-│                                                  │
-│ (Journal and Backup tabs work normally)          │
-└──────────────────────────────────────────────────┘
+
+`AIInsightsWidget.tsx` incorrectly uses:
+```typescript
+const { data: allAccounts = [] } = useAccounts();       // ❌ Paper only
+const accounts = useMemo(() => allAccounts.filter(...));
+const portfolioData = useMemo(() => {
+  const totalBalance = accounts.reduce(...);            // ❌ Paper only
+  // ...
+});
 ```
 
 ---
 
 ## Solution
 
-### File: `src/pages/BulkExport.tsx`
+### File: `src/components/dashboard/AIInsightsWidget.tsx`
 
 **Key Changes:**
 
-1. **REMOVE page-level EmptyState gate** (Lines 81-105)
-2. **Move Binance connection check INSIDE the Binance tab content**
-3. **Default to "journal" tab when Binance is not connected**
-4. Add source badge to header showing connection status
+| Line | Change |
+|------|--------|
+| 31 | Add import for `useUnifiedPortfolioData` |
+| 79-80 | Remove direct `useAccounts()` call |
+| Add ~81 | Use `useUnifiedPortfolioData()` hook |
+| 117-155 | Refactor `portfolioData` to use unified data |
+| Add | Add source badge to show data origin |
 
 ---
 
-### Change 1: Remove Page-Level Gate (Lines 81-105)
+### Change 1: Add Unified Hook Import (Line 31)
 
-**Delete this entire block:**
+**After line 31:**
 ```typescript
-if (!isConnected) {
-  return (
-    <DashboardLayout>
-      <div className="space-y-6">
-        {/* ... EmptyState that blocks whole page ... */}
-      </div>
-    </DashboardLayout>
-  );
-}
+import { useUnifiedPortfolioData } from "@/hooks/use-unified-portfolio-data";
 ```
 
 ---
 
-### Change 2: Add Dynamic Default Tab
+### Change 2: Replace Direct Account Query with Unified Hook (Lines 79-80)
 
-**Before (Line 121):**
-```tsx
-<Tabs defaultValue="binance" className="space-y-6">
+**Before:**
+```typescript
+const { data: allAccounts = [] } = useAccounts();
+const accounts = useMemo(() => allAccounts.filter(a => a.is_active), [allAccounts]);
 ```
 
 **After:**
-```tsx
-<Tabs defaultValue={isConnected ? "binance" : "journal"} className="space-y-6">
+```typescript
+const portfolio = useUnifiedPortfolioData();
 ```
-
-This automatically opens the Journal tab for users without Binance, guiding them to functional features.
 
 ---
 
-### Change 3: Add Source Badge to Header (After Line 117)
+### Change 3: Refactor portfolioData Calculation (Lines 117-155)
+
+**Before (Paper-only):**
+```typescript
+const portfolioData = useMemo(() => {
+  const totalBalance = accounts.reduce((sum, acc) => sum + Number(acc.balance), 0);
+  const openTrades = trades.filter(t => t.status === 'open');
+  const deployedCapital = openTrades.reduce((sum, t) => sum + (t.quantity * t.entry_price), 0);
+  
+  const today = new Date().toISOString().split('T')[0];
+  const todayTrades = trades.filter(t => t.trade_date === today && t.status === 'closed');
+  const currentDailyLoss = todayTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
+
+  return {
+    portfolioStatus: {
+      totalBalance,
+      deployedCapital,
+      openPositions: openTrades.length,
+    },
+    riskStatus: {
+      currentDailyLoss: Math.min(currentDailyLoss, 0),
+      maxDailyLoss: totalBalance * 0.05,
+      tradingAllowed: Math.abs(currentDailyLoss) < totalBalance * 0.05,
+    },
+    // ...
+  };
+}, [accounts, trades, strategies]);
+```
+
+**After (Unified - Binance-first, Paper fallback):**
+```typescript
+const portfolioData = useMemo(() => {
+  // Use unified portfolio data (Binance if connected, Paper fallback)
+  const totalBalance = portfolio.totalCapital;
+  const deployedCapital = portfolio.source === 'binance' 
+    ? 0 // Binance positions tracked separately
+    : trades.filter(t => t.status === 'open').reduce((sum, t) => sum + (t.quantity * t.entry_price), 0);
+  
+  // Open positions count from appropriate source
+  const openPositions = portfolio.source === 'binance'
+    ? positions.filter(p => p.positionAmt !== 0).length
+    : trades.filter(t => t.status === 'open').length;
+  
+  // Use unified daily P&L data
+  const currentDailyLoss = Math.min(portfolio.todayNetPnl, 0);
+  const maxDailyLoss = totalBalance * 0.05;
+
+  return {
+    portfolioStatus: {
+      totalBalance,
+      deployedCapital,
+      openPositions,
+    },
+    riskStatus: {
+      currentDailyLoss,
+      maxDailyLoss,
+      tradingAllowed: Math.abs(currentDailyLoss) < maxDailyLoss,
+    },
+    recentTrades: trades.slice(0, 20).map(t => ({
+      pair: t.pair,
+      direction: t.direction,
+      result: t.result || 'pending',
+      pnl: t.pnl || 0,
+      date: t.trade_date,
+    })),
+    strategies: strategies.map(s => ({
+      name: s.name,
+      trades: 0,
+      winRate: 0,
+    })),
+    source: portfolio.source, // Pass source to AI for context
+  };
+}, [portfolio, trades, strategies, positions]);
+```
+
+---
+
+### Change 4: Add Source Badge Next to Title (Around Line 232)
 
 **Before:**
 ```tsx
-<p className="text-muted-foreground">
-  Download trading history, export journal, and backup settings
-</p>
+<CardTitle className="flex items-center gap-2 text-base">
+  <Sparkles className="h-5 w-5 text-primary" />
+  AI Insights
 ```
 
 **After:**
 ```tsx
-<p className="text-muted-foreground">
-  Download trading history, export journal, and backup settings
-</p>
-<div className="flex gap-2 mt-2">
-  <Badge variant={isConnected ? "default" : "secondary"}>
-    {isConnected ? "🔗 Exchange Connected" : "📝 Paper Mode"}
+<CardTitle className="flex items-center gap-2 text-base">
+  <Sparkles className="h-5 w-5 text-primary" />
+  AI Insights
+  <Badge variant="outline" className="text-xs ml-1">
+    {portfolio.source === 'binance' ? '🔗 Live' : '📝 Paper'}
   </Badge>
-</div>
-```
-
----
-
-### Change 4: Move Connection Alert INSIDE Binance TabsContent (Lines 137-364)
-
-**Wrap the entire Binance tab content with a connection check:**
-
-```tsx
-<TabsContent value="binance" className="space-y-6">
-  {!isConnected ? (
-    <Alert>
-      <AlertTriangle className="h-4 w-4" />
-      <AlertTitle>Exchange Not Connected</AlertTitle>
-      <AlertDescription>
-        Connect your Binance API in Settings → Exchange to export transaction, 
-        order, and trade history for tax reporting.
-        <br /><br />
-        <strong>Tip:</strong> You can still export your journal trades and backup 
-        settings using the other tabs above.
-      </AlertDescription>
-    </Alert>
-  ) : (
-    <>
-      {/* Existing Binance export content (Info Alert, Date Range, Export Cards, Tips) */}
-    </>
-  )}
-</TabsContent>
 ```
 
 ---
 
 ## Visual Comparison
 
-### Before (Exchange-Exclusive Gate)
+### Before (Broken - Always Paper)
 
 ```
-User WITHOUT Binance:
-┌─────────────────────────────────────┐
-│ ❌ ENTIRE PAGE BLOCKED              │
-│                                     │
-│    Cannot use Journal Export        │
-│    Cannot use Backup/Restore        │
-└─────────────────────────────────────┘
+Binance Connected:
+┌─────────────────────────────────────────────────────┐
+│ ✨ AI Insights                                      │
+├─────────────────────────────────────────────────────┤
+│ Using Paper Trading data: $5,000 balance            │
+│ (Binance wallet: $50,000 - IGNORED) ❌              │
+│                                                     │
+│ Summary: "Based on your $5,000 portfolio..."        │
+│ Recommendations based on wrong data                 │
+└─────────────────────────────────────────────────────┘
 ```
 
 ### After (System-First)
 
 ```
-User WITHOUT Binance:
-┌─────────────────────────────────────────────────┐
-│ 📥 Bulk Export & Backup      [📝 Paper Mode]    │
-├─────────────────────────────────────────────────┤
-│ [Binance(disabled)] [Journal✓] [Backup✓]        │
-│                                                 │
-│ Journal Tab (auto-selected):                    │
-│ ┌─────────────────────────────────────────────┐ │
-│ │ ✅ Export trades with market context        │ │
-│ │ ✅ Format: CSV / JSON                       │ │
-│ │ ✅ Include AI Scores                        │ │
-│ │    [Export 42 Trades]                       │ │
-│ └─────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────┘
+Binance Connected:
+┌─────────────────────────────────────────────────────┐
+│ ✨ AI Insights                    [🔗 Live]         │
+├─────────────────────────────────────────────────────┤
+│ Using Binance data: $50,000 balance                 │
+│                                                     │
+│ Summary: "Based on your $50,000 portfolio..."  ✅   │
+│ Recommendations based on real data                  │
+└─────────────────────────────────────────────────────┘
+
+Binance NOT Connected:
+┌─────────────────────────────────────────────────────┐
+│ ✨ AI Insights                    [📝 Paper]        │
+├─────────────────────────────────────────────────────┤
+│ Using Paper Trading data: $5,000 balance            │
+│                                                     │
+│ Summary: "Based on your $5,000 portfolio..."   ✅   │
+│ Recommendations based on paper data                 │
+└─────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -185,29 +237,29 @@ User WITHOUT Binance:
 
 | File | Action | Lines Changed |
 |------|--------|---------------|
-| `src/pages/BulkExport.tsx` | MODIFY | ~30 lines |
+| `src/components/dashboard/AIInsightsWidget.tsx` | MODIFY | ~25 lines |
 
 ---
 
-## Behavior Matrix After Changes
+## Behavior Matrix After Fix
 
-| Feature | Binance Connected | Paper Mode |
-|---------|-------------------|------------|
-| Page Access | ✅ Full | ✅ Full |
-| Binance Tab | ✅ Export transactions | ⚠️ "Connect required" message |
-| Journal Tab | ✅ Export trades | ✅ Export trades |
-| Backup Tab | ✅ Backup/Restore | ✅ Backup/Restore |
-| Default Tab | Binance | Journal (auto-switch) |
-| Source Badge | "🔗 Exchange Connected" | "📝 Paper Mode" |
+| Scenario | Data Source | Balance Used | P&L Used |
+|----------|-------------|--------------|----------|
+| Binance Connected | `useUnifiedPortfolioData` | Binance wallet | Binance daily P&L |
+| Binance Disconnected | `useUnifiedPortfolioData` | Paper accounts | Paper trade entries |
+| No Accounts | `useUnifiedPortfolioData` | $0 | Trade journal P&L |
 
 ---
 
-## Summary of All Three Pages
+## Technical Notes
 
-| Page | Status | Action |
-|------|--------|--------|
-| Trading Heatmap | ✅ System-First | No changes needed |
-| AI Insights | ✅ System-First | No changes needed |
-| Bulk Export | ❌ Exchange-Exclusive | **Refactor to System-First** |
+### Why This Approach?
 
-The refactored Bulk Export page will follow the same pattern as the Daily P&L page: move the connection gate from page-level to tab-level, ensuring Paper Trading users can still access the Journal Export and Backup/Restore functionality that is already fully functional without an exchange connection.
+1. **Reuses existing unified hook** - `useUnifiedPortfolioData` already handles all the logic
+2. **Consistent with PortfolioOverviewCard** - Same data source, same behavior
+3. **Minimal code changes** - Just swap the data source, keep the rest intact
+4. **Visual feedback** - Source badge tells user where data comes from
+
+### Dependencies
+
+The widget already imports `useBinancePositions` (line 81) and `useBinanceConnectionStatus` (line 82), so Binance awareness is partially there. We just need to use it for the main portfolio data calculation.
