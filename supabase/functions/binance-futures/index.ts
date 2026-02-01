@@ -14,9 +14,49 @@ const corsHeaders = {
 };
 
 /**
+ * Decode JWT to get user ID (without full verification - Supabase handles JWT verification)
+ */
+function decodeJwt(token: string): { sub: string; email?: string; exp: number } {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) {
+      throw new Error('Invalid JWT format');
+    }
+    
+    // Decode payload (base64url)
+    const payload = parts[1]
+      .replace(/-/g, '+')
+      .replace(/_/g, '/');
+    
+    const decoded = JSON.parse(atob(payload));
+    return decoded;
+  } catch {
+    throw new Error('Failed to decode JWT');
+  }
+}
+
+/**
  * Get authenticated user from JWT
  */
 async function getAuthenticatedUser(authHeader: string) {
+  if (!authHeader?.startsWith('Bearer ')) {
+    throw new Error('Unauthorized: Missing or invalid authorization header');
+  }
+  
+  const token = authHeader.replace('Bearer ', '');
+  
+  // Decode JWT to get user ID
+  const claims = decodeJwt(token);
+  
+  if (!claims.sub) {
+    throw new Error('Unauthorized: No user ID in token');
+  }
+  
+  // Check if token is expired
+  if (claims.exp && claims.exp * 1000 < Date.now()) {
+    throw new Error('Unauthorized: Token expired');
+  }
+  
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
   
@@ -24,15 +64,8 @@ async function getAuthenticatedUser(authHeader: string) {
     global: { headers: { Authorization: authHeader } },
   });
   
-  // Get the user from the auth token
-  const { data: { user }, error } = await supabase.auth.getUser();
-  
-  if (error || !user) {
-    throw new Error('Unauthorized: Invalid token');
-  }
-  
   return {
-    userId: user.id,
+    userId: claims.sub,
     supabase,
   };
 }
