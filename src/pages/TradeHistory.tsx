@@ -2,6 +2,7 @@
  * Trade History - Standalone page for closed trades with full journaling
  * Features: Paginated data, List/Gallery toggle, Infinite scroll, AI Sorting, Enrichment
  * Architecture: Cursor-based pagination with 1-year default lookback
+ * Full History: Triggers Binance sync for complete trading history
  */
 import { useState, useMemo, useEffect } from "react";
 import { subYears } from "date-fns";
@@ -17,15 +18,27 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Progress } from "@/components/ui/progress";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { TradeHistoryCard } from "@/components/trading/TradeHistoryCard";
 import { TradeGalleryCard, TradeGalleryCardSkeleton } from "@/components/journal/TradeGalleryCard";
-import { History, Wifi, BookOpen, RefreshCw, FileText, Loader2, List, LayoutGrid, Calendar } from "lucide-react";
+import { History, Wifi, BookOpen, RefreshCw, FileText, Loader2, List, LayoutGrid, Calendar, Download, CloudDownload } from "lucide-react";
 import { format } from "date-fns";
 import { useTradeEntriesPaginated, type TradeFilters } from "@/hooks/use-trade-entries-paginated";
 import type { TradeEntry } from "@/hooks/use-trade-entries";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { useBinanceConnectionStatus } from "@/features/binance";
 import { useBinanceAutoSync } from "@/hooks/use-binance-auto-sync";
+import { useBinanceFullSync } from "@/hooks/use-binance-full-sync";
 import { useTradeEnrichment } from "@/hooks/use-trade-enrichment";
 import { formatCurrency as formatCurrencyUtil } from "@/lib/formatters";
 import { useUserSettings } from "@/hooks/use-user-settings";
@@ -50,6 +63,10 @@ export default function TradeHistory() {
   const [sortByAI, setSortByAI] = useState<'none' | 'asc' | 'desc'>('none');
   const [showFullHistory, setShowFullHistory] = useState(false);
   
+  // Full sync states
+  const [showSyncConfirm, setShowSyncConfirm] = useState(false);
+  const [syncProgress, setSyncProgress] = useState(0);
+  
   // View mode state
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   
@@ -65,11 +82,14 @@ export default function TradeHistory() {
   const { data: connectionStatus } = useBinanceConnectionStatus();
   const isBinanceConnected = connectionStatus?.isConnected ?? false;
   
-  // Auto-sync
+  // Auto-sync (30 days by default)
   const { syncNow, isSyncing, lastSyncTime, pendingRecords } = useBinanceAutoSync({
     autoSyncOnMount: false,
     enablePeriodicSync: false,
   });
+  
+  // Full history sync (up to 1 year)
+  const { syncFullHistory, isSyncing: isFullSyncing, lastResult: fullSyncResult } = useBinanceFullSync();
 
   // Quick Note
   const { addQuickNote } = useTradeEnrichment();
@@ -327,17 +347,49 @@ export default function TradeHistory() {
               
               {/* Time Range & View Toggle Row */}
               <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t">
-                {/* Time Range Toggle */}
+                {/* Time Range Toggle with Full Sync */}
                 <div className="flex items-center gap-3">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <Label htmlFor="full-history" className="text-sm text-muted-foreground cursor-pointer">
-                    {showFullHistory ? "Showing full history" : "Last 12 months"}
-                  </Label>
-                  <Switch
-                    id="full-history"
-                    checked={showFullHistory}
-                    onCheckedChange={setShowFullHistory}
-                  />
+                  
+                  {isFullSyncing ? (
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                      <span className="text-sm text-muted-foreground">
+                        Syncing Binance history... {syncProgress.toFixed(0)}%
+                      </span>
+                      <Progress value={syncProgress} className="w-24 h-2" />
+                    </div>
+                  ) : (
+                    <>
+                      <Label htmlFor="full-history" className="text-sm text-muted-foreground cursor-pointer">
+                        {showFullHistory ? "Showing full history" : "Last 12 months"}
+                      </Label>
+                      <Switch
+                        id="full-history"
+                        checked={showFullHistory}
+                        onCheckedChange={(checked) => {
+                          if (checked && isBinanceConnected && !showFullHistory) {
+                            // Show confirmation dialog for first-time full sync
+                            setShowSyncConfirm(true);
+                          } else {
+                            setShowFullHistory(checked);
+                          }
+                        }}
+                        disabled={isFullSyncing}
+                      />
+                      {isBinanceConnected && showFullHistory && (
+                        <Badge variant="outline" className="text-xs gap-1">
+                          <CloudDownload className="h-3 w-3" />
+                          Includes Binance
+                        </Badge>
+                      )}
+                      {fullSyncResult && fullSyncResult.synced > 0 && (
+                        <Badge variant="secondary" className="text-xs">
+                          +{fullSyncResult.synced} synced
+                        </Badge>
+                      )}
+                    </>
+                  )}
                 </div>
                 
                 {/* View Mode Toggle */}
@@ -509,6 +561,53 @@ export default function TradeHistory() {
           variant="destructive"
           onConfirm={handleDeleteTrade}
         />
+        
+        {/* Full Sync Confirmation Dialog */}
+        <AlertDialog open={showSyncConfirm} onOpenChange={setShowSyncConfirm}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <CloudDownload className="h-5 w-5 text-primary" />
+                Sync Full Binance History?
+              </AlertDialogTitle>
+              <AlertDialogDescription className="space-y-2">
+                <p>
+                  This will fetch your complete trading history from Binance (up to 1 year). 
+                  The process may take a few minutes depending on your trading volume.
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  • Only new trades will be added (duplicates are skipped)
+                  <br />
+                  • Your existing journal entries won't be affected
+                </p>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setShowSyncConfirm(false)}>
+                Just Local Data
+              </AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={async () => {
+                  setShowSyncConfirm(false);
+                  setShowFullHistory(true);
+                  setSyncProgress(0);
+                  
+                  try {
+                    await syncFullHistory({
+                      monthsBack: 12,
+                      onProgress: setSyncProgress,
+                    });
+                  } finally {
+                    setSyncProgress(0);
+                  }
+                }}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Sync from Binance
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </DashboardLayout>
   );
