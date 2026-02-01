@@ -110,7 +110,7 @@ export function useBinanceAutoSync(options: AutoSyncOptions = {}) {
     autoSyncOnMount = false,
     syncInterval = 5 * 60 * 1000, // 5 minutes
     enablePeriodicSync = false,
-    daysToSync = 7,
+    daysToSync = 30, // Increased from 7 to 30 days for better coverage
   } = options;
 
   const { user } = useAuth();
