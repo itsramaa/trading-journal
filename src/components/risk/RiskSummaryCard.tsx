@@ -10,21 +10,20 @@ import { Progress } from "@/components/ui/progress";
 import { Shield, AlertTriangle, XCircle, CheckCircle, Wifi, Link2 } from "lucide-react";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { useDailyRiskStatus } from "@/hooks/use-risk-profile";
-import { useBinancePositions, useBinanceConnectionStatus } from "@/features/binance";
+import { useBinanceConnectionStatus } from "@/features/binance";
+import { usePositions } from "@/hooks/use-positions";
 import { checkCorrelationRisk, extractSymbols, type CorrelationWarning } from "@/lib/correlation-utils";
 import { formatPercentUnsigned, formatCurrency } from "@/lib/formatters";
 
 export function RiskSummaryCard() {
   const { data: riskStatus, riskProfile, isBinanceConnected } = useDailyRiskStatus();
-  const { data: positions = [] } = useBinancePositions();
+  const { positions } = usePositions();
   const { data: connectionStatus } = useBinanceConnectionStatus();
 
-  // Check correlation risk for open positions
+  // Check correlation risk for open positions (already filtered by usePositions)
   const correlationWarning = useMemo((): CorrelationWarning | null => {
-    if (!connectionStatus?.isConnected || !positions) return null;
-    const activePositions = positions.filter(p => p.positionAmt !== 0);
-    if (activePositions.length < 2) return null;
-    const symbols = extractSymbols(activePositions);
+    if (!connectionStatus?.isConnected || positions.length < 2) return null;
+    const symbols = extractSymbols(positions);
     return checkCorrelationRisk(symbols);
   }, [positions, connectionStatus]);
 

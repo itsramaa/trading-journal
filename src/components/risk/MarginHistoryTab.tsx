@@ -13,19 +13,19 @@ import {
   Clock,
   Wallet
 } from "lucide-react";
-import { useBinanceMarginHistory, useBinancePositions } from "@/features/binance";
+import { useBinanceMarginHistory } from "@/features/binance";
+import { usePositions } from "@/hooks/use-positions";
 import { format, formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export function MarginHistoryTab() {
-  const { data: positions, isLoading: positionsLoading } = useBinancePositions();
+  const { positions, isLoading: positionsLoading } = usePositions();
   const [selectedSymbol, setSelectedSymbol] = useState<string>("");
 
-  // Get active positions for symbol selection
-  const activePositions = positions?.filter(p => parseFloat(String(p.positionAmt)) !== 0) || [];
-  const symbols = activePositions.map(p => p.symbol);
+  // Get symbols from active positions (already filtered by usePositions)
+  const symbols = positions.map(p => p.symbol);
 
   // Fetch margin history for selected symbol
   const { 
