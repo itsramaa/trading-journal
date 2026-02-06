@@ -1,225 +1,247 @@
 
-# Fix Plan: Floating Chatbot & Top Movers Issues
 
-## Issues Identified
+# Fix Plan: AI Chatbot History Persistence, Post-Trade Integration & Top Movers Update
 
-### Issue 1: Chatbot Scroll Not Working in Minimized Mode
-**Location**: `src/components/chat/AIChatbot.tsx` lines 378-386
+## Identified Issues
 
-**Problem**: When `isMinimized = false` and `isExpanded = false` (default compact mode), the chat area height is set but `ScrollArea` is not properly constrained. The container is `h-[560px]` but the flex layout doesn't propagate scroll correctly to the inner `ScrollArea`.
+### Issue 1: AI Chat History Lost When Switching Tabs
+**Location**: `src/components/chat/AIChatbot.tsx` lines 326-338
 
-**Root Cause**: Line 511-569 shows `ScrollArea` uses `ref={scrollRef}` but the `flex-1` combined with `overflow-hidden` parent may not be constraining height properly for scroll.
+**Problem**: When user switches AI modes (trading → market → setup → posttrade), the chat history is cleared:
 
-### Issue 2: Missing Typing Indicator
-**Location**: `src/components/chat/AIChatbot.tsx` lines 557-566
+```typescript
+const handleQuickAction = (prompt: string, mode?: AIMode) => {
+  if (mode && mode !== aiMode) {
+    setAiMode(mode);
+    setMessages([]); // ❌ Clears all history
+  }
+  // ...
+};
 
-**Current State**: There IS a typing indicator at line 557-566, but it only shows when `messages[messages.length - 1]?.content === ''`. This works for streaming, but if the last message already has content, it won't show.
-
-**Problem**: The typing indicator only appears when there's an empty assistant message, not during the initial loading before any response arrives.
-
-### Issue 3: Bot Response Not Rendering Markdown
-**Location**: `src/components/chat/ChatMessage.tsx` line 28
-
-**Problem**: 
-```tsx
-<p className="text-sm whitespace-pre-wrap">{content}</p>
+const handleModeChange = (mode: AIMode) => {
+  setAiMode(mode);
+  setMessages([]); // ❌ Clears all history
+};
 ```
-The content is rendered as plain text with `whitespace-pre-wrap`, not as markdown. `**bold**`, `*italic*`, lists, etc. are shown raw.
 
-**Solution**: Use `react-markdown` library (recommended in useful-context) to render markdown properly.
+**Solution**: Store messages per-mode using a `Record<AIMode, Message[]>` structure instead of single array.
 
-### Issue 4: Top Movers Only Updates Volume (Gainers/Losers Not Updating)
-**Location**: `src/features/binance/useBinanceAdvancedAnalytics.ts` lines 85-109
+---
 
-**Analysis**: The `useBinanceTopMovers` hook fetches all tickers once and sorts them by:
-- `priceChangePercent` for gainers/losers
-- `quoteVolume` for volume
+### Issue 2: Post-Trade Not Integrated with Full Trade System
+**Location**: `supabase/functions/post-trade-chat/index.ts`
 
-The API returns all data correctly (confirmed from network logs showing `ticker-24h` returns 200). The issue is likely:
-1. **Query caching**: `staleTime: 60 * 1000` (1 minute) - data is considered fresh for 1 min
-2. **No refetch interval**: Data only refreshes on manual refetch or remount
+**Problem**: The edge function only fetches basic trade data, missing:
+- Strategy associations
+- AI analysis results
+- Screenshot metadata
+- Emotional state correlation
 
-**User Request**: Add dropdown to switch between volume-based or percentage-based sorting for the main display.
+**Solution**: Enhance the edge function to fetch related data and provide richer context to AI.
+
+---
+
+### Issue 3: Top Movers Not Updating
+**Location**: Network & Hook analysis
+
+**Observations**:
+- The `refetchInterval: 30 * 1000` is set correctly in hook
+- The API returns status 200 (successful)
+- The `staleTime: 30 * 1000` means data is considered "fresh" for 30s
+
+**Likely Issue**: The `refetchInterval` only triggers refetch when the component is mounted and focused. If user switches tabs or the window loses focus, refetch pauses.
+
+**Solution**: 
+1. Set `refetchIntervalInBackground: true` to continue refetching even when tab is not active
+2. Add visual "Last updated" indicator
+3. Force refetch on component mount/remount
 
 ---
 
 ## Solution Architecture
 
-### Fix 1: Chatbot Scroll in Compact Mode
+### Fix 1: Per-Mode Chat History with Reset Button
 
-**File**: `src/components/chat/AIChatbot.tsx`
-
-**Changes**:
-1. Ensure ScrollArea has explicit height constraint in compact mode
-2. Add `className="h-full"` to ScrollArea viewport
-3. Fix the flex container to properly constrain height
-
-```tsx
-// Line 510-517: Update ScrollArea wrapper
-<div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
-  <ScrollArea 
-    className="flex-1 min-h-0" // Changed from "flex-1 p-4"
-    ref={scrollRef}
-    role="log"
-    aria-live="polite"
-    aria-label="Chat messages"
-  >
-    <div className="p-4"> {/* Move padding inside */}
-      ...
-    </div>
-  </ScrollArea>
-```
-
-### Fix 2: Improved Typing Indicator
-
-**File**: `src/components/chat/AIChatbot.tsx`
-
-**Changes**:
-1. Show typing indicator immediately when `isLoading = true` AND no assistant response yet
-2. Keep the existing streaming indicator for partial content
-
-```tsx
-// Before messages.map, add:
-{isLoading && !messages.some(m => m.role === 'assistant' && m.content === '') && (
-  <div className="flex gap-3" role="status" aria-label="AI is typing">
-    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-      <ModeIcon className="h-4 w-4 text-primary" />
-    </div>
-    <div className="bg-muted rounded-lg p-3 flex items-center gap-2">
-      <div className="flex gap-1">
-        <span className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-        <span className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-        <span className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-      </div>
-      <span className="text-sm text-muted-foreground">Typing...</span>
-    </div>
-  </div>
-)}
-```
-
-### Fix 3: Markdown Rendering for Bot Responses
-
-**File**: `src/components/chat/ChatMessage.tsx`
-
-**Changes**:
-1. Import and use `react-markdown` (already installed via dependencies)
-2. Style markdown elements properly
-
-```tsx
-import ReactMarkdown from 'react-markdown';
-
-export function ChatMessage({ role, content, ModeIcon }: ChatMessageProps) {
-  return (
-    <div className={cn("flex gap-3", role === 'user' && "flex-row-reverse")}>
-      {/* Avatar */}
-      <div className={cn(...)}>
-        ...
-      </div>
-      {/* Message Content */}
-      <div className={cn(
-        "flex-1 rounded-lg p-3 max-w-[85%]",
-        role === 'user' ? "bg-primary text-primary-foreground" : "bg-muted"
-      )}>
-        {role === 'user' ? (
-          <p className="text-sm whitespace-pre-wrap">{content}</p>
-        ) : (
-          <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-headings:my-2">
-            <ReactMarkdown>{content}</ReactMarkdown>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-```
-
-### Fix 4: Top Movers with Sorting Options
-
-**File**: `src/pages/TopMovers.tsx`
-
-**Changes**:
-1. Add `sortBy` state: `'percentage' | 'volume' | 'priceChange'`
-2. Add `Select` dropdown in header to choose sort method
-3. Implement dynamic sorting for gainers/losers tabs
-4. Add `refetchInterval` to auto-refresh data
-
-**File**: `src/features/binance/useBinanceAdvancedAnalytics.ts`
-
-**Changes**:
-1. Add `refetchInterval: 30 * 1000` (30 seconds) for real-time updates
-2. Keep the core logic but expose raw tickers for custom sorting
+**Changes to `AIChatbot.tsx`**:
 
 ```typescript
-// TopMovers.tsx - Add sort dropdown
-const [sortBy, setSortBy] = useState<'percentage' | 'priceChange' | 'volume'>('percentage');
+// Replace single messages state with per-mode history
+const [messageHistory, setMessageHistory] = useState<Record<AIMode, Message[]>>({
+  trading: [],
+  market: [],
+  setup: [],
+  posttrade: [],
+});
 
-// Memoized sorting
-const sortedGainers = useMemo(() => {
-  if (!data?.topGainers) return [];
-  if (sortBy === 'volume') {
-    return [...data.topGainers].sort((a, b) => b.quoteVolume - a.quoteVolume);
-  }
-  if (sortBy === 'priceChange') {
-    return [...data.topGainers].sort((a, b) => b.priceChange - a.priceChange);
-  }
-  return data.topGainers; // Already sorted by percentage
-}, [data?.topGainers, sortBy]);
+// Get current mode's messages
+const messages = messageHistory[aiMode];
 
-// Header dropdown
-<Select value={sortBy} onValueChange={setSortBy}>
-  <SelectTrigger className="w-[160px]">
-    <SelectValue placeholder="Sort by..." />
-  </SelectTrigger>
-  <SelectContent>
-    <SelectItem value="percentage">% Change</SelectItem>
-    <SelectItem value="priceChange">Price Change</SelectItem>
-    <SelectItem value="volume">Volume</SelectItem>
-  </SelectContent>
-</Select>
+// Update messages for current mode only
+const setMessages = (updater: Message[] | ((prev: Message[]) => Message[])) => {
+  setMessageHistory(prev => ({
+    ...prev,
+    [aiMode]: typeof updater === 'function' ? updater(prev[aiMode]) : updater,
+  }));
+};
+
+// Mode change no longer clears history
+const handleModeChange = (mode: AIMode) => {
+  setAiMode(mode);
+  // History preserved - no clearing
+};
+
+// Reset button clears ALL history
+const clearAllHistory = () => {
+  setMessageHistory({
+    trading: [],
+    market: [],
+    setup: [],
+    posttrade: [],
+  });
+};
+```
+
+**UI Changes**:
+- Add "Reset All" button that clears all mode histories
+- Add badge showing message count per mode in tab
+
+---
+
+### Fix 2: Enhanced Post-Trade Integration
+
+**Enhance `post-trade-chat/index.ts`**:
+
+```typescript
+// Fetch trade with related data
+const { data: trades, error: tradesError } = await supabase
+  .from('trade_entries')
+  .select(`
+    *,
+    strategies:trade_strategy_links(
+      strategy:trading_strategies(id, name, description)
+    ),
+    ai_analysis_result,
+    screenshots,
+    emotional_state
+  `)
+  .eq('status', 'closed')
+  .order('trade_date', { ascending: false })
+  .limit(20);
+
+// Add richer context
+const targetTradeContext = `
+TRADE DETAILS:
+- Pair: ${targetTrade.pair}
+- Direction: ${targetTrade.direction}
+- Entry: ${targetTrade.entry_price}
+- Exit: ${targetTrade.exit_price}
+- P&L: $${pnl.toFixed(2)}
+- Strategy Used: ${strategyNames || 'None tagged'}
+- Market Condition: ${targetTrade.market_condition}
+- Emotional State: ${targetTrade.emotional_state}
+- Has Screenshots: ${(targetTrade.screenshots?.length || 0) > 0 ? 'Yes' : 'No'}
+- AI Analysis Available: ${targetTrade.ai_analysis_result ? 'Yes' : 'No'}
+`;
 ```
 
 ---
 
-## Files Summary
+### Fix 3: Force Top Movers Refresh
+
+**Changes to `useBinanceAdvancedAnalytics.ts`**:
+
+```typescript
+export function useBinanceTopMovers(limit = 10) {
+  return useQuery({
+    queryKey: ['binance', 'top-movers', limit],
+    queryFn: async () => {
+      const tickers = await callMarketDataFunction<Ticker24h[]>('ticker-24h', {});
+      // ... existing logic
+    },
+    staleTime: 15 * 1000, // Reduce to 15 seconds
+    refetchInterval: 15 * 1000, // Reduce to 15 seconds
+    refetchIntervalInBackground: true, // ✅ Continue even when tab inactive
+    refetchOnMount: 'always', // ✅ Always refetch on mount
+    refetchOnWindowFocus: true, // ✅ Refetch when user returns to tab
+  });
+}
+```
+
+**Changes to `TopMovers.tsx`**:
+- Add "Last updated" timestamp display
+- Add visual indicator when data is fetching
+
+---
+
+## Files to Modify
 
 | File | Changes |
 |------|---------|
-| `src/components/chat/AIChatbot.tsx` | Fix scroll container, add typing indicator |
-| `src/components/chat/ChatMessage.tsx` | Add ReactMarkdown for bot responses |
-| `src/pages/TopMovers.tsx` | Add sort dropdown, dynamic sorting, auto-refresh |
-| `src/features/binance/useBinanceAdvancedAnalytics.ts` | Add refetchInterval for real-time updates |
+| `src/components/chat/AIChatbot.tsx` | Per-mode history, reset button, preserve history on tab switch |
+| `supabase/functions/post-trade-chat/index.ts` | Fetch strategies, enhanced context |
+| `src/features/binance/useBinanceAdvancedAnalytics.ts` | Add refetchIntervalInBackground, refetchOnMount |
+| `src/pages/TopMovers.tsx` | Add last updated indicator |
 
 ---
 
 ## Technical Details
 
-### Dependencies Check
-- `react-markdown`: NOT currently installed. Need to add it.
+### Chat History Data Structure
 
-### New Package Required
-```bash
-npm install react-markdown
+```typescript
+// Before (single array)
+const [messages, setMessages] = useState<Message[]>([]);
+
+// After (per-mode map)
+const [messageHistory, setMessageHistory] = useState<Record<AIMode, Message[]>>({
+  trading: [],
+  market: [],
+  setup: [],
+  posttrade: [],
+});
 ```
 
-### CSS for Markdown
-The `prose` classes from Tailwind Typography plugin handle markdown styling. Since the project uses `tailwindcss`, we need to verify if `@tailwindcss/typography` is installed, or use inline styling.
+### Reset Button UI
 
-**Alternative without Typography Plugin**:
+In expanded mode, show "Reset All" button in header:
+
 ```tsx
-<ReactMarkdown
-  components={{
-    p: ({ children }) => <p className="text-sm my-1">{children}</p>,
-    strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
-    em: ({ children }) => <em className="italic">{children}</em>,
-    ul: ({ children }) => <ul className="list-disc list-inside my-1 text-sm">{children}</ul>,
-    ol: ({ children }) => <ol className="list-decimal list-inside my-1 text-sm">{children}</ol>,
-    li: ({ children }) => <li className="my-0.5">{children}</li>,
-    code: ({ children }) => <code className="bg-background/50 px-1 py-0.5 rounded text-xs font-mono">{children}</code>,
-    pre: ({ children }) => <pre className="bg-background/50 p-2 rounded text-xs overflow-x-auto my-2">{children}</pre>,
-  }}
->
-  {content}
-</ReactMarkdown>
+{isExpanded && Object.values(messageHistory).some(m => m.length > 0) && (
+  <Button
+    variant="outline"
+    size="sm"
+    onClick={clearAllHistory}
+    className="text-xs gap-1"
+  >
+    <Trash2 className="h-3 w-3" />
+    Reset All
+  </Button>
+)}
+```
+
+### Mode Tab with Message Count Badge
+
+```tsx
+<TabsTrigger key={mode} value={mode}>
+  <Icon className="h-3 w-3" />
+  <span>{config.label.split(' ')[0]}</span>
+  {messageHistory[mode].length > 0 && (
+    <Badge variant="secondary" className="ml-1 h-4 px-1 text-xs">
+      {messageHistory[mode].length}
+    </Badge>
+  )}
+</TabsTrigger>
+```
+
+### Last Updated Indicator for Top Movers
+
+```tsx
+const { data, isLoading, refetch, isFetching, dataUpdatedAt } = useBinanceTopMovers(limit);
+
+// In header
+<span className="text-xs text-muted-foreground">
+  Updated: {new Date(dataUpdatedAt).toLocaleTimeString()}
+</span>
 ```
 
 ---
@@ -228,18 +250,30 @@ The `prose` classes from Tailwind Typography plugin handle markdown styling. Sin
 
 | Feature | Before | After |
 |---------|--------|-------|
-| Chatbot scroll (compact) | Cannot scroll | Smooth scrolling within container |
-| Typing indicator | Only during streaming | Shows immediately on send, then streams |
-| Bot response format | Raw markdown: `**bold** *italic*` | Rendered: **bold** *italic* |
-| Top Movers refresh | Manual only (stale 1 min) | Auto-refresh every 30s |
-| Top Movers sorting | Fixed by percentage | User selectable: %, Price, Volume |
+| Mode switching | Clears all chat history | Preserves history per mode |
+| Reset functionality | Clears current mode only | Reset All button clears everything |
+| Post-Trade context | Basic trade data | Includes strategies, emotions, AI analysis |
+| Top Movers refresh | Pauses when tab inactive | Continues in background |
+| Refresh indicator | None | Shows last updated time |
+
+---
+
+## Console Warnings to Address
+
+The console shows `Function components cannot be given refs` warning for:
+1. `AIChatbot` → `ChatMessage`
+2. `ChatMessage` → `Markdown`
+
+**Root Cause**: React-markdown's `Markdown` component doesn't forward refs, and neither does `ChatMessage`.
+
+**Fix**: Since we're not actually using refs on these components, this is just a warning. The scroll ref is on `ScrollArea`, not these components. No action needed for functionality, but we could wrap `ChatMessage` in `forwardRef` to silence the warning.
 
 ---
 
 ## Implementation Order
 
-1. **ChatMessage.tsx** - Markdown rendering (most visible fix)
-2. **AIChatbot.tsx** - Scroll fix + typing indicator
-3. **TopMovers.tsx** - Sort dropdown + auto-refresh
-4. **useBinanceAdvancedAnalytics.ts** - Add refetchInterval
+1. **AIChatbot.tsx** - Per-mode history storage (critical UX fix)
+2. **useBinanceAdvancedAnalytics.ts** - Add background refresh
+3. **TopMovers.tsx** - Add last updated indicator
+4. **post-trade-chat/index.ts** - Enhanced trade context
 
