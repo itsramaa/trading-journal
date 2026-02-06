@@ -11,7 +11,7 @@ serve(async (req) => {
   }
 
   try {
-    const { question } = await req.json();
+    const { question, userContext } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
     
@@ -35,6 +35,26 @@ serve(async (req) => {
 
     const sentimentData = await sentimentRes.json();
     const macroData = await macroRes.json();
+
+    // Build user context section if provided
+    let userContextSection = '';
+    if (userContext) {
+      const openPositionsText = userContext.openPositions?.length > 0
+        ? userContext.openPositions.map((p: any) => `${p.pair} ${p.direction} (entry: $${p.entryPrice})`).join(', ')
+        : 'None';
+      const strategiesText = userContext.favoriteStrategies?.length > 0
+        ? userContext.favoriteStrategies.map((s: any) => s.name).join(', ')
+        : 'None';
+      
+      userContextSection = `
+USER TRADING CONTEXT:
+- Total Closed Trades: ${userContext.totalTrades || 0}
+- Open Positions: ${openPositionsText}
+- Active Strategies: ${strategiesText}
+
+When providing analysis, relate it to the user's open positions and strategies when relevant.
+`;
+    }
 
     // Build rich context for LLM
     const systemPrompt = `You are an expert crypto market analyst providing real-time market insights. You speak Indonesian when the user writes in Indonesian.
@@ -78,12 +98,13 @@ CORRELATIONS:
 ${(macroData.macro?.correlations || []).map((c: any) => 
   `- ${c.name}: ${typeof c.value === 'number' ? c.value.toFixed(2) : c.value}${c.change ? ` (${c.change > 0 ? '+' : ''}${c.change.toFixed(2)}%)` : ''}\n  Impact: ${c.impact}`
 ).join('\n') || 'No correlation data'}
-
+${userContextSection}
 GUIDELINES:
 - Provide actionable insights based on the current market data
 - Highlight key risk factors and opportunities
 - Use specific numbers and percentages from the data
 - For trading recommendations, always mention risk management
+- If user has open positions, relate the analysis to those positions
 - Be concise but thorough
 - Use Bahasa Indonesia if the user writes in Indonesian`;
 

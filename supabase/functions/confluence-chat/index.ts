@@ -60,7 +60,7 @@ serve(async (req) => {
   }
 
   try {
-    const { question, setup } = await req.json();
+    const { question, setup, strategies, tradingPairs } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
     
@@ -70,6 +70,46 @@ serve(async (req) => {
 
     // Parse setup from question if not provided directly
     const parsedSetup = setup || parseTradeSetup(question || '');
+
+    // Match parsed setup with user's strategies
+    let strategyMatch = '';
+    if (parsedSetup.pair && strategies?.length > 0) {
+      const pairBase = parsedSetup.pair.replace('USDT', '').replace('PERP', '');
+      const matchingStrategies = strategies.filter((s: any) => 
+        !s.valid_pairs || s.valid_pairs.length === 0 || 
+        s.valid_pairs.some((vp: string) => vp.toUpperCase().includes(pairBase))
+      );
+      
+      if (matchingStrategies.length > 0) {
+        strategyMatch = `
+USER'S APPLICABLE STRATEGIES:
+${matchingStrategies.map((s: any) => {
+  const entryRulesText = s.entry_rules?.map((r: any) => r.name || r.type).join(', ') || 'None defined';
+  const exitRulesText = s.exit_rules?.map((r: any) => r.type).join(', ') || 'None defined';
+  return `- ${s.name}
+  Min Confluences Required: ${s.min_confluences || 4}
+  Min R:R Required: ${s.min_rr || 1.5}
+  Entry Rules: ${entryRulesText}
+  Exit Rules: ${exitRulesText}`;
+}).join('\n')}
+
+VALIDATION INSTRUCTIONS:
+- Check if the setup meets the minimum confluences required by the user's strategy
+- Verify the R:R ratio meets or exceeds the user's minimum requirement
+- Highlight which entry rules from the user's strategy this setup satisfies
+`;
+      } else {
+        strategyMatch = `
+NOTE: User has ${strategies.length} strategies defined but none are configured for ${parsedSetup.pair}.
+Consider suggesting they update their strategy valid_pairs configuration.
+`;
+      }
+    } else if (strategies?.length > 0) {
+      strategyMatch = `
+USER HAS ${strategies.length} STRATEGIES DEFINED:
+${strategies.slice(0, 3).map((s: any) => `- ${s.name} (min R:R: ${s.min_rr || 1.5}, min confluences: ${s.min_confluences || 4})`).join('\n')}
+`;
+    }
     
     // Fetch market data and economic calendar in parallel
     let marketContext = '';
@@ -166,6 +206,7 @@ PARSED TRADE SETUP:
 - Entry: ${parsedSetup.entry || 'Not specified'}
 - Stop Loss: ${parsedSetup.stopLoss || 'Not specified'}  
 - Take Profit: ${parsedSetup.takeProfit || 'Not specified'}${rrRatio}
+${strategyMatch}
 ${marketContext}
 ${calendarContext}
 
@@ -176,16 +217,19 @@ QUALITY SCORING CRITERIA (Score each 0-2):
 4. Volatility Appropriateness
 5. Fear & Greed Zone (not extreme)
 6. Economic Calendar Safety (no high-impact events = +1pt, event within 2h = -1pt)
+7. Strategy Compliance (meets user's min confluences and min R:R = +2pts)
 
 RESPONSE FORMAT:
 1. Setup Summary - Confirm what you understood
-2. Quality Score - X/12 with breakdown (now includes calendar factor)
-3. Confluence Analysis - What aligns, what doesn't
-4. ⚠️ Calendar Alert - If any high-impact events are near, warn strongly
-5. Risk Assessment - Key concerns
-6. Recommendation - Proceed, Wait, or Avoid with reasoning
+2. Quality Score - X/14 with breakdown (includes strategy compliance)
+3. Strategy Match - If user has strategies, show which one applies and if rules are met
+4. Confluence Analysis - What aligns, what doesn't
+5. ⚠️ Calendar Alert - If any high-impact events are near, warn strongly
+6. Risk Assessment - Key concerns
+7. Recommendation - Proceed, Wait, or Avoid with reasoning
 
 If setup details are missing, ask for them specifically.
+If user has defined strategies, validate the setup against their strategy rules.
 Use Bahasa Indonesia if the user writes in Indonesian.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
