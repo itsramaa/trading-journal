@@ -70,8 +70,8 @@ export default function TradeHistory() {
   const [showSyncConfirm, setShowSyncConfirm] = useState(false);
   const [syncProgress, setSyncProgress] = useState(0);
   
-  // View mode state
-  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  // View mode state - default gallery for closed trades
+  const [viewMode, setViewMode] = useState<ViewMode>('gallery');
   
   // UI states
   const [deletingTrade, setDeletingTrade] = useState<TradeEntry | null>(null);
@@ -591,12 +591,22 @@ export default function TradeHistory() {
                 
                 {/* Fees Tab Content */}
                 <TabsContent value="fees">
-                  <FeeHistoryTab isConnected={isBinanceConnected} />
+                  <FeeHistoryTab 
+                    isConnected={isBinanceConnected}
+                    dateRange={dateRange}
+                    selectedPairs={selectedPairs}
+                    showFullHistory={showFullHistory}
+                  />
                 </TabsContent>
                 
                 {/* Funding Tab Content */}
                 <TabsContent value="funding">
-                  <FundingHistoryTab isConnected={isBinanceConnected} />
+                  <FundingHistoryTab 
+                    isConnected={isBinanceConnected}
+                    dateRange={dateRange}
+                    selectedPairs={selectedPairs}
+                    showFullHistory={showFullHistory}
+                  />
                 </TabsContent>
               </Tabs>
             )}
