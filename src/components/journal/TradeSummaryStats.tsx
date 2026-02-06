@@ -6,6 +6,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Circle, TrendingUp, TrendingDown, CheckCircle, DollarSign, Wifi } from "lucide-react";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { formatPnl } from "@/lib/formatters";
 
 interface TradeSummaryStatsProps {
   openPositionsCount: number;
@@ -15,7 +16,6 @@ interface TradeSummaryStatsProps {
   closedTradesCount: number;
   realizedPnL: number;
   isBinanceConnected: boolean;
-  formatCurrency: (value: number, currency: string) => string;
 }
 
 export function TradeSummaryStats({
@@ -26,7 +26,6 @@ export function TradeSummaryStats({
   closedTradesCount,
   realizedPnL,
   isBinanceConnected,
-  formatCurrency,
 }: TradeSummaryStatsProps) {
   // Aggregate both sources - System-First principle
   const binancePnL = binanceUnrealizedPnL ?? 0;
@@ -77,7 +76,7 @@ export function TradeSummaryStats({
         </CardHeader>
         <CardContent>
           <div className={`text-2xl font-bold ${displayUnrealizedPnL >= 0 ? "text-profit" : "text-loss"}`}>
-            {formatCurrency(displayUnrealizedPnL, "USD")}
+            {formatPnl(displayUnrealizedPnL, "USD")}
           </div>
           <p className="text-xs text-muted-foreground">
             {hasBinanceData && hasPaperData 
@@ -112,7 +111,7 @@ export function TradeSummaryStats({
         </CardHeader>
         <CardContent>
           <div className={`text-2xl font-bold ${realizedPnL >= 0 ? "text-profit" : "text-loss"}`}>
-            {formatCurrency(realizedPnL, "USD")}
+            {formatPnl(realizedPnL, "USD")}
           </div>
           <p className="text-xs text-muted-foreground">From closed trades</p>
         </CardContent>

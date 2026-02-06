@@ -108,6 +108,41 @@ export function formatCompactCurrency(
 }
 
 /**
+ * Format PnL value with proper sign prefix (STANDARD)
+ * Format: +$x for profit, -$x for loss
+ * Used for all profit/loss displays across the application
+ */
+export function formatPnl(
+  value: number,
+  currency: Currency | AssetMarket | string = 'USD'
+): string {
+  const absFormatted = formatCurrency(Math.abs(value), currency);
+  // Replace currency symbol position to put sign before it
+  // e.g., "$100" -> "+$100" or "-$100"
+  if (value >= 0) {
+    return absFormatted.replace(/^([^\d]+)/, '+$1');
+  } else {
+    return absFormatted.replace(/^([^\d]+)/, '-$1');
+  }
+}
+
+/**
+ * Format PnL for compact display (K/M/B)
+ * Uses same +$x / -$x standard
+ */
+export function formatCompactPnl(
+  value: number,
+  currency: Currency | AssetMarket | string = 'USD'
+): string {
+  const absFormatted = formatCompactCurrency(Math.abs(value), currency);
+  if (value >= 0) {
+    return absFormatted.replace(/^([^\d]+)/, '+$1');
+  } else {
+    return absFormatted.replace(/^([^\d]+)/, '-$1');
+  }
+}
+
+/**
  * Format percentage with sign and fixed 2 decimals (STANDARD)
  */
 export function formatPercent(value: number, decimals: number = 2): string {

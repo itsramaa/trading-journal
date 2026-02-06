@@ -27,7 +27,7 @@ import {
 import { useDailyPnl } from "@/hooks/use-daily-pnl";
 import { useBinanceDailyPnl } from "@/hooks/use-binance-daily-pnl";
 import { useBinanceConnectionStatus } from "@/features/binance";
-import { formatCurrency } from "@/lib/formatters";
+import { formatPnl, formatCurrency } from "@/lib/formatters";
 import { WinRateTooltip, InfoTooltip } from "@/components/ui/info-tooltip";
 
 function TodayPerformanceContent() {
@@ -172,7 +172,7 @@ function TodayPerformanceContent() {
               </span>
               <div className={`flex items-center gap-1 text-xl font-bold ${stats.netPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
                 {stats.netPnl >= 0 ? <TrendingUp className="h-5 w-5" aria-hidden="true" /> : <TrendingDown className="h-5 w-5" aria-hidden="true" />}
-                {stats.netPnl >= 0 ? '+' : ''}{formatCurrency(stats.netPnl, 'USD')}
+                {formatPnl(stats.netPnl, 'USD')}
               </div>
             </div>
 
@@ -181,7 +181,7 @@ function TodayPerformanceContent() {
               <div className="flex items-center justify-between p-2 rounded bg-muted/50">
                 <span className="text-xs text-muted-foreground">Gross P&L</span>
                 <span className={`text-sm font-semibold ${stats.grossPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                  {stats.grossPnl >= 0 ? '+' : ''}{formatCurrency(stats.grossPnl, 'USD')}
+                  {formatPnl(stats.grossPnl, 'USD')}
                 </span>
               </div>
             )}
@@ -217,7 +217,7 @@ function TodayPerformanceContent() {
                           <ArrowUpDown className="h-3 w-3" /> Funding Fees
                         </span>
                         <span className={stats.funding >= 0 ? 'text-profit' : 'text-loss'}>
-                          {stats.funding >= 0 ? '+' : ''}{formatCurrency(stats.funding, 'USD')}
+                          {formatPnl(stats.funding, 'USD')}
                         </span>
                       </div>
                     )}
@@ -285,7 +285,7 @@ function TodayPerformanceContent() {
                     </div>
                     <p className="font-medium text-sm">{stats.bestTrade.pair}</p>
                     <p className="text-profit font-semibold">
-                      +{formatCurrency(stats.bestTrade.pnl, 'USD')}
+                      {formatPnl(stats.bestTrade.pnl, 'USD')}
                     </p>
                   </div>
                 )}

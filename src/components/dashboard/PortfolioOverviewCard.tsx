@@ -19,7 +19,7 @@ import {
   Zap,
 } from "lucide-react";
 import { useUnifiedPortfolioData } from "@/hooks/use-unified-portfolio-data";
-import { formatCurrency, formatPercent, formatWinRate } from "@/lib/formatters";
+import { formatCurrency, formatPercent, formatWinRate, formatPnl } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 
@@ -156,7 +156,7 @@ export function PortfolioOverviewCard({ className }: PortfolioOverviewCardProps)
                 "text-2xl font-bold",
                 portfolio.todayNetPnl >= 0 ? 'text-profit' : 'text-loss'
               )}>
-                {portfolio.todayNetPnl >= 0 ? '+' : ''}{formatCurrency(portfolio.todayNetPnl, 'USD')}
+                {formatPnl(portfolio.todayNetPnl, 'USD')}
               </p>
               {portfolio.todayNetPnl !== 0 && portfolio.totalCapital > 0 && (
                 <Badge 
@@ -186,7 +186,7 @@ export function PortfolioOverviewCard({ className }: PortfolioOverviewCardProps)
                 "text-2xl font-bold",
                 portfolio.weeklyNetPnl >= 0 ? 'text-profit' : 'text-loss'
               )}>
-                {portfolio.weeklyNetPnl >= 0 ? '+' : ''}{formatCurrency(portfolio.weeklyNetPnl, 'USD')}
+                {formatPnl(portfolio.weeklyNetPnl, 'USD')}
               </p>
               {portfolio.weeklyNetPnl !== 0 && portfolio.totalCapital > 0 && (
                 <Badge 

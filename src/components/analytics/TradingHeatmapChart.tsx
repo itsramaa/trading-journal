@@ -20,8 +20,9 @@ import {
 } from "recharts";
 import { Clock, Calendar, TrendingUp, TrendingDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { formatWinRate, formatCurrency } from "@/lib/formatters";
+import { formatWinRate, formatPnl } from "@/lib/formatters";
 import { parseISO, getHours, getDay } from "date-fns";
+import { getSessionForTime, SESSION_LABELS, type TradingSession } from "@/lib/session-utils";
 
 interface TradeWithTime {
   id: string;
@@ -52,10 +53,11 @@ const HOUR_LABELS = [
   '18:00', '19:00', '20:00', '21:00', '22:00', '23:00'
 ];
 
-const SESSION_LABELS: Record<string, string> = {
-  'asian': 'Asian (00-08)',
-  'london': 'London (08-16)',
-  'newyork': 'New York (16-24)',
+const SESSION_LABEL_MAP: Record<TradingSession, string> = {
+  'asia': `${SESSION_LABELS.asia} Session`,
+  'london': `${SESSION_LABELS.london} Session`,
+  'newyork': `${SESSION_LABELS.newyork} Session`,
+  'off-hours': SESSION_LABELS['off-hours'],
 };
 
 export function TradingHeatmapChart({ trades }: TradingHeatmapChartProps) {
@@ -65,10 +67,11 @@ export function TradingHeatmapChart({ trades }: TradingHeatmapChartProps) {
     // Initialize buckets
     const hourlyBuckets: Record<number, { wins: number; total: number; pnl: number }> = {};
     const dailyBuckets: Record<number, { wins: number; total: number; pnl: number }> = {};
-    const sessionBuckets: Record<string, { wins: number; total: number; pnl: number }> = {
-      asian: { wins: 0, total: 0, pnl: 0 },
+    const sessionBuckets: Record<TradingSession, { wins: number; total: number; pnl: number }> = {
+      asia: { wins: 0, total: 0, pnl: 0 },
       london: { wins: 0, total: 0, pnl: 0 },
       newyork: { wins: 0, total: 0, pnl: 0 },
+      'off-hours': { wins: 0, total: 0, pnl: 0 },
     };
 
     for (let i = 0; i < 24; i++) hourlyBuckets[i] = { wins: 0, total: 0, pnl: 0 };
@@ -95,11 +98,8 @@ export function TradingHeatmapChart({ trades }: TradingHeatmapChartProps) {
         if (isWin) dailyBuckets[day].wins++;
         dailyBuckets[day].pnl += pnl;
 
-        // Session
-        let session: string;
-        if (hour >= 0 && hour < 8) session = 'asian';
-        else if (hour >= 8 && hour < 16) session = 'london';
-        else session = 'newyork';
+        // Session - use UTC-based session detection
+        const session = getSessionForTime(date);
 
         sessionBuckets[session].total++;
         if (isWin) sessionBuckets[session].wins++;
@@ -130,12 +130,12 @@ export function TradingHeatmapChart({ trades }: TradingHeatmapChartProps) {
         ? dailyBuckets[i].pnl / dailyBuckets[i].total : 0,
     }));
 
-    const sessionData: TimeMetrics[] = Object.entries(sessionBuckets).map(([key, bucket]) => ({
-      label: SESSION_LABELS[key],
-      winRate: bucket.total > 0 ? (bucket.wins / bucket.total) * 100 : 0,
-      tradeCount: bucket.total,
-      totalPnl: bucket.pnl,
-      avgPnl: bucket.total > 0 ? bucket.pnl / bucket.total : 0,
+    const sessionData: TimeMetrics[] = (['asia', 'london', 'newyork'] as TradingSession[]).map(key => ({
+      label: SESSION_LABEL_MAP[key],
+      winRate: sessionBuckets[key].total > 0 ? (sessionBuckets[key].wins / sessionBuckets[key].total) * 100 : 0,
+      tradeCount: sessionBuckets[key].total,
+      totalPnl: sessionBuckets[key].pnl,
+      avgPnl: sessionBuckets[key].total > 0 ? sessionBuckets[key].pnl / sessionBuckets[key].total : 0,
     }));
 
     // Find best/worst
@@ -192,7 +192,7 @@ export function TradingHeatmapChart({ trades }: TradingHeatmapChartProps) {
               "font-medium",
               data.totalPnl >= 0 ? 'text-green-500' : 'text-red-500'
             )}>
-              {formatCurrency(data.totalPnl)}
+              {formatPnl(data.totalPnl)}
             </span>
           </div>
           <div className="flex justify-between gap-4">
@@ -201,7 +201,7 @@ export function TradingHeatmapChart({ trades }: TradingHeatmapChartProps) {
               "font-medium",
               data.avgPnl >= 0 ? 'text-green-500' : 'text-red-500'
             )}>
-              {formatCurrency(data.avgPnl)}
+              {formatPnl(data.avgPnl)}
             </span>
           </div>
         </div>
