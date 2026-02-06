@@ -41,18 +41,36 @@ export function useRealtime({ tables, enabled = true }: UseRealtimeOptions) {
           console.log(`[Realtime] ${table} changed:`, payload.eventType);
           
           // Invalidate related queries based on table
+          // Extended matrix ensures all dependent components stay in sync
           switch (table) {
             case "accounts":
               queryClient.invalidateQueries({ queryKey: ["accounts"] });
               queryClient.invalidateQueries({ queryKey: ["account-transactions"] });
               queryClient.invalidateQueries({ queryKey: ["trading-accounts"] });
+              queryClient.invalidateQueries({ queryKey: ["unified-portfolio"] });
               break;
             case "account_transactions":
               queryClient.invalidateQueries({ queryKey: ["account-transactions"] });
               queryClient.invalidateQueries({ queryKey: ["accounts"] });
+              queryClient.invalidateQueries({ queryKey: ["unified-portfolio"] });
               break;
             case "trade_entries":
+              // Primary trade queries
               queryClient.invalidateQueries({ queryKey: ["trade-entries"] });
+              queryClient.invalidateQueries({ queryKey: ["trade-entries-paginated"] });
+              
+              // Dashboard widgets (dependent on trade P&L calculations)
+              queryClient.invalidateQueries({ queryKey: ["unified-portfolio"] });
+              queryClient.invalidateQueries({ queryKey: ["unified-daily-pnl"] });
+              queryClient.invalidateQueries({ queryKey: ["unified-weekly-pnl"] });
+              
+              // Analytics (recalculates from trades)
+              queryClient.invalidateQueries({ queryKey: ["contextual-analytics"] });
+              queryClient.invalidateQueries({ queryKey: ["symbol-breakdown"] });
+              
+              // Binance P&L (recalculates with new trades)
+              queryClient.invalidateQueries({ queryKey: ["binance-daily-pnl"] });
+              queryClient.invalidateQueries({ queryKey: ["binance-weekly-pnl"] });
               break;
             case "trading_strategies":
               queryClient.invalidateQueries({ queryKey: ["trading-strategies"] });

@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
+import { invalidateTradeQueries } from "@/lib/query-invalidation";
 import { BinanceTrade } from "@/features/binance/types";
 
 export interface SyncTradeInput {
@@ -93,7 +94,7 @@ export function useSyncTradeToJournal() {
       return trade;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["trade-entries"] });
+      invalidateTradeQueries(queryClient);
       toast.success("Trade synced to journal");
     },
     onError: (error) => {
@@ -191,7 +192,7 @@ export function useBulkSyncTrades() {
       };
     },
     onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ["trade-entries"] });
+      invalidateTradeQueries(queryClient);
       toast.success(`Synced ${result.synced} trades${result.skipped > 0 ? ` (${result.skipped} already existed)` : ''}`);
     },
     onError: (error) => {
