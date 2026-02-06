@@ -255,15 +255,27 @@ export function useBinanceFullSync() {
       queryClient.invalidateQueries({ queryKey: ['trade-entries-paginated'] });
       
       if (result.synced > 0) {
-        toast.success(`Synced ${result.synced} new trades from Binance`);
+        toast.success(`Sync Complete`, {
+          description: `${result.synced} new trades synced from Binance${result.skipped > 0 ? ` (${result.skipped} already existed)` : ''}`,
+          duration: 5000,
+        });
       } else if (result.skipped > 0) {
-        toast.info(`All ${result.skipped} trades already synced`);
+        toast.success(`All Synced`, {
+          description: `All ${result.skipped} trades are already in your journal`,
+          duration: 4000,
+        });
       } else {
-        toast.info('No new trades found in Binance history');
+        toast.info('No Trades Found', {
+          description: 'No trading history found in your Binance account',
+          duration: 4000,
+        });
       }
       
       if (result.errors.length > 0) {
         console.warn('Sync completed with warnings:', result.errors);
+        toast.warning('Sync completed with warnings', {
+          description: `${result.errors.length} chunk(s) had issues. Check console for details.`,
+        });
       }
     },
     onError: (error) => {
