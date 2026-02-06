@@ -12,6 +12,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
+import { invalidateTradeQueries } from "@/lib/query-invalidation";
 import type { BinanceIncome } from "@/features/binance/types";
 
 const BINANCE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/binance-futures`;
@@ -251,8 +252,7 @@ export function useBinanceFullSync() {
       };
     },
     onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ['trade-entries'] });
-      queryClient.invalidateQueries({ queryKey: ['trade-entries-paginated'] });
+      invalidateTradeQueries(queryClient);
       
       if (result.synced > 0) {
         toast.success(`Sync Complete`, {

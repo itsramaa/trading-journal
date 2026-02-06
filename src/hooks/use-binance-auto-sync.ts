@@ -11,6 +11,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
+import { invalidateTradeQueries } from "@/lib/query-invalidation";
 import { useBinanceAllIncome, useBinanceConnectionStatus, BinanceIncome } from "@/features/binance";
 
 /**
@@ -207,7 +208,7 @@ export function useBinanceAutoSync(options: AutoSyncOptions = {}) {
     },
     onSuccess: (result) => {
       setLastSyncTime(new Date());
-      queryClient.invalidateQueries({ queryKey: ["trade-entries"] });
+      invalidateTradeQueries(queryClient);
       
       if (result.synced > 0) {
         toast.success(`Auto-synced ${result.synced} trades from Binance`);
@@ -332,7 +333,7 @@ export function useSyncBinanceIncome() {
       };
     },
     onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ["trade-entries"] });
+      invalidateTradeQueries(queryClient);
       if (result.synced > 0) {
         toast.success(`Synced ${result.synced} trades to journal`);
       } else if (result.skipped > 0) {

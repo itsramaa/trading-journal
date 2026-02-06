@@ -20,12 +20,12 @@ import {
   TrendingUp,
   Coins,
   Percent,
-  Info,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { useBinanceAllIncome, useBinanceConnectionStatus } from "@/features/binance";
 import { BinanceNotConfiguredState } from "@/components/binance/BinanceNotConfiguredState";
 import { getIncomeTypeCategory, type BinanceIncome } from "@/features/binance/types";
@@ -147,30 +147,34 @@ export function FinancialSummaryCard({
   }
 
   return (
-    <Card className={className}>
+    <Card className={cn("border-dashed border-muted-foreground/30", className)}>
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="flex items-center gap-2 text-lg">
               <CircleDollarSign className="h-5 w-5 text-primary" />
               Financial Summary
+              <InfoTooltip 
+                content="High-level overview of trading costs. This data uses its own reporting period and is NOT affected by Trade History filters."
+                variant="info"
+              />
             </CardTitle>
             <CardDescription>
-              Trading fees, funding rates, and rebates (not trade P&L)
+              Reporting period overview • Independent of page filters
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">
             <Select value={days.toString()} onValueChange={(v) => setDays(parseInt(v))}>
-              <SelectTrigger className="w-[130px]">
+              <SelectTrigger className="w-[150px]">
                 <Calendar className="h-4 w-4 mr-1" />
-                <SelectValue />
+                <SelectValue placeholder="Reporting Period" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="7">7 days</SelectItem>
-                <SelectItem value="30">30 days</SelectItem>
-                <SelectItem value="90">90 days</SelectItem>
-                <SelectItem value="180">6 months</SelectItem>
-                <SelectItem value="365">1 year</SelectItem>
+                <SelectItem value="7">Last 7 days</SelectItem>
+                <SelectItem value="30">Last 30 days</SelectItem>
+                <SelectItem value="90">Last 90 days</SelectItem>
+                <SelectItem value="180">Last 6 months</SelectItem>
+                <SelectItem value="365">Last year</SelectItem>
               </SelectContent>
             </Select>
             <Button variant="ghost" size="icon" onClick={() => refetch()}>
@@ -265,8 +269,11 @@ export function FinancialSummaryCard({
             {/* Net Trading Cost */}
             <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50 border">
               <div className="flex items-center gap-2">
-                <Info className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm font-medium">Net Trading Cost</span>
+                <InfoTooltip 
+                  content="Fees + Funding Paid - Funding Received - Rebates. A positive value means net cost to your account."
+                  variant="help"
+                />
               </div>
               <div className={cn(
                 "text-xl font-bold",

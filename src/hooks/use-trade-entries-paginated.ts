@@ -6,6 +6,7 @@ import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-q
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
+import { invalidateTradeQueries, invalidateAccountQueries } from "@/lib/query-invalidation";
 import type { TradeEntry, TradingStrategy, TradeScreenshot } from "./use-trade-entries";
 
 export interface TradeFilters {
@@ -182,8 +183,7 @@ export function useSoftDeleteTradeEntry() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["trade-entries"] });
-      queryClient.invalidateQueries({ queryKey: ["trade-entries-paginated"] });
+      invalidateTradeQueries(queryClient);
       toast.success("Trade entry deleted");
     },
     onError: (error) => {
@@ -208,8 +208,7 @@ export function useRestoreTradeEntry() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["trade-entries"] });
-      queryClient.invalidateQueries({ queryKey: ["trade-entries-paginated"] });
+      invalidateTradeQueries(queryClient);
       toast.success("Trade entry restored");
     },
     onError: (error) => {
@@ -255,7 +254,7 @@ export function useSoftDeleteAccount() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      invalidateAccountQueries(queryClient);
       toast.success("Account deleted");
     },
     onError: (error) => {

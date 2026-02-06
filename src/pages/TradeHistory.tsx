@@ -33,6 +33,7 @@ import { TradeGalleryCard, TradeGalleryCardSkeleton } from "@/components/journal
 import { FeeHistoryTab } from "@/components/trading/FeeHistoryTab";
 import { FundingHistoryTab } from "@/components/trading/FundingHistoryTab";
 import { History, Wifi, BookOpen, FileText, Loader2, List, LayoutGrid, Download, CloudDownload, Percent, ArrowUpDown } from "lucide-react";
+import { FilterActiveIndicator } from "@/components/ui/filter-active-indicator";
 import { format } from "date-fns";
 import { useTradeEntriesPaginated, type TradeFilters } from "@/hooks/use-trade-entries-paginated";
 import type { TradeEntry } from "@/hooks/use-trade-entries";
@@ -222,6 +223,39 @@ export default function TradeHistory() {
   const winCount = sortedTrades.filter(t => (t.realized_pnl || 0) > 0).length;
   const winRate = sortedTrades.length > 0 ? (winCount / sortedTrades.length) * 100 : 0;
 
+  // Filter state detection
+  const hasActiveFilters = useMemo(() => 
+    dateRange.from !== null || 
+    dateRange.to !== null ||
+    resultFilter !== 'all' ||
+    directionFilter !== 'all' ||
+    sessionFilter !== 'all' ||
+    selectedStrategyIds.length > 0 ||
+    selectedPairs.length > 0,
+    [dateRange, resultFilter, directionFilter, sessionFilter, selectedStrategyIds, selectedPairs]
+  );
+
+  const activeFilterCount = useMemo(() => 
+    [
+      resultFilter !== 'all',
+      directionFilter !== 'all',
+      sessionFilter !== 'all',
+      selectedStrategyIds.length > 0,
+      selectedPairs.length > 0,
+    ].filter(Boolean).length,
+    [resultFilter, directionFilter, sessionFilter, selectedStrategyIds, selectedPairs]
+  );
+
+  const handleClearAllFilters = () => {
+    setDateRange({ from: null, to: null });
+    setResultFilter('all');
+    setDirectionFilter('all');
+    setSessionFilter('all');
+    setSelectedStrategyIds([]);
+    setSelectedPairs([]);
+    setSortByAI('none');
+  };
+
   // Render trade list based on view mode
   const renderTradeList = (trades: TradeEntry[]) => {
     if (trades.length === 0) {
@@ -359,6 +393,16 @@ export default function TradeHistory() {
           </div>
         </div>
 
+        {/* Filter Active Indicator */}
+        {hasActiveFilters && (
+          <FilterActiveIndicator
+            isActive={hasActiveFilters}
+            dateRange={dateRange}
+            filterCount={activeFilterCount}
+            onClear={handleClearAllFilters}
+          />
+        )}
+
         {/* Filters */}
         <Card>
           <CardContent className="pt-6">
@@ -454,7 +498,7 @@ export default function TradeHistory() {
               Closed Trades
               {isBinanceConnected && (
                 <Badge variant="outline" className="text-xs gap-1 ml-2">
-                  <Wifi className="h-3 w-3 text-green-500" aria-hidden="true" />
+                  <Wifi className="h-3 w-3 text-profit" aria-hidden="true" />
                   Binance
                 </Badge>
               )}
