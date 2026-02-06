@@ -1,415 +1,336 @@
 
-# Plan: Unified PnL Formatting & Session Analytics
+# Plan: Unified Realtime, Filter State Indicator, & Financial Summary Clarity
 
 ## Overview
 
-Implementasi **formatPnl()** utility dan **Session Analytics** system yang konsisten untuk seluruh aplikasi. Menyelesaikan inkonsistensi format angka finansial dan session tagging.
+Implementasi sistem yang memastikan:
+1. **Realtime Update**: Perubahan trade memicu invalidasi ke SEMUA query terkait
+2. **Filter State Indicator**: User selalu tahu apakah data yang dilihat terfilter
+3. **Financial Summary Clarity**: Label yang jelas bahwa summary tidak mengikuti filter
 
 ---
 
-## Part 1: formatPnl() Utility Function
+## Phase 1: Extended Realtime Invalidation Matrix
 
-### 1.1 Create formatPnl() in lib/formatters.ts
+### 1.1 Update use-realtime.ts
 
-**Lokasi:** `src/lib/formatters.ts`
+**Problem**: Saat ini `trade_entries` change hanya invalidate `["trade-entries"]`, padahal banyak hook lain bergantung pada data ini.
 
-Tambahkan fungsi baru:
+**Solution**: Perluas invalidation matrix untuk trade_entries agar mencakup semua dependent queries.
 
+**File**: `src/hooks/use-realtime.ts`
+
+**Changes**:
 ```typescript
-/**
- * Format PnL value with proper sign prefix
- * STANDARD: +$x for profit, -$x for loss
- * Used for all profit/loss displays across the application
- */
-export function formatPnl(
-  value: number,
-  currency: Currency | AssetMarket | string = 'USD'
-): string {
-  const sign = value >= 0 ? '+' : '';
-  const formatted = formatCurrency(Math.abs(value), currency);
-  // Insert sign before currency symbol
-  // e.g., formatCurrency returns "$100" -> "+$100" or "-$100"
-  return value >= 0 
-    ? formatted.replace(/^([^\d-]+)/, `${sign}$1`)
-    : formatted.replace(/^([^\d-]+)/, '-$1');
-}
-
-/**
- * Format PnL for compact display (K/M/B)
- */
-export function formatCompactPnl(
-  value: number,
-  currency: Currency | AssetMarket | string = 'USD'
-): string {
-  const sign = value >= 0 ? '+' : '';
-  const formatted = formatCompactCurrency(Math.abs(value), currency);
-  return value >= 0 
-    ? formatted.replace(/^([^\d-]+)/, `${sign}$1`)
-    : formatted.replace(/^([^\d-]+)/, '-$1');
-}
+case "trade_entries":
+  // Primary trade queries
+  queryClient.invalidateQueries({ queryKey: ["trade-entries"] });
+  queryClient.invalidateQueries({ queryKey: ["trade-entries-paginated"] });
+  
+  // Portfolio & Dashboard (dependent on trade P&L calculations)
+  queryClient.invalidateQueries({ queryKey: ["unified-portfolio"] });
+  queryClient.invalidateQueries({ queryKey: ["unified-daily-pnl"] });
+  queryClient.invalidateQueries({ queryKey: ["unified-weekly-pnl"] });
+  
+  // Analytics (recalculates from trades)
+  queryClient.invalidateQueries({ queryKey: ["contextual-analytics"] });
+  queryClient.invalidateQueries({ queryKey: ["symbol-breakdown"] });
+  
+  // Binance daily P&L (if trade closed triggers recalc)
+  queryClient.invalidateQueries({ queryKey: ["binance-daily-pnl"] });
+  break;
 ```
 
-### 1.2 Files to Update (PnL Formatting)
+### 1.2 Add Paginated Query Key to Realtime
 
-| File | Current Pattern | Fix |
-|------|-----------------|-----|
-| `TradeSummaryStats.tsx` | `formatCurrency(value)` tanpa sign | Use `formatPnl()` |
-| `TradeGalleryCard.tsx` | `{pnl >= 0 ? '+' : ''}formatCurrency()` | Use `formatPnl()` |
-| `TradeHistoryCard.tsx` | Manual sign | Use `formatPnl()` |
-| `TradeHistoryInfiniteScroll.tsx` | Manual sign | Use `formatPnl()` |
-| `BinanceTradeHistory.tsx` | Manual sign | Use `formatPnl()` |
-| `BinanceIncomeHistory.tsx` | Manual sign | Use `formatPnl()` |
-| `TodayPerformance.tsx` | Manual sign | Use `formatPnl()` |
-| `PortfolioOverviewCard.tsx` | Manual sign | Use `formatPnl()` |
-| `DashboardAnalyticsSummary.tsx` | `formatCurrency()` tanpa sign | Use `formatPnl()` |
-| `SevenDayStatsCard.tsx` | Manual sign | Use `formatPnl()` |
-| `Performance.tsx` | Manual sign via chartFormatCurrency | Create `chartFormatPnl()` |
-| `DailyPnL.tsx` | `formatCurrency()` tanpa sign | Use `formatPnl()` |
-| `TradingHeatmap.tsx` | `formatCurrency()` tanpa sign | Use `formatPnl()` |
-| `CryptoRanking.tsx` | Manual sign | Use `formatPnl()` |
-| `VolatilityLevelChart.tsx` | `formatCurrency()` tanpa sign | Use `formatPnl()` |
-| `TradingHeatmapChart.tsx` | `formatCurrency()` tanpa sign | Use `formatPnl()` |
-| `EmotionalPatternAnalysis.tsx` | Mixed | Use `formatPnl()` |
-| `DailyLossTracker.tsx` | Manual sign | Use `formatPnl()` |
-| `SystemStatusIndicator.tsx` | Manual sign | Use `formatPnl()` |
-| `AIInsights.tsx` | `formatCurrency()` tanpa sign | Use `formatPnl()` |
-| `AccountDetail.tsx` | Manual sign | Use `formatPnl()` |
-
-**Total: ~20 files require updates**
+Ensure `trade-entries-paginated` juga di-invalidate saat realtime event terjadi.
 
 ---
 
-## Part 2: Session Utilities & Types
+## Phase 2: Filter State Indicator Component
 
-### 2.1 Create Session Utility
+### 2.1 Create FilterActiveIndicator Component
 
-**File baru:** `src/lib/session-utils.ts`
+**File baru**: `src/components/ui/filter-active-indicator.tsx`
 
-```typescript
-/**
- * Trading Session Utilities
- * Converts between UTC and user timezone for session calculation
- * 
- * Sessions are defined in UTC and converted to user's local time:
- * - Asia: 20:00-05:00 UTC (Sydney/Tokyo overlap)
- * - London: 08:00-17:00 UTC
- * - New York: 13:00-22:00 UTC
- */
-
-export type TradingSession = 'asia' | 'london' | 'newyork' | 'off-hours';
-
-// Session definitions in UTC hours
-export const SESSION_UTC = {
-  asia: { start: 20, end: 5 },      // Crosses midnight
-  london: { start: 8, end: 17 },
-  newyork: { start: 13, end: 22 },
-} as const;
-
-export const SESSION_LABELS: Record<TradingSession, string> = {
-  asia: 'Asia',
-  london: 'London',
-  newyork: 'New York',
-  'off-hours': 'Off Hours',
-};
-
-/**
- * Get user's timezone offset in hours from UTC
- */
-export function getUserTimezoneOffset(): number {
-  return new Date().getTimezoneOffset() / -60;
-}
-
-/**
- * Determine which trading session a given datetime falls into
- * Uses the UTC hour of the provided date
- */
-export function getSessionForTime(date: Date | string): TradingSession {
-  const d = typeof date === 'string' ? new Date(date) : date;
-  const utcHour = d.getUTCHours();
-  
-  // Check Asia (spans midnight: 20:00-05:00 UTC)
-  if (utcHour >= SESSION_UTC.asia.start || utcHour < SESSION_UTC.asia.end) {
-    return 'asia';
-  }
-  
-  // Check London (08:00-17:00 UTC)
-  if (utcHour >= SESSION_UTC.london.start && utcHour < SESSION_UTC.london.end) {
-    return 'london';
-  }
-  
-  // Check New York (13:00-22:00 UTC)
-  if (utcHour >= SESSION_UTC.newyork.start && utcHour < SESSION_UTC.newyork.end) {
-    return 'newyork';
-  }
-  
-  return 'off-hours';
-}
-
-/**
- * Check if two sessions overlap at current time
- */
-export function getActiveOverlaps(date: Date = new Date()): string | null {
-  const utcHour = date.getUTCHours();
-  
-  // London/NY overlap: 13:00-17:00 UTC
-  if (utcHour >= 13 && utcHour < 17) {
-    return 'London + NY';
-  }
-  
-  // Asia/London overlap: 08:00-09:00 UTC (brief)
-  if (utcHour >= 8 && utcHour < 9) {
-    return 'Asia + London';
-  }
-  
-  return null;
-}
-
-/**
- * Format session time range in user's local time
- */
-export function formatSessionTimeLocal(session: TradingSession): string {
-  if (session === 'off-hours') return 'Variable';
-  
-  const { start, end } = SESSION_UTC[session];
-  const offset = getUserTimezoneOffset();
-  
-  const localStart = (start + offset + 24) % 24;
-  const localEnd = (end + offset + 24) % 24;
-  
-  const formatHour = (h: number) => `${h.toString().padStart(2, '0')}:00`;
-  return `${formatHour(localStart)}-${formatHour(localEnd)}`;
-}
-```
-
-### 2.2 Update Types
-
-**File:** `src/types/market-context.ts`
-
-Tambahkan session type:
+Komponen yang menampilkan badge visual saat filter aktif:
 
 ```typescript
-import type { TradingSession } from '@/lib/session-utils';
-
-// Add to UnifiedMarketContext
-export interface UnifiedMarketContext {
-  // ... existing fields
-  
-  // Session context (new)
-  session?: {
-    current: TradingSession;
-    overlap: string | null;
-  };
-}
-```
-
----
-
-## Part 3: Session Tagging pada Trade
-
-### 3.1 Auto-tag Session saat Capture Market Context
-
-**File:** `src/hooks/use-capture-market-context.ts`
-
-Modifikasi untuk include session:
-
-```typescript
-import { getSessionForTime, getActiveOverlaps } from '@/lib/session-utils';
-
-// Inside capture function
-const session = getSessionForTime(new Date());
-const overlap = getActiveOverlaps();
-
-context.session = {
-  current: session,
-  overlap,
-};
-```
-
-### 3.2 Utility untuk Get Session dari Trade
-
-**File:** `src/lib/session-utils.ts` (tambahan)
-
-```typescript
-/**
- * Get session from trade entry
- * Uses market_context if available, otherwise calculates from trade_date
- */
-export function getTradeSession(trade: {
-  trade_date: string;
-  entry_datetime?: string | null;
-  market_context?: { session?: { current: TradingSession } } | null;
-}): TradingSession {
-  // Prefer stored session from market_context
-  if (trade.market_context?.session?.current) {
-    return trade.market_context.session.current;
-  }
-  
-  // Calculate from datetime
-  const datetime = trade.entry_datetime || trade.trade_date;
-  return getSessionForTime(datetime);
-}
-```
-
----
-
-## Part 4: Session Analytics Integration
-
-### 4.1 Add Session Segmentation to useContextualAnalytics
-
-**File:** `src/hooks/use-contextual-analytics.ts`
-
-Tambahkan:
-
-```typescript
-import { getTradeSession, TradingSession, SESSION_LABELS } from '@/lib/session-utils';
-
-// Add to ContextualAnalyticsResult
-export interface ContextualAnalyticsResult {
-  // ... existing fields
-  
-  // Session Performance (new)
-  bySession: Record<TradingSession, PerformanceMetrics>;
+interface FilterActiveIndicatorProps {
+  isActive: boolean;
+  dateRange?: DateRange;
+  filterCount?: number;
+  onClear?: () => void;
 }
 
-// Inside useMemo calculation
-const sessionBuckets: Record<TradingSession, Array<{ pnl: number; result: string }>> = {
-  asia: [],
-  london: [],
-  newyork: [],
-  'off-hours': [],
-};
-
-tradesWithContext.forEach(trade => {
-  const session = getTradeSession(trade);
-  const tradeData = { pnl, result };
-  sessionBuckets[session].push(tradeData);
-});
-
-// Calculate metrics
-const sessionMetrics: Record<TradingSession, PerformanceMetrics> = {
-  asia: calculateMetrics(sessionBuckets.asia),
-  london: calculateMetrics(sessionBuckets.london),
-  newyork: calculateMetrics(sessionBuckets.newyork),
-  'off-hours': calculateMetrics(sessionBuckets['off-hours']),
-};
-
-return {
-  // ... existing
-  bySession: sessionMetrics,
-};
+// Displays:
+// - "Filtered Data" badge with warning color
+// - Date range if active
+// - Number of active filters
+// - Clear button
 ```
 
-### 4.2 Create SessionPerformanceChart Component
+**Visual Design**:
+```text
+┌─────────────────────────────────────────────────┐
+│ ⚠️ Filtered View: Jan 1 - Feb 6 + 3 filters    [Clear] │
+└─────────────────────────────────────────────────┘
+```
 
-**File baru:** `src/components/analytics/SessionPerformanceChart.tsx`
+### 2.2 Integrate into TradeHistory.tsx
 
-Komponen yang menampilkan:
-- Win rate per session (bar chart)
-- P&L per session
-- Trade count per session
-- Best/worst session badges
-- Session time ranges dalam LOCAL timezone
+**File**: `src/pages/TradeHistory.tsx`
 
-### 4.3 Add to Performance Page
+Add FilterActiveIndicator di bawah header, sebelum filter controls:
 
-**File:** `src/pages/Performance.tsx`
+```typescript
+const hasActiveFilters = 
+  dateRange.from !== null || 
+  dateRange.to !== null ||
+  resultFilter !== 'all' ||
+  directionFilter !== 'all' ||
+  sessionFilter !== 'all' ||
+  selectedStrategyIds.length > 0 ||
+  selectedPairs.length > 0;
 
-Di section "Contextual Analysis", tambahkan:
+const activeFilterCount = [
+  resultFilter !== 'all',
+  directionFilter !== 'all',
+  sessionFilter !== 'all',
+  selectedStrategyIds.length > 0,
+  selectedPairs.length > 0,
+].filter(Boolean).length;
 
-```tsx
-{/* Session Performance */}
-{contextualData?.bySession && (
-  <SessionPerformanceChart bySession={contextualData.bySession} />
+// In JSX, above stats summary:
+{hasActiveFilters && (
+  <FilterActiveIndicator 
+    isActive={hasActiveFilters}
+    dateRange={dateRange}
+    filterCount={activeFilterCount}
+    onClear={handleClearAllFilters}
+  />
 )}
 ```
 
----
+### 2.3 Visual Distinction Between Filtered vs Unfiltered State
 
-## Part 5: Fix Hardcoded Sessions
-
-### 5.1 Update TradingHeatmap.tsx
-
-**File:** `src/pages/TradingHeatmap.tsx`
-
-Perubahan:
-- Import `getTradeSession` dan `SESSION_LABELS`
-- Replace hardcoded `hour < 8` logic dengan `getTradeSession(trade)`
-- Show session times in LOCAL timezone di badge
+Update header stats section:
 
 ```typescript
-// Before (WRONG - uses local hour)
-const hour = new Date(trade.trade_date).getHours();
-const session = hour < 8 ? 'asia' : hour < 16 ? 'london' : 'ny';
-
-// After (CORRECT - uses UTC-based session)
-import { getTradeSession, formatSessionTimeLocal } from '@/lib/session-utils';
-const session = getTradeSession(trade);
+{/* Stats Summary - show filtered indicator */}
+<div className="flex items-center gap-6">
+  {hasActiveFilters && (
+    <Badge variant="outline" className="bg-yellow-500/10 text-yellow-600 border-yellow-500/30">
+      <Filter className="h-3 w-3 mr-1" />
+      Filtered
+    </Badge>
+  )}
+  <div className="flex gap-4 text-sm">
+    {/* Stats... */}
+  </div>
+</div>
 ```
-
-### 5.2 Update TradingHeatmapChart.tsx
-
-**File:** `src/components/analytics/TradingHeatmapChart.tsx`
-
-Same pattern - replace hardcoded session detection dengan `getTradeSession()`.
 
 ---
 
-## Part 6: Trade Display with Session Context
+## Phase 3: Financial Summary Independence Clarity
 
-### 6.1 Add Session Badge to Trade Cards
+### 3.1 Update FinancialSummaryCard.tsx
 
-**File:** `src/components/journal/TradeGalleryCard.tsx`
+**File**: `src/components/accounts/FinancialSummaryCard.tsx`
 
-Tambahkan session badge:
+**Changes**:
 
-```tsx
-import { getTradeSession, SESSION_LABELS } from '@/lib/session-utils';
+1. **Rename dropdown label** dari "7 days" ke "Reporting Period"
+2. **Add info tooltip** yang menjelaskan ini adalah high-level overview
+3. **Add subtitle** yang menegaskan data TIDAK mengikuti Trade History filters
 
-const session = getTradeSession(trade);
-
-// In badges section
-<Badge variant="secondary" className="text-xs px-1.5 py-0">
-  {SESSION_LABELS[session]}
-</Badge>
+```typescript
+<CardHeader>
+  <div className="flex items-center justify-between">
+    <div>
+      <CardTitle className="flex items-center gap-2 text-lg">
+        <CircleDollarSign className="h-5 w-5 text-primary" />
+        Financial Summary
+        <InfoTooltip content="High-level overview of trading costs. This data uses its own reporting period and is NOT affected by Trade History filters." />
+      </CardTitle>
+      <CardDescription>
+        Reporting period overview • Independent of page filters
+      </CardDescription>
+    </div>
+    <div className="flex items-center gap-2">
+      <Select value={days.toString()} onValueChange={(v) => setDays(parseInt(v))}>
+        <SelectTrigger className="w-[150px]">
+          <Calendar className="h-4 w-4 mr-1" />
+          <SelectValue placeholder="Reporting Period" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="7">Last 7 days</SelectItem>
+          <SelectItem value="30">Last 30 days</SelectItem>
+          <SelectItem value="90">Last 90 days</SelectItem>
+          <SelectItem value="180">Last 6 months</SelectItem>
+          <SelectItem value="365">Last year</SelectItem>
+        </SelectContent>
+      </Select>
+      {/* ... */}
+    </div>
+  </div>
+</CardHeader>
 ```
 
-### 6.2 Add Session to Trade History Infinite Scroll
+### 3.2 Add Visual Separator
 
-**File:** `src/components/journal/TradeHistoryInfiniteScroll.tsx`
+Add dashed border atau muted background untuk memisahkan Financial Summary dari filtered content:
 
-Add session display in trade row.
+```typescript
+<Card className={cn("border-dashed border-muted-foreground/30", className)}>
+```
+
+---
+
+## Phase 4: Trade Mutation Invalidation Consistency
+
+### 4.1 Create Centralized Invalidation Helper
+
+**File baru**: `src/lib/query-invalidation.ts`
+
+```typescript
+import { QueryClient } from "@tanstack/react-query";
+
+/**
+ * Invalidate all trade-related queries
+ * Used after any trade mutation (create, update, delete, close)
+ */
+export function invalidateTradeQueries(queryClient: QueryClient) {
+  // Primary trade data
+  queryClient.invalidateQueries({ queryKey: ["trade-entries"] });
+  queryClient.invalidateQueries({ queryKey: ["trade-entries-paginated"] });
+  
+  // Dashboard widgets
+  queryClient.invalidateQueries({ queryKey: ["unified-portfolio"] });
+  queryClient.invalidateQueries({ queryKey: ["unified-daily-pnl"] });
+  queryClient.invalidateQueries({ queryKey: ["unified-weekly-pnl"] });
+  
+  // Analytics
+  queryClient.invalidateQueries({ queryKey: ["contextual-analytics"] });
+  queryClient.invalidateQueries({ queryKey: ["symbol-breakdown"] });
+  
+  // Binance P&L (recalculates)
+  queryClient.invalidateQueries({ queryKey: ["binance-daily-pnl"] });
+  queryClient.invalidateQueries({ queryKey: ["binance-weekly-pnl"] });
+}
+
+/**
+ * Invalidate account-related queries
+ */
+export function invalidateAccountQueries(queryClient: QueryClient) {
+  queryClient.invalidateQueries({ queryKey: ["accounts"] });
+  queryClient.invalidateQueries({ queryKey: ["account-transactions"] });
+  queryClient.invalidateQueries({ queryKey: ["trading-accounts"] });
+  queryClient.invalidateQueries({ queryKey: ["unified-portfolio"] });
+}
+```
+
+### 4.2 Update use-trade-entries.ts
+
+**File**: `src/hooks/use-trade-entries.ts`
+
+Replace manual invalidations dengan helper:
+
+```typescript
+import { invalidateTradeQueries } from "@/lib/query-invalidation";
+
+// In useCreateTradeEntry:
+onSuccess: () => {
+  invalidateTradeQueries(queryClient);
+  toast.success("Trade entry saved successfully");
+},
+
+// In useUpdateTradeEntry:
+onSuccess: () => {
+  invalidateTradeQueries(queryClient);
+  toast.success("Trade entry updated successfully");
+},
+
+// In useDeleteTradeEntry:
+onSuccess: () => {
+  invalidateTradeQueries(queryClient);
+  toast.success("Trade entry deleted successfully");
+},
+
+// In useClosePosition:
+onSuccess: () => {
+  invalidateTradeQueries(queryClient);
+  toast.success("Position closed successfully");
+},
+```
+
+### 4.3 Update Other Trade Mutation Hooks
+
+Apply same pattern ke:
+- `src/hooks/use-trade-entries-paginated.ts`
+- `src/hooks/use-binance-sync.ts`
+- `src/hooks/use-binance-full-sync.ts`
+- `src/hooks/use-binance-auto-sync.ts`
+
+---
+
+## Phase 5: DateRange Default State Documentation
+
+### 5.1 Update DateRangeFilter.tsx
+
+**File**: `src/components/trading/DateRangeFilter.tsx`
+
+Add visual indicator bahwa "All time" adalah neutral state:
+
+```typescript
+const presets = [
+  { label: "Today", getValue: () => ({ from: startOfDay(new Date()), to: endOfDay(new Date()) }) },
+  { label: "Last 7 days", getValue: () => ({ from: subDays(new Date(), 7), to: new Date() }) },
+  { label: "Last 30 days", getValue: () => ({ from: subDays(new Date(), 30), to: new Date() }) },
+  { label: "Last 3 months", getValue: () => ({ from: subMonths(new Date(), 3), to: new Date() }) },
+  { label: "Last 6 months", getValue: () => ({ from: subMonths(new Date(), 6), to: new Date() }) },
+  { label: "Last year", getValue: () => ({ from: subYears(new Date(), 1), to: new Date() }) },
+  { label: "All time", getValue: () => ({ from: null, to: null }), isDefault: true },
+];
+```
+
+Show badge ketika date range BUKAN "All time":
+
+```typescript
+const displayText = value.from && value.to
+  ? `${format(value.from, "MMM d, yyyy")} - ${format(value.to, "MMM d, yyyy")}`
+  : value.from
+  ? `From ${format(value.from, "MMM d, yyyy")}`
+  : value.to
+  ? `Until ${format(value.to, "MMM d, yyyy")}`
+  : "All time"; // Neutral state indicator
+```
 
 ---
 
 ## Implementation Order
 
 ```text
-Phase 1: Formatters (Foundation)
-├── 1.1 Create formatPnl() in lib/formatters.ts
-├── 1.2 Create lib/session-utils.ts
-└── 1.3 Update types/market-context.ts
+Phase 1: Centralized Invalidation (Foundation)
+├── 1.1 Create lib/query-invalidation.ts
+└── 1.2 Update use-realtime.ts with extended matrix
 
-Phase 2: PnL Formatting Updates (~20 files)
-├── Dashboard components
-├── Analytics components
-├── Journal components
-├── Trading components
-└── Risk components
+Phase 2: Update Trade Mutations
+├── 2.1 use-trade-entries.ts
+├── 2.2 use-trade-entries-paginated.ts
+├── 2.3 use-binance-sync.ts
+├── 2.4 use-binance-full-sync.ts
+└── 2.5 use-binance-auto-sync.ts
 
-Phase 3: Session Integration
-├── 3.1 Update use-capture-market-context.ts
-├── 3.2 Update use-contextual-analytics.ts
-└── 3.3 Create SessionPerformanceChart.tsx
+Phase 3: Filter State UI
+├── 3.1 Create FilterActiveIndicator component
+├── 3.2 Integrate into TradeHistory.tsx
+└── 3.3 Update DateRangeFilter.tsx
 
-Phase 4: Fix Existing Session Logic
-├── 4.1 TradingHeatmap.tsx
-├── 4.2 TradingHeatmapChart.tsx
-└── 4.3 MarketSessionsWidget.tsx (verify only)
-
-Phase 5: Session in UI
-├── 5.1 TradeGalleryCard.tsx
-├── 5.2 TradeHistoryInfiniteScroll.tsx
-└── 5.3 Performance.tsx
+Phase 4: Financial Summary Clarity
+├── 4.1 Update FinancialSummaryCard.tsx with tooltip
+└── 4.2 Update labels and descriptions
 ```
 
 ---
@@ -418,21 +339,22 @@ Phase 5: Session in UI
 
 | File | Purpose |
 |------|---------|
-| `src/lib/session-utils.ts` | Session detection & formatting utilities |
-| `src/components/analytics/SessionPerformanceChart.tsx` | Session analytics visualization |
+| `src/lib/query-invalidation.ts` | Centralized query invalidation helpers |
+| `src/components/ui/filter-active-indicator.tsx` | Visual filter state badge |
 
 ## Files to Modify
 
 | File | Changes |
 |------|---------|
-| `src/lib/formatters.ts` | Add `formatPnl()` and `formatCompactPnl()` |
-| `src/types/market-context.ts` | Add session to UnifiedMarketContext |
-| `src/hooks/use-contextual-analytics.ts` | Add bySession segmentation |
-| `src/hooks/use-capture-market-context.ts` | Auto-tag session |
-| `src/pages/Performance.tsx` | Add SessionPerformanceChart |
-| `src/pages/TradingHeatmap.tsx` | Use UTC-based session logic |
-| `src/components/analytics/TradingHeatmapChart.tsx` | Use UTC-based session logic |
-| Plus ~20 files for PnL formatting updates |
+| `src/hooks/use-realtime.ts` | Extend invalidation matrix |
+| `src/hooks/use-trade-entries.ts` | Use centralized invalidation |
+| `src/hooks/use-trade-entries-paginated.ts` | Use centralized invalidation |
+| `src/hooks/use-binance-sync.ts` | Use centralized invalidation |
+| `src/hooks/use-binance-full-sync.ts` | Use centralized invalidation |
+| `src/hooks/use-binance-auto-sync.ts` | Use centralized invalidation |
+| `src/pages/TradeHistory.tsx` | Add FilterActiveIndicator |
+| `src/components/accounts/FinancialSummaryCard.tsx` | Clarify independence |
+| `src/components/trading/DateRangeFilter.tsx` | Visual improvements |
 
 ---
 
@@ -440,8 +362,46 @@ Phase 5: Session in UI
 
 Setelah implementasi:
 
-1. **PnL Format Konsisten**: Semua angka finansial menggunakan `+$x` / `-$x` format
-2. **Session Berbasis Timezone**: Session detection berdasarkan UTC, display dalam local time
-3. **Session Analytics**: Performance breakdown per session di halaman Performance
-4. **Trade Context**: Setiap trade menampilkan session badge
-5. **No Hardcoded Times**: Semua session logic menggunakan centralized utility
+1. **Realtime Consistency**: Setiap perubahan trade otomatis memicu update ke Dashboard, Portfolio, Analytics
+2. **Filter Transparency**: User selalu tahu saat melihat data yang terfilter
+3. **Summary Clarity**: Financial Summary jelas sebagai high-level overview yang independen
+4. **No Stale Data**: Semua komponen sinkron setelah trade mutation
+5. **Predictable Behavior**: Filter hanya aktif saat user memilih, bukan default hidden
+
+---
+
+## Technical Notes
+
+### Query Invalidation Strategy
+
+Invalidation dilakukan secara **cascading**:
+```text
+trade_entries change
+├── trade-entries (primary)
+├── trade-entries-paginated (cursor-based)
+├── unified-portfolio (uses trades for P&L)
+├── unified-daily-pnl (today's trades)
+├── unified-weekly-pnl (7-day aggregation)
+├── contextual-analytics (market context analysis)
+├── symbol-breakdown (pair-based breakdown)
+└── binance-daily-pnl (recalculates with new trades)
+```
+
+### Filter State Detection
+
+Filter dianggap aktif jika ANY of:
+- Date range != null (both from and to)
+- Result filter != 'all'
+- Direction filter != 'all'
+- Session filter != 'all'
+- Strategy selection > 0
+- Pair selection > 0
+- AI sort != 'none'
+
+### Financial Summary Independence
+
+Financial Summary:
+- Menggunakan internal `days` state (7/30/90/180/365)
+- TIDAK membaca state dari Trade History page
+- TIDAK subscribe ke filter context
+- Ini by design untuk menjaga summary tetap stabil
