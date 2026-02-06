@@ -58,6 +58,7 @@ import { VolatilityLevelChart } from "@/components/analytics/VolatilityLevelChar
 import { CombinedContextualScore } from "@/components/analytics/CombinedContextualScore";
 import { TradingHeatmapChart } from "@/components/analytics/TradingHeatmapChart";
 import { SevenDayStatsCard } from "@/components/analytics/SevenDayStatsCard";
+import { SessionPerformanceChart } from "@/components/analytics/SessionPerformanceChart";
 import { 
   filterTradesByDateRange, 
   filterTradesByStrategies,
@@ -504,6 +505,11 @@ export default function Performance() {
                 {/* Volatility Chart */}
                 {contextualData && (
                   <VolatilityLevelChart byVolatility={contextualData.byVolatility} />
+                )}
+
+                {/* Session Performance */}
+                {contextualData?.bySession && (
+                  <SessionPerformanceChart bySession={contextualData.bySession} />
                 )}
               </div>
 

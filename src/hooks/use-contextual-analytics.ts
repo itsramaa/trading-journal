@@ -1,10 +1,11 @@
 /**
  * useContextualAnalytics - Segments trade performance by market conditions
- * Analyzes trades based on Fear/Greed zones, volatility levels, and event days
+ * Analyzes trades based on Fear/Greed zones, volatility levels, event days, and trading sessions
  */
 import { useMemo } from "react";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import type { UnifiedMarketContext } from "@/types/market-context";
+import { getTradeSession, TradingSession } from "@/lib/session-utils";
 
 // Performance metrics for a segment
 export interface PerformanceMetrics {
@@ -41,6 +42,9 @@ export interface ContextualAnalyticsResult {
   byVolatility: Record<VolatilityLevel, PerformanceMetrics>;
   byFearGreed: Record<FearGreedZone, PerformanceMetrics>;
   byEventProximity: Record<EventProximity, PerformanceMetrics>;
+  
+  // Session Segmentation (NEW)
+  bySession: Record<TradingSession, PerformanceMetrics>;
   
   // Correlations (-1 to 1)
   correlations: {
@@ -276,12 +280,35 @@ export function useContextualAnalytics(): {
       normalDay: [],
     };
     
+    // Session segmentation buckets (NEW)
+    const bySessionBuckets: Record<TradingSession, Array<{ pnl: number; result: string }>> = {
+      asia: [],
+      london: [],
+      newyork: [],
+      'off-hours': [],
+    };
+    
     // Correlation data points
     const volatilityCorrelationData: Array<{ x: number; y: number }> = [];
     const fearGreedCorrelationData: Array<{ x: number; y: number }> = [];
     const eventDayCorrelationData: Array<{ x: number; y: number }> = [];
     
-    // Process each trade with context
+    // Process each closed trade (session works for all trades, not just those with context)
+    closedTrades.forEach(trade => {
+      const pnl = trade.realized_pnl || 0;
+      const result = trade.result || 'unknown';
+      const tradeData = { pnl, result };
+      
+      // Segment by session (works for ALL closed trades)
+      const session = getTradeSession({
+        trade_date: trade.trade_date,
+        entry_datetime: null, // Not exposed in TradeEntry interface, use trade_date as fallback
+        market_context: trade.market_context as { session?: { current: TradingSession } } | null,
+      });
+      bySessionBuckets[session].push(tradeData);
+    });
+    
+    // Process each trade with context for market condition segmentation
     tradesWithContext.forEach(trade => {
       const context = trade.market_context as unknown as UnifiedMarketContext;
       const pnl = trade.realized_pnl || 0;
@@ -335,6 +362,14 @@ export function useContextualAnalytics(): {
       normalDay: calculateMetrics(byEventProximity.normalDay),
     };
     
+    // Session metrics (NEW)
+    const sessionMetrics: Record<TradingSession, PerformanceMetrics> = {
+      asia: calculateMetrics(bySessionBuckets.asia),
+      london: calculateMetrics(bySessionBuckets.london),
+      newyork: calculateMetrics(bySessionBuckets.newyork),
+      'off-hours': calculateMetrics(bySessionBuckets['off-hours']),
+    };
+    
     // Calculate correlations
     const correlations = {
       volatilityVsWinRate: calculateCorrelation(volatilityCorrelationData),
@@ -353,6 +388,7 @@ export function useContextualAnalytics(): {
       byVolatility: volatilityMetrics,
       byFearGreed: fearGreedMetrics,
       byEventProximity: eventProximityMetrics,
+      bySession: sessionMetrics,
       correlations,
       insights,
       totalAnalyzedTrades: closedTrades.length,
