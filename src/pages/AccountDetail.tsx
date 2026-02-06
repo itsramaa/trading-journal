@@ -34,7 +34,7 @@ import {
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { useAccounts, useAccountTransactions } from "@/hooks/use-accounts";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
-import { formatCurrency } from "@/lib/formatters";
+import { formatCurrency, formatPnl } from "@/lib/formatters";
 import type { AccountType, AccountTransactionType } from "@/types/account";
 
 const ACCOUNT_TYPE_ICONS: Record<AccountType, React.ElementType> = {
@@ -191,7 +191,7 @@ export default function AccountDetail() {
                 <div>
                   <p className="text-sm text-muted-foreground">Realized P&L</p>
                   <p className={`text-xl font-bold ${(stats?.realizedPnL || 0) >= 0 ? 'text-profit' : 'text-loss'}`}>
-                    {(stats?.realizedPnL || 0) >= 0 ? '+' : ''}{formatCurrency(stats?.realizedPnL || 0, account.currency)}
+                    {formatPnl(stats?.realizedPnL || 0, account.currency)}
                   </p>
                 </div>
                 {(stats?.realizedPnL || 0) >= 0 ? (

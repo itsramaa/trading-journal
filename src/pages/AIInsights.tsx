@@ -34,8 +34,9 @@ import { useContextualAnalytics } from "@/hooks/use-contextual-analytics";
 import { useContextualExport } from "@/hooks/use-contextual-export";
 import { ContextualPerformance } from "@/components/analytics/ContextualPerformance";
 import { EmotionalPatternAnalysis } from "@/components/analytics/EmotionalPatternAnalysis";
+import { SessionInsights } from "@/components/analytics/SessionInsights";
 import { cn } from "@/lib/utils";
-import { formatCurrency } from "@/lib/formatters";
+import { formatCurrency, formatPnl } from "@/lib/formatters";
 import { format, subDays, isWithinInterval } from "date-fns";
 
 // Types
@@ -253,8 +254,8 @@ export default function AIInsights() {
       result.push({
         type: 'positive',
         title: `Focus on ${stats.bestPair.pair}`,
-        description: `Your most profitable pair with ${formatCurrency(stats.bestPair.pnl, 'USD')} total P&L and ${stats.bestPair.winRate.toFixed(0)}% win rate.`,
-        metric: formatCurrency(stats.bestPair.pnl, 'USD'),
+        description: `Your most profitable pair with ${formatPnl(stats.bestPair.pnl, 'USD')} total P&L and ${stats.bestPair.winRate.toFixed(0)}% win rate.`,
+        metric: formatPnl(stats.bestPair.pnl, 'USD'),
         icon: CheckCircle
       });
     }
@@ -264,8 +265,8 @@ export default function AIInsights() {
       result.push({
         type: 'negative',
         title: `Avoid ${stats.worstPair.pair}`,
-        description: `This pair has cost you ${formatCurrency(Math.abs(stats.worstPair.pnl), 'USD')} with only ${stats.worstPair.winRate.toFixed(0)}% win rate.`,
-        metric: formatCurrency(stats.worstPair.pnl, 'USD'),
+        description: `This pair has cost you ${formatPnl(stats.worstPair.pnl, 'USD')} with only ${stats.worstPair.winRate.toFixed(0)}% win rate.`,
+        metric: formatPnl(stats.worstPair.pnl, 'USD'),
         icon: XCircle
       });
     }
@@ -488,6 +489,11 @@ export default function AIInsights() {
           </Card>
         </div>
 
+        {/* Session Insights - NEW */}
+        {contextualData?.bySession && (
+          <SessionInsights bySession={contextualData.bySession} />
+        )}
+
         {/* Pair Rankings */}
         <Card>
           <CardHeader>
@@ -526,7 +532,7 @@ export default function AIInsights() {
                       "font-bold text-lg",
                       pair.pnl >= 0 ? "text-profit" : "text-loss"
                     )}>
-                      {formatCurrency(pair.pnl, 'USD')}
+                      {formatPnl(pair.pnl, 'USD')}
                     </p>
                     <Badge variant={pair.pnl >= 0 ? "outline" : "secondary"} className={cn(
                       "text-xs",

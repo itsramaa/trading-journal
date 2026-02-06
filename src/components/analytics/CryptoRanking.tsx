@@ -8,7 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { TrendingUp, TrendingDown, Trophy, Medal, Award } from "lucide-react";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { cn } from "@/lib/utils";
-import { formatCurrency, formatWinRate } from "@/lib/formatters";
+import { formatPnl, formatWinRate } from "@/lib/formatters";
 
 interface PairStats {
   pair: string;
@@ -147,7 +147,7 @@ export function CryptoRanking() {
                   "font-bold text-lg",
                   stat.totalPnl >= 0 ? "text-profit" : "text-loss"
                 )}>
-                  {stat.totalPnl >= 0 ? '+' : ''}{formatCurrency(stat.totalPnl, 'USD')}
+                  {formatPnl(stat.totalPnl, 'USD')}
                 </div>
               </div>
 
@@ -176,7 +176,7 @@ export function CryptoRanking() {
                 <div>
                   <p className="text-muted-foreground">Avg P&L</p>
                   <p className={stat.avgPnl >= 0 ? "text-profit" : "text-loss"}>
-                    {formatCurrency(stat.avgPnl, 'USD')}
+                    {formatPnl(stat.avgPnl, 'USD')}
                   </p>
                 </div>
               </div>
