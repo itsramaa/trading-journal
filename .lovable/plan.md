@@ -1,196 +1,257 @@
-# Plan: Memindahkan Financial Details ke Trade History dengan Tab Fees & Funding
 
-## ✅ STATUS: COMPLETED
+# Plan: Unify Trade History Data Flow & Filters
 
-## Ringkasan Perubahan
+## Problem Summary
 
-Memindahkan fitur "View Details" (Fee, Funding, Rebate breakdown) dari tab Financial di halaman Accounts ke halaman Trade History sebagai tab terpisah, sehingga pengguna dapat melihat biaya trading secara bersamaan dengan riwayat trade mereka.
+Setelah melakukan analisis mendalam, saya menemukan beberapa masalah arsitektur:
 
----
+### 1. Data Source Separation
+| Tab | Data Source | Apa yang ditampilkan |
+|-----|-------------|---------------------|
+| All/Binance/Paper | `trade_entries` table (via `useTradeEntriesPaginated`) | Agregated trades per posisi |
+| Fees | Binance API `/income` (via `useBinanceAllIncome`) | Setiap transaksi fee |
+| Funding | Binance API `/income` (via `useBinanceAllIncome`) | Setiap interval funding |
+| Financial (Accounts) | Binance API `/income` (via `useBinanceAllIncome`) | Summary fees/funding |
 
-## Perubahan Arsitektur
+Ini menyebabkan inkonsistensi karena 1 trade bisa punya multiple fees (partial fills).
 
-### Sebelum (Current State)
+### 2. Filter Separation
+- **Trade tabs**: menggunakan `TradeHistoryFilters` (dateRange, result, direction, strategies, pairs, AI sort)
+- **Fees/Funding tabs**: memiliki filter sendiri (`days`, `symbolFilter`) yang terpisah
 
-```text
-Accounts Page
-├── Tab: Accounts (Binance + Paper)
-├── Tab: Transactions (Transfers/Deposits)
-└── Tab: Financial ← Contains: Summary Cards + View Details
+### 3. Data Count Discrepancy
+- **424 fee transactions** (1 tahun) karena setiap eksekusi order menghasilkan fee record
+- **~50 trades** karena ini adalah posisi yang sudah diagregasi
 
-Trade History Page
-├── Filters
-└── Tabs: All | Binance | Paper
-```
-
-### Sesudah (Target State)
-
-```text
-Accounts Page
-├── Tab: Accounts (Binance + Paper)
-├── Tab: Transactions (Transfers/Deposits)
-└── Tab: Financial ← Summary Cards ONLY (no details button)
-
-Trade History Page
-├── Filters
-└── Tabs: All | Binance | Paper | Fees | Funding
-                                  ↑       ↑
-                              (NEW)   (NEW)
-```
+Ini adalah **perilaku yang benar** - mereka mengukur hal yang berbeda.
 
 ---
 
-## Detail Implementasi
+## Solution Architecture
 
-### 1. Modifikasi `src/pages/TradeHistory.tsx`
+### Unified Filter State
+Alih-alih memiliki filter terpisah di Fees/Funding tabs, kita akan:
+1. Menggunakan `dateRange` dari filter utama untuk semua tabs
+2. Menggunakan `selectedPairs` dari filter utama untuk semua tabs
+3. Menghapus filter duplikat di `FeeHistoryTab` dan `FundingHistoryTab`
 
-**Perubahan:**
-- Tambah 2 tab baru: **Fees** dan **Funding**
-- Import `FinancialSummaryCard` atau buat komponen khusus untuk tab
-- Tambah state untuk filter periode (7/30/90/180/365 hari)
-- Gunakan `useBinanceAllIncome` hook yang sudah ada
-
-**Tab Structure Baru:**
+### Props Interface Update
 
 ```typescript
-<TabsList className="mb-4">
-  <TabsTrigger value="all">All</TabsTrigger>
-  <TabsTrigger value="binance">Binance</TabsTrigger>
-  <TabsTrigger value="paper">Paper</TabsTrigger>
-  <TabsTrigger value="fees" disabled={!isBinanceConnected}>
-    <Percent className="h-4 w-4" />
-    Fees
-  </TabsTrigger>
-  <TabsTrigger value="funding" disabled={!isBinanceConnected}>
-    <ArrowUpDown className="h-4 w-4" />
-    Funding
-  </TabsTrigger>
-</TabsList>
+// FeeHistoryTab & FundingHistoryTab will receive filter props from parent
+interface UnifiedIncomeTabProps {
+  isConnected: boolean;
+  dateRange: DateRange;           // From parent filter
+  selectedPairs: string[];        // From parent filter
+  showFullHistory: boolean;       // From parent toggle
+}
 ```
 
-**Tab Content untuk Fees:**
+### Data Limit Fix
+Saat ini `useBinanceAllIncome` dipanggil dengan `limit = 1000`, tapi ini masih bisa kurang untuk 1 tahun data. Solusi:
+1. Tetap gunakan limit 1000 (Binance API max per call)
+2. Tampilkan pesan jika ada potensi data terpotong
+3. Filter berdasarkan date range dari parent
 
-| Field | Deskripsi |
-|-------|-----------|
-| Trading Fees | COMMISSION dari Binance |
-| Fee Rebates | COMMISSION_REBATE + API_REBATE |
-| Net Fee Cost | Fees - Rebates |
-| Details Table | Daftar fee per transaksi |
-
-**Tab Content untuk Funding:**
-
-| Field | Deskripsi |
-|-------|-----------|
-| Funding Paid | Negative FUNDING_FEE |
-| Funding Received | Positive FUNDING_FEE |
-| Net Funding | Total FUNDING_FEE |
-| Details Table | Daftar funding per interval |
+### Default Gallery View
+Ubah default `viewMode` dari `'list'` ke `'gallery'`
 
 ---
 
-### 2. Buat Komponen Baru: `src/components/trading/FeeHistoryTab.tsx`
+## Files to Modify
 
-Komponen khusus untuk menampilkan fee history dengan:
-- Period selector (7/30/90/180/365 days)
-- Summary cards (Trading Fees, Rebates, Net Cost)
-- Details table (Date, Symbol, Amount)
-- Symbol filter
-
----
-
-### 3. Buat Komponen Baru: `src/components/trading/FundingHistoryTab.tsx`
-
-Komponen khusus untuk menampilkan funding rate history dengan:
-- Period selector (7/30/90/180/365 days)
-- Summary cards (Paid, Received, Net)
-- Details table (Date, Symbol, Amount)
-- Symbol filter
+| File | Changes |
+|------|---------|
+| `src/pages/TradeHistory.tsx` | Pass filter props to Fees/Funding tabs, change default viewMode |
+| `src/components/trading/FeeHistoryTab.tsx` | Accept unified filter props, remove local filter state |
+| `src/components/trading/FundingHistoryTab.tsx` | Accept unified filter props, remove local filter state |
 
 ---
 
-### 4. Modifikasi `src/components/accounts/FinancialSummaryCard.tsx`
+## Technical Implementation
 
-**Perubahan:**
-- Hapus/sembunyikan collapsible "View Details" section
-- Tetap tampilkan 4 summary cards (Trading Fees, Funding Paid, Funding Received, Rebates)
-- Tetap tampilkan Net Trading Cost
-- Hapus Symbol Breakdown (pindah ke Trade History)
-- Set `showDetails` default ke `false`
+### 1. TradeHistory.tsx Changes
 
----
+**A. Change default view mode (line 74):**
+```typescript
+// Before
+const [viewMode, setViewMode] = useState<ViewMode>('list');
 
-## File yang Akan Dimodifikasi
-
-| File | Aksi | Deskripsi |
-|------|------|-----------|
-| `src/pages/TradeHistory.tsx` | MODIFY | Tambah tab Fees & Funding |
-| `src/components/trading/FeeHistoryTab.tsx` | CREATE | Komponen tab fee history |
-| `src/components/trading/FundingHistoryTab.tsx` | CREATE | Komponen tab funding history |
-| `src/components/accounts/FinancialSummaryCard.tsx` | MODIFY | Hapus View Details, keep summary only |
-
----
-
-## Technical Details
-
-### Data Flow
-
-```text
-useBinanceAllIncome(days, limit)
-    │
-    ├── Filter: incomeType === 'COMMISSION' ──────────► Fees Tab
-    │           incomeType === 'COMMISSION_REBATE'
-    │           incomeType === 'API_REBATE'
-    │
-    └── Filter: incomeType === 'FUNDING_FEE' ─────────► Funding Tab
+// After
+const [viewMode, setViewMode] = useState<ViewMode>('gallery');
 ```
 
-### Komponen FeeHistoryTab Props
+**B. Pass unified props to Fees/Funding tabs (lines 593-600):**
+```typescript
+{/* Fees Tab Content */}
+<TabsContent value="fees">
+  <FeeHistoryTab 
+    isConnected={isBinanceConnected}
+    dateRange={dateRange}
+    selectedPairs={selectedPairs}
+    showFullHistory={showFullHistory}
+  />
+</TabsContent>
 
+{/* Funding Tab Content */}
+<TabsContent value="funding">
+  <FundingHistoryTab 
+    isConnected={isBinanceConnected}
+    dateRange={dateRange}
+    selectedPairs={selectedPairs}
+    showFullHistory={showFullHistory}
+  />
+</TabsContent>
+```
+
+### 2. FeeHistoryTab.tsx Changes
+
+**A. Update props interface:**
 ```typescript
 interface FeeHistoryTabProps {
-  defaultDays?: number; // Default 30
   isConnected: boolean;
+  dateRange: DateRange;
+  selectedPairs: string[];
+  showFullHistory: boolean;
 }
 ```
 
-### Komponen FundingHistoryTab Props
-
+**B. Remove local filter state:**
 ```typescript
-interface FundingHistoryTabProps {
-  defaultDays?: number; // Default 30
-  isConnected: boolean;
-}
+// Remove these local states:
+// const [days, setDays] = useState<number>(defaultDays);
+// const [symbolFilter, setSymbolFilter] = useState<string>('ALL');
+```
+
+**C. Calculate days from dateRange:**
+```typescript
+const days = useMemo(() => {
+  if (showFullHistory) return 365;
+  if (dateRange.from && dateRange.to) {
+    const diffMs = dateRange.to.getTime() - dateRange.from.getTime();
+    return Math.ceil(diffMs / (1000 * 60 * 60 * 24)) || 30;
+  }
+  return 365; // Default 1 year lookback matching trade history
+}, [dateRange, showFullHistory]);
+```
+
+**D. Apply pair filter from parent:**
+```typescript
+const filteredIncome = useMemo(() => {
+  let filtered = feeIncome;
+  
+  // Apply date range filter
+  if (dateRange.from) {
+    const fromTime = dateRange.from.getTime();
+    filtered = filtered.filter(item => item.time >= fromTime);
+  }
+  if (dateRange.to) {
+    const toTime = dateRange.to.getTime();
+    filtered = filtered.filter(item => item.time <= toTime);
+  }
+  
+  // Apply pair filter from parent
+  if (selectedPairs.length > 0) {
+    filtered = filtered.filter(item => 
+      selectedPairs.some(pair => item.symbol?.includes(pair.replace('USDT', '')))
+    );
+  }
+  
+  return filtered;
+}, [feeIncome, dateRange, selectedPairs]);
+```
+
+**E. Remove local filter UI:**
+Remove the `Select` components for days and symbol filter since they're now controlled by parent.
+
+**F. Show info about unified filtering:**
+```typescript
+<div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
+  <Info className="h-4 w-4" />
+  <span>Filters from trade history apply to this tab</span>
+</div>
+```
+
+### 3. FundingHistoryTab.tsx Changes
+Same pattern as FeeHistoryTab - receive unified props, remove local state.
+
+---
+
+## Data Flow After Fix
+
+```text
+TradeHistory Page
+├── Filter State (single source of truth)
+│   ├── dateRange
+│   ├── selectedPairs
+│   ├── resultFilter
+│   ├── directionFilter
+│   └── showFullHistory
+│
+├── Tab: All/Binance/Paper
+│   └── useTradeEntriesPaginated(filters) → trade_entries table
+│
+├── Tab: Fees
+│   └── useBinanceAllIncome(days) → Binance API
+│       └── Client-side filter by dateRange + selectedPairs
+│
+└── Tab: Funding
+    └── useBinanceAllIncome(days) → Binance API
+        └── Client-side filter by dateRange + selectedPairs
 ```
 
 ---
 
-## UI Behavior
+## UI Changes Summary
 
-### Tabs di Trade History
+### Before:
+- Fees tab: Has own "7 days/30 days/..." selector + symbol filter
+- Funding tab: Has own "7 days/30 days/..." selector + symbol filter
+- Default view: List
 
-| Tab | Kondisi | Perilaku |
-|-----|---------|----------|
-| All | Selalu aktif | Semua closed trades |
-| Binance | Selalu aktif | Trades dari Binance |
-| Paper | Selalu aktif | Trades manual/paper |
-| Fees | `disabled={!isBinanceConnected}` | Fee breakdown + history |
-| Funding | `disabled={!isBinanceConnected}` | Funding rate history |
-
-### Tooltip untuk Tab Disabled
-
-Jika Binance tidak terkoneksi, tampilkan tooltip: "Requires Binance connection"
+### After:
+- Fees tab: Uses parent's date range + pair filters (no duplicate selectors)
+- Funding tab: Uses parent's date range + pair filters (no duplicate selectors)
+- Info text: "Filters from trade history apply to this tab"
+- Default view: Gallery
 
 ---
 
-## Expected Result
+## Expected Behavior
 
-**Trade History Page:**
-- 5 tabs: All, Binance, Paper, Fees, Funding
-- Fees tab: Trading fee summary + detail table
-- Funding tab: Funding rate summary + detail table
-- Masing-masing tab memiliki period selector sendiri
+| Action | All/Binance/Paper Tab | Fees Tab | Funding Tab |
+|--------|----------------------|----------|-------------|
+| Select date range "Last 30 days" | Shows trades in range | Shows fees in range | Shows funding in range |
+| Select pair "BTCUSDT" | Shows only BTC trades | Shows only BTC fees | Shows only BTC funding |
+| Toggle "Full History" | Shows all trades | Shows all fees (1 year) | Shows all funding (1 year) |
 
-**Accounts Page:**
-- Financial tab: Summary cards only (tanpa View Details button)
-- Lebih clean dan focused pada overview
+---
 
+## Why Different Record Counts
+
+User bertanya mengapa fees = 424, trades = 50. Ini **bukan bug**:
+
+1. **Trades** = agregasi per posisi (1 trade entry per open+close)
+2. **Fees** = per eksekusi order (1 trade bisa punya 5-10 partial fills = 5-10 fee records)
+
+Contoh:
+```
+BTCUSDT LONG:
+- Open: 3 partial fills → 3 COMMISSION records
+- Close: 2 partial fills → 2 COMMISSION records
+= 1 trade, 5 fee records
+```
+
+Ini akan tetap berbeda karena mereka mengukur hal yang berbeda. Yang penting adalah **filter yang sama** menampilkan data dari **periode yang sama**.
+
+---
+
+## Technical Summary (Bahasa Indonesia)
+
+1. **Default View**: Ubah dari 'list' ke 'gallery' untuk tabs closed trades
+2. **Unified Filters**: Hapus filter terpisah di Fees/Funding tabs, gunakan filter utama dari Trade History
+3. **Props Passing**: TradeHistory.tsx akan mengirim `dateRange`, `selectedPairs`, dan `showFullHistory` ke child components
+4. **Client-side Filter**: Fees/Funding tabs akan filter data berdasarkan props yang diterima dari parent
+5. **Info Display**: Tampilkan pesan bahwa filter berlaku untuk semua tabs
+
+Hasil: Ketika user filter by date range atau pair, semua tabs akan menampilkan data yang konsisten untuk periode yang sama.
