@@ -155,9 +155,14 @@ function MoversList({ tickers, type, isLoading, sortBy }: {
 export default function TopMovers() {
   const [limit, setLimit] = useState(10);
   const [sortBy, setSortBy] = useState<SortBy>('percentage');
-  const { data, isLoading, refetch, isFetching } = useBinanceTopMovers(limit);
+  const { data, isLoading, refetch, isFetching, dataUpdatedAt } = useBinanceTopMovers(limit);
   
   const { topGainers = [], topLosers = [], topVolume = [], allTickers = [] } = data || {};
+  
+  // Format last updated time
+  const lastUpdated = dataUpdatedAt 
+    ? new Date(dataUpdatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    : null;
   
   // Dynamic sorting based on user selection
   const sortedGainers = useMemo(() => {
@@ -191,10 +196,14 @@ export default function TopMovers() {
             <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
               <BarChart3 className="h-6 w-6 text-primary" />
               Top Movers
+              {isFetching && <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />}
             </h1>
-            <p className="text-muted-foreground">
-              Top gainers, losers, and volume leaders in the last 24 hours
-            </p>
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <span>Top gainers, losers, and volume leaders in the last 24 hours</span>
+              {lastUpdated && (
+                <span className="text-xs">• Updated: {lastUpdated}</span>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortBy)}>
