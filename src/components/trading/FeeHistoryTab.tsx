@@ -1,14 +1,14 @@
 /**
  * FeeHistoryTab - Display trading fees and rebates from Binance
  * Shows: COMMISSION, COMMISSION_REBATE, API_REBATE income types
+ * Uses unified filters from parent TradeHistory page
  */
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import { format } from "date-fns";
-import { Calendar, Percent, RefreshCw, Gift, TrendingDown, Filter } from "lucide-react";
+import { Percent, RefreshCw, Gift, TrendingDown, Info } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -16,17 +16,33 @@ import { useBinanceAllIncome, type BinanceIncome } from "@/features/binance";
 import { BinanceNotConfiguredState } from "@/components/binance/BinanceNotConfiguredState";
 import { formatCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
+import type { DateRange } from "@/components/trading/DateRangeFilter";
 
 interface FeeHistoryTabProps {
   isConnected: boolean;
-  defaultDays?: number;
+  dateRange: DateRange;
+  selectedPairs: string[];
+  showFullHistory: boolean;
 }
 
 const FEE_INCOME_TYPES = ['COMMISSION', 'COMMISSION_REBATE', 'API_REBATE'];
 
-export function FeeHistoryTab({ isConnected, defaultDays = 30 }: FeeHistoryTabProps) {
-  const [days, setDays] = useState<number>(defaultDays);
-  const [symbolFilter, setSymbolFilter] = useState<string>('ALL');
+export function FeeHistoryTab({ 
+  isConnected, 
+  dateRange, 
+  selectedPairs, 
+  showFullHistory 
+}: FeeHistoryTabProps) {
+  
+  // Calculate days from dateRange for API call
+  const days = useMemo(() => {
+    if (showFullHistory) return 365;
+    if (dateRange.from && dateRange.to) {
+      const diffMs = dateRange.to.getTime() - dateRange.from.getTime();
+      return Math.max(Math.ceil(diffMs / (1000 * 60 * 60 * 24)), 7) || 365;
+    }
+    return 365; // Default 1 year lookback matching trade history
+  }, [dateRange, showFullHistory]);
 
   const { data: allIncome, isLoading, refetch, isFetching } = useBinanceAllIncome(days, 1000);
 
@@ -38,17 +54,29 @@ export function FeeHistoryTab({ isConnected, defaultDays = 30 }: FeeHistoryTabPr
     );
   }, [allIncome]);
 
-  // Get unique symbols for filter
-  const uniqueSymbols = useMemo(() => {
-    const symbols = new Set(feeIncome.map((item: BinanceIncome) => item.symbol).filter(Boolean));
-    return Array.from(symbols).sort();
-  }, [feeIncome]);
-
-  // Apply symbol filter
+  // Apply unified filters from parent
   const filteredIncome = useMemo(() => {
-    if (symbolFilter === 'ALL') return feeIncome;
-    return feeIncome.filter((item: BinanceIncome) => item.symbol === symbolFilter);
-  }, [feeIncome, symbolFilter]);
+    let filtered = feeIncome;
+    
+    // Apply date range filter
+    if (dateRange.from) {
+      const fromTime = dateRange.from.getTime();
+      filtered = filtered.filter(item => item.time >= fromTime);
+    }
+    if (dateRange.to) {
+      const toTime = dateRange.to.getTime();
+      filtered = filtered.filter(item => item.time <= toTime);
+    }
+    
+    // Apply pair filter from parent
+    if (selectedPairs.length > 0) {
+      filtered = filtered.filter(item => 
+        selectedPairs.some(pair => item.symbol === pair || item.symbol?.includes(pair.replace('USDT', '')))
+      );
+    }
+    
+    return filtered;
+  }, [feeIncome, dateRange, selectedPairs]);
 
   // Calculate summary
   const summary = useMemo(() => {
@@ -102,39 +130,13 @@ export function FeeHistoryTab({ isConnected, defaultDays = 30 }: FeeHistoryTabPr
 
   return (
     <div className="space-y-4">
-      {/* Controls */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <Select value={days.toString()} onValueChange={(v) => setDays(parseInt(v))}>
-            <SelectTrigger className="w-[130px]">
-              <Calendar className="h-4 w-4 mr-1" />
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="7">7 days</SelectItem>
-              <SelectItem value="30">30 days</SelectItem>
-              <SelectItem value="90">90 days</SelectItem>
-              <SelectItem value="180">6 months</SelectItem>
-              <SelectItem value="365">1 year</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {uniqueSymbols.length > 0 && (
-            <Select value={symbolFilter} onValueChange={setSymbolFilter}>
-              <SelectTrigger className="w-[140px]">
-                <Filter className="h-4 w-4 mr-1" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">All Symbols</SelectItem>
-                {uniqueSymbols.map((symbol) => (
-                  <SelectItem key={symbol} value={symbol}>{symbol}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
+      {/* Unified filter info */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Info className="h-4 w-4" />
+          <span>Filters from trade history apply to this tab</span>
         </div>
-
+        
         <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
           <RefreshCw className={cn("h-4 w-4 mr-2", isFetching && "animate-spin")} />
           Refresh
@@ -211,7 +213,7 @@ export function FeeHistoryTab({ isConnected, defaultDays = 30 }: FeeHistoryTabPr
         <EmptyState
           icon={Percent}
           title="No fee records found"
-          description="No trading fees or rebates recorded for the selected period."
+          description="No trading fees or rebates recorded for the selected period and filters."
         />
       ) : (
         <Card>
