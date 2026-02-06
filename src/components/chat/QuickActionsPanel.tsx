@@ -15,6 +15,7 @@ import {
   Gauge,
   Zap,
   Scale,
+  History,
 } from 'lucide-react';
 import type { AIMode } from './AIChatbot';
 
@@ -151,6 +152,36 @@ const QUICK_ACTIONS: QuickAction[] = [
     category: 'Calendar',
     mode: 'market',
   },
+  
+  // Post-Trade Coach
+  {
+    label: 'Analisis Trade Terakhir',
+    prompt: 'Analisis trade terakhir saya dan berikan lessons learned.',
+    icon: History,
+    category: 'Post-Trade',
+    mode: 'posttrade',
+  },
+  {
+    label: 'Pattern dari Losses',
+    prompt: 'Apa pattern yang saya lihat dari losing trades saya?',
+    icon: AlertTriangle,
+    category: 'Post-Trade',
+    mode: 'posttrade',
+  },
+  {
+    label: 'Apa yang Bisa Diperbaiki',
+    prompt: 'Dari 10 trade terakhir, apa yang bisa saya perbaiki?',
+    icon: TrendingUp,
+    category: 'Post-Trade',
+    mode: 'posttrade',
+  },
+  {
+    label: 'Win vs Loss Comparison',
+    prompt: 'Bandingkan karakteristik winning trades vs losing trades saya.',
+    icon: Scale,
+    category: 'Post-Trade',
+    mode: 'posttrade',
+  },
 ];
 
 interface QuickActionsPanelProps {
@@ -170,7 +201,7 @@ export function QuickActionsPanel({ onSelectAction, disabled, currentMode = 'tra
         <CardTitle className="text-sm font-medium flex items-center gap-2">
           Quick Actions
           <Badge variant="outline" className="text-xs font-normal">
-            {currentMode === 'trading' ? 'Trading' : currentMode === 'market' ? 'Market' : 'Setup'}
+            {currentMode === 'trading' ? 'Trading' : currentMode === 'market' ? 'Market' : currentMode === 'posttrade' ? 'Post-Trade' : 'Setup'}
           </Badge>
         </CardTitle>
       </CardHeader>

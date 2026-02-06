@@ -47,3 +47,6 @@ verify_jwt = false
 
 [functions.confluence-chat]
 verify_jwt = false
+
+[functions.post-trade-chat]
+verify_jwt = false

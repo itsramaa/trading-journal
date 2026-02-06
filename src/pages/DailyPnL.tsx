@@ -35,6 +35,7 @@ import {
 import { useUnifiedDailyPnl } from "@/hooks/use-unified-daily-pnl";
 import { useUnifiedWeeklyPnl } from "@/hooks/use-unified-weekly-pnl";
 import { useUnifiedWeekComparison } from "@/hooks/use-unified-week-comparison";
+import { useSymbolBreakdown } from "@/hooks/use-symbol-breakdown";
 import { usePerformanceExport } from "@/hooks/use-performance-export";
 import { format } from "date-fns";
 
@@ -42,6 +43,7 @@ export default function DailyPnL() {
   const dailyStats = useUnifiedDailyPnl();
   const weeklyStats = useUnifiedWeeklyPnl();
   const weekComparison = useUnifiedWeekComparison();
+  const { weeklyBreakdown: symbolBreakdown } = useSymbolBreakdown();
   const { exportToCSV, exportToPDF } = usePerformanceExport();
 
   const formatCurrency = (v: number) => {
@@ -54,16 +56,6 @@ export default function DailyPnL() {
     if (value < 0) return <span className="text-loss flex items-center gap-1"><ArrowDown className="h-3 w-3" />{value.toFixed(1)}{suffix}</span>;
     return <span className="text-muted-foreground flex items-center gap-1"><Minus className="h-3 w-3" />0{suffix}</span>;
   };
-
-  // Symbol breakdown is only available from Binance income endpoint
-  // For Paper Trading, this section will be hidden (graceful degradation)
-  const symbolBreakdown = useMemo(() => {
-    // Symbol breakdown requires Binance-specific bySymbol data
-    // The unified hooks don't expose this granular data
-    // To show symbol breakdown for Paper, we'd need to aggregate from trade_entries
-    // For now, this feature is Binance-only
-    return [];
-  }, []);
 
   const handleExportCSV = () => {
     exportToCSV({

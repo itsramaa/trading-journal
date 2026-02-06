@@ -18,6 +18,7 @@ import {
   EyeOff,
   Globe,
   Target,
+  History,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTradeEntries } from '@/hooks/use-trade-entries';
@@ -34,7 +35,7 @@ interface Message {
   content: string;
 }
 
-export type AIMode = 'trading' | 'market' | 'setup';
+export type AIMode = 'trading' | 'market' | 'setup' | 'posttrade';
 
 interface AIModeConfig {
   label: string;
@@ -73,6 +74,15 @@ const AI_MODES: Record<AIMode, AIModeConfig> = {
     suggestions: ['Validate setup BTCUSDT long', 'Berapa quality score?', 'Apakah setup ini valid?'],
     greeting: 'Halo! Saya AI Setup Validator. Deskripsikan setup trading Anda (pair, direction, entry, SL, TP) dan saya akan memberikan analisis confluence dan quality score.',
     placeholder: 'Contoh: BTCUSDT long entry 95000, SL 94000, TP 98000',
+  },
+  posttrade: {
+    label: 'Post-Trade Coach',
+    icon: History,
+    description: 'Learn from your closed trades',
+    endpoint: 'post-trade-chat',
+    suggestions: ['Analisis trade terakhir', 'Apa yang bisa diperbaiki?', 'Pattern dari losses saya?'],
+    greeting: 'Halo! Saya AI Post-Trade Coach. Saya akan membantu Anda belajar dari trade yang sudah selesai - mengidentifikasi apa yang berhasil dan apa yang perlu diperbaiki.',
+    placeholder: 'Tanya tentang trade yang sudah closed...',
   },
 };
 
@@ -461,7 +471,7 @@ export function AIChatbot() {
           {/* Mode Selector Tabs */}
           <div className="px-3 pt-2 pb-1 border-b shrink-0">
             <Tabs value={aiMode} onValueChange={(v) => handleModeChange(v as AIMode)}>
-              <TabsList className="grid w-full grid-cols-3 h-8">
+              <TabsList className="grid w-full grid-cols-4 h-8">
                 {(Object.keys(AI_MODES) as AIMode[]).map((mode) => {
                   const config = AI_MODES[mode];
                   const Icon = config.icon;
@@ -627,7 +637,14 @@ export function AIChatbot() {
                         <>
                           <li>• Format: "BTCUSDT long entry 95000, SL 94000, TP 98000"</li>
                           <li>• AI akan menghitung R:R ratio</li>
-                          <li>• Dapatkan quality score</li>
+                          <li>• Dapatkan quality score + calendar warning</li>
+                        </>
+                      )}
+                      {aiMode === 'posttrade' && (
+                        <>
+                          <li>• Analisis trade terakhir Anda</li>
+                          <li>• Identifikasi pattern dari losses</li>
+                          <li>• Pelajari apa yang bisa diperbaiki</li>
                         </>
                       )}
                     </ul>

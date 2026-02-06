@@ -298,27 +298,53 @@ export default function TradeHistory() {
             <p className="text-muted-foreground">Review and enrich your closed trades for journaling</p>
           </div>
           
-          {/* Stats Summary */}
-          <div className="flex gap-4 text-sm">
-            <div className="text-center">
-              <div className="text-2xl font-bold">
-                {sortedTrades.length}
-                {totalCount > sortedTrades.length && (
-                  <span className="text-sm text-muted-foreground font-normal">/{totalCount}</span>
-                )}
+          {/* Stats Summary + Export */}
+          <div className="flex items-center gap-6">
+            <div className="flex gap-4 text-sm">
+              <div className="text-center">
+                <div className="text-2xl font-bold">
+                  {sortedTrades.length}
+                  {totalCount > sortedTrades.length && (
+                    <span className="text-sm text-muted-foreground font-normal">/{totalCount}</span>
+                  )}
+                </div>
+                <div className="text-muted-foreground">Trades</div>
               </div>
-              <div className="text-muted-foreground">Trades</div>
-            </div>
-            <div className="text-center">
-              <div className={`text-2xl font-bold ${totalPnL >= 0 ? 'text-profit' : 'text-loss'}`}>
-                {formatCurrency(totalPnL)}
+              <div className="text-center">
+                <div className={`text-2xl font-bold ${totalPnL >= 0 ? 'text-profit' : 'text-loss'}`}>
+                  {formatCurrency(totalPnL)}
+                </div>
+                <div className="text-muted-foreground">P&L</div>
               </div>
-              <div className="text-muted-foreground">P&L</div>
+              <div className="text-center">
+                <div className="text-2xl font-bold">{winRate.toFixed(1)}%</div>
+                <div className="text-muted-foreground">Win Rate</div>
+              </div>
             </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold">{winRate.toFixed(1)}%</div>
-              <div className="text-muted-foreground">Win Rate</div>
-            </div>
+            
+            {/* Export Button */}
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => {
+                // Export current filtered trades as CSV
+                const csvHeader = 'Date,Pair,Direction,Entry,Exit,P&L,Result,Notes\n';
+                const csvRows = sortedTrades.map(t => 
+                  `${t.trade_date},${t.pair},${t.direction},${t.entry_price},${t.exit_price || ''},${t.realized_pnl || t.pnl || 0},${t.result || ''},${(t.notes || '').replace(/,/g, ';')}`
+                ).join('\n');
+                const blob = new Blob([csvHeader + csvRows], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `trade-history-${format(new Date(), 'yyyy-MM-dd')}.csv`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+              disabled={sortedTrades.length === 0}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Export CSV
+            </Button>
           </div>
         </div>
 
