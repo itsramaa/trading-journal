@@ -1,9 +1,9 @@
 /**
  * TradeHistoryFilters - Comprehensive filters for trade history
- * Includes: Result (profit/loss), Strategies (multi-select), Direction, Pair, Date Range, AI Score
+ * Includes: Result (profit/loss), Strategies (multi-select), Direction, Pair, Session, Date Range, AI Score
  */
 import { useState } from "react";
-import { Check, ChevronsUpDown, Filter, X, TrendingUp, TrendingDown, Brain } from "lucide-react";
+import { Check, ChevronsUpDown, Filter, X, TrendingUp, TrendingDown, Brain, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,9 +19,11 @@ import {
 } from "@/components/ui/command";
 import { DateRangeFilter, DateRange } from "@/components/trading/DateRangeFilter";
 import type { TradingStrategy } from "@/hooks/use-trading-strategies";
+import { TradingSession, SESSION_LABELS, formatSessionTimeLocal } from "@/lib/session-utils";
 
 export type ResultFilter = 'all' | 'profit' | 'loss' | 'breakeven';
 export type DirectionFilter = 'all' | 'LONG' | 'SHORT';
+export type SessionFilter = 'all' | TradingSession;
 
 interface TradeHistoryFiltersProps {
   // Date range
@@ -33,6 +35,9 @@ interface TradeHistoryFiltersProps {
   // Direction filter
   directionFilter: DirectionFilter;
   onDirectionFilterChange: (filter: DirectionFilter) => void;
+  // Session filter (NEW)
+  sessionFilter?: SessionFilter;
+  onSessionFilterChange?: (filter: SessionFilter) => void;
   // Strategy filter (multi-select)
   strategies: TradingStrategy[];
   selectedStrategyIds: string[];
@@ -56,6 +61,8 @@ export function TradeHistoryFilters({
   onResultFilterChange,
   directionFilter,
   onDirectionFilterChange,
+  sessionFilter = 'all',
+  onSessionFilterChange,
   strategies,
   selectedStrategyIds,
   onStrategyIdsChange,
@@ -94,6 +101,7 @@ export function TradeHistoryFilters({
     onDateRangeChange({ from: null, to: null });
     onResultFilterChange('all');
     onDirectionFilterChange('all');
+    onSessionFilterChange?.('all');
     onStrategyIdsChange([]);
     onPairsChange([]);
     onSortByAIChange('none');
@@ -104,6 +112,7 @@ export function TradeHistoryFilters({
     dateRange.to !== null ||
     resultFilter !== 'all' ||
     directionFilter !== 'all' ||
+    sessionFilter !== 'all' ||
     selectedStrategyIds.length > 0 ||
     selectedPairs.length > 0 ||
     sortByAI !== 'none';
@@ -159,6 +168,42 @@ export function TradeHistoryFilters({
             </SelectItem>
           </SelectContent>
         </Select>
+
+        {/* Session Filter */}
+        {onSessionFilterChange && (
+          <Select value={sessionFilter} onValueChange={(v) => onSessionFilterChange(v as SessionFilter)}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="Session" />
+            </SelectTrigger>
+            <SelectContent className="bg-popover border shadow-lg z-50">
+              <SelectItem value="all">All Sessions</SelectItem>
+              <SelectItem value="asia">
+                <span className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-blue-500" />
+                  Asia ({formatSessionTimeLocal('asia')})
+                </span>
+              </SelectItem>
+              <SelectItem value="london">
+                <span className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-orange-500" />
+                  London ({formatSessionTimeLocal('london')})
+                </span>
+              </SelectItem>
+              <SelectItem value="newyork">
+                <span className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-yellow-500" />
+                  New York ({formatSessionTimeLocal('newyork')})
+                </span>
+              </SelectItem>
+              <SelectItem value="off-hours">
+                <span className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  Off Hours
+                </span>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        )}
 
         {/* Strategy Filter - Multi Select with Search */}
         {strategies.length > 0 && (
@@ -329,6 +374,14 @@ export function TradeHistoryFilters({
               <Brain className="h-3 w-3" />
               AI Score {sortByAI === 'desc' ? '↓' : '↑'}
               <X className="h-3 w-3 cursor-pointer ml-1" onClick={() => onSortByAIChange('none')} />
+            </Badge>
+          )}
+
+          {sessionFilter !== 'all' && (
+            <Badge variant="secondary" className="gap-1">
+              <Clock className="h-3 w-3" />
+              {SESSION_LABELS[sessionFilter]} ({formatSessionTimeLocal(sessionFilter)})
+              <X className="h-3 w-3 cursor-pointer ml-1" onClick={() => onSessionFilterChange?.('all')} />
             </Badge>
           )}
 

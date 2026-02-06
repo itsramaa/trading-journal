@@ -17,7 +17,7 @@ import { useTradingGate } from "@/hooks/use-trading-gate";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
-import { formatPercentUnsigned, formatCurrency } from "@/lib/formatters";
+import { formatPercentUnsigned, formatCurrency, formatPnl } from "@/lib/formatters";
 
 interface SystemStatusIndicatorProps {
   compact?: boolean;
@@ -155,7 +155,7 @@ export function SystemStatusIndicator({ compact = false }: SystemStatusIndicator
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
               Today's P&L: <span className={currentPnl >= 0 ? 'text-profit' : 'text-loss'}>
-                {currentPnl >= 0 ? '+' : ''}{formatCurrency(currentPnl, 'USD')}
+                {formatPnl(currentPnl, 'USD')}
               </span>
               <InfoTooltip content="Your realized profit or loss for today. Negative values count against your daily loss limit." />
             </span>

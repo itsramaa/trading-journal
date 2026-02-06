@@ -44,8 +44,9 @@ import { formatCurrency as formatCurrencyUtil } from "@/lib/formatters";
 import { useUserSettings } from "@/hooks/use-user-settings";
 import { useQueryClient } from "@tanstack/react-query";
 import { DateRange } from "@/components/trading/DateRangeFilter";
-import { TradeHistoryFilters, TradeEnrichmentDrawer, type ResultFilter, type DirectionFilter } from "@/components/journal";
+import { TradeHistoryFilters, TradeEnrichmentDrawer, type ResultFilter, type DirectionFilter, type SessionFilter } from "@/components/journal";
 import type { UnifiedPosition } from "@/components/journal";
+import { getTradeSession, TradingSession } from "@/lib/session-utils";
 
 type ViewMode = 'list' | 'gallery';
 
@@ -60,6 +61,7 @@ export default function TradeHistory() {
   const [directionFilter, setDirectionFilter] = useState<DirectionFilter>('all');
   const [selectedStrategyIds, setSelectedStrategyIds] = useState<string[]>([]);
   const [selectedPairs, setSelectedPairs] = useState<string[]>([]);
+  const [sessionFilter, setSessionFilter] = useState<SessionFilter>('all');
   const [sortByAI, setSortByAI] = useState<'none' | 'asc' | 'desc'>('none');
   const [showFullHistory, setShowFullHistory] = useState(false);
   
@@ -127,15 +129,30 @@ export default function TradeHistory() {
   );
   const totalCount = data?.pages[0]?.totalCount ?? 0;
 
-  // Sort by AI score (client-side after fetch)
+  // Sort by AI score (client-side after fetch) and filter by session
   const sortedTrades = useMemo(() => {
-    if (sortByAI === 'none') return allTrades;
-    return [...allTrades].sort((a, b) => {
+    let filtered = allTrades;
+    
+    // Filter by session (client-side since session is computed from trade_date)
+    if (sessionFilter !== 'all') {
+      filtered = filtered.filter(trade => {
+        const session = getTradeSession({
+          trade_date: trade.trade_date,
+          entry_datetime: null,
+          market_context: trade.market_context as { session?: { current: TradingSession } } | null,
+        });
+        return session === sessionFilter;
+      });
+    }
+    
+    // Sort by AI
+    if (sortByAI === 'none') return filtered;
+    return [...filtered].sort((a, b) => {
       const scoreA = a.ai_quality_score ?? -1;
       const scoreB = b.ai_quality_score ?? -1;
       return sortByAI === 'asc' ? scoreA - scoreB : scoreB - scoreA;
     });
-  }, [allTrades, sortByAI]);
+  }, [allTrades, sortByAI, sessionFilter]);
 
   // Separate by source for tabs
   const binanceTrades = useMemo(() => sortedTrades.filter(t => t.source === 'binance'), [sortedTrades]);
@@ -361,6 +378,8 @@ export default function TradeHistory() {
                 onPairsChange={setSelectedPairs}
                 sortByAI={sortByAI}
                 onSortByAIChange={setSortByAI}
+                sessionFilter={sessionFilter}
+                onSessionFilterChange={setSessionFilter}
                 totalCount={totalCount}
                 filteredCount={sortedTrades.length}
               />

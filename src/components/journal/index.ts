@@ -1,7 +1,7 @@
 // Journal components barrel export
 export { TradeSummaryStats } from './TradeSummaryStats';
 export { TradeFilters } from './TradeFilters';
-export { TradeHistoryFilters, type ResultFilter, type DirectionFilter } from './TradeHistoryFilters';
+export { TradeHistoryFilters, type ResultFilter, type DirectionFilter, type SessionFilter } from './TradeHistoryFilters';
 // PositionsTable is the new generic component, BinancePositionsTab is re-exported for backward compatibility
 export { PositionsTable, BinancePositionsTab } from './PositionsTable';
 export { TradeHistoryTabs } from './TradeHistoryTabs';
