@@ -2,7 +2,7 @@
  * Top Movers Page - Shows top gainers, losers, and volume leaders
  * Uses Phase 3 useBinanceTopMovers hook
  */
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -23,15 +24,21 @@ import { useBinanceTopMovers, type Ticker24h } from "@/features/binance";
 import { formatCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 
+type SortBy = 'percentage' | 'priceChange' | 'volume';
+
 interface MoverCardProps {
   ticker: Ticker24h;
   rank: number;
   type: 'gainer' | 'loser' | 'volume';
+  sortBy: SortBy;
 }
 
-function MoverCard({ ticker, rank, type }: MoverCardProps) {
+function MoverCard({ ticker, rank, type, sortBy }: MoverCardProps) {
   const isPositive = ticker.priceChangePercent >= 0;
   const symbol = ticker.symbol.replace('USDT', '');
+  
+  // Determine what metric to show based on sortBy
+  const showVolume = type === 'volume' || sortBy === 'volume';
   
   return (
     <div className="flex items-center gap-4 p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
@@ -52,13 +59,32 @@ function MoverCard({ ticker, rank, type }: MoverCardProps) {
       </div>
       
       {/* Change or Volume */}
-      {type === 'volume' ? (
+      {showVolume ? (
         <div className="text-right">
           <div className="text-sm font-medium">
             {formatCurrency(ticker.quoteVolume, 'USD')}
           </div>
           <div className="text-xs text-muted-foreground">
             24h Volume
+          </div>
+        </div>
+      ) : sortBy === 'priceChange' ? (
+        <div className={cn(
+          "flex items-center gap-1 text-right",
+          isPositive ? "text-profit" : "text-loss"
+        )}>
+          {isPositive ? (
+            <ArrowUpRight className="h-4 w-4" />
+          ) : (
+            <ArrowDownRight className="h-4 w-4" />
+          )}
+          <div>
+            <div className="font-semibold font-mono-numbers">
+              {isPositive ? '+' : ''}${Math.abs(ticker.priceChange).toFixed(4)}
+            </div>
+            <div className="text-xs opacity-80">
+              {isPositive ? '+' : ''}{ticker.priceChangePercent.toFixed(2)}%
+            </div>
           </div>
         </div>
       ) : (
@@ -85,10 +111,11 @@ function MoverCard({ ticker, rank, type }: MoverCardProps) {
   );
 }
 
-function MoversList({ tickers, type, isLoading }: { 
+function MoversList({ tickers, type, isLoading, sortBy }: { 
   tickers: Ticker24h[];
   type: 'gainer' | 'loser' | 'volume';
   isLoading: boolean;
+  sortBy: SortBy;
 }) {
   if (isLoading) {
     return (
@@ -118,6 +145,7 @@ function MoversList({ tickers, type, isLoading }: {
           ticker={ticker} 
           rank={index + 1}
           type={type}
+          sortBy={sortBy}
         />
       ))}
     </div>
@@ -126,9 +154,33 @@ function MoversList({ tickers, type, isLoading }: {
 
 export default function TopMovers() {
   const [limit, setLimit] = useState(10);
+  const [sortBy, setSortBy] = useState<SortBy>('percentage');
   const { data, isLoading, refetch, isFetching } = useBinanceTopMovers(limit);
   
-  const { topGainers = [], topLosers = [], topVolume = [] } = data || {};
+  const { topGainers = [], topLosers = [], topVolume = [], allTickers = [] } = data || {};
+  
+  // Dynamic sorting based on user selection
+  const sortedGainers = useMemo(() => {
+    if (!allTickers.length) return topGainers;
+    if (sortBy === 'volume') {
+      return [...allTickers].sort((a, b) => b.quoteVolume - a.quoteVolume).slice(0, limit);
+    }
+    if (sortBy === 'priceChange') {
+      return [...allTickers].sort((a, b) => b.priceChange - a.priceChange).slice(0, limit);
+    }
+    return topGainers; // Already sorted by percentage
+  }, [allTickers, topGainers, sortBy, limit]);
+
+  const sortedLosers = useMemo(() => {
+    if (!allTickers.length) return topLosers;
+    if (sortBy === 'volume') {
+      return [...allTickers].sort((a, b) => a.quoteVolume - b.quoteVolume).slice(0, limit);
+    }
+    if (sortBy === 'priceChange') {
+      return [...allTickers].sort((a, b) => a.priceChange - b.priceChange).slice(0, limit);
+    }
+    return topLosers; // Already sorted by percentage
+  }, [allTickers, topLosers, sortBy, limit]);
   
   return (
     <DashboardLayout>
@@ -144,7 +196,17 @@ export default function TopMovers() {
               Top gainers, losers, and volume leaders in the last 24 hours
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortBy)}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="Sort by..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="percentage">% Change</SelectItem>
+                <SelectItem value="priceChange">Price Change</SelectItem>
+                <SelectItem value="volume">Volume</SelectItem>
+              </SelectContent>
+            </Select>
             <Button 
               variant="outline" 
               size="sm"
@@ -273,9 +335,10 @@ export default function TopMovers() {
               </CardHeader>
               <CardContent>
                 <MoversList 
-                  tickers={topGainers} 
+                  tickers={sortedGainers} 
                   type="gainer" 
-                  isLoading={isLoading} 
+                  isLoading={isLoading}
+                  sortBy={sortBy}
                 />
               </CardContent>
             </Card>
@@ -294,9 +357,10 @@ export default function TopMovers() {
               </CardHeader>
               <CardContent>
                 <MoversList 
-                  tickers={topLosers} 
+                  tickers={sortedLosers} 
                   type="loser" 
-                  isLoading={isLoading} 
+                  isLoading={isLoading}
+                  sortBy={sortBy}
                 />
               </CardContent>
             </Card>
@@ -317,7 +381,8 @@ export default function TopMovers() {
                 <MoversList 
                   tickers={topVolume} 
                   type="volume" 
-                  isLoading={isLoading} 
+                  isLoading={isLoading}
+                  sortBy={sortBy}
                 />
               </CardContent>
             </Card>
