@@ -1,449 +1,309 @@
 
-# Fix Plan: Complete Trade History with Binance Full Sync
+# AI Floating Chatbot Enhancement Plan
 
-## Problem Analysis
+## Current State Summary
 
-### What's Actually Happening
+### What AI Chatbot CAN Do Now
+- Analyze trade history statistics (win rate, metrics, profit factor)
+- Recommend which strategies are working best
+- Identify winning vs losing patterns
+- Breakdown LONG vs SHORT performance
+- Basic coaching questions via Quick Actions
 
-```text
-Network Log Analysis:
-GET /trade_entries?...&trade_date=gte.2025-02-01
-
-✅ startDate filter IS working correctly
-✅ Pagination is working
-✅ 12 trades returned (all that exist in database)
-
-Root Cause: Not a filter bug - LIMITED BINANCE SYNC
-```
-
-### The Real Issues
-
-| Issue | Current State | Desired State |
-|-------|---------------|---------------|
-| Binance Sync Range | Default 7 days (`daysToSync = 7`) | Full history support (up to 1 year+) |
-| Full History Toggle | Only queries local DB | Should also trigger Binance sync for older data |
-| Sync Visibility | No UI indication of sync range | Show user what date range is synced |
-
-### Data Timeline
-
-```text
-Binance Account Trading History (hypothetical):
-├── 2025-02-01: 50 trades (NOT synced - outside 7-day window)
-├── 2025-06-15: 30 trades (NOT synced - outside 7-day window)  
-├── 2026-01-20: 15 trades (NOT synced - outside 7-day window)
-└── 2026-01-26-30: 12 trades (SYNCED - within 7-day window)
-
-Local Database:
-└── Only 12 trades from Jan 26-30, 2026
-```
+### What AI Chatbot CANNOT Do (Missing Integrations)
+| Feature | Has Edge Function | Integrated to Chatbot |
+|---------|:----------------:|:--------------------:|
+| Market Sentiment (Fear & Greed, Whale) | ✅ `market-insight` | ❌ |
+| Macro Analysis (DXY, Funding Rates) | ✅ `macro-analysis` | ❌ |
+| Crypto + Macro Alignment | ✅ `useCombinedAnalysis` | ❌ |
+| Confluence Detection for Trade Setup | ✅ `confluence-detection` | ❌ |
+| Trade Quality Score | ✅ `trade-quality` | ❌ |
+| Win Prediction (AI Preflight) | ✅ `ai-preflight` | ❌ |
+| Post-Trade Analysis | ✅ `post-trade-analysis` | ❌ |
+| Dashboard Insights | ✅ `dashboard-insights` | ❌ |
+| Economic Calendar Impact | ✅ `economic-calendar` | ❌ |
+| Backtest Strategy Analysis | ✅ `backtest-strategy` | ❌ |
 
 ---
 
-## Solution Architecture
+## Enhancement Architecture
 
-### Phased Approach
+### Option A: Multi-Mode AI Assistant (Recommended)
+Expand chatbot to support multiple AI modes that user can switch between:
 
 ```text
-Phase A: Fix Binance Sync to Support Full History
-Phase B: Connect Full History Toggle to Extended Sync
-Phase C: Add Sync Status & Progress UI
+AI_MODES = {
+  trading:    { endpoint: 'trading-analysis',     icon: BarChart3 },
+  market:     { endpoint: 'market-insight',       icon: Globe },
+  setup:      { endpoint: 'confluence-detection', icon: Target },
+  macro:      { endpoint: 'macro-analysis',       icon: TrendingUp },
+  calendar:   { endpoint: 'economic-calendar',    icon: Calendar },
+}
 ```
+
+**Pros**: Clean separation, user controls context
+**Cons**: User must manually switch modes
+
+### Option B: Unified Smart Assistant (More Complex)
+Single AI that routes questions to appropriate backend:
+
+```text
+User: "What's the fear & greed index?"
+     ↓
+  Router AI (LLM) → Calls market-insight
+     ↓
+  Returns formatted answer
+```
+
+**Pros**: Natural UX, single interface
+**Cons**: Requires routing logic, more expensive (2 LLM calls)
+
+### Option C: Context-Aware Hybrid (Best Balance)
+Keep trading mode as default, but add:
+1. Smart context injection (market data in system prompt)
+2. Quick Actions for market/macro queries
+3. On-demand data fetching for specific questions
 
 ---
 
-## Phase A: Extended Binance Income History Fetching
+## Proposed Implementation: Option A + C Hybrid
 
-### A.1 - Update `useBinanceAllIncome` Hook
-
-**File**: `src/features/binance/useBinanceFutures.ts`
-
-Current limitation:
-```typescript
-export function useBinanceAllIncome(daysBack = 7, limit = 1000) {
-  const startTime = Date.now() - (daysBack * 24 * 60 * 60 * 1000);
-  // Only fetches last 7 days by default
-}
-```
-
-**Problem**: Binance `/fapi/v1/income` API has a **3-month window limit** per request. To get 1 year of data, we need **chunked fetching**.
-
-**Solution**: Create new hook `useBinanceFullIncomeHistory`:
+### Phase 1: Enhanced Context (Quick Win)
+Inject current market data into `trading-analysis` system prompt:
 
 ```typescript
-/**
- * Fetch complete income history with chunked requests
- * Binance limit: 3 months per request, so we chunk by quarters
- */
-export function useBinanceFullIncomeHistory(options: {
-  enabled?: boolean;
-  monthsBack?: number; // default 12 (1 year)
-  onProgress?: (progress: number) => void;
-}) {
-  // Implementation:
-  // 1. Calculate date chunks (3-month intervals)
-  // 2. Fetch each chunk sequentially (rate limit aware)
-  // 3. Merge and deduplicate results
-  // 4. Return combined income records
-}
-```
-
-### A.2 - Create Chunked Fetch Utility
-
-**File**: `src/features/binance/useBinanceExtendedData.ts` (modify existing)
-
-Add function to fetch income in chunks:
-
-```typescript
-/**
- * Fetch income history in 3-month chunks to work around Binance API limits
- */
-export async function fetchChunkedIncomeHistory(
-  monthsBack: number = 12,
-  onProgress?: (progress: number) => void
-): Promise<BinanceIncome[]> {
-  const chunks = [];
-  const now = Date.now();
-  const threeMonthsMs = 90 * 24 * 60 * 60 * 1000;
+// In AIChatbot.tsx - getTradingContext()
+const getEnhancedContext = async () => {
+  const [tradingContext, marketData, macroData] = await Promise.all([
+    getTradingContext(),
+    fetchMarketSentiment(),  // Already have this hook
+    fetchMacroAnalysis(),    // Already have this hook
+  ]);
   
-  // Build chunk ranges
-  for (let i = 0; i < Math.ceil(monthsBack / 3); i++) {
-    const endTime = now - (i * threeMonthsMs);
-    const startTime = endTime - threeMonthsMs;
-    chunks.push({ startTime, endTime });
-  }
-  
-  // Fetch each chunk
-  const allIncome: BinanceIncome[] = [];
-  for (let i = 0; i < chunks.length; i++) {
-    const chunk = chunks[i];
-    const result = await callBinanceApi('income', {
-      startTime: chunk.startTime,
-      endTime: chunk.endTime,
-      limit: 1000,
-    });
-    
-    if (result.success && result.data) {
-      allIncome.push(...result.data);
-    }
-    
-    onProgress?.((i + 1) / chunks.length * 100);
-    
-    // Rate limit delay
-    await new Promise(r => setTimeout(r, 200));
-  }
-  
-  // Deduplicate by tranId
-  const unique = new Map<number, BinanceIncome>();
-  allIncome.forEach(r => unique.set(r.tranId, r));
-  
-  return Array.from(unique.values()).sort((a, b) => b.time - a.time);
-}
-```
-
----
-
-## Phase B: Connect Full History Toggle to Extended Sync
-
-### B.1 - Add Sync Full History Button to TradeHistory Page
-
-**File**: `src/pages/TradeHistory.tsx`
-
-When user toggles "Full History" ON and Binance is connected:
-1. Show info: "Syncing full Binance history (up to 1 year)..."
-2. Trigger chunked income fetch
-3. Sync new records to database
-4. Refresh trade list
-
-```typescript
-// Add state for full sync
-const [isFullSyncing, setIsFullSyncing] = useState(false);
-const [syncProgress, setSyncProgress] = useState(0);
-
-// Handler for full history toggle
-const handleShowFullHistoryChange = async (show: boolean) => {
-  setShowFullHistory(show);
-  
-  // If enabling full history AND Binance connected, trigger extended sync
-  if (show && isBinanceConnected && !isFullSyncing) {
-    setIsFullSyncing(true);
-    try {
-      await syncFullBinanceHistory({
-        monthsBack: 12,
-        onProgress: setSyncProgress,
-      });
-      
-      // Refresh trade entries after sync
-      queryClient.invalidateQueries({ queryKey: ['trade-entries-paginated'] });
-      toast.success('Full Binance history synced!');
-    } catch (error) {
-      toast.error('Failed to sync full history');
-    } finally {
-      setIsFullSyncing(false);
-      setSyncProgress(0);
-    }
-  }
+  return {
+    ...tradingContext,
+    marketSentiment: {
+      fearGreed: marketData.sentiment.fearGreed,
+      recommendation: marketData.sentiment.recommendation,
+      btcTrend: marketData.sentiment.signals.find(s => s.asset === 'BTC'),
+    },
+    macroContext: {
+      overallSentiment: macroData.macro.overallSentiment,
+      btcDominance: macroData.macro.dominance.btc,
+    },
+  };
 };
 ```
 
-### B.2 - Create Full Sync Hook
+**Changes:**
+- `trading-analysis` edge function: Update system prompt to include market context
+- `AIChatbot.tsx`: Fetch market data alongside trade data
 
-**File**: `src/hooks/use-binance-full-sync.ts` (NEW)
+### Phase 2: Add Market Mode
+Add second AI mode for market-focused questions:
 
 ```typescript
-/**
- * Hook for syncing complete Binance history to local database
- */
-export function useBinanceFullSync() {
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
-  
-  const syncFullHistory = useMutation({
-    mutationFn: async (options: { 
-      monthsBack?: number;
-      onProgress?: (progress: number) => void;
-    }) => {
-      const { monthsBack = 12, onProgress } = options;
-      
-      // Step 1: Fetch all income from Binance (chunked)
-      const allIncome = await fetchChunkedIncomeHistory(monthsBack, onProgress);
-      
-      // Step 2: Filter to REALIZED_PNL only
-      const pnlRecords = allIncome.filter(r => 
-        r.incomeType === 'REALIZED_PNL' && r.income !== 0
-      );
-      
-      // Step 3: Check for duplicates
-      const incomeIds = pnlRecords.map(r => `income_${r.tranId}`);
-      const { data: existing } = await supabase
-        .from('trade_entries')
-        .select('binance_trade_id')
-        .in('binance_trade_id', incomeIds);
-      
-      const existingSet = new Set(existing?.map(t => t.binance_trade_id) || []);
-      const newRecords = pnlRecords.filter(r => !existingSet.has(`income_${r.tranId}`));
-      
-      if (newRecords.length === 0) {
-        return { synced: 0, skipped: pnlRecords.length };
-      }
-      
-      // Step 4: Insert new trades
-      const entries = newRecords.map(r => incomeToTradeEntry(r, user.id));
-      
-      // Batch insert in chunks of 100
-      let synced = 0;
-      for (let i = 0; i < entries.length; i += 100) {
-        const batch = entries.slice(i, i + 100);
-        const { data } = await supabase.from('trade_entries').insert(batch).select();
-        synced += data?.length || 0;
-      }
-      
-      return { synced, skipped: pnlRecords.length - newRecords.length };
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['trade-entries'] });
-      queryClient.invalidateQueries({ queryKey: ['trade-entries-paginated'] });
-    },
-  });
-  
-  return syncFullHistory;
+const AI_MODES = {
+  trading: {
+    label: 'Trading Analyst',
+    icon: BarChart3,
+    description: 'Analisis pattern & performa trading',
+    endpoint: 'trading-analysis',
+    suggestions: ['Analisis performa saya', 'Strategi terbaik?', 'Kelemahan trading saya?'],
+  },
+  market: {
+    label: 'Market Analyst',
+    icon: Globe,
+    description: 'Market sentiment & opportunities',
+    endpoint: 'market-analysis',  // NEW edge function
+    suggestions: ['Kondisi market sekarang?', 'Fear & Greed?', 'Whale activity?'],
+  },
+};
+```
+
+**New Edge Function:** `market-analysis`
+- Fetches `market-insight` + `macro-analysis` data
+- Uses LLM to answer market questions with that context
+- Streaming response
+
+### Phase 3: Add Trade Setup Mode
+Enable chatbot to analyze trade setups:
+
+```typescript
+setup: {
+  label: 'Setup Validator',
+  icon: Target,
+  description: 'Validate trade confluences',
+  endpoint: 'confluence-chat',  // NEW edge function
+  suggestions: ['Apakah setup ini valid?', 'Berapa quality score?'],
 }
 ```
 
----
+**How it works:**
+1. User describes setup: "BTCUSDT long at 95000, SL 94000, TP 98000"
+2. AI parses setup details
+3. Calls `confluence-detection` internally
+4. Returns formatted confluence analysis
 
-## Phase C: Enhanced Sync Status UI
+### Phase 4: Unified Quick Actions
+Expand Quick Actions panel to cover all AI capabilities:
 
-### C.1 - Add Sync Progress Indicator
-
-**File**: `src/pages/TradeHistory.tsx`
-
-```tsx
-{/* Full History Toggle with Sync Status */}
-<div className="flex items-center gap-3">
-  <Calendar className="h-4 w-4 text-muted-foreground" />
+```typescript
+const QUICK_ACTIONS = [
+  // Existing - Analisis
+  { label: 'Analisis Performa', prompt: '...', category: 'Analisis', mode: 'trading' },
+  { label: 'Win Rate & Metrics', prompt: '...', category: 'Analisis', mode: 'trading' },
   
-  {isFullSyncing ? (
-    <div className="flex items-center gap-2">
-      <Loader2 className="h-4 w-4 animate-spin text-primary" />
-      <span className="text-sm text-muted-foreground">
-        Syncing Binance history... {syncProgress.toFixed(0)}%
-      </span>
-      <Progress value={syncProgress} className="w-24 h-2" />
-    </div>
-  ) : (
-    <>
-      <Label htmlFor="full-history" className="text-sm text-muted-foreground cursor-pointer">
-        {showFullHistory ? "Showing full history" : "Last 12 months"}
-      </Label>
-      <Switch
-        id="full-history"
-        checked={showFullHistory}
-        onCheckedChange={handleShowFullHistoryChange}
-        disabled={isFullSyncing}
-      />
-      {isBinanceConnected && showFullHistory && (
-        <Badge variant="outline" className="text-xs">
-          Includes Binance
-        </Badge>
-      )}
-    </>
-  )}
-</div>
-```
-
-### C.2 - Add First-Time Sync Prompt
-
-When user first toggles "Full History" with Binance connected:
-
-```tsx
-<AlertDialog open={showSyncConfirm} onOpenChange={setShowSyncConfirm}>
-  <AlertDialogContent>
-    <AlertDialogHeader>
-      <AlertDialogTitle>Sync Full Binance History?</AlertDialogTitle>
-      <AlertDialogDescription>
-        This will fetch your complete trading history from Binance (up to 1 year). 
-        This may take a few minutes depending on your trading volume.
-      </AlertDialogDescription>
-    </AlertDialogHeader>
-    <AlertDialogFooter>
-      <AlertDialogCancel>Just Local Data</AlertDialogCancel>
-      <AlertDialogAction onClick={confirmFullSync}>
-        <Download className="h-4 w-4 mr-2" />
-        Sync from Binance
-      </AlertDialogAction>
-    </AlertDialogFooter>
-  </AlertDialogContent>
-</AlertDialog>
+  // New - Market
+  { label: 'Kondisi Market', prompt: 'Bagaimana kondisi market saat ini?', category: 'Market', mode: 'market' },
+  { label: 'Fear & Greed', prompt: 'Berapa nilai Fear & Greed index dan apa artinya?', category: 'Market', mode: 'market' },
+  { label: 'Whale Activity', prompt: 'Adakah whale activity yang perlu diperhatikan?', category: 'Market', mode: 'market' },
+  
+  // New - Setup
+  { label: 'Validate Setup', prompt: 'Validate setup saya...', category: 'Setup', mode: 'setup' },
+  { label: 'Quality Score', prompt: 'Berapa quality score untuk trade ini?', category: 'Setup', mode: 'setup' },
+  
+  // New - Calendar
+  { label: 'Event Hari Ini', prompt: 'Adakah economic event penting hari ini?', category: 'Calendar', mode: 'market' },
+];
 ```
 
 ---
 
-## Phase D: Update Auto-Sync Default
+## Technical Implementation
 
-### D.1 - Increase Default Sync Window
+### Files to Create
 
-**File**: `src/hooks/use-binance-auto-sync.ts`
+| File | Purpose |
+|------|---------|
+| `supabase/functions/market-analysis/index.ts` | Market-focused chat endpoint |
+| `supabase/functions/confluence-chat/index.ts` | Setup validation chat endpoint |
 
-Current:
+### Files to Modify
+
+| File | Changes |
+|------|---------|
+| `src/components/chat/AIChatbot.tsx` | Add multi-mode, enhanced context |
+| `src/components/chat/QuickActionsPanel.tsx` | Expand actions, add mode filter |
+| `supabase/functions/trading-analysis/index.ts` | Add market context to prompt |
+| `supabase/config.toml` | Add new functions |
+
+### New Edge Function: `market-analysis`
+
 ```typescript
-const {
-  daysToSync = 7,  // Only 7 days
-} = options;
-```
+// Combines market-insight + macro-analysis + LLM for chat
+serve(async (req) => {
+  const { question } = await req.json();
+  
+  // Fetch all market data
+  const [sentimentRes, macroRes] = await Promise.all([
+    fetch(Deno.env.get('SUPABASE_URL') + '/functions/v1/market-insight'),
+    fetch(Deno.env.get('SUPABASE_URL') + '/functions/v1/macro-analysis'),
+  ]);
+  
+  const sentimentData = await sentimentRes.json();
+  const macroData = await macroRes.json();
+  
+  // Build rich context for LLM
+  const systemPrompt = `You are a market analyst for crypto trading.
+  
+CURRENT MARKET DATA:
+- Fear & Greed: ${sentimentData.sentiment.fearGreed.value} (${sentimentData.sentiment.fearGreed.label})
+- Overall: ${sentimentData.sentiment.overall}
+- Recommendation: ${sentimentData.sentiment.recommendation}
 
-Change to:
-```typescript
-const {
-  daysToSync = 30,  // Last 30 days for auto-sync
-} = options;
-```
+WHALE ACTIVITY:
+${sentimentData.whaleActivity.map(w => `- ${w.asset}: ${w.signal} (${w.confidence}%)`).join('\n')}
 
----
+OPPORTUNITIES:
+${sentimentData.opportunities.slice(0,5).map(o => `- ${o.pair}: ${o.direction} (${o.confidence}%)`).join('\n')}
 
-## Files Summary
+MACRO:
+- BTC Dominance: ${macroData.macro.dominance.btc}%
+- Funding Rates: ${macroData.macro.funding}
+- Sentiment: ${macroData.macro.overallSentiment}
 
-| Phase | File | Action |
-|-------|------|--------|
-| A | `src/features/binance/useBinanceFutures.ts` | MODIFY - Add chunked fetch capability |
-| A | `src/features/binance/useBinanceExtendedData.ts` | MODIFY - Add `fetchChunkedIncomeHistory` |
-| B | `src/hooks/use-binance-full-sync.ts` | CREATE - Full history sync hook |
-| B | `src/pages/TradeHistory.tsx` | MODIFY - Connect toggle to sync |
-| C | `src/pages/TradeHistory.tsx` | MODIFY - Add progress UI |
-| D | `src/hooks/use-binance-auto-sync.ts` | MODIFY - Increase default to 30 days |
+Answer questions about market conditions using this data.`;
 
----
-
-## Data Flow Diagram
-
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│ TradeHistory.tsx                                                │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  User toggles "Full History" ON                                 │
-│                 │                                               │
-│                 ▼                                               │
-│  ┌────────────────────────────────────────────┐                │
-│  │ Is Binance Connected?                       │                │
-│  └────────────────────────────────────────────┘                │
-│           │                      │                              │
-│          YES                    NO                              │
-│           │                      │                              │
-│           ▼                      ▼                              │
-│  ┌─────────────────┐   ┌─────────────────────┐                 │
-│  │ Show Sync Dialog │   │ Query local DB only │                 │
-│  │ "Sync from      │   │ (no startDate)      │                 │
-│  │  Binance?"      │   └─────────────────────┘                 │
-│  └─────────────────┘                                           │
-│           │                                                     │
-│    User confirms                                                │
-│           │                                                     │
-│           ▼                                                     │
-│  ┌─────────────────────────────────────────┐                   │
-│  │ useBinanceFullSync()                    │                   │
-│  │  1. Fetch income (12 months, chunked)   │                   │
-│  │  2. Deduplicate against existing        │                   │
-│  │  3. Insert new trades to DB             │                   │
-│  │  4. Invalidate trade-entries queries    │                   │
-│  └─────────────────────────────────────────┘                   │
-│           │                                                     │
-│           ▼                                                     │
-│  ┌─────────────────────────────────────────┐                   │
-│  │ useTradeEntriesPaginated (no startDate) │                   │
-│  │ → Now includes all synced trades        │                   │
-│  └─────────────────────────────────────────┘                   │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+  // Stream LLM response
+  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "google/gemini-2.5-flash",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: question },
+      ],
+      stream: true,
+    }),
+  });
+  
+  return new Response(response.body, { headers: { ...corsHeaders, "Content-Type": "text/event-stream" } });
+});
 ```
 
 ---
 
-## Binance API Considerations
+## Implementation Phases
 
-### Rate Limits
+### Phase 1: Quick Win - Context Enhancement (1-2 hours)
+1. Update `trading-analysis` to include market context in system prompt
+2. Fetch market data in AIChatbot before sending
+3. No UI changes needed
 
-The `/fapi/v1/income` endpoint has:
-- Weight: 30 per request
-- Account category limit: 1200/minute
+### Phase 2: Multi-Mode UI (2-3 hours)
+1. Add mode selector in header (tabs or dropdown)
+2. Create `market-analysis` edge function
+3. Update QuickActionsPanel with mode filtering
+4. Add mode-specific suggestions
 
-For 1-year history (4 chunks):
-- Total weight: 4 × 30 = 120
-- With 200ms delay between chunks: Safe
+### Phase 3: Setup Validator Mode (2-3 hours)
+1. Create `confluence-chat` edge function
+2. Add setup mode with specialized UI
+3. Parse trade parameters from natural language
+4. Return formatted confluence analysis
 
-### Response Size
-
-Each chunk returns max 1000 records. For active traders:
-- 1000 records/3 months × 4 = ~4000 records max
-- This is manageable for client-side processing
-
----
-
-## Behavior Matrix After Fix
-
-| Scenario | Binance Status | Toggle State | Result |
-|----------|---------------|--------------|--------|
-| Initial load | Connected | OFF | Last 12 months from local DB |
-| Initial load | Connected | ON | Prompt to sync, then all history |
-| Initial load | Disconnected | ON | All local DB (no Binance) |
-| Returning user | Connected | ON | All synced history (no re-fetch) |
-| Manual sync | Connected | ON | "Sync Now" button available |
+### Phase 4: Full Integration (3-4 hours)
+1. Add Economic Calendar mode
+2. Integrate Post-Trade Analysis
+3. Add "Ask about this trade" from Trade History
+4. Cross-mode context sharing
 
 ---
 
-## Edge Cases Handled
+## Expected Outcome
 
-1. **User has never synced**: First "Full History" toggle triggers full sync
-2. **User already synced**: Deduplication prevents duplicate trades
-3. **Rate limit hit**: 200ms delay between chunks, graceful error handling
-4. **Binance disconnected mid-sync**: Partial data saved, can resume later
-5. **Very active trader (>4000 trades/year)**: Pagination handles overflow
+After implementation, AI Chatbot will be able to:
+
+1. **Analisis Trading** (existing) - Win rate, patterns, strategy recommendations
+2. **Market Analysis** (new) - Fear & Greed, whale activity, opportunities
+3. **Setup Validation** (new) - Confluence detection, quality score
+4. **Economic Impact** (new) - Calendar events, crypto impact prediction
+5. **Post-Trade Learning** (new) - Analyze closed trades for lessons
+
+### Sample Interactions:
+
+**Market Mode:**
+> User: "Bagaimana kondisi market sekarang?"
+> AI: "Fear & Greed Index saat ini 72 (Greed). BTC menunjukkan akumulasi whale dengan volume naik 35%. Rekomendasi: Market favor LONG dengan tight stops. Perhatikan level resistance di 97.5K."
+
+**Setup Mode:**
+> User: "Validate setup ETHUSDT long entry 3200, SL 3150, TP 3350"
+> AI: "✅ Setup Valid (7/10 Quality Score)
+> - R:R Ratio: 1:3 ✓
+> - Above MA50 ✓  
+> - RSI 55 (neutral) ⚠️
+> - Whale: Accumulation ✓
+> Recommendation: Proceed with 75% normal size"
 
 ---
 
-## Testing Checklist
+## Priority Recommendation
 
-- [ ] Toggle "Full History" with Binance connected → Shows sync dialog
-- [ ] Confirm sync → Progress indicator shows, trades appear after completion
-- [ ] Toggle off then on again → No re-sync (data already exists)
-- [ ] Binance disconnected → "Full History" only queries local DB
-- [ ] Default 30-day auto-sync captures recent trades automatically
+**Start with Phase 1** (Context Enhancement) karena:
+- Effort kecil, impact besar
+- Tidak perlu UI changes
+- Langsung membuat chatbot lebih informatif
+
+Kemudian lanjut ke **Phase 2** (Multi-Mode) yang memberikan user flexibility untuk memilih konteks percakapan.
