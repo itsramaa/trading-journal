@@ -106,8 +106,11 @@ export function useBinanceTopMovers(limit = 10) {
       // Also return raw tickers for custom sorting
       return { topGainers, topLosers, topVolume, allTickers: usdtPairs };
     },
-    staleTime: 30 * 1000, // 30 seconds
-    refetchInterval: 30 * 1000, // Auto-refresh every 30 seconds
+    staleTime: 15 * 1000, // 15 seconds
+    refetchInterval: 15 * 1000, // Auto-refresh every 15 seconds
+    refetchIntervalInBackground: true, // Continue refetching even when tab is inactive
+    refetchOnMount: 'always', // Always refetch on mount
+    refetchOnWindowFocus: true, // Refetch when user returns to tab
   });
 }
 

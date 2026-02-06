@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 import { 
   X, 
   Send, 
@@ -92,10 +93,40 @@ export function AIChatbot() {
   const [isMinimized, setIsMinimized] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isHidden, setIsHidden] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([]);
+  // Per-mode message history - preserved when switching tabs
+  const [messageHistory, setMessageHistory] = useState<Record<AIMode, Message[]>>({
+    trading: [],
+    market: [],
+    setup: [],
+    posttrade: [],
+  });
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [aiMode, setAiMode] = useState<AIMode>('trading');
+
+  // Get current mode's messages
+  const messages = messageHistory[aiMode];
+
+  // Helper to update messages for current mode only
+  const setMessages = (updater: Message[] | ((prev: Message[]) => Message[])) => {
+    setMessageHistory(prev => ({
+      ...prev,
+      [aiMode]: typeof updater === 'function' ? updater(prev[aiMode]) : updater,
+    }));
+  };
+
+  // Clear all history across all modes
+  const clearAllHistory = () => {
+    setMessageHistory({
+      trading: [],
+      market: [],
+      setup: [],
+      posttrade: [],
+    });
+  };
+
+  // Check if any mode has messages
+  const hasAnyMessages = Object.values(messageHistory).some(m => m.length > 0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -326,7 +357,7 @@ export function AIChatbot() {
   const handleQuickAction = (prompt: string, mode?: AIMode) => {
     if (mode && mode !== aiMode) {
       setAiMode(mode);
-      setMessages([]); // Clear messages when switching modes
+      // History preserved - no longer clearing
     }
     setInput(prompt);
     inputRef.current?.focus();
@@ -334,10 +365,10 @@ export function AIChatbot() {
 
   const handleModeChange = (mode: AIMode) => {
     setAiMode(mode);
-    setMessages([]); // Clear messages when switching modes
+    // History preserved - no longer clearing when switching modes
   };
 
-  const clearChat = () => {
+  const clearCurrentModeChat = () => {
     setMessages([]);
   };
 
@@ -470,24 +501,45 @@ export function AIChatbot() {
         <>
           {/* Mode Selector Tabs */}
           <div className="px-3 pt-2 pb-1 border-b shrink-0">
-            <Tabs value={aiMode} onValueChange={(v) => handleModeChange(v as AIMode)}>
-              <TabsList className="grid w-full grid-cols-4 h-8">
-                {(Object.keys(AI_MODES) as AIMode[]).map((mode) => {
-                  const config = AI_MODES[mode];
-                  const Icon = config.icon;
-                  return (
-                    <TabsTrigger 
-                      key={mode} 
-                      value={mode} 
-                      className="text-xs gap-1 data-[state=active]:bg-primary/10"
-                    >
-                      <Icon className="h-3 w-3" />
-                      <span className="hidden sm:inline">{config.label.split(' ')[0]}</span>
-                    </TabsTrigger>
-                  );
-                })}
-              </TabsList>
-            </Tabs>
+            <div className="flex items-center gap-2">
+              <Tabs value={aiMode} onValueChange={(v) => handleModeChange(v as AIMode)} className="flex-1">
+                <TabsList className="grid w-full grid-cols-4 h-8">
+                  {(Object.keys(AI_MODES) as AIMode[]).map((mode) => {
+                    const config = AI_MODES[mode];
+                    const Icon = config.icon;
+                    const msgCount = messageHistory[mode].length;
+                    return (
+                      <TabsTrigger 
+                        key={mode} 
+                        value={mode} 
+                        className="text-xs gap-1 data-[state=active]:bg-primary/10 relative"
+                      >
+                        <Icon className="h-3 w-3" />
+                        <span className="hidden sm:inline">{config.label.split(' ')[0]}</span>
+                        {msgCount > 0 && (
+                          <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px] min-w-[16px]">
+                            {msgCount}
+                          </Badge>
+                        )}
+                      </TabsTrigger>
+                    );
+                  })}
+                </TabsList>
+              </Tabs>
+              {/* Reset All button */}
+              {hasAnyMessages && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearAllHistory}
+                  className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-destructive shrink-0"
+                  title="Reset semua percakapan"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  <span className="hidden sm:inline">Reset</span>
+                </Button>
+              )}
+            </div>
           </div>
 
           {/* Main Content */}
@@ -583,9 +635,10 @@ export function AIChatbot() {
                     <Button 
                       variant="outline" 
                       size="icon"
-                      onClick={clearChat}
-                      aria-label="Clear conversation history"
+                      onClick={clearCurrentModeChat}
+                      aria-label="Clear current mode conversation"
                       className="shrink-0"
+                      title="Clear current mode"
                     >
                       <Trash2 className="h-4 w-4" aria-hidden="true" />
                     </Button>

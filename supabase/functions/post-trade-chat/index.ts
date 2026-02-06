@@ -36,10 +36,20 @@ serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    // Fetch user's recent closed trades
+    // Fetch user's recent closed trades with strategy associations
     const { data: trades, error: tradesError } = await supabase
       .from('trade_entries')
-      .select('*')
+      .select(`
+        *,
+        trade_entry_strategies (
+          strategy_id,
+          trading_strategies (
+            id,
+            name,
+            description
+          )
+        )
+      `)
       .eq('status', 'closed')
       .order('trade_date', { ascending: false })
       .limit(20);
@@ -101,6 +111,18 @@ ${recentSummary}`;
         ? Math.abs(targetTrade.exit_price - targetTrade.entry_price) / Math.abs(targetTrade.entry_price - targetTrade.stop_loss)
         : 'N/A';
       
+      // Extract strategy names from joined data
+      const strategies = targetTrade.trade_entry_strategies?.map((tes: any) => 
+        tes.trading_strategies?.name
+      ).filter(Boolean) || [];
+      const strategyNames = strategies.length > 0 ? strategies.join(', ') : 'None tagged';
+      
+      // Check for screenshots
+      const hasScreenshots = Array.isArray(targetTrade.screenshots) && targetTrade.screenshots.length > 0;
+      
+      // Check for AI analysis
+      const hasAiAnalysis = !!targetTrade.post_trade_analysis || !!targetTrade.ai_quality_score;
+      
       targetTradeContext = `
 TRADE TO ANALYZE:
 - Pair: ${targetTrade.pair}
@@ -112,9 +134,15 @@ TRADE TO ANALYZE:
 - P&L: $${pnl.toFixed(2)} (${pnl >= 0 ? 'WIN' : 'LOSS'})
 - R:R Achieved: ${typeof rr === 'number' ? rr.toFixed(2) : rr}
 - Date: ${targetTrade.trade_date}
+- Strategy Used: ${strategyNames}
 - Notes: ${targetTrade.notes || 'None'}
 - Market Condition: ${targetTrade.market_condition || 'N/A'}
-- Emotional State: ${targetTrade.emotional_state || 'N/A'}`;
+- Emotional State: ${targetTrade.emotional_state || 'N/A'}
+- Chart Timeframe: ${targetTrade.chart_timeframe || 'N/A'}
+- Confluence Score: ${targetTrade.confluence_score || 'N/A'}
+- AI Quality Score: ${targetTrade.ai_quality_score || 'N/A'}
+- Has Screenshots: ${hasScreenshots ? 'Yes' : 'No'}
+- Has Previous AI Analysis: ${hasAiAnalysis ? 'Yes' : 'No'}`;
     }
 
     const systemPrompt = `You are an expert trading coach and post-trade analyst. Your job is to help traders learn from their past trades and identify patterns for improvement.
