@@ -250,6 +250,20 @@ export function AIChatbot() {
     };
   }, [tradeEntries, strategies, accounts]);
 
+  // Fetch active trading pairs for setup validation
+  const fetchTradingPairs = async (): Promise<string[]> => {
+    try {
+      const { data } = await supabase
+        .from('trading_pairs')
+        .select('symbol')
+        .eq('is_active', true)
+        .limit(100);
+      return data?.map(p => p.symbol) || [];
+    } catch {
+      return [];
+    }
+  };
+
   const sendMessage = async (messageText?: string) => {
     const text = messageText || input.trim();
     if (!text || isLoading) return;
@@ -263,10 +277,15 @@ export function AIChatbot() {
     const endpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${currentMode.endpoint}`;
 
     try {
+      // Get user session for proper auth (critical for post-trade mode)
+      const { data: { session } } = await supabase.auth.getSession();
+      const authToken = session?.access_token;
+
+      // Build body based on mode - each mode gets its specific context
       let body: any = { question: text };
 
-      // Add context based on mode
       if (aiMode === 'trading') {
+        // Trading mode: full trade history + strategies + market context
         const tradingContext = getTradingContext();
         const marketContext = await fetchMarketContext();
         body = {
@@ -275,13 +294,53 @@ export function AIChatbot() {
           question: text,
           marketContext,
         };
+      } else if (aiMode === 'market') {
+        // Market mode: user context so AI can relate analysis to user's positions
+        const tradingContext = getTradingContext();
+        const openPositions = tradeEntries?.filter(t => t.status === 'open') || [];
+        body = {
+          question: text,
+          userContext: {
+            totalTrades: tradingContext.trades.length,
+            openPositions: openPositions.map(p => ({
+              pair: p.pair,
+              direction: p.direction,
+              entryPrice: p.entry_price,
+              pnl: p.pnl,
+            })),
+            favoriteStrategies: strategies?.slice(0, 5).map(s => ({
+              name: s.name,
+              id: s.id,
+            })),
+          },
+        };
+      } else if (aiMode === 'setup') {
+        // Setup mode: strategies with rules + trading pairs for validation
+        const tradingPairs = await fetchTradingPairs();
+        body = {
+          question: text,
+          strategies: strategies?.map(s => ({
+            id: s.id,
+            name: s.name,
+            entry_rules: s.entry_rules,
+            exit_rules: s.exit_rules,
+            min_confluences: s.min_confluences,
+            min_rr: s.min_rr,
+            valid_pairs: s.valid_pairs,
+          })) || [],
+          tradingPairs,
+        };
       }
+      // posttrade mode: just question, edge function fetches data via auth
 
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          // Use user JWT for authenticated edge functions, fallback to anon key
+          Authorization: authToken 
+            ? `Bearer ${authToken}` 
+            : `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
         body: JSON.stringify(body),
       });
