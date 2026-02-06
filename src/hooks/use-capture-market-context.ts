@@ -8,6 +8,7 @@ import { useCallback, useMemo } from 'react';
 import { useMarketSentiment, useMacroAnalysis } from '@/features/market-insight';
 import { useEconomicCalendar } from '@/features/calendar';
 import { useBinanceMarketSentiment } from '@/features/binance/useBinanceMarketData';
+import { getSessionForTime, getActiveOverlaps } from '@/lib/session-utils';
 import type { 
   UnifiedMarketContext, 
   MarketSentimentContext,
@@ -181,6 +182,11 @@ export function useCaptureMarketContext(
     const events = buildEventsContext();
     const momentum = buildMomentumContext();
     
+    // Capture current session (NEW)
+    const now = new Date();
+    const currentSession = getSessionForTime(now);
+    const sessionOverlap = getActiveOverlaps(now);
+    
     const partialContext = { sentiment, fearGreed, volatility, events, momentum };
     const compositeScore = calculateCompositeScore(partialContext);
     const tradingBias = calculateTradingBias(compositeScore, partialContext);
@@ -191,6 +197,10 @@ export function useCaptureMarketContext(
       volatility,
       events,
       momentum,
+      session: {
+        current: currentSession,
+        overlap: sessionOverlap,
+      },
       compositeScore,
       tradingBias,
       capturedAt: new Date().toISOString(),
@@ -228,6 +238,11 @@ export function useCaptureMarketContext(
     const events = buildEventsContext();
     const momentum = buildMomentumContext();
     
+    // Capture current session (NEW)
+    const now = new Date();
+    const currentSession = getSessionForTime(now);
+    const sessionOverlap = getActiveOverlaps(now);
+    
     const partialContext = { sentiment, fearGreed, volatility, events, momentum };
     const compositeScore = calculateCompositeScore(partialContext);
     const tradingBias = calculateTradingBias(compositeScore, partialContext);
@@ -238,6 +253,10 @@ export function useCaptureMarketContext(
       volatility,
       events,
       momentum,
+      session: {
+        current: currentSession,
+        overlap: sessionOverlap,
+      },
       compositeScore,
       tradingBias,
       capturedAt: new Date().toISOString(),
