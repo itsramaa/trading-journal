@@ -1,257 +1,143 @@
 
-# Plan: Unify Trade History Data Flow & Filters
 
-## Problem Summary
+# Plan: Hapus Batasan 1 Tahun - Fetch Seluruh History Binance
 
-Setelah melakukan analisis mendalam, saya menemukan beberapa masalah arsitektur:
+## Ringkasan Perubahan
 
-### 1. Data Source Separation
-| Tab | Data Source | Apa yang ditampilkan |
-|-----|-------------|---------------------|
-| All/Binance/Paper | `trade_entries` table (via `useTradeEntriesPaginated`) | Agregated trades per posisi |
-| Fees | Binance API `/income` (via `useBinanceAllIncome`) | Setiap transaksi fee |
-| Funding | Binance API `/income` (via `useBinanceAllIncome`) | Setiap interval funding |
-| Financial (Accounts) | Binance API `/income` (via `useBinanceAllIncome`) | Summary fees/funding |
-
-Ini menyebabkan inkonsistensi karena 1 trade bisa punya multiple fees (partial fills).
-
-### 2. Filter Separation
-- **Trade tabs**: menggunakan `TradeHistoryFilters` (dateRange, result, direction, strategies, pairs, AI sort)
-- **Fees/Funding tabs**: memiliki filter sendiri (`days`, `symbolFilter`) yang terpisah
-
-### 3. Data Count Discrepancy
-- **424 fee transactions** (1 tahun) karena setiap eksekusi order menghasilkan fee record
-- **~50 trades** karena ini adalah posisi yang sudah diagregasi
-
-Ini adalah **perilaku yang benar** - mereka mengukur hal yang berbeda.
+Menghapus batasan 1 tahun pada pengambilan data Binance untuk mendukung **seluruh riwayat trading** tanpa batas waktu.
 
 ---
 
-## Solution Architecture
+## Analisis Limitasi API Binance
 
-### Unified Filter State
-Alih-alih memiliki filter terpisah di Fees/Funding tabs, kita akan:
-1. Menggunakan `dateRange` dari filter utama untuk semua tabs
-2. Menggunakan `selectedPairs` dari filter utama untuk semua tabs
-3. Menghapus filter duplikat di `FeeHistoryTab` dan `FundingHistoryTab`
+| Parameter | Limitasi Binance API |
+|-----------|---------------------|
+| **Max per request** | 1000 records |
+| **Max time window** | 3 bulan (90 hari) per request |
+| **Total history** | **Unlimited** (bisa sejak akun dibuat) |
 
-### Props Interface Update
+Sistem **sudah mendukung** chunked fetching melalui `useBinanceFullSync`, tapi saat ini dibatasi 12 bulan.
+
+---
+
+## Perubahan yang Diperlukan
+
+### 1. Update `src/hooks/use-binance-full-sync.ts`
+
+**Perubahan:**
+- Ubah default `monthsBack` dari `12` menjadi `24` atau lebih
+- Tambahkan opsi `fetchAll: true` untuk fetch unlimited history
+- Deteksi awal akun dari record pertama yang ditemukan
 
 ```typescript
-// FeeHistoryTab & FundingHistoryTab will receive filter props from parent
-interface UnifiedIncomeTabProps {
-  isConnected: boolean;
-  dateRange: DateRange;           // From parent filter
-  selectedPairs: string[];        // From parent filter
-  showFullHistory: boolean;       // From parent toggle
+export interface FullSyncOptions {
+  monthsBack?: number;
+  fetchAll?: boolean; // NEW: Fetch seluruh history
+  onProgress?: (progress: number) => void;
 }
+
+// Modified chunked fetching - keep going until no more data
+async function fetchChunkedIncomeHistory(
+  monthsBack: number = 24, // Increased default
+  fetchAll: boolean = false,
+  onProgress?: (progress: number) => void
+)
 ```
 
-### Data Limit Fix
-Saat ini `useBinanceAllIncome` dipanggil dengan `limit = 1000`, tapi ini masih bisa kurang untuk 1 tahun data. Solusi:
-1. Tetap gunakan limit 1000 (Binance API max per call)
-2. Tampilkan pesan jika ada potensi data terpotong
-3. Filter berdasarkan date range dari parent
+### 2. Update `src/components/trading/FeeHistoryTab.tsx`
 
-### Default Gallery View
-Ubah default `viewMode` dari `'list'` ke `'gallery'`
+**Perubahan:**
+- Saat `showFullHistory = true`, gunakan chunked fetching tanpa batas
+- Implementasi lazy loading untuk data besar
 
----
-
-## Files to Modify
-
-| File | Changes |
-|------|---------|
-| `src/pages/TradeHistory.tsx` | Pass filter props to Fees/Funding tabs, change default viewMode |
-| `src/components/trading/FeeHistoryTab.tsx` | Accept unified filter props, remove local filter state |
-| `src/components/trading/FundingHistoryTab.tsx` | Accept unified filter props, remove local filter state |
-
----
-
-## Technical Implementation
-
-### 1. TradeHistory.tsx Changes
-
-**A. Change default view mode (line 74):**
 ```typescript
-// Before
-const [viewMode, setViewMode] = useState<ViewMode>('list');
-
-// After
-const [viewMode, setViewMode] = useState<ViewMode>('gallery');
-```
-
-**B. Pass unified props to Fees/Funding tabs (lines 593-600):**
-```typescript
-{/* Fees Tab Content */}
-<TabsContent value="fees">
-  <FeeHistoryTab 
-    isConnected={isBinanceConnected}
-    dateRange={dateRange}
-    selectedPairs={selectedPairs}
-    showFullHistory={showFullHistory}
-  />
-</TabsContent>
-
-{/* Funding Tab Content */}
-<TabsContent value="funding">
-  <FundingHistoryTab 
-    isConnected={isBinanceConnected}
-    dateRange={dateRange}
-    selectedPairs={selectedPairs}
-    showFullHistory={showFullHistory}
-  />
-</TabsContent>
-```
-
-### 2. FeeHistoryTab.tsx Changes
-
-**A. Update props interface:**
-```typescript
-interface FeeHistoryTabProps {
-  isConnected: boolean;
-  dateRange: DateRange;
-  selectedPairs: string[];
-  showFullHistory: boolean;
-}
-```
-
-**B. Remove local filter state:**
-```typescript
-// Remove these local states:
-// const [days, setDays] = useState<number>(defaultDays);
-// const [symbolFilter, setSymbolFilter] = useState<string>('ALL');
-```
-
-**C. Calculate days from dateRange:**
-```typescript
+// Calculate days - support unlimited when showFullHistory
 const days = useMemo(() => {
-  if (showFullHistory) return 365;
-  if (dateRange.from && dateRange.to) {
-    const diffMs = dateRange.to.getTime() - dateRange.from.getTime();
-    return Math.ceil(diffMs / (1000 * 60 * 60 * 24)) || 30;
-  }
-  return 365; // Default 1 year lookback matching trade history
+  if (showFullHistory) return 730; // 2 years for now, can be extended
+  // ... rest
 }, [dateRange, showFullHistory]);
 ```
 
-**D. Apply pair filter from parent:**
+### 3. Update `src/components/trading/FundingHistoryTab.tsx`
+
+Same pattern as FeeHistoryTab.
+
+### 4. Update `src/features/binance/useBinanceFutures.ts`
+
+**Perubahan pada `useBinanceAllIncome`:**
 ```typescript
-const filteredIncome = useMemo(() => {
-  let filtered = feeIncome;
-  
-  // Apply date range filter
-  if (dateRange.from) {
-    const fromTime = dateRange.from.getTime();
-    filtered = filtered.filter(item => item.time >= fromTime);
-  }
-  if (dateRange.to) {
-    const toTime = dateRange.to.getTime();
-    filtered = filtered.filter(item => item.time <= toTime);
-  }
-  
-  // Apply pair filter from parent
-  if (selectedPairs.length > 0) {
-    filtered = filtered.filter(item => 
-      selectedPairs.some(pair => item.symbol?.includes(pair.replace('USDT', '')))
-    );
-  }
-  
-  return filtered;
-}, [feeIncome, dateRange, selectedPairs]);
-```
-
-**E. Remove local filter UI:**
-Remove the `Select` components for days and symbol filter since they're now controlled by parent.
-
-**F. Show info about unified filtering:**
-```typescript
-<div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
-  <Info className="h-4 w-4" />
-  <span>Filters from trade history apply to this tab</span>
-</div>
-```
-
-### 3. FundingHistoryTab.tsx Changes
-Same pattern as FeeHistoryTab - receive unified props, remove local state.
-
----
-
-## Data Flow After Fix
-
-```text
-TradeHistory Page
-├── Filter State (single source of truth)
-│   ├── dateRange
-│   ├── selectedPairs
-│   ├── resultFilter
-│   ├── directionFilter
-│   └── showFullHistory
-│
-├── Tab: All/Binance/Paper
-│   └── useTradeEntriesPaginated(filters) → trade_entries table
-│
-├── Tab: Fees
-│   └── useBinanceAllIncome(days) → Binance API
-│       └── Client-side filter by dateRange + selectedPairs
-│
-└── Tab: Funding
-    └── useBinanceAllIncome(days) → Binance API
-        └── Client-side filter by dateRange + selectedPairs
+export function useBinanceAllIncome(daysBack = 7, limit = 1000, enableChunking = false) {
+  // If daysBack > 90 and enableChunking, use multiple requests
+  // This allows fetching beyond the 3-month API limit
+}
 ```
 
 ---
 
-## UI Changes Summary
+## Strategi Pengambilan Data
 
-### Before:
-- Fees tab: Has own "7 days/30 days/..." selector + symbol filter
-- Funding tab: Has own "7 days/30 days/..." selector + symbol filter
-- Default view: List
-
-### After:
-- Fees tab: Uses parent's date range + pair filters (no duplicate selectors)
-- Funding tab: Uses parent's date range + pair filters (no duplicate selectors)
-- Info text: "Filters from trade history apply to this tab"
-- Default view: Gallery
-
----
-
-## Expected Behavior
-
-| Action | All/Binance/Paper Tab | Fees Tab | Funding Tab |
-|--------|----------------------|----------|-------------|
-| Select date range "Last 30 days" | Shows trades in range | Shows fees in range | Shows funding in range |
-| Select pair "BTCUSDT" | Shows only BTC trades | Shows only BTC fees | Shows only BTC funding |
-| Toggle "Full History" | Shows all trades | Shows all fees (1 year) | Shows all funding (1 year) |
-
----
-
-## Why Different Record Counts
-
-User bertanya mengapa fees = 424, trades = 50. Ini **bukan bug**:
-
-1. **Trades** = agregasi per posisi (1 trade entry per open+close)
-2. **Fees** = per eksekusi order (1 trade bisa punya 5-10 partial fills = 5-10 fee records)
-
-Contoh:
+### Tanpa Chunking (Default, Fast):
 ```
-BTCUSDT LONG:
-- Open: 3 partial fills → 3 COMMISSION records
-- Close: 2 partial fills → 2 COMMISSION records
-= 1 trade, 5 fee records
+daysBack <= 90 → Single API call
 ```
 
-Ini akan tetap berbeda karena mereka mengukur hal yang berbeda. Yang penting adalah **filter yang sama** menampilkan data dari **periode yang sama**.
+### Dengan Chunking (Full History, Slower):
+```
+daysBack > 90 → Multiple API calls in 90-day chunks
+└── Chunk 1: today - 90 days
+└── Chunk 2: 90 days - 180 days
+└── Chunk 3: 180 days - 270 days
+└── ... continue until no more data
+```
 
 ---
 
-## Technical Summary (Bahasa Indonesia)
+## File yang Akan Dimodifikasi
 
-1. **Default View**: Ubah dari 'list' ke 'gallery' untuk tabs closed trades
-2. **Unified Filters**: Hapus filter terpisah di Fees/Funding tabs, gunakan filter utama dari Trade History
-3. **Props Passing**: TradeHistory.tsx akan mengirim `dateRange`, `selectedPairs`, dan `showFullHistory` ke child components
-4. **Client-side Filter**: Fees/Funding tabs akan filter data berdasarkan props yang diterima dari parent
-5. **Info Display**: Tampilkan pesan bahwa filter berlaku untuk semua tabs
+| File | Perubahan |
+|------|-----------|
+| `src/hooks/use-binance-full-sync.ts` | Increase default, add `fetchAll` option |
+| `src/features/binance/useBinanceFutures.ts` | Add chunked fetching to `useBinanceAllIncome` |
+| `src/components/trading/FeeHistoryTab.tsx` | Increase max days untuk full history |
+| `src/components/trading/FundingHistoryTab.tsx` | Same as above |
 
-Hasil: Ketika user filter by date range atau pair, semua tabs akan menampilkan data yang konsisten untuk periode yang sama.
+---
+
+## Perilaku Baru
+
+| Toggle | Perilaku Sebelum | Perilaku Sesudah |
+|--------|-----------------|------------------|
+| **Full History = OFF** | Filter by date range | Same (no change) |
+| **Full History = ON** | Max 365 hari | Max **730 hari** (2 tahun), bisa diperluas |
+
+---
+
+## Trade-offs
+
+### Pro:
+- User bisa melihat seluruh history trading
+- Data fees dan funding lengkap untuk tax reporting
+
+### Contra:
+- Request lebih banyak ke API (chunked)
+- Loading time lebih lama untuk history besar
+- Rate limit Binance bisa tercapai lebih cepat
+
+---
+
+## Rekomendasi Implementasi
+
+1. **Phase 1**: Tingkatkan default dari 365 → 730 hari (2 tahun)
+2. **Phase 2**: Jika user butuh lebih, implementasi dynamic chunking yang terus fetch sampai tidak ada data
+
+Untuk saat ini, **730 hari (2 tahun)** adalah kompromi yang reasonable antara coverage data dan performance.
+
+---
+
+## Technical Summary
+
+1. **Extend `useBinanceAllIncome`**: Support `daysBack > 365` dengan chunked fetching
+2. **Extend Sync hooks**: Increase default sync window
+3. **Update Tab components**: Ubah `365` → `730` untuk full history mode
+4. **Optional**: Add progress indicator untuk large data fetches
+
