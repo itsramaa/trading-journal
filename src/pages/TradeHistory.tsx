@@ -32,13 +32,12 @@ import { TradeHistoryCard } from "@/components/trading/TradeHistoryCard";
 import { TradeGalleryCard, TradeGalleryCardSkeleton } from "@/components/journal/TradeGalleryCard";
 import { FeeHistoryTab } from "@/components/trading/FeeHistoryTab";
 import { FundingHistoryTab } from "@/components/trading/FundingHistoryTab";
-import { History, Wifi, BookOpen, RefreshCw, FileText, Loader2, List, LayoutGrid, Download, CloudDownload, Percent, ArrowUpDown } from "lucide-react";
+import { History, Wifi, BookOpen, FileText, Loader2, List, LayoutGrid, Download, CloudDownload, Percent, ArrowUpDown } from "lucide-react";
 import { format } from "date-fns";
 import { useTradeEntriesPaginated, type TradeFilters } from "@/hooks/use-trade-entries-paginated";
 import type { TradeEntry } from "@/hooks/use-trade-entries";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { useBinanceConnectionStatus } from "@/features/binance";
-import { useBinanceAutoSync } from "@/hooks/use-binance-auto-sync";
 import { useBinanceFullSync } from "@/hooks/use-binance-full-sync";
 import { useTradeEnrichment } from "@/hooks/use-trade-enrichment";
 import { formatCurrency as formatCurrencyUtil } from "@/lib/formatters";
@@ -83,13 +82,7 @@ export default function TradeHistory() {
   const { data: connectionStatus } = useBinanceConnectionStatus();
   const isBinanceConnected = connectionStatus?.isConnected ?? false;
   
-  // Auto-sync (30 days by default)
-  const { syncNow, isSyncing, lastSyncTime, pendingRecords } = useBinanceAutoSync({
-    autoSyncOnMount: false,
-    enablePeriodicSync: false,
-  });
-  
-  // Full history sync (up to 1 year)
+  // Full history sync
   const { syncFullHistory, isSyncing: isFullSyncing, lastResult: fullSyncResult } = useBinanceFullSync();
 
   // Quick Note
@@ -529,45 +522,15 @@ export default function TradeHistory() {
                 
                 {/* Binance Trades */}
                 <TabsContent value="binance">
-                  <div className="space-y-4">
-                    {isBinanceConnected && (
-                      <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border">
-                        <div className="flex items-center gap-2 text-sm">
-                          <History className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                          <span className="text-muted-foreground">
-                            {lastSyncTime 
-                              ? `Last sync: ${format(lastSyncTime, 'HH:mm:ss')}`
-                              : 'Auto-sync enabled'}
-                          </span>
-                          {pendingRecords > 0 && (
-                            <Badge variant="secondary" className="text-xs">
-                              {pendingRecords} pending
-                            </Badge>
-                          )}
-                        </div>
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          onClick={syncNow}
-                          disabled={isSyncing}
-                          aria-label="Sync trades from Binance"
-                        >
-                          <RefreshCw className={`h-4 w-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} aria-hidden="true" />
-                          {isSyncing ? 'Syncing...' : 'Sync Now'}
-                        </Button>
-                      </div>
-                    )}
-                    
-                    {binanceTrades.length === 0 ? (
-                      <EmptyState
-                        icon={Wifi}
-                        title="No Binance trades"
-                        description={isBinanceConnected 
-                          ? "No Binance trades match your filters." 
-                          : "Connect Binance in Settings to import trades."}
-                      />
-                    ) : renderTradeList(binanceTrades)}
-                  </div>
+                  {binanceTrades.length === 0 ? (
+                    <EmptyState
+                      icon={Wifi}
+                      title="No Binance trades"
+                      description={isBinanceConnected 
+                        ? "No Binance trades match your filters." 
+                        : "Connect Binance in Settings to import trades."}
+                    />
+                  ) : renderTradeList(binanceTrades)}
                 </TabsContent>
 
                 {/* Paper Trades */}
