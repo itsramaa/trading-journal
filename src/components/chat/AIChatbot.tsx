@@ -507,65 +507,73 @@ export function AIChatbot() {
             )}
 
             {/* Center - Chat Area */}
-            <div className="flex-1 flex flex-col min-w-0">
+            <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
               <ScrollArea 
-                className="flex-1 p-4" 
+                className="flex-1 min-h-0" 
                 ref={scrollRef}
                 role="log"
                 aria-live="polite"
                 aria-label="Chat messages"
               >
-                {messages.length === 0 ? (
-                  <div className="space-y-4">
-                    <div className="flex gap-3">
-                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                        <ModeIcon className="h-4 w-4 text-primary" aria-hidden="true" />
+                <div className="p-4">
+                  {messages.length === 0 ? (
+                    <div className="space-y-4">
+                      <div className="flex gap-3">
+                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                          <ModeIcon className="h-4 w-4 text-primary" aria-hidden="true" />
+                        </div>
+                        <div className="flex-1 bg-muted rounded-lg p-3">
+                          <p className="text-sm">{currentMode.greeting}</p>
+                        </div>
                       </div>
-                      <div className="flex-1 bg-muted rounded-lg p-3">
-                        <p className="text-sm">{currentMode.greeting}</p>
-                      </div>
+                      {!isExpanded && (
+                        <div className="pl-11 space-y-2">
+                          <p className="text-xs text-muted-foreground">Suggestions:</p>
+                          <div className="flex flex-wrap gap-2">
+                            {currentMode.suggestions.map((suggestion, i) => (
+                              <Button
+                                key={i}
+                                variant="outline"
+                                size="sm"
+                                className="text-xs h-7"
+                                onClick={() => handleQuickAction(suggestion)}
+                              >
+                                {suggestion}
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {isExpanded && (
+                        <div className="pl-11 text-xs text-muted-foreground">
+                          Gunakan Quick Actions di panel kiri atau ketik pertanyaan Anda.
+                        </div>
+                      )}
                     </div>
-                    {!isExpanded && (
-                      <div className="pl-11 space-y-2">
-                        <p className="text-xs text-muted-foreground">Suggestions:</p>
-                        <div className="flex flex-wrap gap-2">
-                          {currentMode.suggestions.map((suggestion, i) => (
-                            <Button
-                              key={i}
-                              variant="outline"
-                              size="sm"
-                              className="text-xs h-7"
-                              onClick={() => handleQuickAction(suggestion)}
-                            >
-                              {suggestion}
-                            </Button>
-                          ))}
+                  ) : (
+                    <div className="space-y-4" aria-busy={isLoading}>
+                      {messages.map((message, i) => (
+                        <ChatMessage key={i} {...message} ModeIcon={ModeIcon} />
+                      ))}
+                      {/* Typing indicator - shows when waiting for AI response */}
+                      {isLoading && (
+                        <div className="flex gap-3" role="status" aria-label="AI is typing">
+                          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                            <ModeIcon className="h-4 w-4 text-primary" aria-hidden="true" />
+                          </div>
+                          <div className="bg-muted rounded-lg p-3 flex items-center gap-2">
+                            <div className="flex gap-1">
+                              <span className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                              <span className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                              <span className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                            </div>
+                            <span className="text-sm text-muted-foreground">Typing...</span>
+                          </div>
                         </div>
-                      </div>
-                    )}
-                    {isExpanded && (
-                      <div className="pl-11 text-xs text-muted-foreground">
-                        Gunakan Quick Actions di panel kiri atau ketik pertanyaan Anda.
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="space-y-4" aria-busy={isLoading}>
-                    {messages.map((message, i) => (
-                      <ChatMessage key={i} {...message} ModeIcon={ModeIcon} />
-                    ))}
-                    {isLoading && messages[messages.length - 1]?.content === '' && (
-                      <div className="flex gap-3" role="status" aria-label="AI is thinking">
-                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                          <Loader2 className="h-4 w-4 text-primary animate-spin" aria-hidden="true" />
-                        </div>
-                        <div className="bg-muted rounded-lg p-3">
-                          <p className="text-sm text-muted-foreground">Thinking...</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
+                      )}
+                    </div>
+                  )}
+                </div>
               </ScrollArea>
 
               {/* Input */}

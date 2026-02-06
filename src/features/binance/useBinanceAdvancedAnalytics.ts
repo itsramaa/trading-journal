@@ -103,9 +103,11 @@ export function useBinanceTopMovers(limit = 10) {
         .sort((a, b) => b.quoteVolume - a.quoteVolume)
         .slice(0, limit);
       
-      return { topGainers, topLosers, topVolume };
+      // Also return raw tickers for custom sorting
+      return { topGainers, topLosers, topVolume, allTickers: usdtPairs };
     },
-    staleTime: 60 * 1000, // 1 minute
+    staleTime: 30 * 1000, // 30 seconds
+    refetchInterval: 30 * 1000, // Auto-refresh every 30 seconds
   });
 }
 
