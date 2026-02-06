@@ -1,6 +1,6 @@
-
-
 # Plan: Memindahkan Financial Details ke Trade History dengan Tab Fees & Funding
+
+## ✅ STATUS: COMPLETED
 
 ## Ringkasan Perubahan
 

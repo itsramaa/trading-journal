@@ -29,9 +29,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { TradeHistoryCard } from "@/components/trading/TradeHistoryCard";
 import { TradeGalleryCard, TradeGalleryCardSkeleton } from "@/components/journal/TradeGalleryCard";
-import { History, Wifi, BookOpen, RefreshCw, FileText, Loader2, List, LayoutGrid, Calendar, Download, CloudDownload } from "lucide-react";
+import { FeeHistoryTab } from "@/components/trading/FeeHistoryTab";
+import { FundingHistoryTab } from "@/components/trading/FundingHistoryTab";
+import { History, Wifi, BookOpen, RefreshCw, FileText, Loader2, List, LayoutGrid, Calendar, Download, CloudDownload, Percent, ArrowUpDown } from "lucide-react";
 import { format } from "date-fns";
 import { useTradeEntriesPaginated, type TradeFilters } from "@/hooks/use-trade-entries-paginated";
 import type { TradeEntry } from "@/hooks/use-trade-entries";
@@ -464,7 +467,7 @@ export default function TradeHistory() {
               />
             ) : (
               <Tabs defaultValue="all" className="w-full">
-                <TabsList className="mb-4">
+                <TabsList className="mb-4 flex-wrap h-auto gap-1">
                   <TabsTrigger value="all" className="gap-2">
                     All
                     <Badge variant="secondary" className="ml-1 h-5 px-1.5">{sortedTrades.length}</Badge>
@@ -479,6 +482,52 @@ export default function TradeHistory() {
                     Paper
                     <Badge variant="secondary" className="ml-1 h-5 px-1.5">{paperTrades.length}</Badge>
                   </TabsTrigger>
+                  
+                  {/* Fees Tab - requires Binance */}
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span>
+                          <TabsTrigger 
+                            value="fees" 
+                            className="gap-2"
+                            disabled={!isBinanceConnected}
+                          >
+                            <Percent className="h-4 w-4" aria-hidden="true" />
+                            Fees
+                          </TabsTrigger>
+                        </span>
+                      </TooltipTrigger>
+                      {!isBinanceConnected && (
+                        <TooltipContent>
+                          <p>Requires Binance connection</p>
+                        </TooltipContent>
+                      )}
+                    </Tooltip>
+                  </TooltipProvider>
+                  
+                  {/* Funding Tab - requires Binance */}
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span>
+                          <TabsTrigger 
+                            value="funding" 
+                            className="gap-2"
+                            disabled={!isBinanceConnected}
+                          >
+                            <ArrowUpDown className="h-4 w-4" aria-hidden="true" />
+                            Funding
+                          </TabsTrigger>
+                        </span>
+                      </TooltipTrigger>
+                      {!isBinanceConnected && (
+                        <TooltipContent>
+                          <p>Requires Binance connection</p>
+                        </TooltipContent>
+                      )}
+                    </Tooltip>
+                  </TooltipProvider>
                 </TabsList>
 
                 {/* All Trades */}
@@ -538,6 +587,16 @@ export default function TradeHistory() {
                       description="No paper trades match your filters."
                     />
                   ) : renderTradeList(paperTrades)}
+                </TabsContent>
+                
+                {/* Fees Tab Content */}
+                <TabsContent value="fees">
+                  <FeeHistoryTab isConnected={isBinanceConnected} />
+                </TabsContent>
+                
+                {/* Funding Tab Content */}
+                <TabsContent value="funding">
+                  <FundingHistoryTab isConnected={isBinanceConnected} />
                 </TabsContent>
               </Tabs>
             )}
