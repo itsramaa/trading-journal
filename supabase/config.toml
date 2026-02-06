@@ -41,3 +41,9 @@ verify_jwt = false
 
 [functions.backtest-strategy]
 verify_jwt = false
+
+[functions.market-analysis]
+verify_jwt = false
+
+[functions.confluence-chat]
+verify_jwt = false

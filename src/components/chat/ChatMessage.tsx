@@ -1,11 +1,11 @@
 import React from 'react';
-import { User, LucideIcon } from 'lucide-react';
+import { User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ChatMessageProps {
   role: 'user' | 'assistant';
   content: string;
-  ModeIcon: LucideIcon;
+  ModeIcon: React.ElementType;
 }
 
 export function ChatMessage({ role, content, ModeIcon }: ChatMessageProps) {
