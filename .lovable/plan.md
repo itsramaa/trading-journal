@@ -1,175 +1,178 @@
 
+# Full AI Chat System Integration Plan
 
-# Fix Plan: AI Chatbot History Persistence, Post-Trade Integration & Top Movers Update
+## Problem Analysis
 
-## Identified Issues
+Setelah menganalisis kode, saya menemukan beberapa masalah utama:
 
-### Issue 1: AI Chat History Lost When Switching Tabs
-**Location**: `src/components/chat/AIChatbot.tsx` lines 326-338
+### 1. Trading Tab - Missing Context Sent From Frontend
+**Location**: `AIChatbot.tsx` lines 268-278
 
-**Problem**: When user switches AI modes (trading → market → setup → posttrade), the chat history is cleared:
+**Current Problem**: Konteks trading SUDAH disiapkan di frontend dengan `getTradingContext()` dan `fetchMarketContext()`, TAPI:
+- Data trades sudah termasuk strategies, market condition, dll
+- Masalah: AI butuh konteks lebih banyak tentang pattern, streak, best/worst pairs
 
+**Status**: Partially integrated - perlu enrichment
+
+### 2. Market Tab - NO Context Sent From Frontend
+**Location**: `AIChatbot.tsx` line 266
+
+**Current Problem**: Mode `market` TIDAK mengirim konteks apapun ke edge function!
 ```typescript
-const handleQuickAction = (prompt: string, mode?: AIMode) => {
-  if (mode && mode !== aiMode) {
-    setAiMode(mode);
-    setMessages([]); // ❌ Clears all history
-  }
-  // ...
-};
-
-const handleModeChange = (mode: AIMode) => {
-  setAiMode(mode);
-  setMessages([]); // ❌ Clears all history
-};
+let body: any = { question: text };
+// Only trading mode adds context!
+if (aiMode === 'trading') { ... }
+// market, setup, posttrade: NO CONTEXT PASSED!
 ```
 
-**Solution**: Store messages per-mode using a `Record<AIMode, Message[]>` structure instead of single array.
+Edge function `market-analysis` sudah fetch data sendiri dari `market-insight` dan `macro-analysis`, tapi tidak tahu konteks user (strategi, posisi terbuka, dll).
 
----
+**Status**: Needs frontend integration
 
-### Issue 2: Post-Trade Not Integrated with Full Trade System
-**Location**: `supabase/functions/post-trade-chat/index.ts`
+### 3. Setup Tab - Missing Strategy Integration
+**Location**: `AIChatbot.tsx` - no setup context sent
 
-**Problem**: The edge function only fetches basic trade data, missing:
-- Strategy associations
-- AI analysis results
-- Screenshot metadata
-- Emotional state correlation
+**Current Problem**: `confluence-chat` edge function parse setup dari teks natural language, TAPI:
+- Tidak tahu strategies user yang tersedia
+- Tidak bisa match dengan entry/exit rules strategy
+- Tidak validasi terhadap `valid_pairs` strategy
 
-**Solution**: Enhance the edge function to fetch related data and provide richer context to AI.
+**Status**: Needs strategy context from frontend
 
----
+### 4. Post-Trade Tab - Edge Function Uses DB, Frontend Doesn't Pass Auth Correctly
+**Location**: `AIChatbot.tsx` line 280-284
 
-### Issue 3: Top Movers Not Updating
-**Location**: Network & Hook analysis
+**Critical Problem**: Edge function `post-trade-chat` butuh Authorization header dengan user token, TAPI frontend kirim ANON KEY!
+```typescript
+Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+// Should be user JWT token from supabase.auth.getSession()!
+```
 
-**Observations**:
-- The `refetchInterval: 30 * 1000` is set correctly in hook
-- The API returns status 200 (successful)
-- The `staleTime: 30 * 1000` means data is considered "fresh" for 30s
+Ini menyebabkan query ke database GAGAL karena RLS.
 
-**Likely Issue**: The `refetchInterval` only triggers refetch when the component is mounted and focused. If user switches tabs or the window loses focus, refetch pauses.
-
-**Solution**: 
-1. Set `refetchIntervalInBackground: true` to continue refetching even when tab is not active
-2. Add visual "Last updated" indicator
-3. Force refetch on component mount/remount
+**Status**: BROKEN - auth issue
 
 ---
 
 ## Solution Architecture
 
-### Fix 1: Per-Mode Chat History with Reset Button
-
-**Changes to `AIChatbot.tsx`**:
-
-```typescript
-// Replace single messages state with per-mode history
-const [messageHistory, setMessageHistory] = useState<Record<AIMode, Message[]>>({
-  trading: [],
-  market: [],
-  setup: [],
-  posttrade: [],
-});
-
-// Get current mode's messages
-const messages = messageHistory[aiMode];
-
-// Update messages for current mode only
-const setMessages = (updater: Message[] | ((prev: Message[]) => Message[])) => {
-  setMessageHistory(prev => ({
-    ...prev,
-    [aiMode]: typeof updater === 'function' ? updater(prev[aiMode]) : updater,
-  }));
-};
-
-// Mode change no longer clears history
-const handleModeChange = (mode: AIMode) => {
-  setAiMode(mode);
-  // History preserved - no clearing
-};
-
-// Reset button clears ALL history
-const clearAllHistory = () => {
-  setMessageHistory({
-    trading: [],
-    market: [],
-    setup: [],
-    posttrade: [],
-  });
-};
-```
-
-**UI Changes**:
-- Add "Reset All" button that clears all mode histories
-- Add badge showing message count per mode in tab
-
----
-
-### Fix 2: Enhanced Post-Trade Integration
-
-**Enhance `post-trade-chat/index.ts`**:
+### Fix 1: Correct Authorization for All Modes
+**File**: `src/components/chat/AIChatbot.tsx`
 
 ```typescript
-// Fetch trade with related data
-const { data: trades, error: tradesError } = await supabase
-  .from('trade_entries')
-  .select(`
-    *,
-    strategies:trade_strategy_links(
-      strategy:trading_strategies(id, name, description)
-    ),
-    ai_analysis_result,
-    screenshots,
-    emotional_state
-  `)
-  .eq('status', 'closed')
-  .order('trade_date', { ascending: false })
-  .limit(20);
-
-// Add richer context
-const targetTradeContext = `
-TRADE DETAILS:
-- Pair: ${targetTrade.pair}
-- Direction: ${targetTrade.direction}
-- Entry: ${targetTrade.entry_price}
-- Exit: ${targetTrade.exit_price}
-- P&L: $${pnl.toFixed(2)}
-- Strategy Used: ${strategyNames || 'None tagged'}
-- Market Condition: ${targetTrade.market_condition}
-- Emotional State: ${targetTrade.emotional_state}
-- Has Screenshots: ${(targetTrade.screenshots?.length || 0) > 0 ? 'Yes' : 'No'}
-- AI Analysis Available: ${targetTrade.ai_analysis_result ? 'Yes' : 'No'}
-`;
-```
-
----
-
-### Fix 3: Force Top Movers Refresh
-
-**Changes to `useBinanceAdvancedAnalytics.ts`**:
-
-```typescript
-export function useBinanceTopMovers(limit = 10) {
-  return useQuery({
-    queryKey: ['binance', 'top-movers', limit],
-    queryFn: async () => {
-      const tickers = await callMarketDataFunction<Ticker24h[]>('ticker-24h', {});
-      // ... existing logic
+const sendMessage = async (messageText?: string) => {
+  // Get user session for auth
+  const { data: { session } } = await supabase.auth.getSession();
+  const authToken = session?.access_token;
+  
+  // ... later in fetch:
+  const response = await fetch(endpoint, {
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: authToken ? `Bearer ${authToken}` : `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
     },
-    staleTime: 15 * 1000, // Reduce to 15 seconds
-    refetchInterval: 15 * 1000, // Reduce to 15 seconds
-    refetchIntervalInBackground: true, // ✅ Continue even when tab inactive
-    refetchOnMount: 'always', // ✅ Always refetch on mount
-    refetchOnWindowFocus: true, // ✅ Refetch when user returns to tab
+    // ...
   });
+};
+```
+
+### Fix 2: Send Context for ALL Modes
+**File**: `src/components/chat/AIChatbot.tsx`
+
+```typescript
+// Build body based on mode
+let body: any = { question: text };
+
+if (aiMode === 'trading') {
+  const tradingContext = getTradingContext();
+  const marketContext = await fetchMarketContext();
+  body = {
+    trades: tradingContext.trades,
+    strategies: tradingContext.strategies,
+    question: text,
+    marketContext,
+  };
+} else if (aiMode === 'market') {
+  // Send user context so AI can relate to their trading
+  const tradingContext = getTradingContext();
+  body = {
+    question: text,
+    userContext: {
+      totalTrades: tradingContext.trades.length,
+      openPositions: tradeEntries?.filter(t => t.status === 'open'),
+      favoriteStrategies: strategies?.slice(0, 3),
+    },
+  };
+} else if (aiMode === 'setup') {
+  // Send strategies so AI can validate against user's rules
+  body = {
+    question: text,
+    strategies: strategies?.map(s => ({
+      id: s.id,
+      name: s.name,
+      entry_rules: s.entry_rules,
+      exit_rules: s.exit_rules,
+      min_confluences: s.min_confluences,
+      min_rr: s.min_rr,
+      valid_pairs: s.valid_pairs,
+    })),
+    tradingPairs: await fetchTradingPairs(), // From trading_pairs table
+  };
+} else if (aiMode === 'posttrade') {
+  // Auth header handles this - just pass question
+  body = { question: text };
 }
 ```
 
-**Changes to `TopMovers.tsx`**:
-- Add "Last updated" timestamp display
-- Add visual indicator when data is fetching
+### Fix 3: Enhance market-analysis Edge Function
+**File**: `supabase/functions/market-analysis/index.ts`
+
+Add user context to system prompt:
+```typescript
+const { question, userContext } = await req.json();
+
+let userContextSection = '';
+if (userContext) {
+  userContextSection = `
+USER CONTEXT:
+- Total Closed Trades: ${userContext.totalTrades || 0}
+- Open Positions: ${userContext.openPositions?.map(p => `${p.pair} ${p.direction}`).join(', ') || 'None'}
+- Active Strategies: ${userContext.favoriteStrategies?.map(s => s.name).join(', ') || 'None'}
+`;
+}
+```
+
+### Fix 4: Enhance confluence-chat with Strategy Rules
+**File**: `supabase/functions/confluence-chat/index.ts`
+
+```typescript
+const { question, setup, strategies } = await req.json();
+
+// Match parsed setup with user strategies
+let strategyMatch = '';
+if (parsedSetup.pair && strategies?.length > 0) {
+  const matchingStrategies = strategies.filter(s => 
+    !s.valid_pairs || s.valid_pairs.includes(parsedSetup.pair.replace('USDT', ''))
+  );
+  
+  if (matchingStrategies.length > 0) {
+    strategyMatch = `
+APPLICABLE USER STRATEGIES:
+${matchingStrategies.map(s => `
+- ${s.name}
+  Min Confluences: ${s.min_confluences || 4}
+  Min R:R: ${s.min_rr || 1.5}
+  Entry Rules: ${s.entry_rules?.map(r => r.name).join(', ') || 'None defined'}
+`).join('')}
+`;
+  }
+}
+
+// Add to system prompt
+const systemPrompt = `...
+${strategyMatch}
+...`;
+```
 
 ---
 
@@ -177,103 +180,78 @@ export function useBinanceTopMovers(limit = 10) {
 
 | File | Changes |
 |------|---------|
-| `src/components/chat/AIChatbot.tsx` | Per-mode history, reset button, preserve history on tab switch |
-| `supabase/functions/post-trade-chat/index.ts` | Fetch strategies, enhanced context |
-| `src/features/binance/useBinanceAdvancedAnalytics.ts` | Add refetchIntervalInBackground, refetchOnMount |
-| `src/pages/TopMovers.tsx` | Add last updated indicator |
+| `src/components/chat/AIChatbot.tsx` | Fix auth, send context for all modes |
+| `supabase/functions/market-analysis/index.ts` | Accept user context |
+| `supabase/functions/confluence-chat/index.ts` | Accept strategies, validate against rules |
+| `supabase/functions/post-trade-chat/index.ts` | Already good, just needs frontend auth fix |
 
 ---
 
 ## Technical Details
 
-### Chat History Data Structure
-
+### Auth Token Flow (Critical Fix)
 ```typescript
-// Before (single array)
-const [messages, setMessages] = useState<Message[]>([]);
+// Current (BROKEN for post-trade)
+Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`
 
-// After (per-mode map)
-const [messageHistory, setMessageHistory] = useState<Record<AIMode, Message[]>>({
-  trading: [],
-  market: [],
-  setup: [],
-  posttrade: [],
-});
+// Fixed
+const { data: { session } } = await supabase.auth.getSession();
+Authorization: `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`
 ```
 
-### Reset Button UI
+### Context by Mode
 
-In expanded mode, show "Reset All" button in header:
+| Mode | Frontend Sends | Edge Function Fetches |
+|------|----------------|----------------------|
+| Trading | trades, strategies, marketContext | Nothing extra |
+| Market | userContext (open positions, strategies) | market-insight, macro-analysis |
+| Setup | strategies (rules, valid_pairs) | market-insight, economic-calendar |
+| Post-Trade | question, tradeId (optional) | trade_entries from DB (via auth) |
 
-```tsx
-{isExpanded && Object.values(messageHistory).some(m => m.length > 0) && (
-  <Button
-    variant="outline"
-    size="sm"
-    onClick={clearAllHistory}
-    className="text-xs gap-1"
-  >
-    <Trash2 className="h-3 w-3" />
-    Reset All
-  </Button>
-)}
-```
-
-### Mode Tab with Message Count Badge
-
-```tsx
-<TabsTrigger key={mode} value={mode}>
-  <Icon className="h-3 w-3" />
-  <span>{config.label.split(' ')[0]}</span>
-  {messageHistory[mode].length > 0 && (
-    <Badge variant="secondary" className="ml-1 h-4 px-1 text-xs">
-      {messageHistory[mode].length}
-    </Badge>
-  )}
-</TabsTrigger>
-```
-
-### Last Updated Indicator for Top Movers
-
-```tsx
-const { data, isLoading, refetch, isFetching, dataUpdatedAt } = useBinanceTopMovers(limit);
-
-// In header
-<span className="text-xs text-muted-foreground">
-  Updated: {new Date(dataUpdatedAt).toLocaleTimeString()}
-</span>
+### New Helper: Fetch Trading Pairs
+```typescript
+const fetchTradingPairs = async () => {
+  const { data } = await supabase
+    .from('trading_pairs')
+    .select('symbol')
+    .eq('is_active', true)
+    .limit(100);
+  return data?.map(p => p.symbol) || [];
+};
 ```
 
 ---
 
-## Behavior After Fix
+## Expected Behavior After Fix
 
-| Feature | Before | After |
-|---------|--------|-------|
-| Mode switching | Clears all chat history | Preserves history per mode |
-| Reset functionality | Clears current mode only | Reset All button clears everything |
-| Post-Trade context | Basic trade data | Includes strategies, emotions, AI analysis |
-| Top Movers refresh | Pauses when tab inactive | Continues in background |
-| Refresh indicator | None | Shows last updated time |
-
----
-
-## Console Warnings to Address
-
-The console shows `Function components cannot be given refs` warning for:
-1. `AIChatbot` → `ChatMessage`
-2. `ChatMessage` → `Markdown`
-
-**Root Cause**: React-markdown's `Markdown` component doesn't forward refs, and neither does `ChatMessage`.
-
-**Fix**: Since we're not actually using refs on these components, this is just a warning. The scroll ref is on `ScrollArea`, not these components. No action needed for functionality, but we could wrap `ChatMessage` in `forwardRef` to silence the warning.
+| Tab | Before | After |
+|-----|--------|-------|
+| Trading | Partially works with trade data | Full context with strategies & market correlation |
+| Market | Works but no user context | Relates analysis to user's open positions & strategies |
+| Setup | Parses setup, no strategy validation | Validates against user's strategy rules, shows applicable strategies |
+| Post-Trade | FAILS (auth issue) | Fetches user's trades via RLS, analyzes with full context |
 
 ---
 
 ## Implementation Order
 
-1. **AIChatbot.tsx** - Per-mode history storage (critical UX fix)
-2. **useBinanceAdvancedAnalytics.ts** - Add background refresh
-3. **TopMovers.tsx** - Add last updated indicator
-4. **post-trade-chat/index.ts** - Enhanced trade context
+1. **AIChatbot.tsx** - Fix auth token (critical for post-trade)
+2. **AIChatbot.tsx** - Add context builders for each mode
+3. **market-analysis** - Accept and use userContext
+4. **confluence-chat** - Accept strategies, validate rules
 
+---
+
+## Technical Summary (Bahasa Indonesia)
+
+**Masalah Utama**:
+1. Post-Trade tab tidak bisa fetch data karena salah kirim auth token (ANON key bukan user JWT)
+2. Market tab tidak kirim konteks user sama sekali
+3. Setup tab tidak terintegrasi dengan strategy rules user
+4. Trading tab sudah OK tapi bisa ditingkatkan
+
+**Solusi**:
+1. Gunakan `supabase.auth.getSession()` untuk dapat JWT token user
+2. Kirim konteks yang relevan untuk setiap mode
+3. Enhance edge functions untuk menerima dan menggunakan konteks tersebut
+4. Validasi setup trading terhadap rules strategy yang dimiliki user
