@@ -53,12 +53,12 @@ export interface UnifiedPortfolioData {
 export function useUnifiedPortfolioData(): UnifiedPortfolioData {
   // Connection status
   const { data: connectionStatus, isLoading: connectionLoading } = useBinanceConnectionStatus();
-  const isConfigured = connectionStatus?.isConfigured ?? true;
+  const isConfigured = connectionStatus?.isConfigured ?? false;
   const isConnected = connectionStatus?.isConnected ?? false;
   
   // Binance data (optional enrichment)
   const binanceDailyPnl = useBinanceDailyPnl();
-  const { totalBalance: binanceBalance, isLoading: binanceLoading } = useBinanceTotalBalance();
+  const { totalBalance: binanceBalance, isLoading: binanceLoading, isConnected: binanceBalanceConnected } = useBinanceTotalBalance();
   const { totalNet: binanceWeeklyNet, totalTrades: binanceWeeklyTrades, isLoading: weeklyLoading } = useBinanceWeeklyPnl();
   
   // Internal data (always available)
@@ -153,8 +153,9 @@ export function useUnifiedPortfolioData(): UnifiedPortfolioData {
   return useMemo((): UnifiedPortfolioData => {
     const isLoading = connectionLoading || accountsLoading || tradesLoading || binanceLoading;
     
-    // Priority 1: Binance connected - use as enrichment
-    if (isConnected && binanceBalance > 0) {
+    // Priority 1: Binance configured and connected - use Binance data (even if balance is 0)
+    // This ensures users with only Binance accounts see their data correctly
+    if (isConfigured && isConnected) {
       return {
         totalCapital: binanceBalance,
         availableBalance: binanceBalance,
@@ -172,7 +173,7 @@ export function useUnifiedPortfolioData(): UnifiedPortfolioData {
         sourceName: 'Binance Futures',
         isEnriched: true,
         isLoading: binanceLoading || weeklyLoading,
-        hasData: true,
+        hasData: true, // Binance connected means we have data access
       };
     }
     
@@ -205,7 +206,30 @@ export function useUnifiedPortfolioData(): UnifiedPortfolioData {
       };
     }
     
-    // Priority 3: No accounts but has trade entries - show P&L stats
+    // Priority 3: Binance configured but still loading - show loading state with binance source
+    if (isConfigured && (connectionLoading || binanceLoading)) {
+      return {
+        totalCapital: 0,
+        availableBalance: 0,
+        todayNetPnl: 0,
+        todayGrossPnl: 0,
+        todayTrades: 0,
+        todayWins: 0,
+        todayLosses: 0,
+        todayWinRate: 0,
+        weeklyNetPnl: 0,
+        weeklyTrades: 0,
+        todayFees: 0,
+        todayFunding: 0,
+        source: 'binance',
+        sourceName: 'Binance Futures',
+        isEnriched: true,
+        isLoading: true,
+        hasData: true, // Assume we'll have data once loaded
+      };
+    }
+    
+    // Priority 4: No accounts but has trade entries - show P&L stats
     if (internalPnl.hasTrades) {
       const winRate = internalPnl.todayTrades > 0 
         ? (internalPnl.todayWins / internalPnl.todayTrades) * 100 
@@ -232,7 +256,7 @@ export function useUnifiedPortfolioData(): UnifiedPortfolioData {
       };
     }
     
-    // Priority 4: No data available - show empty state
+    // Priority 5: No data available - show empty state
     return {
       totalCapital: 0,
       availableBalance: 0,
@@ -253,6 +277,7 @@ export function useUnifiedPortfolioData(): UnifiedPortfolioData {
       hasData: false,
     };
   }, [
+    isConfigured,
     isConnected,
     binanceBalance,
     binanceDailyPnl,
