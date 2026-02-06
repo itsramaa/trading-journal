@@ -6,7 +6,7 @@
  * FUNDING_FEE, TRANSFER, etc.) are NOT trades and should be displayed separately
  * in the Financial Summary component.
  */
-import { useEffect, useCallback, useState } from "react";
+import { useEffect, useCallback, useState, useMemo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -250,13 +250,34 @@ export function useBinanceAutoSync(options: AutoSyncOptions = {}) {
     return () => clearInterval(intervalId);
   }, [enablePeriodicSync, isConnected, syncInterval, isSyncing, syncNow]);
 
+  // Calculate pending records - ONLY REALIZED_PNL that aren't already synced
+  // After sync, this should show 0 (not total income count)
+  const actualPendingCount = useMemo(() => {
+    if (!incomeData) return 0;
+    
+    // Only count REALIZED_PNL with non-zero values (the only type that syncs as trades)
+    const pnlRecords = incomeData.filter((r: BinanceIncome) => 
+      r.incomeType === 'REALIZED_PNL' && r.income !== 0
+    );
+    
+    // If we have a last result showing synced + skipped = total, then pending is 0
+    if (syncMutation.data) {
+      const { synced, skipped } = syncMutation.data;
+      if (synced + skipped >= pnlRecords.length) {
+        return 0;
+      }
+    }
+    
+    return pnlRecords.length;
+  }, [incomeData, syncMutation.data]);
+
   return {
     syncNow,
     isSyncing: isSyncing || syncMutation.isPending,
     lastSyncTime,
     lastResult: syncMutation.data,
     isConnected,
-    pendingRecords: incomeData?.filter((r: BinanceIncome) => r.income !== 0).length || 0,
+    pendingRecords: actualPendingCount,
   };
 }
 
