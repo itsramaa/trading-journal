@@ -29,7 +29,7 @@ import {
 import { format } from "date-fns";
 import { useBinanceTrades, useBinanceConnectionStatus, BinanceTrade } from "@/features/binance";
 import { useSyncTradeToJournal, useCheckTradeExists } from "@/hooks/use-binance-sync";
-import { formatCurrency } from "@/lib/formatters";
+import { formatPnl } from "@/lib/formatters";
 
 const POPULAR_SYMBOLS = [
   "BTCUSDT",
@@ -202,7 +202,7 @@ function TradeRow({ trade }: { trade: BinanceTrade }) {
       </TableCell>
       <TableCell className="text-right">
         <span className={`font-mono-numbers ${pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-          {pnl >= 0 ? '+' : ''}{formatCurrency(pnl, 'USD')}
+          {formatPnl(pnl, 'USD')}
         </span>
       </TableCell>
       <TableCell className="text-right font-mono-numbers text-muted-foreground">

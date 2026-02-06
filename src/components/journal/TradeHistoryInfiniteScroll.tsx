@@ -14,7 +14,8 @@ import {
   type TradeFilters 
 } from "@/hooks/use-trade-entries-paginated";
 import type { TradeEntry } from "@/hooks/use-trade-entries";
-import { formatCurrency } from "@/lib/formatters";
+import { formatPnl } from "@/lib/formatters";
+import { getTradeSession, SESSION_LABELS } from "@/lib/session-utils";
 
 interface TradeHistoryInfiniteScrollProps {
   filters?: TradeFilters;
@@ -139,6 +140,7 @@ function TradeRow({ trade, onClick }: TradeRowProps) {
   const pnl = trade.realized_pnl ?? trade.pnl ?? 0;
   const isWin = pnl > 0;
   const isLoss = pnl < 0;
+  const session = getTradeSession(trade);
 
   return (
     <Card 
@@ -163,10 +165,13 @@ function TradeRow({ trade, onClick }: TradeRowProps) {
             </Badge>
           </div>
 
-          {/* Center: Status & Strategy */}
+          {/* Center: Status & Strategy & Session */}
           <div className="flex items-center gap-2 flex-wrap justify-center">
             <Badge variant={trade.status === 'open' ? 'outline' : 'secondary'}>
               {trade.status}
+            </Badge>
+            <Badge variant="outline" className="text-xs">
+              {SESSION_LABELS[session]}
             </Badge>
             {trade.strategies && trade.strategies.length > 0 && (
               <Badge variant="outline" className="text-xs">
@@ -186,7 +191,7 @@ function TradeRow({ trade, onClick }: TradeRowProps) {
             <div className={`font-semibold ${
               isWin ? 'text-profit' : isLoss ? 'text-loss' : ''
             }`}>
-              {pnl >= 0 ? '+' : ''}{formatCurrency(pnl, 'USD')}
+              {formatPnl(pnl, 'USD')}
             </div>
             {trade.result && (
               <Badge 

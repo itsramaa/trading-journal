@@ -4,11 +4,21 @@
  * Enables correlation analysis between trade performance and market conditions
  */
 
+import type { TradingSession } from '@/lib/session-utils';
+
 export type SentimentDirection = 'bullish' | 'bearish' | 'neutral';
 export type VolatilityLevel = 'low' | 'medium' | 'high';
 export type EventRiskLevel = 'LOW' | 'MODERATE' | 'HIGH' | 'VERY_HIGH';
 export type PositionSizeAdjustment = 'normal' | 'reduce_30%' | 'reduce_50%';
 export type TradingBias = 'LONG_FAVORABLE' | 'SHORT_FAVORABLE' | 'NEUTRAL' | 'AVOID';
+
+/**
+ * Session context captured at trade entry
+ */
+export interface SessionContext {
+  current: TradingSession;
+  overlap: string | null;
+}
 
 /**
  * Sentiment component of market context
@@ -74,6 +84,9 @@ export interface UnifiedMarketContext {
   volatility: VolatilityContext;
   events: EventContext;
   momentum: MomentumContext;
+  
+  // Session context (captured at trade entry)
+  session?: SessionContext;
   
   // Derived scores
   compositeScore: number;      // 0-100 weighted combination

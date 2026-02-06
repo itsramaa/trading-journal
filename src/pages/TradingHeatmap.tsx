@@ -15,7 +15,8 @@ import {
 } from "lucide-react";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { TradingHeatmap } from "@/components/analytics/TradingHeatmap";
-import { formatCurrency, formatWinRate } from "@/lib/formatters";
+import { formatPnl, formatWinRate } from "@/lib/formatters";
+import { getTradeSession, formatSessionTimeLocal, SESSION_LABELS, type TradingSession } from "@/lib/session-utils";
 
 type DateRangeOption = '7d' | '30d' | '90d' | 'all';
 
@@ -25,6 +26,8 @@ interface SessionStats {
   wins: number;
   winRate: number;
 }
+
+type SessionStatsMap = Record<TradingSession, SessionStats>;
 
 interface StreakData {
   longestWin: number;
@@ -67,18 +70,18 @@ export default function TradingHeatmapPage() {
     return result;
   }, [trades, dateRange, selectedPair]);
 
-  // Session stats: Asia (00-08), London (08-16), NY (16-24)
-  const sessionStats = useMemo(() => {
-    const sessions: Record<'asia' | 'london' | 'ny', SessionStats> = {
+  // Session stats - uses UTC-based session detection
+  const sessionStats = useMemo((): SessionStatsMap => {
+    const sessions: SessionStatsMap = {
       asia: { trades: 0, pnl: 0, wins: 0, winRate: 0 },
       london: { trades: 0, pnl: 0, wins: 0, winRate: 0 },
-      ny: { trades: 0, pnl: 0, wins: 0, winRate: 0 },
+      newyork: { trades: 0, pnl: 0, wins: 0, winRate: 0 },
+      'off-hours': { trades: 0, pnl: 0, wins: 0, winRate: 0 },
     };
     
     filteredTrades.forEach(trade => {
-      const hour = new Date(trade.trade_date).getHours();
+      const session = getTradeSession(trade);
       const pnl = trade.realized_pnl || trade.pnl || 0;
-      const session = hour < 8 ? 'asia' : hour < 16 ? 'london' : 'ny';
       
       sessions[session].trades++;
       sessions[session].pnl += pnl;
@@ -298,13 +301,13 @@ export default function TradingHeatmapPage() {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium flex items-center gap-2">
                     <Moon className="h-4 w-4 text-blue-500" />
-                    Asia Session
-                    <Badge variant="outline" className="ml-auto text-xs">00:00-08:00</Badge>
+                    {SESSION_LABELS.asia}
+                    <Badge variant="outline" className="ml-auto text-xs">{formatSessionTimeLocal('asia')}</Badge>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className={`text-xl font-bold ${sessionStats.asia.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                    {formatCurrency(sessionStats.asia.pnl, 'USD')}
+                    {formatPnl(sessionStats.asia.pnl, 'USD')}
                   </div>
                   <p className="text-sm text-muted-foreground">
                     {sessionStats.asia.trades} trades • {formatWinRate(sessionStats.asia.winRate)} win rate
@@ -316,13 +319,13 @@ export default function TradingHeatmapPage() {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium flex items-center gap-2">
                     <Sunrise className="h-4 w-4 text-orange-500" />
-                    London Session
-                    <Badge variant="outline" className="ml-auto text-xs">08:00-16:00</Badge>
+                    {SESSION_LABELS.london}
+                    <Badge variant="outline" className="ml-auto text-xs">{formatSessionTimeLocal('london')}</Badge>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className={`text-xl font-bold ${sessionStats.london.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                    {formatCurrency(sessionStats.london.pnl, 'USD')}
+                    {formatPnl(sessionStats.london.pnl, 'USD')}
                   </div>
                   <p className="text-sm text-muted-foreground">
                     {sessionStats.london.trades} trades • {formatWinRate(sessionStats.london.winRate)} win rate
@@ -334,16 +337,16 @@ export default function TradingHeatmapPage() {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium flex items-center gap-2">
                     <Sun className="h-4 w-4 text-yellow-500" />
-                    NY Session
-                    <Badge variant="outline" className="ml-auto text-xs">16:00-24:00</Badge>
+                    {SESSION_LABELS.newyork}
+                    <Badge variant="outline" className="ml-auto text-xs">{formatSessionTimeLocal('newyork')}</Badge>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className={`text-xl font-bold ${sessionStats.ny.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                    {formatCurrency(sessionStats.ny.pnl, 'USD')}
+                  <div className={`text-xl font-bold ${sessionStats.newyork.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                    {formatPnl(sessionStats.newyork.pnl, 'USD')}
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    {sessionStats.ny.trades} trades • {formatWinRate(sessionStats.ny.winRate)} win rate
+                    {sessionStats.newyork.trades} trades • {formatWinRate(sessionStats.newyork.winRate)} win rate
                   </p>
                 </CardContent>
               </Card>
@@ -367,7 +370,7 @@ export default function TradingHeatmapPage() {
                     <>
                       <div className="text-lg font-bold">{formatHour(hourlyStats.best.hour)}</div>
                       <p className="text-sm text-profit">
-                        {formatCurrency(hourlyStats.best.pnl, 'USD')} ({hourlyStats.best.trades} trades)
+                        {formatPnl(hourlyStats.best.pnl, 'USD')} ({hourlyStats.best.trades} trades)
                       </p>
                     </>
                   ) : (
@@ -389,7 +392,7 @@ export default function TradingHeatmapPage() {
                     <>
                       <div className="text-lg font-bold">{formatHour(hourlyStats.worst.hour)}</div>
                       <p className="text-sm text-loss">
-                        {formatCurrency(hourlyStats.worst.pnl, 'USD')} ({hourlyStats.worst.trades} trades)
+                        {formatPnl(hourlyStats.worst.pnl, 'USD')} ({hourlyStats.worst.trades} trades)
                       </p>
                     </>
                   ) : (
@@ -440,7 +443,7 @@ export default function TradingHeatmapPage() {
               </span>
               <span>
                 Total P&L: <span className={filteredTrades.reduce((sum, t) => sum + (t.realized_pnl || t.pnl || 0), 0) >= 0 ? 'text-profit' : 'text-loss'}>
-                  {formatCurrency(filteredTrades.reduce((sum, t) => sum + (t.realized_pnl || t.pnl || 0), 0), 'USD')}
+                  {formatPnl(filteredTrades.reduce((sum, t) => sum + (t.realized_pnl || t.pnl || 0), 0), 'USD')}
                 </span>
               </span>
             </div>

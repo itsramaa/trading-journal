@@ -7,7 +7,8 @@ import { ImageOff } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { LazyImage } from "@/components/ui/lazy-image";
-import { formatCurrency } from "@/lib/formatters";
+import { formatPnl } from "@/lib/formatters";
+import { getTradeSession, SESSION_LABELS, SESSION_COLORS } from "@/lib/session-utils";
 import type { TradeEntry } from "@/hooks/use-trade-entries";
 
 interface TradeGalleryCardProps {
@@ -62,7 +63,7 @@ export function TradeGalleryCard({
             variant={isLoss ? 'destructive' : 'default'}
             className={isProfit ? 'bg-profit text-profit-foreground' : ''}
           >
-            {pnl >= 0 ? '+' : ''}{formatCurrency(pnl, displayCurrency)}
+            {formatPnl(pnl, displayCurrency)}
           </Badge>
         </div>
         

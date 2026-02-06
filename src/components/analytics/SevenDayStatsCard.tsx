@@ -11,7 +11,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
-import { formatCurrency } from "@/lib/formatters";
+import { formatPnl } from "@/lib/formatters";
 
 export function SevenDayStatsCard() {
   const { data: trades = [] } = useTradeEntries();
@@ -93,7 +93,7 @@ export function SevenDayStatsCard() {
               <div>
                 <p className="text-sm text-muted-foreground">Best Day</p>
                 <p className={`text-2xl font-bold ${sevenDayStats.bestDay.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                  {sevenDayStats.bestDay.pnl >= 0 ? '+' : ''}{formatCurrency(sevenDayStats.bestDay.pnl, 'USD')}
+                  {formatPnl(sevenDayStats.bestDay.pnl, 'USD')}
                 </p>
               </div>
               <Trophy className="h-8 w-8 text-profit" />
@@ -106,7 +106,7 @@ export function SevenDayStatsCard() {
               <div>
                 <p className="text-sm text-muted-foreground">Worst Day</p>
                 <p className={`text-2xl font-bold ${sevenDayStats.worstDay.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                  {sevenDayStats.worstDay.pnl >= 0 ? '+' : ''}{formatCurrency(sevenDayStats.worstDay.pnl, 'USD')}
+                  {formatPnl(sevenDayStats.worstDay.pnl, 'USD')}
                 </p>
               </div>
               <AlertTriangle className="h-8 w-8 text-loss" />

@@ -225,7 +225,6 @@ export default function TradingJournal() {
           closedTradesCount={closedTrades.length}
           realizedPnL={totalRealizedPnL}
           isBinanceConnected={isBinanceConnected}
-          formatCurrency={formatCurrency}
         />
 
         {/* Trade Management Card */}

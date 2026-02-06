@@ -21,7 +21,7 @@ import {
   BarChart3
 } from "lucide-react";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
-import { formatCurrency } from "@/lib/formatters";
+import { formatPnl } from "@/lib/formatters";
 import { subDays, isWithinInterval, format } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -174,7 +174,7 @@ export function DashboardAnalyticsSummary() {
                 "text-xl font-bold",
                 analyticsData.totalPnl14d >= 0 ? "text-profit" : "text-loss"
               )}>
-                {formatCurrency(analyticsData.totalPnl14d, 'USD')}
+                {formatPnl(analyticsData.totalPnl14d, 'USD')}
               </span>
             </div>
           </div>
@@ -208,7 +208,7 @@ export function DashboardAnalyticsSummary() {
                           "font-medium",
                           payload[0].payload.cumulative >= 0 ? "text-profit" : "text-loss"
                         )}>
-                          {formatCurrency(payload[0].payload.cumulative, 'USD')}
+                          {formatPnl(payload[0].payload.cumulative, 'USD')}
                         </p>
                       </div>
                     );
