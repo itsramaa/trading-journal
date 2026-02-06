@@ -336,23 +336,60 @@ export function useBinanceIncomeHistory(
 }
 
 /**
- * Hook to fetch ALL income types in a single call (no type filter)
- * Best for comprehensive income analysis across all categories
+ * Hook to fetch ALL income types with chunked fetching support for large date ranges
+ * Automatically uses multiple API calls for daysBack > 90 (Binance API limit)
  */
 export function useBinanceAllIncome(daysBack = 7, limit = 1000) {
-  const startTime = Date.now() - (daysBack * 24 * 60 * 60 * 1000);
+  const CHUNK_DAYS = 90;
+  const RATE_LIMIT_DELAY = 300;
   
   return useQuery({
     queryKey: ['binance', 'all-income', daysBack, limit],
     queryFn: async () => {
-      // No incomeType filter = fetch ALL types
-      const result = await callBinanceApi<any[]>('income', { startTime, limit });
+      const now = Date.now();
       
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to fetch all income');
+      // For small ranges, use single API call (fast path)
+      if (daysBack <= CHUNK_DAYS) {
+        const startTime = now - (daysBack * 24 * 60 * 60 * 1000);
+        const result = await callBinanceApi<any[]>('income', { startTime, limit });
+        
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to fetch all income');
+        }
+        return result.data || [];
       }
       
-      return result.data || [];
+      // For large ranges, use chunked fetching
+      const allIncome: any[] = [];
+      const chunkMs = CHUNK_DAYS * 24 * 60 * 60 * 1000;
+      const totalChunks = Math.ceil(daysBack / CHUNK_DAYS);
+      
+      for (let i = 0; i < totalChunks; i++) {
+        const endTime = now - (i * chunkMs);
+        const startTime = endTime - chunkMs;
+        
+        const result = await callBinanceApi<any[]>('income', { 
+          startTime, 
+          endTime,
+          limit 
+        });
+        
+        if (result.success && result.data) {
+          allIncome.push(...result.data);
+        }
+        
+        // Rate limit delay between chunks
+        if (i < totalChunks - 1) {
+          await new Promise(r => setTimeout(r, RATE_LIMIT_DELAY));
+        }
+      }
+      
+      // Deduplicate by tranId
+      const uniqueMap = new Map<number, any>();
+      allIncome.forEach(r => uniqueMap.set(r.tranId, r));
+      
+      // Sort by time descending (newest first)
+      return Array.from(uniqueMap.values()).sort((a, b) => b.time - a.time);
     },
     staleTime: 60 * 1000,
     retry: 2,
