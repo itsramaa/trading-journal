@@ -455,9 +455,9 @@ export default function Accounts() {
             <BinanceTransactionHistoryTab />
           </TabsContent>
 
-          {/* Financial Summary Tab - Always rendered, component handles empty state */}
+          {/* Financial Summary Tab - Summary cards only, details moved to Trade History */}
           <TabsContent value="financial" className="mt-6">
-            <FinancialSummaryCard showDetails={true} />
+            <FinancialSummaryCard />
           </TabsContent>
         </Tabs>
       </div>
