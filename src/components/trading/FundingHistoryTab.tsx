@@ -33,13 +33,14 @@ export function FundingHistoryTab({
 }: FundingHistoryTabProps) {
   
   // Calculate days from dateRange for API call
+  // Full history = 730 days (2 years) to support extended Binance history
   const days = useMemo(() => {
-    if (showFullHistory) return 365;
+    if (showFullHistory) return 730; // Extended to 2 years
     if (dateRange.from && dateRange.to) {
       const diffMs = dateRange.to.getTime() - dateRange.from.getTime();
       return Math.max(Math.ceil(diffMs / (1000 * 60 * 60 * 24)), 7) || 365;
     }
-    return 365; // Default 1 year lookback matching trade history
+    return 365; // Default 1 year lookback
   }, [dateRange, showFullHistory]);
 
   const { data: allIncome, isLoading, refetch, isFetching } = useBinanceAllIncome(days, 1000);

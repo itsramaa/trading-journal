@@ -22,6 +22,7 @@ const RATE_LIMIT_DELAY = 300; // ms between requests
 
 export interface FullSyncOptions {
   monthsBack?: number;
+  fetchAll?: boolean; // Fetch unlimited history (up to account creation)
   onProgress?: (progress: number) => void;
 }
 
@@ -55,9 +56,11 @@ async function callBinanceApi<T>(
 
 /**
  * Fetch income history in 3-month chunks to work around Binance API limits
+ * Supports unlimited history fetching with fetchAll option
  */
 async function fetchChunkedIncomeHistory(
-  monthsBack: number = 12,
+  monthsBack: number = 24, // Increased default to 2 years
+  fetchAll: boolean = false,
   onProgress?: (progress: number) => void
 ): Promise<{ incomes: BinanceIncome[]; errors: string[] }> {
   const allIncome: BinanceIncome[] = [];
@@ -65,10 +68,13 @@ async function fetchChunkedIncomeHistory(
   const now = Date.now();
   const chunkMs = CHUNK_DAYS * 24 * 60 * 60 * 1000;
   
-  // Calculate number of chunks needed
-  const totalChunks = Math.ceil((monthsBack * 30) / CHUNK_DAYS);
+  // Calculate number of chunks needed (or use max chunks for fetchAll)
+  const maxChunks = fetchAll ? 40 : Math.ceil((monthsBack * 30) / CHUNK_DAYS); // 40 chunks = ~10 years
+  let totalChunks = maxChunks;
+  let emptyChunksInRow = 0;
+  const MAX_EMPTY_CHUNKS = 2; // Stop after 2 consecutive empty chunks
   
-  for (let i = 0; i < totalChunks; i++) {
+  for (let i = 0; i < maxChunks; i++) {
     const endTime = now - (i * chunkMs);
     const startTime = endTime - chunkMs;
     
@@ -80,19 +86,38 @@ async function fetchChunkedIncomeHistory(
       });
       
       if (result.success && result.data) {
-        allIncome.push(...result.data);
+        if (result.data.length > 0) {
+          allIncome.push(...result.data);
+          emptyChunksInRow = 0; // Reset counter
+        } else {
+          emptyChunksInRow++;
+          // If fetchAll and we hit empty chunks, stop early
+          if (fetchAll && emptyChunksInRow >= MAX_EMPTY_CHUNKS) {
+            totalChunks = i + 1;
+            break;
+          }
+        }
       } else if (result.error) {
         errors.push(`Chunk ${i + 1}: ${result.error}`);
+        // Stop on error for fetchAll mode
+        if (fetchAll) {
+          totalChunks = i + 1;
+          break;
+        }
       }
     } catch (error) {
       errors.push(`Chunk ${i + 1}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      if (fetchAll) {
+        totalChunks = i + 1;
+        break;
+      }
     }
     
     // Progress update
-    onProgress?.(((i + 1) / totalChunks) * 100);
+    onProgress?.(((i + 1) / (fetchAll ? Math.max(totalChunks, i + 1) : totalChunks)) * 100);
     
     // Rate limit delay (only if not last chunk)
-    if (i < totalChunks - 1) {
+    if (i < maxChunks - 1) {
       await new Promise(r => setTimeout(r, RATE_LIMIT_DELAY));
     }
   }
@@ -140,7 +165,7 @@ export function useBinanceFullSync() {
   
   const syncFullHistory = useMutation({
     mutationFn: async (options: FullSyncOptions = {}): Promise<FullSyncResult> => {
-      const { monthsBack = 12, onProgress } = options;
+      const { monthsBack = 24, fetchAll = false, onProgress } = options;
       
       if (!user?.id) {
         throw new Error("User not authenticated");
@@ -148,7 +173,8 @@ export function useBinanceFullSync() {
       
       // Step 1: Fetch all income from Binance (chunked)
       const { incomes: allIncome, errors } = await fetchChunkedIncomeHistory(
-        monthsBack, 
+        monthsBack,
+        fetchAll,
         (p) => onProgress?.(p * 0.5) // First 50% is fetching
       );
       
