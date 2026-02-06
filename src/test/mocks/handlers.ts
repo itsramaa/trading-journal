@@ -218,15 +218,6 @@ export const handlers = [
       data: { synced: 150, updated: 5 },
     });
   }),
-
-  // ==================== Check Permission ====================
-  http.post(`${SUPABASE_URL}/functions/v1/check-permission`, async () => {
-    await delay(50);
-    return HttpResponse.json({
-      success: true,
-      data: { hasPermission: true },
-    });
-  }),
 ];
 
 // Error handlers for testing error scenarios
