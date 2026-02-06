@@ -71,18 +71,31 @@ serve(async (req) => {
     // Parse setup from question if not provided directly
     const parsedSetup = setup || parseTradeSetup(question || '');
     
-    // Fetch market data for context
+    // Fetch market data and economic calendar in parallel
     let marketContext = '';
+    let calendarContext = '';
+    
     if (parsedSetup.pair) {
       try {
         const symbol = parsedSetup.pair.replace('/', '');
-        const marketRes = await fetch(`${SUPABASE_URL}/functions/v1/market-insight`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ symbols: [symbol] }),
-        });
-        const marketData = await marketRes.json();
         
+        const [marketRes, calendarRes] = await Promise.all([
+          fetch(`${SUPABASE_URL}/functions/v1/market-insight`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ symbols: [symbol] }),
+          }),
+          fetch(`${SUPABASE_URL}/functions/v1/economic-calendar`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({}),
+          }),
+        ]);
+        
+        const marketData = await marketRes.json();
+        const calendarData = await calendarRes.json();
+        
+        // Process market data
         const assetSignal = marketData.sentiment?.signals?.find((s: any) => 
           s.asset === symbol.replace('USDT', '')
         );
@@ -105,8 +118,36 @@ CURRENT MARKET CONTEXT FOR ${parsedSetup.pair}:
 - Volatility: ${assetVol?.level?.toUpperCase() || 'UNKNOWN'} (${assetVol?.value || 0}%)
 - Overall Market: ${marketData.sentiment?.overall || 'neutral'}`;
         }
+        
+        // Process calendar data for event warnings
+        if (calendarData.impactSummary?.hasHighImpact) {
+          const todayEvent = calendarData.todayHighlight?.event;
+          const riskLevel = calendarData.impactSummary.riskLevel;
+          const positionAdj = calendarData.impactSummary.positionAdjustment;
+          
+          calendarContext = `
+⚠️ ECONOMIC CALENDAR WARNING:
+- Risk Level: ${riskLevel}
+- Recommendation: ${positionAdj === 'reduce_50%' ? 'REDUCE POSITION SIZE BY 50%' : positionAdj === 'reduce_30%' ? 'REDUCE POSITION SIZE BY 30%' : 'NORMAL SIZE OK'}`;
+          
+          if (todayEvent) {
+            calendarContext += `
+- Today's Event: ${todayEvent.event} (${todayEvent.country})
+- Time Until: ${calendarData.todayHighlight.timeUntil || 'Soon'}
+- AI Impact: ${todayEvent.cryptoImpact?.toUpperCase() || 'UNKNOWN'} - ${todayEvent.aiPrediction || 'No prediction available'}`;
+          }
+          
+          // List upcoming high-impact events
+          const upcomingHigh = calendarData.events?.filter((e: any) => e.importance === 'high').slice(0, 3);
+          if (upcomingHigh && upcomingHigh.length > 0) {
+            calendarContext += `\n- Upcoming High-Impact Events:`;
+            upcomingHigh.forEach((e: any) => {
+              calendarContext += `\n  • ${e.event} (${new Date(e.date).toLocaleDateString()})`;
+            });
+          }
+        }
       } catch (e) {
-        console.error('Failed to fetch market context:', e);
+        console.error('Failed to fetch context:', e);
       }
     }
 
@@ -126,6 +167,7 @@ PARSED TRADE SETUP:
 - Stop Loss: ${parsedSetup.stopLoss || 'Not specified'}  
 - Take Profit: ${parsedSetup.takeProfit || 'Not specified'}${rrRatio}
 ${marketContext}
+${calendarContext}
 
 QUALITY SCORING CRITERIA (Score each 0-2):
 1. R:R Ratio (≥1:2 = 2pts, ≥1:1.5 = 1pt, <1:1 = 0pt)
@@ -133,13 +175,15 @@ QUALITY SCORING CRITERIA (Score each 0-2):
 3. Whale/Volume Confirmation
 4. Volatility Appropriateness
 5. Fear & Greed Zone (not extreme)
+6. Economic Calendar Safety (no high-impact events = +1pt, event within 2h = -1pt)
 
 RESPONSE FORMAT:
 1. Setup Summary - Confirm what you understood
-2. Quality Score - X/10 with breakdown
+2. Quality Score - X/12 with breakdown (now includes calendar factor)
 3. Confluence Analysis - What aligns, what doesn't
-4. Risk Assessment - Key concerns
-5. Recommendation - Proceed, Wait, or Avoid with reasoning
+4. ⚠️ Calendar Alert - If any high-impact events are near, warn strongly
+5. Risk Assessment - Key concerns
+6. Recommendation - Proceed, Wait, or Avoid with reasoning
 
 If setup details are missing, ask for them specifically.
 Use Bahasa Indonesia if the user writes in Indonesian.`;

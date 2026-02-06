@@ -48,6 +48,7 @@ import { useBinanceDailyPnl } from "@/hooks/use-binance-daily-pnl";
 import { useBinanceWeeklyPnl } from "@/hooks/use-binance-weekly-pnl";
 import { useStrategyPerformance, getQualityScoreLabel } from "@/hooks/use-strategy-performance";
 import { usePerformanceExport } from "@/hooks/use-performance-export";
+import { useMonthlyPnl } from "@/hooks/use-monthly-pnl";
 import { useContextualAnalytics } from "@/hooks/use-contextual-analytics";
 import { DrawdownChart } from "@/components/analytics/DrawdownChart";
 import { EquityCurveWithEvents } from "@/components/analytics/EquityCurveWithEvents";
@@ -87,6 +88,7 @@ export default function Performance() {
   const strategyPerformanceMap = useStrategyPerformance();
   const { exportToCSV, exportToPDF } = usePerformanceExport();
   const { data: contextualData } = useContextualAnalytics();
+  const monthlyStats = useMonthlyPnl();
 
   // Filter trades (including event day filter)
   const filteredTrades = useMemo(() => {
@@ -334,6 +336,10 @@ export default function Performance() {
                 <BarChart3 className="h-4 w-4" />
                 <span className="hidden sm:inline">Overview</span>
               </TabsTrigger>
+              <TabsTrigger value="monthly" className="gap-2">
+                <Calendar className="h-4 w-4" />
+                <span className="hidden sm:inline">Monthly</span>
+              </TabsTrigger>
               <TabsTrigger value="strategies" className="gap-2">
                 <Trophy className="h-4 w-4" />
                 <span className="hidden sm:inline">Strategies</span>
@@ -508,7 +514,86 @@ export default function Performance() {
               </div>
             </TabsContent>
 
-            {/* Tab 2: Strategies */}
+            {/* Tab 2: Monthly Comparison */}
+            <TabsContent value="monthly" className="space-y-6">
+              <div className="grid gap-4 md:grid-cols-4">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">This Month P&L</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className={`text-2xl font-bold ${monthlyStats.currentMonth.netPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                      {chartFormatCurrency(monthlyStats.currentMonth.netPnl)}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      vs last month: {monthlyStats.change.pnlPercent >= 0 ? '+' : ''}{monthlyStats.change.pnlPercent.toFixed(1)}%
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">Monthly Trades</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{monthlyStats.currentMonth.trades}</div>
+                    <p className="text-xs text-muted-foreground">
+                      Last month: {monthlyStats.lastMonth.trades}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">Monthly Win Rate</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{monthlyStats.currentMonth.winRate.toFixed(1)}%</div>
+                    <p className="text-xs text-muted-foreground">
+                      vs last: {monthlyStats.change.winRateChange >= 0 ? '+' : ''}{monthlyStats.change.winRateChange.toFixed(1)}pp
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">Avg Win/Loss</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-lg font-bold">
+                      <span className="text-profit">{chartFormatCurrency(monthlyStats.currentMonth.avgWin)}</span>
+                      {' / '}
+                      <span className="text-loss">-{chartFormatCurrency(monthlyStats.currentMonth.avgLoss)}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Rolling 30-Day Chart */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Rolling 30-Day P&L</CardTitle>
+                  <CardDescription>Cumulative performance over the last 30 days</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={monthlyStats.rolling30Days}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                        <XAxis dataKey="date" tickFormatter={(v) => format(new Date(v), 'MMM d')} className="text-xs" />
+                        <YAxis tickFormatter={chartFormatCurrency} className="text-xs" />
+                        <Tooltip formatter={(v: number) => [chartFormatCurrency(v), 'Cumulative P&L']} />
+                        <Area 
+                          type="monotone" 
+                          dataKey="cumulative" 
+                          className="fill-primary/20 stroke-primary" 
+                          strokeWidth={2}
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Tab 3: Strategies */}
             <TabsContent value="strategies" className="space-y-8">
               {strategies.length === 0 ? (
                 <EmptyState
