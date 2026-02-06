@@ -11,7 +11,7 @@ serve(async (req) => {
   }
 
   try {
-    const { trades, strategies, question } = await req.json();
+    const { trades, strategies, question, marketContext } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     
     if (!LOVABLE_API_KEY) {
@@ -73,8 +73,24 @@ serve(async (req) => {
       }
     });
 
-    const systemPrompt = `You are an expert trading analyst and coach. Your role is to analyze trading journal data and provide actionable insights to help traders improve their performance.
+    // Build market context section if available
+    let marketContextSection = '';
+    if (marketContext) {
+      marketContextSection = `
+CURRENT MARKET CONDITIONS:
+- Fear & Greed Index: ${marketContext.fearGreed?.value || 'N/A'} (${marketContext.fearGreed?.label || 'Unknown'})
+- Market Sentiment: ${marketContext.overall || 'neutral'}
+- Recommendation: ${marketContext.recommendation || 'N/A'}
+- BTC Trend: ${marketContext.btcTrend?.direction || 'neutral'} (${marketContext.btcTrend?.change24h > 0 ? '+' : ''}${marketContext.btcTrend?.change24h?.toFixed(2) || 0}%)
+- Macro Sentiment: ${marketContext.macroSentiment || 'cautious'}
+- BTC Dominance: ${marketContext.btcDominance?.toFixed(1) || 'N/A'}%
 
+Consider these market conditions when giving advice. If market is extreme greed, advise caution. If extreme fear, note potential opportunities.
+`;
+    }
+
+    const systemPrompt = `You are an expert trading analyst and coach. Your role is to analyze trading journal data and provide actionable insights to help traders improve their performance.
+${marketContextSection}
 TRADING DATA SUMMARY:
 - Total Trades: ${totalTrades}
 - Winning Trades: ${winningTrades}
@@ -118,7 +134,8 @@ GUIDELINES:
 - Be constructive and encouraging
 - Use Bahasa Indonesia if the user writes in Indonesian
 - Format responses clearly with sections when appropriate
-- Be specific with numbers and percentages`;
+- Be specific with numbers and percentages
+- If market context is available, relate trading performance to market conditions`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",

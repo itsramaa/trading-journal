@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   X, 
   Send, 
@@ -15,6 +16,8 @@ import {
   ChevronUp,
   Trash2,
   EyeOff,
+  Globe,
+  Target,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTradeEntries } from '@/hooks/use-trade-entries';
@@ -24,24 +27,52 @@ import { useAppStore } from '@/store/app-store';
 import { useAuth } from '@/hooks/use-auth';
 import { ChatMessage } from './ChatMessage';
 import { QuickActionsPanel } from './QuickActionsPanel';
-import { TipsPanel } from './TipsPanel';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
 }
 
-type AIMode = 'trading';
+export type AIMode = 'trading' | 'market' | 'setup';
 
-const AI_MODES = {
+interface AIModeConfig {
+  label: string;
+  icon: React.ElementType;
+  description: string;
+  endpoint: string;
+  suggestions: string[];
+  greeting: string;
+  placeholder: string;
+}
+
+const AI_MODES: Record<AIMode, AIModeConfig> = {
   trading: {
     label: 'Trading Analyst',
     icon: BarChart3,
     description: 'Analisis pattern & performa trading',
     endpoint: 'trading-analysis',
     suggestions: ['Analisis performa saya', 'Strategi terbaik?', 'Kelemahan trading saya?'],
-    greeting: 'Halo! Saya AI Trading Analyst. Saya akan menganalisis pattern dan performa trading journal Anda.',
+    greeting: 'Halo! Saya AI Trading Analyst. Saya akan menganalisis pattern dan performa trading journal Anda berdasarkan data historis dan kondisi market saat ini.',
     placeholder: 'Tanya tentang trading...',
+  },
+  market: {
+    label: 'Market Analyst',
+    icon: Globe,
+    description: 'Market sentiment & opportunities',
+    endpoint: 'market-analysis',
+    suggestions: ['Kondisi market sekarang?', 'Fear & Greed?', 'Whale activity?'],
+    greeting: 'Halo! Saya AI Market Analyst. Saya akan memberikan analisis real-time tentang market sentiment, whale activity, dan trading opportunities.',
+    placeholder: 'Tanya tentang market...',
+  },
+  setup: {
+    label: 'Setup Validator',
+    icon: Target,
+    description: 'Validate trade confluences',
+    endpoint: 'confluence-chat',
+    suggestions: ['Validate setup BTCUSDT long', 'Berapa quality score?', 'Apakah setup ini valid?'],
+    greeting: 'Halo! Saya AI Setup Validator. Deskripsikan setup trading Anda (pair, direction, entry, SL, TP) dan saya akan memberikan analisis confluence dan quality score.',
+    placeholder: 'Contoh: BTCUSDT long entry 95000, SL 94000, TP 98000',
   },
 };
 
@@ -54,7 +85,7 @@ export function AIChatbot() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [aiMode] = useState<AIMode>('trading');
+  const [aiMode, setAiMode] = useState<AIMode>('trading');
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -115,6 +146,31 @@ export function AIChatbot() {
     }
   }, [isOpen, isMinimized]);
 
+  // Fetch market context for trading mode
+  const fetchMarketContext = useCallback(async () => {
+    try {
+      const { data: marketData } = await supabase.functions.invoke('market-insight', {
+        body: { symbols: ['BTCUSDT', 'ETHUSDT'] },
+      });
+      
+      const { data: macroData } = await supabase.functions.invoke('macro-analysis', {
+        body: {},
+      });
+
+      return {
+        fearGreed: marketData?.sentiment?.fearGreed,
+        overall: marketData?.sentiment?.overall,
+        recommendation: marketData?.sentiment?.recommendation,
+        btcTrend: marketData?.sentiment?.signals?.find((s: any) => s.asset === 'BTC'),
+        macroSentiment: macroData?.macro?.overallSentiment,
+        btcDominance: macroData?.macro?.btcDominance,
+      };
+    } catch (error) {
+      console.error('Failed to fetch market context:', error);
+      return null;
+    }
+  }, []);
+
   const getTradingContext = useCallback(() => {
     if (!tradeEntries || tradeEntries.length === 0) {
       return { trades: [], strategies: strategies || [] };
@@ -136,6 +192,7 @@ export function AIChatbot() {
       result: t.result,
       tradeDate: t.trade_date,
       notes: t.notes,
+      marketCondition: t.market_condition,
       strategyIds: t.strategies?.map(s => s.id) || [],
       strategyNames: t.strategies?.map(s => s.name) || [],
       rr: t.stop_loss && t.take_profit && t.entry_price ? 
@@ -165,12 +222,19 @@ export function AIChatbot() {
     const endpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${currentMode.endpoint}`;
 
     try {
-      const tradingContext = getTradingContext();
-      const body = {
-        trades: tradingContext.trades,
-        strategies: tradingContext.strategies,
-        question: text,
-      };
+      let body: any = { question: text };
+
+      // Add context based on mode
+      if (aiMode === 'trading') {
+        const tradingContext = getTradingContext();
+        const marketContext = await fetchMarketContext();
+        body = {
+          trades: tradingContext.trades,
+          strategies: tradingContext.strategies,
+          question: text,
+          marketContext,
+        };
+      }
 
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -249,9 +313,18 @@ export function AIChatbot() {
     }
   };
 
-  const handleQuickAction = (prompt: string) => {
+  const handleQuickAction = (prompt: string, mode?: AIMode) => {
+    if (mode && mode !== aiMode) {
+      setAiMode(mode);
+      setMessages([]); // Clear messages when switching modes
+    }
     setInput(prompt);
     inputRef.current?.focus();
+  };
+
+  const handleModeChange = (mode: AIMode) => {
+    setAiMode(mode);
+    setMessages([]); // Clear messages when switching modes
   };
 
   const clearChat = () => {
@@ -298,7 +371,7 @@ export function AIChatbot() {
       ? "inset-4 md:inset-8" 
       : isMinimized 
         ? "bottom-6 right-6 w-72 h-14" 
-        : "bottom-6 right-6 w-96 h-[520px]"
+        : "bottom-6 right-6 w-[420px] h-[560px]"
   );
 
   return (
@@ -385,6 +458,28 @@ export function AIChatbot() {
 
       {!isMinimized && (
         <>
+          {/* Mode Selector Tabs */}
+          <div className="px-3 pt-2 pb-1 border-b shrink-0">
+            <Tabs value={aiMode} onValueChange={(v) => handleModeChange(v as AIMode)}>
+              <TabsList className="grid w-full grid-cols-3 h-8">
+                {(Object.keys(AI_MODES) as AIMode[]).map((mode) => {
+                  const config = AI_MODES[mode];
+                  const Icon = config.icon;
+                  return (
+                    <TabsTrigger 
+                      key={mode} 
+                      value={mode} 
+                      className="text-xs gap-1 data-[state=active]:bg-primary/10"
+                    >
+                      <Icon className="h-3 w-3" />
+                      <span className="hidden sm:inline">{config.label.split(' ')[0]}</span>
+                    </TabsTrigger>
+                  );
+                })}
+              </TabsList>
+            </Tabs>
+          </div>
+
           {/* Main Content */}
           <div className={cn(
             "flex-1 flex overflow-hidden",
@@ -396,6 +491,7 @@ export function AIChatbot() {
                 <QuickActionsPanel 
                   onSelectAction={handleQuickAction} 
                   disabled={isLoading}
+                  currentMode={aiMode}
                 />
               </div>
             )}
@@ -499,18 +595,44 @@ export function AIChatbot() {
                     )}
                   </Button>
                 </div>
-                {isExpanded && (
-                  <p className="text-xs text-muted-foreground mt-2 text-center">
-                    Press Escape to collapse • Enter to send
-                  </p>
-                )}
               </div>
             </div>
 
             {/* Right Panel - Tips (Expanded only) */}
             {isExpanded && (
               <div className="w-64 border-l p-3 hidden lg:block overflow-auto">
-                <TipsPanel />
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-sm font-medium mb-2">Mode: {currentMode.label}</h4>
+                    <p className="text-xs text-muted-foreground">{currentMode.description}</p>
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-medium mb-2">Tips</h4>
+                    <ul className="text-xs text-muted-foreground space-y-1">
+                      {aiMode === 'trading' && (
+                        <>
+                          <li>• Tanyakan tentang win rate dan metrics</li>
+                          <li>• Analisis strategi yang paling profitable</li>
+                          <li>• Identifikasi kelemahan trading</li>
+                        </>
+                      )}
+                      {aiMode === 'market' && (
+                        <>
+                          <li>• Cek Fear & Greed Index</li>
+                          <li>• Lihat whale activity</li>
+                          <li>• Analisis trend BTC/ETH</li>
+                        </>
+                      )}
+                      {aiMode === 'setup' && (
+                        <>
+                          <li>• Format: "BTCUSDT long entry 95000, SL 94000, TP 98000"</li>
+                          <li>• AI akan menghitung R:R ratio</li>
+                          <li>• Dapatkan quality score</li>
+                        </>
+                      )}
+                    </ul>
+                  </div>
+                </div>
               </div>
             )}
           </div>
