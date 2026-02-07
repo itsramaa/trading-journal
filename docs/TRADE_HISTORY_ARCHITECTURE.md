@@ -68,21 +68,33 @@ User clicks "Sync Full History"
 │  1. Chunked Fetch (90-day intervals)                                │
 │     └── Loop: 8 chunks = 2 years of history                         │
 │         └── Each chunk: GET /fapi/v1/income                         │
+│             └── CURSOR-BASED PAGINATION (fromId parameter)          │
+│                 └── Fetch ALL records even if >1000 per chunk       │
 │             └── Rate limit: 300ms delay between requests            │
 │                                                                     │
-│  2. Filter REALIZED_PNL only                                        │
+│  2. Pagination Loop (within each chunk)                             │
+│     └── While records.length == 1000:                               │
+│         └── Set fromId = lastRecord.tranId + 1                      │
+│         └── Fetch next page                                         │
+│         └── This ensures NO records are lost due to API cap         │
+│                                                                     │
+│  3. Filter REALIZED_PNL only                                        │
 │     └── Ignore: FUNDING_FEE, COMMISSION, TRANSFER, etc.             │
 │                                                                     │
-│  3. Deduplicate against existing trades                             │
+│  4. Deduplicate against existing trades                             │
 │     └── Check: binance_trade_id = 'income_{tranId}'                 │
 │                                                                     │
-│  4. Batch Insert (100 per batch)                                    │
+│  5. Batch Insert (100 per batch)                                    │
 │     └── Insert into trade_entries table                             │
 │                                                                     │
-│  5. Invalidate Queries                                              │
+│  6. Invalidate Queries                                              │
 │     └── trade-entries-paginated, unified-portfolio, daily-pnl       │
 └─────────────────────────────────────────────────────────────────────┘
 ```
+
+**Key Fix (v2.0):** Cursor-based pagination using `fromId` parameter now
+handles cases where a single 90-day chunk has >1000 records, ensuring
+ALL income records are fetched without loss.
 
 ### 2. Edge Function Architecture
 

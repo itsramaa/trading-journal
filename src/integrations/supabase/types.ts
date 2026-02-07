@@ -600,12 +600,19 @@ export type Database = {
           direction: string
           emotional_state: string | null
           entry_datetime: string | null
+          entry_order_type: string | null
           entry_price: number
           entry_signal: string | null
           exit_datetime: string | null
+          exit_order_type: string | null
           exit_price: number | null
           fees: number | null
+          funding_fees: number | null
+          hold_time_minutes: number | null
           id: string
+          is_maker: boolean | null
+          leverage: number | null
+          margin_type: string | null
           market_condition: string | null
           market_context: Json | null
           notes: string | null
@@ -644,12 +651,19 @@ export type Database = {
           direction: string
           emotional_state?: string | null
           entry_datetime?: string | null
+          entry_order_type?: string | null
           entry_price: number
           entry_signal?: string | null
           exit_datetime?: string | null
+          exit_order_type?: string | null
           exit_price?: number | null
           fees?: number | null
+          funding_fees?: number | null
+          hold_time_minutes?: number | null
           id?: string
+          is_maker?: boolean | null
+          leverage?: number | null
+          margin_type?: string | null
           market_condition?: string | null
           market_context?: Json | null
           notes?: string | null
@@ -688,12 +702,19 @@ export type Database = {
           direction?: string
           emotional_state?: string | null
           entry_datetime?: string | null
+          entry_order_type?: string | null
           entry_price?: number
           entry_signal?: string | null
           exit_datetime?: string | null
+          exit_order_type?: string | null
           exit_price?: number | null
           fees?: number | null
+          funding_fees?: number | null
+          hold_time_minutes?: number | null
           id?: string
+          is_maker?: boolean | null
+          leverage?: number | null
+          margin_type?: string | null
           market_condition?: string | null
           market_context?: Json | null
           notes?: string | null

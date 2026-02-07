@@ -1,9 +1,11 @@
 /**
  * useBinanceFullSync - Hook for syncing complete Binance history to local database
- * Supports chunked fetching (3-month intervals) to handle Binance API limits
+ * Supports chunked fetching (3-month intervals) AND cursor-based pagination
+ * to handle Binance API limits (1000 records per request, 90 days per chunk)
  * 
  * Features:
- * - Fetches up to 1 year of income history
+ * - Fetches up to 2 years of income history
+ * - Cursor-based pagination within chunks (handles >1000 records per chunk)
  * - Progress tracking for UI feedback
  * - Deduplication against existing trades
  * - Batch insert for performance
@@ -20,11 +22,22 @@ const BINANCE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/
 // Binance API limit: 3 months (90 days) per request
 const CHUNK_DAYS = 90;
 const RATE_LIMIT_DELAY = 300; // ms between requests
+const RECORDS_PER_PAGE = 1000; // Binance API limit per request
+
+export interface FullSyncProgress {
+  phase: 'fetching' | 'filtering' | 'deduplicating' | 'inserting' | 'done';
+  chunk: number;
+  totalChunks: number;
+  page: number;
+  recordsFetched: number;
+  recordsToInsert: number;
+  percent: number;
+}
 
 export interface FullSyncOptions {
   monthsBack?: number;
   fetchAll?: boolean; // Fetch unlimited history (up to account creation)
-  onProgress?: (progress: number) => void;
+  onProgress?: (progress: FullSyncProgress) => void;
 }
 
 export interface FullSyncResult {
@@ -35,7 +48,7 @@ export interface FullSyncResult {
 }
 
 /**
- * Call Binance edge function
+ * Call Binance edge function with fromId support for pagination
  */
 async function callBinanceApi<T>(
   action: string,
@@ -56,74 +69,149 @@ async function callBinanceApi<T>(
 }
 
 /**
- * Fetch income history in 3-month chunks to work around Binance API limits
+ * Fetch ALL income records within a time chunk using cursor-based pagination
+ * This handles the case where a single chunk has >1000 records
+ */
+async function fetchPaginatedIncomeChunk(
+  startTime: number,
+  endTime: number,
+  onPageProgress?: (page: number, recordsInChunk: number) => void
+): Promise<{ records: BinanceIncome[]; errors: string[] }> {
+  const allRecords: BinanceIncome[] = [];
+  const errors: string[] = [];
+  let fromId: number | undefined = undefined;
+  let page = 0;
+  
+  while (true) {
+    page++;
+    
+    try {
+      const result = await callBinanceApi<BinanceIncome[]>('income', {
+        startTime,
+        endTime,
+        limit: RECORDS_PER_PAGE,
+        ...(fromId && { fromId }),
+      });
+      
+      if (!result.success) {
+        errors.push(`Page ${page}: ${result.error || 'Unknown error'}`);
+        break; // Stop pagination on error
+      }
+      
+      if (!result.data?.length) {
+        break; // No more records
+      }
+      
+      allRecords.push(...result.data);
+      onPageProgress?.(page, allRecords.length);
+      
+      // Stop if we got fewer than the limit (no more pages)
+      if (result.data.length < RECORDS_PER_PAGE) {
+        break;
+      }
+      
+      // Set cursor to next record ID
+      // Binance returns records in ascending order by tranId when using fromId
+      fromId = result.data[result.data.length - 1].tranId + 1;
+      
+      // Rate limit delay between pages
+      await new Promise(r => setTimeout(r, RATE_LIMIT_DELAY));
+      
+    } catch (error) {
+      errors.push(`Page ${page}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      break;
+    }
+  }
+  
+  return { records: allRecords, errors };
+}
+
+/**
+ * Fetch income history in 3-month chunks with cursor pagination within each chunk
  * Supports unlimited history fetching with fetchAll option
  */
 async function fetchChunkedIncomeHistory(
-  monthsBack: number = 24, // Increased default to 2 years
+  monthsBack: number = 24,
   fetchAll: boolean = false,
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: FullSyncProgress) => void
 ): Promise<{ incomes: BinanceIncome[]; errors: string[] }> {
   const allIncome: BinanceIncome[] = [];
   const errors: string[] = [];
   const now = Date.now();
   const chunkMs = CHUNK_DAYS * 24 * 60 * 60 * 1000;
   
-  // Calculate number of chunks needed (or use max chunks for fetchAll)
-  const maxChunks = fetchAll ? 40 : Math.ceil((monthsBack * 30) / CHUNK_DAYS); // 40 chunks = ~10 years
-  let totalChunks = maxChunks;
+  // Calculate number of chunks needed
+  const maxChunks = fetchAll ? 40 : Math.ceil((monthsBack * 30) / CHUNK_DAYS);
+  let completedChunks = 0;
   let emptyChunksInRow = 0;
-  const MAX_EMPTY_CHUNKS = 2; // Stop after 2 consecutive empty chunks
+  const MAX_EMPTY_CHUNKS = 2;
   
   for (let i = 0; i < maxChunks; i++) {
     const endTime = now - (i * chunkMs);
     const startTime = endTime - chunkMs;
     
-    try {
-      const result = await callBinanceApi<BinanceIncome[]>('income', {
-        startTime,
-        endTime,
-        limit: 1000,
-      });
-      
-      if (result.success && result.data) {
-        if (result.data.length > 0) {
-          allIncome.push(...result.data);
-          emptyChunksInRow = 0; // Reset counter
-        } else {
-          emptyChunksInRow++;
-          // If fetchAll and we hit empty chunks, stop early
-          if (fetchAll && emptyChunksInRow >= MAX_EMPTY_CHUNKS) {
-            totalChunks = i + 1;
-            break;
-          }
-        }
-      } else if (result.error) {
-        errors.push(`Chunk ${i + 1}: ${result.error}`);
-        // Stop on error for fetchAll mode
-        if (fetchAll) {
-          totalChunks = i + 1;
-          break;
-        }
+    // Update progress: fetching phase
+    onProgress?.({
+      phase: 'fetching',
+      chunk: i + 1,
+      totalChunks: fetchAll ? Math.max(maxChunks, i + 1) : maxChunks,
+      page: 0,
+      recordsFetched: allIncome.length,
+      recordsToInsert: 0,
+      percent: ((i / maxChunks) * 50), // 0-50% for fetching
+    });
+    
+    // Fetch all records in this chunk with pagination
+    const { records: chunkRecords, errors: chunkErrors } = await fetchPaginatedIncomeChunk(
+      startTime,
+      endTime,
+      (page, recordsInChunk) => {
+        onProgress?.({
+          phase: 'fetching',
+          chunk: i + 1,
+          totalChunks: fetchAll ? Math.max(maxChunks, i + 1) : maxChunks,
+          page,
+          recordsFetched: allIncome.length + recordsInChunk,
+          recordsToInsert: 0,
+          percent: ((i / maxChunks) * 50) + (page * 0.5), // Progress within chunk
+        });
       }
-    } catch (error) {
-      errors.push(`Chunk ${i + 1}: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      if (fetchAll) {
-        totalChunks = i + 1;
+    );
+    
+    if (chunkErrors.length > 0) {
+      errors.push(...chunkErrors.map(e => `Chunk ${i + 1}: ${e}`));
+    }
+    
+    if (chunkRecords.length > 0) {
+      allIncome.push(...chunkRecords);
+      emptyChunksInRow = 0;
+    } else {
+      emptyChunksInRow++;
+      // If fetchAll and we hit empty chunks, stop early
+      if (fetchAll && emptyChunksInRow >= MAX_EMPTY_CHUNKS) {
         break;
       }
     }
     
-    // Progress update
-    onProgress?.(((i + 1) / (fetchAll ? Math.max(totalChunks, i + 1) : totalChunks)) * 100);
+    completedChunks++;
     
-    // Rate limit delay (only if not last chunk)
+    // Rate limit delay between chunks
     if (i < maxChunks - 1) {
       await new Promise(r => setTimeout(r, RATE_LIMIT_DELAY));
     }
   }
   
   // Deduplicate by tranId
+  onProgress?.({
+    phase: 'filtering',
+    chunk: completedChunks,
+    totalChunks: completedChunks,
+    page: 0,
+    recordsFetched: allIncome.length,
+    recordsToInsert: 0,
+    percent: 55,
+  });
+  
   const uniqueMap = new Map<number, BinanceIncome>();
   allIncome.forEach(r => uniqueMap.set(r.tranId, r));
   
@@ -142,7 +230,7 @@ function incomeToTradeEntry(income: BinanceIncome, userId: string) {
   return {
     user_id: userId,
     pair: income.symbol,
-    direction: 'LONG', // Default, can be enhanced with position tracking
+    direction: 'LONG', // Default, will be enhanced in Phase 2 with userTrades
     entry_price: 0,
     exit_price: 0,
     quantity: 0,
@@ -172,14 +260,23 @@ export function useBinanceFullSync() {
         throw new Error("User not authenticated");
       }
       
-      // Step 1: Fetch all income from Binance (chunked)
+      // Step 1: Fetch all income from Binance (chunked + paginated)
       const { incomes: allIncome, errors } = await fetchChunkedIncomeHistory(
         monthsBack,
         fetchAll,
-        (p) => onProgress?.(p * 0.5) // First 50% is fetching
+        onProgress
       );
       
       if (allIncome.length === 0) {
+        onProgress?.({
+          phase: 'done',
+          chunk: 0,
+          totalChunks: 0,
+          page: 0,
+          recordsFetched: 0,
+          recordsToInsert: 0,
+          percent: 100,
+        });
         return { synced: 0, skipped: 0, totalFetched: 0, errors };
       }
       
@@ -188,11 +285,28 @@ export function useBinanceFullSync() {
         r.incomeType === 'REALIZED_PNL' && r.income !== 0
       );
       
+      onProgress?.({
+        phase: 'deduplicating',
+        chunk: 0,
+        totalChunks: 0,
+        page: 0,
+        recordsFetched: allIncome.length,
+        recordsToInsert: pnlRecords.length,
+        percent: 60,
+      });
+      
       if (pnlRecords.length === 0) {
+        onProgress?.({
+          phase: 'done',
+          chunk: 0,
+          totalChunks: 0,
+          page: 0,
+          recordsFetched: allIncome.length,
+          recordsToInsert: 0,
+          percent: 100,
+        });
         return { synced: 0, skipped: 0, totalFetched: allIncome.length, errors };
       }
-      
-      onProgress?.(60);
       
       // Step 3: Check for duplicates
       const incomeIds = pnlRecords.map(r => `income_${r.tranId}`);
@@ -211,9 +325,26 @@ export function useBinanceFullSync() {
       
       const newRecords = pnlRecords.filter(r => !existingIds.has(`income_${r.tranId}`));
       
-      onProgress?.(70);
+      onProgress?.({
+        phase: 'inserting',
+        chunk: 0,
+        totalChunks: 0,
+        page: 0,
+        recordsFetched: allIncome.length,
+        recordsToInsert: newRecords.length,
+        percent: 70,
+      });
       
       if (newRecords.length === 0) {
+        onProgress?.({
+          phase: 'done',
+          chunk: 0,
+          totalChunks: 0,
+          page: 0,
+          recordsFetched: allIncome.length,
+          recordsToInsert: 0,
+          percent: 100,
+        });
         return { 
           synced: 0, 
           skipped: pnlRecords.length, 
@@ -241,8 +372,27 @@ export function useBinanceFullSync() {
         }
         
         // Progress: 70% to 100%
-        onProgress?.(70 + ((i + batch.length) / entries.length) * 30);
+        const insertProgress = 70 + ((i + batch.length) / entries.length) * 30;
+        onProgress?.({
+          phase: 'inserting',
+          chunk: 0,
+          totalChunks: 0,
+          page: 0,
+          recordsFetched: allIncome.length,
+          recordsToInsert: newRecords.length,
+          percent: insertProgress,
+        });
       }
+      
+      onProgress?.({
+        phase: 'done',
+        chunk: 0,
+        totalChunks: 0,
+        page: 0,
+        recordsFetched: allIncome.length,
+        recordsToInsert: synced,
+        percent: 100,
+      });
       
       return { 
         synced, 
@@ -259,17 +409,17 @@ export function useBinanceFullSync() {
       
       if (result.synced > 0) {
         toast.success(`Sync Complete`, {
-          description: `${result.synced} new trades synced from Binance${result.skipped > 0 ? ` (${result.skipped} already existed)` : ''}`,
+          description: `${result.synced} new trades synced from Binance${result.skipped > 0 ? ` (${result.skipped} already existed)` : ''} — Total fetched: ${result.totalFetched}`,
           duration: 5000,
         });
       } else if (result.skipped > 0) {
         toast.success(`All Synced`, {
-          description: `All ${result.skipped} trades are already in your journal`,
+          description: `All ${result.skipped} trades are already in your journal (${result.totalFetched} records checked)`,
           duration: 4000,
         });
       } else {
         toast.info('No Trades Found', {
-          description: 'No trading history found in your Binance account',
+          description: `No trading history found in your Binance account (${result.totalFetched} records checked)`,
           duration: 4000,
         });
       }
@@ -277,7 +427,7 @@ export function useBinanceFullSync() {
       if (result.errors.length > 0) {
         console.warn('Sync completed with warnings:', result.errors);
         toast.warning('Sync completed with warnings', {
-          description: `${result.errors.length} chunk(s) had issues. Check console for details.`,
+          description: `${result.errors.length} issue(s) encountered. Check console for details.`,
         });
       }
     },

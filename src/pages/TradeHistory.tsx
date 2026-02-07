@@ -39,7 +39,7 @@ import { useTradeEntriesPaginated, type TradeFilters } from "@/hooks/use-trade-e
 import type { TradeEntry } from "@/hooks/use-trade-entries";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { useBinanceConnectionStatus } from "@/features/binance";
-import { useBinanceFullSync } from "@/hooks/use-binance-full-sync";
+import { useBinanceFullSync, type FullSyncProgress } from "@/hooks/use-binance-full-sync";
 import { useTradeEnrichment } from "@/hooks/use-trade-enrichment";
 import { formatCurrency as formatCurrencyUtil } from "@/lib/formatters";
 import { useUserSettings } from "@/hooks/use-user-settings";
@@ -69,7 +69,7 @@ export default function TradeHistory() {
   
   // Full sync states
   const [showSyncConfirm, setShowSyncConfirm] = useState(false);
-  const [syncProgress, setSyncProgress] = useState(0);
+  const [syncProgress, setSyncProgress] = useState<FullSyncProgress | null>(null);
   
   // View mode state - default gallery for closed trades
   const [viewMode, setViewMode] = useState<ViewMode>('gallery');
@@ -438,14 +438,19 @@ export default function TradeHistory() {
                       <Loader2 className="h-4 w-4 animate-spin text-primary" />
                       <div className="flex flex-col gap-1">
                         <span className="text-sm font-medium">
-                          Syncing Binance history...
+                          Syncing Binance history... {syncProgress?.phase && `(${syncProgress.phase})`}
                         </span>
                         <div className="flex items-center gap-2">
-                          <Progress value={syncProgress} className="w-32 h-2" />
+                          <Progress value={syncProgress?.percent ?? 0} className="w-32 h-2" />
                           <span className="text-xs text-muted-foreground">
-                            {syncProgress.toFixed(0)}%
+                            {(syncProgress?.percent ?? 0).toFixed(0)}%
                           </span>
                         </div>
+                        {syncProgress?.recordsFetched ? (
+                          <span className="text-xs text-muted-foreground">
+                            {syncProgress.recordsFetched} records fetched
+                          </span>
+                        ) : null}
                       </div>
                     </div>
                   ) : (
@@ -712,7 +717,7 @@ export default function TradeHistory() {
               <AlertDialogAction 
                 onClick={async () => {
                   setShowSyncConfirm(false);
-                  setSyncProgress(0);
+                  setSyncProgress({ phase: 'fetching', chunk: 0, totalChunks: 0, page: 0, recordsFetched: 0, recordsToInsert: 0, percent: 0 });
                   
                   try {
                     await syncFullHistory({
@@ -722,7 +727,7 @@ export default function TradeHistory() {
                     // After successful sync, show full history
                     setShowFullHistory(true);
                   } finally {
-                    setSyncProgress(0);
+                    setSyncProgress(null);
                   }
                 }}
               >

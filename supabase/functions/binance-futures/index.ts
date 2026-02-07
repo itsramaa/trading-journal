@@ -411,15 +411,29 @@ async function getPositions(apiKey: string, apiSecret: string, symbol?: string) 
 }
 
 /**
- * Get trade history
+ * Get trade history (individual fills)
+ * Supports pagination via fromId for fetching large histories
  */
-async function getTrades(apiKey: string, apiSecret: string, symbol: string, limit = 50) {
+async function getTrades(
+  apiKey: string, 
+  apiSecret: string, 
+  symbol: string, 
+  limit = 50,
+  startTime?: number,
+  endTime?: number,
+  fromId?: number
+) {
   try {
     if (!symbol) {
       return { success: false, error: 'Symbol is required for trade history' };
     }
     
-    const response = await binanceRequest('/fapi/v1/userTrades', 'GET', { symbol, limit }, apiKey, apiSecret);
+    const params: Record<string, any> = { symbol, limit };
+    if (startTime) params.startTime = startTime;
+    if (endTime) params.endTime = endTime;
+    if (fromId) params.fromId = fromId;
+    
+    const response = await binanceRequest('/fapi/v1/userTrades', 'GET', params, apiKey, apiSecret);
     const data = await response.json();
     
     if (data.code && data.code < 0) {
@@ -565,6 +579,7 @@ async function cancelOrder(apiKey: string, apiSecret: string, params: any) {
 
 /**
  * Get income history - fetches all realized PnL, commissions, funding fees across all symbols
+ * Supports cursor-based pagination via fromId parameter to fetch >1000 records
  */
 async function getIncomeHistory(
   apiKey: string, 
@@ -572,13 +587,15 @@ async function getIncomeHistory(
   incomeType?: string,
   startTime?: number,
   endTime?: number,
-  limit = 1000
+  limit = 1000,
+  fromId?: number  // NEW: cursor-based pagination for fetching >1000 records
 ) {
   try {
     const params: Record<string, any> = { limit };
     if (incomeType) params.incomeType = incomeType;
     if (startTime) params.startTime = startTime;
     if (endTime) params.endTime = endTime;
+    if (fromId) params.fromId = fromId;  // Cursor for pagination
     
     const response = await binanceRequest('/fapi/v1/income', 'GET', params, apiKey, apiSecret);
     const data = await response.json();
@@ -1194,7 +1211,7 @@ Deno.serve(async (req) => {
     
     // Parse request body
     const body = await req.json().catch(() => ({}));
-    const { action, symbol, limit, orderParams, incomeType, startTime, endTime } = body;
+    const { action, symbol, limit, orderParams, incomeType, startTime, endTime, fromId } = body;
     
     // Check rate limit before making API call
     const { category, weight } = getEndpointWeight(action);
@@ -1231,7 +1248,7 @@ Deno.serve(async (req) => {
         break;
         
       case 'trades':
-        result = await getTrades(apiKey, apiSecret, symbol, limit || 50);
+        result = await getTrades(apiKey, apiSecret, symbol, limit || 50, startTime, endTime, fromId);
         break;
         
       case 'open-orders':
@@ -1247,7 +1264,7 @@ Deno.serve(async (req) => {
         break;
         
       case 'income':
-        result = await getIncomeHistory(apiKey, apiSecret, incomeType, startTime, endTime, limit || 1000);
+        result = await getIncomeHistory(apiKey, apiSecret, incomeType, startTime, endTime, limit || 1000, fromId);
         break;
         
       case 'commission-rate':
