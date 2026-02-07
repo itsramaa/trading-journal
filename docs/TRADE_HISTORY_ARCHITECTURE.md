@@ -2,6 +2,74 @@
 
 ## Overview
 
+Trade history dalam aplikasi ini memiliki arsitektur **Binance-Centered** dengan **Auto-Enrichment** sebagai default behavior.
+
+### Key Features
+
+1. **Cursor-Based Pagination**: Mengatasi limit 1000 record per request Binance API
+2. **Chunked Fetching**: 90-day chunks untuk menangani 2+ tahun history
+3. **Auto-Enrichment**: Setiap sync secara otomatis mengambil data dari `/fapi/v1/userTrades` untuk mengisi:
+   - Entry/Exit prices yang akurat
+   - Direction (LONG/SHORT) yang benar
+   - Quantity aktual
+   - Commission per trade
+   - Hold time
+4. **Deduplication**: Via `binance_trade_id` column (`income_{tranId}`)
+
+## Data Flow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    SYNC FULL HISTORY FLOW                        │
+└─────────────────────────────────────────────────────────────────┘
+
+1. FETCHING (0-40%)
+   └── /fapi/v1/income dengan cursor pagination (fromId)
+       └── Per chunk: while(result.length === 1000) { fetchNext }
+
+2. FILTERING (40-45%)
+   └── Filter REALIZED_PNL records only
+   
+3. DEDUPLICATING (45-50%)
+   └── Check existing binance_trade_id di database
+
+4. ENRICHING (50-75%) ← NEW DEFAULT BEHAVIOR
+   └── Extract unique symbols dari income records
+   └── Fetch /fapi/v1/userTrades per symbol
+   └── Group fills menjadi entry/exit pairs
+   └── Link dengan income records by symbol+time
+
+5. INSERTING (75-100%)
+   └── Batch insert dengan enriched data
+```
+
+## Enrichment Details
+
+### Data dari userTrades yang diambil:
+| Field | Source | Description |
+|-------|--------|-------------|
+| entry_price | userTrades.price (BUY side) | Harga entry aktual |
+| exit_price | userTrades.price (SELL side) | Harga exit aktual |
+| quantity | userTrades.qty | Ukuran posisi |
+| direction | userTrades.positionSide | LONG atau SHORT |
+| is_maker | userTrades.maker | Maker/Taker fee |
+| fees | userTrades.commission | Fee per trade |
+| hold_time_minutes | exitTime - entryTime | Durasi posisi |
+
+### Skip Enrichment Option
+Jika diperlukan sync cepat tanpa enrichment:
+```typescript
+syncFullHistory({ fetchAll: true, skipEnrichment: true })
+```
+
+## Related Files
+
+- `src/hooks/use-binance-full-sync.ts` - Main sync hook dengan enrichment
+- `src/services/binance-trade-enricher.ts` - Enrichment service
+- `supabase/functions/binance-futures/index.ts` - Edge function dengan fromId support
+
+## Overview
+
 Trade History adalah fitur inti untuk melihat dan menganalisis riwayat trading yang sudah ditutup (closed trades). Fitur ini mendukung dua sumber data utama:
 1. **Binance Futures API** - Sinkronisasi otomatis dari exchange
 2. **Paper Trading** - Entri manual untuk simulasi
