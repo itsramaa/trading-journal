@@ -28,6 +28,7 @@ import { useCaptureMarketContext } from "@/hooks/use-capture-market-context";
 import { MarketContextBadge } from "@/components/market/MarketContextBadge";
 import { useStrategyContext, type MarketFit } from "@/hooks/use-strategy-context";
 import { useUserSettings } from "@/hooks/use-user-settings";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import type { ValidationResult } from "@/types/trade-wizard";
 
 interface SetupStepProps {
@@ -74,6 +75,9 @@ function ValidationItem({ result, label }: { result: ValidationResult; label: st
 export function SetupStep({ onNext, onCancel }: SetupStepProps) {
   // Account type: 'binance' or paper account ID
   const [selectedAccountType, setSelectedAccountType] = useState<'binance' | string>('');
+  
+  // Currency conversion
+  const { format: formatCurrency } = useCurrencyConversion();
   
   // Binance connection - check isConfigured for proper state handling
   const { data: connectionStatus } = useBinanceConnectionStatus();
@@ -267,7 +271,7 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
                       <Wifi className="h-4 w-4 text-green-500" />
                       <span>Binance Futures</span>
                       <span className="text-xs text-muted-foreground">
-                        ${binanceBalance.availableBalance.toLocaleString()}
+                        {formatCurrency(binanceBalance.availableBalance)}
                       </span>
                     </div>
                   </SelectItem>
@@ -286,7 +290,7 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
                     <div className="flex items-center gap-2">
                       <span>{account.name}</span>
                       <span className="text-xs text-muted-foreground">
-                        ${Number(account.current_balance).toLocaleString()}
+                        {formatCurrency(Number(account.current_balance))}
                       </span>
                     </div>
                   </SelectItem>
