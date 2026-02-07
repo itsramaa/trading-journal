@@ -336,30 +336,59 @@ export function useBinanceIncomeHistory(
 }
 
 /**
- * Hook to fetch ALL income types with chunked fetching support for large date ranges
+ * Hook to fetch ALL income types with chunked fetching AND cursor-based pagination
  * Automatically uses multiple API calls for daysBack > 90 (Binance API limit)
+ * Now properly handles >1000 records per chunk with fromId pagination
  */
 export function useBinanceAllIncome(daysBack = 7, limit = 1000) {
   const CHUNK_DAYS = 90;
   const RATE_LIMIT_DELAY = 300;
+  const RECORDS_PER_PAGE = 1000;
   
   return useQuery({
     queryKey: ['binance', 'all-income', daysBack, limit],
     queryFn: async () => {
       const now = Date.now();
       
-      // For small ranges, use single API call (fast path)
-      if (daysBack <= CHUNK_DAYS) {
-        const startTime = now - (daysBack * 24 * 60 * 60 * 1000);
-        const result = await callBinanceApi<any[]>('income', { startTime, limit });
+      /**
+       * Fetch ALL records within a time chunk using cursor-based pagination
+       */
+      async function fetchPaginatedChunk(startTime: number, endTime: number): Promise<any[]> {
+        const allRecords: any[] = [];
+        let fromId: number | undefined = undefined;
         
-        if (!result.success) {
-          throw new Error(result.error || 'Failed to fetch all income');
+        while (true) {
+          const result = await callBinanceApi<any[]>('income', { 
+            startTime, 
+            endTime,
+            limit: RECORDS_PER_PAGE,
+            ...(fromId && { fromId }),
+          });
+          
+          if (!result.success || !result.data?.length) break;
+          
+          allRecords.push(...result.data);
+          
+          // Stop if we got fewer than the limit (no more pages)
+          if (result.data.length < RECORDS_PER_PAGE) break;
+          
+          // Set cursor to next record ID
+          fromId = result.data[result.data.length - 1].tranId + 1;
+          
+          // Rate limit delay between pages
+          await new Promise(r => setTimeout(r, RATE_LIMIT_DELAY));
         }
-        return result.data || [];
+        
+        return allRecords;
       }
       
-      // For large ranges, use chunked fetching
+      // For small ranges, use single chunk with pagination
+      if (daysBack <= CHUNK_DAYS) {
+        const startTime = now - (daysBack * 24 * 60 * 60 * 1000);
+        return await fetchPaginatedChunk(startTime, now);
+      }
+      
+      // For large ranges, use chunked fetching with pagination per chunk
       const allIncome: any[] = [];
       const chunkMs = CHUNK_DAYS * 24 * 60 * 60 * 1000;
       const totalChunks = Math.ceil(daysBack / CHUNK_DAYS);
@@ -368,15 +397,8 @@ export function useBinanceAllIncome(daysBack = 7, limit = 1000) {
         const endTime = now - (i * chunkMs);
         const startTime = endTime - chunkMs;
         
-        const result = await callBinanceApi<any[]>('income', { 
-          startTime, 
-          endTime,
-          limit 
-        });
-        
-        if (result.success && result.data) {
-          allIncome.push(...result.data);
-        }
+        const chunkRecords = await fetchPaginatedChunk(startTime, endTime);
+        allIncome.push(...chunkRecords);
         
         // Rate limit delay between chunks
         if (i < totalChunks - 1) {
