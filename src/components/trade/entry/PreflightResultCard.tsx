@@ -43,18 +43,18 @@ interface PreflightResultCardProps {
   showFullDetails?: boolean;
 }
 
-// Verdict styling
+// Verdict styling (use design tokens only)
 const VERDICT_CONFIG = {
   PROCEED: {
-    bg: "bg-green-500/10",
-    border: "border-green-500/30",
-    text: "text-green-600",
+    bg: "bg-profit/5",
+    border: "border-profit/30",
+    text: "text-profit",
     icon: CheckCircle,
   },
   CAUTION: {
-    bg: "bg-yellow-500/10",
-    border: "border-yellow-500/30",
-    text: "text-yellow-600",
+    bg: "bg-primary/5",
+    border: "border-primary/20",
+    text: "text-primary",
     icon: AlertTriangle,
   },
   SKIP: {
@@ -68,7 +68,7 @@ const VERDICT_CONFIG = {
 // Edge strength styling
 const EDGE_STRENGTH_CONFIG: Record<EdgeStrength, { label: string; className: string }> = {
   STRONG: { label: "Strong Edge", className: "bg-profit/10 text-profit border-profit/30" },
-  WEAK: { label: "Weak Edge", className: "bg-yellow-500/10 text-yellow-600 border-yellow-500/30" },
+  WEAK: { label: "Weak Edge", className: "bg-primary/5 text-primary border-primary/20" },
   NONE: { label: "No Edge", className: "bg-muted text-muted-foreground border-border" },
   NEGATIVE: { label: "Negative Edge", className: "bg-destructive/10 text-destructive border-destructive/30" },
 };
@@ -81,8 +81,8 @@ function LayerStatusBadge({ passed, label }: { passed: boolean; label?: string }
       className={cn(
         "text-xs",
         passed
-          ? "bg-green-500/10 text-green-600 border-green-500/30"
-          : "bg-destructive/10 text-destructive border-destructive/30"
+          ? "bg-profit/10 text-profit border-profit/30"
+          : "bg-destructive/10 text-destructive border-destructive/30",
       )}
     >
       {passed ? <CheckCircle className="h-3 w-3 mr-1" /> : <XCircle className="h-3 w-3 mr-1" />}
@@ -92,12 +92,22 @@ function LayerStatusBadge({ passed, label }: { passed: boolean; label?: string }
 }
 
 // Metric row component
-function MetricRow({ label, value, threshold, warning }: { label: string; value: string | number; threshold?: string; warning?: boolean }) {
+function MetricRow({
+  label,
+  value,
+  threshold,
+  warning,
+}: {
+  label: string;
+  value: string | number;
+  threshold?: string;
+  warning?: boolean;
+}) {
   return (
     <div className="flex items-center justify-between py-1">
       <span className="text-xs text-muted-foreground">{label}</span>
       <div className="flex items-center gap-2">
-        <span className={cn("text-xs font-medium", warning && "text-yellow-600")}>{value}</span>
+        <span className={cn("text-xs font-medium", warning && "text-primary")}>{value}</span>
         {threshold && <span className="text-xs text-muted-foreground">/{threshold}</span>}
       </div>
     </div>
@@ -105,17 +115,21 @@ function MetricRow({ label, value, threshold, warning }: { label: string; value:
 }
 
 // Flag badge component
-function FlagBadge({ flag, type }: { flag: string; type: 'risk' | 'bias' }) {
-  const formatFlag = (f: string) => f.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
-  
+function FlagBadge({ flag, type }: { flag: string; type: "risk" | "bias" }) {
+  const formatFlag = (f: string) =>
+    f
+      .replace(/_/g, " ")
+      .toLowerCase()
+      .replace(/\b\w/g, (l) => l.toUpperCase());
+
   return (
     <Badge
       variant="outline"
       className={cn(
         "text-xs",
-        type === 'risk' 
+        type === "risk"
           ? "bg-destructive/10 text-destructive border-destructive/30"
-          : "bg-yellow-500/10 text-yellow-600 border-yellow-500/30"
+          : "bg-primary/5 text-primary border-primary/20",
       )}
     >
       <AlertTriangle className="h-3 w-3 mr-1" />
@@ -198,7 +212,7 @@ export function PreflightResultCard({
             <p className={cn(
               "text-lg font-bold",
               result.expectancy >= 0.30 ? "text-profit" :
-              result.expectancy >= 0.10 ? "text-yellow-600" :
+              result.expectancy >= 0.10 ? "text-primary" :
               result.expectancy > 0 ? "text-muted-foreground" : "text-destructive"
             )}>
               {result.expectancy >= 0 ? "+" : ""}{result.expectancy.toFixed(2)}R
@@ -224,7 +238,7 @@ export function PreflightResultCard({
             <p className={cn(
               "text-lg font-bold",
               result.contextSimilarity >= 0.6 ? "text-profit" :
-              result.contextSimilarity >= 0.4 ? "text-yellow-600" : "text-destructive"
+              result.contextSimilarity >= 0.4 ? "text-primary" : "text-destructive"
             )}>
               {Math.round(result.contextSimilarity * 100)}%
             </p>
@@ -385,7 +399,11 @@ export function PreflightResultCard({
                       <p className="text-xs text-muted-foreground mb-1">Matched:</p>
                       <div className="flex flex-wrap gap-1">
                         {layers.contextSimilarity.matchedDimensions.map((dim) => (
-                          <Badge key={dim} variant="outline" className="text-xs bg-green-500/10 text-green-600 border-green-500/30">
+                          <Badge
+                            key={dim}
+                            variant="outline"
+                            className="text-xs bg-profit/10 text-profit border-profit/30"
+                          >
                             {dim}
                           </Badge>
                         ))}
@@ -398,7 +416,11 @@ export function PreflightResultCard({
                       <p className="text-xs text-muted-foreground mb-1">Mismatched:</p>
                       <div className="flex flex-wrap gap-1">
                         {layers.contextSimilarity.mismatchedDimensions.map((dim) => (
-                          <Badge key={dim} variant="outline" className="text-xs bg-yellow-500/10 text-yellow-600 border-yellow-500/30">
+                          <Badge
+                            key={dim}
+                            variant="outline"
+                            className="text-xs bg-primary/5 text-primary border-primary/20"
+                          >
                             {dim}
                           </Badge>
                         ))}
@@ -468,12 +490,18 @@ export function PreflightResultCard({
                   <Brain className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm font-medium">Layer 5: Bias Detection</span>
                   {layers.biasDetection.flags.length === 0 ? (
-                    <Badge variant="outline" className="text-xs bg-green-500/10 text-green-600 border-green-500/30">
+                    <Badge
+                      variant="outline"
+                      className="text-xs bg-profit/10 text-profit border-profit/30"
+                    >
                       <CheckCircle className="h-3 w-3 mr-1" />
                       Clean
                     </Badge>
                   ) : (
-                    <Badge variant="outline" className="text-xs bg-yellow-500/10 text-yellow-600 border-yellow-500/30">
+                    <Badge
+                      variant="outline"
+                      className="text-xs bg-primary/5 text-primary border-primary/20"
+                    >
                       {layers.biasDetection.flags.length} bias detected
                     </Badge>
                   )}
@@ -495,7 +523,7 @@ export function PreflightResultCard({
                           className={cn(
                             "p-2 rounded border text-xs",
                             detail.severity === 'HIGH' && "bg-destructive/5 border-destructive/30",
-                            detail.severity === 'MEDIUM' && "bg-yellow-500/5 border-yellow-500/30",
+                            detail.severity === 'MEDIUM' && "bg-primary/5 border-primary/20",
                             detail.severity === 'LOW' && "bg-muted border-border"
                           )}
                         >
@@ -503,7 +531,7 @@ export function PreflightResultCard({
                             <Badge variant="outline" className={cn(
                               "text-xs",
                               detail.severity === 'HIGH' && "text-destructive border-destructive/30",
-                              detail.severity === 'MEDIUM' && "text-yellow-600 border-yellow-500/30",
+                              detail.severity === 'MEDIUM' && "text-primary border-primary/20",
                               detail.severity === 'LOW' && "text-muted-foreground"
                             )}>
                               {detail.severity}
@@ -515,7 +543,7 @@ export function PreflightResultCard({
                       ))}
                     </div>
                   ) : (
-                    <div className="flex items-center gap-2 text-xs text-green-600 mt-2">
+                    <div className="flex items-center gap-2 text-xs text-profit mt-2">
                       <CheckCircle className="h-4 w-4" />
                       No behavioral biases detected
                     </div>
