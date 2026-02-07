@@ -19,6 +19,9 @@ import type { BinanceIncome, BinanceTrade } from "@/features/binance/types";
 const BINANCE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/binance-futures`;
 const RATE_LIMIT_DELAY = 300;
 
+// Binance userTrades API has a max 7-day window per request
+const MAX_TRADES_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days in ms
+
 /**
  * Enhanced trade data with complete entry/exit information
  */
@@ -90,10 +93,10 @@ async function callBinanceApi<T>(
 }
 
 /**
- * Fetch userTrades for a specific symbol with pagination
- * /fapi/v1/userTrades requires symbol parameter
+ * Fetch userTrades for a specific symbol within a 7-day window
+ * /fapi/v1/userTrades has a maximum 7-day interval limit
  */
-async function fetchUserTradesForSymbol(
+async function fetchUserTradesChunk(
   symbol: string,
   startTime: number,
   endTime: number
@@ -121,6 +124,43 @@ async function fetchUserTradesForSymbol(
   }
   
   return allTrades;
+}
+
+/**
+ * Fetch userTrades for a specific symbol with chunked time windows
+ * Binance userTrades API has a MAX 7-day interval - we chunk longer periods
+ */
+async function fetchUserTradesForSymbol(
+  symbol: string,
+  startTime: number,
+  endTime: number
+): Promise<BinanceTrade[]> {
+  const allTrades: BinanceTrade[] = [];
+  
+  // Calculate number of 7-day chunks needed
+  const totalDuration = endTime - startTime;
+  const numChunks = Math.ceil(totalDuration / MAX_TRADES_INTERVAL_MS);
+  
+  for (let i = 0; i < numChunks; i++) {
+    const chunkStart = startTime + (i * MAX_TRADES_INTERVAL_MS);
+    const chunkEnd = Math.min(chunkStart + MAX_TRADES_INTERVAL_MS, endTime);
+    
+    const chunkTrades = await fetchUserTradesChunk(symbol, chunkStart, chunkEnd);
+    allTrades.push(...chunkTrades);
+    
+    // Rate limit between chunks
+    if (i < numChunks - 1) {
+      await new Promise(r => setTimeout(r, RATE_LIMIT_DELAY));
+    }
+  }
+  
+  // Deduplicate by trade id (in case of overlap at boundaries)
+  const uniqueTrades = new Map<number, BinanceTrade>();
+  for (const trade of allTrades) {
+    uniqueTrades.set(trade.id, trade);
+  }
+  
+  return Array.from(uniqueTrades.values()).sort((a, b) => a.time - b.time);
 }
 
 /**
