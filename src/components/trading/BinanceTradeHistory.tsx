@@ -28,8 +28,8 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { useBinanceTrades, useBinanceConnectionStatus, BinanceTrade } from "@/features/binance";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { useSyncTradeToJournal, useCheckTradeExists } from "@/hooks/use-binance-sync";
-import { formatPnl } from "@/lib/formatters";
 
 const POPULAR_SYMBOLS = [
   "BTCUSDT",
@@ -48,6 +48,7 @@ interface BinanceTradeHistoryProps {
 }
 
 export function BinanceTradeHistory({ showHeader = true, limit = 50 }: BinanceTradeHistoryProps) {
+  const { formatPnl } = useCurrencyConversion();
   const [symbol, setSymbol] = useState<string>("BTCUSDT");
   
   const { data: connectionStatus } = useBinanceConnectionStatus();
@@ -165,6 +166,7 @@ export function BinanceTradeHistory({ showHeader = true, limit = 50 }: BinanceTr
 }
 
 function TradeRow({ trade }: { trade: BinanceTrade }) {
+  const { formatPnl } = useCurrencyConversion();
   const [isSynced, setIsSynced] = useState(false);
   const syncTrade = useSyncTradeToJournal();
   const checkExists = useCheckTradeExists();
@@ -202,7 +204,7 @@ function TradeRow({ trade }: { trade: BinanceTrade }) {
       </TableCell>
       <TableCell className="text-right">
         <span className={`font-mono-numbers ${pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-          {formatPnl(pnl, 'USD')}
+          {formatPnl(pnl)}
         </span>
       </TableCell>
       <TableCell className="text-right font-mono-numbers text-muted-foreground">

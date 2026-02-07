@@ -278,7 +278,6 @@ export default function TradeHistory() {
               key={entry.id} 
               trade={entry}
               onTradeClick={handleEnrichTrade}
-              displayCurrency={displayCurrency}
             />
           ))}
         </div>

@@ -14,10 +14,12 @@ import { useDailyRiskStatus } from "@/hooks/use-risk-profile";
 import { useBinanceConnectionStatus } from "@/features/binance";
 import { usePositions } from "@/hooks/use-positions";
 import { checkCorrelationRisk, extractSymbols, type CorrelationWarning } from "@/lib/correlation-utils";
-import { formatPercentUnsigned, formatCurrency } from "@/lib/formatters";
+import { formatPercentUnsigned } from "@/lib/formatters";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { Link } from "react-router-dom";
 
 export function RiskSummaryCard() {
+  const { format: formatCurrency } = useCurrencyConversion();
   const { data: riskStatus, riskProfile, isBinanceConnected } = useDailyRiskStatus();
   const { positions } = usePositions();
   const { data: connectionStatus } = useBinanceConnectionStatus();
@@ -89,8 +91,7 @@ export function RiskSummaryCard() {
           </div>
           <div className="text-xs text-muted-foreground">
             Daily loss limit: {formatCurrency(
-              (riskProfile.max_daily_loss_percent ?? 5) / 100 * 10000, 
-              'USD'
+              (riskProfile.max_daily_loss_percent ?? 5) / 100 * 10000
             )}
           </div>
         </CardContent>
@@ -163,10 +164,10 @@ export function RiskSummaryCard() {
           />
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
-              Remaining: {formatCurrency(riskStatus.remaining_budget, 'USD')}
+              Remaining: {formatCurrency(riskStatus.remaining_budget)}
               <InfoTooltip content="How much more you can lose today before hitting your daily loss limit." />
             </span>
-            <span>Limit: {formatCurrency(riskStatus.loss_limit, 'USD')}</span>
+            <span>Limit: {formatCurrency(riskStatus.loss_limit)}</span>
           </div>
         </div>
 

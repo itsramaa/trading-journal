@@ -21,7 +21,7 @@ import {
   BarChart3
 } from "lucide-react";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
-import { formatPnl } from "@/lib/formatters";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { subDays, isWithinInterval, format } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -33,7 +33,7 @@ interface SparklineData {
 
 export function DashboardAnalyticsSummary() {
   const { data: trades = [] } = useTradeEntries();
-
+  const { formatPnl } = useCurrencyConversion();
   const analyticsData = useMemo(() => {
     const closedTrades = trades.filter(t => t.status === 'closed');
     
@@ -174,7 +174,7 @@ export function DashboardAnalyticsSummary() {
                 "text-xl font-bold",
                 analyticsData.totalPnl14d >= 0 ? "text-profit" : "text-loss"
               )}>
-                {formatPnl(analyticsData.totalPnl14d, 'USD')}
+                {formatPnl(analyticsData.totalPnl14d)}
               </span>
             </div>
           </div>
@@ -208,7 +208,7 @@ export function DashboardAnalyticsSummary() {
                           "font-medium",
                           payload[0].payload.cumulative >= 0 ? "text-profit" : "text-loss"
                         )}>
-                          {formatPnl(payload[0].payload.cumulative, 'USD')}
+                          {formatPnl(payload[0].payload.cumulative)}
                         </p>
                       </div>
                     );

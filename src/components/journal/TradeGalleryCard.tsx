@@ -7,21 +7,20 @@ import { ImageOff } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { LazyImage } from "@/components/ui/lazy-image";
-import { formatPnl } from "@/lib/formatters";
 import { getTradeSession, SESSION_LABELS, SESSION_COLORS } from "@/lib/session-utils";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import type { TradeEntry } from "@/hooks/use-trade-entries";
 
 interface TradeGalleryCardProps {
   trade: TradeEntry;
   onTradeClick: (trade: TradeEntry) => void;
-  displayCurrency?: string;
 }
 
 export function TradeGalleryCard({ 
   trade, 
   onTradeClick,
-  displayCurrency = 'USD'
 }: TradeGalleryCardProps) {
+  const { formatPnl } = useCurrencyConversion();
   const hasScreenshots = trade.screenshots && trade.screenshots.length > 0;
   const thumbnailUrl = hasScreenshots ? trade.screenshots![0].url : null;
   const pnl = trade.realized_pnl ?? trade.pnl ?? 0;
@@ -63,7 +62,7 @@ export function TradeGalleryCard({
             variant={isLoss ? 'destructive' : 'default'}
             className={isProfit ? 'bg-profit text-profit-foreground' : ''}
           >
-            {formatPnl(pnl, displayCurrency)}
+            {formatPnl(pnl)}
           </Badge>
         </div>
         
