@@ -2,6 +2,7 @@
  * Step 1: Setup (Combined Pre-validation + Strategy + Basic Details)
  * Now supports Binance account selection when connected
  * Includes market context capture for unified analysis
+ * Integrated with AI Pre-flight 5-layer edge validation system
  */
 import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
@@ -11,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Checkbox } from "@/components/ui/checkbox";
 import { 
   CheckCircle, XCircle, AlertTriangle, Loader2, ShieldCheck, 
   Building2, Brain, Sparkles, TrendingUp, TrendingDown, Target, 
@@ -21,7 +23,7 @@ import { usePreTradeValidation } from "@/features/trade/usePreTradeValidation";
 import { useTradeEntryWizard } from "@/features/trade/useTradeEntryWizard";
 import { useTradingAccounts } from "@/hooks/use-trading-accounts";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
-import { useAIPreflight } from "@/features/ai/useAIPreflight";
+import { useAIPreflight, useHistoricalTrades, buildMarketSnapshot } from "@/features/ai/useAIPreflight";
 import { TradingPairCombobox } from "@/components/ui/trading-pair-combobox";
 import { TIMEFRAME_OPTIONS, type TimeframeType } from "@/types/strategy";
 import { useBinanceBalance, useBinanceConnectionStatus } from "@/features/binance";
@@ -30,7 +32,9 @@ import { MarketContextBadge } from "@/components/market/MarketContextBadge";
 import { useStrategyContext, type MarketFit } from "@/hooks/use-strategy-context";
 import { useUserSettings } from "@/hooks/use-user-settings";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
+import { PreflightResultCard } from "./PreflightResultCard";
 import type { ValidationResult } from "@/types/trade-wizard";
+import type { PreflightResponse } from "@/types/preflight";
 
 interface SetupStepProps {
   onNext: () => void;
@@ -120,6 +124,9 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
   const { runAllChecks, isLoading: validationLoading } = usePreTradeValidation({ accountBalance });
   const aiPreflight = useAIPreflight();
   
+  // Historical trades for AI Pre-flight
+  const { data: historicalTrades, isLoading: historicalTradesLoading } = useHistoricalTrades();
+  
   // Market context capture
   const { 
     context: marketContext, 
@@ -130,6 +137,10 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
   const [validationResult, setValidationResult] = useState<ReturnType<typeof runAllChecks> | null>(null);
   const [hasRunValidation, setHasRunValidation] = useState(false);
   const [sectionsOpen, setSectionsOpen] = useState({ validation: true, strategy: true, trade: true, context: true });
+  
+  // AI Pre-flight state
+  const [preflightResult, setPreflightResult] = useState<PreflightResponse | null>(null);
+  const [bypassSkipWarning, setBypassSkipWarning] = useState(false);
 
   // Auto-select default account (priority: user preference > Binance if configured & connected > first paper account)
   useEffect(() => {
@@ -195,7 +206,10 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
   const isValidationPassed = validationResult?.canProceed ?? false;
   const isStrategySelected = !!selectedStrategyId;
   const isPairSelected = !!pair;
-  const canProceed = isAccountSelected && isValidationPassed && isStrategySelected && isPairSelected;
+  
+  // AI Pre-flight blocking logic: SKIP verdict blocks proceed unless bypassed
+  const isPreflightBlocking = preflightResult?.verdict === 'SKIP' && !bypassSkipWarning;
+  const canProceed = isAccountSelected && isValidationPassed && isStrategySelected && isPairSelected && !isPreflightBlocking;
 
   const handleNext = async () => {
     // Capture market context before proceeding
@@ -219,28 +233,61 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
     onNext();
   };
 
-  // AI Pre-flight handler (using new advanced system)
+  // AI Pre-flight handler (using new advanced 5-layer system)
   const handleAIPreflight = async () => {
-    if (!pair) return;
+    if (!pair) {
+      toast.warning('Pilih trading pair terlebih dahulu');
+      return;
+    }
     
-    // For now, show that pre-flight requires historical trades
-    // In production, this would fetch from useHistoricalTrades()
-    console.log('[SetupStep] AI Pre-flight triggered for', pair, direction);
+    if (!historicalTrades || historicalTrades.length === 0) {
+      toast.warning('Tidak ada riwayat trade untuk analisis. Minimal 20 trade diperlukan untuk edge validation yang akurat.');
+      return;
+    }
     
-    // The new pre-flight system requires actual historical trades
-    // This will be fully integrated when we add the historical trades hook
-    toast.info('AI Pre-flight memerlukan riwayat trading untuk analisis edge yang akurat');
-  };
-
-  const getAIVerdictColor = (verdict: string) => {
-    const v = verdict.toUpperCase();
-    switch (v) {
-      case 'PROCEED': return 'text-green-500 border-green-500';
-      case 'CAUTION': return 'text-yellow-500 border-yellow-500';
-      case 'SKIP': return 'text-red-500 border-red-500';
-      default: return 'text-muted-foreground border-muted';
+    // Build market snapshot from current context
+    // Map UnifiedMarketContext to snapshot format
+    const marketSnapshot = buildMarketSnapshot({
+      trend: marketContext?.sentiment?.overall === 'bullish' ? 'bullish' : 
+             marketContext?.sentiment?.overall === 'bearish' ? 'bearish' : 'neutral',
+      trendStrength: marketContext?.sentiment?.technicalScore > 70 ? 'strong' :
+                     marketContext?.sentiment?.technicalScore > 40 ? 'moderate' : 'weak',
+      volatility: marketContext?.volatility?.value || 50,
+      volatilityLevel: marketContext?.volatility?.level,
+    });
+    
+    console.log('[SetupStep] Running AI Pre-flight', { pair, direction, historicalTrades: historicalTrades.length });
+    
+    try {
+      const result = await aiPreflight.mutateAsync({
+        pair,
+        direction,
+        timeframe,
+        historicalTrades,
+        marketSnapshot,
+      });
+      
+      setPreflightResult(result);
+      
+      // Show toast based on verdict
+      if (result.verdict === 'SKIP') {
+        toast.error(`Pre-flight: SKIP - ${result.reasoning.split('\n')[0]}`);
+      } else if (result.verdict === 'CAUTION') {
+        toast.warning(`Pre-flight: CAUTION - ${result.reasoning.split('\n')[0]}`);
+      } else {
+        toast.success(`Pre-flight: PROCEED - Edge +${result.expectancy.toFixed(2)}R`);
+      }
+    } catch (error) {
+      console.error('[SetupStep] AI Pre-flight error:', error);
+      toast.error('Gagal menjalankan AI Pre-flight');
     }
   };
+
+  // Clear preflight result when pair/direction changes
+  useEffect(() => {
+    setPreflightResult(null);
+    setBypassSkipWarning(false);
+  }, [pair, direction]);
 
   return (
     <div className="space-y-4">
@@ -557,47 +604,82 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
 
                 {/* AI Pre-flight */}
                 {pair && (
-                  <div className="p-3 rounded-lg border border-primary/20 bg-primary/5">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <Brain className="h-4 w-4 text-primary" />
-                        <span className="text-sm font-medium">AI Pre-flight</span>
-                        <Badge variant="secondary" className="text-xs">
-                          <Sparkles className="h-3 w-3 mr-1" />
-                          Optional
-                        </Badge>
-                      </div>
-                      {!aiPreflight.data && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={handleAIPreflight}
-                          disabled={aiPreflight.isPending}
-                        >
-                          {aiPreflight.isPending ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            "Run Check"
-                          )}
-                        </Button>
-                      )}
-                    </div>
-
-                    {aiPreflight.data && (
-                      <div className={cn(
-                        "flex flex-col gap-2 p-2 rounded border",
-                        getAIVerdictColor(aiPreflight.data.verdict)
-                      )}>
-                        <div className="flex items-center gap-3">
-                          <span className="font-semibold uppercase text-sm">{aiPreflight.data.verdict}</span>
-                          <span className="text-xs">Confidence: {aiPreflight.data.confidence}%</span>
-                          <span className="text-xs">EV: {aiPreflight.data.expectancy}R</span>
+                  <div className="space-y-3">
+                    {/* Pre-flight Header & Trigger */}
+                    {!preflightResult && (
+                      <div className="p-3 rounded-lg border border-primary/20 bg-primary/5">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Brain className="h-4 w-4 text-primary" />
+                            <span className="text-sm font-medium">AI Pre-flight</span>
+                            <Badge variant="secondary" className="text-xs">
+                              <Sparkles className="h-3 w-3 mr-1" />
+                              5-Layer Analysis
+                            </Badge>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={handleAIPreflight}
+                            disabled={aiPreflight.isPending || historicalTradesLoading}
+                          >
+                            {aiPreflight.isPending ? (
+                              <>
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                Analyzing...
+                              </>
+                            ) : historicalTradesLoading ? (
+                              <>
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                Loading trades...
+                              </>
+                            ) : (
+                              "Run Edge Analysis"
+                            )}
+                          </Button>
                         </div>
-                        {aiPreflight.data.reasoning && (
-                          <p className="text-xs text-muted-foreground line-clamp-2">
-                            {aiPreflight.data.reasoning.split('\n')[0]}
-                          </p>
-                        )}
+                        <p className="text-xs text-muted-foreground mt-2">
+                          Analisis edge berdasarkan {historicalTrades?.length || 0} trade historis Anda
+                        </p>
+                      </div>
+                    )}
+                    
+                    {/* Pre-flight Result Card */}
+                    {preflightResult && (
+                      <PreflightResultCard 
+                        result={preflightResult} 
+                        isLoading={aiPreflight.isPending}
+                        onDismiss={() => setPreflightResult(null)}
+                        showFullDetails={false}
+                      />
+                    )}
+                    
+                    {/* SKIP Verdict Warning & Bypass */}
+                    {preflightResult?.verdict === 'SKIP' && (
+                      <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/5">
+                        <div className="flex items-start gap-3">
+                          <AlertTriangle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-destructive">Trade Not Recommended</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Pre-flight analysis menunjukkan tidak ada edge yang stabil untuk setup ini.
+                              Anda bisa melanjutkan jika memahami risikonya.
+                            </p>
+                            <div className="flex items-center gap-2 mt-3">
+                              <Checkbox 
+                                id="bypass-skip" 
+                                checked={bypassSkipWarning}
+                                onCheckedChange={(checked) => setBypassSkipWarning(checked === true)}
+                              />
+                              <label 
+                                htmlFor="bypass-skip" 
+                                className="text-xs text-muted-foreground cursor-pointer"
+                              >
+                                Saya memahami risiko dan ingin melanjutkan
+                              </label>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>
