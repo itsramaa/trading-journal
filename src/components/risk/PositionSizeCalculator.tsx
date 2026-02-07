@@ -14,6 +14,7 @@ import { calculatePositionSize } from "@/lib/calculations/position-sizing";
 import { useRiskProfile } from "@/hooks/use-risk-profile";
 import { useBestAvailableBalance } from "@/hooks/use-combined-balance";
 import { useBinanceCommissionRate, useBinanceLeverageBrackets, getMaxLeverageForNotional } from "@/features/binance";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { CalculatorInputs, CalculatorResults, QuickReferenceR } from "./calculator";
 import { VolatilityStopLoss } from "./calculator/VolatilityStopLoss";
 import { trackEvent, ANALYTICS_EVENTS } from "@/lib/analytics";
@@ -29,6 +30,7 @@ export function PositionSizeCalculator({
 }: PositionSizeCalculatorProps) {
   const { data: riskProfile, isLoading: profileLoading } = useRiskProfile();
   const { balance: combinedBalance, source, isLoading: balanceLoading } = useBestAvailableBalance();
+  const { format: formatCurrency, formatCompact } = useCurrencyConversion();
   
   // State for symbol to fetch commission rates
   const [selectedSymbol, setSelectedSymbol] = useState("BTCUSDT");
@@ -187,7 +189,7 @@ export function PositionSizeCalculator({
                     {(commissionRate.makerCommissionRate * 100).toFixed(2)}%
                   </span>
                   <span className="text-xs text-muted-foreground ml-1">
-                    (${estimatedFees.makerFee.toFixed(4)})
+                    ({formatCurrency(estimatedFees.makerFee)})
                   </span>
                 </div>
                 <div>
@@ -196,7 +198,7 @@ export function PositionSizeCalculator({
                     {(commissionRate.takerCommissionRate * 100).toFixed(2)}%
                   </span>
                   <span className="text-xs text-muted-foreground ml-1">
-                    (${estimatedFees.takerFee.toFixed(4)})
+                    ({formatCurrency(estimatedFees.takerFee)})
                   </span>
                 </div>
               </div>
@@ -210,7 +212,7 @@ export function PositionSizeCalculator({
           {leverageBrackets && 'brackets' in leverageBrackets && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground p-2 rounded bg-muted/30">
               <Badge variant="outline" className="text-xs">Max Leverage</Badge>
-              <span>{maxAllowedLeverage}x for ~${Math.round(estimatedNotional).toLocaleString()} notional</span>
+              <span>{maxAllowedLeverage}x for ~{formatCompact(estimatedNotional)} notional</span>
             </div>
           )}
 

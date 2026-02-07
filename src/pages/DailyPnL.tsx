@@ -1,8 +1,8 @@
 /**
  * Daily P&L Page - System-First Compliant
  * Works with both Binance (enriched) and Paper Trading data
+ * Uses centralized currency conversion for user's preferred currency
  */
-import { useMemo } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +37,7 @@ import { useUnifiedWeeklyPnl } from "@/hooks/use-unified-weekly-pnl";
 import { useUnifiedWeekComparison } from "@/hooks/use-unified-week-comparison";
 import { useSymbolBreakdown } from "@/hooks/use-symbol-breakdown";
 import { usePerformanceExport } from "@/hooks/use-performance-export";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { format } from "date-fns";
 
 export default function DailyPnL() {
@@ -45,11 +46,7 @@ export default function DailyPnL() {
   const weekComparison = useUnifiedWeekComparison();
   const { weeklyBreakdown: symbolBreakdown } = useSymbolBreakdown();
   const { exportToCSV, exportToPDF } = usePerformanceExport();
-
-  const formatCurrency = (v: number) => {
-    if (Math.abs(v) >= 1000) return `$${(v / 1000).toFixed(1)}k`;
-    return `$${v.toFixed(0)}`;
-  };
+  const { formatCompact, format: formatCurrency } = useCurrencyConversion();
 
   const ChangeIndicator = ({ value, suffix = '' }: { value: number; suffix?: string }) => {
     if (value > 0) return <span className="text-profit flex items-center gap-1"><ArrowUp className="h-3 w-3" />+{value.toFixed(1)}{suffix}</span>;
@@ -146,14 +143,14 @@ export default function DailyPnL() {
               <div>
                 <p className="text-sm text-muted-foreground">Realized P&L</p>
                 <p className={`text-2xl font-bold ${dailyStats.grossPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                  {formatCurrency(dailyStats.grossPnl)}
+                  {formatCompact(dailyStats.grossPnl)}
                 </p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Commission</p>
                 <p className="text-2xl font-bold text-muted-foreground">
                   {dailyStats.source === 'binance' 
-                    ? `-$${dailyStats.totalCommission.toFixed(2)}`
+                    ? `-${formatCurrency(dailyStats.totalCommission)}`
                     : 'N/A'
                   }
                 </p>
@@ -181,7 +178,7 @@ export default function DailyPnL() {
             </CardHeader>
             <CardContent>
               <div className={`text-2xl font-bold ${weekComparison.currentWeek.netPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                {formatCurrency(weekComparison.currentWeek.netPnl)}
+                {formatCompact(weekComparison.currentWeek.netPnl)}
               </div>
               <div className="text-xs text-muted-foreground mt-1">
                 vs last week: <ChangeIndicator value={weekComparison.change.pnlPercent} suffix="%" />
@@ -198,9 +195,9 @@ export default function DailyPnL() {
             </CardHeader>
             <CardContent>
               <div className={`text-2xl font-bold ${weeklyStats.totalNet >= 0 ? 'text-profit' : 'text-loss'}`}>
-                {formatCurrency(weeklyStats.totalNet)}
+                {formatCompact(weeklyStats.totalNet)}
               </div>
-              <p className="text-xs text-muted-foreground">Gross: {formatCurrency(weeklyStats.totalGross)}</p>
+              <p className="text-xs text-muted-foreground">Gross: {formatCompact(weeklyStats.totalGross)}</p>
             </CardContent>
           </Card>
 
@@ -249,7 +246,7 @@ export default function DailyPnL() {
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
                     <Badge variant="outline">{weeklyStats.bestTrade.symbol}</Badge>
-                    <span className="text-profit font-bold">{formatCurrency(weeklyStats.bestTrade.pnl)}</span>
+                    <span className="text-profit font-bold">+{formatCompact(weeklyStats.bestTrade.pnl)}</span>
                   </div>
                 </div>
               ) : (
@@ -270,7 +267,7 @@ export default function DailyPnL() {
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
                     <Badge variant="outline">{weeklyStats.worstTrade.symbol}</Badge>
-                    <span className="text-loss font-bold">{formatCurrency(weeklyStats.worstTrade.pnl)}</span>
+                    <span className="text-loss font-bold">{formatCompact(weeklyStats.worstTrade.pnl)}</span>
                   </div>
                 </div>
               ) : (
@@ -296,9 +293,9 @@ export default function DailyPnL() {
                     tickFormatter={(v) => format(new Date(v), 'EEE')}
                     className="text-xs"
                   />
-                  <YAxis tickFormatter={formatCurrency} className="text-xs" />
+                  <YAxis tickFormatter={(v) => formatCompact(v)} className="text-xs" />
                   <Tooltip 
-                    formatter={(v: number) => [formatCurrency(v), 'P&L']}
+                    formatter={(v: number) => [formatCompact(v), 'P&L']}
                     labelFormatter={(v) => format(new Date(v), 'MMM dd, yyyy')}
                   />
                   <Bar dataKey="netPnl" radius={[4, 4, 0, 0]}>
@@ -333,12 +330,12 @@ export default function DailyPnL() {
                     <div className="flex items-center gap-6 text-sm">
                       <div className="text-right">
                         <p className="text-muted-foreground text-xs">Fees</p>
-                        <p className="text-muted-foreground">-${item.fees.toFixed(2)}</p>
+                        <p className="text-muted-foreground">-{formatCurrency(item.fees)}</p>
                       </div>
                       <div className="text-right min-w-[80px]">
                         <p className="text-muted-foreground text-xs">Net P&L</p>
                         <p className={`font-bold ${item.net >= 0 ? 'text-profit' : 'text-loss'}`}>
-                          {item.net >= 0 ? '+' : ''}{formatCurrency(item.net)}
+                          {item.net >= 0 ? '+' : ''}{formatCompact(item.net)}
                         </p>
                       </div>
                     </div>

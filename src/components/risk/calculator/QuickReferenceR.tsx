@@ -1,5 +1,6 @@
 /**
  * Quick Reference R-Values - Position Size Calculator
+ * Uses centralized currency conversion for user's preferred currency
  */
 import { Badge } from "@/components/ui/badge";
 import {
@@ -8,6 +9,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 
 interface QuickReferenceRProps {
   potential1R: number;
@@ -16,12 +18,7 @@ interface QuickReferenceRProps {
 }
 
 export function QuickReferenceR({ potential1R, potential2R, potential3R }: QuickReferenceRProps) {
-  const formatCurrency = (value: number) => {
-    if (value >= 1000) {
-      return `$${(value / 1000).toFixed(2)}K`;
-    }
-    return `$${value.toFixed(2)}`;
-  };
+  const { formatCompact } = useCurrencyConversion();
 
   const rValues = [
     {
@@ -52,7 +49,7 @@ export function QuickReferenceR({ potential1R, potential2R, potential3R }: Quick
                 className="cursor-help"
                 tabIndex={0}
               >
-                {label} = {formatCurrency(value)}
+                {label} = {formatCompact(value)}
               </Badge>
             </TooltipTrigger>
             <TooltipContent side="top" className="max-w-xs">
