@@ -44,7 +44,7 @@ import {
   useRefreshBinanceData
 } from "@/features/binance";
 import { supabase } from "@/integrations/supabase/client";
-import { formatCurrency } from "@/lib/formatters";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import type { Account } from "@/types/account";
 
 export default function Accounts() {
@@ -61,6 +61,9 @@ export default function Accounts() {
   
   // Enable realtime updates for accounts
   useAccountsRealtime();
+  
+  // Currency conversion
+  const { format, formatPnl } = useCurrencyConversion();
 
   // Query for open paper trades (System-First: internal data)
   const { data: paperOpenTradesCount } = useQuery({
@@ -185,17 +188,17 @@ export default function Accounts() {
               ) : (
                 <>
                   <div className="text-2xl font-bold font-mono-numbers">
-                    {formatCurrency(combinedTotalBalance, 'USD')}
+                    {format(combinedTotalBalance)}
                   </div>
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                     {isConnected && binanceBalance > 0 && (
                       <Badge variant="outline" className="text-xs">
-                        Binance: {formatCurrency(binanceBalance, 'USD')}
+                        Binance: {format(binanceBalance)}
                       </Badge>
                     )}
                     {paperTotalBalance > 0 && (
                       <Badge variant="secondary" className="text-xs">
-                        Paper: {formatCurrency(paperTotalBalance, 'USD')}
+                        Paper: {format(paperTotalBalance)}
                       </Badge>
                     )}
                     {combinedTotalBalance === 0 && (
@@ -232,7 +235,7 @@ export default function Accounts() {
                 )}
                 {isConnected && binancePositionsCount > 0 && (
                   <span className={`text-xs ${(balance?.totalUnrealizedProfit || 0) >= 0 ? 'text-profit' : 'text-loss'}`}>
-                    {(balance?.totalUnrealizedProfit || 0) >= 0 ? '+' : ''}{formatCurrency(balance?.totalUnrealizedProfit || 0, 'USD')} unrealized
+                    {formatPnl(balance?.totalUnrealizedProfit || 0)} unrealized
                   </span>
                 )}
                 {totalActivePositions === 0 && (
@@ -361,7 +364,7 @@ export default function Accounts() {
                       ) : (
                         <>
                           <div className="text-2xl font-bold font-mono-numbers">
-                            {formatCurrency(balance?.totalWalletBalance || 0, 'USD')}
+                            {format(balance?.totalWalletBalance || 0)}
                           </div>
                           <p className="text-xs text-muted-foreground mt-1">
                             Total USDT balance
@@ -383,7 +386,7 @@ export default function Accounts() {
                       ) : (
                         <>
                           <div className="text-2xl font-bold font-mono-numbers">
-                            {formatCurrency(balance?.availableBalance || 0, 'USD')}
+                            {format(balance?.availableBalance || 0)}
                           </div>
                           <p className="text-xs text-muted-foreground mt-1">
                             For new positions
@@ -411,8 +414,7 @@ export default function Accounts() {
                           <div className={`text-2xl font-bold font-mono-numbers ${
                             (balance?.totalUnrealizedProfit || 0) >= 0 ? 'text-profit' : 'text-loss'
                           }`}>
-                            {(balance?.totalUnrealizedProfit || 0) >= 0 ? '+' : ''}
-                            {formatCurrency(balance?.totalUnrealizedProfit || 0, 'USD')}
+                            {formatPnl(balance?.totalUnrealizedProfit || 0)}
                           </div>
                           <p className="text-xs text-muted-foreground mt-1">
                             {activePositions.length} active position{activePositions.length !== 1 ? 's' : ''}

@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { cn } from "@/lib/utils";
-import { formatCurrency } from "@/lib/formatters";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 
 // Emotional states that can be tracked
 const EMOTIONAL_STATES = [
@@ -50,6 +50,7 @@ interface EmotionalInsight {
 
 export function EmotionalPatternAnalysis() {
   const { data: trades = [] } = useTradeEntries();
+  const { format: formatCurrency } = useCurrencyConversion();
 
   const { emotionalStats, insights, hasEnoughData } = useMemo(() => {
     const closedTrades = trades.filter(t => t.status === 'closed' && t.emotional_state);
@@ -139,7 +140,7 @@ export function EmotionalPatternAnalysis() {
         insights.push({
           type: 'negative',
           title: 'FOMO Costs You',
-          description: `FOMO trading has cost you ${formatCurrency(Math.abs(fomoStats.totalPnl), 'USD')}. Practice patience and wait for your setups.`,
+          description: `FOMO trading has cost you ${formatCurrency(Math.abs(fomoStats.totalPnl))}. Practice patience and wait for your setups.`,
         });
       }
       
@@ -218,7 +219,7 @@ export function EmotionalPatternAnalysis() {
                       "font-mono",
                       stats.totalPnl >= 0 ? "text-profit" : "text-loss"
                     )}>
-                      {formatCurrency(stats.totalPnl, 'USD')}
+                      {formatCurrency(stats.totalPnl)}
                     </span>
                   </div>
                 </div>

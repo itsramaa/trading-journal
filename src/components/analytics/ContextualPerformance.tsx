@@ -15,7 +15,7 @@ import {
   type ContextualInsight,
 } from "@/hooks/use-contextual-analytics";
 import { cn } from "@/lib/utils";
-import { formatCurrency } from "@/lib/formatters";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import {
   TrendingUp,
   TrendingDown,
@@ -55,11 +55,13 @@ function MetricRow({
   metrics,
   subLabel,
   colorClass,
+  formatCurrency,
 }: { 
   label: string; 
   metrics: PerformanceMetrics;
   subLabel?: string;
   colorClass?: string;
+  formatCurrency: (value: number) => string;
 }) {
   if (metrics.trades === 0) {
     return (
@@ -101,7 +103,7 @@ function MetricRow({
           "text-sm font-medium w-20 text-right",
           metrics.totalPnl >= 0 ? "text-profit" : "text-loss"
         )}>
-          {formatCurrency(metrics.totalPnl, 'USD')}
+          {formatCurrency(metrics.totalPnl)}
         </span>
       </div>
     </div>
@@ -145,6 +147,7 @@ function InsightCard({ insight }: { insight: ContextualInsight }) {
 
 export function ContextualPerformance() {
   const { data, isLoading } = useContextualAnalytics();
+  const { format: formatCurrency } = useCurrencyConversion();
   
   if (isLoading) {
     return (
@@ -214,6 +217,7 @@ export function ContextualPerformance() {
                 subLabel={config.range}
                 metrics={data.byFearGreed[zone]}
                 colorClass={config.color}
+                formatCurrency={formatCurrency}
               />
             ))}
           </CardContent>
@@ -236,6 +240,7 @@ export function ContextualPerformance() {
                 key={level}
                 label={config.label}
                 metrics={data.byVolatility[level]}
+                formatCurrency={formatCurrency}
               />
             ))}
           </CardContent>
@@ -259,6 +264,7 @@ export function ContextualPerformance() {
                 label={EVENT_LABELS[proximity].label}
                 subLabel={EVENT_LABELS[proximity].description}
                 metrics={data.byEventProximity[proximity]}
+                formatCurrency={formatCurrency}
               />
             ))}
           </CardContent>

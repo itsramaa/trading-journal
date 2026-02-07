@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAccounts, useDeleteAccount } from "@/hooks/use-accounts";
 import { ACCOUNT_TYPE_LABELS, type AccountType } from "@/types/account";
-import { formatCurrency } from "@/lib/formatters";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { toast } from "sonner";
 
 const ACCOUNT_TYPE_ICONS: Record<AccountType, React.ElementType> = {
@@ -40,6 +40,7 @@ export function AccountCardList({
   const navigate = useNavigate();
   const { data: allAccounts, isLoading } = useAccounts();
   const deleteAccount = useDeleteAccount();
+  const { format } = useCurrencyConversion();
   
   // Filter accounts based on type and backtest status
   const accounts = allAccounts?.filter(a => {
@@ -157,7 +158,7 @@ export function AccountCardList({
             <CardContent>
               <div className="flex items-baseline justify-between">
                 <span className={`text-2xl font-bold font-mono-numbers ${balance >= 0 ? '' : 'text-destructive'}`}>
-                  {formatCurrency(balance, account.currency)}
+                  {format(balance)}
                 </span>
                 <div className="flex items-center gap-2">
                   <Badge variant={isBacktest ? "secondary" : "outline"}>

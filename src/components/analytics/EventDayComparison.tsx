@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Calendar, CalendarOff, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { formatCurrency } from "@/lib/formatters";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import type { PerformanceMetrics } from "@/hooks/use-contextual-analytics";
 
 interface EventDayComparisonProps {
@@ -15,6 +15,7 @@ interface EventDayComparisonProps {
 }
 
 export function EventDayComparison({ eventDayMetrics, normalDayMetrics }: EventDayComparisonProps) {
+  const { format: formatCurrency } = useCurrencyConversion();
   const totalTrades = eventDayMetrics.trades + normalDayMetrics.trades;
   
   // Calculate differences
@@ -87,13 +88,13 @@ export function EventDayComparison({ eventDayMetrics, normalDayMetrics }: EventD
             
             <MetricItem 
               label="Avg P&L" 
-              value={formatCurrency(eventDayMetrics.avgPnl, 'USD')}
+              value={formatCurrency(eventDayMetrics.avgPnl)}
               isPositive={eventDayMetrics.avgPnl >= 0}
             />
-            
+
             <MetricItem 
               label="Total P&L" 
-              value={formatCurrency(eventDayMetrics.totalPnl, 'USD')}
+              value={formatCurrency(eventDayMetrics.totalPnl)}
               isPositive={eventDayMetrics.totalPnl >= 0}
             />
             
@@ -123,13 +124,13 @@ export function EventDayComparison({ eventDayMetrics, normalDayMetrics }: EventD
             
             <MetricItem 
               label="Avg P&L" 
-              value={formatCurrency(normalDayMetrics.avgPnl, 'USD')}
+              value={formatCurrency(normalDayMetrics.avgPnl)}
               isPositive={normalDayMetrics.avgPnl >= 0}
             />
-            
+
             <MetricItem 
               label="Total P&L" 
-              value={formatCurrency(normalDayMetrics.totalPnl, 'USD')}
+              value={formatCurrency(normalDayMetrics.totalPnl)}
               isPositive={normalDayMetrics.totalPnl >= 0}
             />
             
