@@ -38,26 +38,36 @@ function transformTradeToHistorical(trade: {
   trade_date: string;
   result: string | null;
 }): RawHistoricalTrade | null {
-  // Skip open trades or trades without exit
-  if (!trade.exit_price || !trade.result) return null;
-  
+  // Skip trades without an explicit close result.
+  // NOTE: exit_price may be 0 for some synced records (e.g. realized PnL imports),
+  // so we must check null/undefined (not falsy).
+  if (trade.exit_price == null || trade.result == null) return null;
+
   const entryPrice = trade.entry_price;
   const exitPrice = trade.exit_price;
-  const stopLoss = trade.stop_loss || entryPrice * 0.98; // Default 2% SL if not set
-  
+
+  // Stop-loss fallback (only when entryPrice is meaningful)
+  const stopLoss =
+    trade.stop_loss != null
+      ? trade.stop_loss
+      : entryPrice > 0
+        ? entryPrice * 0.98
+        : null;
+
   // Calculate R-multiple
-  const riskPerUnit = Math.abs(entryPrice - stopLoss);
-  const profitPerUnit = trade.direction === 'LONG' 
-    ? exitPrice - entryPrice 
+  // If we cannot infer risk (e.g. no SL / zero entry price), rMultiple becomes 0.
+  const riskPerUnit = stopLoss != null ? Math.abs(entryPrice - stopLoss) : 0;
+  const profitPerUnit = trade.direction.toUpperCase() === 'LONG'
+    ? exitPrice - entryPrice
     : entryPrice - exitPrice;
-  
+
   const rMultiple = riskPerUnit > 0 ? profitPerUnit / riskPerUnit : 0;
-  
+
   // Determine session from entry time
   const timestamp = trade.entry_datetime || trade.trade_date;
   const tradeDate = new Date(timestamp);
   const session = getSessionForTime(tradeDate);
-  
+
   // Map session to expected format
   const sessionMap: Record<string, TradingSession> = {
     'asia': 'ASIA',
@@ -65,7 +75,7 @@ function transformTradeToHistorical(trade: {
     'new_york': 'NEW_YORK',
     'off_hours': 'OFF_HOURS',
   };
-  
+
   return {
     id: trade.id,
     pair: trade.pair,
@@ -92,16 +102,16 @@ export function useHistoricalTrades() {
     queryFn: async (): Promise<RawHistoricalTrade[]> => {
       if (!user?.id) return [];
       
-      // Fetch last 365 days of closed trades
-      const oneYearAgo = new Date();
-      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-      
+      // Fetch last 730 days of closed trades (aligned with Binance full history sync window)
+      const since = new Date();
+      since.setDate(since.getDate() - 730);
+
       const { data, error } = await supabase
         .from('trade_entries')
-        .select('id, pair, direction, entry_price, exit_price, stop_loss, pnl, entry_datetime, trade_date, result')
+        .select('id, pair, direction, entry_price, exit_price, stop_loss, pnl, entry_datetime, trade_date, result, status')
         .eq('user_id', user.id)
-        .eq('status', 'closed')
-        .gte('trade_date', oneYearAgo.toISOString().split('T')[0])
+        .in('status', ['closed', 'CLOSED'])
+        .gte('trade_date', since.toISOString())
         .order('trade_date', { ascending: false });
       
       if (error) throw error;

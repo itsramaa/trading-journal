@@ -239,9 +239,14 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
       toast.warning('Pilih trading pair terlebih dahulu');
       return;
     }
-    
+
+    if (historicalTradesLoading) {
+      toast.info('Sedang memuat riwayat trade...');
+      return;
+    }
+
     if (!historicalTrades || historicalTrades.length === 0) {
-      toast.warning('Tidak ada riwayat trade untuk analisis. Minimal 20 trade diperlukan untuk edge validation yang akurat.');
+      toast.warning('Riwayat trade terdeteksi di jurnal, tapi tidak ada record yang bisa dipakai untuk pre-flight (butuh trade closed + hasil).');
       return;
     }
     
