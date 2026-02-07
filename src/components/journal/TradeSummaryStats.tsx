@@ -6,7 +6,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Circle, TrendingUp, TrendingDown, CheckCircle, DollarSign, Wifi } from "lucide-react";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
-import { formatPnl } from "@/lib/formatters";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 
 interface TradeSummaryStatsProps {
   openPositionsCount: number;
@@ -27,6 +27,8 @@ export function TradeSummaryStats({
   realizedPnL,
   isBinanceConnected,
 }: TradeSummaryStatsProps) {
+  const { formatPnl } = useCurrencyConversion();
+  
   // Aggregate both sources - System-First principle
   const binancePnL = binanceUnrealizedPnL ?? 0;
   const paperPnL = unrealizedPnL;
@@ -76,7 +78,7 @@ export function TradeSummaryStats({
         </CardHeader>
         <CardContent>
           <div className={`text-2xl font-bold ${displayUnrealizedPnL >= 0 ? "text-profit" : "text-loss"}`}>
-            {formatPnl(displayUnrealizedPnL, "USD")}
+            {formatPnl(displayUnrealizedPnL)}
           </div>
           <p className="text-xs text-muted-foreground">
             {hasBinanceData && hasPaperData 
@@ -111,7 +113,7 @@ export function TradeSummaryStats({
         </CardHeader>
         <CardContent>
           <div className={`text-2xl font-bold ${realizedPnL >= 0 ? "text-profit" : "text-loss"}`}>
-            {formatPnl(realizedPnL, "USD")}
+            {formatPnl(realizedPnL)}
           </div>
           <p className="text-xs text-muted-foreground">From closed trades</p>
         </CardContent>

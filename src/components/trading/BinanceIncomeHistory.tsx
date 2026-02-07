@@ -39,7 +39,7 @@ import {
   getIncomeTypeCategory,
   IncomeTypeCategory
 } from "@/features/binance";
-import { formatCurrency, formatPnl } from "@/lib/formatters";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 
 type IncomeFilterType = 'ALL' | 'pnl' | 'fees' | 'funding' | 'transfers' | 'rewards' | 'other';
 
@@ -75,6 +75,7 @@ export function BinanceIncomeHistory({
   defaultFilter = 'ALL',
   daysBack = 1
 }: BinanceIncomeHistoryProps) {
+  const { format: formatCurrency, formatPnl } = useCurrencyConversion();
   const [categoryFilter, setCategoryFilter] = useState<IncomeFilterType>(defaultFilter);
   const [symbolFilter, setSymbolFilter] = useState<string>('ALL');
   const [isBreakdownOpen, setIsBreakdownOpen] = useState(false);
@@ -269,22 +270,22 @@ export function BinanceIncomeHistory({
               <div className={`p-3 rounded-lg ${summary.netPnl >= 0 ? 'bg-profit/10 border border-profit/20' : 'bg-loss/10 border border-loss/20'}`}>
                 <p className="text-xs text-muted-foreground">Net P&L</p>
                 <p className={`text-lg font-bold ${summary.netPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                  {formatPnl(summary.netPnl, 'USD')}
+                  {formatPnl(summary.netPnl)}
                 </p>
               </div>
               <div className="p-3 rounded-lg bg-loss/10">
                 <p className="text-xs text-muted-foreground">Total Fees</p>
-                <p className="font-semibold text-loss">-{formatCurrency(summary.totalFees, 'USD')}</p>
+                <p className="font-semibold text-loss">-{formatCurrency(summary.totalFees)}</p>
               </div>
               <div className={`p-3 rounded-lg ${summary.totalFunding >= 0 ? 'bg-profit/10' : 'bg-loss/10'}`}>
                 <p className="text-xs text-muted-foreground">Funding</p>
                 <p className={`font-semibold ${summary.totalFunding >= 0 ? 'text-profit' : 'text-loss'}`}>
-                  {formatPnl(summary.totalFunding, 'USD')}
+                  {formatPnl(summary.totalFunding)}
                 </p>
               </div>
               <div className="p-3 rounded-lg bg-profit/10">
                 <p className="text-xs text-muted-foreground">Rebates</p>
-                <p className="font-semibold text-profit">+{formatCurrency(summary.totalRebates, 'USD')}</p>
+                <p className="font-semibold text-profit">+{formatCurrency(summary.totalRebates)}</p>
               </div>
             </div>
             
@@ -310,10 +311,10 @@ export function BinanceIncomeHistory({
                             <Badge variant={config.color as any} className="text-[10px]">
                               {config.label}
                             </Badge>
-                            <span className="text-muted-foreground">×{data.count}</span>
+                          <span className="text-muted-foreground">×{data.count}</span>
                           </div>
                           <p className={`font-mono ${data.total >= 0 ? 'text-profit' : 'text-loss'}`}>
-                            {formatPnl(data.total, 'USD')}
+                            {formatPnl(data.total)}
                           </p>
                         </div>
                       );
@@ -373,7 +374,7 @@ export function BinanceIncomeHistory({
                       <TableCell className="text-right">
                         <span className={`font-mono flex items-center justify-end gap-1 ${item.income >= 0 ? 'text-profit' : 'text-loss'}`}>
                           {item.income >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                          {formatPnl(item.income, 'USD')}
+                          {formatPnl(item.income)}
                         </span>
                       </TableCell>
                     </TableRow>

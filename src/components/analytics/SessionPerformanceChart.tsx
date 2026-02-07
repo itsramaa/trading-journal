@@ -24,7 +24,8 @@ import {
   SESSION_COLORS, 
   formatSessionTimeLocal 
 } from "@/lib/session-utils";
-import { formatPnl, formatWinRate, formatCompactCurrency } from "@/lib/formatters";
+import { formatWinRate } from "@/lib/formatters";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import type { PerformanceMetrics } from "@/hooks/use-contextual-analytics";
 
 interface SessionPerformanceChartProps {
@@ -43,6 +44,8 @@ const SESSION_CHART_COLORS: Record<TradingSession, string> = {
 };
 
 export function SessionPerformanceChart({ bySession }: SessionPerformanceChartProps) {
+  const { formatPnl } = useCurrencyConversion();
+  
   // Transform data for chart
   const chartData = useMemo(() => {
     return SESSION_ORDER.map(session => ({

@@ -14,7 +14,7 @@ import {
   type TradeFilters 
 } from "@/hooks/use-trade-entries-paginated";
 import type { TradeEntry } from "@/hooks/use-trade-entries";
-import { formatPnl } from "@/lib/formatters";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { getTradeSession, SESSION_LABELS } from "@/lib/session-utils";
 
 interface TradeHistoryInfiniteScrollProps {
@@ -28,6 +28,7 @@ export function TradeHistoryInfiniteScroll({
   onTradeClick,
   pageSize = 50,
 }: TradeHistoryInfiniteScrollProps) {
+  const { formatPnl } = useCurrencyConversion();
   const {
     data,
     fetchNextPage,
@@ -137,6 +138,7 @@ interface TradeRowProps {
 }
 
 function TradeRow({ trade, onClick }: TradeRowProps) {
+  const { formatPnl } = useCurrencyConversion();
   const pnl = trade.realized_pnl ?? trade.pnl ?? 0;
   const isWin = pnl > 0;
   const isLoss = pnl < 0;
@@ -191,7 +193,7 @@ function TradeRow({ trade, onClick }: TradeRowProps) {
             <div className={`font-semibold ${
               isWin ? 'text-profit' : isLoss ? 'text-loss' : ''
             }`}>
-              {formatPnl(pnl, 'USD')}
+              {formatPnl(pnl)}
             </div>
             {trade.result && (
               <Badge 

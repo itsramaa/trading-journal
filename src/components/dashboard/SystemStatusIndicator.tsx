@@ -17,13 +17,15 @@ import { useTradingGate } from "@/hooks/use-trading-gate";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
-import { formatPercentUnsigned, formatCurrency, formatPnl } from "@/lib/formatters";
+import { formatPercentUnsigned } from "@/lib/formatters";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 
 interface SystemStatusIndicatorProps {
   compact?: boolean;
 }
 
 export function SystemStatusIndicator({ compact = false }: SystemStatusIndicatorProps) {
+  const { format: formatCurrency, formatPnl } = useCurrencyConversion();
   const { 
     status, 
     canTrade, 
@@ -155,12 +157,12 @@ export function SystemStatusIndicator({ compact = false }: SystemStatusIndicator
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
               Today's P&L: <span className={currentPnl >= 0 ? 'text-profit' : 'text-loss'}>
-                {formatPnl(currentPnl, 'USD')}
+                {formatPnl(currentPnl)}
               </span>
               <InfoTooltip content="Your realized profit or loss for today. Negative values count against your daily loss limit." />
             </span>
             <span className="flex items-center gap-1">
-              Remaining: {formatCurrency(remainingBudget, 'USD')} of {formatCurrency(dailyLossLimit, 'USD')}
+              Remaining: {formatCurrency(remainingBudget)} of {formatCurrency(dailyLossLimit)}
               <InfoTooltip content="How much more you can lose today before hitting your limit and having trading disabled." />
             </span>
           </div>
