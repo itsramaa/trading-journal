@@ -148,7 +148,7 @@ export function TradeHistoryCard({
             </div>
             <div className="flex items-center gap-2">
               <span className={`font-bold text-lg ${(entry.realized_pnl || 0) >= 0 ? "text-profit" : "text-loss"}`}>
-                {(entry.realized_pnl || 0) >= 0 ? "+" : ""}{formatCurrency(entry.realized_pnl || 0, "USD")}
+                {(entry.realized_pnl || 0) >= 0 ? "+" : ""}{formatCurrency(entry.realized_pnl || 0)}
               </span>
               
               {/* Enrich Button */}
@@ -197,8 +197,8 @@ export function TradeHistoryCard({
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
-            <div><span className="text-muted-foreground">Entry:</span> {formatCurrency(entry.entry_price, "USD")}</div>
-            <div><span className="text-muted-foreground">Exit:</span> {entry.exit_price ? formatCurrency(entry.exit_price, "USD") : '-'}</div>
+            <div><span className="text-muted-foreground">Entry:</span> {formatCurrency(entry.entry_price)}</div>
+            <div><span className="text-muted-foreground">Exit:</span> {entry.exit_price ? formatCurrency(entry.exit_price) : '-'}</div>
             <div className="flex items-center gap-1">
               <span className="text-muted-foreground">R:R:</span> 
               <RiskRewardTooltip />

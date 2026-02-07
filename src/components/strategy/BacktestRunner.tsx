@@ -31,7 +31,7 @@ import { useRunBacktest } from "@/hooks/use-backtest";
 import { useBaseAssets } from "@/hooks/use-trading-pairs";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useBinanceConnectionStatus, useBinanceBalance } from "@/features/binance";
-import { formatCurrency } from "@/lib/formatters";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { BacktestResults } from "./BacktestResults";
 import type { 
   BacktestConfig, 
@@ -45,6 +45,7 @@ import { COMMON_PAIRS } from "@/types/strategy";
 export function BacktestRunner() {
   const [searchParams] = useSearchParams();
   const strategyFromUrl = searchParams.get('strategy');
+  const { format: formatCurrency } = useCurrencyConversion();
   
   // Basic config
   const [selectedStrategyId, setSelectedStrategyId] = useState<string>(strategyFromUrl || '');
@@ -252,7 +253,7 @@ export function BacktestRunner() {
                     className="text-xs h-7"
                     onClick={() => setInitialCapital(Math.floor(binanceAvailableBalance))}
                   >
-                    Binance: {formatCurrency(binanceAvailableBalance, 'USD')}
+                    Binance: {formatCurrency(binanceAvailableBalance)}
                   </Button>
                 )}
                 {tradingAccounts.slice(0, 2).map((account) => (
@@ -264,7 +265,7 @@ export function BacktestRunner() {
                     className="text-xs h-7"
                     onClick={() => setInitialCapital(Math.floor(Number(account.balance)))}
                   >
-                    {account.name}: {formatCurrency(Number(account.balance), account.currency)}
+                    {account.name}: {formatCurrency(Number(account.balance))}
                   </Button>
                 ))}
               </div>

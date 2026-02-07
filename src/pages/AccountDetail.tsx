@@ -34,7 +34,7 @@ import {
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { useAccounts, useAccountTransactions } from "@/hooks/use-accounts";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
-import { formatCurrency, formatPnl } from "@/lib/formatters";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import type { AccountType, AccountTransactionType } from "@/types/account";
 
 const ACCOUNT_TYPE_ICONS: Record<AccountType, React.ElementType> = {
@@ -56,6 +56,7 @@ export default function AccountDetail() {
   const { data: accounts, isLoading: accountsLoading } = useAccounts();
   const { data: transactions, isLoading: transactionsLoading } = useAccountTransactions(accountId);
   const { data: allTrades } = useTradeEntries();
+  const { format: formatCurrency, formatPnl } = useCurrencyConversion();
   
   // Filter trades for this account
   const accountTrades = useMemo(() => {
@@ -179,7 +180,7 @@ export default function AccountDetail() {
           </div>
           <div className="text-right">
             <p className="text-sm text-muted-foreground">Current Balance</p>
-            <p className="text-2xl font-bold">{formatCurrency(Number(account.balance), account.currency)}</p>
+            <p className="text-2xl font-bold">{formatCurrency(Number(account.balance))}</p>
           </div>
         </div>
 
@@ -191,7 +192,7 @@ export default function AccountDetail() {
                 <div>
                   <p className="text-sm text-muted-foreground">Realized P&L</p>
                   <p className={`text-xl font-bold ${(stats?.realizedPnL || 0) >= 0 ? 'text-profit' : 'text-loss'}`}>
-                    {formatPnl(stats?.realizedPnL || 0, account.currency)}
+                    {formatPnl(stats?.realizedPnL || 0)}
                   </p>
                 </div>
                 {(stats?.realizedPnL || 0) >= 0 ? (
@@ -246,7 +247,7 @@ export default function AccountDetail() {
                     />
                   </p>
                   <p className={`text-xl font-bold ${(stats?.netFlow || 0) >= 0 ? "text-profit" : "text-loss"}`}>
-                    {formatCurrency(stats?.netFlow || 0, account.currency)}
+                    {formatCurrency(stats?.netFlow || 0)}
                   </p>
                 </div>
                 <RefreshCw className="h-8 w-8 text-muted-foreground/50" />
@@ -340,7 +341,7 @@ export default function AccountDetail() {
                             {tx.description || tx.notes || "-"}
                           </TableCell>
                           <TableCell className={`text-right font-mono ${isCredit ? "text-profit" : "text-loss"}`}>
-                            {isCredit ? "+" : "-"}{formatCurrency(Number(tx.amount), tx.currency)}
+                            {isCredit ? "+" : "-"}{formatCurrency(Number(tx.amount))}
                           </TableCell>
                         </TableRow>
                       );

@@ -21,7 +21,7 @@ import {
   Volume2,
 } from "lucide-react";
 import { useBinanceTopMovers, type Ticker24h } from "@/features/binance";
-import { formatCurrency } from "@/lib/formatters";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { cn } from "@/lib/utils";
 
 type SortBy = 'percentage' | 'priceChange' | 'volume';
@@ -34,6 +34,7 @@ interface MoverCardProps {
 }
 
 function MoverCard({ ticker, rank, type, sortBy }: MoverCardProps) {
+  const { format } = useCurrencyConversion();
   const isPositive = ticker.priceChangePercent >= 0;
   const symbol = ticker.symbol.replace('USDT', '');
   
@@ -54,7 +55,7 @@ function MoverCard({ ticker, rank, type, sortBy }: MoverCardProps) {
           <Badge variant="outline" className="text-xs">USDT</Badge>
         </div>
         <div className="text-sm text-muted-foreground font-mono-numbers">
-          ${ticker.lastPrice.toLocaleString(undefined, { maximumFractionDigits: 4 })}
+          {format(ticker.lastPrice)}
         </div>
       </div>
       
@@ -62,7 +63,7 @@ function MoverCard({ ticker, rank, type, sortBy }: MoverCardProps) {
       {showVolume ? (
         <div className="text-right">
           <div className="text-sm font-medium">
-            {formatCurrency(ticker.quoteVolume, 'USD')}
+            {format(ticker.quoteVolume)}
           </div>
           <div className="text-xs text-muted-foreground">
             24h Volume
@@ -153,10 +154,10 @@ function MoversList({ tickers, type, isLoading, sortBy }: {
 }
 
 export default function TopMovers() {
+  const { format } = useCurrencyConversion();
   const [limit, setLimit] = useState(10);
   const [sortBy, setSortBy] = useState<SortBy>('percentage');
   const { data, isLoading, refetch, isFetching, dataUpdatedAt } = useBinanceTopMovers(limit);
-  
   const { topGainers = [], topLosers = [], topVolume = [], allTickers = [] } = data || {};
   
   // Format last updated time
@@ -304,7 +305,7 @@ export default function TopMovers() {
                     {topVolume[0].symbol.replace('USDT', '')}
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    {formatCurrency(topVolume[0].quoteVolume, 'USD')}
+                    {format(topVolume[0].quoteVolume)}
                   </p>
                 </>
               ) : (

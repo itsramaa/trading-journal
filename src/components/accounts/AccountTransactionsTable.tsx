@@ -1,4 +1,4 @@
-import { format } from "date-fns";
+import { format as formatDate } from "date-fns";
 import { ArrowDownCircle, ArrowUpCircle, FileText } from "lucide-react";
 import {
   Table,
@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAccountTransactions, useAccounts } from "@/hooks/use-accounts";
 import type { AccountTransactionType } from "@/types/account";
-import { formatCurrency } from "@/lib/formatters";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 
 const TRANSACTION_TYPE_CONFIG: Record<
   AccountTransactionType,
@@ -30,6 +30,7 @@ interface AccountTransactionsTableProps {
 export function AccountTransactionsTable({ accountId, limit }: AccountTransactionsTableProps) {
   const { data: transactions, isLoading } = useAccountTransactions(accountId, limit);
   const { data: accounts } = useAccounts();
+  const { format } = useCurrencyConversion();
 
   const getAccountName = (id: string) => {
     return accounts?.find((a) => a.id === id)?.name || "Unknown";
@@ -78,7 +79,7 @@ export function AccountTransactionsTable({ accountId, limit }: AccountTransactio
             return (
               <TableRow key={tx.id}>
                 <TableCell className="text-muted-foreground">
-                  {format(new Date(tx.created_at), "MMM dd, yyyy HH:mm")}
+                  {formatDate(new Date(tx.created_at), "MMM dd, yyyy HH:mm")}
                 </TableCell>
                 <TableCell>
                   <Badge variant={config?.variant || "secondary"} className="gap-1">
@@ -93,7 +94,7 @@ export function AccountTransactionsTable({ accountId, limit }: AccountTransactio
                   {tx.description || "-"}
                 </TableCell>
                 <TableCell className={`text-right font-mono ${isCredit ? 'text-profit' : 'text-loss'}`}>
-                  {isCredit ? '+' : '-'}{formatCurrency(Number(tx.amount), tx.currency)}
+                  {isCredit ? '+' : '-'}{format(Number(tx.amount))}
                 </TableCell>
               </TableRow>
             );

@@ -66,7 +66,7 @@ export function ClosePositionDialog({
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Entry Price:</span>
-              <span className="font-mono">{formatCurrency(position?.entry_price || 0, "USD")}</span>
+              <span className="font-mono">{formatCurrency(position?.entry_price || 0)}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Position Size:</span>
@@ -125,7 +125,7 @@ export function EditPositionDialog({
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Entry Price:</span>
-              <span className="font-mono">{formatCurrency(position?.entry_price || 0, "USD")}</span>
+              <span className="font-mono">{formatCurrency(position?.entry_price || 0)}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Position Size:</span>
