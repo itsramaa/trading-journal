@@ -4,6 +4,7 @@
  * Includes market context capture for unified analysis
  */
 import { useState, useEffect, useMemo } from "react";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -218,27 +219,25 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
     onNext();
   };
 
-  // AI Pre-flight handler
+  // AI Pre-flight handler (using new advanced system)
   const handleAIPreflight = async () => {
     if (!pair) return;
     
-    const mockUserHistory = [
-      { pair, winRate: 65, totalTrades: 24, avgWin: 150, avgLoss: 80 },
-    ];
+    // For now, show that pre-flight requires historical trades
+    // In production, this would fetch from useHistoricalTrades()
+    console.log('[SetupStep] AI Pre-flight triggered for', pair, direction);
     
-    await aiPreflight.mutateAsync({
-      pair,
-      direction,
-      userHistory: mockUserHistory,
-      currentMarketConditions: { trend: 'bullish', volatility: 'moderate' },
-    });
+    // The new pre-flight system requires actual historical trades
+    // This will be fully integrated when we add the historical trades hook
+    toast.info('AI Pre-flight memerlukan riwayat trading untuk analisis edge yang akurat');
   };
 
   const getAIVerdictColor = (verdict: string) => {
-    switch (verdict) {
-      case 'proceed': return 'text-green-500 border-green-500';
-      case 'caution': return 'text-yellow-500 border-yellow-500';
-      case 'skip': return 'text-red-500 border-red-500';
+    const v = verdict.toUpperCase();
+    switch (v) {
+      case 'PROCEED': return 'text-green-500 border-green-500';
+      case 'CAUTION': return 'text-yellow-500 border-yellow-500';
+      case 'SKIP': return 'text-red-500 border-red-500';
       default: return 'text-muted-foreground border-muted';
     }
   };
@@ -586,12 +585,19 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
 
                     {aiPreflight.data && (
                       <div className={cn(
-                        "flex items-center gap-3 p-2 rounded border",
+                        "flex flex-col gap-2 p-2 rounded border",
                         getAIVerdictColor(aiPreflight.data.verdict)
                       )}>
-                        <span className="font-semibold uppercase text-sm">{aiPreflight.data.verdict}</span>
-                        <span className="text-xs">Confidence: {aiPreflight.data.confidence}%</span>
-                        <span className="text-xs">Win Pred: {aiPreflight.data.winPrediction}%</span>
+                        <div className="flex items-center gap-3">
+                          <span className="font-semibold uppercase text-sm">{aiPreflight.data.verdict}</span>
+                          <span className="text-xs">Confidence: {aiPreflight.data.confidence}%</span>
+                          <span className="text-xs">EV: {aiPreflight.data.expectancy}R</span>
+                        </div>
+                        {aiPreflight.data.reasoning && (
+                          <p className="text-xs text-muted-foreground line-clamp-2">
+                            {aiPreflight.data.reasoning.split('\n')[0]}
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
