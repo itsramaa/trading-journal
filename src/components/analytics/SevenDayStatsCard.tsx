@@ -11,10 +11,11 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
-import { formatPnl } from "@/lib/formatters";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 
 export function SevenDayStatsCard() {
   const { data: trades = [] } = useTradeEntries();
+  const { formatPnl } = useCurrencyConversion();
 
   // 7-Day Quick Stats
   const sevenDayStats = useMemo(() => {
@@ -93,7 +94,7 @@ export function SevenDayStatsCard() {
               <div>
                 <p className="text-sm text-muted-foreground">Best Day</p>
                 <p className={`text-2xl font-bold ${sevenDayStats.bestDay.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                  {formatPnl(sevenDayStats.bestDay.pnl, 'USD')}
+                  {formatPnl(sevenDayStats.bestDay.pnl)}
                 </p>
               </div>
               <Trophy className="h-8 w-8 text-profit" />
@@ -106,7 +107,7 @@ export function SevenDayStatsCard() {
               <div>
                 <p className="text-sm text-muted-foreground">Worst Day</p>
                 <p className={`text-2xl font-bold ${sevenDayStats.worstDay.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                  {formatPnl(sevenDayStats.worstDay.pnl, 'USD')}
+                  {formatPnl(sevenDayStats.worstDay.pnl)}
                 </p>
               </div>
               <AlertTriangle className="h-8 w-8 text-loss" />

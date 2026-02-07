@@ -19,7 +19,8 @@ import {
   Zap,
 } from "lucide-react";
 import { useUnifiedPortfolioData } from "@/hooks/use-unified-portfolio-data";
-import { formatCurrency, formatPercent, formatWinRate, formatPnl } from "@/lib/formatters";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
+import { formatPercent, formatWinRate } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 
@@ -29,6 +30,7 @@ interface PortfolioOverviewCardProps {
 
 export function PortfolioOverviewCard({ className }: PortfolioOverviewCardProps) {
   const portfolio = useUnifiedPortfolioData();
+  const { format, formatPnl, currency } = useCurrencyConversion();
 
   // Loading state
   if (portfolio.isLoading) {
@@ -139,7 +141,7 @@ export function PortfolioOverviewCard({ className }: PortfolioOverviewCardProps)
             <p className="text-sm text-muted-foreground mb-1">Total Capital</p>
             {portfolio.totalCapital > 0 ? (
               <p className="text-2xl font-bold">
-                {formatCurrency(portfolio.totalCapital, 'USD')}
+                {format(portfolio.totalCapital)}
               </p>
             ) : (
               <p className="text-lg text-muted-foreground">
@@ -156,7 +158,7 @@ export function PortfolioOverviewCard({ className }: PortfolioOverviewCardProps)
                 "text-2xl font-bold",
                 portfolio.todayNetPnl >= 0 ? 'text-profit' : 'text-loss'
               )}>
-                {formatPnl(portfolio.todayNetPnl, 'USD')}
+                {formatPnl(portfolio.todayNetPnl)}
               </p>
               {portfolio.todayNetPnl !== 0 && portfolio.totalCapital > 0 && (
                 <Badge 
@@ -186,7 +188,7 @@ export function PortfolioOverviewCard({ className }: PortfolioOverviewCardProps)
                 "text-2xl font-bold",
                 portfolio.weeklyNetPnl >= 0 ? 'text-profit' : 'text-loss'
               )}>
-                {formatPnl(portfolio.weeklyNetPnl, 'USD')}
+                {formatPnl(portfolio.weeklyNetPnl)}
               </p>
               {portfolio.weeklyNetPnl !== 0 && portfolio.totalCapital > 0 && (
                 <Badge 

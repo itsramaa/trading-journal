@@ -254,6 +254,9 @@ export function useBinanceFullSync() {
     onSuccess: (result) => {
       invalidateTradeQueries(queryClient);
       
+      // Force refetch paginated data to show new trades immediately
+      queryClient.refetchQueries({ queryKey: ['trade-entries-paginated'] });
+      
       if (result.synced > 0) {
         toast.success(`Sync Complete`, {
           description: `${result.synced} new trades synced from Binance${result.skipped > 0 ? ` (${result.skipped} already existed)` : ''}`,

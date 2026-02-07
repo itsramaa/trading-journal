@@ -44,6 +44,7 @@ export function formatCurrency(
   const decimals = getSmartDecimals(value, 4);
   
   if (currencyCode === 'IDR') {
+    // IDR formatting: no decimals, use Indonesian locale
     return `Rp ${value.toLocaleString('id-ID', {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
@@ -78,7 +79,41 @@ export function formatCurrency(
 }
 
 /**
- * Format large currency values with K/M/B suffixes
+ * Format compact IDR with Indonesian notation
+ * 1,000 - 999,999 = k (1k, 10k, 100k, 999k)
+ * 1,000,000+ = jt (1jt, 1.5jt, 10jt - juta)
+ * 1,000,000,000+ = m (1m, 1.5m - miliar)
+ * 1,000,000,000,000+ = t (1t - triliun)
+ */
+export function formatCompactIDR(value: number): string {
+  const absValue = Math.abs(value);
+  const sign = value < 0 ? '-' : '';
+  
+  if (absValue >= 1_000_000_000_000) {
+    const formatted = (absValue / 1_000_000_000_000).toFixed(1);
+    return `${sign}Rp ${parseFloat(formatted)}t`;
+  }
+  if (absValue >= 1_000_000_000) {
+    const formatted = (absValue / 1_000_000_000).toFixed(1);
+    return `${sign}Rp ${parseFloat(formatted)}m`;
+  }
+  if (absValue >= 1_000_000) {
+    const formatted = (absValue / 1_000_000).toFixed(1);
+    return `${sign}Rp ${parseFloat(formatted)}jt`;
+  }
+  if (absValue >= 1_000) {
+    const formatted = (absValue / 1_000).toFixed(0);
+    return `${sign}Rp ${formatted}k`;
+  }
+  
+  // Small values: show full amount
+  return formatCurrency(value, 'IDR');
+}
+
+/**
+ * Format large currency values with compact notation
+ * USD: K/M/B suffixes
+ * IDR: k/jt/m/t suffixes (Indonesian notation)
  */
 export function formatCompactCurrency(
   value: number,
@@ -92,7 +127,13 @@ export function formatCompactCurrency(
   } else {
     currencyCode = currency;
   }
-  const prefix = currencyCode === 'IDR' ? 'Rp ' : currencyCode === 'EUR' ? '€' : currencyCode === 'SGD' ? 'S$' : currencyCode === 'MYR' ? 'RM' : '$';
+  
+  // Use Indonesian notation for IDR
+  if (currencyCode === 'IDR') {
+    return formatCompactIDR(value);
+  }
+  
+  const prefix = currencyCode === 'EUR' ? '€' : currencyCode === 'SGD' ? 'S$' : currencyCode === 'MYR' ? 'RM' : '$';
   
   if (Math.abs(value) >= 1_000_000_000) {
     return `${prefix}${(value / 1_000_000_000).toFixed(2)}B`;
