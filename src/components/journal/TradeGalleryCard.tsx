@@ -1,12 +1,14 @@
 /**
  * TradeGalleryCard - Visual card for gallery view with thumbnail support
  * Optimized for image-first display with lazy loading
+ * Now includes "Needs Enrichment" indicator for incomplete Binance trades
  */
 import { format } from "date-fns";
-import { ImageOff } from "lucide-react";
+import { ImageOff, AlertCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { LazyImage } from "@/components/ui/lazy-image";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { getTradeSession, SESSION_LABELS, SESSION_COLORS } from "@/lib/session-utils";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import type { TradeEntry } from "@/hooks/use-trade-entries";
@@ -26,6 +28,10 @@ export function TradeGalleryCard({
   const pnl = trade.realized_pnl ?? trade.pnl ?? 0;
   const isProfit = pnl > 0;
   const isLoss = pnl < 0;
+  
+  // Check if trade needs enrichment (Binance trades with missing entry price)
+  const needsEnrichment = trade.source === 'binance' && 
+    (!trade.entry_price || trade.entry_price === 0);
   
   return (
     <Card 
@@ -50,11 +56,27 @@ export function TradeGalleryCard({
         {/* Overlay badges */}
         <div className="absolute top-2 left-2 flex gap-1">
           <Badge 
-            variant={trade.direction === 'LONG' ? 'default' : 'secondary'}
-            className="text-xs"
+            variant={trade.direction === 'LONG' ? 'default' : trade.direction === 'UNKNOWN' ? 'outline' : 'secondary'}
+            className={`text-xs ${trade.direction === 'UNKNOWN' ? 'bg-muted/80 text-muted-foreground' : ''}`}
           >
-            {trade.direction}
+            {trade.direction === 'UNKNOWN' ? '?' : trade.direction}
           </Badge>
+          
+          {/* Needs Enrichment indicator */}
+          {needsEnrichment && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge variant="destructive" className="text-xs px-1.5 gap-0.5">
+                    <AlertCircle className="h-3 w-3" />
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Missing entry/exit prices. Click "Enrich Trades" to fetch accurate data.</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
         </div>
         
         <div className="absolute top-2 right-2">
