@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { TrendingUp, TrendingDown, Lightbulb, AlertTriangle, Trophy } from "lucide-react";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 
 interface PatternData {
   name: string;
@@ -20,6 +21,7 @@ interface PatternData {
 export function AIPatternInsights() {
   const { data: trades } = useTradeEntries();
   const { data: strategies } = useTradingStrategies();
+  const { formatPnl } = useCurrencyConversion();
 
   const patterns = useMemo((): PatternData[] => {
     if (!trades || trades.length < 5) return [];
@@ -129,7 +131,7 @@ export function AIPatternInsights() {
                 <Progress value={pattern.winRate} className="h-2 [&>div]:bg-green-500" />
                 <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
                   <span>{pattern.trades} trades</span>
-                  <span>Avg: ${pattern.avgPnl.toFixed(2)}</span>
+                  <span>Avg: {formatPnl(pattern.avgPnl)}</span>
                 </div>
               </div>
             ))}
@@ -163,7 +165,7 @@ export function AIPatternInsights() {
                 <Progress value={pattern.winRate} className="h-2 [&>div]:bg-red-500" />
                 <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
                   <span>{pattern.trades} trades</span>
-                  <span>Avg: ${pattern.avgPnl.toFixed(2)}</span>
+                  <span>Avg: {formatPnl(pattern.avgPnl)}</span>
                 </div>
               </div>
             ))}

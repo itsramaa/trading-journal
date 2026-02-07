@@ -22,7 +22,8 @@ import {
   SESSION_COLORS, 
   formatSessionTimeLocal 
 } from "@/lib/session-utils";
-import { formatPnl, formatWinRate } from "@/lib/formatters";
+import { formatWinRate } from "@/lib/formatters";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import type { PerformanceMetrics } from "@/hooks/use-contextual-analytics";
 import { cn } from "@/lib/utils";
 
@@ -41,6 +42,8 @@ interface SessionInsight {
 const SESSION_ORDER: TradingSession[] = ['asia', 'london', 'newyork', 'off-hours'];
 
 export function SessionInsights({ bySession }: SessionInsightsProps) {
+  const { formatPnl } = useCurrencyConversion();
+  
   // Generate session-based insights
   const insights = useMemo((): SessionInsight[] => {
     const result: SessionInsight[] = [];

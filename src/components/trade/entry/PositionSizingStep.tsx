@@ -18,6 +18,7 @@ import { useRiskProfile } from "@/hooks/use-risk-profile";
 import { usePaperAccountValidation } from "@/hooks/use-paper-account-validation";
 import { calculatePositionSize, validateRiskLimits } from "@/lib/calculations/position-sizing";
 import { useBinanceLeverageBrackets, getMaxLeverageForNotional } from "@/features/binance";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import type { PositionSizeResult } from "@/types/risk";
 
 interface PositionSizingStepProps {
@@ -29,6 +30,7 @@ export function PositionSizingStep({ onNext, onBack }: PositionSizingStepProps) 
   const wizard = useTradeEntryWizard();
   const { data: riskProfile } = useRiskProfile();
   const { validateTradeBalance, isPaperAccount } = usePaperAccountValidation();
+  const { format: formatCurrency, formatPnl } = useCurrencyConversion();
   
   const tradeDetails = wizard.tradeDetails;
   const accountBalance = wizard.accountBalance;
@@ -143,7 +145,7 @@ export function PositionSizingStep({ onNext, onBack }: PositionSizingStepProps) 
               <span className="text-sm text-muted-foreground">{tradeDetails.timeframe}</span>
             </div>
             <span className="text-sm text-muted-foreground">
-              Balance: ${accountBalance.toLocaleString()}
+              Balance: {formatCurrency(accountBalance)}
               {isUsingPaperAccount && (
                 <Badge variant="secondary" className="ml-2 text-xs">Paper</Badge>
               )}
@@ -304,12 +306,12 @@ export function PositionSizingStep({ onNext, onBack }: PositionSizingStepProps) 
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground mb-1">Position Value</p>
-                    <p className="text-2xl font-bold">${result.position_value.toLocaleString()}</p>
+                    <p className="text-2xl font-bold">{formatCurrency(result.position_value)}</p>
                     <p className="text-xs text-muted-foreground">total</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground mb-1">Risk Amount</p>
-                    <p className="text-2xl font-bold text-red-500">${result.risk_amount.toFixed(2)}</p>
+                    <p className="text-2xl font-bold text-red-500">{formatCurrency(result.risk_amount)}</p>
                     <p className="text-xs text-muted-foreground">max loss</p>
                   </div>
                   <div>
@@ -324,19 +326,19 @@ export function PositionSizingStep({ onNext, onBack }: PositionSizingStepProps) 
               <div className="grid grid-cols-4 gap-4 text-center">
                 <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
                   <p className="text-xs text-muted-foreground">If SL Hit</p>
-                  <p className="font-bold text-red-500">-${result.potential_loss.toFixed(2)}</p>
+                  <p className="font-bold text-red-500">{formatPnl(-result.potential_loss)}</p>
                 </div>
                 <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20">
                   <p className="text-xs text-muted-foreground">1R Profit</p>
-                  <p className="font-bold text-green-500">+${result.potential_profit_1r.toFixed(2)}</p>
+                  <p className="font-bold text-green-500">{formatPnl(result.potential_profit_1r)}</p>
                 </div>
                 <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20">
                   <p className="text-xs text-muted-foreground">2R Profit</p>
-                  <p className="font-bold text-green-500">+${result.potential_profit_2r.toFixed(2)}</p>
+                  <p className="font-bold text-green-500">{formatPnl(result.potential_profit_2r)}</p>
                 </div>
                 <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20">
                   <p className="text-xs text-muted-foreground">3R Profit</p>
-                  <p className="font-bold text-green-500">+${result.potential_profit_3r.toFixed(2)}</p>
+                  <p className="font-bold text-green-500">{formatPnl(result.potential_profit_3r)}</p>
                 </div>
               </div>
 
