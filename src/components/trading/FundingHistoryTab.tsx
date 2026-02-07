@@ -14,7 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useBinanceAllIncome, type BinanceIncome } from "@/features/binance";
 import { BinanceNotConfiguredState } from "@/components/binance/BinanceNotConfiguredState";
-import { formatCurrency } from "@/lib/formatters";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { cn } from "@/lib/utils";
 import type { DateRange } from "@/components/trading/DateRangeFilter";
 
@@ -31,6 +31,7 @@ export function FundingHistoryTab({
   selectedPairs, 
   showFullHistory 
 }: FundingHistoryTabProps) {
+  const { format: formatCurrency, formatPnl } = useCurrencyConversion();
   
   // Calculate days from dateRange for API call
   // Full history = 730 days (2 years) to support extended Binance history
@@ -152,7 +153,7 @@ export function FundingHistoryTab({
                 <div>
                   <p className="text-xs text-muted-foreground">Funding Paid</p>
                   <p className="text-xl font-bold text-loss">
-                    -{formatCurrency(summary.fundingPaid, 'USD')}
+                    -{formatCurrency(summary.fundingPaid)}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
                     {summary.paidCount} payments (longs in contango)
@@ -169,7 +170,7 @@ export function FundingHistoryTab({
                 <div>
                   <p className="text-xs text-muted-foreground">Funding Received</p>
                   <p className="text-xl font-bold text-profit">
-                    +{formatCurrency(summary.fundingReceived, 'USD')}
+                    +{formatCurrency(summary.fundingReceived)}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
                     {summary.receivedCount} payments (shorts in contango)
@@ -192,7 +193,7 @@ export function FundingHistoryTab({
                     "text-xl font-bold",
                     summary.netFunding >= 0 ? "text-profit" : "text-loss"
                   )}>
-                    {summary.netFunding >= 0 ? '+' : ''}{formatCurrency(summary.netFunding, 'USD')}
+                    {formatPnl(summary.netFunding)}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
                     {summary.totalCount} total intervals
@@ -251,7 +252,7 @@ export function FundingHistoryTab({
                           "text-right font-mono",
                           item.income >= 0 ? "text-profit" : "text-loss"
                         )}>
-                          {item.income >= 0 ? '+' : ''}{formatCurrency(item.income, 'USD')}
+                          {formatPnl(item.income)}
                         </TableCell>
                       </TableRow>
                     ))}

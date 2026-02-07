@@ -29,7 +29,7 @@ import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { useBinanceAllIncome, useBinanceConnectionStatus } from "@/features/binance";
 import { BinanceNotConfiguredState } from "@/components/binance/BinanceNotConfiguredState";
 import { getIncomeTypeCategory, type BinanceIncome } from "@/features/binance/types";
-import { formatCurrency } from "@/lib/formatters";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { cn } from "@/lib/utils";
 
 interface FinancialSummaryCardProps {
@@ -42,6 +42,7 @@ export function FinancialSummaryCard({
   defaultDays = 30,
 }: FinancialSummaryCardProps) {
   const [days, setDays] = useState<number>(defaultDays);
+  const { format, formatPnl } = useCurrencyConversion();
   
   // All hooks MUST be called before any conditional returns
   const { data: connectionStatus } = useBinanceConnectionStatus();
@@ -200,7 +201,7 @@ export function FinancialSummaryCard({
                     <div>
                       <p className="text-xs text-muted-foreground">Trading Fees</p>
                       <p className="text-xl font-bold text-loss">
-                        -{formatCurrency(Math.abs(summary.totalFees), 'USD')}
+                        -{format(Math.abs(summary.totalFees))}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
                         {summary.feeCount} transactions
@@ -218,7 +219,7 @@ export function FinancialSummaryCard({
                     <div>
                       <p className="text-xs text-muted-foreground">Funding Paid</p>
                       <p className="text-xl font-bold text-loss">
-                        -{formatCurrency(summary.fundingPaid, 'USD')}
+                        -{format(summary.fundingPaid)}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
                         When holding longs in contango
@@ -236,7 +237,7 @@ export function FinancialSummaryCard({
                     <div>
                       <p className="text-xs text-muted-foreground">Funding Received</p>
                       <p className="text-xl font-bold text-profit">
-                        +{formatCurrency(summary.fundingReceived, 'USD')}
+                        +{format(summary.fundingReceived)}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
                         When holding shorts in contango
@@ -254,7 +255,7 @@ export function FinancialSummaryCard({
                     <div>
                       <p className="text-xs text-muted-foreground">Fee Rebates</p>
                       <p className="text-xl font-bold text-profit">
-                        +{formatCurrency(summary.totalRebates, 'USD')}
+                        +{format(summary.totalRebates)}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
                         {summary.rebateCount} rebates
@@ -279,7 +280,7 @@ export function FinancialSummaryCard({
                 "text-xl font-bold",
                 netCost > 0 ? "text-loss" : "text-profit"
               )}>
-                {netCost > 0 ? '-' : '+'}{formatCurrency(Math.abs(netCost), 'USD')}
+                {netCost > 0 ? '-' : '+'}{format(Math.abs(netCost))}
               </div>
             </div>
 

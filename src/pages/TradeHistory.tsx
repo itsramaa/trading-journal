@@ -43,6 +43,7 @@ import { useBinanceFullSync } from "@/hooks/use-binance-full-sync";
 import { useTradeEnrichment } from "@/hooks/use-trade-enrichment";
 import { formatCurrency as formatCurrencyUtil } from "@/lib/formatters";
 import { useUserSettings } from "@/hooks/use-user-settings";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { useQueryClient } from "@tanstack/react-query";
 import { DateRange } from "@/components/trading/DateRangeFilter";
 import { TradeHistoryFilters, TradeEnrichmentDrawer, type ResultFilter, type DirectionFilter, type SessionFilter } from "@/components/journal";
@@ -91,15 +92,16 @@ export default function TradeHistory() {
   // Quick Note
   const { addQuickNote } = useTradeEnrichment();
   
+  // Currency conversion hook
+  const { format: formatCurrency, formatPnl, currency: displayCurrency } = useCurrencyConversion();
+  
   const handleQuickNote = async (tradeId: string, note: string) => {
     await addQuickNote(tradeId, note);
     queryClient.invalidateQueries({ queryKey: ['trade-entries'] });
     queryClient.invalidateQueries({ queryKey: ['trade-entries-paginated'] });
   };
 
-  // Currency helper
-  const displayCurrency = userSettings?.default_currency || 'USD';
-  const formatCurrency = (value: number) => formatCurrencyUtil(value, displayCurrency);
+  // Currency helper - using the hook version now (displayCurrency and formatCurrency defined above)
 
   // Build paginated filters - memoized for stability
   const paginatedFilters: TradeFilters = useMemo(() => ({

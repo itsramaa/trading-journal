@@ -12,12 +12,14 @@ import { Button } from "@/components/ui/button";
 import { TrendingDown, AlertTriangle, CheckCircle, XCircle, Wifi, Settings } from "lucide-react";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { useDailyRiskStatus, useRiskProfile } from "@/hooks/use-risk-profile";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { RISK_THRESHOLDS } from "@/types/risk";
 import { Link } from "react-router-dom";
 
 export function DailyLossTracker() {
   const { data: riskStatus, isBinanceConnected } = useDailyRiskStatus();
   const { data: riskProfile, isLoading: profileLoading } = useRiskProfile();
+  const { format, formatPnl } = useCurrencyConversion();
 
   // Loading state
   if (profileLoading) {
@@ -118,12 +120,6 @@ export function DailyLossTracker() {
     return <CheckCircle className="h-6 w-6 text-profit" />
   };
 
-  // Local formatCurrency with max 4 decimals for small values
-  const formatCurrencyLocal = (value: number) => {
-    const decimals = Math.abs(value) < 1 ? 4 : 2;
-    return `$${value.toFixed(decimals)}`;
-  };
-
   return (
     <Card>
       <CardHeader>
@@ -182,7 +178,7 @@ export function DailyLossTracker() {
               <InfoTooltip content={isBinanceConnected ? "Your current Binance Futures wallet balance used as the base for daily loss calculations." : "Your starting balance for today, used as the base for daily loss limit calculations."} />
             </p>
             <p className="text-lg font-semibold">
-              {formatCurrencyLocal(riskStatus.starting_balance)}
+              {format(riskStatus.starting_balance)}
             </p>
           </div>
           <div className="p-3 rounded-lg bg-muted/50">
@@ -191,7 +187,7 @@ export function DailyLossTracker() {
               <InfoTooltip content="Maximum dollar amount you can lose today based on your risk profile percentage. Calculated from your starting balance." />
             </p>
             <p className="text-lg font-semibold">
-              {formatCurrencyLocal(riskStatus.loss_limit)}
+              {format(riskStatus.loss_limit)}
             </p>
           </div>
           <div className={`p-3 rounded-lg ${riskStatus.current_pnl >= 0 ? 'bg-profit-muted' : 'bg-loss-muted'}`}>
@@ -200,7 +196,7 @@ export function DailyLossTracker() {
               <InfoTooltip content="Your total realized profit or loss for today. Negative values count against your daily loss limit." />
             </p>
             <p className={`text-lg font-semibold ${riskStatus.current_pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-              {riskStatus.current_pnl >= 0 ? '+' : ''}{formatCurrencyLocal(riskStatus.current_pnl)}
+              {formatPnl(riskStatus.current_pnl)}
             </p>
           </div>
           <div className="p-3 rounded-lg bg-muted/50">
@@ -209,7 +205,7 @@ export function DailyLossTracker() {
               <InfoTooltip content="How much more you can lose today before hitting your daily loss limit. When this reaches $0, trading should stop." />
             </p>
             <p className={`text-lg font-semibold ${riskStatus.remaining_budget <= 0 ? 'text-loss' : ''}`}>
-              {formatCurrencyLocal(riskStatus.remaining_budget)}
+              {format(riskStatus.remaining_budget)}
             </p>
           </div>
         </div>
