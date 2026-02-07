@@ -438,7 +438,10 @@ export default function TradeHistory() {
                       <Loader2 className="h-4 w-4 animate-spin text-primary" />
                       <div className="flex flex-col gap-1">
                         <span className="text-sm font-medium">
-                          Syncing Binance history... {syncProgress?.phase && `(${syncProgress.phase})`}
+                          {syncProgress?.phase === 'enriching' 
+                            ? 'Enriching trades with accurate prices...'
+                            : `Syncing Binance history... (${syncProgress?.phase || 'starting'})`
+                          }
                         </span>
                         <div className="flex items-center gap-2">
                           <Progress value={syncProgress?.percent ?? 0} className="w-32 h-2" />
@@ -446,11 +449,10 @@ export default function TradeHistory() {
                             {(syncProgress?.percent ?? 0).toFixed(0)}%
                           </span>
                         </div>
-                        {syncProgress?.recordsFetched ? (
-                          <span className="text-xs text-muted-foreground">
-                            {syncProgress.recordsFetched} records fetched
-                          </span>
-                        ) : null}
+                        <span className="text-xs text-muted-foreground">
+                          {syncProgress?.recordsFetched ? `${syncProgress.recordsFetched} records fetched` : ''}
+                          {syncProgress?.enrichedCount ? ` • ${syncProgress.enrichedCount} enriched` : ''}
+                        </span>
                       </div>
                     </div>
                   ) : (
@@ -469,6 +471,7 @@ export default function TradeHistory() {
                       {fullSyncResult && fullSyncResult.synced > 0 && (
                         <Badge variant="secondary" className="text-xs">
                           +{fullSyncResult.synced} synced
+                          {fullSyncResult.enriched > 0 && ` (${fullSyncResult.enriched} enriched)`}
                         </Badge>
                       )}
                     </>
@@ -696,13 +699,16 @@ export default function TradeHistory() {
                 </p>
                 <div className="rounded-lg bg-muted p-3 space-y-1 text-sm">
                   <p className="flex items-center gap-2">
-                    <span className="text-profit">✓</span> Only new trades will be added
+                    <span className="text-profit">✓</span> Fetches all trades (2+ years history)
                   </p>
                   <p className="flex items-center gap-2">
-                    <span className="text-profit">✓</span> Duplicates are automatically skipped
+                    <span className="text-profit">✓</span> <strong>Auto-enriches</strong> with accurate entry/exit prices
                   </p>
                   <p className="flex items-center gap-2">
-                    <span className="text-profit">✓</span> Journal entries preserved
+                    <span className="text-profit">✓</span> Captures direction (LONG/SHORT), quantity, fees
+                  </p>
+                  <p className="flex items-center gap-2">
+                    <span className="text-profit">✓</span> Duplicates automatically skipped
                   </p>
                 </div>
                 <p className="text-xs text-muted-foreground">
@@ -717,7 +723,7 @@ export default function TradeHistory() {
               <AlertDialogAction 
                 onClick={async () => {
                   setShowSyncConfirm(false);
-                  setSyncProgress({ phase: 'fetching', chunk: 0, totalChunks: 0, page: 0, recordsFetched: 0, recordsToInsert: 0, percent: 0 });
+                  setSyncProgress({ phase: 'fetching', chunk: 0, totalChunks: 0, page: 0, recordsFetched: 0, recordsToInsert: 0, enrichedCount: 0, percent: 0 });
                   
                   try {
                     await syncFullHistory({

@@ -9,6 +9,7 @@
  * - Progress tracking for UI feedback
  * - Deduplication against existing trades
  * - Batch insert for performance
+ * - AUTO-ENRICHMENT: Fetches userTrades to get accurate entry/exit prices
  */
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,6 +17,11 @@ import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { invalidateTradeQueries } from "@/lib/query-invalidation";
 import type { BinanceIncome } from "@/features/binance/types";
+import {
+  fetchEnrichedTradesForSymbols,
+  getUniqueSymbolsFromIncome,
+  type EnrichedTradeData,
+} from "@/services/binance-trade-enricher";
 
 const BINANCE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/binance-futures`;
 
@@ -25,24 +31,27 @@ const RATE_LIMIT_DELAY = 300; // ms between requests
 const RECORDS_PER_PAGE = 1000; // Binance API limit per request
 
 export interface FullSyncProgress {
-  phase: 'fetching' | 'filtering' | 'deduplicating' | 'inserting' | 'done';
+  phase: 'fetching' | 'filtering' | 'deduplicating' | 'enriching' | 'inserting' | 'done';
   chunk: number;
   totalChunks: number;
   page: number;
   recordsFetched: number;
   recordsToInsert: number;
+  enrichedCount: number;
   percent: number;
 }
 
 export interface FullSyncOptions {
   monthsBack?: number;
   fetchAll?: boolean; // Fetch unlimited history (up to account creation)
+  skipEnrichment?: boolean; // Skip userTrades enrichment (faster but less accurate)
   onProgress?: (progress: FullSyncProgress) => void;
 }
 
 export interface FullSyncResult {
   synced: number;
   skipped: number;
+  enriched: number;
   totalFetched: number;
   errors: string[];
 }
@@ -158,7 +167,8 @@ async function fetchChunkedIncomeHistory(
       page: 0,
       recordsFetched: allIncome.length,
       recordsToInsert: 0,
-      percent: ((i / maxChunks) * 50), // 0-50% for fetching
+      enrichedCount: 0,
+      percent: ((i / maxChunks) * 40), // 0-40% for fetching
     });
     
     // Fetch all records in this chunk with pagination
@@ -173,7 +183,8 @@ async function fetchChunkedIncomeHistory(
           page,
           recordsFetched: allIncome.length + recordsInChunk,
           recordsToInsert: 0,
-          percent: ((i / maxChunks) * 50) + (page * 0.5), // Progress within chunk
+          enrichedCount: 0,
+          percent: ((i / maxChunks) * 40) + (page * 0.5),
         });
       }
     );
@@ -187,7 +198,6 @@ async function fetchChunkedIncomeHistory(
       emptyChunksInRow = 0;
     } else {
       emptyChunksInRow++;
-      // If fetchAll and we hit empty chunks, stop early
       if (fetchAll && emptyChunksInRow >= MAX_EMPTY_CHUNKS) {
         break;
       }
@@ -195,7 +205,6 @@ async function fetchChunkedIncomeHistory(
     
     completedChunks++;
     
-    // Rate limit delay between chunks
     if (i < maxChunks - 1) {
       await new Promise(r => setTimeout(r, RATE_LIMIT_DELAY));
     }
@@ -209,7 +218,8 @@ async function fetchChunkedIncomeHistory(
     page: 0,
     recordsFetched: allIncome.length,
     recordsToInsert: 0,
-    percent: 55,
+    enrichedCount: 0,
+    percent: 45,
   });
   
   const uniqueMap = new Map<number, BinanceIncome>();
@@ -222,7 +232,7 @@ async function fetchChunkedIncomeHistory(
 }
 
 /**
- * Convert BinanceIncome record to trade_entries format
+ * Convert BinanceIncome record to trade_entries format (basic version without enrichment)
  */
 function incomeToTradeEntry(income: BinanceIncome, userId: string) {
   const result = income.income > 0 ? 'win' : income.income < 0 ? 'loss' : 'breakeven';
@@ -230,7 +240,7 @@ function incomeToTradeEntry(income: BinanceIncome, userId: string) {
   return {
     user_id: userId,
     pair: income.symbol,
-    direction: 'LONG', // Default, will be enhanced in Phase 2 with userTrades
+    direction: 'LONG', // Will be enriched with userTrades
     entry_price: 0,
     exit_price: 0,
     quantity: 0,
@@ -246,7 +256,37 @@ function incomeToTradeEntry(income: BinanceIncome, userId: string) {
 }
 
 /**
+ * Convert EnrichedTradeData to trade_entries format (with accurate data from userTrades)
+ */
+function enrichedTradeToEntry(trade: EnrichedTradeData, userId: string, tranId: number) {
+  const result = trade.realizedPnl > 0 ? 'win' : trade.realizedPnl < 0 ? 'loss' : 'breakeven';
+  
+  return {
+    user_id: userId,
+    pair: trade.symbol,
+    direction: trade.direction,
+    entry_price: trade.entryPrice,
+    exit_price: trade.exitPrice,
+    quantity: trade.quantity,
+    pnl: trade.realizedPnl,
+    realized_pnl: trade.realizedPnl,
+    fees: trade.totalFees,
+    is_maker: trade.isMaker,
+    hold_time_minutes: trade.holdTimeMinutes,
+    entry_datetime: trade.entryTime.toISOString(),
+    exit_datetime: trade.exitTime.toISOString(),
+    trade_date: trade.exitTime.toISOString(),
+    status: 'closed' as const,
+    result,
+    source: 'binance',
+    binance_trade_id: `income_${tranId}`,
+    notes: `Auto-synced from Binance with enrichment`,
+  };
+}
+
+/**
  * Hook for syncing complete Binance history to local database
+ * Now includes automatic trade enrichment with userTrades data
  */
 export function useBinanceFullSync() {
   const { user } = useAuth();
@@ -254,18 +294,21 @@ export function useBinanceFullSync() {
   
   const syncFullHistory = useMutation({
     mutationFn: async (options: FullSyncOptions = {}): Promise<FullSyncResult> => {
-      const { monthsBack = 24, fetchAll = false, onProgress } = options;
+      const { monthsBack = 24, fetchAll = false, skipEnrichment = false, onProgress } = options;
       
       if (!user?.id) {
         throw new Error("User not authenticated");
       }
       
+      const errors: string[] = [];
+      
       // Step 1: Fetch all income from Binance (chunked + paginated)
-      const { incomes: allIncome, errors } = await fetchChunkedIncomeHistory(
+      const { incomes: allIncome, errors: fetchErrors } = await fetchChunkedIncomeHistory(
         monthsBack,
         fetchAll,
         onProgress
       );
+      errors.push(...fetchErrors);
       
       if (allIncome.length === 0) {
         onProgress?.({
@@ -275,9 +318,10 @@ export function useBinanceFullSync() {
           page: 0,
           recordsFetched: 0,
           recordsToInsert: 0,
+          enrichedCount: 0,
           percent: 100,
         });
-        return { synced: 0, skipped: 0, totalFetched: 0, errors };
+        return { synced: 0, skipped: 0, enriched: 0, totalFetched: 0, errors };
       }
       
       // Step 2: Filter to REALIZED_PNL only (trades)
@@ -292,7 +336,8 @@ export function useBinanceFullSync() {
         page: 0,
         recordsFetched: allIncome.length,
         recordsToInsert: pnlRecords.length,
-        percent: 60,
+        enrichedCount: 0,
+        percent: 50,
       });
       
       if (pnlRecords.length === 0) {
@@ -303,16 +348,16 @@ export function useBinanceFullSync() {
           page: 0,
           recordsFetched: allIncome.length,
           recordsToInsert: 0,
+          enrichedCount: 0,
           percent: 100,
         });
-        return { synced: 0, skipped: 0, totalFetched: allIncome.length, errors };
+        return { synced: 0, skipped: 0, enriched: 0, totalFetched: allIncome.length, errors };
       }
       
       // Step 3: Check for duplicates
       const incomeIds = pnlRecords.map(r => `income_${r.tranId}`);
-      
-      // Batch check in chunks of 500 (Supabase IN limit)
       const existingIds = new Set<string>();
+      
       for (let i = 0; i < incomeIds.length; i += 500) {
         const batch = incomeIds.slice(i, i + 500);
         const { data: existing } = await supabase
@@ -325,16 +370,6 @@ export function useBinanceFullSync() {
       
       const newRecords = pnlRecords.filter(r => !existingIds.has(`income_${r.tranId}`));
       
-      onProgress?.({
-        phase: 'inserting',
-        chunk: 0,
-        totalChunks: 0,
-        page: 0,
-        recordsFetched: allIncome.length,
-        recordsToInsert: newRecords.length,
-        percent: 70,
-      });
-      
       if (newRecords.length === 0) {
         onProgress?.({
           phase: 'done',
@@ -343,21 +378,98 @@ export function useBinanceFullSync() {
           page: 0,
           recordsFetched: allIncome.length,
           recordsToInsert: 0,
+          enrichedCount: 0,
           percent: 100,
         });
         return { 
           synced: 0, 
           skipped: pnlRecords.length, 
+          enriched: 0,
           totalFetched: allIncome.length,
           errors 
         };
       }
       
-      // Step 4: Insert new trades in batches
-      const entries = newRecords.map(r => incomeToTradeEntry(r, user.id));
-      let synced = 0;
+      // Step 4: Enrich trades with userTrades data (unless skipped)
+      let enrichedCount = 0;
+      let entries: ReturnType<typeof incomeToTradeEntry>[] = [];
       
+      if (!skipEnrichment) {
+        onProgress?.({
+          phase: 'enriching',
+          chunk: 0,
+          totalChunks: 0,
+          page: 0,
+          recordsFetched: allIncome.length,
+          recordsToInsert: newRecords.length,
+          enrichedCount: 0,
+          percent: 55,
+        });
+        
+        // Get unique symbols for fetching userTrades
+        const symbols = getUniqueSymbolsFromIncome(newRecords);
+        const oldestRecord = Math.min(...newRecords.map(r => r.time));
+        const newestRecord = Math.max(...newRecords.map(r => r.time));
+        
+        try {
+          const enrichedTrades = await fetchEnrichedTradesForSymbols(
+            symbols,
+            oldestRecord - (24 * 60 * 60 * 1000), // 1 day buffer before
+            newestRecord + (60 * 60 * 1000), // 1 hour buffer after
+            allIncome,
+            (current, total) => {
+              onProgress?.({
+                phase: 'enriching',
+                chunk: current,
+                totalChunks: total,
+                page: 0,
+                recordsFetched: allIncome.length,
+                recordsToInsert: newRecords.length,
+                enrichedCount: current,
+                percent: 55 + (current / total) * 20,
+              });
+            }
+          );
+          
+          // Map enriched data to trade entries
+          const enrichedByTranId = new Map(
+            enrichedTrades.map(t => [t.tranId, t])
+          );
+          
+          entries = newRecords.map(income => {
+            const enriched = enrichedByTranId.get(income.tranId);
+            if (enriched && enriched.entryPrice > 0) {
+              enrichedCount++;
+              return enrichedTradeToEntry(enriched, user.id, income.tranId);
+            }
+            return incomeToTradeEntry(income, user.id);
+          });
+          
+        } catch (enrichError) {
+          console.warn('Enrichment failed, using basic data:', enrichError);
+          errors.push(`Enrichment: ${enrichError instanceof Error ? enrichError.message : 'Failed'}`);
+          entries = newRecords.map(r => incomeToTradeEntry(r, user.id));
+        }
+      } else {
+        // Skip enrichment, use basic data
+        entries = newRecords.map(r => incomeToTradeEntry(r, user.id));
+      }
+      
+      // Step 5: Insert new trades in batches
+      onProgress?.({
+        phase: 'inserting',
+        chunk: 0,
+        totalChunks: 0,
+        page: 0,
+        recordsFetched: allIncome.length,
+        recordsToInsert: entries.length,
+        enrichedCount,
+        percent: 80,
+      });
+      
+      let synced = 0;
       const batchSize = 100;
+      
       for (let i = 0; i < entries.length; i += batchSize) {
         const batch = entries.slice(i, i + batchSize);
         const { data, error } = await supabase
@@ -371,15 +483,15 @@ export function useBinanceFullSync() {
           synced += data?.length || 0;
         }
         
-        // Progress: 70% to 100%
-        const insertProgress = 70 + ((i + batch.length) / entries.length) * 30;
+        const insertProgress = 80 + ((i + batch.length) / entries.length) * 20;
         onProgress?.({
           phase: 'inserting',
           chunk: 0,
           totalChunks: 0,
           page: 0,
           recordsFetched: allIncome.length,
-          recordsToInsert: newRecords.length,
+          recordsToInsert: entries.length,
+          enrichedCount,
           percent: insertProgress,
         });
       }
@@ -391,44 +503,44 @@ export function useBinanceFullSync() {
         page: 0,
         recordsFetched: allIncome.length,
         recordsToInsert: synced,
+        enrichedCount,
         percent: 100,
       });
       
       return { 
         synced, 
         skipped: pnlRecords.length - newRecords.length,
+        enriched: enrichedCount,
         totalFetched: allIncome.length,
         errors 
       };
     },
     onSuccess: (result) => {
       invalidateTradeQueries(queryClient);
-      
-      // Force refetch paginated data to show new trades immediately
       queryClient.refetchQueries({ queryKey: ['trade-entries-paginated'] });
       
       if (result.synced > 0) {
+        const enrichMsg = result.enriched > 0 
+          ? ` (${result.enriched} with accurate prices)` 
+          : '';
         toast.success(`Sync Complete`, {
-          description: `${result.synced} new trades synced from Binance${result.skipped > 0 ? ` (${result.skipped} already existed)` : ''} — Total fetched: ${result.totalFetched}`,
+          description: `${result.synced} new trades synced${enrichMsg}${result.skipped > 0 ? `, ${result.skipped} already existed` : ''}`,
           duration: 5000,
         });
       } else if (result.skipped > 0) {
         toast.success(`All Synced`, {
-          description: `All ${result.skipped} trades are already in your journal (${result.totalFetched} records checked)`,
+          description: `All ${result.skipped} trades are already in your journal`,
           duration: 4000,
         });
       } else {
         toast.info('No Trades Found', {
-          description: `No trading history found in your Binance account (${result.totalFetched} records checked)`,
+          description: `No trading history found in your Binance account`,
           duration: 4000,
         });
       }
       
       if (result.errors.length > 0) {
         console.warn('Sync completed with warnings:', result.errors);
-        toast.warning('Sync completed with warnings', {
-          description: `${result.errors.length} issue(s) encountered. Check console for details.`,
-        });
       }
     },
     onError: (error) => {
@@ -457,7 +569,6 @@ export function useHasFullSyncHistory() {
         return { hasHistory: false, oldestTradeDate: null };
       }
       
-      // Check for oldest Binance trade
       const { data } = await supabase
         .from('trade_entries')
         .select('trade_date')
