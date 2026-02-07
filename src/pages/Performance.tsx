@@ -67,11 +67,11 @@ import {
   generateEquityCurve,
 } from "@/lib/trading-calculations";
 import { 
-  formatCompactCurrency, 
   formatWinRate, 
   formatRatio, 
   formatPercentUnsigned,
 } from "@/lib/formatters";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { format } from "date-fns";
 import type { UnifiedMarketContext } from "@/types/market-context";
 
@@ -80,6 +80,9 @@ export default function Performance() {
   const [selectedStrategyIds, setSelectedStrategyIds] = useState<string[]>([]);
   const [eventDaysOnly, setEventDaysOnly] = useState(false);
   const [strategyDropdownOpen, setStrategyDropdownOpen] = useState(false);
+
+  // Currency conversion hook
+  const { formatCompact } = useCurrencyConversion();
 
   // Data hooks
   const { data: trades, isLoading: tradesLoading } = useTradeEntries();
@@ -126,8 +129,8 @@ export default function Performance() {
 
   const equityData = useMemo(() => generateEquityCurve(filteredTrades), [filteredTrades]);
 
-  // Chart-specific formatter for compact currency display
-  const chartFormatCurrency = (v: number) => formatCompactCurrency(v, 'USD');
+  // Chart-specific formatter for compact currency display (uses user's currency)
+  const chartFormatCurrency = (v: number) => formatCompact(v);
 
   // Export handlers
   const handleExportCSV = () => {

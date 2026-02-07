@@ -1,9 +1,11 @@
 /**
  * Calculator Results Display - Position Size Calculator
+ * Uses centralized currency conversion for user's preferred currency
  */
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { AlertTriangle, CheckCircle } from "lucide-react";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import type { calculatePositionSize } from "@/lib/calculations/position-sizing";
 
 interface CalculatorResultsProps {
@@ -11,12 +13,7 @@ interface CalculatorResultsProps {
 }
 
 export function CalculatorResults({ result }: CalculatorResultsProps) {
-  const formatCurrency = (value: number) => {
-    if (value >= 1000) {
-      return `$${(value / 1000).toFixed(2)}K`;
-    }
-    return `$${value.toFixed(2)}`;
-  };
+  const { formatCompact } = useCurrencyConversion();
 
   const formatQuantity = (value: number) => {
     if (value >= 1) {
@@ -46,7 +43,7 @@ export function CalculatorResults({ result }: CalculatorResultsProps) {
             Position Value
             <InfoTooltip content="Total dollar value of the position (units × entry price). Shows how much capital is deployed in this trade." />
           </p>
-          <p className="text-2xl font-bold">{formatCurrency(result.position_value)}</p>
+          <p className="text-2xl font-bold">{formatCompact(result.position_value)}</p>
           <p className="text-sm text-muted-foreground">
             {result.capital_deployment_percent.toFixed(1)}% of capital
           </p>
@@ -62,7 +59,7 @@ export function CalculatorResults({ result }: CalculatorResultsProps) {
             />
           </p>
           <p className="text-2xl font-bold text-loss">
-            -{formatCurrency(result.potential_loss)}
+            -{formatCompact(result.potential_loss)}
           </p>
           <p className="text-sm text-muted-foreground">
             {result.stop_distance_percent.toFixed(2)}% stop distance
@@ -76,10 +73,10 @@ export function CalculatorResults({ result }: CalculatorResultsProps) {
             <InfoTooltip content="Profit if price reaches 2× your risk distance. A 2R win means you gained twice what you risked. Aim for 2R+ on winning trades." />
           </p>
           <p className="text-2xl font-bold text-profit">
-            +{formatCurrency(result.potential_profit_2r)}
+            +{formatCompact(result.potential_profit_2r)}
           </p>
           <p className="text-sm text-muted-foreground">
-            3R: +{formatCurrency(result.potential_profit_3r)}
+            3R: +{formatCompact(result.potential_profit_3r)}
           </p>
         </div>
       </div>
