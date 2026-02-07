@@ -1,328 +1,285 @@
 
-# Plan: Fix Full History Sync & Implement Currency Conversion System
+# Plan: Complete Currency Conversion Implementation Across All Components
 
-**Status: COMPLETED ✅**
+## Problem Analysis
 
-## Implemented
+Cross-check menemukan **banyak komponen yang masih menggunakan hardcoded USD formatting**:
 
-Menangani 3 masalah utama:
-1. **Full History Sync** tidak berfungsi dengan benar (trades hanya 10, padahal fees/funding sudah 627)
-2. **Currency Conversion** - Saat ganti ke IDR, nilai harus di-convert (bukan hanya ganti format)
-3. **IDR Compact Formatting** - Menggunakan notasi Indonesia: k, jt, m, t
+### Components dengan `formatCurrency(..., 'USD')` atau `formatPnl(..., 'USD')`:
+| File | Lines | Issue |
+|------|-------|-------|
+| `src/pages/Dashboard.tsx` | 152, 157 | Hardcoded USD untuk Active Positions |
+| `src/pages/TradingHeatmap.tsx` | 310, 328, 346, 373, 395 | Session P&L stats hardcoded USD |
+| `src/components/journal/PositionDialogs.tsx` | 69, 128 | Entry price formatting |
+| `src/components/trading/TradeHistoryCard.tsx` | 151, 200, 201 | P&L dan price formatting |
+| `src/components/trading/BinanceTransactionHistory.tsx` | 107, 122, 141, 202 | Transaction amounts |
+| `src/components/analytics/TradingHeatmap.tsx` | 268, 273 | Tooltip P&L formatting |
+| `src/components/analytics/TradingHeatmapChart.tsx` | 195, 204 | Tooltip P&L formatting |
 
----
-
-## Part 1: Fix Full History Sync Issue
-
-### Problem Analysis
-
-Current state:
-- `FeeHistoryTab` dan `FundingHistoryTab` menggunakan `useBinanceAllIncome(days, 1000)` → berhasil fetch 627+ records
-- `TradeHistory` paginated query hanya menampilkan data dari local DB (`trade_entries` table)
-- `useBinanceFullSync` seharusnya sync income → local DB, tapi:
-  1. Hanya sync `REALIZED_PNL` income type
-  2. Butuh manual trigger (tombol "Sync Full History")
-  3. Setelah sync, data disimpan ke `trade_entries` table
-
-**Root Cause**: Full sync flow berfungsi, tapi:
-- User mungkin belum trigger sync
-- Atau sync selesai tapi query paginated tidak di-invalidate dengan benar
-
-### Solution
-
-#### 1.1 Improve Full Sync Trigger & Feedback
-
-**File**: `src/pages/TradeHistory.tsx`
-
-- Tambahkan auto-detection: jika Binance connected tapi trades < 10 padahal income > 50, tampilkan prompt sync
-- Improve sync progress feedback
-- Auto-enable "Show Full History" setelah sync berhasil
-
-#### 1.2 Fix Query Invalidation After Full Sync
-
-**File**: `src/hooks/use-binance-full-sync.ts`
-
-Pastikan setelah sync berhasil:
-```typescript
-onSuccess: (result) => {
-  // Already calls invalidateTradeQueries - verify this includes paginated
-  invalidateTradeQueries(queryClient);
-  
-  // Force refetch paginated data
-  queryClient.refetchQueries({ queryKey: ['trade-entries-paginated'] });
-}
-```
-
-#### 1.3 Add Sync Status Indicator
-
-Tampilkan status sync di Trade History header:
-- "Binance: 627 income records | Local: 10 trades | [Sync Now]"
-- Membantu user memahami mengapa data tidak match
+### Components dengan inline `${}...toFixed()` atau `${}...toLocaleString()`:
+| File | Lines | Issue |
+|------|-------|-------|
+| `src/components/journal/PositionsTable.tsx` | 84, 87, 93, 96 | All position values hardcoded $ |
+| `src/components/trade/entry/TradeConfirmation.tsx` | 102, 112, 118, 146, 150 | Entry/SL/TP prices hardcoded $ |
+| `src/components/trade/entry/FinalChecklist.tsx` | 319 | Risk amount hardcoded $ |
+| `src/components/market/MarketSentimentWidget.tsx` | 372 | Mark price hardcoded $ |
+| `src/components/strategy/BacktestResults.tsx` | 262, 277 | Backtest chart tooltips |
+| `src/components/analytics/DrawdownChart.tsx` | No currency, only % - OK |
 
 ---
 
-## Part 2: Currency Conversion System
+## Implementation Strategy
 
-### 2.1 Create Conversion Hook
+### Approach: Props vs Hook
 
-**File baru**: `src/hooks/use-currency-conversion.ts`
+**Use `useCurrencyConversion()` hook** di komponen yang:
+- Standalone (tidak menerima data dari parent)
+- Page-level components
 
-```typescript
-interface UseCurrencyConversionReturn {
-  convert: (usdValue: number) => number;
-  format: (usdValue: number) => string;
-  formatPnl: (usdValue: number) => string;
-  formatCompact: (usdValue: number) => string;
-  formatCompactPnl: (usdValue: number) => string;
-  currency: 'USD' | 'IDR';
-  exchangeRate: number;
-  isLoading: boolean;
-}
-
-export function useCurrencyConversion(): UseCurrencyConversionReturn {
-  const { data: settings } = useUserSettings();
-  const { exchangeRate } = useAppStore();
-  
-  const currency = settings?.default_currency || 'USD';
-  
-  const convert = (usdValue: number) => {
-    if (currency === 'IDR') return usdValue * exchangeRate;
-    return usdValue;
-  };
-  
-  // Format with conversion
-  const format = (usdValue: number) => {
-    const converted = convert(usdValue);
-    return formatCurrency(converted, currency);
-  };
-  
-  // ... etc
-}
-```
-
-### 2.2 Update formatters.ts with IDR Compact Notation
-
-**File**: `src/lib/formatters.ts`
-
-Tambahkan formatting Indonesia yang benar:
-
-```typescript
-/**
- * Format compact IDR with Indonesian notation
- * 1000-99999 = k (1k, 10k, 50k)
- * 100000-999999 = k (100k, 500k, 999k)  
- * 1000000+ = jt (1jt, 1.5jt, 10jt)
- * 1000000000+ = m (1m, 1.5m - miliar)
- * 1000000000000+ = t (1t - triliun)
- */
-export function formatCompactIDR(value: number): string {
-  const absValue = Math.abs(value);
-  const sign = value < 0 ? '-' : '';
-  
-  if (absValue >= 1_000_000_000_000) {
-    return `${sign}Rp ${(absValue / 1_000_000_000_000).toFixed(1)}t`;
-  }
-  if (absValue >= 1_000_000_000) {
-    return `${sign}Rp ${(absValue / 1_000_000_000).toFixed(1)}m`;
-  }
-  if (absValue >= 1_000_000) {
-    return `${sign}Rp ${(absValue / 1_000_000).toFixed(1)}jt`;
-  }
-  if (absValue >= 1_000) {
-    return `${sign}Rp ${(absValue / 1_000).toFixed(0)}k`;
-  }
-  
-  return formatCurrency(value, 'IDR');
-}
-
-// Update formatCompactCurrency to use IDR-specific formatting
-export function formatCompactCurrency(
-  value: number,
-  currency: Currency | AssetMarket | string = 'USD'
-): string {
-  if (currency === 'IDR' || currency === 'ID') {
-    return formatCompactIDR(value);
-  }
-  // ... existing K/M/B logic for USD
-}
-```
-
-### 2.3 Fetch Real-time Exchange Rate
-
-**File baru**: `src/hooks/use-exchange-rate.ts`
-
-```typescript
-// Fetch from free API (e.g., exchangerate.host or similar)
-export function useExchangeRate() {
-  const { setExchangeRate } = useAppStore();
-  
-  return useQuery({
-    queryKey: ['exchange-rate', 'USD', 'IDR'],
-    queryFn: async () => {
-      // Use free exchange rate API
-      const response = await fetch('https://api.exchangerate.host/latest?base=USD&symbols=IDR');
-      const data = await response.json();
-      const rate = data.rates?.IDR || 16000;
-      
-      setExchangeRate(rate);
-      return rate;
-    },
-    staleTime: 60 * 60 * 1000, // 1 hour
-    refetchInterval: 60 * 60 * 1000, // Refresh hourly
-  });
-}
-```
-
-### 2.4 Update CurrencyDisplay Component
-
-**File**: `src/components/layout/CurrencyDisplay.tsx`
-
-- Tampilkan current exchange rate
-- Trigger rate fetch saat mount
+**Receive `formatCurrency` prop** di komponen yang:
+- Child components yang dipanggil oleh parent
+- Pure display components
 
 ---
 
-## Part 3: Propagate Currency Conversion to Components
+## Phase 1: Dashboard & Active Positions
 
-### High-Priority Components (Dashboard)
+### 1.1 `src/pages/Dashboard.tsx`
+**Current:**
+```typescript
+<span className="font-mono-numbers">${position.entryPrice.toFixed(2)}</span>
+{pnl >= 0 ? '+' : ''}{formatCurrency(pnl, 'USD')}
+```
 
-| Component | Current State | Fix |
-|-----------|---------------|-----|
-| `PortfolioOverviewCard.tsx` | Hardcoded 'USD' | Use `useCurrencyConversion()` |
-| `TodayPerformance.tsx` | Hardcoded 'USD' | Use `useCurrencyConversion()` |
-| `DailyLossTracker.tsx` | Local formatter | Use centralized formatter |
-| `SystemStatusIndicator.tsx` | Uses formatPnl | Pass currency param |
+**Fix:**
+- Import `useCurrencyConversion`
+- Use hook's `format()` and `formatPnl()` functions
 
-### Analytics Components
+---
 
-| Component | Fix |
-|-----------|-----|
-| `SevenDayStatsCard.tsx` | Use currency hook |
-| `EquityCurveWithEvents.tsx` | Accept currency prop |
-| `CryptoRanking.tsx` | Use currency hook |
-| `SessionPerformanceChart.tsx` | Use currency hook |
+## Phase 2: Trading Heatmap Page
 
-### Risk Components
+### 2.1 `src/pages/TradingHeatmap.tsx`
+**Current:**
+```typescript
+{formatPnl(sessionStats.asia.pnl, 'USD')}
+```
 
-| Component | Fix |
-|-----------|-----|
-| `RiskSummaryCard.tsx` | Use currency hook |
-| `PositionSizeCalculator.tsx` | Use currency hook |
+**Fix:**
+- Import `useCurrencyConversion`
+- Replace all `formatPnl(..., 'USD')` with hook's `formatPnl()`
 
-### Journal/Trade Components
+---
 
-| Component | Fix |
-|-----------|-----|
-| `TradeGalleryCard.tsx` | Accept formatCurrency prop (already does) |
-| `TradeSummaryStats.tsx` | Use currency hook |
-| `BinanceIncomeHistory.tsx` | Use currency hook |
-| `FeeHistoryTab.tsx` | Use currency hook |
-| `FundingHistoryTab.tsx` | Use currency hook |
-| `FinancialSummaryCard.tsx` | Use currency hook |
+## Phase 3: Journal Components
+
+### 3.1 `src/components/journal/PositionsTable.tsx`
+**Current:**
+```typescript
+${position.entryPrice.toFixed(2)}
+${position.markPrice.toFixed(2)}
+${position.unrealizedPnl.toFixed(2)}
+${position.liquidationPrice.toFixed(2)}
+```
+
+**Fix:**
+- Import `useCurrencyConversion`
+- Use `format()` for all price/value displays
+
+### 3.2 `src/components/journal/PositionDialogs.tsx`
+**Current:** Receives `formatCurrency` prop but caller passes hardcoded 'USD'
+
+**Fix:** Caller (`TradingJournal.tsx`) must use hook and pass converted formatter
+
+---
+
+## Phase 4: Trading Components
+
+### 4.1 `src/components/trading/TradeHistoryCard.tsx`
+**Current:** Receives `formatCurrency` prop but often called with hardcoded formatter
+
+**Fix:** Ensure all callers pass currency-converted formatter
+
+### 4.2 `src/components/trading/BinanceTransactionHistory.tsx`
+**Current:**
+```typescript
+{formatCurrency(summary.totalDeposits, 'USD')}
+```
+
+**Fix:**
+- Import `useCurrencyConversion`
+- Use hook's formatter
+
+---
+
+## Phase 5: Analytics Components
+
+### 5.1 `src/components/analytics/TradingHeatmap.tsx`
+**Current:**
+```typescript
+formatCurrency(cell.totalPnl, 'USD')
+```
+
+**Fix:**
+- Import `useCurrencyConversion`
+- Also fix inline `formatPnlDisplay()` to use conversion
+
+### 5.2 `src/components/analytics/TradingHeatmapChart.tsx`
+**Current:**
+```typescript
+{formatPnl(data.totalPnl)}
+{formatPnl(data.avgPnl)}
+```
+
+**Fix:**
+- Import `useCurrencyConversion`
+- Use hook's `formatPnl()`
+
+---
+
+## Phase 6: Trade Entry Wizard
+
+### 6.1 `src/components/trade/entry/TradeConfirmation.tsx`
+**Current:**
+```typescript
+${priceLevels.entryPrice.toLocaleString()}
+${priceLevels.stopLoss.toLocaleString()}
+-${positionSizing.risk_amount.toFixed(2)}
+```
+
+**Fix:**
+- Import `useCurrencyConversion`
+- Use hook's `format()` for all monetary values
+
+### 6.2 `src/components/trade/entry/FinalChecklist.tsx`
+**Current:**
+```typescript
+${positionSizing?.risk_amount.toFixed(2) || 0}
+```
+
+**Fix:**
+- Import `useCurrencyConversion`
+- Use hook's `format()` for risk amount
+
+---
+
+## Phase 7: Market Components
+
+### 7.1 `src/components/market/MarketSentimentWidget.tsx`
+**Current:**
+```typescript
+${sentiment.rawData.markPrice.markPrice.toLocaleString(...)}
+```
+
+**Note:** Market prices should stay in USD as they are exchange prices, not user balances. 
+**Decision:** Keep USD for market data prices (this is intentional - exchange prices are always in USD/USDT).
+
+---
+
+## Phase 8: Strategy/Backtest Components
+
+### 8.1 `src/components/strategy/BacktestResults.tsx`
+**Current:**
+```typescript
+tickFormatter={(v) => `$${v.toLocaleString()}`}
+formatter={(value) => [`$${value.toFixed(2)}`, 'Balance']}
+```
+
+**Fix:**
+- Import `useCurrencyConversion`
+- Use hook for chart formatters
+
+---
+
+## Phase 9: AllPositionsTable
+
+### 9.1 `src/components/journal/AllPositionsTable.tsx`
+**Current:** Receives `formatCurrency` prop - OK
+**Fix:** Ensure caller passes converted formatter
 
 ---
 
 ## Implementation Order
 
 ```text
-Phase 1: Core Infrastructure (Foundation)
-├── 1.1 Create use-currency-conversion.ts hook
-├── 1.2 Update formatters.ts with IDR compact (jt/m/t)
-├── 1.3 Create use-exchange-rate.ts hook
-└── 1.4 Update CurrencyDisplay with rate display
+Phase 1: Page-Level Components (highest impact)
+├── 1.1 Dashboard.tsx - Active Positions section
+└── 1.2 TradingHeatmap.tsx - Session stats
 
-Phase 2: Fix Full History Sync
-├── 2.1 Add sync detection in TradeHistory
-├── 2.2 Improve feedback & auto-trigger
-└── 2.3 Verify query invalidation
+Phase 2: Journal/Position Components
+├── 2.1 PositionsTable.tsx - Main positions view
+├── 2.2 PositionDialogs.tsx - Already has prop, fix caller
+└── 2.3 AllPositionsTable.tsx - Already has prop, verify caller
 
-Phase 3: Dashboard Components
-├── 3.1 PortfolioOverviewCard.tsx
-├── 3.2 TodayPerformance.tsx
-├── 3.3 DailyLossTracker.tsx
-└── 3.4 SystemStatusIndicator.tsx
+Phase 3: Trading History Components
+├── 3.1 BinanceTransactionHistory.tsx - Transaction amounts
+└── 3.2 TradeHistoryCard.tsx - Verify callers
 
-Phase 4: Analytics Components
-├── 4.1 SevenDayStatsCard.tsx
-├── 4.2 CryptoRanking.tsx
-├── 4.3 SessionPerformanceChart.tsx
-└── 4.4 EquityCurveWithEvents.tsx
+Phase 4: Analytics Heatmaps
+├── 4.1 TradingHeatmap.tsx - Tooltip values
+└── 4.2 TradingHeatmapChart.tsx - Chart tooltips
 
-Phase 5: Journal & Trade Components
-├── 5.1 FinancialSummaryCard.tsx
-├── 5.2 FeeHistoryTab.tsx
-├── 5.3 FundingHistoryTab.tsx
-├── 5.4 BinanceIncomeHistory.tsx
-└── 5.5 TradeSummaryStats.tsx
+Phase 5: Trade Entry Wizard
+├── 5.1 TradeConfirmation.tsx - All price displays
+└── 5.2 FinalChecklist.tsx - Risk amount
 
-Phase 6: Risk Components
-├── 6.1 RiskSummaryCard.tsx
-└── 6.2 PositionSizeCalculator.tsx
+Phase 6: Strategy Components
+└── 6.1 BacktestResults.tsx - Chart formatters
 ```
 
 ---
-
-## Files to Create
-
-| File | Purpose |
-|------|---------|
-| `src/hooks/use-currency-conversion.ts` | Centralized conversion hook |
-| `src/hooks/use-exchange-rate.ts` | Real-time USD/IDR rate fetcher |
 
 ## Files to Modify
 
 | File | Changes |
 |------|---------|
-| `src/lib/formatters.ts` | Add `formatCompactIDR()`, update `formatCompactCurrency()` |
-| `src/components/layout/CurrencyDisplay.tsx` | Show exchange rate |
-| `src/pages/TradeHistory.tsx` | Add sync detection & improved UX |
-| `src/hooks/use-binance-full-sync.ts` | Ensure proper invalidation |
-| `src/components/dashboard/PortfolioOverviewCard.tsx` | Use currency conversion |
-| `src/components/dashboard/TodayPerformance.tsx` | Use currency conversion |
-| `src/components/risk/DailyLossTracker.tsx` | Use centralized formatter |
-| `src/components/dashboard/SystemStatusIndicator.tsx` | Use currency conversion |
-| `src/components/analytics/*.tsx` | Use currency conversion |
-| `src/components/trading/*.tsx` | Use currency conversion |
-| `src/components/accounts/FinancialSummaryCard.tsx` | Use currency conversion |
+| `src/pages/Dashboard.tsx` | Add hook, fix Active Positions formatting |
+| `src/pages/TradingHeatmap.tsx` | Add hook, fix all session P&L displays |
+| `src/components/journal/PositionsTable.tsx` | Add hook, fix all price/pnl cells |
+| `src/components/trading/BinanceTransactionHistory.tsx` | Add hook, fix all amounts |
+| `src/components/analytics/TradingHeatmap.tsx` | Add hook, fix tooltip and inline display |
+| `src/components/analytics/TradingHeatmapChart.tsx` | Add hook, fix tooltip formatters |
+| `src/components/trade/entry/TradeConfirmation.tsx` | Add hook, fix all prices and amounts |
+| `src/components/trade/entry/FinalChecklist.tsx` | Add hook, fix risk amount |
+| `src/components/strategy/BacktestResults.tsx` | Add hook, fix chart formatters |
+| `src/pages/trading-journey/TradingJournal.tsx` | Verify passing converted formatter to dialogs |
+
+---
+
+## Exceptions (Keep USD)
+
+Components where USD should remain (exchange/market prices):
+- `MarketSentimentWidget.tsx` - Exchange mark prices
+- `AIAnalysisTab.tsx` - Signal prices from exchange
+
+These show actual exchange prices which are denominated in USDT, not user's display currency.
 
 ---
 
 ## Technical Notes
 
-### Exchange Rate API Options (Free)
+### Hook Usage Pattern
+```typescript
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 
-1. **exchangerate.host** - Free, no API key required
-2. **Open Exchange Rates** - Free tier available
-3. **Fallback**: Store default rate (16000) in app-store
+function MyComponent() {
+  const { format, formatPnl, formatCompact } = useCurrencyConversion();
+  
+  // Use format() instead of formatCurrency(value, 'USD')
+  // Use formatPnl() instead of formatPnl(value, 'USD')
+  return <span>{formatPnl(pnlValue)}</span>;
+}
+```
 
-### IDR Formatting Examples
+### For Child Components
+```typescript
+// Parent provides formatter
+<ChildComponent formatCurrency={format} />
 
-| Value (IDR) | Compact Display |
-|-------------|-----------------|
-| 500 | Rp 500 |
-| 1,000 | Rp 1k |
-| 10,000 | Rp 10k |
-| 100,000 | Rp 100k |
-| 1,000,000 | Rp 1jt |
-| 1,500,000 | Rp 1.5jt |
-| 10,000,000 | Rp 10jt |
-| 1,000,000,000 | Rp 1m |
-| 1,000,000,000,000 | Rp 1t |
-
-### Currency Conversion Flow
-
-```text
-USD Value (from Binance/DB)
-    ↓
-useCurrencyConversion()
-    ↓
-Check user's default_currency setting
-    ↓
-If IDR: multiply by exchangeRate
-    ↓
-Format with appropriate notation
-    ↓
-Display
+// Child uses prop
+function ChildComponent({ formatCurrency }: { formatCurrency: (v: number) => string }) {
+  return <span>{formatCurrency(value)}</span>;
+}
 ```
 
 ---
@@ -330,9 +287,8 @@ Display
 ## Outcome
 
 After implementation:
-
-1. **Full History Sync**: Trades properly synced from Binance to local DB with clear feedback
-2. **Currency Conversion**: Switching to IDR converts values (not just formats)
-3. **IDR Notation**: Uses Indonesian compact format (k, jt, m, t)
-4. **Consistent Display**: All components use user's preferred currency
-5. **Real-time Rate**: Exchange rate fetched and cached hourly
+1. All monetary values converted to user's preferred currency (USD/IDR)
+2. IDR values use Indonesian notation (k, jt, m, t)
+3. Real-time exchange rate applied consistently
+4. Exchange/market prices remain in USD (intentional)
+5. Consistent display across all pages and components
