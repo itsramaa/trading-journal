@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { useTradeEntryWizard } from "@/features/trade/useTradeEntryWizard";
 import { useAITradeQuality } from "@/features/ai/useAITradeQuality";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { EMOTIONAL_STATES } from "@/types/trade-wizard";
 import { calculateTradingStats } from "@/lib/trading-calculations";
 import { toast } from "sonner";
@@ -30,6 +31,7 @@ export function FinalChecklist({ onNext, onBack }: FinalChecklistProps) {
   const wizard = useTradeEntryWizard();
   const { getQualityScore, isLoading: aiLoading, result: aiResult, error: aiError } = useAITradeQuality();
   const { data: trades = [] } = useTradeEntries();
+  const { format } = useCurrencyConversion();
   
   const [emotionalState, setEmotionalState] = useState<string>(
     wizard.finalChecklist?.emotionalState || "calm"
@@ -316,7 +318,7 @@ export function FinalChecklist({ onNext, onBack }: FinalChecklistProps) {
               </div>
               <div className="p-3 rounded-lg bg-muted/50 text-center">
                 <p className="text-xs text-muted-foreground">Risk Amount</p>
-                <p className="font-bold">${positionSizing?.risk_amount.toFixed(2) || 0}</p>
+                <p className="font-bold">{format(positionSizing?.risk_amount || 0)}</p>
               </div>
               <div className="p-3 rounded-lg bg-muted/50 text-center">
                 <p className="text-xs text-muted-foreground">Position Size</p>

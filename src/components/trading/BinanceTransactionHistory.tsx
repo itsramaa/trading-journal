@@ -3,7 +3,7 @@
  * For Accounts page
  */
 import { useState, useMemo } from "react";
-import { format } from "date-fns";
+import { format as formatDate } from "date-fns";
 import { 
   ArrowDownCircle, 
   ArrowUpCircle, 
@@ -27,10 +27,11 @@ import {
   useBinanceConnectionStatus,
 } from "@/features/binance";
 import { BinanceNotConfiguredState } from "@/components/binance/BinanceNotConfiguredState";
-import { formatCurrency } from "@/lib/formatters";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 
 export function BinanceTransactionHistoryTab() {
   const [days, setDays] = useState<number>(30);
+  const { format, formatPnl } = useCurrencyConversion();
   
   // Internal guard: check connection status (component self-defense)
   const { data: connectionStatus } = useBinanceConnectionStatus();
@@ -104,7 +105,7 @@ export function BinanceTransactionHistoryTab() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-profit">
-                +{formatCurrency(summary.totalDeposits, 'USD')}
+                {formatPnl(summary.totalDeposits)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 {summary.depositCount} transaction{summary.depositCount !== 1 ? 's' : ''}
@@ -119,7 +120,7 @@ export function BinanceTransactionHistoryTab() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-loss">
-                -{formatCurrency(summary.totalWithdrawals, 'USD')}
+                {formatPnl(-summary.totalWithdrawals)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 {summary.withdrawalCount} transaction{summary.withdrawalCount !== 1 ? 's' : ''}
@@ -138,7 +139,7 @@ export function BinanceTransactionHistoryTab() {
             </CardHeader>
             <CardContent>
               <div className={`text-2xl font-bold ${summary.netFlow >= 0 ? 'text-profit' : 'text-loss'}`}>
-                {summary.netFlow >= 0 ? '+' : ''}{formatCurrency(summary.netFlow, 'USD')}
+                {formatPnl(summary.netFlow)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 Last {days} days
@@ -189,7 +190,7 @@ export function BinanceTransactionHistoryTab() {
                     return (
                       <TableRow key={tx.tranId}>
                         <TableCell className="text-muted-foreground">
-                          {format(new Date(tx.time), "MMM dd, yyyy HH:mm")}
+                          {formatDate(new Date(tx.time), "MMM dd, yyyy HH:mm")}
                         </TableCell>
                         <TableCell>
                           <Badge variant={getTransactionTypeVariant(tx.type)} className="gap-1">
@@ -199,7 +200,7 @@ export function BinanceTransactionHistoryTab() {
                         </TableCell>
                         <TableCell className="font-medium">{tx.asset}</TableCell>
                         <TableCell className={`text-right font-mono ${isDeposit ? 'text-profit' : 'text-loss'}`}>
-                          {isDeposit ? '+' : '-'}{formatCurrency(Math.abs(tx.amount), 'USD')}
+                          {formatPnl(isDeposit ? Math.abs(tx.amount) : -Math.abs(tx.amount))}
                         </TableCell>
                         <TableCell className="max-w-[200px] truncate text-muted-foreground">
                           {tx.info || "-"}

@@ -20,7 +20,8 @@ import {
 } from "recharts";
 import { Clock, Calendar, TrendingUp, TrendingDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { formatWinRate, formatPnl } from "@/lib/formatters";
+import { formatWinRate } from "@/lib/formatters";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { parseISO, getHours, getDay } from "date-fns";
 import { getSessionForTime, SESSION_LABELS, type TradingSession } from "@/lib/session-utils";
 
@@ -61,6 +62,7 @@ const SESSION_LABEL_MAP: Record<TradingSession, string> = {
 };
 
 export function TradingHeatmapChart({ trades }: TradingHeatmapChartProps) {
+  const { formatPnl } = useCurrencyConversion();
   const [activeTab, setActiveTab] = useState<'hourly' | 'daily' | 'session'>('daily');
 
   const metrics = useMemo(() => {
