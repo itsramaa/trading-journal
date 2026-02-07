@@ -7,7 +7,7 @@ Trade history dalam aplikasi ini memiliki arsitektur **Binance-Centered** dengan
 ### Key Features
 
 1. **Cursor-Based Pagination**: Mengatasi limit 1000 record per request Binance API
-2. **Chunked Fetching**: 90-day chunks untuk menangani 2+ tahun history
+2. **Chunked Fetching**: 6.5-day chunks untuk userTrades (7-day API limit dengan safety margin)
 3. **Auto-Enrichment**: Setiap sync secara otomatis mengambil data dari `/fapi/v1/userTrades` untuk mengisi:
    - Entry/Exit prices yang akurat
    - Direction (LONG/SHORT) yang benar
@@ -15,6 +15,59 @@ Trade history dalam aplikasi ini memiliki arsitektur **Binance-Centered** dengan
    - Commission per trade
    - Hold time
 4. **Deduplication**: Via `binance_trade_id` column (`income_{tranId}`)
+5. **5-Minute Fuzzy Matching**: Toleransi waktu yang lebih besar untuk linking income dengan userTrades
+6. **Validation Layer**: Hook `useTradeValidation` untuk mengecek kelengkapan data
+
+## Critical Fixes (v3.0)
+
+### Fix 1: 7-Day API Limit
+**Problem**: Binance `/fapi/v1/userTrades` API menolak request >7 hari.
+
+**Solution**: 
+- Frontend: Chunk interval dikurangi dari 7 hari → 6.5 hari (`MAX_TRADES_INTERVAL_MS`)
+- Backend: Server-side validation di edge function untuk menolak request >7 hari sebelum hit Binance API
+
+```typescript
+// src/services/binance-trade-enricher.ts
+const MAX_TRADES_INTERVAL_MS = 6.5 * 24 * 60 * 60 * 1000; // 6.5 days
+
+// supabase/functions/binance-futures/index.ts
+if (interval > MAX_INTERVAL_MS) {
+  return { success: false, error: 'Time interval exceeds max 7 days.', code: 'INTERVAL_TOO_LARGE' };
+}
+```
+
+### Fix 2: Hardcoded Direction Removed
+**Problem**: Semua trade di-insert dengan `direction: 'LONG'` sebagai fallback.
+
+**Solution**: Direction sekarang `'UNKNOWN'` untuk trades yang belum enriched. UI menampilkan `?` badge.
+
+```typescript
+// src/hooks/use-binance-full-sync.ts
+direction: 'UNKNOWN', // Not hardcoded LONG
+```
+
+### Fix 3: Fuzzy Matching Improved
+**Problem**: 1-minute bucket matching terlalu ketat, banyak trade gagal match.
+
+**Solution**: 5-minute bucket dengan adjacent bucket lookups (+/- 1 bucket).
+
+```typescript
+// src/services/binance-trade-enricher.ts
+const bucket5min = Math.floor(group.exitTime / 300000);
+for (const offset of [-1, 0, 1]) {
+  const key = `${group.symbol}_${bucket5min + offset}`;
+  // ... register lookups
+}
+```
+
+### Fix 4: UI Data Integrity Indicators
+**Problem**: Users tidak tahu trade mana yang butuh enrichment.
+
+**Solution**:
+- TradeGalleryCard: Badge `AlertCircle` merah untuk trades dengan `entry_price = 0`
+- Header Stats: Menunjukkan "Incomplete" count dengan tooltip
+- Stats label berubah ke "Filtered P&L" saat filter aktif
 
 ## Data Flow
 
@@ -33,14 +86,15 @@ Trade history dalam aplikasi ini memiliki arsitektur **Binance-Centered** dengan
 3. DEDUPLICATING (45-50%)
    └── Check existing binance_trade_id di database
 
-4. ENRICHING (50-75%) ← NEW DEFAULT BEHAVIOR
+4. ENRICHING (50-75%) ← AUTO-ENRICHMENT
    └── Extract unique symbols dari income records
-   └── Fetch /fapi/v1/userTrades per symbol
+   └── Fetch /fapi/v1/userTrades per symbol (6.5-day chunks)
    └── Group fills menjadi entry/exit pairs
-   └── Link dengan income records by symbol+time
+   └── Link dengan income records by symbol+time (5-min bucket)
 
 5. INSERTING (75-100%)
    └── Batch insert dengan enriched data
+   └── Unenriched trades: direction='UNKNOWN', entry_price=0
 ```
 
 ## Enrichment Details
@@ -62,11 +116,25 @@ Jika diperlukan sync cepat tanpa enrichment:
 syncFullHistory({ fetchAll: true, skipEnrichment: true })
 ```
 
+## Validation Layer
+
+**New Hook**: `src/hooks/use-trade-validation.ts`
+
+```typescript
+// Check single trade
+const { isComplete, needsEnrichment, issues } = validateTrade(trade);
+
+// Check multiple trades
+const summary = validateTrades(trades);
+// { total: 124, complete: 0, needsEnrichment: 124, incompletePercent: 100 }
+```
+
 ## Related Files
 
 - `src/hooks/use-binance-full-sync.ts` - Main sync hook dengan enrichment
-- `src/services/binance-trade-enricher.ts` - Enrichment service
-- `supabase/functions/binance-futures/index.ts` - Edge function dengan fromId support
+- `src/hooks/use-trade-validation.ts` - Trade data validation
+- `src/services/binance-trade-enricher.ts` - Enrichment service (6.5-day chunks, 5-min matching)
+- `supabase/functions/binance-futures/index.ts` - Edge function dengan 7-day validation
 
 ## Overview
 

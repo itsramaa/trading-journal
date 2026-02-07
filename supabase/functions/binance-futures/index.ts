@@ -413,6 +413,7 @@ async function getPositions(apiKey: string, apiSecret: string, symbol?: string) 
 /**
  * Get trade history (individual fills)
  * Supports pagination via fromId for fetching large histories
+ * VALIDATION: Enforces 7-day maximum interval per Binance API limit
  */
 async function getTrades(
   apiKey: string, 
@@ -426,6 +427,21 @@ async function getTrades(
   try {
     if (!symbol) {
       return { success: false, error: 'Symbol is required for trade history' };
+    }
+    
+    // VALIDATION: Enforce 7-day limit server-side
+    // Binance API has a strict 7-day maximum interval for userTrades
+    if (startTime && endTime) {
+      const interval = endTime - startTime;
+      const MAX_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000 - 60000; // 7 days minus 1 minute safety
+      
+      if (interval > MAX_INTERVAL_MS) {
+        return { 
+          success: false, 
+          error: `Time interval ${Math.round(interval / (24 * 60 * 60 * 1000))} days exceeds maximum 7 days. Use chunked fetching.`,
+          code: 'INTERVAL_TOO_LARGE'
+        };
+      }
     }
     
     const params: Record<string, any> = { symbol, limit };

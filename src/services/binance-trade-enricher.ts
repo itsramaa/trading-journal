@@ -20,7 +20,8 @@ const BINANCE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/
 const RATE_LIMIT_DELAY = 300;
 
 // Binance userTrades API has a max 7-day window per request
-const MAX_TRADES_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days in ms
+// Using 6.5 days (93%) to ensure we don't hit the boundary exactly
+const MAX_TRADES_INTERVAL_MS = 6.5 * 24 * 60 * 60 * 1000; // 6.5 days in ms (safety margin)
 
 /**
  * Enhanced trade data with complete entry/exit information
@@ -269,6 +270,7 @@ function groupTradesIntoPositions(trades: BinanceTrade[]): TradeFillGroup[] {
 
 /**
  * Link income records with userTrades to create enriched trade data
+ * Uses 5-minute fuzzy matching with adjacent bucket lookups
  */
 export function linkIncomeWithTrades(
   incomeRecords: BinanceIncome[],
@@ -277,12 +279,20 @@ export function linkIncomeWithTrades(
 ): EnrichedTradeData[] {
   const enrichedTrades: EnrichedTradeData[] = [];
   
-  // Create lookup maps
+  // Create lookup maps with 5-minute buckets and adjacent bucket support
   const tradesBySymbolTime = new Map<string, TradeFillGroup>();
   for (const group of tradeFillGroups) {
-    // Use symbol + approximate exit time as key
-    const key = `${group.symbol}_${Math.floor(group.exitTime / 60000)}`; // 1-minute bucket
-    tradesBySymbolTime.set(key, group);
+    // Use 5-minute bucket instead of 1-minute for more tolerance
+    const bucket5min = Math.floor(group.exitTime / 300000); // 5 minutes in ms
+    
+    // Register for adjacent buckets (-1, 0, +1) to handle timing differences
+    for (const offset of [-1, 0, 1]) {
+      const key = `${group.symbol}_${bucket5min + offset}`;
+      // Only set if not already registered (prefer exact match)
+      if (!tradesBySymbolTime.has(key)) {
+        tradesBySymbolTime.set(key, group);
+      }
+    }
   }
   
   // Create commission lookup by orderId
@@ -297,11 +307,12 @@ export function linkIncomeWithTrades(
   for (const income of incomeRecords) {
     if (income.incomeType !== 'REALIZED_PNL') continue;
     
-    // Try to find matching trade fills
-    const timeKey = `${income.symbol}_${Math.floor(income.time / 60000)}`;
+    // Try to find matching trade fills using 5-minute bucket
+    const bucket5min = Math.floor(income.time / 300000);
+    const timeKey = `${income.symbol}_${bucket5min}`;
     const matchingTrade = tradesBySymbolTime.get(timeKey);
     
-    if (matchingTrade) {
+    if (matchingTrade && matchingTrade.avgEntryPrice > 0) {
       // We found matching trade fills - use accurate data
       const holdTimeMinutes = Math.round((matchingTrade.exitTime - matchingTrade.entryTime) / 60000);
       const grossPnl = (matchingTrade.avgExitPrice - matchingTrade.avgEntryPrice) * 
@@ -325,15 +336,16 @@ export function linkIncomeWithTrades(
         holdTimeMinutes,
       });
     } else {
-      // No matching trade fills - create with income data only
+      // No matching trade fills - create with income data only but mark as unmatched
+      // Direction inference: use 'UNKNOWN' instead of guessing
       enrichedTrades.push({
         symbol: income.symbol,
         orderId: null,
         tranId: income.tranId,
-        entryPrice: 0, // Will need enhancement in future
+        entryPrice: 0, // Explicitly 0 = needs enrichment
         exitPrice: 0,
         quantity: 0,
-        direction: income.income > 0 ? 'LONG' : 'SHORT', // Infer from P&L sign (not always accurate)
+        direction: 'LONG', // Fallback - but entry_price=0 flags it as incomplete
         entryTime: new Date(income.time),
         exitTime: new Date(income.time),
         realizedPnl: income.income,

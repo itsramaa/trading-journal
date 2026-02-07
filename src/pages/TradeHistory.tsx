@@ -32,7 +32,7 @@ import { TradeHistoryCard } from "@/components/trading/TradeHistoryCard";
 import { TradeGalleryCard, TradeGalleryCardSkeleton } from "@/components/journal/TradeGalleryCard";
 import { FeeHistoryTab } from "@/components/trading/FeeHistoryTab";
 import { FundingHistoryTab } from "@/components/trading/FundingHistoryTab";
-import { History, Wifi, BookOpen, FileText, Loader2, List, LayoutGrid, Download, CloudDownload, Percent, ArrowUpDown, RefreshCw, CheckCircle } from "lucide-react";
+import { History, Wifi, BookOpen, FileText, Loader2, List, LayoutGrid, Download, CloudDownload, Percent, ArrowUpDown, RefreshCw, CheckCircle, AlertCircle } from "lucide-react";
 import { FilterActiveIndicator } from "@/components/ui/filter-active-indicator";
 import { format } from "date-fns";
 import { useTradeEntriesPaginated, type TradeFilters } from "@/hooks/use-trade-entries-paginated";
@@ -362,18 +362,42 @@ export default function TradeHistory() {
                     <span className="text-sm text-muted-foreground font-normal">/{totalCount}</span>
                   )}
                 </div>
-                <div className="text-muted-foreground">Trades</div>
+                <div className="text-muted-foreground">
+                  {hasActiveFilters ? 'Filtered' : 'Trades'}
+                </div>
               </div>
               <div className="text-center">
                 <div className={`text-2xl font-bold ${totalPnL >= 0 ? 'text-profit' : 'text-loss'}`}>
                   {formatCurrency(totalPnL)}
                 </div>
-                <div className="text-muted-foreground">P&L</div>
+                <div className="text-muted-foreground">
+                  {hasActiveFilters ? 'Filtered P&L' : 'P&L'}
+                </div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold">{winRate.toFixed(1)}%</div>
                 <div className="text-muted-foreground">Win Rate</div>
               </div>
+              {/* Needs Enrichment Indicator */}
+              {tradesNeedingEnrichment > 0 && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="text-center px-3 py-1 rounded-md bg-destructive/10 border border-destructive/20">
+                        <div className="text-lg font-bold text-destructive flex items-center gap-1">
+                          <AlertCircle className="h-4 w-4" />
+                          {tradesNeedingEnrichment}
+                        </div>
+                        <div className="text-xs text-destructive/80">Incomplete</div>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{tradesNeedingEnrichment} trades are missing entry/exit prices.</p>
+                      <p className="text-xs text-muted-foreground mt-1">Click "Enrich Trades" to fetch accurate data from Binance.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
             </div>
             
             {/* Export Button */}

@@ -234,14 +234,19 @@ async function fetchChunkedIncomeHistory(
 /**
  * Convert BinanceIncome record to trade_entries format (basic version without enrichment)
  */
+/**
+ * Convert BinanceIncome record to trade_entries format (basic version without enrichment)
+ * Direction is set to 'UNKNOWN' to explicitly mark trades needing enrichment
+ */
 function incomeToTradeEntry(income: BinanceIncome, userId: string) {
   const result = income.income > 0 ? 'win' : income.income < 0 ? 'loss' : 'breakeven';
   
   return {
     user_id: userId,
     pair: income.symbol,
-    direction: 'LONG', // Will be enriched with userTrades
-    entry_price: 0,
+    // Set 'UNKNOWN' instead of hardcoded 'LONG' - will be updated during enrichment
+    direction: 'UNKNOWN',
+    entry_price: 0, // Explicitly 0 = needs enrichment
     exit_price: 0,
     quantity: 0,
     pnl: income.income,
@@ -251,7 +256,7 @@ function incomeToTradeEntry(income: BinanceIncome, userId: string) {
     result,
     source: 'binance',
     binance_trade_id: `income_${income.tranId}`,
-    notes: `Auto-synced from Binance REALIZED_PNL`,
+    notes: `Auto-synced from Binance REALIZED_PNL. Needs enrichment for accurate entry/exit prices.`,
   };
 }
 
