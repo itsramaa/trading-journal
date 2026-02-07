@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { RefreshCw, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import type { ExchangePosition, ExchangeType } from "@/types/exchange";
 
 export interface PositionsTableProps {
@@ -34,6 +35,8 @@ export function PositionsTable({
   exchange = 'binance',
   emptyMessage = "No active positions",
 }: PositionsTableProps) {
+  const { format, formatPnl } = useCurrencyConversion();
+  
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -81,19 +84,19 @@ export function PositionsTable({
               {position.size.toFixed(4)}
             </TableCell>
             <TableCell className="text-right font-mono">
-              ${position.entryPrice.toFixed(2)}
+              {format(position.entryPrice)}
             </TableCell>
             <TableCell className="text-right font-mono">
-              ${position.markPrice.toFixed(2)}
+              {format(position.markPrice)}
             </TableCell>
             <TableCell className={cn(
               "text-right font-mono font-medium",
               position.unrealizedPnl >= 0 ? "text-profit" : "text-loss"
             )}>
-              {position.unrealizedPnl >= 0 ? '+' : ''}${position.unrealizedPnl.toFixed(2)}
+              {formatPnl(position.unrealizedPnl)}
             </TableCell>
             <TableCell className="text-right font-mono text-muted-foreground">
-              ${position.liquidationPrice.toFixed(2)}
+              {format(position.liquidationPrice)}
             </TableCell>
             <TableCell className="text-right">
               <Badge variant="outline">{position.leverage}x</Badge>

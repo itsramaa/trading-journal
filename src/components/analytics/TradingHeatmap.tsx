@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { useHighImpactEventDates, isHighImpactEventDay, getEventLabel } from "@/hooks/use-economic-events";
 import { cn } from "@/lib/utils";
-import { formatCurrency } from "@/lib/formatters";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { format, subDays, parseISO, startOfWeek, addDays } from "date-fns";
 import { Calendar } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
@@ -47,6 +47,7 @@ const HOURS = [0, 4, 8, 12, 16, 20];
 
 export function TradingHeatmap({ trades: externalTrades, className, showEventOverlay = true }: TradingHeatmapProps) {
   const { data: fetchedTrades } = useTradeEntries();
+  const { format: formatCurrency, formatPnl, formatCompact } = useCurrencyConversion();
   const { eventDateMap, isLoading: eventsLoading } = useHighImpactEventDates({
     startDate: subDays(new Date(), 90),
     endDate: new Date(),
@@ -146,10 +147,8 @@ export function TradingHeatmap({ trades: externalTrades, className, showEventOve
   };
 
   const formatPnlDisplay = (pnl: number) => {
-    if (Math.abs(pnl) >= 1000) {
-      return `$${pnl >= 0 ? '+' : ''}${(pnl / 1000).toFixed(1)}k`;
-    }
-    return `$${pnl >= 0 ? '+' : ''}${pnl.toFixed(0)}`;
+    // Use compact format for display in cells
+    return formatCompact(pnl);
   };
 
   // Session labels for rows
@@ -265,12 +264,12 @@ export function TradingHeatmap({ trades: externalTrades, className, showEventOve
                                 )}
                                 
                                 <div className={cn("font-medium", cell.totalPnl >= 0 ? "text-profit" : "text-loss")}>
-                                  Total P&L: {formatCurrency(cell.totalPnl, 'USD')}
+                                  Total P&L: {formatPnl(cell.totalPnl)}
                                 </div>
                                 <div>Trades: {cell.trades}</div>
                                 <div>Wins: {cell.wins} ({cell.winRate.toFixed(0)}%)</div>
                                 <div className="text-muted-foreground pt-1 border-t">
-                                  Avg: {formatCurrency(cell.totalPnl / cell.trades, 'USD')}/trade
+                                  Avg: {formatCurrency(cell.totalPnl / cell.trades)}/trade
                                 </div>
                               </div>
                             ) : (

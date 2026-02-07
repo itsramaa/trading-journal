@@ -21,6 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useTradeEntryWizard } from "@/features/trade/useTradeEntryWizard";
 import { useAuth } from "@/hooks/use-auth";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 
 interface TradeConfirmationProps {
   onExecute: () => Promise<void>;
@@ -31,6 +32,7 @@ interface TradeConfirmationProps {
 export function TradeConfirmation({ onExecute, onBack, onCancel }: TradeConfirmationProps) {
   const wizard = useTradeEntryWizard();
   const { user } = useAuth();
+  const { format, formatPnl } = useCurrencyConversion();
   
   const { 
     tradeDetails, 
@@ -99,7 +101,7 @@ export function TradeConfirmation({ onExecute, onBack, onCancel }: TradeConfirma
               {tradeDetails.direction} {tradeDetails.pair}
             </Badge>
             <div className="text-4xl font-bold mb-2">
-              ${priceLevels.entryPrice.toLocaleString()}
+              {format(priceLevels.entryPrice)}
             </div>
             <div className="text-muted-foreground">Entry Price</div>
           </div>
@@ -109,13 +111,13 @@ export function TradeConfirmation({ onExecute, onBack, onCancel }: TradeConfirma
             <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/20 text-center">
               <p className="text-xs text-muted-foreground mb-1">Stop Loss</p>
               <p className="text-xl font-bold text-red-500">
-                ${priceLevels.stopLoss.toLocaleString()}
+                {format(priceLevels.stopLoss)}
               </p>
             </div>
             <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20 text-center">
               <p className="text-xs text-muted-foreground mb-1">Take Profit</p>
               <p className="text-xl font-bold text-green-500">
-                ${priceLevels.takeProfit.toLocaleString()}
+                {format(priceLevels.takeProfit)}
               </p>
             </div>
             <div className="p-4 rounded-lg bg-muted/50 text-center">
@@ -143,11 +145,11 @@ export function TradeConfirmation({ onExecute, onBack, onCancel }: TradeConfirma
               </div>
               <div className="p-3 rounded-lg bg-muted/30 text-center">
                 <p className="text-xs text-muted-foreground">Position Value</p>
-                <p className="font-bold">${positionSizing.position_value.toLocaleString()}</p>
+                <p className="font-bold">{format(positionSizing.position_value)}</p>
               </div>
               <div className="p-3 rounded-lg bg-red-500/10 text-center">
                 <p className="text-xs text-muted-foreground">Max Loss</p>
-                <p className="font-bold text-red-500">-${positionSizing.risk_amount.toFixed(2)}</p>
+                <p className="font-bold text-red-500">{formatPnl(-positionSizing.risk_amount)}</p>
               </div>
               <div className="p-3 rounded-lg bg-muted/30 text-center">
                 <p className="text-xs text-muted-foreground">Capital Used</p>

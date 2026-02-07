@@ -17,11 +17,12 @@ import {
   FileSpreadsheet
 } from "lucide-react";
 import { useBacktestExport } from "@/hooks/use-backtest-export";
-import { format } from "date-fns";
+import { format as formatDate } from "date-fns";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, ComposedChart } from "recharts";
 import type { BacktestResult } from "@/types/backtest";
 import { cn } from "@/lib/utils";
-import { formatPercent, formatCurrency, formatWinRate, formatNumber } from "@/lib/formatters";
+import { formatPercent, formatWinRate, formatNumber } from "@/lib/formatters";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { BacktestDisclaimer } from "./BacktestDisclaimer";
 
 interface BacktestResultsProps {
@@ -32,12 +33,13 @@ export function BacktestResults({ result }: BacktestResultsProps) {
   const { metrics, trades, equityCurve } = result;
   const isProfit = metrics.totalReturn > 0;
   const { exportToCSV, exportToPDF } = useBacktestExport();
+  const { format, formatCompact } = useCurrencyConversion();
 
   // Format equity curve for chart
   const chartData = equityCurve.map((point, i) => ({
     ...point,
     index: i,
-    formattedDate: format(new Date(point.timestamp), 'MMM dd'),
+    formattedDate: formatDate(new Date(point.timestamp), 'MMM dd'),
   }));
 
   return (
@@ -60,7 +62,7 @@ export function BacktestResults({ result }: BacktestResultsProps) {
                 Backtest Results: {result.strategyName || 'Strategy'}
               </CardTitle>
               <CardDescription>
-                {result.pair}/USDT • {format(new Date(result.periodStart), 'MMM d, yyyy')} - {format(new Date(result.periodEnd), 'MMM d, yyyy')}
+                {result.pair}/USDT • {formatDate(new Date(result.periodStart), 'MMM d, yyyy')} - {formatDate(new Date(result.periodEnd), 'MMM d, yyyy')}
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
@@ -110,7 +112,7 @@ export function BacktestResults({ result }: BacktestResultsProps) {
                   "text-2xl font-bold font-mono",
                   isProfit ? "text-profit" : "text-loss"
                 )}>
-                  {formatCurrency(metrics.totalReturnAmount, 'USD')}
+                  {format(metrics.totalReturnAmount)}
                 </p>
               </div>
               <div className={cn(
@@ -156,7 +158,7 @@ export function BacktestResults({ result }: BacktestResultsProps) {
               </div>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              {formatCurrency(metrics.maxDrawdownAmount, 'USD')}
+              {format(metrics.maxDrawdownAmount)}
             </p>
           </CardContent>
         </Card>
@@ -195,11 +197,11 @@ export function BacktestResults({ result }: BacktestResultsProps) {
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground text-sm">Avg Win</span>
-                <span className="font-medium font-mono text-profit">{formatCurrency(metrics.avgWin, 'USD')}</span>
+                <span className="font-medium font-mono text-profit">{format(metrics.avgWin)}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground text-sm">Avg Loss</span>
-                <span className="font-medium font-mono text-loss">-{formatCurrency(metrics.avgLoss, 'USD')}</span>
+                <span className="font-medium font-mono text-loss">-{format(metrics.avgLoss)}</span>
               </div>
             </div>
             <div className="space-y-3">
@@ -259,7 +261,7 @@ export function BacktestResults({ result }: BacktestResultsProps) {
                     <YAxis 
                       yAxisId="left"
                       tick={{ fontSize: 12 }}
-                      tickFormatter={(v) => `$${v.toLocaleString()}`}
+                      tickFormatter={(v) => formatCompact(v)}
                     />
                     <YAxis 
                       yAxisId="right"
@@ -274,7 +276,7 @@ export function BacktestResults({ result }: BacktestResultsProps) {
                         borderRadius: '8px'
                       }}
                       formatter={(value: number, name: string) => [
-                        name === 'balance' ? `$${value.toFixed(2)}` : `${value.toFixed(2)}%`,
+                        name === 'balance' ? format(value) : `${value.toFixed(2)}%`,
                         name === 'balance' ? 'Balance' : 'Drawdown'
                       ]}
                     />
@@ -321,10 +323,10 @@ export function BacktestResults({ result }: BacktestResultsProps) {
                     {trades.map((trade) => (
                       <TableRow key={trade.id}>
                         <TableCell className="text-xs">
-                          {format(new Date(trade.entryTime), 'MMM d, HH:mm')}
+                          {formatDate(new Date(trade.entryTime), 'MMM d, HH:mm')}
                         </TableCell>
                         <TableCell className="text-xs">
-                          {format(new Date(trade.exitTime), 'MMM d, HH:mm')}
+                          {formatDate(new Date(trade.exitTime), 'MMM d, HH:mm')}
                         </TableCell>
                         <TableCell>
                           <Badge 
@@ -343,10 +345,10 @@ export function BacktestResults({ result }: BacktestResultsProps) {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right font-mono text-sm">
-                          {formatCurrency(trade.entryPrice, 'USD')}
+                          {format(trade.entryPrice)}
                         </TableCell>
                         <TableCell className="text-right font-mono text-sm">
-                          {formatCurrency(trade.exitPrice, 'USD')}
+                          {format(trade.exitPrice)}
                         </TableCell>
                         <TableCell className={cn(
                           "text-right font-mono text-sm font-medium",

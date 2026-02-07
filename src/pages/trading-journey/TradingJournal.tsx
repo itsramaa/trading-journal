@@ -27,9 +27,7 @@ import {
 } from "lucide-react";
 import { useTradeEntries, useDeleteTradeEntry, useClosePosition, useUpdateTradeEntry, TradeEntry } from "@/hooks/use-trade-entries";
 import { useBinancePositions, useBinanceBalance, useBinanceConnectionStatus } from "@/features/binance";
-
-import { formatCurrency as formatCurrencyUtil } from "@/lib/formatters";
-import { useUserSettings } from "@/hooks/use-user-settings";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { TradeEntryWizard } from "@/components/trade/entry/TradeEntryWizard";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePostTradeAnalysis } from "@/hooks/use-post-trade-analysis";
@@ -66,7 +64,7 @@ export default function TradingJournal() {
   const [enrichingPosition, setEnrichingPosition] = useState<UnifiedPosition | null>(null);
 
   const queryClient = useQueryClient();
-  const { data: userSettings } = useUserSettings();
+  const { format: formatCurrency } = useCurrencyConversion();
   const { data: trades, isLoading: tradesLoading } = useTradeEntries();
   
   // Binance data
@@ -79,12 +77,6 @@ export default function TradingJournal() {
   const closePosition = useClosePosition();
   const updateTrade = useUpdateTradeEntry();
   const { analyzeClosedTrade } = usePostTradeAnalysis();
-
-  // Currency conversion helper
-  const displayCurrency = userSettings?.default_currency || 'USD';
-  const formatCurrency = (value: number, currency: string = 'USD') => {
-    return formatCurrencyUtil(value, displayCurrency);
-  };
 
   const closeForm = useForm<ClosePositionFormValues>({
     resolver: zodResolver(closePositionSchema),

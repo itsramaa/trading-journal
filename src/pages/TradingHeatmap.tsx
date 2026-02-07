@@ -15,7 +15,8 @@ import {
 } from "lucide-react";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { TradingHeatmap } from "@/components/analytics/TradingHeatmap";
-import { formatPnl, formatWinRate } from "@/lib/formatters";
+import { formatWinRate } from "@/lib/formatters";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { getTradeSession, formatSessionTimeLocal, SESSION_LABELS, type TradingSession } from "@/lib/session-utils";
 
 type DateRangeOption = '7d' | '30d' | '90d' | 'all';
@@ -38,6 +39,7 @@ interface StreakData {
 
 export default function TradingHeatmapPage() {
   const { data: trades, isLoading } = useTradeEntries();
+  const { formatPnl } = useCurrencyConversion();
   const [dateRange, setDateRange] = useState<DateRangeOption>('30d');
   const [selectedPair, setSelectedPair] = useState<string>('all');
 
@@ -307,7 +309,7 @@ export default function TradingHeatmapPage() {
                 </CardHeader>
                 <CardContent>
                   <div className={`text-xl font-bold ${sessionStats.asia.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                    {formatPnl(sessionStats.asia.pnl, 'USD')}
+                    {formatPnl(sessionStats.asia.pnl)}
                   </div>
                   <p className="text-sm text-muted-foreground">
                     {sessionStats.asia.trades} trades • {formatWinRate(sessionStats.asia.winRate)} win rate
@@ -325,7 +327,7 @@ export default function TradingHeatmapPage() {
                 </CardHeader>
                 <CardContent>
                   <div className={`text-xl font-bold ${sessionStats.london.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                    {formatPnl(sessionStats.london.pnl, 'USD')}
+                    {formatPnl(sessionStats.london.pnl)}
                   </div>
                   <p className="text-sm text-muted-foreground">
                     {sessionStats.london.trades} trades • {formatWinRate(sessionStats.london.winRate)} win rate
@@ -343,7 +345,7 @@ export default function TradingHeatmapPage() {
                 </CardHeader>
                 <CardContent>
                   <div className={`text-xl font-bold ${sessionStats.newyork.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                    {formatPnl(sessionStats.newyork.pnl, 'USD')}
+                    {formatPnl(sessionStats.newyork.pnl)}
                   </div>
                   <p className="text-sm text-muted-foreground">
                     {sessionStats.newyork.trades} trades • {formatWinRate(sessionStats.newyork.winRate)} win rate
@@ -370,7 +372,7 @@ export default function TradingHeatmapPage() {
                     <>
                       <div className="text-lg font-bold">{formatHour(hourlyStats.best.hour)}</div>
                       <p className="text-sm text-profit">
-                        {formatPnl(hourlyStats.best.pnl, 'USD')} ({hourlyStats.best.trades} trades)
+                        {formatPnl(hourlyStats.best.pnl)} ({hourlyStats.best.trades} trades)
                       </p>
                     </>
                   ) : (
@@ -392,7 +394,7 @@ export default function TradingHeatmapPage() {
                     <>
                       <div className="text-lg font-bold">{formatHour(hourlyStats.worst.hour)}</div>
                       <p className="text-sm text-loss">
-                        {formatPnl(hourlyStats.worst.pnl, 'USD')} ({hourlyStats.worst.trades} trades)
+                        {formatPnl(hourlyStats.worst.pnl)} ({hourlyStats.worst.trades} trades)
                       </p>
                     </>
                   ) : (
@@ -443,7 +445,7 @@ export default function TradingHeatmapPage() {
               </span>
               <span>
                 Total P&L: <span className={filteredTrades.reduce((sum, t) => sum + (t.realized_pnl || t.pnl || 0), 0) >= 0 ? 'text-profit' : 'text-loss'}>
-                  {formatPnl(filteredTrades.reduce((sum, t) => sum + (t.realized_pnl || t.pnl || 0), 0), 'USD')}
+                  {formatPnl(filteredTrades.reduce((sum, t) => sum + (t.realized_pnl || t.pnl || 0), 0))}
                 </span>
               </span>
             </div>

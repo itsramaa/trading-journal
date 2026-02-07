@@ -34,7 +34,7 @@ import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useBinanceConnectionStatus } from "@/features/binance";
 import { usePositions } from "@/hooks/use-positions";
-import { formatCurrency } from "@/lib/formatters";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { 
   ChevronRight,
   LineChart,
@@ -66,6 +66,7 @@ const DASHBOARD_ONBOARDING_STEPS = [
 
 const Dashboard = () => {
   const { t } = useTranslation();
+  const { format, formatPnl } = useCurrencyConversion();
   
   // Enable realtime updates for dashboard data
   useRealtime({
@@ -149,12 +150,12 @@ const Dashboard = () => {
                         </div>
                         <div className="flex justify-between">
                           <span>Entry</span>
-                          <span className="font-mono-numbers">${position.entryPrice.toFixed(2)}</span>
+                          <span className="font-mono-numbers">{format(position.entryPrice)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>P&L</span>
                           <span className={`font-mono-numbers font-medium ${pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                            {pnl >= 0 ? '+' : ''}{formatCurrency(pnl, 'USD')}
+                            {formatPnl(pnl)}
                           </span>
                         </div>
                       </div>
