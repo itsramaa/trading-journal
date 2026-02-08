@@ -35,9 +35,11 @@ import {
 import { useBinanceAggregatedSync } from "@/hooks/use-binance-aggregated-sync";
 import { useSyncStore, selectFullSyncStatus, selectFullSyncProgress, selectFullSyncResult, selectSyncRange, selectCheckpoint } from "@/store/sync-store";
 import { SyncStatusBadge } from "./SyncStatusBadge";
+import { SyncQuotaDisplay, SyncQuotaInline } from "./SyncQuotaDisplay";
 import { ReSyncTimeWindow } from "./ReSyncTimeWindow";
 import { SyncRangeSelector } from "./SyncRangeSelector";
 import { SyncETADisplay } from "./SyncETADisplay";
+import { useSyncQuota } from "@/hooks/use-sync-quota";
 import type { AggregationProgress } from "@/services/binance/types";
 import { toast } from "sonner";
 
@@ -56,6 +58,9 @@ export function BinanceFullSyncPanel({
   // Hook for triggering sync
   const { sync, resumeSync, canResume, clearCheckpoint } = useBinanceAggregatedSync();
   
+  // Quota info
+  const { data: quotaInfo } = useSyncQuota();
+  
   // Global store for persistent state
   const status = useSyncStore(selectFullSyncStatus);
   const progress = useSyncStore(selectFullSyncProgress);
@@ -66,7 +71,16 @@ export function BinanceFullSyncPanel({
 
   if (!isBinanceConnected) return null;
 
+  // Check if quota is exhausted
+  const isQuotaExhausted = quotaInfo?.isExhausted ?? false;
+
   const handleSync = () => {
+    // Check quota before starting
+    if (isQuotaExhausted) {
+      toast.error('Daily sync quota exhausted. Resets at midnight UTC.');
+      return;
+    }
+    
     setShowConfirm(false);
     
     // Guard against duplicate syncs
@@ -332,7 +346,10 @@ export function BinanceFullSyncPanel({
 
   // Default: Show sync button (idle state)
   return (
-    <>
+    <div className="flex items-center gap-3">
+      {/* Quota Display */}
+      <SyncQuotaInline />
+      
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -340,6 +357,7 @@ export function BinanceFullSyncPanel({
               variant="outline"
               size={compact ? "sm" : "default"}
               onClick={() => setShowConfirm(true)}
+              disabled={isQuotaExhausted}
               className="gap-2"
             >
               <Database className="h-4 w-4" />
@@ -347,14 +365,25 @@ export function BinanceFullSyncPanel({
             </Button>
           </TooltipTrigger>
           <TooltipContent>
-            <p className="font-medium">Aggregate-First Full Sync</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Fetches Binance history, groups into position lifecycles,
-              aggregates fills with fees & funding, then inserts to local DB.
-            </p>
-            <p className="text-xs text-primary mt-1">
-              ✓ Checkpoint-based resume if interrupted
-            </p>
+            {isQuotaExhausted ? (
+              <>
+                <p className="font-medium text-destructive">Quota Exhausted</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Daily sync quota is exhausted. Resets at midnight UTC.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="font-medium">Aggregate-First Full Sync</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Fetches Binance history, groups into position lifecycles,
+                  aggregates fills with fees &amp; funding, then inserts to local DB.
+                </p>
+                <p className="text-xs text-primary mt-1">
+                  ✓ Checkpoint-based resume if interrupted
+                </p>
+              </>
+            )}
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
@@ -372,6 +401,9 @@ export function BinanceFullSyncPanel({
                   This will fetch your Binance Futures trading history
                   and process it through the aggregation layer.
                 </p>
+                
+                {/* Quota Info */}
+                <SyncQuotaDisplay />
                 
                 {/* Sync Range Selector */}
                 <div className="pt-2 border-t">
@@ -419,14 +451,14 @@ export function BinanceFullSyncPanel({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleSync}>
+            <AlertDialogAction onClick={handleSync} disabled={isQuotaExhausted}>
               <CloudDownload className="h-4 w-4 mr-2" />
               Start Full Sync ({selectedRange === 'max' ? 'All Time' : `${selectedRange} days`})
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+    </div>
   );
 }
 

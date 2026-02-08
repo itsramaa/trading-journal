@@ -1023,6 +1023,7 @@ export type Database = {
           subscription_status: string
           target_allocations: Json | null
           theme: string
+          trade_retention_days: number | null
           updated_at: string
           use_binance_history: boolean | null
           user_id: string
@@ -1048,6 +1049,7 @@ export type Database = {
           subscription_status?: string
           target_allocations?: Json | null
           theme?: string
+          trade_retention_days?: number | null
           updated_at?: string
           use_binance_history?: boolean | null
           user_id: string
@@ -1073,6 +1075,7 @@ export type Database = {
           subscription_status?: string
           target_allocations?: Json | null
           theme?: string
+          trade_retention_days?: number | null
           updated_at?: string
           use_binance_history?: boolean | null
           user_id?: string
@@ -1152,6 +1155,13 @@ export type Database = {
       cleanup_old_trades: {
         Args: { p_retention_days?: number }
         Returns: number
+      }
+      cleanup_old_trades_all_users: {
+        Args: never
+        Returns: {
+          trades_deleted: number
+          user_id: string
+        }[]
       }
       delete_exchange_credential: {
         Args: { p_credential_id: string }

@@ -26,6 +26,7 @@ import { toast } from "sonner";
 import { BinanceAccountConfigCard } from "./BinanceAccountConfigCard";
 import { BinanceAutoSyncToggle } from "./BinanceAutoSyncToggle";
 import { BinanceDataSourceToggle } from "./BinanceDataSourceToggle";
+import { RetentionPeriodSetting } from "./RetentionPeriodSetting";
 import { ApiKeyForm } from "./ApiKeyForm";
 import { RateLimitDisplay } from "./RateLimitDisplay";
 import { SyncMonitoringPanel } from "@/components/trading/SyncMonitoringPanel";
@@ -243,6 +244,9 @@ export function BinanceApiSettings() {
       
       {/* Data Source Toggle (show if connected) */}
       {isConnected && <BinanceDataSourceToggle isConnected={isConnected} />}
+      
+      {/* Retention Period Setting (show if connected) */}
+      {isConnected && <RetentionPeriodSetting />}
       
       {/* Auto-Sync Toggle (only show if connected) */}
       {isConnected && <BinanceAutoSyncToggle isConnected={isConnected} />}
