@@ -211,8 +211,10 @@ function getUniqueSymbols(income: BinanceIncome[]): string[] {
 // Main Sync Hook
 // =============================================================================
 
+import type { SyncRangeDays } from '@/store/sync-store';
+
 export interface FullSyncOptions {
-  daysToSync?: number;
+  daysToSync?: SyncRangeDays;
 }
 
 export function useBinanceAggregatedSync() {
@@ -253,9 +255,17 @@ export function useBinanceAggregatedSync() {
       // Mark sync as started in global store
       startFullSync();
       
-      const daysToSync = options.daysToSync || DEFAULT_HISTORY_DAYS;
+      // Handle 'max' - use Binance Futures launch date (Sept 2019) as earliest possible
       const endTime = Date.now();
-      const startTime = endTime - (daysToSync * 24 * 60 * 60 * 1000);
+      let startTime: number;
+      
+      if (options.daysToSync === 'max') {
+        // Binance Futures launched around September 2019
+        startTime = new Date('2019-09-01').getTime();
+      } else {
+        const daysToSync = options.daysToSync || DEFAULT_HISTORY_DAYS;
+        startTime = endTime - (daysToSync * 24 * 60 * 60 * 1000);
+      }
       
       // =======================================================================
       // Phase 1: Fetch Income Records

@@ -12,6 +12,7 @@ const SYNC_OPTIONS: Array<{ value: SyncRangeDays; label: string; description: st
   { value: 180, label: "6 months", description: "~5-10 minutes" },
   { value: 365, label: "1 year", description: "~10-20 minutes" },
   { value: 730, label: "2 years", description: "~20-40 minutes" },
+  { value: 'max', label: "All Time", description: "Fetch all available history" },
 ];
 
 export function SyncRangeSelector() {
