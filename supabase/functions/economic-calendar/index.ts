@@ -1,4 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import {
+  DISPLAY_LIMITS,
+  TIME_WINDOWS,
+  mapImportance,
+  isRelevantEvent,
+  calculateRiskLevel,
+} from "../_shared/constants/economic-calendar.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -28,16 +35,10 @@ interface ProcessedEvent {
   cryptoImpact: 'bullish' | 'bearish' | 'neutral' | null;
 }
 
-function mapImportance(importance: number): 'high' | 'medium' | 'low' {
-  if (importance >= 3) return 'high';
-  if (importance === 2) return 'medium';
-  return 'low';
-}
-
 function isThisWeek(dateString: string): boolean {
   const eventDate = new Date(dateString);
   const now = new Date();
-  const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const weekFromNow = new Date(now.getTime() + TIME_WINDOWS.WEEK_DAYS * 24 * 60 * 60 * 1000);
   return eventDate >= now && eventDate <= weekFromNow;
 }
 
@@ -49,39 +50,9 @@ function isToday(dateString: string): boolean {
 
 function calculateRiskAdjustment(events: ProcessedEvent[]) {
   const todayHighImpact = events.filter(e => isToday(e.date) && e.importance === 'high').length;
-  
-  if (todayHighImpact >= 2) {
-    return {
-      hasHighImpact: true,
-      eventCount: todayHighImpact,
-      riskLevel: 'VERY_HIGH' as const,
-      positionAdjustment: 'reduce_50%' as const
-    };
-  } else if (todayHighImpact === 1) {
-    return {
-      hasHighImpact: true,
-      eventCount: todayHighImpact,
-      riskLevel: 'HIGH' as const,
-      positionAdjustment: 'reduce_30%' as const
-    };
-  }
-  
   const weekHighImpact = events.filter(e => e.importance === 'high').length;
-  if (weekHighImpact > 0) {
-    return {
-      hasHighImpact: true,
-      eventCount: weekHighImpact,
-      riskLevel: 'MODERATE' as const,
-      positionAdjustment: 'normal' as const
-    };
-  }
   
-  return {
-    hasHighImpact: false,
-    eventCount: 0,
-    riskLevel: 'LOW' as const,
-    positionAdjustment: 'normal' as const
-  };
+  return calculateRiskLevel(todayHighImpact, weekHighImpact);
 }
 
 async function generateAIPredictions(events: ProcessedEvent[]): Promise<ProcessedEvent[]> {
@@ -92,7 +63,9 @@ async function generateAIPredictions(events: ProcessedEvent[]): Promise<Processe
   }
 
   // Only generate predictions for high-impact events to save API calls
-  const highImpactEvents = events.filter(e => e.importance === 'high').slice(0, 5);
+  const highImpactEvents = events
+    .filter(e => e.importance === 'high')
+    .slice(0, DISPLAY_LIMITS.MAX_AI_PREDICTIONS);
   
   if (highImpactEvents.length === 0) {
     return events;
@@ -208,16 +181,10 @@ serve(async (req) => {
 
     const rawEvents: TradingEconomicsEvent[] = await teResponse.json();
     
-    // Filter for US and high-impact global events
-    const relevantEvents = rawEvents.filter(e => {
-      const isUS = e.Country === 'United States';
-      const isFed = e.Event.toLowerCase().includes('fed') || 
-                    e.Event.toLowerCase().includes('fomc') ||
-                    e.Event.toLowerCase().includes('powell');
-      const isHighImpact = e.Importance >= 2;
-      
-      return (isUS || isFed) && isHighImpact;
-    });
+    // Filter for relevant events using centralized function
+    const relevantEvents = rawEvents.filter(e => 
+      isRelevantEvent(e.Country, e.Event, e.Importance)
+    );
 
     // Filter for this week only
     const weekEvents = relevantEvents.filter(e => isThisWeek(e.Date));
@@ -239,8 +206,8 @@ serve(async (req) => {
     // Sort by date
     processedEvents.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-    // Limit to 15 events max
-    processedEvents = processedEvents.slice(0, 15);
+    // Limit to max events
+    processedEvents = processedEvents.slice(0, DISPLAY_LIMITS.MAX_EVENTS);
 
     // Generate AI predictions for high-impact events
     processedEvents = await generateAIPredictions(processedEvents);

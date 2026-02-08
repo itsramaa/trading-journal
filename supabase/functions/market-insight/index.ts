@@ -1,4 +1,17 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import {
+  DEFAULT_WATCHLIST_SYMBOLS,
+  API_LIMITS,
+  TECHNICAL_ANALYSIS,
+  WHALE_DETECTION,
+  VOLATILITY_THRESHOLDS,
+  SCORE_WEIGHTS,
+  CONFIDENCE_CONFIG,
+  classifySentiment,
+  getVolatilityLevel,
+  getVolatilityStatus,
+  normalizeVolatilityDisplay,
+} from "../_shared/constants/market-config.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -6,7 +19,7 @@ const corsHeaders = {
 };
 
 // Helper functions
-function calculateRSI(closes: number[], period = 14): number {
+function calculateRSI(closes: number[], period = TECHNICAL_ANALYSIS.RSI_PERIOD): number {
   if (closes.length < period + 1) return 50;
   
   let gains = 0;
@@ -35,7 +48,7 @@ function calculateMA(closes: number[], period: number): number {
 function calculateVolatility(closes: number[]): number {
   if (closes.length < 2) return 0;
   const returns = [];
-  for (let i = 1; i < closes.length && i < 20; i++) {
+  for (let i = 1; i < closes.length && i < TECHNICAL_ANALYSIS.VOLATILITY_LOOKBACK; i++) {
     returns.push((closes[i - 1] - closes[i]) / closes[i]);
   }
   const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
@@ -59,15 +72,13 @@ async function fetchFearGreedIndex(): Promise<{ value: number; label: string; ti
   }
 }
 
-async function fetchBinanceKlines(symbol: string, interval = '1h', limit = 100): Promise<(string | number)[][]> {
+async function fetchBinanceKlines(symbol: string, interval = '1h', limit = API_LIMITS.KLINES_LIMIT): Promise<(string | number)[][]> {
   try {
     const response = await fetch(
       `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`
     );
     const data = await response.json();
     
-    // Binance returns an error object for invalid symbols, not an array
-    // e.g. {"code": -1121, "msg": "Invalid symbol."}
     if (!Array.isArray(data)) {
       console.error(`Binance klines returned non-array for ${symbol}:`, data);
       return [];
@@ -114,8 +125,8 @@ function generateTechnicalSignal(
   price: number, 
   change24h: number
 ): { trend: string; direction: 'up' | 'down' | 'neutral'; score: number } {
-  const ma50 = calculateMA(closes, 50);
-  const ma200 = calculateMA(closes, 200);
+  const ma50 = calculateMA(closes, TECHNICAL_ANALYSIS.MA_SHORT_PERIOD);
+  const ma200 = calculateMA(closes, TECHNICAL_ANALYSIS.MA_LONG_PERIOD);
   const rsi = calculateRSI(closes);
   
   let score = 0.5;
@@ -166,7 +177,7 @@ function calculateWhaleSignal(
   klines: (string | number)[][],
   change24h: number
 ): { signal: 'ACCUMULATION' | 'DISTRIBUTION' | 'NONE'; volumeChange: number; confidence: number } {
-  if (klines.length < 48) {
+  if (klines.length < TECHNICAL_ANALYSIS.MIN_KLINES_FOR_WHALE) {
     return { signal: 'NONE', volumeChange: 0, confidence: 30 };
   }
   
@@ -177,25 +188,25 @@ function calculateWhaleSignal(
   const volumeChange = prevVolume > 0 ? ((recentVolume - prevVolume) / prevVolume) * 100 : 0;
   
   let signal: 'ACCUMULATION' | 'DISTRIBUTION' | 'NONE' = 'NONE';
-  let confidence = 40;
+  let confidence = WHALE_DETECTION.BASE_CONFIDENCE;
   
   // High volume + price up = accumulation
-  if (volumeChange > 30 && change24h > 2) {
+  if (volumeChange > WHALE_DETECTION.VOLUME_SPIKE_THRESHOLD && change24h > WHALE_DETECTION.PRICE_UP_THRESHOLD) {
     signal = 'ACCUMULATION';
-    confidence = 70 + Math.min(20, volumeChange / 5);
+    confidence = WHALE_DETECTION.SPIKE_CONFIDENCE + Math.min(20, volumeChange / 5);
   }
   // High volume + price down = distribution
-  else if (volumeChange > 30 && change24h < -2) {
+  else if (volumeChange > WHALE_DETECTION.VOLUME_SPIKE_THRESHOLD && change24h < WHALE_DETECTION.PRICE_DOWN_THRESHOLD) {
     signal = 'DISTRIBUTION';
-    confidence = 70 + Math.min(20, volumeChange / 5);
+    confidence = WHALE_DETECTION.SPIKE_CONFIDENCE + Math.min(20, volumeChange / 5);
   }
   // Very high volume spike
-  else if (volumeChange > 50) {
+  else if (volumeChange > WHALE_DETECTION.EXTREME_VOLUME_SPIKE) {
     signal = change24h > 0 ? 'ACCUMULATION' : 'DISTRIBUTION';
     confidence = 60;
   }
   
-  return { signal, volumeChange, confidence: Math.min(95, confidence) };
+  return { signal, volumeChange, confidence: Math.min(WHALE_DETECTION.MAX_CONFIDENCE, confidence) };
 }
 
 function generateRecommendation(
@@ -229,7 +240,7 @@ function generateRecommendation(
 // Helper to process single symbol data
 async function processSymbol(symbol: string) {
   const [klines, ticker] = await Promise.all([
-    fetchBinanceKlines(symbol, '1h', 200),
+    fetchBinanceKlines(symbol, '1h', API_LIMITS.KLINES_LIMIT),
     fetchBinanceTicker(symbol),
   ]);
   
@@ -269,6 +280,7 @@ async function processSymbol(symbol: string) {
     valid: true,
   };
 }
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -276,7 +288,7 @@ serve(async (req) => {
 
   try {
     // Parse request body for dynamic symbols
-    let requestedSymbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'XRPUSDT', 'BNBUSDT'];
+    let requestedSymbols = [...DEFAULT_WATCHLIST_SYMBOLS];
     
     try {
       const body = await req.json();
@@ -286,8 +298,8 @@ serve(async (req) => {
           .map((s: string) => s.toUpperCase())
           .filter((s: string) => s.endsWith('USDT'));
         
-        // Limit to 10 symbols to prevent abuse
-        requestedSymbols = requestedSymbols.slice(0, 10);
+        // Limit symbols to prevent abuse
+        requestedSymbols = requestedSymbols.slice(0, API_LIMITS.MAX_SYMBOLS_PER_REQUEST);
       }
     } catch {
       // No body or invalid JSON, use defaults
@@ -318,13 +330,12 @@ serve(async (req) => {
         change24h: data.ticker.change,
       });
       
-      // Volatility
-      const vol = data.volatility;
+      // Volatility - using centralized functions
       volatilityData.push({
         asset: data.asset,
-        level: vol > 4 ? 'high' : vol > 2 ? 'medium' : 'low',
-        value: Math.min(100, Math.round(vol * 12)),
-        status: vol > 4 ? 'Elevated - caution' : vol > 2 ? 'Normal range' : 'Low volatility',
+        level: getVolatilityLevel(data.volatility),
+        value: normalizeVolatilityDisplay(data.volatility),
+        status: getVolatilityStatus(data.volatility),
       });
       
       // Opportunities
@@ -353,7 +364,7 @@ serve(async (req) => {
     // Sort opportunities by confidence
     opportunities.sort((a, b) => b.confidence - a.confidence);
 
-    // Calculate overall sentiment scores
+    // Calculate overall sentiment scores using centralized weights
     const technicalScore = symbolsData.reduce((sum, d) => sum + d.signal.score, 0) / symbolsData.length;
     
     const onChainScore = symbolsData.reduce((sum, d) => {
@@ -365,30 +376,32 @@ serve(async (req) => {
     const socialScore = (technicalScore + macroScore) / 2;
     
     const overallScore = 
-      technicalScore * 0.30 + 
-      onChainScore * 0.25 + 
-      socialScore * 0.25 + 
-      macroScore * 0.20;
+      technicalScore * SCORE_WEIGHTS.TECHNICAL + 
+      onChainScore * SCORE_WEIGHTS.ON_CHAIN + 
+      socialScore * SCORE_WEIGHTS.SOCIAL + 
+      macroScore * SCORE_WEIGHTS.MACRO;
 
-    let overallSentiment: 'bullish' | 'bearish' | 'neutral' = 'neutral';
-    if (overallScore > 0.60) overallSentiment = 'bullish';
-    else if (overallScore < 0.45) overallSentiment = 'bearish';
+    // Use centralized sentiment classification
+    const overallSentiment = classifySentiment(overallScore);
 
-    const agreement = Math.abs(technicalScore - onChainScore) < 0.15 && Math.abs(technicalScore - macroScore) < 0.15;
+    const agreement = Math.abs(technicalScore - onChainScore) < CONFIDENCE_CONFIG.AGREEMENT_THRESHOLD && 
+                      Math.abs(technicalScore - macroScore) < CONFIDENCE_CONFIG.AGREEMENT_THRESHOLD;
     const distanceFromNeutral = Math.abs(overallScore - 0.5) * 2;
-    const dataQuality = symbolsData.every(d => d.klines.length > 100) ? 0.95 : 0.7;
+    const dataQuality = symbolsData.every(d => d.klines.length > CONFIDENCE_CONFIG.MIN_KLINES_FOR_HIGH_QUALITY) 
+      ? CONFIDENCE_CONFIG.HIGH_DATA_QUALITY 
+      : CONFIDENCE_CONFIG.LOW_DATA_QUALITY;
     
     const confidence = Math.round(
-      (agreement ? 0.4 : 0.2) * 100 +
-      distanceFromNeutral * 30 +
-      dataQuality * 20 +
-      10
+      (agreement ? CONFIDENCE_CONFIG.AGREEMENT_BONUS : CONFIDENCE_CONFIG.DISAGREEMENT_BONUS) +
+      distanceFromNeutral * CONFIDENCE_CONFIG.DISTANCE_WEIGHT +
+      dataQuality * CONFIDENCE_CONFIG.DATA_QUALITY_WEIGHT +
+      CONFIDENCE_CONFIG.BASE_CONFIDENCE
     );
 
     const response = {
       sentiment: {
         overall: overallSentiment,
-        confidence: Math.min(95, Math.max(30, confidence)),
+        confidence: Math.min(CONFIDENCE_CONFIG.MAX_CONFIDENCE, Math.max(CONFIDENCE_CONFIG.MIN_CONFIDENCE, confidence)),
         signals,
         fearGreed,
         recommendation: generateRecommendation(overallScore, confidence, fearGreed.value),
