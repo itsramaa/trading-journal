@@ -363,9 +363,17 @@ export function useBinanceFullSync() {
       }
       
       // Step 2: Filter to REALIZED_PNL only (trades)
+      // Log breakdown of income types for debugging
+      const incomeTypeBreakdown = allIncome.reduce((acc, r) => {
+        acc[r.incomeType] = (acc[r.incomeType] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      console.log('[FullSync] Income breakdown by type:', incomeTypeBreakdown);
+      
       const pnlRecords = allIncome.filter(r => 
         r.incomeType === 'REALIZED_PNL' && r.income !== 0
       );
+      console.log(`[FullSync] REALIZED_PNL records (non-zero): ${pnlRecords.length}`);
       
       onProgress?.({
         phase: 'deduplicating',
