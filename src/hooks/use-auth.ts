@@ -11,6 +11,7 @@ export function useAuth() {
   
   // Prevent multiple profile creation calls in same session
   const profileCreatedRef = useRef<Set<string>>(new Set());
+
   useEffect(() => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
