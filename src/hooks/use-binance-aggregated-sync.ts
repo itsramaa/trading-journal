@@ -332,6 +332,7 @@ interface SymbolFetchResult {
 export interface FullSyncOptions {
   daysToSync?: SyncRangeDays;
   resumeFromCheckpoint?: boolean;
+  forceRefetch?: boolean; // Ignore duplicates and re-download all income records
 }
 
 export function useBinanceAggregatedSync() {
@@ -539,6 +540,14 @@ export function useBinanceAggregatedSync() {
   const syncMutation = useMutation({
     mutationFn: async (options: FullSyncOptions = {}): Promise<AggregationResult> => {
       if (!user?.id) throw new Error('User not authenticated');
+      
+      const forceRefetch = options.forceRefetch || false;
+      
+      console.log('[FullSync] Starting aggregated sync with options:', {
+        daysToSync: options.daysToSync,
+        resumeFromCheckpoint: options.resumeFromCheckpoint,
+        forceRefetch,
+      });
       
       // Guard: prevent duplicate syncs
       if (fullSyncStatus === 'running') {
@@ -756,17 +765,35 @@ export function useBinanceAggregatedSync() {
       if (tradesToInsert.length > 0) {
         saveCheckpoint({ currentPhase: 'inserting' });
         
-        // Check for existing trades to avoid duplicates
+        // Check for existing trades to avoid duplicates (or delete if forceRefetch)
         const binanceTradeIds = tradesToInsert.map(t => t.binance_trade_id);
+        let existingIds = new Set<string>();
         
-        const { data: existingTrades } = await supabase
-          .from('trade_entries')
-          .select('binance_trade_id')
-          .eq('user_id', user.id)
-          .eq('source', 'binance')
-          .in('binance_trade_id', binanceTradeIds);
-        
-        const existingIds = new Set(existingTrades?.map(t => t.binance_trade_id) || []);
+        if (forceRefetch) {
+          console.log('[FullSync] Force re-fetch enabled - deleting existing trades first');
+          
+          // Delete existing trades in batches
+          for (let i = 0; i < binanceTradeIds.length; i += 500) {
+            const batch = binanceTradeIds.slice(i, i + 500);
+            await supabase
+              .from('trade_entries')
+              .delete()
+              .eq('user_id', user.id)
+              .in('binance_trade_id', batch);
+          }
+          
+          console.log(`[FullSync] Deleted ${binanceTradeIds.length} existing trades for force re-fetch`);
+        } else {
+          const { data: existingTrades } = await supabase
+            .from('trade_entries')
+            .select('binance_trade_id')
+            .eq('user_id', user.id)
+            .eq('source', 'binance')
+            .in('binance_trade_id', binanceTradeIds);
+          
+          existingIds = new Set(existingTrades?.map(t => t.binance_trade_id) || []);
+          console.log(`[FullSync] Found ${existingIds.size} existing trades (will skip)`);
+        }
         
         // Batched insert with retry
         insertResult = await batchInsertTrades(tradesToInsert, user.id, existingIds);
