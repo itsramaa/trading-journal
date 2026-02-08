@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { invalidateTradeQueries, invalidateAccountQueries } from "@/lib/query-invalidation";
+import { TRADE_HISTORY_CONFIG } from "@/lib/constants/trade-history";
 import type { TradeEntry, TradingStrategy, TradeScreenshot } from "./use-trade-entries";
 
 export interface TradeFilters {
@@ -28,7 +29,8 @@ export interface PaginatedTradeEntriesOptions {
   filters?: TradeFilters;
 }
 
-const DEFAULT_PAGE_SIZE = 50;
+// Use centralized config
+const DEFAULT_PAGE_SIZE = TRADE_HISTORY_CONFIG.pagination.defaultPageSize;
 
 export function useTradeEntriesPaginated(options: PaginatedTradeEntriesOptions = {}) {
   const { user } = useAuth();

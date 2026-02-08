@@ -5,7 +5,6 @@
  * Full History: Triggers Binance sync for complete trading history
  */
 import { useState, useMemo, useEffect } from "react";
-import { subYears } from "date-fns";
 import { useInView } from "react-intersection-observer";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,39 +34,57 @@ import { BinanceFullSyncPanel } from "@/components/trading/BinanceFullSyncPanel"
 import { useSyncStore, selectIsFullSyncRunning, selectFullSyncProgress } from "@/store/sync-store";
 import { useTradeEnrichment } from "@/hooks/use-trade-enrichment";
 import { useTradeEnrichmentBinance, useTradesNeedingEnrichmentCount, type EnrichmentProgress } from "@/hooks/use-trade-enrichment-binance";
-import { formatCurrency as formatCurrencyUtil } from "@/lib/formatters";
 import { useUserSettings } from "@/hooks/use-user-settings";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { useQueryClient } from "@tanstack/react-query";
-import { DateRange } from "@/components/trading/DateRangeFilter";
-import { TradeHistoryFilters, TradeEnrichmentDrawer, type ResultFilter, type DirectionFilter, type SessionFilter } from "@/components/journal";
+import { useTradeHistoryFilters, type ResultFilter, type DirectionFilter, type SessionFilter, type SortByAI } from "@/hooks/use-trade-history-filters";
+import { TradeHistoryFilters, TradeEnrichmentDrawer } from "@/components/journal";
 import type { UnifiedPosition } from "@/components/journal";
-// Session filtering is now at DB level (via session column)
+import { TRADE_HISTORY_CONFIG, EMPTY_STATE_MESSAGES, type ViewMode, VIEW_MODE_CONFIG } from "@/lib/constants/trade-history";
+import { exportTradesCsv } from "@/lib/export/trade-export";
+import { calculateRiskReward } from "@/lib/trade-utils";
 
-type ViewMode = 'list' | 'gallery';
-
-// Default: 1 year lookback
-const DEFAULT_START_DATE = subYears(new Date(), 1).toISOString().split('T')[0];
-const PAGE_SIZE = 50;
+// Use centralized config
+const PAGE_SIZE = TRADE_HISTORY_CONFIG.pagination.defaultPageSize;
 
 export default function TradeHistory() {
-  // Filter states
-  const [dateRange, setDateRange] = useState<DateRange>({ from: null, to: null });
-  const [resultFilter, setResultFilter] = useState<ResultFilter>('all');
-  const [directionFilter, setDirectionFilter] = useState<DirectionFilter>('all');
-  const [selectedStrategyIds, setSelectedStrategyIds] = useState<string[]>([]);
-  const [selectedPairs, setSelectedPairs] = useState<string[]>([]);
-  const [sessionFilter, setSessionFilter] = useState<SessionFilter>('all');
-  const [sortByAI, setSortByAI] = useState<'none' | 'asc' | 'desc'>('none');
-  const [showFullHistory, setShowFullHistory] = useState(false);
-  
-  // Re-enrichment states
+  // Use the centralized filter hook
+  const {
+    filters: {
+      dateRange,
+      resultFilter,
+      directionFilter,
+      sessionFilter,
+      selectedStrategyIds,
+      selectedPairs,
+      sortByAI,
+      showFullHistory,
+    },
+    setters: {
+      setDateRange,
+      setResultFilter,
+      setDirectionFilter,
+      setSessionFilter,
+      setSelectedStrategyIds,
+      setSelectedPairs,
+      setSortByAI,
+    },
+    computed: {
+      hasActiveFilters,
+      activeFilterCount,
+      effectiveStartDate,
+      effectiveEndDate,
+    },
+    actions: {
+      clearAllFilters,
+    },
+  } = useTradeHistoryFilters();
   
   // Re-enrichment states
   const [enrichmentProgress, setEnrichmentProgress] = useState<EnrichmentProgress | null>(null);
   
   // View mode state - default gallery for closed trades
-  const [viewMode, setViewMode] = useState<ViewMode>('gallery');
+  const [viewMode, setViewMode] = useState<ViewMode>(VIEW_MODE_CONFIG.default);
   
   // UI states
   const [deletingTrade, setDeletingTrade] = useState<TradeEntry | null>(null);
@@ -108,16 +125,20 @@ export default function TradeHistory() {
 
   // Build paginated filters - memoized for stability
   // Session filter is now at DB level
-  const paginatedFilters: TradeFilters = useMemo(() => ({
-    status: 'closed' as const,
-    startDate: showFullHistory ? undefined : (dateRange.from?.toISOString().split('T')[0] || DEFAULT_START_DATE),
-    endDate: dateRange.to?.toISOString().split('T')[0],
-    pairs: selectedPairs.length > 0 ? selectedPairs : undefined,
-    result: resultFilter !== 'all' ? resultFilter as TradeFilters['result'] : undefined,
-    direction: directionFilter !== 'all' ? directionFilter : undefined,
-    strategyIds: selectedStrategyIds.length > 0 ? selectedStrategyIds : undefined,
-    session: sessionFilter !== 'all' ? sessionFilter as TradeFilters['session'] : undefined,
-  }), [dateRange, selectedPairs, resultFilter, directionFilter, selectedStrategyIds, showFullHistory, sessionFilter]);
+  // Map 'profit' -> 'win' for DB query (UI uses 'profit', DB uses 'win')
+  const paginatedFilters: TradeFilters = useMemo(() => {
+    const mappedResult = resultFilter === 'profit' ? 'win' : resultFilter;
+    return {
+      status: 'closed' as const,
+      startDate: effectiveStartDate,
+      endDate: effectiveEndDate,
+      pairs: selectedPairs.length > 0 ? selectedPairs : undefined,
+      result: mappedResult !== 'all' ? mappedResult as TradeFilters['result'] : undefined,
+      direction: directionFilter !== 'all' ? directionFilter : undefined,
+      strategyIds: selectedStrategyIds.length > 0 ? selectedStrategyIds : undefined,
+      session: sessionFilter !== 'all' ? sessionFilter as TradeFilters['session'] : undefined,
+    };
+  }, [effectiveStartDate, effectiveEndDate, selectedPairs, resultFilter, directionFilter, selectedStrategyIds, sessionFilter]);
 
   // Paginated query for trade list
   const {
@@ -174,14 +195,8 @@ export default function TradeHistory() {
     }
   }, [inView, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  // Calculate R:R
-  const calculateRR = (trade: TradeEntry): number => {
-    if (!trade.stop_loss || !trade.entry_price || !trade.exit_price) return 0;
-    const risk = Math.abs(trade.entry_price - trade.stop_loss);
-    if (risk === 0) return 0;
-    const reward = Math.abs(trade.exit_price - trade.entry_price);
-    return reward / risk;
-  };
+  // Use centralized R:R calculation
+  const calculateRR = calculateRiskReward;
 
   const handleDeleteTrade = async () => {
     if (!deletingTrade) return;
@@ -221,47 +236,14 @@ export default function TradeHistory() {
   const winRate = tradeStats?.winRate ?? 0;
   const serverTotalTrades = tradeStats?.totalTrades ?? 0;
 
-  // Filter state detection
-  const hasActiveFilters = useMemo(() => 
-    dateRange.from !== null || 
-    dateRange.to !== null ||
-    resultFilter !== 'all' ||
-    directionFilter !== 'all' ||
-    sessionFilter !== 'all' ||
-    selectedStrategyIds.length > 0 ||
-    selectedPairs.length > 0,
-    [dateRange, resultFilter, directionFilter, sessionFilter, selectedStrategyIds, selectedPairs]
-  );
-
-  const activeFilterCount = useMemo(() => 
-    [
-      resultFilter !== 'all',
-      directionFilter !== 'all',
-      sessionFilter !== 'all',
-      selectedStrategyIds.length > 0,
-      selectedPairs.length > 0,
-    ].filter(Boolean).length,
-    [resultFilter, directionFilter, sessionFilter, selectedStrategyIds, selectedPairs]
-  );
-
-  const handleClearAllFilters = () => {
-    setDateRange({ from: null, to: null });
-    setResultFilter('all');
-    setDirectionFilter('all');
-    setSessionFilter('all');
-    setSelectedStrategyIds([]);
-    setSelectedPairs([]);
-    setSortByAI('none');
-  };
-
   // Render trade list based on view mode
   const renderTradeList = (trades: TradeEntry[]) => {
     if (trades.length === 0) {
       return (
         <EmptyState
           icon={History}
-          title="No trades found"
-          description="No trades match your current filters. Try adjusting the filters above."
+          title={EMPTY_STATE_MESSAGES.NO_TRADES.title}
+          description={EMPTY_STATE_MESSAGES.NO_TRADES.description}
         />
       );
     }
@@ -304,7 +286,7 @@ export default function TradeHistory() {
     if (viewMode === 'gallery') {
       return (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {Array.from({ length: 8 }).map((_, i) => (
+          {Array.from({ length: VIEW_MODE_CONFIG.skeletonCount.gallery }).map((_, i) => (
             <TradeGalleryCardSkeleton key={i} />
           ))}
         </div>
@@ -312,7 +294,7 @@ export default function TradeHistory() {
     }
     return (
       <div className="space-y-4">
-        {Array.from({ length: 5 }).map((_, i) => (
+        {Array.from({ length: VIEW_MODE_CONFIG.skeletonCount.list }).map((_, i) => (
           <Card key={i}>
             <CardContent className="py-4">
               <div className="flex items-center justify-between gap-4">
@@ -409,20 +391,7 @@ export default function TradeHistory() {
             <Button 
               variant="outline" 
               size="sm" 
-              onClick={() => {
-                // Export current filtered trades as CSV
-                const csvHeader = 'Date,Pair,Direction,Entry,Exit,P&L,Result,Notes\n';
-                const csvRows = sortedTrades.map(t => 
-                  `${t.trade_date},${t.pair},${t.direction},${t.entry_price},${t.exit_price || ''},${t.realized_pnl || t.pnl || 0},${t.result || ''},${(t.notes || '').replace(/,/g, ';')}`
-                ).join('\n');
-                const blob = new Blob([csvHeader + csvRows], { type: 'text/csv' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `trade-history-${format(new Date(), 'yyyy-MM-dd')}.csv`;
-                a.click();
-                URL.revokeObjectURL(url);
-              }}
+              onClick={() => exportTradesCsv(sortedTrades)}
               disabled={sortedTrades.length === 0}
             >
               <Download className="h-4 w-4 mr-2" />
@@ -437,7 +406,7 @@ export default function TradeHistory() {
             isActive={hasActiveFilters}
             dateRange={dateRange}
             filterCount={activeFilterCount}
-            onClear={handleClearAllFilters}
+            onClear={clearAllFilters}
           />
         )}
 
