@@ -88,21 +88,16 @@ export function BinanceFullSyncPanel({
           <ReSyncTimeWindow hasReconciliationIssue={true} />
         )}
         
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowConfirm(true)}
-                className="h-7 px-2"
-              >
-                <Database className="h-3.5 w-3.5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Sync again</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        {/* Always show Sync Again button after success */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowConfirm(true)}
+          className="gap-1.5"
+        >
+          <Database className="h-3.5 w-3.5" />
+          Sync Again
+        </Button>
       </div>
     );
   }
@@ -115,21 +110,17 @@ export function BinanceFullSyncPanel({
           <AlertTriangle className="h-3 w-3" />
           Sync failed
         </Badge>
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowConfirm(true)}
-                className="h-7 px-2"
-              >
-                <Database className="h-3.5 w-3.5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Retry sync</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        
+        {/* Clear Retry button after error */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowConfirm(true)}
+          className="gap-1.5"
+        >
+          <Database className="h-3.5 w-3.5" />
+          Retry Sync
+        </Button>
       </div>
     );
   }
