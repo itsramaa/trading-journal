@@ -15,8 +15,10 @@ Trade history dalam aplikasi ini memiliki arsitektur **Binance-Centered** dengan
    - Commission per trade
    - Hold time
 4. **Deduplication**: Via `binance_trade_id` column (`income_{tranId}`)
-5. **5-Minute Fuzzy Matching**: Toleransi waktu yang lebih besar untuk linking income dengan userTrades
-6. **Validation Layer**: Hook `useTradeValidation` untuk mengecek kelengkapan data
+5. **TradeId-Based Income Matching (v4.0)**: Primary matching menggunakan `tradeId` field dari income records untuk akurasi 100%
+6. **Session Column**: Kolom `session` di database untuk server-side filtering (sydney/tokyo/london/new_york)
+7. **Server-Side Stats**: Fungsi database `get_trade_stats()` untuk Total P&L, Win Rate, Trade Count yang akurat
+8. **Validation Layer**: Hook `useTradeValidation` untuk mengecek kelengkapan data
 
 ## Critical Fixes (v3.0)
 
@@ -47,17 +49,24 @@ if (interval > MAX_INTERVAL_MS) {
 direction: 'UNKNOWN', // Not hardcoded LONG
 ```
 
-### Fix 3: Fuzzy Matching Improved
-**Problem**: 1-minute bucket matching terlalu ketat, banyak trade gagal match.
+### Fix 3: Income Matching Improved (v4.0)
+**Problem**: 5-minute bucket matching still caused mis-assignments for rapid trades on same symbol.
 
-**Solution**: 5-minute bucket dengan adjacent bucket lookups (+/- 1 bucket).
+**Solution**: Primary matching via `tradeId` field in income records, with tight time fallback (60 seconds) for legacy records.
 
 ```typescript
-// src/services/binance-trade-enricher.ts
-const bucket5min = Math.floor(group.exitTime / 300000);
-for (const offset of [-1, 0, 1]) {
-  const key = `${group.symbol}_${bucket5min + offset}`;
-  // ... register lookups
+// src/services/binance/position-lifecycle-grouper.ts
+// PASS 1: Match by tradeId (most accurate)
+if (pnl.tradeId && tradeIds.has(pnl.tradeId)) {
+  related.push(pnl);
+  continue;
+}
+// PASS 2: Tight time fallback (60 seconds) for records without tradeId
+if (!pnl.tradeId && 
+    pnl.time >= entryTime - 60000 &&
+    pnl.time <= exitTime + 60000) {
+  related.push(pnl);
+}
 }
 ```
 
