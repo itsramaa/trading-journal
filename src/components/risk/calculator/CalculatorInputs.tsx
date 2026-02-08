@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { TrendingUp, TrendingDown, Wifi } from "lucide-react";
+import { RISK_SLIDER_CONFIG, LEVERAGE_SLIDER_CONFIG } from "@/lib/constants/risk-thresholds";
 
 interface CalculatorInputsProps {
   accountBalance: number;
@@ -83,9 +84,9 @@ export function CalculatorInputs({
           <Slider
             value={[riskPercent]}
             onValueChange={([value]) => setRiskPercent(value)}
-            min={0.5}
-            max={5}
-            step={0.5}
+            min={RISK_SLIDER_CONFIG.MIN}
+            max={RISK_SLIDER_CONFIG.MAX}
+            step={RISK_SLIDER_CONFIG.STEP}
             className="flex-1"
             aria-label={`Risk per trade: ${riskPercent}%`}
           />
@@ -188,9 +189,9 @@ export function CalculatorInputs({
           <Slider
             value={[leverage]}
             onValueChange={([value]) => setLeverage(value)}
-            min={1}
-            max={20}
-            step={1}
+            min={LEVERAGE_SLIDER_CONFIG.MIN}
+            max={LEVERAGE_SLIDER_CONFIG.MAX}
+            step={LEVERAGE_SLIDER_CONFIG.STEP}
             className="flex-1"
             aria-label={`Leverage: ${leverage}x`}
           />
