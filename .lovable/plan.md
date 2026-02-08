@@ -1,64 +1,178 @@
-# Plan: Trade Enrichment System - IMPLEMENTED
 
-## Status: ✅ COMPLETE
+# Plan: Perbaikan Tab Fees & Funding untuk Menggunakan Data Lokal
 
-All phases implemented successfully.
+## 1. Situasi Saat Ini
 
----
+### Problem yang Ditemukan:
 
-## Changes Made
+| Aspek | Status Saat Ini | Masalah |
+|-------|-----------------|---------|
+| **FeeHistoryTab** | Menggunakan `useBinanceAllIncome` | Fetch langsung dari Binance API setiap render |
+| **FundingHistoryTab** | Menggunakan `useBinanceAllIncome` | Fetch langsung dari Binance API setiap render |
+| **Data Lokal** | `trade_entries.commission`, `funding_fees` sudah tersedia | Tidak digunakan oleh tab ini |
 
-### Phase 1: Smart Windowed Income Fetching
-**File**: `src/hooks/use-trade-enrichment-binance.ts`
-- ✅ Added `groupTradesIntoWeeklyWindows()` to segment trades into 7-day windows
-- ✅ Added `deduplicateByTranId()` for income deduplication
-- ✅ Changed fetching strategy from full-range to per-window
-- ✅ Max 2,000 records per window, 10,000 total safety limit
-
-### Phase 2: Maximum Fetch Limits
-**File**: `src/hooks/use-trade-enrichment-binance.ts`
-- ✅ Added `MAX_INCOME_RECORDS = 10000` constant
-- ✅ `fetchPaginatedIncome()` now accepts `maxRecords` parameter
-- ✅ Early termination when limit reached
-
-### Phase 3: Better Progress Reporting
-**File**: `src/hooks/use-trade-enrichment-binance.ts`
-- ✅ `EnrichmentProgress` interface updated with:
-  - `windowInfo?: { current: number; total: number }`
-  - `recordsFetched?: number`
-- ✅ Progress messages now show window progress: "Window 1/5: 123 records..."
-
-### Phase 4: Debug Logging
-**File**: `src/services/binance-trade-enricher.ts`
-- ✅ Added console.log for chunk monitoring in `fetchUserTradesForSymbol()`
-
----
-
-## Expected Results
-
-| Metric | Before | After |
-|--------|--------|-------|
-| Income records fetched | 100,000+ | ~500-2,000 |
-| API calls | ~100+ | ~5-15 |
-| Enrichment time | Minutes | ~30-60 seconds |
-| Memory usage | Very High | Normal |
-
----
-
-## Testing
-
-1. Go to Trade History page
-2. Click "Enrich X Trades" button
-3. Watch console for:
-   - `[Enrichment] Grouped X trades into Y weekly windows`
-   - `[Enrichment] Window 1/Y: fetched Z income records`
-   - `[Enricher] SYMBOL: Fetching N chunks for M days`
-4. Progress bar should move smoothly, not get stuck
-5. After completion, verify with SQL:
-```sql
-SELECT 
-  COUNT(*) as total,
-  COUNT(CASE WHEN entry_price > 0 THEN 1 END) as enriched
-FROM trade_entries
-WHERE source = 'binance' AND deleted_at IS NULL;
+### Arsitektur yang Salah:
+```text
+┌─────────────────────────────────────────────────┐
+│           TAB FEES / FUNDING (CURRENT)          │
+│                                                 │
+│   useBinanceAllIncome() ─────► Binance API      │
+│          (Live fetch setiap render)             │
+│                                                 │
+│   ❌ Inkonsisten dengan "Local DB as Truth"     │
+│   ❌ Redundant API calls                        │
+│   ❌ Data tidak match dengan trade_entries      │
+└─────────────────────────────────────────────────┘
 ```
+
+---
+
+## 2. Arsitektur yang Benar
+
+### Target State:
+```text
+┌─────────────────────────────────────────────────┐
+│           TAB FEES / FUNDING (TARGET)           │
+│                                                 │
+│   useLocalFeeHistory() ─────► trade_entries     │
+│          (Query dari database lokal)            │
+│                                                 │
+│   ✅ Konsisten dengan aggregated data           │
+│   ✅ Cepat (no API calls)                       │
+│   ✅ Data match dengan P&L di journal           │
+└─────────────────────────────────────────────────┘
+```
+
+### Data Source Mapping:
+
+| Tab | Field dari `trade_entries` | Aggregasi |
+|-----|---------------------------|-----------|
+| **Fees** | `commission`, `commission_asset` | SUM per trade, grouped by pair/date |
+| **Funding** | `funding_fees` | SUM per trade, grouped by pair/date |
+
+---
+
+## 3. Implementation Plan
+
+### Phase A: Create Local Fee/Funding Hooks
+
+**File Baru:** `src/hooks/use-local-fee-funding.ts`
+
+Hook ini akan query dari `trade_entries`:
+- `useLocalFeeHistory(filters)` - Aggregated commission data
+- `useLocalFundingHistory(filters)` - Aggregated funding_fees data
+
+```text
+Query: 
+SELECT 
+  pair, 
+  DATE(entry_datetime) as date,
+  SUM(commission) as total_commission,
+  SUM(funding_fees) as total_funding,
+  COUNT(*) as trade_count
+FROM trade_entries
+WHERE source = 'binance' AND deleted_at IS NULL
+GROUP BY pair, DATE(entry_datetime)
+ORDER BY date DESC
+```
+
+### Phase B: Update FeeHistoryTab
+
+1. Ganti `useBinanceAllIncome` dengan `useLocalFeeHistory`
+2. Update UI untuk menampilkan data per-trade (bukan per-income-record)
+3. Tambahkan fallback message jika data kosong (belum Full Sync)
+
+### Phase C: Update FundingHistoryTab
+
+1. Ganti `useBinanceAllIncome` dengan `useLocalFundingHistory`
+2. Update UI untuk menampilkan data per-trade
+3. Tambahkan fallback message jika data kosong
+
+### Phase D: Granular View (Optional Enhancement)
+
+Untuk user yang ingin melihat detail per-transaksi (bukan per-trade), tambahkan:
+- Toggle "Per Trade" vs "Per Transaction"
+- "Per Transaction" tetap fetch dari API (existing behavior)
+- Default: "Per Trade" (dari lokal)
+
+---
+
+## 4. Detail Teknis
+
+### Hook: `useLocalFeeHistory`
+
+```typescript
+// Pseudocode
+interface LocalFeeRecord {
+  id: string;
+  pair: string;
+  date: string;
+  commission: number;
+  commission_asset: string;
+  entry_datetime: string;
+  direction: string;
+  realized_pnl: number;
+}
+
+function useLocalFeeHistory(filters: {
+  dateRange: DateRange;
+  selectedPairs: string[];
+}) {
+  return useQuery({
+    queryKey: ['local-fee-history', filters],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('trade_entries')
+        .select('id, pair, commission, commission_asset, entry_datetime, direction, realized_pnl')
+        .eq('source', 'binance')
+        .is('deleted_at', null)
+        .gte('entry_datetime', filters.dateRange.from)
+        .lte('entry_datetime', filters.dateRange.to);
+      return data;
+    }
+  });
+}
+```
+
+### UI Changes:
+
+**FeeHistoryTab:**
+- Summary: Total Fees, Total Trades, Avg Fee per Trade
+- Table: Date, Pair, Direction, Commission, Trade P&L
+
+**FundingHistoryTab:**
+- Summary: Funding Paid, Funding Received, Net Funding
+- Table: Date, Pair, Direction, Funding Fee, Trade P&L
+
+---
+
+## 5. Files to Modify
+
+| File | Action |
+|------|--------|
+| `src/hooks/use-local-fee-funding.ts` | **CREATE** - New hooks for local data |
+| `src/components/trading/FeeHistoryTab.tsx` | **MODIFY** - Use local hook |
+| `src/components/trading/FundingHistoryTab.tsx` | **MODIFY** - Use local hook |
+
+---
+
+## 6. Scope Boundaries
+
+### Dalam Scope:
+- Tab Fees dan Funding menggunakan data dari `trade_entries`
+- Konsisten dengan arsitektur "Local DB as Ledger of Truth"
+- UI menampilkan data per-trade
+
+### Di Luar Scope (Future Enhancement):
+- Menyimpan raw income records ke tabel terpisah
+- Toggle untuk melihat data granular vs aggregated
+- Sync monitoring untuk fees/funding khusus
+
+---
+
+## 7. Testing Checklist
+
+1. **Full Sync**: Jalankan Full Sync dari Trade History page
+2. **Verify Data**: Cek tab Fees dan Funding menampilkan data dari lokal
+3. **Filter Test**: Pastikan date range dan pair filter berfungsi
+4. **Consistency Check**: Pastikan total fees di tab = SUM(fees) di journal
