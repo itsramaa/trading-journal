@@ -977,6 +977,7 @@ export type Database = {
       user_settings: {
         Row: {
           ai_settings: Json | null
+          binance_daily_sync_quota: number | null
           created_at: string
           default_currency: string
           default_trading_account_id: string | null
@@ -996,10 +997,12 @@ export type Database = {
           target_allocations: Json | null
           theme: string
           updated_at: string
+          use_binance_history: boolean | null
           user_id: string
         }
         Insert: {
           ai_settings?: Json | null
+          binance_daily_sync_quota?: number | null
           created_at?: string
           default_currency?: string
           default_trading_account_id?: string | null
@@ -1019,10 +1022,12 @@ export type Database = {
           target_allocations?: Json | null
           theme?: string
           updated_at?: string
+          use_binance_history?: boolean | null
           user_id: string
         }
         Update: {
           ai_settings?: Json | null
+          binance_daily_sync_quota?: number | null
           created_at?: string
           default_currency?: string
           default_trading_account_id?: string | null
@@ -1042,6 +1047,7 @@ export type Database = {
           target_allocations?: Json | null
           theme?: string
           updated_at?: string
+          use_binance_history?: boolean | null
           user_id?: string
         }
         Relationships: [
