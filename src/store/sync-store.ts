@@ -15,7 +15,7 @@ import type { AggregationProgress, AggregationResult } from '@/services/binance/
 
 export type FullSyncStatus = 'idle' | 'running' | 'success' | 'error';
 
-export type SyncRangeDays = 30 | 90 | 180 | 365 | 730;
+export type SyncRangeDays = number | 'max';
 
 export interface ETAState {
   estimatedSeconds: number | null;

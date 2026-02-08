@@ -196,7 +196,7 @@ export function BinanceFullSyncPanel({
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleSync}>
               <CloudDownload className="h-4 w-4 mr-2" />
-              Start Full Sync ({selectedRange} days)
+              Start Full Sync ({selectedRange === 'max' ? 'All Time' : `${selectedRange} days`})
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
