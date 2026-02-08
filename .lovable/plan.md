@@ -1,461 +1,396 @@
 
 
-# Audit Report: Strategies Page & Backtest Page
+# Audit Report: Performance Overview Page & Daily PnL Page
 
 ## Executive Summary
 
-Audit dilakukan terhadap **Strategy Management Page** (`/trading-journey`) dan **Backtest Page** (`/backtest`) beserta seluruh komponen, hook, dan service terkait. Kedua halaman ini sudah memiliki **arsitektur yang cukup baik** dengan centralized types di `src/types/strategy.ts` dan `src/types/backtest.ts`. Namun masih terdapat beberapa hardcode yang tersebar, terutama di area AI Quality Score calculation dan backtest configuration.
+Audit dilakukan terhadap **Performance Overview Page** (`/performance`) dan **Daily PnL Page** (`/daily-pnl`) beserta seluruh komponen, hook, dan service terkait. **Kedua halaman ini memiliki arsitektur yang SANGAT BAIK** dengan:
+
+- Thresholds sudah tersentralisasi di `src/lib/constants/ai-analytics.ts`
+- Hooks sudah mengikuti pola "Unified" (System-First) untuk dual-source (Binance + Paper)
+- Calculation logic sudah di-extract ke `src/lib/trading-calculations.ts`
+- Currency conversion sudah menggunakan centralized hook
+
+Namun masih terdapat beberapa hardcode minor, terutama di area UI styling dan export handling.
 
 ---
 
 ## STEP 1 — HARDCODE DETECTION
 
-### 1.1 use-trading-strategies.ts Hook
+### 1.1 DailyPnL.tsx Page
 
 | Line | Hardcode | Jenis | Nilai |
 |------|----------|-------|-------|
-| 73 | Default market_type fallback | Logic | `'spot'` |
-| 74 | Default status fallback | Logic | `'active'` |
-| 99 | Default color | Data | `'blue'` |
-| 101 | Default market_type | Data | `'spot'` |
-| 102 | Default min_confluences | Data | `4` |
-| 103 | Default min_rr | Data | `1.5` |
-| 106 | Default valid_pairs | Data | `['BTC', 'ETH', 'BNB']` |
+| 52-54 | ChangeIndicator decimal format | UI | `.toFixed(1)` |
+| 59-74 | Export stats object with hardcoded fallback | Data | `profitFactor: 0`, `avgWin: 0`, dll. |
+| 72, 93 | Date range calculation | Logic | `7 * 24 * 60 * 60 * 1000` (7 days) |
+| 117-119 | Source badge text | UI | `'🔗 Live'`, `'📝 Paper'` |
+| 152-155 | N/A fallback for Paper source | Logic | Conditional `'N/A'` |
+| 164 | Win rate format | UI | `.toFixed(0)%` |
+| 227-229 | Win rate format | UI | `.toFixed(0)%` |
+| 287 | Chart height | UI | `300px` |
 
-### 1.2 use-strategy-performance.ts Hook
-
-| Line | Hardcode | Jenis | Nilai |
-|------|----------|-------|-------|
-| 28 | Win Rate weight | Logic | `0.4` (40%) |
-| 31 | Profit Factor normalization | Logic | `2.5` |
-| 32 | Profit Factor weight | Logic | `0.3` (30%) |
-| 36 | Consistency divisor | Logic | `20` trades |
-| 36 | Consistency weight | Logic | `0.2` (20%) |
-| 39 | Sample size threshold | Logic | `10` trades |
-| 39 | Sample size weight | Logic | `0.1` (10%) |
-| 83 | Profit factor infinity fallback | Logic | `99` |
-| 118-127 | Quality score thresholds | Logic | `80`, `60`, `40`, `0` |
-| 119-127 | Quality score color classes | UI | Hardcoded color strings |
-
-### 1.3 use-strategy-context.ts Hook
+### 1.2 Performance.tsx Page
 
 | Line | Hardcode | Jenis | Nilai |
 |------|----------|-------|-------|
-| 210-214 | Scalping timeframes | Logic | `'1m'`, `'5m'` |
-| 217-219 | Swing timeframes | Logic | `'4h'`, `'1d'`, `'1w'` |
-| 235-237 | Session hours | Logic | `0-8 UTC`, `13-22 UTC` |
-| 248-251 | Fit score calculations | Logic | `+20/-15/+5`, `+15/-20`, `+10/-5`, `+10/-20/-5` |
-| 256-257 | Overall fit thresholds | Logic | `>= 70` optimal, `< 40` poor |
-| 274 | Min trades for recommendations | Logic | `3` |
-| 281 | Win rate threshold for best pairs | Logic | `>= 50%` |
-| 393-396 | Strategy ranking volatility scores | Logic | `+15/-10` |
+| 370-392 | Tooltip text content | UI | Static explanatory strings |
+| 390 | Profit factor display | UI | `.toFixed(2)` |
+| 433 | Sharpe ratio display | UI | `.toFixed(2)` |
+| 607 | Chart height | UI | `300px` |
+| 717 | Chart height | UI | `300px` |
 
-### 1.4 BacktestRunner.tsx Component
+### 1.3 SevenDayStatsCard.tsx Component
 
 | Line | Hardcode | Jenis | Nilai |
 |------|----------|-------|-------|
-| 52 | Default pair | Data | `'BTC'` |
-| 53 | Default period start | Data | `subMonths(new Date(), 3)` |
-| 55 | Default initial capital | Data | `10000` |
-| 56 | Default commission rate | Data | `0.04` (%) |
-| 63 | Default buffer hours | Data | `4` |
-| 285 | Commission rate hint | UI | `'Binance Futures: 0.02% maker / 0.04% taker'` |
-| 334-337 | Buffer slider range | UI | `min: 0`, `max: 48`, `step: 4` |
-| 355-358 | Session labels | UI | Asian/London/NY hours in text |
-| 392 | Min trades warning | Logic | `30` trades |
-| 408 | Default min_confluences fallback | Logic | `4` |
+| 23 | Days calculation | Logic | `setDate(getDate() - 7)` (7 days) |
+| 65-66 | Card grid layout | UI | `grid-cols-2 md:grid-cols-4` |
 
-### 1.5 BacktestResults.tsx Component
+### 1.4 SessionPerformanceChart.tsx Component
 
 | Line | Hardcode | Jenis | Nilai |
 |------|----------|-------|-------|
-| - | ✅ Menggunakan centralized formatters | - | Baik |
+| 66 | Min trades threshold | Logic | `>= 3` untuk session comparison |
+| 93 | Min total trades | Logic | `< 5` untuk show empty state |
+| 121-122 | Session UTC hours | UI | Tooltip content with static hours |
+| 143 | Chart height | UI | `200px` |
+| 174, 229, 236 | Trade count threshold | UI | `< 3` untuk opacity/text |
+| 183 | Grid columns | UI | `md:grid-cols-5` |
 
-### 1.6 BacktestComparison.tsx Component
-
-| Line | Hardcode | Jenis | Nilai |
-|------|----------|-------|-------|
-| 37-42 | Chart colors array | UI | 4 hardcoded HSL colors |
-| 44-49 | Color classes array | UI | 4 hardcoded Tailwind classes |
-| 58-70 | Metrics config | Data | Metric definitions with format functions |
-| 86-87 | Max selections | Logic | `4` |
-| 179 | Scroll area height | UI | `200px` |
-| 324 | Chart height | UI | `350px` |
-| 383 | Winner summary metrics | Logic | Fixed 4 metrics: `totalReturn`, `winRate`, `sharpeRatio`, `maxDrawdown` |
-
-### 1.7 StrategyFormDialog.tsx Component
+### 1.5 DrawdownChart.tsx Component
 
 | Line | Hardcode | Jenis | Nilai |
 |------|----------|-------|-------|
-| 24-33 | Strategy colors array | Data | 8 colors with names |
-| 35-44 | Color classes mapping | UI | 8 Tailwind class mappings |
-| 55 | Min confluences range | Form | `min: 1`, `max: 10`, `default: 4` |
-| 56 | Min R:R range | Form | `min: 0.5`, `max: 10`, `default: 1.5` |
-| 88 | Default valid pairs | Data | `['BTC', 'ETH', 'BNB']` |
-| 101 | Default min_confluences | Data | `4` |
-| 102 | Default min_rr | Data | `1.5` |
-| 121 | Default valid pairs for edit | Data | `['BTC', 'ETH', 'BNB']` |
-| 139 | Default entry rules slice | Logic | `slice(0, 4)` |
+| 88 | Chart height | UI | `300px` |
 
-### 1.8 StrategyCard.tsx Component
+### 1.6 CombinedContextualScore.tsx Component
 
 | Line | Hardcode | Jenis | Nilai |
 |------|----------|-------|-------|
-| 18-27 | Color classes mapping | UI | 8 color class mappings (DUPLICATE dari StrategyFormDialog) |
-| 176 | Default min_confluences | UI | `4` |
-| 180 | Default min_rr | UI | `1.5` |
-| 192 | Win rate threshold | UI | `>= 0.5` for color |
+| 66-79 | Fear/Greed score weights | Logic | `40-60`, `25-75`, etc. |
+| 74-79 | Volatility score weights | Logic | `low: 2`, `medium: 1`, `high: 0` |
+| 82-88 | Event score weights | Logic | `noEvent: 2`, `moderate: 1` |
+| 98-103 | Context bucket thresholds | Logic | `>= 80`, `>= 60`, `>= 40`, `>= 20` |
+| 167 | Min trades for zone analysis | Logic | `>= 3` |
+| 181-187 | Score label thresholds | Logic | `80, 60, 40, 20` |
+| 189-195 | Score color thresholds | UI | Same thresholds, color classes |
+| 271-274 | Win rate color threshold | UI | `>= 50` for green |
 
-### 1.9 EntryRulesBuilder.tsx Component
-
-| Line | Hardcode | Jenis | Nilai |
-|------|----------|-------|-------|
-| 22-29 | Rule type options | Data | 6 entry rule types with metadata |
-| 31-34 | Indicator options | Data | 11 indicators hardcoded |
-| 47 | Default mandatory threshold | Logic | `rules.length < 4` |
-
-### 1.10 ExitRulesBuilder.tsx Component
+### 1.7 use-unified-daily-pnl.ts Hook
 
 | Line | Hardcode | Jenis | Nilai |
 |------|----------|-------|-------|
-| 21-26 | Exit type options | Data | 4 exit types with metadata |
-| 28-33 | Unit options | Data | 4 units (percent, rr, atr, pips) |
-| 40-45 | Default values per type | Data | TP: 2 R:R, SL: 1 R:R, etc. |
-| 80-88 | Rule color mapping | UI | 4 type-to-color mappings |
+| - | ✅ Clean implementation | - | Sudah menggunakan proper source detection |
 
-### 1.11 use-youtube-strategy-import.ts Hook
+### 1.8 use-unified-weekly-pnl.ts Hook
 
 | Line | Hardcode | Jenis | Nilai |
 |------|----------|-------|-------|
-| 65 | Mandatory entry rules count | Logic | `idx < 2` |
-| 88 | Trailing stop unit | Data | `'percent'` |
-| 98 | Market type | Data | `'futures'` |
-| 102-103 | Default values | Data | `min_confluences: length or 4`, `min_rr: 1.5` |
-| 109 | Tags slice limit | Logic | `slice(0, 5)` |
+| 57 | Week calculation | Logic | `subDays(today, 6)` - 7 days |
+| - | ✅ Clean implementation | - | Proper aggregation logic |
 
-### 1.12 types/backtest.ts
+### 1.9 use-contextual-analytics.ts Hook
 
 | Line | Hardcode | Jenis | Nilai |
 |------|----------|-------|-------|
-| 139-143 | Default backtest config | Data | Capital: `10000`, Commission: `0.0004`, Slippage: `0.001` |
+| - | ✅ Uses ai-analytics constants | - | `FEAR_GREED_ZONES`, `DATA_QUALITY`, etc. |
+| 166-167 | Win rate comparison | Logic | `> greedWinRate + 10` (inline threshold) |
+| 175 | Win rate comparison | Logic | `> fearWinRate + 10` (inline threshold) |
 
-### 1.13 types/strategy.ts
+### 1.10 use-monthly-pnl.ts Hook
 
 | Line | Hardcode | Jenis | Nilai |
 |------|----------|-------|-------|
-| 63-101 | Default entry rules | Data | 6 predefined rules |
-| 104-117 | Default exit rules | Data | 2 predefined rules (TP: 2 R:R, SL: 1 R:R) |
-| 120-128 | Timeframe options | Data | 7 timeframes |
-| 134-137 | Common pairs | Data | 20 pairs (deprecated, but still used as fallback) |
+| 126 | Rolling days | Logic | `subDays(now, 29)` - 30 days |
+| - | ✅ Clean implementation | - | No major issues |
+
+### 1.11 trading-calculations.ts Utility
+
+| Line | Hardcode | Jenis | Nilai |
+|------|----------|-------|-------|
+| 195-200 | Risk-free rate | Logic | `0%` for Sharpe Ratio |
+| 200 | Trading days per year | Logic | `252` days |
+| - | ✅ Clean implementation | - | Well-documented formulas |
+
+### 1.12 use-symbol-breakdown.ts Hook
+
+| Line | Hardcode | Jenis | Nilai |
+|------|----------|-------|-------|
+| 44 | Week calculation | Logic | `subDays(today, 6)` - 7 days |
+| - | ✅ Clean implementation | - | Proper source switching |
 
 ---
 
 ## STEP 2 — HARDCODE IMPACT ANALYSIS
 
-### 2.1 AI Quality Score Calculation (use-strategy-performance.ts)
+### 2.1 Positive Finding: Thresholds Sudah Tersentralisasi ✅
 
-**Lokasi:** Lines 22-42
+**Lokasi:** `src/lib/constants/ai-analytics.ts`
 
-**Dampak ke Akurasi:**
-- Weight distribution (40%/30%/20%/10%) tidak terdokumentasi atau configurable
-- Threshold `20` trades untuk consistency score adalah arbitrary
-- Normalization factor `2.5` untuk profit factor tidak jelas basisnya
+**Constants yang sudah tersedia:**
+- `FEAR_GREED_ZONES` - Fear/Greed zone boundaries
+- `DATA_QUALITY` - Minimum trades for analysis
+- `PERFORMANCE_THRESHOLDS` - Win rate benchmarks
+- `VOLATILITY_THRESHOLDS` - Volatility comparison thresholds
+- `EMOTIONAL_THRESHOLDS` - Emotional state thresholds
+- `SESSION_THRESHOLDS` - Session comparison thresholds
 
-**Dampak ke Trust:**
-- User tidak bisa memahami bagaimana score dihitung
-- Tidak ada penjelasan mengapa score rendah/tinggi
+**Impact:** Sebagian besar threshold untuk contextual analytics sudah tersentralisasi dengan baik.
 
-**Risiko Jangka Panjang:**
-- Sulit A/B test scoring algorithms
-- Tidak bisa customize per trading style
+### 2.2 CombinedContextualScore Scoring Logic
 
-### 2.2 Strategy Context Fit Scoring (use-strategy-context.ts)
-
-**Lokasi:** Lines 207-266
-
-**Dampak ke Akurasi:**
-- Volatility matching logic mengasumsikan scalping = high vol, swing = low vol
-- Session hours hardcoded (`0-8`, `13-22` UTC) tidak mencakup overlap atau market specifics
-- Fit score point system (`+20/-15`, `+10/-5`) adalah arbitrary
-
-**Dampak ke Konsistensi:**
-- Sama strategy bisa dapat score berbeda jika market context source berubah
-- Tidak sync dengan AI analytics thresholds di `ai-analytics.ts`
-
-**Risiko Jangka Panjang:**
-- Strategy recommendations bisa misleading
-- Tidak bisa learn from user's actual performance
-
-### 2.3 Duplicate Color Mappings
-
-**Lokasi:**
-1. `StrategyCard.tsx` lines 18-27
-2. `StrategyFormDialog.tsx` lines 35-44
+**Lokasi:** Lines 66-103
 
 **Dampak:**
-- **DRY Violation**: 2 identical color mappings
-- Jika update warna di satu tempat, yang lain tidak sync
+- Score weights (Fear/Greed: 2/1/0, Volatility: 2/1/0) tidak terdokumentasi
+- Bucket thresholds (80/60/40/20) tidak sync dengan `ai-analytics.ts` constants
+- `FEAR_GREED_ZONES` constants sudah ada, tapi tidak digunakan di sini
 
 **Risiko:**
-- Visual inconsistency jika ada update
-- Maintenance burden
+- Inconsistency jika thresholds di `ai-analytics.ts` berubah
+- Score calculation tidak transparan untuk user
 
-### 2.4 Default Strategy Values Scattered
+### 2.3 Win Rate Comparison Inline Thresholds
 
-| Default | Locations |
-|---------|-----------|
-| `min_confluences: 4` | `use-trading-strategies.ts`, `StrategyFormDialog.tsx`, `StrategyCard.tsx`, `BacktestRunner.tsx`, `use-youtube-strategy-import.ts` |
-| `min_rr: 1.5` | `use-trading-strategies.ts`, `StrategyFormDialog.tsx`, `StrategyCard.tsx`, `use-youtube-strategy-import.ts` |
-| `valid_pairs: ['BTC', 'ETH', 'BNB']` | `use-trading-strategies.ts`, `StrategyFormDialog.tsx` |
-| `color: 'blue'` | `use-trading-strategies.ts`, `StrategyFormDialog.tsx` |
+**Lokasi:** `use-contextual-analytics.ts` Lines 166-175
 
 **Dampak:**
-- Jika default berubah, harus update 5+ files
-- Risk inconsistency
-
-### 2.5 Backtest Configuration Defaults
-
-**Lokasi:** `BacktestRunner.tsx` + `types/backtest.ts`
-
-**Dampak ke Akurasi:**
-- Commission rate `0.04%` adalah Binance-specific (taker fee)
-- Initial capital `10000` adalah arbitrary
-- Period default 3 months mungkin tidak cukup untuk statistical significance
+- `+10` percentage point comparison hardcoded inline
+- Harusnya menggunakan constant dari `ai-analytics.ts`
 
 **Risiko:**
-- User mungkin tidak menyadari asumsi-asumsi ini
-- Multi-exchange support akan membutuhkan refactor
+- Minor - tapi bisa menyebabkan inconsistency jika insight generation rules berubah
 
-### 2.6 Entry/Exit Rule Options
+### 2.4 Chart Heights (UI Hardcode)
 
-**Lokasi:** `EntryRulesBuilder.tsx`, `ExitRulesBuilder.tsx`
+**Lokasi:** Multiple components
+
+| Component | Height |
+|-----------|--------|
+| DailyPnL Chart | `300px` |
+| Performance Monthly Chart | `300px` |
+| Performance Strategy Chart | `300px` |
+| SessionPerformanceChart | `200px` |
+| DrawdownChart | `300px` |
+
+**Dampak:** 
+- **LOW RISK** - Ini adalah UI styling, bukan business logic
+- Tidak mempengaruhi akurasi data
+
+**Risiko:**
+- Minor maintenance burden jika ingin standardize
+- Tidak ada impact ke data accuracy
+
+### 2.5 Export Stats Fallback Values
+
+**Lokasi:** `DailyPnL.tsx` Lines 59-74
 
 **Dampak:**
-- 6 entry rule types dan 4 exit types hardcoded
-- 11 indicator options hardcoded
-- Sulit menambah rule types baru tanpa code change
+- Export menggunakan `profitFactor: 0`, `avgWin: 0` sebagai placeholder
+- Data export mungkin incomplete untuk Paper Trading
 
-**Risiko Jangka Panjang:**
-- Custom indicators tidak bisa ditambahkan user
-- Multi-strategy styles tidak fleksibel
+**Risiko:**
+- User mungkin confused dengan nilai 0 di export
+- Sebaiknya ada note bahwa beberapa metrics tidak tersedia
+
+### 2.6 Time Period Constants (7 Days, 30 Days)
+
+**Lokasi:** Multiple hooks
+
+| Hook | Period |
+|------|--------|
+| `use-unified-weekly-pnl.ts` | 7 days |
+| `use-symbol-breakdown.ts` | 7 days |
+| `use-monthly-pnl.ts` | 30 days |
+| `SevenDayStatsCard.tsx` | 7 days |
+
+**Dampak:**
+- **LOW RISK** - Ini adalah domain-correct values
+- 7-day dan 30-day adalah standar industri untuk analysis periods
+
+**Risiko:**
+- Bisa di-centralize untuk consistency, tapi tidak critical
 
 ---
 
 ## STEP 3 — RESPONSIBILITY & STRUCTURE AUDIT
 
-### 3.1 Single Responsibility Violations
-
-| File | Violation | Severity |
-|------|-----------|----------|
-| `use-strategy-context.ts` | Hook berisi multiple concerns: market fit, performance, recommendations, validity check (370+ lines) | **Medium** |
-| `use-strategy-performance.ts` | Scoring algorithm embedded dalam hook, bukan utility | **Low** |
-| `BacktestRunner.tsx` | Contains some business logic (filter checking) tapi mostly acceptable untuk form component | **Low** |
-| `BacktestComparison.tsx` | Metrics config dan winner calculation inline | **Low** |
-
-### 3.2 DRY Violations
-
-| Pattern | Locations | Status |
-|---------|-----------|--------|
-| Color classes mapping | `StrategyCard.tsx`, `StrategyFormDialog.tsx` | **Critical** - Duplicate |
-| Default strategy values | 5+ files | **Medium** - Scattered |
-| Timeframe-to-volatility mapping | `use-strategy-context.ts` (2 places) | **Low** |
-| Min trades thresholds | `use-strategy-context.ts` (multiple: 3, 50%) | **Low** |
-
-### 3.3 Positive Findings ✅
+### 3.1 Single Responsibility - POSITIVE FINDINGS ✅
 
 | Component/Hook | Status |
 |----------------|--------|
-| `BacktestResults.tsx` | ✅ Pure UI, uses centralized formatters |
-| `StrategyStats.tsx` | ✅ Pure UI, simple aggregation |
-| `types/strategy.ts` | ✅ Good centralized type definitions |
-| `types/backtest.ts` | ✅ Good centralized types with DEFAULT_BACKTEST_CONFIG |
-| `StrategyLeaderboard.tsx` | ✅ (assumed from export index) |
-| `YouTubeStrategyImporter.tsx` | ✅ Clean component, delegates to hook |
+| `useUnifiedDailyPnl` | ✅ Single source switching (Binance ↔ Paper) |
+| `useUnifiedWeeklyPnl` | ✅ Same pattern, clean aggregation |
+| `useUnifiedWeekComparison` | ✅ Comparison logic separated from data fetch |
+| `useSymbolBreakdown` | ✅ Clean source-aware aggregation |
+| `useMonthlyPnl` | ✅ Monthly stats calculation isolated |
+| `useContextualAnalytics` | ✅ Uses centralized constants |
+| `trading-calculations.ts` | ✅ Pure functions, no side effects |
+| `ai-analytics.ts` | ✅ Centralized thresholds |
+| `DrawdownChart` | ✅ Pure UI with local calculation |
+| `SessionPerformanceChart` | ✅ Receives data via props |
+| `SevenDayStatsCard` | ✅ Self-contained 7-day logic |
+
+### 3.2 DRY Violations - Minor
+
+| Pattern | Locations | Status |
+|---------|-----------|--------|
+| Score color thresholds | `CombinedContextualScore` (local) | Should use `ai-analytics.ts` |
+| Win rate comparison (+10pp) | `use-contextual-analytics` | Should be constant |
+| Chart heights | Multiple components | Could be centralized, but LOW priority |
+
+### 3.3 Component Structure - EXCELLENT ✅
+
+```text
+Performance.tsx (Page)
+├── Uses hooks: useTradeEntries, useBinanceDailyPnl, useStrategyPerformance, etc.
+├── Uses lib: trading-calculations.ts (calculateTradingStats, etc.)
+├── Components:
+│   ├── SevenDayStatsCard (self-contained stats)
+│   ├── SessionPerformanceChart (receives bySession prop)
+│   ├── TradingHeatmapChart (receives trades prop)
+│   ├── DrawdownChart (self-contained)
+│   ├── EquityCurveWithEvents (receives equityData)
+│   └── Context tab components (FearGreedZoneChart, etc.)
+
+DailyPnL.tsx (Page)
+├── Uses hooks: useUnifiedDailyPnl, useUnifiedWeeklyPnl, useUnifiedWeekComparison
+├── Uses hooks: useSymbolBreakdown, usePerformanceExport
+├── Pure UI rendering with centralized formatters
+```
+
+### 3.4 Data Flow - EXCELLENT ✅
+
+```text
+[Supabase / Binance API]
+        ↓
+[trade_entries / income endpoint]
+        ↓
+[useTradeEntries / useBinance*]
+        ↓
+[useUnifiedDailyPnl / useUnifiedWeeklyPnl]  ← Source switching here
+        ↓
+[trading-calculations.ts] ← Pure calculation functions
+        ↓
+[UI Components] ← Use centralized formatters
+```
 
 ---
 
 ## STEP 4 — REFACTOR DIRECTION (HIGH-LEVEL)
 
-### 4.1 Create Strategy Constants File
+### 4.1 Consolidate CombinedContextualScore Thresholds
 
-Buat `src/lib/constants/strategy-config.ts`:
-
-```text
-STRATEGY_DEFAULTS
-├── COLOR: 'blue'
-├── MIN_CONFLUENCES: 4
-├── MIN_RR: 1.5
-├── VALID_PAIRS: ['BTC', 'ETH', 'BNB']
-├── MARKET_TYPE: 'spot'
-└── STATUS: 'active'
-
-STRATEGY_COLORS (export dari sini, import di StrategyCard + StrategyFormDialog)
-├── blue: { name, class }
-├── green: { name, class }
-└── ...
-
-AI_QUALITY_SCORE_CONFIG
-├── WEIGHTS: { winRate: 0.4, profitFactor: 0.3, consistency: 0.2, sampleSize: 0.1 }
-├── PROFIT_FACTOR_NORMALIZATION: 2.5
-├── CONSISTENCY_TRADE_TARGET: 20
-└── SAMPLE_SIZE_MINIMUM: 10
-
-QUALITY_SCORE_THRESHOLDS (pindahkan dari getQualityScoreLabel)
-├── EXCELLENT: 80
-├── GOOD: 60
-├── FAIR: 40
-└── NO_DATA: 0
-```
-
-### 4.2 Create Backtest Constants File
-
-Buat `src/lib/constants/backtest-config.ts`:
-
-```text
-BACKTEST_DEFAULTS
-├── INITIAL_CAPITAL: 10000
-├── COMMISSION_RATE: 0.0004
-├── SLIPPAGE: 0.001
-├── PERIOD_MONTHS: 3
-└── DEFAULT_PAIR: 'BTC'
-
-BACKTEST_FILTERS
-├── EVENT_BUFFER_HOURS: 4
-├── EVENT_BUFFER_MAX: 48
-├── EVENT_BUFFER_STEP: 4
-└── MIN_TRADES_FOR_RELIABILITY: 30
-
-COMPARISON_CONFIG
-├── MAX_SELECTIONS: 4
-├── CHART_COLORS: [...]
-└── SUMMARY_METRICS: ['totalReturn', 'winRate', 'sharpeRatio', 'maxDrawdown']
-```
-
-### 4.3 Consolidate Color Mappings
-
-**Current:** Duplicate di `StrategyCard.tsx` dan `StrategyFormDialog.tsx`
+**Current:** Inline weights dan thresholds di component
 
 **Ideal:**
-- Pindahkan ke `src/lib/constants/strategy-config.ts`
-- Atau ke `src/lib/ui/strategy-colors.ts`
-- Import di kedua component
+Tambahkan ke `src/lib/constants/ai-analytics.ts`:
 
-### 4.4 Extract AI Quality Score Logic
+```text
+CONTEXTUAL_SCORE_CONFIG
+├── WEIGHTS
+│   ├── FEAR_GREED: { neutral: 2, moderate: 1, extreme: 0 }
+│   ├── VOLATILITY: { low: 2, medium: 1, high: 0 }
+│   └── EVENTS: { none: 2, moderate: 1, high: 0 }
+├── BUCKET_THRESHOLDS
+│   ├── OPTIMAL: 80
+│   ├── FAVORABLE: 60
+│   ├── MODERATE: 40
+│   └── RISKY: 20
+└── ZONE_LABELS
+    └── { optimal: 'Optimal', ... }
+```
 
-**Current:** Embedded di `use-strategy-performance.ts`
+### 4.2 Extract Win Rate Comparison Threshold
+
+**Current:** Inline `+10` in `use-contextual-analytics.ts`
 
 **Ideal:**
+Add to `ai-analytics.ts`:
 ```text
-src/lib/scoring/
-├── ai-quality-score.ts
-│   ├── calculateAIQualityScore(stats): number
-│   └── getQualityScoreLabel(score): QualityLabel
+INSIGHT_GENERATION = {
+  WIN_RATE_DIFF_SIGNIFICANT: 10, // pp
+}
 ```
 
-### 4.5 Consolidate Strategy Context Logic
+### 4.3 Optional: Chart Height Constants (LOW Priority)
 
-**Current:** `use-strategy-context.ts` (370+ lines)
+**Current:** Scattered heights
 
-**Ideal:**
+**Ideal (if needed):**
 ```text
-src/lib/strategy/
-├── market-fit-calculator.ts
-│   ├── calculateVolatilityMatch(strategy, volatility): MatchLevel
-│   ├── calculateTrendAlignment(strategy, bias): AlignmentLevel
-│   └── calculateOverallFit(factors): FitResult
-├── pair-recommender.ts
-│   └── generatePairRecommendations(performance[]): Recommendations
+src/lib/constants/ui-layout.ts
+├── CHART_HEIGHTS
+│   ├── STANDARD: 300
+│   ├── COMPACT: 200
+│   └── LARGE: 400
 ```
 
-Hook menjadi orchestrator yang memanggil utils.
+### 4.4 Data Flow Remains As-Is ✅
 
-### 4.6 Entry/Exit Rule Types ke Constants
-
-**Current:** Hardcoded arrays di `EntryRulesBuilder.tsx` dan `ExitRulesBuilder.tsx`
-
-**Ideal:**
-```text
-src/lib/constants/strategy-rules.ts
-├── ENTRY_RULE_TYPES: EntryRuleTypeConfig[]
-├── EXIT_RULE_TYPES: ExitRuleTypeConfig[]
-├── INDICATOR_OPTIONS: string[]
-└── UNIT_OPTIONS: UnitConfig[]
-```
-
-### 4.7 Data Flow Ideal
-
-```text
-[src/lib/constants/]
-├── strategy-config.ts
-├── backtest-config.ts
-├── strategy-rules.ts
-
-[Imports flow:]
-use-trading-strategies.ts ← strategy-config.ts (defaults)
-use-strategy-performance.ts ← strategy-config.ts (AI score config)
-use-strategy-context.ts ← strategy-config.ts (thresholds), market-fit-calculator.ts
-StrategyCard.tsx ← strategy-config.ts (colors)
-StrategyFormDialog.tsx ← strategy-config.ts (colors, defaults)
-BacktestRunner.tsx ← backtest-config.ts
-BacktestComparison.tsx ← backtest-config.ts (chart colors, metrics)
-EntryRulesBuilder.tsx ← strategy-rules.ts
-ExitRulesBuilder.tsx ← strategy-rules.ts
-```
+Tidak ada perubahan struktur yang diperlukan. Arsitektur sudah mengikuti pattern:
+1. **System-First** - Paper data works standalone
+2. **Unified Hooks** - Single interface for both sources
+3. **Pure Calculations** - Isolated in `trading-calculations.ts`
+4. **Centralized Constants** - Already exists in `ai-analytics.ts`
 
 ---
 
 ## STEP 5 — RISK LEVEL ASSESSMENT
 
-### Strategy Management Page: **LOW**
+### Performance Overview Page: **LOW** ✅
 
-**Alasan:**
-- Core CRUD operations sudah well-structured ✅
-- Types sudah centralized di `types/strategy.ts` ✅
-- Performance calculation logic sudah di dedicated hook ✅
-- Color duplicate adalah cosmetic issue
+**Justifikasi:**
+- Calculation logic 100% tersentralisasi di `trading-calculations.ts`
+- Threshold constants sudah di `ai-analytics.ts`
+- Hooks mengikuti Unified pattern dengan benar
+- UI components memiliki clear responsibility
+- Currency conversion menggunakan centralized hook
+- Export functionality works correctly
 
-**Issues:**
-- Default values scattered tapi tidak critical
-- AI Quality Score calculation perlu transparency documentation
+**Minor Issues:**
+- `CombinedContextualScore` punya inline thresholds (cosmetic, tidak critical)
+- Chart heights scattered (UI only, tidak mempengaruhi data)
 
-### Backtest Page: **LOW**
+### Daily P&L Page: **LOW** ✅
 
-**Alasan:**
-- Backtest execution via edge function (logic di server) ✅
-- Types sudah centralized di `types/backtest.ts` ✅
-- Results component menggunakan centralized formatters ✅
-- BacktestComparison sudah well-structured
+**Justifikasi:**
+- `useUnifiedDailyPnl` dan `useUnifiedWeeklyPnl` sudah System-First compliant
+- Source badge clearly indicates data source
+- Symbol breakdown works for both Binance and Paper
+- Currency conversion properly applied
+- Week comparison logic is clean
 
-**Issues:**
-- Commission rate Binance-specific (perlu config untuk multi-exchange)
-- Chart colors bisa dipindahkan ke constants
+**Minor Issues:**
+- Export stats has placeholder zeros (acceptable fallback)
+- Some inline `.toFixed()` calls (standard practice)
 
 ---
 
 ## Summary Table
 
-| Category | Strategies Page | Backtest Page |
-|----------|-----------------|---------------|
-| Hardcode Count | ~35 values | ~20 values |
-| DRY Violations | 1 critical (colors) | 0 critical |
-| SRP Violations | 1 medium (strategy-context) | 0 major |
-| Data Accuracy Risk | Low | Low |
-| Centralized Constants | Partial | Partial |
-| Types Centralized | ✅ Yes | ✅ Yes |
+| Category | Performance Overview | Daily P&L |
+|----------|---------------------|-----------|
+| Hardcode Count | ~15 values | ~10 values |
+| DRY Violations | 1 minor (score thresholds) | 0 critical |
+| SRP Violations | 0 | 0 |
+| Data Accuracy Risk | **NONE** | **NONE** |
+| Centralized Constants | ✅ Yes (`ai-analytics.ts`) | ✅ Yes |
+| Unified Hooks | ✅ Yes | ✅ Yes |
+| Currency Conversion | ✅ Yes | ✅ Yes |
 
 ---
 
 ## Recommended Priority
 
-### Quick Wins (Low Effort, High Impact)
-1. **HIGH**: Consolidate `colorClasses` mapping ke satu file dan import di `StrategyCard` + `StrategyFormDialog`
-2. **MEDIUM**: Create `STRATEGY_DEFAULTS` constants untuk centralize `min_confluences`, `min_rr`, `valid_pairs`
-3. **MEDIUM**: Create `BACKTEST_DEFAULTS` constants (sudah ada partial di `types/backtest.ts`, extend dan use consistently)
+### Quick Wins (Low Effort, Low Impact)
+1. **LOW**: Move `CombinedContextualScore` score thresholds to `ai-analytics.ts`
+2. **LOW**: Extract `+10` win rate comparison to constant
 
-### Medium-Term Refactors
-4. **MEDIUM**: Extract AI Quality Score algorithm ke utility dengan configurable weights
-5. **MEDIUM**: Create `strategy-rules.ts` untuk entry/exit rule types
-6. **LOW**: Refactor `use-strategy-context.ts` ke smaller focused functions
+### Not Recommended (Over-Engineering)
+- ❌ Chart height constants - UI only, tidak perlu
+- ❌ 7-day / 30-day period constants - Domain-correct values
 
 ---
 
@@ -463,8 +398,15 @@ ExitRulesBuilder.tsx ← strategy-rules.ts
 
 | Page | Risk Level | Justification |
 |------|------------|---------------|
-| **Strategy Management** | **LOW** | Well-architected, one color DRY violation, defaults scattered but not critical |
-| **Backtest Page** | **LOW** | Good structure, types centralized, mostly UI hardcodes |
+| **Performance Overview** | **LOW** ✅ | Excellent architecture, centralized calculations, System-First compliant |
+| **Daily P&L** | **LOW** ✅ | Clean Unified hooks, proper source switching, transparent data display |
 
-Kedua halaman sudah **functional dan production-ready**. Refactoring yang disarankan lebih ke arah maintainability dan scalability untuk future features (multi-exchange, custom scoring algorithms) daripada fixing critical bugs.
+**Kedua halaman ini sudah PRODUCTION-READY** dengan arsitektur yang sangat baik. Tidak ada critical issues yang mempengaruhi akurasi data atau konsistensi UI. Refactoring yang disarankan hanya bersifat kosmetik untuk meningkatkan maintainability jangka panjang.
+
+**Poin Kunci:**
+1. ✅ `trading-calculations.ts` sebagai single source of truth untuk calculation
+2. ✅ `ai-analytics.ts` sebagai single source untuk thresholds
+3. ✅ Unified hooks pattern sudah konsisten
+4. ✅ Currency conversion sudah tersentralisasi
+5. ✅ System-First (Paper + Binance) sudah diimplementasikan dengan benar
 
