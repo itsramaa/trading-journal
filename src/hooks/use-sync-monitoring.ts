@@ -7,12 +7,14 @@
  * 2. Creates notifications for reconciliation mismatches
  * 3. Provides data quality metrics
  * 4. Exponential backoff for retry attempts
+ * 5. Email notifications for persistent failures (3x)
  */
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
+import { notifySyncFailure, notifySyncReconciliationIssue } from '@/lib/notification-service';
 import type { AggregationResult } from '@/services/binance/types';
 
 // =============================================================================
@@ -129,21 +131,16 @@ export function useSyncMonitoring(options: UseSyncMonitoringOptions = {}) {
     });
 
     // Check for reconciliation issues and create alert
-    if (config.enableReconciliationAlerts && !result.reconciliation.isReconciled) {
+    if (config.enableReconciliationAlerts && !result.reconciliation.isReconciled && user?.id) {
       const diffPercent = result.reconciliation.differencePercent;
       
-      if (diffPercent > config.reconciliationThresholdPercent && user?.id) {
-        // Create notification for reconciliation mismatch
-        await supabase.from('notifications').insert({
-          user_id: user.id,
-          type: 'sync_warning',
-          title: 'P&L Reconciliation Mismatch',
-          message: `Sync completed but P&L differs by ${diffPercent.toFixed(2)}%. Consider running a Re-Sync for affected period.`,
-          metadata: {
-            source: 'binance_sync_monitoring',
-            reconciliation: result.reconciliation,
-            stats: result.stats,
-          },
+      if (diffPercent > config.reconciliationThresholdPercent) {
+        // Use notification service
+        await notifySyncReconciliationIssue({
+          userId: user.id,
+          differencePercent: diffPercent,
+          validTrades: result.stats.validTrades,
+          invalidTrades: result.stats.invalidTrades,
         });
 
         toast.warning('Reconciliation mismatch detected', {
@@ -168,24 +165,20 @@ export function useSyncMonitoring(options: UseSyncMonitoringOptions = {}) {
       lastFailureReason: reason,
     });
 
-    // Create notification for persistent failures
+    // Create notification for persistent failures (uses notification service with email)
     if (config.enableFailureNotifications && 
         newConsecutiveFailures >= config.maxConsecutiveFailures && 
         user?.id) {
-      await supabase.from('notifications').insert({
-        user_id: user.id,
-        type: 'sync_error',
-        title: 'Binance Sync Failed Repeatedly',
-        message: `Sync has failed ${newConsecutiveFailures} times in a row. Last error: ${reason}`,
-        metadata: {
-          source: 'binance_sync_monitoring',
-          failureCount: newConsecutiveFailures,
-          lastError: reason,
-        },
+      // This will create in-app notification AND send email
+      await notifySyncFailure({
+        userId: user.id,
+        failureCount: newConsecutiveFailures,
+        lastError: reason,
+        sendEmail: true, // Trigger email for 3+ failures
       });
 
       toast.error('Sync failed multiple times', {
-        description: 'Check your API connection and credentials.',
+        description: 'Check your API connection and credentials. Email notification sent.',
       });
     }
 
