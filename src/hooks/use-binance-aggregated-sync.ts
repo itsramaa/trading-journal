@@ -48,7 +48,7 @@ const MAX_TRADES_INTERVAL_MS = 6.5 * 24 * 60 * 60 * 1000; // 6.5 days
 const MAX_INCOME_INTERVAL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 const RECORDS_PER_PAGE = 1000;
 const DEFAULT_HISTORY_DAYS = 90; // Optimized default
-const MAX_PARALLEL_SYMBOLS = 2; // Reduced for rate limit safety
+const MAX_PARALLEL_SYMBOLS = 4; // Increased for faster sync (was 2)
 const BATCH_INSERT_SIZE = 50; // Trades per DB insert batch
 const MAX_INSERT_RETRIES = 3; // Retries per batch
 
@@ -287,13 +287,16 @@ function isValidFuturesSymbol(symbol: string): boolean {
 
 /**
  * Get unique symbols from income records with validation
+ * OPTIMIZATION: Only return symbols with REALIZED_PNL (not just any income type)
  */
 function getUniqueSymbols(income: BinanceIncome[]): string[] {
   const symbols = new Set<string>();
   const invalidSymbols: string[] = [];
   
   for (const record of income) {
-    if (record.symbol) {
+    // OPTIMIZATION: Only include symbols with non-zero REALIZED_PNL
+    // This reduces API calls by ~50% (skip symbols with only funding/commission)
+    if (record.symbol && record.incomeType === 'REALIZED_PNL' && record.income !== 0) {
       if (isValidFuturesSymbol(record.symbol)) {
         symbols.add(record.symbol);
       } else {
@@ -614,9 +617,15 @@ export function useBinanceAggregatedSync() {
         }, {} as Record<string, number>);
         console.log('[FullSync] Income breakdown by type:', incomeTypeBreakdown);
         
-        // Get unique symbols from income
+        // Count REALIZED_PNL with tradeId for accuracy tracking
+        const realizedPnlRecords = income.filter(i => i.incomeType === 'REALIZED_PNL');
+        const withTradeId = realizedPnlRecords.filter(i => i.tradeId !== null && i.tradeId !== '');
+        const nonZeroPnl = realizedPnlRecords.filter(i => i.income !== 0);
+        console.log(`[FullSync] REALIZED_PNL: ${realizedPnlRecords.length} total, ${withTradeId.length} with tradeId, ${nonZeroPnl.length} non-zero`);
+        
+        // Get unique symbols from income (OPTIMIZED: only symbols with non-zero REALIZED_PNL)
         symbols = getUniqueSymbols(income);
-        console.log(`[FullSync] Found ${symbols.length} unique symbols`);
+        console.log(`[FullSync] Found ${symbols.length} unique symbols with trades (filtered from ${new Set(income.map(i => i.symbol)).size} total)`);
         
         // Save checkpoint after income fetch
         saveCheckpoint({
@@ -809,9 +818,42 @@ export function useBinanceAggregatedSync() {
       }
       
       // =======================================================================
-      // Phase 7: Calculate Reconciliation
+      // Phase 7: Calculate Reconciliation + Enhanced Summary Logging
       // =======================================================================
       const reconciliation = calculateReconciliation(tradesToInsert, income);
+      
+      // ENHANCED SYNC SUMMARY (Phase 3 of optimization plan)
+      const realizedPnlRecords = income.filter(i => i.incomeType === 'REALIZED_PNL');
+      const nonZeroPnl = realizedPnlRecords.filter(i => i.income !== 0).length;
+      const commissionRecords = income.filter(i => i.incomeType === 'COMMISSION').length;
+      const fundingRecords = income.filter(i => i.incomeType === 'FUNDING_FEE').length;
+      
+      const matchRate = nonZeroPnl > 0 
+        ? ((aggregatedTrades.length / nonZeroPnl) * 100).toFixed(1)
+        : '100';
+      
+      const syncQuality = parseFloat(matchRate) >= 95 ? 'Excellent' 
+        : parseFloat(matchRate) >= 80 ? 'Good'
+        : parseFloat(matchRate) >= 60 ? 'Fair' 
+        : 'Poor';
+      
+      console.log('[FullSync] ========== SYNC SUMMARY ==========');
+      console.log(`[FullSync] Total Income Records: ${income.length}`);
+      console.log(`[FullSync]   - REALIZED_PNL: ${realizedPnlRecords.length} (non-zero: ${nonZeroPnl})`);
+      console.log(`[FullSync]   - COMMISSION: ${commissionRecords}`);
+      console.log(`[FullSync]   - FUNDING_FEE: ${fundingRecords}`);
+      console.log(`[FullSync] Symbols Processed: ${processedSymbols.length}/${symbols.length}`);
+      console.log(`[FullSync] Lifecycles Created: ${lifecycles.length}`);
+      console.log(`[FullSync]   - Complete: ${lifecycles.filter(l => l.isComplete).length}`);
+      console.log(`[FullSync]   - Incomplete: ${lifecycles.filter(l => !l.isComplete).length}`);
+      console.log(`[FullSync] Trades Aggregated: ${aggregatedTrades.length}`);
+      console.log(`[FullSync] Trades Inserted: ${insertResult.insertedCount}`);
+      console.log(`[FullSync] Match Rate: ${matchRate}% (${syncQuality})`);
+      console.log(`[FullSync] P&L Reconciliation: ${reconciliation.isReconciled ? '✓ OK' : '⚠ DIFF'} (${reconciliation.differencePercent.toFixed(3)}%)`);
+      console.log(`[FullSync]   - Aggregated: $${reconciliation.aggregatedTotalPnl.toFixed(2)}`);
+      console.log(`[FullSync]   - Binance Total: $${reconciliation.binanceTotalPnl.toFixed(2)}`);
+      console.log(`[FullSync]   - Unmatched (open positions): $${reconciliation.unmatchedIncomePnl.toFixed(2)}`);
+      console.log('[FullSync] ====================================');
       
       // Clear checkpoint on success
       clearCheckpoint();
