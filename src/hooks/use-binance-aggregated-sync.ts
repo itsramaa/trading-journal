@@ -243,15 +243,53 @@ async function fetchAllIncome(
 }
 
 /**
- * Get unique symbols from income records
+ * Validate if a symbol is a proper Binance Futures symbol
+ * Valid symbols end with USDT/BUSD and have at least 4 chars (e.g., BTCUSDT, 1000PEPEUSDT)
+ */
+function isValidFuturesSymbol(symbol: string): boolean {
+  if (!symbol || typeof symbol !== 'string') return false;
+  
+  // Must be at least 6 chars (BTC + USDT = 7 minimum)
+  if (symbol.length < 6) return false;
+  
+  // Must end with USDT or BUSD (Binance Futures quote assets)
+  if (!symbol.endsWith('USDT') && !symbol.endsWith('BUSD')) return false;
+  
+  // Base asset should be at least 2 chars
+  const baseAsset = symbol.replace(/USDT$|BUSD$/, '');
+  if (baseAsset.length < 2) return false;
+  
+  // Must only contain uppercase letters and numbers
+  if (!/^[A-Z0-9]+$/.test(symbol)) return false;
+  
+  return true;
+}
+
+/**
+ * Get unique symbols from income records with validation
  */
 function getUniqueSymbols(income: BinanceIncome[]): string[] {
   const symbols = new Set<string>();
+  const invalidSymbols: string[] = [];
+  
   for (const record of income) {
     if (record.symbol) {
-      symbols.add(record.symbol);
+      if (isValidFuturesSymbol(record.symbol)) {
+        symbols.add(record.symbol);
+      } else {
+        // Log invalid symbols for debugging
+        if (!invalidSymbols.includes(record.symbol)) {
+          invalidSymbols.push(record.symbol);
+          console.warn(`[FullSync] Skipping invalid symbol: "${record.symbol}"`);
+        }
+      }
     }
   }
+  
+  if (invalidSymbols.length > 0) {
+    console.warn(`[FullSync] Filtered out ${invalidSymbols.length} invalid symbols:`, invalidSymbols);
+  }
+  
   return Array.from(symbols);
 }
 
