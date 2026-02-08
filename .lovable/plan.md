@@ -1,25 +1,56 @@
-# Plan: Fix Notification Spam Issues ✅ COMPLETED
+# Plan: Background Sync & Push Notifications ✅ COMPLETED
 
 ## Summary
-Fixed notification spam issues with database-level protection.
+Implemented hybrid background sync system with browser Service Worker and server-side cron job.
 
-## Changes Made
+## Architecture
 
-### 1. Database Migration
-- Added unique partial index: `idx_notifications_welcome_unique` on `(user_id)` WHERE `type='system' AND title='Welcome to Portfolio Manager!'`
-- Cleaned up ~7500 duplicate Welcome notifications
+### 1. Browser Background Sync (Service Worker)
+- **When**: Tab closed but browser open
+- **How**: Service Worker + Background Sync API
+- **Trigger**: Manual sync button click registers SW task
+- **Files**:
+  - `vite.config.ts` - PWA plugin configuration
+  - `public/sw-custom.js` - Custom service worker
+  - `src/lib/background-sync.ts` - Client library
+  - `src/hooks/use-background-sync.ts` - React hook
 
-### 2. `src/hooks/use-auth.ts`
-- Added `profileCreatedRef` to prevent multiple profile creation calls in same session
-- Simplified Welcome notification insert (relies on DB unique index for deduplication)
+### 2. Server-Side Cron (pg_cron)
+- **When**: Every 4 hours (even when browser fully closed)
+- **How**: pg_cron → pg_net HTTP call → Edge Function
+- **Files**:
+  - `supabase/functions/binance-background-sync/index.ts`
+  - Cron job: `binance-background-sync-4h`
 
-### 3. `src/hooks/use-notification-triggers.ts`
-- Replaced memory-based deduplication with DB-level daily count check
-- Max 3 Extreme Fear + 3 Extreme Greed notifications per day
-- Query checks `created_at >= todayStart` before sending
+### 3. Push Notifications
+- **When**: Sync completes (browser or server)
+- **How**: Web Push API + `push_subscriptions` table
+- **Files**:
+  - `supabase/functions/send-push-notification/index.ts`
+  - `src/hooks/use-push-notifications.ts`
+
+## Database Changes
+- New table: `push_subscriptions` (user_id, endpoint, p256dh, auth, is_active)
+- New extensions: `pg_cron`, `pg_net`
+- New cron job scheduled every 4 hours
+
+## UI Changes
+- Updated `BinanceAutoSyncToggle.tsx`:
+  - Browser Background Sync toggle
+  - Server Sync (4h) toggle
+  - Push Notifications enable/disable button
+  - Support status badges
+
+## Setup Required (for Push Notifications)
+1. Generate VAPID keys: `npx web-push generate-vapid-keys`
+2. Add secrets:
+   - `VAPID_PUBLIC_KEY`
+   - `VAPID_PRIVATE_KEY`
+3. Add to .env: `VITE_VAPID_PUBLIC_KEY=...`
 
 ## Testing Checklist
-- [ ] Login/logout multiple times → only 1 Welcome notification
-- [ ] Hot reload page → no duplicate Welcome
-- [ ] Extreme Fear condition persists → max 3 notifications per day
-- [ ] Page refresh during Extreme Fear → no additional notification if limit reached
+- [ ] PWA installable (Add to Home Screen)
+- [ ] Close tab, open new → sync progress preserved
+- [ ] Close browser, wait 4h → data synced (check trade_entries)
+- [ ] Enable push notifications → receive notification on sync complete
+- [ ] Toggle settings → all switches work correctly
