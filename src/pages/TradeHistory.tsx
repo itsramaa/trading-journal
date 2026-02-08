@@ -17,29 +17,21 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { TradeHistoryCard } from "@/components/trading/TradeHistoryCard";
 import { TradeGalleryCard, TradeGalleryCardSkeleton } from "@/components/journal/TradeGalleryCard";
 import { FeeHistoryTab } from "@/components/trading/FeeHistoryTab";
 import { FundingHistoryTab } from "@/components/trading/FundingHistoryTab";
-import { History, Wifi, BookOpen, FileText, Loader2, List, LayoutGrid, Download, CloudDownload, Percent, ArrowUpDown, RefreshCw, CheckCircle, AlertCircle } from "lucide-react";
+import { History, Wifi, BookOpen, FileText, Loader2, List, LayoutGrid, Download, Percent, ArrowUpDown, RefreshCw, CheckCircle, AlertCircle } from "lucide-react";
 import { FilterActiveIndicator } from "@/components/ui/filter-active-indicator";
 import { format } from "date-fns";
 import { useTradeEntriesPaginated, type TradeFilters } from "@/hooks/use-trade-entries-paginated";
 import type { TradeEntry } from "@/hooks/use-trade-entries";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { useBinanceConnectionStatus } from "@/features/binance";
-import { useBinanceFullSync, type FullSyncProgress } from "@/hooks/use-binance-full-sync";
+import { useBinanceAggregatedSync } from "@/hooks/use-binance-aggregated-sync";
+import { useBinanceIncrementalSync } from "@/hooks/use-binance-incremental-sync";
+import { BinanceFullSyncPanel } from "@/components/trading/BinanceFullSyncPanel";
 import { useTradeEnrichment } from "@/hooks/use-trade-enrichment";
 import { useTradeEnrichmentBinance, useTradesNeedingEnrichmentCount, type EnrichmentProgress } from "@/hooks/use-trade-enrichment-binance";
 import { formatCurrency as formatCurrencyUtil } from "@/lib/formatters";
@@ -68,9 +60,7 @@ export default function TradeHistory() {
   const [sortByAI, setSortByAI] = useState<'none' | 'asc' | 'desc'>('none');
   const [showFullHistory, setShowFullHistory] = useState(false);
   
-  // Full sync states
-  const [showSyncConfirm, setShowSyncConfirm] = useState(false);
-  const [syncProgress, setSyncProgress] = useState<FullSyncProgress | null>(null);
+  // Re-enrichment states
   
   // Re-enrichment states
   const [enrichmentProgress, setEnrichmentProgress] = useState<EnrichmentProgress | null>(null);
@@ -90,8 +80,9 @@ export default function TradeHistory() {
   const { data: connectionStatus } = useBinanceConnectionStatus();
   const isBinanceConnected = connectionStatus?.isConnected ?? false;
   
-  // Full history sync
-  const { syncFullHistory, isSyncing: isFullSyncing, lastResult: fullSyncResult } = useBinanceFullSync();
+  // Aggregated sync hooks
+  const { isLoading: isFullSyncing, progress: syncProgress } = useBinanceAggregatedSync();
+  const { sync: triggerIncrementalSync, isLoading: isIncrementalSyncing, lastSyncTime, isStale } = useBinanceIncrementalSync({ autoSyncOnMount: true });
   
   // Trade enrichment
   const { enrichTrades, isEnriching } = useTradeEnrichmentBinance();
@@ -465,96 +456,91 @@ export default function TradeHistory() {
               <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t">
                 {/* Sync & Enrich Buttons */}
                 <div className="flex items-center gap-3 flex-wrap">
-                  {/* Progress display for either operation */}
-                  {(isFullSyncing || isEnriching) ? (
+                  {/* New Aggregated Full Sync Panel */}
+                  <BinanceFullSyncPanel isBinanceConnected={isBinanceConnected} compact />
+                  
+                  {/* Incremental Sync Status */}
+                  {isBinanceConnected && lastSyncTime && !isFullSyncing && !isIncrementalSyncing && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={triggerIncrementalSync}
+                            className="gap-2 text-muted-foreground"
+                          >
+                            <RefreshCw className="h-3 w-3" />
+                            <span className="text-xs">
+                              Last sync: {format(lastSyncTime, 'HH:mm')}
+                              {isStale && <span className="text-warning ml-1">(stale)</span>}
+                            </span>
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Incremental sync - fetches only new trades since last sync</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                  
+                  {/* Incremental Sync Loading */}
+                  {isIncrementalSyncing && (
+                    <Badge variant="secondary" className="gap-1">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Syncing new trades...
+                    </Badge>
+                  )}
+                  
+                  {/* Enrichment Progress */}
+                  {isEnriching && enrichmentProgress && (
                     <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20">
                       <Loader2 className="h-4 w-4 animate-spin text-primary" />
                       <div className="flex flex-col gap-1">
                         <span className="text-sm font-medium">
-                          {isEnriching 
-                            ? (enrichmentProgress?.message || 'Enriching trades...')
-                            : syncProgress?.phase === 'enriching' 
-                              ? 'Enriching trades with accurate prices...'
-                              : `Syncing Binance history... (${syncProgress?.phase || 'starting'})`
-                          }
+                          {enrichmentProgress.message || 'Enriching trades...'}
                         </span>
                         <div className="flex items-center gap-2">
-                          <Progress 
-                            value={isEnriching ? (enrichmentProgress?.percent ?? 0) : (syncProgress?.percent ?? 0)} 
-                            className="w-32 h-2" 
-                          />
+                          <Progress value={enrichmentProgress.percent ?? 0} className="w-32 h-2" />
                           <span className="text-xs text-muted-foreground">
-                            {(isEnriching ? (enrichmentProgress?.percent ?? 0) : (syncProgress?.percent ?? 0)).toFixed(0)}%
+                            {(enrichmentProgress.percent ?? 0).toFixed(0)}%
                           </span>
                         </div>
-                        <span className="text-xs text-muted-foreground">
-                          {isEnriching 
-                            ? `${enrichmentProgress?.current ?? 0}/${enrichmentProgress?.total ?? 0} trades`
-                            : (
-                              <>
-                                {syncProgress?.recordsFetched ? `${syncProgress.recordsFetched} records fetched` : ''}
-                                {syncProgress?.enrichedCount ? ` • ${syncProgress.enrichedCount} enriched` : ''}
-                              </>
-                            )
-                          }
-                        </span>
                       </div>
                     </div>
-                  ) : (
-                    <>
-                      {/* Sync Full History Button */}
-                      {isBinanceConnected && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setShowSyncConfirm(true)}
-                          className="gap-2"
-                        >
-                          <CloudDownload className="h-4 w-4" />
-                          Sync Full History
-                        </Button>
-                      )}
-                      
-                      {/* Re-Enrich Button - only show if there are trades needing enrichment */}
-                      {isBinanceConnected && tradesNeedingEnrichment > 0 && (
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => enrichTrades({ 
-                                  daysBack: 730, 
-                                  onProgress: setEnrichmentProgress 
-                                })}
-                                className="gap-2"
-                              >
-                                <RefreshCw className="h-4 w-4" />
-                                Enrich {tradesNeedingEnrichment} Trades
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Fetch accurate entry/exit prices from Binance for trades with missing data</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      )}
-                      
-                      {/* All enriched badge */}
-                      {isBinanceConnected && tradesNeedingEnrichment === 0 && binanceTrades.length > 0 && (
-                        <Badge variant="outline" className="text-xs gap-1 text-profit">
-                          <CheckCircle className="h-3 w-3" />
-                          All trades enriched
-                        </Badge>
-                      )}
-                      
-                      {fullSyncResult && fullSyncResult.synced > 0 && (
-                        <Badge variant="secondary" className="text-xs">
-                          +{fullSyncResult.synced} synced
-                          {fullSyncResult.enriched > 0 && ` (${fullSyncResult.enriched} enriched)`}
-                        </Badge>
-                      )}
-                    </>
+                  )}
+                  
+                  {/* Re-Enrich Button - only show if there are trades needing enrichment */}
+                  {!isEnriching && isBinanceConnected && tradesNeedingEnrichment > 0 && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => enrichTrades({ 
+                              daysBack: 730, 
+                              onProgress: setEnrichmentProgress 
+                            })}
+                            className="gap-2"
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                            Enrich {tradesNeedingEnrichment} Trades
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Fetch accurate entry/exit prices from Binance for trades with missing data</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                  
+                  {/* All enriched badge */}
+                  {!isEnriching && isBinanceConnected && tradesNeedingEnrichment === 0 && binanceTrades.length > 0 && (
+                    <Badge variant="outline" className="text-xs gap-1 text-profit">
+                      <CheckCircle className="h-3 w-3" />
+                      All trades enriched
+                    </Badge>
                   )}
                 </div>
                 
@@ -764,65 +750,6 @@ export default function TradeHistory() {
           onConfirm={handleDeleteTrade}
         />
         
-        {/* Full Sync Confirmation Dialog */}
-        <AlertDialog open={showSyncConfirm} onOpenChange={setShowSyncConfirm}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle className="flex items-center gap-2">
-                <CloudDownload className="h-5 w-5 text-primary" />
-                Sync Full Binance History
-              </AlertDialogTitle>
-              <AlertDialogDescription className="space-y-3">
-                <p>
-                  This will fetch your <strong>complete trading history</strong> from Binance 
-                  (up to 2 years or entire account history).
-                </p>
-                <div className="rounded-lg bg-muted p-3 space-y-1 text-sm">
-                  <p className="flex items-center gap-2">
-                    <span className="text-profit">✓</span> Fetches all trades (2+ years history)
-                  </p>
-                  <p className="flex items-center gap-2">
-                    <span className="text-profit">✓</span> <strong>Auto-enriches</strong> with accurate entry/exit prices
-                  </p>
-                  <p className="flex items-center gap-2">
-                    <span className="text-profit">✓</span> Captures direction (LONG/SHORT), quantity, fees
-                  </p>
-                  <p className="flex items-center gap-2">
-                    <span className="text-profit">✓</span> Duplicates automatically skipped
-                  </p>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Process may take a few minutes depending on trading volume.
-                </p>
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => setShowSyncConfirm(false)}>
-                Cancel
-              </AlertDialogCancel>
-              <AlertDialogAction 
-                onClick={async () => {
-                  setShowSyncConfirm(false);
-                  setSyncProgress({ phase: 'fetching', chunk: 0, totalChunks: 0, page: 0, recordsFetched: 0, recordsToInsert: 0, enrichedCount: 0, percent: 0 });
-                  
-                  try {
-                    await syncFullHistory({
-                      fetchAll: true,
-                      onProgress: setSyncProgress,
-                    });
-                    // After successful sync, show full history
-                    setShowFullHistory(true);
-                  } finally {
-                    setSyncProgress(null);
-                  }
-                }}
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Sync All History
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
       </div>
     </DashboardLayout>
   );
