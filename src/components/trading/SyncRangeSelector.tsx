@@ -11,6 +11,7 @@ const SYNC_OPTIONS: Array<{ value: SyncRangeDays; label: string; description: st
   { value: 90, label: "90 days", description: "~3-5 minutes (Recommended)" },
   { value: 180, label: "6 months", description: "~5-10 minutes" },
   { value: 365, label: "1 year", description: "~10-20 minutes" },
+  { value: 730, label: "2 years", description: "~20-40 minutes" },
 ];
 
 export function SyncRangeSelector() {
