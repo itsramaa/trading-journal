@@ -1,6 +1,6 @@
 /**
  * Binance Full Sync Panel - UI for triggering and monitoring aggregated sync
- * Features: Full Sync button, Progress indicator, Reconciliation status
+ * Features: Full Sync button, Progress indicator, Reconciliation status, Re-Sync
  */
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { useBinanceAggregatedSync } from "@/hooks/use-binance-aggregated-sync";
 import { SyncStatusBadge } from "./SyncStatusBadge";
+import { ReSyncTimeWindow } from "./ReSyncTimeWindow";
 import type { AggregationProgress } from "@/services/binance/types";
 
 interface BinanceFullSyncPanelProps {
@@ -51,11 +52,20 @@ export function BinanceFullSyncPanel({
     return <SyncProgressIndicator progress={progress} />;
   }
 
+  // Determine if there's a reconciliation issue
+  const hasReconciliationIssue = result && !result.reconciliation.isReconciled;
+
   // Show result with clickable badge
   if (result && !isLoading) {
     return (
       <div className="flex items-center gap-2">
         <SyncStatusBadge result={result} />
+        
+        {/* Show Re-Sync button if there's a mismatch */}
+        {hasReconciliationIssue && (
+          <ReSyncTimeWindow hasReconciliationIssue={true} />
+        )}
+        
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>

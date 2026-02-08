@@ -21,6 +21,7 @@ import { CommandPalette, useCommandPalette } from "./CommandPalette";
 import { useSidebarPersistence } from "@/hooks/use-sidebar-persistence";
 import { useNotificationsRealtime } from "@/hooks/use-notifications";
 import { useNotificationTriggers } from "@/hooks/use-notification-triggers";
+import { useBinanceBackgroundSync } from "@/hooks/use-binance-background-sync";
 import { Button } from "@/components/ui/button";
 import { Search } from "lucide-react";
 
@@ -90,6 +91,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     enableRiskNotifications: true,
     enableMarketAlerts: true,
   });
+  
+  // Enable Binance background sync (runs based on user settings)
+  useBinanceBackgroundSync();
 
   return (
     <SidebarProvider 
