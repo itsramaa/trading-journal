@@ -61,13 +61,12 @@ export function ReSyncTimeWindow({
     : 0;
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button 
           variant={hasReconciliationIssue ? "destructive" : "outline"} 
           size="sm"
           className="gap-2"
-          onClick={() => setOpen(true)}
         >
           <RefreshCw className="h-4 w-4" />
           {hasReconciliationIssue ? 'Re-Sync (Fix Mismatch)' : 'Re-Sync Time Window'}
