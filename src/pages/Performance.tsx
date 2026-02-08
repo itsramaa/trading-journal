@@ -29,6 +29,7 @@ import {
   Calendar,
   ChevronDown,
   Check,
+  Activity,
 } from "lucide-react";
 import { 
   AreaChart, 
@@ -340,6 +341,10 @@ export default function Performance() {
                 <BarChart3 className="h-4 w-4" />
                 <span className="hidden sm:inline">Overview</span>
               </TabsTrigger>
+              <TabsTrigger value="context" className="gap-2">
+                <Activity className="h-4 w-4" />
+                <span className="hidden sm:inline">Context</span>
+              </TabsTrigger>
               <TabsTrigger value="monthly" className="gap-2">
                 <Calendar className="h-4 w-4" />
                 <span className="hidden sm:inline">Monthly</span>
@@ -485,37 +490,6 @@ export default function Performance() {
                 />
               </div>
 
-              {/* Section: Contextual Analysis */}
-              <div className="space-y-6">
-                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Contextual Analysis</h3>
-                {/* Combined Contextual Score + Time-Based Win Rate */}
-                <div className="grid gap-6 lg:grid-cols-2">
-                  <CombinedContextualScore trades={filteredTrades} />
-                  <TradingHeatmapChart trades={filteredTrades} />
-                </div>
-
-                {/* Event Days vs Normal Days Comparison + Fear/Greed Chart */}
-                {contextualData && (
-                  <div className="grid gap-6 lg:grid-cols-2">
-                    <EventDayComparison 
-                      eventDayMetrics={contextualData.byEventProximity.eventDay}
-                      normalDayMetrics={contextualData.byEventProximity.normalDay}
-                    />
-                    <FearGreedZoneChart byFearGreed={contextualData.byFearGreed} />
-                  </div>
-                )}
-
-                {/* Volatility Chart */}
-                {contextualData && (
-                  <VolatilityLevelChart byVolatility={contextualData.byVolatility} />
-                )}
-
-                {/* Session Performance */}
-                {contextualData?.bySession && (
-                  <SessionPerformanceChart bySession={contextualData.bySession} />
-                )}
-              </div>
-
               {/* Section: Risk Analysis */}
               <div className="space-y-4">
                 <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Risk Analysis</h3>
@@ -523,7 +497,50 @@ export default function Performance() {
               </div>
             </TabsContent>
 
-            {/* Tab 2: Monthly Comparison */}
+            {/* Tab: Context */}
+            <TabsContent value="context" className="space-y-8">
+              {/* Market Conditions Overview */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+                  Market Conditions Overview
+                </h3>
+                <div className="grid gap-6 lg:grid-cols-2">
+                  <CombinedContextualScore trades={filteredTrades} />
+                  <TradingHeatmapChart trades={filteredTrades} />
+                </div>
+              </div>
+
+              {/* Event Impact Analysis */}
+              {contextualData && (
+                <div className="space-y-4">
+                  <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+                    Event Impact Analysis
+                  </h3>
+                  <div className="grid gap-6 lg:grid-cols-2">
+                    <EventDayComparison 
+                      eventDayMetrics={contextualData.byEventProximity.eventDay}
+                      normalDayMetrics={contextualData.byEventProximity.normalDay}
+                    />
+                    <FearGreedZoneChart byFearGreed={contextualData.byFearGreed} />
+                  </div>
+                </div>
+              )}
+
+              {/* Environmental Factors */}
+              {contextualData && (
+                <div className="space-y-4">
+                  <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+                    Environmental Factors
+                  </h3>
+                  <VolatilityLevelChart byVolatility={contextualData.byVolatility} />
+                  {contextualData.bySession && (
+                    <SessionPerformanceChart bySession={contextualData.bySession} />
+                  )}
+                </div>
+              )}
+            </TabsContent>
+
+            {/* Tab: Monthly Comparison */}
             <TabsContent value="monthly" className="space-y-6">
               <div className="grid gap-4 md:grid-cols-4">
                 <Card>
