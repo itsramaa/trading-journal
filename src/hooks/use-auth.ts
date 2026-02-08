@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -8,7 +8,9 @@ export function useAuth() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
-
+  
+  // Prevent multiple profile creation calls in same session
+  const profileCreatedRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -17,11 +19,15 @@ export function useAuth() {
         setUser(session?.user ?? null);
         setLoading(false);
 
-        // Defer profile creation with setTimeout
+        // Defer profile creation with setTimeout, with ref guard
         if (event === 'SIGNED_IN' && session?.user) {
-          setTimeout(() => {
-            createProfileIfNotExists(session.user);
-          }, 0);
+          const userId = session.user.id;
+          if (!profileCreatedRef.current.has(userId)) {
+            profileCreatedRef.current.add(userId);
+            setTimeout(() => {
+              createProfileIfNotExists(session.user);
+            }, 0);
+          }
         }
       }
     );
@@ -75,22 +81,14 @@ export function useAuth() {
       }),
     }, { onConflict: 'user_id,name,account_type', ignoreDuplicates: true });
 
-    // Welcome notification - only create if user is new (check first)
-    const { data: existingNotification } = await supabase
-      .from('notifications')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('title', 'Welcome to Portfolio Manager!')
-      .maybeSingle();
-
-    if (!existingNotification) {
-      await supabase.from('notifications').insert({
-        user_id: user.id,
-        type: 'system',
-        title: 'Welcome to Portfolio Manager!',
-        message: 'Your account is set up. Start by adding your first asset or account.',
-      });
-    }
+    // Welcome notification - atomic insert with partial unique index protection
+    // DB has unique index: (user_id) WHERE type='system' AND title='Welcome to Portfolio Manager!'
+    await supabase.from('notifications').insert({
+      user_id: user.id,
+      type: 'system',
+      title: 'Welcome to Portfolio Manager!',
+      message: 'Your account is set up. Start by adding your first asset or account.',
+    }).select().maybeSingle(); // Will silently fail on duplicate due to unique index
   };
 
   const signUp = useCallback(async (email: string, password: string, fullName: string) => {
