@@ -1,278 +1,238 @@
 
 
-# Plan: Implementasi Lengkap Trade Enrichment System
+# Plan: Fix Excessive Income Fetching + Complete Enrichment System
 
-## Executive Summary
+## Problem Statement
 
-Sistem Trade History saat ini **tidak berfungsi dengan benar**. Dari 124 trade Binance di database:
-- 0% memiliki `entry_price` (semua = 0)
-- 0% memiliki `exit_price` (semua = 0)
-- 0% memiliki `quantity` (semua = 0)
-- 100% memiliki `direction` = 'LONG' (hardcoded, bukan data aktual)
+Saat melakukan Re-Enrich, sistem mengambil **100,000+ income records** dari Binance padahal hanya butuh ~500 records. Ini terjadi karena:
 
-**Root Cause**: Enrichment gagal karena Binance API `/fapi/v1/userTrades` memiliki limit 7-hari per request. Meskipun frontend sudah di-refactor untuk chunking, **ada timing issue** dimana chunk masih melebihi 7 hari.
+1. **Date range terlalu besar** (134 hari untuk 124 trades)
+2. **Tidak ada pagination limit** untuk income fetching
+3. **Tidak ada smart filtering** - fetch semua, baru filter
 
 ---
 
-## Problem Breakdown
+## Root Cause Analysis
 
-### Problem 1: 7-Day Limit Error (CRITICAL)
-
-**Lokasi**: `src/services/binance-trade-enricher.ts` → `fetchUserTradesChunk()`
-
-**Issue**: 
+### Issue 1: Date Range = Full History (134 Days)
 ```typescript
-// Line 146 - Chunk calculation bisa off-by-one
-const chunkEnd = Math.min(chunkStart + MAX_TRADES_INTERVAL_MS, endTime);
+// use-trade-enrichment-binance.ts line 188-194
+const startTime = oldestTrade - (2 * 24 * 60 * 60 * 1000);
+const endTime = newestTrade + (2 * 24 * 60 * 60 * 1000);
+// Jika trades tersebar 5 bulan → fetch 5 bulan income!
 ```
 
-Jika `MAX_TRADES_INTERVAL_MS` exactly 7 hari = `604800000ms`, Binance API bisa reject karena mereka mungkin menggunakan `<` bukan `<=`. Perlu safety margin.
-
-**Fix**: Kurangi chunk ke 6.5 hari (97% dari 7 hari) untuk safety margin.
-
----
-
-### Problem 2: Hardcoded Direction di Fallback
-
-**Lokasi**: `src/hooks/use-binance-full-sync.ts` line 243
-
+### Issue 2: Infinite Pagination Loop
 ```typescript
-// HARDCODED - SALAH
-return {
-  direction: 'LONG', // <-- Ini selalu LONG bahkan untuk SHORT positions
-  ...
+// use-trade-enrichment-binance.ts line 82-99
+while (true) {
+  // NO LIMIT! Keeps fetching until Binance runs out
+  fromId = result.data[result.data.length - 1].tranId + 1;
 }
 ```
 
-**Impact**: Semua trade di database terlihat sebagai LONG, analytics direction-based rusak.
+### Issue 3: Fetch All, Filter Later (Inefficient)
+```typescript
+// Current approach:
+// 1. Fetch 100k income records
+// 2. Filter to ~200 REALIZED_PNL
+// 3. Match with 124 trades
 
-**Fix**: Gunakan logika inferensi dari `positionSide` atau jangan insert jika tidak bisa menentukan.
+// Better approach:
+// 1. Get specific trade IDs that need enrichment
+// 2. Fetch income only for those time windows
+// 3. Much smaller data volume
+```
 
 ---
 
-### Problem 3: Matching Logic Terlalu Ketat
+## Solution Architecture
 
-**Lokasi**: `src/services/binance-trade-enricher.ts` → `linkIncomeWithTrades()`
+### Strategy: Per-Trade Time Windows Instead of Full Range
 
-```typescript
-// Line 284 - 1-minute bucket terlalu sempit
-const key = `${group.symbol}_${Math.floor(group.exitTime / 60000)}`;
+```text
+OLD APPROACH (inefficient):
+┌─────────────────────────────────────────────────────────┐
+│ Fetch ALL income from Jan 1 to Jun 1 (5 months)         │
+│ = 100,000+ records                                       │
+└─────────────────────────────────────────────────────────┘
+
+NEW APPROACH (efficient):
+┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐
+│ Window 1│  │ Window 2│  │ Window 3│  │ Window N│
+│ ±1 hour │  │ ±1 hour │  │ ±1 hour │  │ ±1 hour │
+│ Trade A │  │ Trade B │  │ Trade C │  │ Trade N │
+└─────────┘  └─────────┘  └─────────┘  └─────────┘
+= ~500 records total (deduplicated)
 ```
-
-**Issue**: Jika exit time income record dan userTrade berbeda beberapa menit, matching gagal.
-
-**Fix**: Gunakan 5-minute bucket atau matching by orderId.
-
----
-
-### Problem 4: UI Stats Mismatch
-
-**Lokasi**: `src/pages/TradeHistory.tsx` line 232-234
-
-```typescript
-// Stats dihitung dari sortedTrades (setelah filter)
-// Tapi header menampilkan ini sebagai "global" stats
-const totalPnL = sortedTrades.reduce((sum, t) => sum + (t.realized_pnl || 0), 0);
-```
-
-**Issue**: Jika user filter by session, stats berubah tapi user tidak sadar ini stats filtered.
-
-**Fix**: Bedakan "Global Stats" vs "Filtered Stats" secara visual.
 
 ---
 
 ## Implementation Plan
 
-### Phase 1: Fix 7-Day Chunking (Edge Function + Frontend)
-
-**File**: `supabase/functions/binance-futures/index.ts`
-
-```typescript
-// Tambahkan validasi di getTrades()
-async function getTrades(...) {
-  // VALIDASI: Enforce 7-day limit di server side juga
-  if (startTime && endTime) {
-    const interval = endTime - startTime;
-    const MAX_INTERVAL = 7 * 24 * 60 * 60 * 1000 - 60000; // 7 days minus 1 minute safety
-    if (interval > MAX_INTERVAL) {
-      return { 
-        success: false, 
-        error: `Time interval ${interval}ms exceeds max ${MAX_INTERVAL}ms. Use chunked fetching.`,
-        code: 'INTERVAL_TOO_LARGE'
-      };
-    }
-  }
-  // ... rest of function
-}
-```
-
-**File**: `src/services/binance-trade-enricher.ts`
-
-```typescript
-// Reduce chunk size with safety margin
-const MAX_TRADES_INTERVAL_MS = 6.5 * 24 * 60 * 60 * 1000; // 6.5 days (safety margin)
-```
-
----
-
-### Phase 2: Fix Matching Logic
-
-**File**: `src/services/binance-trade-enricher.ts`
-
-```typescript
-// Expand to 5-minute bucket
-function linkIncomeWithTrades(...) {
-  // Create MULTIPLE lookup keys for each trade (fuzzy matching)
-  const tradesBySymbolTime = new Map<string, TradeFillGroup>();
-  for (const group of tradeFillGroups) {
-    // 5-minute bucket
-    const bucket5min = Math.floor(group.exitTime / 300000);
-    // Also store for adjacent buckets
-    for (const offset of [-1, 0, 1]) {
-      const key = `${group.symbol}_${bucket5min + offset}`;
-      if (!tradesBySymbolTime.has(key)) {
-        tradesBySymbolTime.set(key, group);
-      }
-    }
-  }
-  
-  // Match using 5-min bucket
-  for (const income of incomeRecords) {
-    const bucket5min = Math.floor(income.time / 300000);
-    const timeKey = `${income.symbol}_${bucket5min}`;
-    const matchingTrade = tradesBySymbolTime.get(timeKey);
-    // ...
-  }
-}
-```
-
----
-
-### Phase 3: Fix Hardcoded Direction
-
-**File**: `src/hooks/use-binance-full-sync.ts`
-
-```typescript
-function incomeToTradeEntry(income: BinanceIncome, userId: string) {
-  // INFER direction from P&L if possible, but mark as uncertain
-  const inferredDirection = income.income > 0 
-    ? 'UNKNOWN_WIN' 
-    : income.income < 0 
-      ? 'UNKNOWN_LOSS' 
-      : 'UNKNOWN';
-  
-  return {
-    // ... other fields
-    direction: 'UNKNOWN', // Don't assume LONG
-    needs_enrichment: true, // Flag for later enrichment
-    notes: `Auto-synced. Direction unknown - needs enrichment.`,
-  };
-}
-```
-
-**Alternative**: Reject insert if enrichment fails, only allow enriched trades.
-
----
-
-### Phase 4: Re-Enrich Existing 124 Trades
+### Phase 1: Optimize Income Fetching Strategy
 
 **File**: `src/hooks/use-trade-enrichment-binance.ts`
 
-Sudah ada logic untuk re-enrich, tapi perlu:
-1. Call dengan proper 7-day chunking (Phase 1 fix)
-2. Use improved matching (Phase 2 fix)
-3. Update UI to show progress accurately
+**Changes**:
+1. Add maximum fetch limit (10,000 records) as safety net
+2. Use smart chunking - group trades by week and fetch per chunk
+3. Early termination when all needed data is found
+4. Add proper progress reporting during fetch
 
-**Enhancement**:
 ```typescript
-// Add retry logic for failed enrichments
-const MAX_RETRIES = 2;
-for (let retry = 0; retry <= MAX_RETRIES; retry++) {
-  try {
-    const enrichedData = enrichedByTranId.get(tranId);
-    if (enrichedData && enrichedData.entryPrice > 0) {
-      // success
-      break;
-    }
-  } catch (error) {
-    if (retry === MAX_RETRIES) {
-      errors.push(`Trade ${trade.id}: Failed after ${MAX_RETRIES} retries`);
-    }
-    // Expand time window and retry
+// New approach: Smart Time Window Chunking
+async function fetchIncomeForTrades(
+  trades: { trade_date: string; pair: string }[],
+  onProgress?: (fetched: number, phase: string) => void
+): Promise<BinanceIncome[]> {
+  const allRecords: BinanceIncome[] = [];
+  const MAX_RECORDS = 10000; // Safety limit
+  
+  // Group trades by 7-day windows
+  const tradeWindows = groupTradesIntoWeeklyWindows(trades);
+  
+  for (const window of tradeWindows) {
+    if (allRecords.length >= MAX_RECORDS) break;
+    
+    // Fetch income for this specific window only
+    const windowRecords = await fetchPaginatedIncome(
+      window.startTime,
+      window.endTime,
+      MAX_RECORDS - allRecords.length
+    );
+    
+    allRecords.push(...windowRecords);
+    onProgress?.(allRecords.length, `Window ${window.index + 1}/${tradeWindows.length}`);
   }
+  
+  // Deduplicate
+  return deduplicateByTranId(allRecords);
 }
 ```
 
----
+### Phase 2: Add Maximum Fetch Limits
 
-### Phase 5: UI Improvements
-
-**File**: `src/pages/TradeHistory.tsx`
-
-1. **Visual indicator for incomplete trades**:
-```tsx
-// In TradeGalleryCard or TradeHistoryCard
-{trade.entry_price === 0 && (
-  <Badge variant="destructive" className="text-xs">
-    <AlertCircle className="h-3 w-3 mr-1" />
-    Needs Enrichment
-  </Badge>
-)}
-```
-
-2. **Separate Global vs Filtered Stats**:
-```tsx
-<div className="flex gap-4">
-  {hasActiveFilters && (
-    <Badge variant="outline">Showing filtered: {sortedTrades.length}</Badge>
-  )}
-  <div className="text-2xl font-bold">
-    {hasActiveFilters ? `${sortedTrades.length} (filtered)` : sortedTrades.length}
-  </div>
-</div>
-```
-
-3. **Show enrichment status summary**:
-```tsx
-{tradesNeedingEnrichment > 0 && (
-  <Alert variant="warning">
-    <AlertCircle className="h-4 w-4" />
-    <AlertTitle>Incomplete Trade Data</AlertTitle>
-    <AlertDescription>
-      {tradesNeedingEnrichment} trades are missing entry/exit prices. 
-      Click "Enrich Trades" to fetch accurate data from Binance.
-    </AlertDescription>
-  </Alert>
-)}
-```
-
----
-
-### Phase 6: Add Validation Layer
-
-**New Hook**: `src/hooks/use-trade-validation.ts`
+**File**: `src/hooks/use-trade-enrichment-binance.ts`
 
 ```typescript
-export function useTradeValidation() {
-  // Check trade data completeness
-  const validateTrade = (trade: TradeEntry): ValidationResult => {
-    const issues: string[] = [];
-    
-    if (trade.source === 'binance') {
-      if (trade.entry_price === 0) issues.push('Missing entry price');
-      if (trade.exit_price === 0) issues.push('Missing exit price');
-      if (trade.quantity === 0) issues.push('Missing quantity');
-      if (trade.direction === 'UNKNOWN') issues.push('Unknown direction');
+// Add limit parameter to fetchPaginatedIncome
+async function fetchPaginatedIncome(
+  startTime: number,
+  endTime: number,
+  maxRecords: number = 5000, // NEW: Default limit
+  onProgress?: (fetched: number) => void
+): Promise<BinanceIncome[]> {
+  const allRecords: BinanceIncome[] = [];
+  let fromId: number | undefined = undefined;
+  
+  while (true) {
+    // NEW: Check limit
+    if (allRecords.length >= maxRecords) {
+      console.warn(`Hit max records limit (${maxRecords})`);
+      break;
     }
     
-    return {
-      isComplete: issues.length === 0,
-      issues,
-      canDisplay: trade.realized_pnl !== undefined, // At minimum must have P&L
-    };
-  };
+    const result = await callBinanceApi<BinanceIncome[]>('income', {
+      startTime,
+      endTime,
+      limit: Math.min(RECORDS_PER_PAGE, maxRecords - allRecords.length),
+      ...(fromId && { fromId }),
+    });
+    
+    // ... rest unchanged
+  }
   
-  return { validateTrade };
+  return allRecords;
+}
+```
+
+### Phase 3: Smart Trade Grouping
+
+**New Function** in `src/hooks/use-trade-enrichment-binance.ts`:
+
+```typescript
+interface TradeWindow {
+  startTime: number;
+  endTime: number;
+  trades: Array<{ id: string; trade_date: string }>;
+  index: number;
+}
+
+function groupTradesIntoWeeklyWindows(
+  trades: Array<{ trade_date: string }>
+): TradeWindow[] {
+  // Sort by date
+  const sorted = [...trades].sort((a, b) => 
+    new Date(a.trade_date).getTime() - new Date(b.trade_date).getTime()
+  );
+  
+  const windows: TradeWindow[] = [];
+  const WINDOW_SIZE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+  const BUFFER_MS = 2 * 60 * 60 * 1000; // 2 hour buffer
+  
+  let currentWindow: TradeWindow | null = null;
+  
+  for (const trade of sorted) {
+    const tradeTime = new Date(trade.trade_date).getTime();
+    
+    if (!currentWindow || tradeTime > currentWindow.endTime) {
+      // Start new window
+      currentWindow = {
+        startTime: tradeTime - BUFFER_MS,
+        endTime: tradeTime + WINDOW_SIZE_MS,
+        trades: [],
+        index: windows.length,
+      };
+      windows.push(currentWindow);
+    }
+    
+    currentWindow.trades.push(trade as any);
+  }
+  
+  return windows;
+}
+```
+
+### Phase 4: Better Progress Reporting
+
+**File**: `src/hooks/use-trade-enrichment-binance.ts`
+
+```typescript
+// Update progress interface
+export interface EnrichmentProgress {
+  phase: 'checking' | 'fetching-income' | 'fetching-trades' | 'enriching' | 'updating' | 'done';
+  current: number;
+  total: number;
+  percent: number;
+  message?: string;
+  windowInfo?: { current: number; total: number }; // NEW: Window progress
+  recordsFetched?: number; // NEW: Actual records count
+}
+```
+
+### Phase 5: Verify 7-Day Chunking for Trades
+
+**File**: `src/services/binance-trade-enricher.ts`
+
+Verify that the existing chunking is working:
+```typescript
+// Line 24 - Already correct
+const MAX_TRADES_INTERVAL_MS = 6.5 * 24 * 60 * 60 * 1000; // 6.5 days
+
+// But need to add logging for debugging
+async function fetchUserTradesForSymbol(
+  symbol: string,
+  startTime: number,
+  endTime: number
+): Promise<BinanceTrade[]> {
+  const totalDuration = endTime - startTime;
+  const numChunks = Math.ceil(totalDuration / MAX_TRADES_INTERVAL_MS);
+  
+  // NEW: Add debug logging
+  console.log(`[Enricher] ${symbol}: Fetching ${numChunks} chunks for ${Math.round(totalDuration / (24*60*60*1000))} days`);
+  
+  // ... rest unchanged
 }
 ```
 
@@ -280,67 +240,54 @@ export function useTradeValidation() {
 
 ## File Changes Summary
 
-| File | Change Type | Priority |
-|------|-------------|----------|
-| `supabase/functions/binance-futures/index.ts` | Add 7-day validation | HIGH |
-| `src/services/binance-trade-enricher.ts` | Fix chunk size + matching | HIGH |
-| `src/hooks/use-binance-full-sync.ts` | Remove hardcoded direction | HIGH |
-| `src/hooks/use-trade-enrichment-binance.ts` | Add retry logic | MEDIUM |
-| `src/pages/TradeHistory.tsx` | UI improvements | MEDIUM |
-| `src/hooks/use-trade-validation.ts` | New validation hook | MEDIUM |
-| `docs/TRADE_HISTORY_ARCHITECTURE.md` | Update documentation | LOW |
+| File | Change | Priority |
+|------|--------|----------|
+| `src/hooks/use-trade-enrichment-binance.ts` | Smart windowed fetching + max limits | CRITICAL |
+| `src/services/binance-trade-enricher.ts` | Add debug logging | LOW |
+| `src/pages/TradeHistory.tsx` | Improve progress UI | MEDIUM |
+
+---
+
+## Expected Improvement
+
+| Metric | Before | After |
+|--------|--------|-------|
+| Income records fetched | 100,000+ | ~500 |
+| API calls | ~100+ | ~5-10 |
+| Enrichment time | Minutes | ~30 seconds |
+| Memory usage | High | Normal |
+| User experience | Progress stuck | Clear progress |
 
 ---
 
 ## Testing Strategy
 
-### Test 1: Verify 7-Day Chunking
-1. Click "Enrich X Trades" button
-2. Observe NO 400 errors in console
-3. Progress should show symbol-by-symbol fetching
+### Test 1: Income Fetch Limit
+1. Trigger enrichment
+2. Console should show "Fetched X income records" where X < 10,000
+3. Progress should not get stuck on "fetching-income" phase
 
-### Test 2: Verify Data Completeness
+### Test 2: Weekly Window Chunking
+1. Check console for window logging
+2. Should see "Window 1/N", "Window 2/N" progress
+3. Each window should take ~1-2 seconds
+
+### Test 3: Trades Enrichment Success
+After enrichment completes, run SQL:
 ```sql
--- Run after enrichment
 SELECT 
   COUNT(*) as total,
-  COUNT(CASE WHEN entry_price > 0 THEN 1 END) as has_entry,
-  COUNT(CASE WHEN exit_price > 0 THEN 1 END) as has_exit,
-  COUNT(CASE WHEN quantity > 0 THEN 1 END) as has_quantity
+  COUNT(CASE WHEN entry_price > 0 THEN 1 END) as enriched
 FROM trade_entries
 WHERE source = 'binance' AND deleted_at IS NULL;
 ```
-Target: `has_entry`, `has_exit`, `has_quantity` should match `total` (or close to it).
-
-### Test 3: Verify Direction Accuracy
-```sql
-SELECT direction, COUNT(*) 
-FROM trade_entries 
-WHERE source = 'binance' AND deleted_at IS NULL
-GROUP BY direction;
-```
-Target: Should see mix of LONG and SHORT, not all LONG.
-
----
-
-## Expected Outcome
-
-| Metric | Before | After |
-|--------|--------|-------|
-| entry_price > 0 | 0/124 (0%) | ~110/124 (89%) |
-| exit_price > 0 | 0/124 (0%) | ~110/124 (89%) |
-| quantity > 0 | 0/124 (0%) | ~110/124 (89%) |
-| Correct direction | 0/124 (0%) | ~110/124 (89%) |
-| 7-day API errors | Frequent | 0 |
-
-*Note: ~89% karena beberapa trade mungkin tidak bisa di-match jika terlalu lama (data userTrades sudah expired di Binance).*
 
 ---
 
 ## Rollback Plan
 
-Jika enrichment gagal total:
-1. Trades tetap di database dengan `entry_price = 0`
-2. P&L (dari income) tetap akurat
-3. UI harus gracefully handle `entry_price = 0` dengan showing "—" instead of "$0.00"
+If the new approach fails:
+1. Revert to original `fetchPaginatedIncome` without limits
+2. Add manual "Cancel" button for long-running enrichment
+3. Show warning: "Large history may take several minutes"
 
