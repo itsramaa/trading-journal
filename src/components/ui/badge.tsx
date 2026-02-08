@@ -12,6 +12,9 @@ const badgeVariants = cva(
         secondary: "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
         destructive: "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
         outline: "text-foreground",
+        // Trading direction variants
+        long: "border-transparent bg-profit text-profit-foreground hover:bg-profit/80",
+        short: "border-transparent bg-loss text-loss-foreground hover:bg-loss/80",
       },
     },
     defaultVariants: {

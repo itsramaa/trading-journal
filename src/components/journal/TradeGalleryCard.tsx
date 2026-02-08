@@ -56,7 +56,7 @@ export function TradeGalleryCard({
         {/* Overlay badges */}
         <div className="absolute top-2 left-2 flex gap-1">
           <Badge 
-            variant={trade.direction === 'LONG' ? 'default' : trade.direction === 'UNKNOWN' ? 'outline' : 'secondary'}
+            variant={trade.direction === 'LONG' ? 'long' : trade.direction === 'UNKNOWN' ? 'outline' : 'short'}
             className={`text-xs ${trade.direction === 'UNKNOWN' ? 'bg-muted/80 text-muted-foreground' : ''}`}
           >
             {trade.direction === 'UNKNOWN' ? '?' : trade.direction}

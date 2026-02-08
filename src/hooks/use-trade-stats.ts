@@ -58,7 +58,7 @@ export function useTradeStats(options: UseTradeStatsOptions = {}) {
         p_pairs: filters?.pairs?.length ? filters.pairs : null,
         p_directions: filters?.direction ? [filters.direction] : null,
         p_strategy_ids: filters?.strategyIds?.length ? filters.strategyIds : null,
-        p_sessions: null, // Session filter handled if we add it
+        p_sessions: filters?.session && filters.session !== 'all' ? [filters.session] : null,
       });
 
       if (error) {

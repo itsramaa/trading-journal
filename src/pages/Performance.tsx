@@ -494,7 +494,10 @@ export default function Performance() {
               {contextualData?.bySession && (
                 <div className="space-y-4">
                   <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Session Performance</h3>
-                  <SessionPerformanceChart bySession={contextualData.bySession} />
+                  <div className="grid gap-6 lg:grid-cols-2">
+                    <SessionPerformanceChart bySession={contextualData.bySession} />
+                    <TradingHeatmapChart trades={filteredTrades} />
+                  </div>
                 </div>
               )}
 
@@ -512,10 +515,7 @@ export default function Performance() {
                 <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
                   Market Conditions Overview
                 </h3>
-                <div className="grid gap-6 lg:grid-cols-2">
-                  <CombinedContextualScore trades={filteredTrades} />
-                  <TradingHeatmapChart trades={filteredTrades} />
-                </div>
+                <CombinedContextualScore trades={filteredTrades} />
               </div>
 
               {/* Event Impact Analysis */}

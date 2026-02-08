@@ -93,7 +93,7 @@ export function TradeHistoryCard({
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-              <Badge variant={entry.direction === "LONG" ? "default" : "secondary"} className="text-xs sm:text-sm">
+              <Badge variant={entry.direction === "LONG" ? "long" : "short"} className="text-xs sm:text-sm">
                 {entry.direction}
               </Badge>
               <span className="font-bold text-base sm:text-lg">{entry.pair}</span>
