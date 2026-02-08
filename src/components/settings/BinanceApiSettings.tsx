@@ -27,6 +27,7 @@ import { BinanceAccountConfigCard } from "./BinanceAccountConfigCard";
 import { BinanceAutoSyncToggle } from "./BinanceAutoSyncToggle";
 import { BinanceDataSourceToggle } from "./BinanceDataSourceToggle";
 import { RetentionPeriodSetting } from "./RetentionPeriodSetting";
+import { DeletedTradesPanel } from "./DeletedTradesPanel";
 import { ApiKeyForm } from "./ApiKeyForm";
 import { RateLimitDisplay } from "./RateLimitDisplay";
 import { SyncMonitoringPanel } from "@/components/trading/SyncMonitoringPanel";
@@ -247,6 +248,9 @@ export function BinanceApiSettings() {
       
       {/* Retention Period Setting (show if connected) */}
       {isConnected && <RetentionPeriodSetting />}
+      
+      {/* Deleted Trades Recovery Panel */}
+      {hasCredential && <DeletedTradesPanel />}
       
       {/* Auto-Sync Toggle (only show if connected) */}
       {isConnected && <BinanceAutoSyncToggle isConnected={isConnected} />}
