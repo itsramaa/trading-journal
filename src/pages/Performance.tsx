@@ -341,13 +341,13 @@ export default function Performance() {
                 <BarChart3 className="h-4 w-4" />
                 <span className="hidden sm:inline">Overview</span>
               </TabsTrigger>
-              <TabsTrigger value="context" className="gap-2">
-                <Activity className="h-4 w-4" />
-                <span className="hidden sm:inline">Context</span>
-              </TabsTrigger>
               <TabsTrigger value="monthly" className="gap-2">
                 <Calendar className="h-4 w-4" />
                 <span className="hidden sm:inline">Monthly</span>
+              </TabsTrigger>
+              <TabsTrigger value="context" className="gap-2">
+                <Activity className="h-4 w-4" />
+                <span className="hidden sm:inline">Context</span>
               </TabsTrigger>
               <TabsTrigger value="strategies" className="gap-2">
                 <Trophy className="h-4 w-4" />
@@ -490,6 +490,14 @@ export default function Performance() {
                 />
               </div>
 
+              {/* Section: Session Performance */}
+              {contextualData?.bySession && (
+                <div className="space-y-4">
+                  <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Session Performance</h3>
+                  <SessionPerformanceChart bySession={contextualData.bySession} />
+                </div>
+              )}
+
               {/* Section: Risk Analysis */}
               <div className="space-y-4">
                 <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Risk Analysis</h3>
@@ -526,16 +534,13 @@ export default function Performance() {
                 </div>
               )}
 
-              {/* Environmental Factors */}
+              {/* Volatility Analysis */}
               {contextualData && (
                 <div className="space-y-4">
                   <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-                    Environmental Factors
+                    Volatility Analysis
                   </h3>
                   <VolatilityLevelChart byVolatility={contextualData.byVolatility} />
-                  {contextualData.bySession && (
-                    <SessionPerformanceChart bySession={contextualData.bySession} />
-                  )}
                 </div>
               )}
             </TabsContent>
