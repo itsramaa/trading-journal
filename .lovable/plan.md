@@ -1,196 +1,183 @@
 
-# Audit Refactor Progress - Top Movers & AI Insights
-
-## Status: ✅ COMPLETE (All Phases)
-
-## Completed Tasks
-
-### Phase 1: Centralized Constants ✅
-- [x] Created `src/lib/constants/ai-analytics.ts` - Performance thresholds, data quality, time analysis
-- [x] Created `src/lib/constants/emotional-states.ts` - Emotional state configs with icons/colors
-- [x] Created `src/lib/symbol-utils.ts` - Symbol formatting utilities (getBaseSymbol, isUsdtPair)
-- [x] Updated `src/lib/constants/index.ts` - Re-exports
-
-### Phase 2: Component Refactoring ✅
-- [x] `EmotionalPatternAnalysis.tsx` - Uses centralized constants
-- [x] `SessionInsights.tsx` - Uses SESSION_THRESHOLDS, DATA_QUALITY
-- [x] `ContextualPerformance.tsx` - Uses FEAR_GREED_ZONES, classifyCorrelation
-
-### Phase 3: Hook Refactoring ✅
-- [x] `use-contextual-analytics.ts` - Uses centralized thresholds
-
-### Phase 4: Page Refactoring ✅ (NEW)
-- [x] `TopMovers.tsx` - Uses getBaseSymbol() instead of .replace('USDT', '')
-- [x] `AIInsights.tsx` - Uses PERFORMANCE_THRESHOLDS, DATA_QUALITY, TIME_ANALYSIS
-- [x] `useBinanceAdvancedAnalytics.ts` - Uses isUsdtPair(), centralized query timing constants
-
-## Risk Level After Refactor
-- **Top Movers**: LOW ✅ (All hardcode removed, using symbol-utils)
-- **AI Insights**: LOW ✅ (Thresholds centralized, maintainable)
+# Audit Report: Risk Overview Page & Risk Calculator Page
 
 ## Executive Summary
 
-Audit dilakukan terhadap **Top Movers Page** (`/top-movers`) dan **AI Insights Page** (`/ai-insights`) beserta seluruh komponen, hook, dan service terkait. Kedua halaman ini memiliki tingkat hardcode yang **relatif rendah** dibandingkan Market Data dan Economic Calendar yang sudah di-refactor sebelumnya. Namun, masih terdapat beberapa area yang perlu diperbaiki.
+Audit dilakukan terhadap **Risk Management Page** (`/risk`) dan **Position Calculator Page** (`/calculator`) beserta seluruh komponen, hook, dan service terkait. Kedua halaman ini memiliki **arsitektur yang solid** dengan banyak konstanta sudah dipindahkan ke `src/types/risk.ts` dan `src/lib/correlation-utils.ts`. Namun masih terdapat beberapa hardcode yang tersebar dan duplikasi konstanta.
 
 ---
 
 ## STEP 1 — HARDCODE DETECTION
 
-### 1.1 Top Movers Page (`src/pages/TopMovers.tsx`)
+### 1.1 Position Calculator Page (`src/pages/PositionCalculator.tsx`)
 
 | Lokasi | Hardcode | Jenis | Nilai |
 |--------|----------|-------|-------|
-| Line 39 | Symbol suffix removal | Logic | `'USDT'` (hardcoded suffix) |
-| Line 84 | Price change decimals | UI | `.toFixed(4)` |
-| Line 103, 106 | Percentage decimals | UI | `.toFixed(2)` |
-| Line 124 | Skeleton count | UI | `10` items |
-| Line 158 | Default limit | Data | `useState(10)` |
-| Line 159 | Default sortBy | UI State | `'percentage'` |
-| Line 223 | Limit toggle values | Logic | `10` / `20` hardcoded |
-| Line 255, 305 | Symbol suffix removal | Logic | `.replace('USDT', '')` |
-| Line 319 | Default tab | UI | `"gainers"` |
+| Line 44 | Fallback balance | Data | `10000` |
+| Line 48-52 | Default input states | UI State | `riskPercent: 2`, `entryPrice: 50000`, `stopLossPrice: 49000`, `leverage: 1` |
+| Line 58 | Max leverage fallback | Logic | `125` |
 
-### 1.2 useBinanceTopMovers Hook (`src/features/binance/useBinanceAdvancedAnalytics.ts`)
+### 1.2 CalculatorInputs (`src/components/risk/calculator/CalculatorInputs.tsx`)
 
 | Lokasi | Hardcode | Jenis | Nilai |
 |--------|----------|-------|-------|
-| Line 85 | Default limit | Data | `limit = 10` |
-| Line 93 | Stale threshold | Logic | `25 * 60 * 60 * 1000` (25 hours) |
-| Line 95 | Quote asset filter | Logic | `'USDT'` |
-| Line 115-118 | Query timing | Logic | `staleTime: 15 * 1000`, `refetchInterval: 15 * 1000` |
+| Line 61-65 | Risk slider range | UI | `min: 0.5`, `max: 5`, `step: 0.5` |
+| Line 95-99 | Leverage slider range | UI | `min: 1`, `max: 20`, `step: 1` |
 
-### 1.3 AI Insights Page (`src/pages/AIInsights.tsx`)
+### 1.3 CalculatorResults (`src/components/risk/calculator/CalculatorResults.tsx`)
 
 | Lokasi | Hardcode | Jenis | Nilai |
 |--------|----------|-------|-------|
-| Line 78 | Recent trades period | Logic | `subDays(new Date(), 30)` (30 days) |
-| Line 133 | Min trades filter | Logic | `.filter(p => p.trades >= 3)` |
-| Line 138 | Day labels | Data | `['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']` |
-| Line 142 | Time slot grouping | Logic | `Math.floor(d.getHours() / 4) * 4` (4-hour slots) |
-| Line 155, 157 | Min trades for slot | Logic | `.filter(s => s.trades >= 3)` |
-| Line 184-200 | Win rate thresholds | Logic | `>= 60` (strong), `< 45` (needs improvement) |
-| Line 203-218 | Profit factor thresholds | Logic | `>= 2` (excellent), `< 1.2` (improve) |
-| Line 222 | Streak threshold | Logic | `>= 3` (significant) |
-| Line 284-298 | Action item thresholds | Logic | `< 50`, `< 1.5`, `< 40` |
-| Line 308 | Worst pair threshold | Logic | `pnl < -100` |
-| Line 345 | Min trades for insights | UI | `5` trades |
-| Line 381 | Default tab | UI | `"patterns"` |
+| Line 23-27 | Quantity formatting thresholds | UI | `>= 1` → `.toFixed(4)`, else `.toFixed(8)` |
 
-### 1.4 EmotionalPatternAnalysis (`src/components/analytics/EmotionalPatternAnalysis.tsx`)
+### 1.4 Position Sizing Calculation (`src/lib/calculations/position-sizing.ts`)
 
 | Lokasi | Hardcode | Jenis | Nilai |
 |--------|----------|-------|-------|
-| Line 25-32 | Emotional states | Data | Fixed 6 states with colors |
-| Line 58 | Min trades for data | Logic | `closedTrades.length < 10` |
-| Line 98 | Min trades per emotion | Logic | `.filter(s => s.trades >= 3)` |
-| Line 109, 118 | Win rate thresholds | Logic | `>= 60` (good), `< 40` (bad) |
-| Line 147 | Revenge win rate | Logic | `< 30` |
-| Line 230-233 | Progress bar colors | UI | `>= 60` green, `>= 40 && < 60` yellow, `< 40` red |
+| Line 28-30 | Stop distance warning | Logic | `> 10` percent |
+| Line 33-36 | Capital deployment warning | Logic | `> 40` percent |
 
-### 1.5 ContextualPerformance (`src/components/analytics/ContextualPerformance.tsx`)
+### 1.5 Daily Loss Tracker (`src/components/risk/DailyLossTracker.tsx`)
 
 | Lokasi | Hardcode | Jenis | Nilai |
 |--------|----------|-------|-------|
-| Line 31-37 | Fear/Greed zone ranges | Data | Fixed ranges: `0-20`, `21-40`, `41-60`, `61-80`, `81-100` |
-| Line 155 | Skeleton count | UI | `4` cards |
-| Line 190 | Data quality threshold | Logic | `< 50` |
-| Line 340 | Correlation strength thresholds | Logic | `< 0.2` weak, `< 0.5` moderate |
+| ✅ | Menggunakan `RISK_THRESHOLDS` | - | Sudah tersentralisasi |
 
-### 1.6 SessionInsights (`src/components/analytics/SessionInsights.tsx`)
+### 1.6 Correlation Matrix (`src/components/risk/CorrelationMatrix.tsx`)
 
 | Lokasi | Hardcode | Jenis | Nilai |
 |--------|----------|-------|-------|
-| Line 53 | Min trades per session | Logic | `>= 3` |
-| Line 73, 84 | Session win rate thresholds | Logic | `>= 55`, `< 45` |
-| Line 121 | Min trades for comparison | Logic | `>= 3` |
-| Line 123 | Performance gap threshold | Logic | `> 15` (percentage points) |
-| Line 144 | Min total trades | Logic | `< 5` |
+| Line 16-25 | `CORRELATION_MAP` | Data | **DUPLIKAT** dari `src/lib/correlation-utils.ts` |
+| Line 28-36 | `extractBaseAsset` | Logic | **DUPLIKAT** - menggunakan suffixes berbeda |
+| Line 40 | Default correlation fallback | Logic | `0.3` |
+| Line 44-49 | Correlation color thresholds | UI | `>= 0.8`, `>= 0.7`, `>= 0.5` |
+| Line 94 | High correlation threshold | Logic | `>= 0.7` |
+| Line 191 | Percentage threshold | Logic | `>70%` |
 
-### 1.7 useContextualAnalytics Hook (`src/hooks/use-contextual-analytics.ts`)
+### 1.7 Context Warnings (`src/components/risk/calculator/ContextWarnings.tsx`)
 
 | Lokasi | Hardcode | Jenis | Nilai |
 |--------|----------|-------|-------|
-| Line 101-107 | Fear/Greed zone mapping | Logic | Fixed thresholds: 20, 40, 60, 80 |
-| Line 123 | Min pairs for correlation | Logic | `pairs.length < 3` |
-| Line 160-161 | Min trades for insights | Logic | `fearTrades >= 5 && greedTrades >= 5` |
-| Line 181-191 | Performance threshold for warning | Logic | `< 40`, `>= 3` |
-| Line 202-203 | Volatility comparison threshold | Logic | `> 15` (percentage difference) |
-| Line 256 | Min closed trades | Logic | `closedTrades.length < 5` |
+| Line 17-23 | `CORRELATION_MAP` | Data | **DUPLIKAT KETIGA** |
+| Line 24-32 | `extractBaseAsset` | Logic | **DUPLIKAT** |
+| Line 36 | Default correlation fallback | Logic | `0.3` |
+| Line 77 | Correlation warning threshold | Logic | `>= 0.7` |
+
+### 1.8 Risk Event Log (`src/components/risk/RiskEventLog.tsx`)
+
+| Lokasi | Hardcode | Jenis | Nilai |
+|--------|----------|-------|-------|
+| Line 18-64 | `eventTypeConfig` | UI/Data | Event type colors dan labels |
+| Line 73 | Force orders limit | Data | `50` |
+| Line 90 | Skeleton count | UI | `3` items |
+| Line 163 | Scroll area height | UI | `350px` |
+| Line 232 | Scroll area height | UI | `350px` |
+
+### 1.9 Volatility Stop Loss (`src/components/risk/calculator/VolatilityStopLoss.tsx`)
+
+| Lokasi | Hardcode | Jenis | Nilai |
+|--------|----------|-------|-------|
+| Line 23-29 | Risk level icon mapping | UI | Static mapping |
+| Line 32-40 | Risk level color mapping | UI | Static colors |
+| Line 60-65 | ATR multipliers | Logic | `1x`, `1.5x`, `2x` |
+| Line 79-95 | Stop loss labels | UI | `'Tight'`, `'1x ATR'`, `'1.5x ATR'`, `'2x ATR'` |
+| Line 89 | Recommended badge | UI | `'1.5x ATR (Recommended)'` |
+| Line 143 | ATR period label | UI | `'(14d)'` |
+
+### 1.10 use-risk-profile.ts Hook
+
+| Lokasi | Hardcode | Jenis | Nilai |
+|--------|----------|-------|-------|
+| Line 72-77 | Default risk profile values | Data | Nilai default saat create |
+| Line 157-159 | Default snapshot values | Data | Nilai default saat create |
+| Line 192 | Max daily loss fallback | Logic | `5` (seharusnya dari `DEFAULT_RISK_PROFILE`) |
+| Line 204-209 | Status thresholds | Logic | `>= 100` disabled, `>= 70` warning |
+
+### 1.11 use-trading-gate.ts Hook
+
+| Lokasi | Hardcode | Jenis | Nilai |
+|--------|----------|-------|-------|
+| Line 31-35 | `THRESHOLDS` | Logic | `warning: 70`, `danger: 90`, `disabled: 100` |
+| Line 38-42 | `AI_QUALITY_THRESHOLDS` | Logic | `warningBelow: 50`, `blockBelow: 30`, `tradeCount: 3` |
+| Line 75 | Max daily loss fallback | Logic | `5` |
+
+### 1.12 use-context-aware-risk.ts Hook
+
+| Lokasi | Hardcode | Jenis | Nilai |
+|--------|----------|-------|-------|
+| Line 85 | Base risk fallback | Logic | `2` |
+| Line 101 | Min pair trades | Logic | `3` |
+| Line 114-131 | Strategy performance thresholds | Logic | `65`, `55`, `45`, `35` |
+| Line 145-166 | Volatility multipliers | Logic | `0.5`, `0.75`, `1.0`, `1.1` |
+| Line 188-196 | Event multiplier | Logic | `0.5` untuk high-impact |
+| Line 217-219 | Fear/Greed thresholds | Logic | `< 25`, `> 75` |
+| Line 244-257 | Momentum thresholds | Logic | `>= 70`, `<= 30` |
+| Line 269-290 | Pair performance thresholds | Logic | `>= 60`, `>= 50`, `>= 40` |
+| Line 312-337 | Strategy performance thresholds | Logic | `>= 65`, `>= 55`, `>= 45`, `>= 35` |
+| Line 369-383 | Recommendation thresholds | Logic | `< 0.5`, `< 0.8`, `< 1`, `> 1.05` |
 
 ---
 
 ## STEP 2 — HARDCODE IMPACT ANALYSIS
 
-### 2.1 Symbol Suffix Handling (`'USDT'`)
+### 2.1 Duplikasi CORRELATION_MAP (3 Lokasi)
 
-**Dampak ke Akurasi:**
-- Saat ini hanya support USDT pairs
-- Jika user trade pair dengan quote asset lain (BUSD, BTC, ETH), tidak akan tampil
+**Lokasi:**
+1. `src/lib/correlation-utils.ts` (canonical)
+2. `src/components/risk/CorrelationMatrix.tsx`
+3. `src/components/risk/calculator/ContextWarnings.tsx`
 
-**Dampak ke Konsistensi:**
-- `replace('USDT', '')` tersebar di 3 tempat berbeda (TopMovers.tsx)
-- Inconsistent dengan potential multi-quote asset future
-
-**Risiko Jangka Panjang:**
-- Multi-exchange support (Bybit, OKX) mungkin punya pair naming berbeda
-- Tidak scalable untuk quote assets lain
-
-### 2.2 Win Rate & Profit Factor Thresholds
-
-**Dampak ke Akurasi:**
-- Threshold `60%` untuk "strong" dan `45%` untuk "poor" tidak universal
-- Dalam trading tertentu (scalping vs swing), benchmark berbeda
-
-**Dampak ke Trust:**
-- User mungkin merasa insights tidak relevan untuk style trading mereka
-- Tidak ada justifikasi mengapa threshold tersebut dipilih
+**Dampak:**
+- **Data Mismatch Risk**: Jika korelasi BTC-ETH diupdate di satu file, 2 file lain tidak sync
+- **Maintenance Burden**: 3x effort untuk update
+- **Different Formats**: `correlation-utils.ts` menggunakan format `BTCUSDT-ETHUSDT`, sementara component menggunakan `BTC: { ETH: 0.85 }`
 
 **Risiko Jangka Panjang:**
-- Tidak bisa dikustomisasi per strategy atau per user
-- Sulit untuk A/B test thresholds berbeda
+- Bug tersembunyi jika korelasi berbeda
+- Sulit menambah pair baru (harus edit 3 file)
+- Tidak bisa dikonfigurasi per user atau real-time
 
-### 2.3 Min Trades Thresholds (`>= 3`, `>= 5`, `>= 10`)
+### 2.2 Duplikasi extractBaseAsset Logic
 
-**Dampak ke Akurasi:**
-- Threshold yang berbeda-beda untuk validitas data:
-  - `>= 3` untuk pair rankings, emotion stats, session validity
-  - `>= 5` untuk insights, correlations
-  - `>= 10` untuk emotional pattern analysis
-- Inconsistent statistical significance
+**Lokasi:**
+1. `src/lib/symbol-utils.ts` → `getBaseSymbol()` ✅ (sudah ada)
+2. `src/components/risk/CorrelationMatrix.tsx` → `extractBaseAsset()`
+3. `src/components/risk/calculator/ContextWarnings.tsx` → `extractBaseAsset()`
 
-**Dampak ke Trust:**
-- User dengan sedikit trades tidak mendapat insights sama sekali
-- Tidak ada penjelasan mengapa minimum diperlukan
+**Dampak:**
+- **Inconsistent Suffix Handling**: `CorrelationMatrix` support `BTC`, `ETH` suffix, `ContextWarnings` tidak
+- **Potential Parsing Bugs**: Different edge case handling
 
-**Risiko Jangka Panjang:**
-- Sulit adjust sensitivity tanpa edit multiple files
-- Edge case handling tidak konsisten
+### 2.3 Threshold Thresholds Tersebar
 
-### 2.4 Time-Based Grouping (4-hour slots)
+**Kategori:**
+| Threshold Type | Locations | Values |
+|----------------|-----------|--------|
+| Daily Loss Warning | `RISK_THRESHOLDS`, `use-trading-gate`, `use-risk-profile` | 70% |
+| Daily Loss Danger | `RISK_THRESHOLDS`, `use-trading-gate` | 90% |
+| Correlation High | `correlation-utils`, `CorrelationMatrix`, `ContextWarnings` | 0.7-0.75 |
+| Win Rate Thresholds | `use-context-aware-risk` (2 sets) | 60/50/40, 65/55/45/35 |
+| Volatility Multipliers | `use-context-aware-risk` | 0.5/0.75/1.0/1.1 |
 
-**Dampak ke Akurasi:**
-- Time slot `4 jam` terlalu coarse untuk scalper
-- Terlalu granular untuk position trader
+**Dampak:**
+- `RISK_THRESHOLDS` di `types/risk.ts` adalah canonical, tapi `use-trading-gate.ts` mendefinisikan ulang `THRESHOLDS`
+- Sulit memastikan konsistensi antar component
+- Tidak bisa A/B test atau per-user customize
 
-**Risiko Jangka Panjang:**
-- Tidak adaptive per trading style
-- Timezone handling implicit (menggunakan local timezone)
+### 2.4 ATR Multipliers Hardcode
 
-### 2.5 Emotional States List
+**Dampak:**
+- User tidak bisa pilih multiplier custom
+- 1.5x ATR dihardcode sebagai "Recommended" tanpa konteks
+- Tidak adaptive ke volatility regime yang berbeda
 
-**Dampak ke Akurasi:**
-- Hanya 6 emotional states: calm, confident, anxious, fearful, fomo, revenge
-- User mungkin memiliki state lain (bored, frustrated, overconfident)
+### 2.5 Default Values Tersebar
 
-**Risiko Jangka Panjang:**
-- Tidak bisa extend tanpa code change
-- Hardcoded colors dan icons
-
-### 2.6 Decimal Formatting (`.toFixed(4)`, `.toFixed(2)`)
-
-**Dampak ke Konsistensi:**
-- Price change format `.toFixed(4)` mungkin terlalu presisi untuk high-value coins (BTC)
-- Percentage `.toFixed(2)` konsisten, tapi tidak adaptive
+| Default | Locations | Impact |
+|---------|-----------|--------|
+| `riskPercent: 2%` | PositionCalculator, use-risk-profile | ✅ Aligned |
+| `maxDailyLoss: 5%` | use-risk-profile, use-trading-gate | Should use `DEFAULT_RISK_PROFILE` |
+| `balance: 10000` | PositionCalculator | Arbitrary fallback |
 
 ---
 
@@ -200,182 +187,183 @@ Audit dilakukan terhadap **Top Movers Page** (`/top-movers`) dan **AI Insights P
 
 | File | Violation | Severity |
 |------|-----------|----------|
-| `AIInsights.tsx` | Page berisi business logic berat (560 lines): stats calculation, insight generation, action items | **High** |
-| `AIInsights.tsx` | `useMemo` di Line 85-175 melakukan full stats aggregation di component | **High** |
-| `AIInsights.tsx` | `useMemo` di Line 178-276 generates insights - seharusnya di hook/service | **High** |
-| `AIInsights.tsx` | `useMemo` di Line 279-325 generates action items - seharusnya terpisah | **Medium** |
-| `EmotionalPatternAnalysis.tsx` | Component contains business logic untuk stats dan insights | **Medium** |
-| `TopMovers.tsx` | Page melakukan sorting logic dengan `useMemo` di Line 169-189 | **Low** |
+| `CorrelationMatrix.tsx` | Contains own `CORRELATION_MAP` dan `extractBaseAsset` - seharusnya import | **High** |
+| `ContextWarnings.tsx` | Contains own `CORRELATION_MAP` dan `extractBaseAsset` - seharusnya import | **High** |
+| `use-context-aware-risk.ts` | Hook terlalu besar (430 lines) dengan banyak threshold inline | **Medium** |
+| `RiskEventLog.tsx` | `eventTypeConfig` sebaiknya di constants | **Low** |
 
 ### 3.2 DRY Violations
 
-| Pattern | Locations | Issue |
-|---------|-----------|-------|
-| `replace('USDT', '')` | `TopMovers.tsx` (Lines 39, 255, 280, 305) | Symbol display logic duplicated |
-| Win rate thresholds | `AIInsights.tsx`, `EmotionalPatternAnalysis.tsx`, `SessionInsights.tsx`, `useContextualAnalytics.ts` | Threshold values scattered |
-| Min trades filter | `AIInsights.tsx`, `EmotionalPatternAnalysis.tsx`, `SessionInsights.tsx`, `useContextualAnalytics.ts` | `>= 3`, `>= 5` inconsistent |
-| Insight type styling | `ContextualPerformance.tsx`, `SessionInsights.tsx`, `EmotionalPatternAnalysis.tsx` | Similar `border-profit/30 bg-profit/5` patterns |
+| Pattern | Locations | Status |
+|---------|-----------|--------|
+| `CORRELATION_MAP` | 3 files | **Critical** - 3 sources of truth |
+| `extractBaseAsset` | 3 files | **Critical** - `getBaseSymbol` already exists |
+| Threshold constants | 4+ files | **Medium** - Partially centralized |
+| Default risk values | 3 files | **Low** - Most use `DEFAULT_RISK_PROFILE` |
 
-### 3.3 Data Aggregation di Component
+### 3.3 Positive Findings ✅
 
-| Component | Issue |
-|-----------|-------|
-| `AIInsights.tsx` Line 85-175 | Full statistics calculation (streak, pair rankings, time slots) |
-| `AIInsights.tsx` Line 178-276 | AI insight generation dengan threshold checks |
-| `EmotionalPatternAnalysis.tsx` Line 55-156 | Stats aggregation dan insight generation |
+| Component | Status |
+|-----------|--------|
+| `DailyLossTracker` | ✅ Uses `RISK_THRESHOLDS` from types |
+| `RiskProfileSummaryCard` | ✅ Pure UI, no business logic |
+| `QuickReferenceR` | ✅ Clean, uses currency conversion hook |
+| `position-sizing.ts` | ✅ Well-separated calculation logic |
+| `types/risk.ts` | ✅ Good centralized defaults & thresholds |
+| `correlation-utils.ts` | ✅ Good canonical source for correlations |
 
 ---
 
 ## STEP 4 — REFACTOR DIRECTION (HIGH-LEVEL)
 
-### 4.1 Extract AI Analytics Constants
+### 4.1 Consolidate Correlation Data
 
-Buat file baru `src/lib/constants/ai-analytics.ts`:
-
-```text
-src/lib/constants/ai-analytics.ts
-├── PERFORMANCE_THRESHOLDS
-│   ├── WIN_RATE_STRONG: 60
-│   ├── WIN_RATE_POOR: 45
-│   ├── PROFIT_FACTOR_EXCELLENT: 2
-│   └── PROFIT_FACTOR_POOR: 1.2
-├── DATA_QUALITY
-│   ├── MIN_TRADES_FOR_RANKING: 3
-│   ├── MIN_TRADES_FOR_INSIGHTS: 5
-│   └── MIN_TRADES_FOR_PATTERNS: 10
-├── TIME_ANALYSIS
-│   ├── SLOT_HOURS: 4
-│   └── RECENT_DAYS: 30
-└── STREAK_THRESHOLD: 3
+**Current State:**
+```
+src/lib/correlation-utils.ts (canonical - format BTCUSDT-ETHUSDT)
+src/components/risk/CorrelationMatrix.tsx (duplicate - format BTC: { ETH })
+src/components/risk/calculator/ContextWarnings.tsx (duplicate - format BTC: { ETH })
 ```
 
-### 4.2 Extract Symbol Utilities
+**Ideal:**
+- Hapus `CORRELATION_MAP` dari kedua component
+- Import `getCorrelation` dari `correlation-utils.ts`
+- Gunakan `getBaseSymbol` dari `symbol-utils.ts` (sudah ada!)
 
-Buat utility function di `src/lib/symbol-utils.ts`:
+### 4.2 Centralize Risk Thresholds
 
+**Current (Tersebar):**
+- `RISK_THRESHOLDS` di `types/risk.ts`
+- `THRESHOLDS` di `use-trading-gate.ts`
+- Inline values di `use-risk-profile.ts`
+
+**Ideal:**
+Buat file `src/lib/constants/risk-thresholds.ts`:
 ```text
-getBaseSymbol(pair: string, quoteAsset = 'USDT'): string
-getQuoteAsset(pair: string): string
-formatSymbolDisplay(pair: string): { base: string, quote: string }
+DAILY_LOSS_THRESHOLDS
+├── WARNING: 70
+├── DANGER: 90
+└── DISABLED: 100
+
+CORRELATION_THRESHOLDS  
+├── WARNING: 0.6 (from correlation-utils)
+└── HIGH: 0.75 (from correlation-utils)
+
+AI_QUALITY_THRESHOLDS
+├── WARNING_BELOW: 50
+├── BLOCK_BELOW: 30
+└── SAMPLE_COUNT: 3
 ```
 
-### 4.3 Extract Insights Generation ke Service
+### 4.3 Extract Context-Aware Risk Multipliers
 
-**Current:** `AIInsights.tsx` berisi 3 `useMemo` blocks untuk business logic
+**Current:** Inline di `use-context-aware-risk.ts` (430 lines)
+
+**Ideal:**
+Buat `src/lib/constants/risk-multipliers.ts`:
+```text
+VOLATILITY_MULTIPLIERS
+├── extreme: 0.5
+├── high: 0.75
+├── medium: 1.0
+└── low: 1.1
+
+EVENT_MULTIPLIERS
+├── HIGH_IMPACT: 0.5
+└── NORMAL: 1.0
+
+SENTIMENT_MULTIPLIERS
+├── AVOID: 0.5
+├── EXTREME_FEAR: 0.8
+├── EXTREME_GREED: 0.9
+└── NEUTRAL: 1.0
+
+PERFORMANCE_THRESHOLDS
+├── WIN_RATE_STRONG: 60
+├── WIN_RATE_AVERAGE: 50
+├── WIN_RATE_BELOW: 40
+└── WIN_RATE_POOR: below 40
+```
+
+### 4.4 ATR Stop Loss Constants
+
+**Current:** Hardcoded di `VolatilityStopLoss.tsx`
 
 **Ideal:**
 ```text
-src/services/
-├── trade-analytics-service.ts
-│   ├── calculateTradeStats(trades): TradeStats
-│   ├── generatePerformanceInsights(stats): PerformanceInsight[]
-│   └── generateActionItems(stats): ActionItem[]
+ATR_STOP_LOSS_MULTIPLIERS
+├── TIGHT: { label: 'Tight (Risk Level)', factor: 'dynamic' }
+├── STANDARD: { label: '1x ATR', factor: 1.0 }
+├── RECOMMENDED: { label: '1.5x ATR', factor: 1.5, isRecommended: true }
+└── WIDE: { label: '2x ATR', factor: 2.0 }
 ```
 
-**Hook layer:**
-```text
-src/hooks/
-├── use-trade-performance.ts
-│   ├── useTradeStats() → { stats, isLoading }
-│   ├── usePerformanceInsights() → { insights }
-│   └── useActionItems() → { items }
-```
-
-### 4.4 Extract Emotional Analysis
-
-**Current:** `EmotionalPatternAnalysis.tsx` (266 lines) dengan logic + UI
-
-**Ideal:**
-```text
-src/hooks/use-emotional-analytics.ts
-├── useEmotionalStats() → { stats, insights, hasEnoughData }
-
-src/lib/constants/emotional-states.ts
-├── EMOTIONAL_STATES: Array<EmotionalState>
-├── EMOTIONAL_THRESHOLDS
-```
-
-### 4.5 Standardize Insight Card Component
-
-**Current:** 3 components have similar insight rendering:
-- `ContextualPerformance.tsx` → `InsightCard`
-- `SessionInsights.tsx` → inline rendering
-- `EmotionalPatternAnalysis.tsx` → inline rendering
-
-**Ideal:**
-```text
-src/components/analytics/InsightCard.tsx
-├── InsightCard({ insight, variant?: 'opportunity' | 'warning' | 'pattern' })
-```
-
-### 4.6 Data Flow Ideal
+### 4.5 Data Flow Ideal
 
 ```text
-[useTradeEntries] 
-    ↓
-[use-trade-performance.ts] ← Constants (thresholds)
-    ├── calculateTradeStats()
-    ├── generateInsights()
-    └── generateActionItems()
-    ↓
-[AIInsights.tsx] ← Pure UI rendering
+[src/lib/constants/]
+├── risk-thresholds.ts
+├── risk-multipliers.ts
+└── (existing) index.ts
+
+[Imports flow:]
+use-trading-gate.ts ← risk-thresholds.ts
+use-risk-profile.ts ← risk-thresholds.ts, types/risk.ts
+use-context-aware-risk.ts ← risk-multipliers.ts
+CorrelationMatrix.tsx ← correlation-utils.ts, symbol-utils.ts
+ContextWarnings.tsx ← correlation-utils.ts, symbol-utils.ts
+VolatilityStopLoss.tsx ← risk-multipliers.ts (ATR section)
 ```
-
-### 4.7 Top Movers Improvements
-
-**Minimal changes needed:**
-- Extract `'USDT'` handling ke utility
-- Move skeleton count ke constants
-- Keep sorting logic in component (acceptable untuk this use case)
 
 ---
 
 ## STEP 5 — RISK LEVEL ASSESSMENT
 
-### Top Movers Page: **LOW**
+### Risk Management Page: **LOW**
 
 **Alasan:**
-- Data langsung dari Binance API (no transformation issues)
-- Hardcode minimal dan mostly UI-related
-- Sorting logic sederhana dan appropriate di component
-- Hook `useBinanceTopMovers` sudah well-structured
+- `DailyLossTracker` sudah menggunakan `RISK_THRESHOLDS` dari types ✅
+- `RiskProfileSummaryCard` adalah pure UI component ✅
+- Correlation logic sudah ada canonical source di `correlation-utils.ts` ✅
+- Data flow dari Supabase → hooks → UI sudah baik
+- **Hanya butuh**: Refactor `CorrelationMatrix` untuk import dari canonical source
 
-### AI Insights Page: **MEDIUM-HIGH**
+### Position Calculator Page: **LOW-MEDIUM**
 
 **Alasan:**
-- Business logic berat di component (560+ lines)
-- Multiple threshold hardcodes mempengaruhi insight accuracy
-- Insight generation tidak testable (embedded in useMemo)
-- DRY violations dengan komponen analytics lain
-- Tapi: Core data dari real trades, bukan dummy
+- Calculation logic sudah di-extract ke `position-sizing.ts` ✅
+- UI components sudah well-separated ✅
+- `RiskAdjustmentBreakdown` menggunakan hook dengan benar ✅
+- **Issues**:
+  - `ContextWarnings` punya duplicate `CORRELATION_MAP`
+  - `use-context-aware-risk.ts` punya banyak inline thresholds (430 lines)
+  - ATR multipliers hardcoded
 
 ---
 
 ## Summary Table
 
-| Category | Top Movers | AI Insights |
-|----------|------------|-------------|
-| Hardcode Count | 9 values | 25+ values |
-| Business Logic in UI | Low | High |
-| DRY Violations | 1 pattern | 4 patterns |
-| SRP Violations | Minor | Major |
-| Data Accuracy Risk | Low | Medium |
-| Testability | Good | Poor |
+| Category | Risk Overview | Position Calculator |
+|----------|--------------|---------------------|
+| Hardcode Count | 8 values | 25+ values |
+| DRY Violations | 1 critical | 2 critical |
+| SRP Violations | 1 (CorrelationMatrix) | 2 (ContextWarnings, use-context-aware-risk) |
+| Data Accuracy Risk | Low | Low |
+| Centralized Constants | Mostly ✅ | Partial |
 
 ---
 
 ## Recommended Priority
 
-### Top Movers (Quick Wins)
-1. **Low Priority**: Extract `replace('USDT', '')` ke utility function
-2. **Low Priority**: Move skeleton count dan default values ke constants
+### Quick Wins (Low Effort, High Impact)
+1. **HIGH**: Replace `CORRELATION_MAP` di `CorrelationMatrix.tsx` dengan import dari `correlation-utils.ts`
+2. **HIGH**: Replace `CORRELATION_MAP` dan `extractBaseAsset` di `ContextWarnings.tsx`
+3. **MEDIUM**: Replace `THRESHOLDS` di `use-trading-gate.ts` dengan `RISK_THRESHOLDS` dari types
 
-### AI Insights (Medium-Term)
-1. **High Priority**: Extract stats calculation ke `use-trade-performance.ts` hook
-2. **High Priority**: Extract insight generation ke service layer
-3. **Medium Priority**: Centralize thresholds ke `ai-analytics.ts`
-4. **Medium Priority**: Create reusable `InsightCard` component
-5. **Low Priority**: Extract emotional states ke constants
+### Medium-Term Refactors
+4. **MEDIUM**: Extract volatility/event/sentiment multipliers ke constants file
+5. **MEDIUM**: Extract ATR stop loss config ke constants
+6. **LOW**: Centralize `eventTypeConfig` di `RiskEventLog.tsx`
 
 ---
 
@@ -383,7 +371,7 @@ src/components/analytics/InsightCard.tsx
 
 | Page | Risk Level | Justification |
 |------|------------|---------------|
-| **Top Movers** | **LOW** | Minimal hardcode, good data flow, mostly UI concerns |
-| **AI Insights** | **MEDIUM-HIGH** | Heavy business logic in component, scattered thresholds, poor testability |
+| **Risk Management** | **LOW** | Mostly well-architected, one correlation DRY violation |
+| **Position Calculator** | **LOW-MEDIUM** | Good structure, but inline thresholds in hooks need extraction |
 
-Kedua halaman fungsional dan data-accurate, namun AI Insights membutuhkan refactoring struktural untuk maintainability jangka panjang.
+Kedua halaman sudah **functional dan accurate**. Risk Calculator memiliki lebih banyak inline thresholds yang bisa di-centralize untuk maintainability jangka panjang, namun tidak ada critical accuracy issues.
