@@ -1,6 +1,6 @@
 /**
  * Binance Full Sync Panel - UI for triggering and monitoring aggregated sync
- * Features: Full Sync button, Progress indicator, Reconciliation status, Re-Sync
+ * Features: Full Sync button, Progress indicator, Reconciliation status, Re-Sync, Resume
  * 
  * Now uses global sync store for persistent state across navigation.
  */
@@ -24,9 +24,12 @@ import {
   Loader2, 
   Database,
   AlertTriangle,
+  PlayCircle,
+  X,
+  Clock,
 } from "lucide-react";
 import { useBinanceAggregatedSync } from "@/hooks/use-binance-aggregated-sync";
-import { useSyncStore, selectFullSyncStatus, selectFullSyncProgress, selectFullSyncResult, selectSyncRange } from "@/store/sync-store";
+import { useSyncStore, selectFullSyncStatus, selectFullSyncProgress, selectFullSyncResult, selectSyncRange, selectCheckpoint } from "@/store/sync-store";
 import { SyncStatusBadge } from "./SyncStatusBadge";
 import { ReSyncTimeWindow } from "./ReSyncTimeWindow";
 import { SyncRangeSelector } from "./SyncRangeSelector";
@@ -46,7 +49,7 @@ export function BinanceFullSyncPanel({
   const [showConfirm, setShowConfirm] = useState(false);
   
   // Hook for triggering sync
-  const { sync } = useBinanceAggregatedSync();
+  const { sync, resumeSync, canResume, clearCheckpoint } = useBinanceAggregatedSync();
   
   // Global store for persistent state
   const status = useSyncStore(selectFullSyncStatus);
@@ -54,6 +57,7 @@ export function BinanceFullSyncPanel({
   const result = useSyncStore(selectFullSyncResult);
   const selectedRange = useSyncStore(selectSyncRange);
   const fullSyncError = useSyncStore(state => state.fullSyncError);
+  const checkpoint = useSyncStore(selectCheckpoint);
 
   if (!isBinanceConnected) return null;
 
@@ -69,6 +73,106 @@ export function BinanceFullSyncPanel({
     sync({ daysToSync: selectedRange });
   };
 
+  const handleResume = () => {
+    if (status === 'running') {
+      toast.info('Sync already in progress');
+      return;
+    }
+    resumeSync();
+  };
+
+  const handleDiscardCheckpoint = () => {
+    clearCheckpoint();
+    toast.info('Checkpoint discarded');
+  };
+
+  // Show resume option if checkpoint exists and not running
+  if (canResume && status === 'idle') {
+    return (
+      <div className="flex items-center gap-2 flex-wrap">
+        <Badge variant="outline" className="gap-1.5 bg-warning/10 border-warning/30 text-warning-foreground">
+          <Clock className="h-3 w-3" />
+          <span className="text-xs">
+            Incomplete sync ({checkpoint?.processedSymbols.length || 0}/{checkpoint?.allSymbols.length || 0} symbols)
+          </span>
+        </Badge>
+        
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                variant="default" 
+                size="sm" 
+                onClick={handleResume}
+                className="gap-1.5"
+              >
+                <PlayCircle className="h-3.5 w-3.5" />
+                Resume
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Continue from last checkpoint</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Phase: {checkpoint?.currentPhase}
+              </p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          onClick={handleDiscardCheckpoint}
+          className="gap-1.5 text-muted-foreground"
+        >
+          <X className="h-3.5 w-3.5" />
+          Discard
+        </Button>
+        
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowConfirm(true)}
+          className="gap-1.5"
+        >
+          <Database className="h-3.5 w-3.5" />
+          Fresh Sync
+        </Button>
+        
+        {/* Confirmation Dialog */}
+        <AlertDialog open={showConfirm} onOpenChange={setShowConfirm}>
+          <AlertDialogContent className="max-w-md">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <Database className="h-5 w-5 text-primary" />
+                Start Fresh Sync
+              </AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                <div className="space-y-4 text-sm">
+                  <p>
+                    This will discard the existing checkpoint and start a new full sync.
+                  </p>
+                  
+                  {/* Sync Range Selector */}
+                  <div className="pt-2 border-t">
+                    <SyncRangeSelector />
+                  </div>
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleSync}>
+                <CloudDownload className="h-4 w-4 mr-2" />
+                Start Fresh ({selectedRange === 'max' ? 'All Time' : `${selectedRange} days`})
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    );
+  }
+
   // Show progress (running state from global store)
   if (status === 'running' && progress) {
     return <SyncProgressIndicator progress={progress} />;
@@ -76,12 +180,41 @@ export function BinanceFullSyncPanel({
 
   // Determine if there's a reconciliation issue
   const hasReconciliationIssue = result && !result.reconciliation.isReconciled;
+  const hasPartialFailures = result?.partialSuccess && (
+    result.partialSuccess.failedSymbols.length > 0 || 
+    result.partialSuccess.failedBatches.length > 0
+  );
 
   // Show result with clickable badge (success state)
   if (status === 'success' && result) {
     return (
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <SyncStatusBadge result={result} />
+        
+        {/* Show partial failures warning */}
+        {hasPartialFailures && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge variant="outline" className="gap-1 bg-warning/10 border-warning/30">
+                  <AlertTriangle className="h-3 w-3 text-warning" />
+                  {result.partialSuccess!.failedSymbols.length} symbols skipped
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                <p className="font-medium mb-1">Failed Symbols:</p>
+                <ul className="text-xs text-muted-foreground">
+                  {result.partialSuccess!.failedSymbols.slice(0, 5).map(f => (
+                    <li key={f.symbol}>{f.symbol}: {f.error}</li>
+                  ))}
+                  {result.partialSuccess!.failedSymbols.length > 5 && (
+                    <li>...and {result.partialSuccess!.failedSymbols.length - 5} more</li>
+                  )}
+                </ul>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
         
         {/* Show Re-Sync button if there's a mismatch */}
         {hasReconciliationIssue && (
@@ -105,11 +238,24 @@ export function BinanceFullSyncPanel({
   // Show error (error state from global store)
   if (status === 'error' || fullSyncError) {
     return (
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <Badge variant="destructive" className="gap-1">
           <AlertTriangle className="h-3 w-3" />
           Sync failed
         </Badge>
+        
+        {/* Show resume if checkpoint exists */}
+        {canResume && (
+          <Button
+            variant="default"
+            size="sm"
+            onClick={handleResume}
+            className="gap-1.5"
+          >
+            <PlayCircle className="h-3.5 w-3.5" />
+            Resume
+          </Button>
+        )}
         
         {/* Clear Retry button after error */}
         <Button
@@ -147,6 +293,9 @@ export function BinanceFullSyncPanel({
               Fetches Binance history, groups into position lifecycles,
               aggregates fills with fees & funding, then inserts to local DB.
             </p>
+            <p className="text-xs text-primary mt-1">
+              ✓ Checkpoint-based resume if interrupted
+            </p>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
@@ -177,9 +326,17 @@ export function BinanceFullSyncPanel({
                   <li>Calculate weighted average prices</li>
                   <li>Validate and insert to local database</li>
                 </ul>
-                <p className="text-primary font-medium">
-                  ✓ Sync continues in background even if you navigate away.
-                </p>
+                <div className="space-y-1">
+                  <p className="text-primary font-medium">
+                    ✓ Sync continues in background even if you navigate away.
+                  </p>
+                  <p className="text-primary font-medium">
+                    ✓ Can resume from checkpoint if interrupted.
+                  </p>
+                  <p className="text-primary font-medium">
+                    ✓ Partial success - failed symbols won't block others.
+                  </p>
+                </div>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -208,7 +365,6 @@ function SyncProgressIndicator({ progress }: { progress: AggregationProgress }) 
     'aggregating': 'Aggregating',
     'validating': 'Validating',
     'inserting': 'Saving to DB',
-    'reconciling': 'Reconciling',
   }[progress.phase] || progress.phase;
 
   return (

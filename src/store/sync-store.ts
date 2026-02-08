@@ -4,10 +4,22 @@
  * This store ensures sync state persists across navigation.
  * The actual sync runs in useBinanceAggregatedSync hook,
  * but state is stored here globally.
+ * 
+ * Features:
+ * - Checkpoint-based resume capability
+ * - LocalStorage persistence for crash recovery
+ * - ETA calculation with phase weights
  */
 
 import { create } from 'zustand';
-import type { AggregationProgress, AggregationResult } from '@/services/binance/types';
+import type { AggregationProgress, AggregationResult, SyncCheckpoint } from '@/services/binance/types';
+
+// =============================================================================
+// Constants
+// =============================================================================
+
+const CHECKPOINT_STORAGE_KEY = 'binance_sync_checkpoint';
+const CHECKPOINT_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 // =============================================================================
 // Types
@@ -38,6 +50,9 @@ interface SyncStoreState {
   // Selected sync range
   selectedSyncRange: SyncRangeDays;
   
+  // Checkpoint for resume capability
+  checkpoint: SyncCheckpoint | null;
+  
   // Actions
   startFullSync: () => void;
   updateProgress: (progress: AggregationProgress) => void;
@@ -45,6 +60,12 @@ interface SyncStoreState {
   failFullSync: (error: string) => void;
   resetFullSync: () => void;
   setSyncRange: (days: SyncRangeDays) => void;
+  
+  // Checkpoint actions
+  saveCheckpoint: (update: Partial<SyncCheckpoint>) => void;
+  clearCheckpoint: () => void;
+  loadCheckpoint: () => SyncCheckpoint | null;
+  hasResumableSync: () => boolean;
 }
 
 // =============================================================================
@@ -52,11 +73,12 @@ interface SyncStoreState {
 // =============================================================================
 
 const PHASE_WEIGHTS: Record<string, number> = {
-  'fetching-income': 0.15,
-  'fetching-trades': 0.60, // Most time-consuming
+  'fetching-income': 0.10,
+  'fetching-trades': 0.55, // Most time-consuming
   'grouping': 0.05,
-  'aggregating': 0.15,
+  'aggregating': 0.10,
   'validating': 0.05,
+  'inserting': 0.15,
 };
 
 function calculateETA(
@@ -97,6 +119,75 @@ function calculateETA(
 }
 
 // =============================================================================
+// LocalStorage Helpers
+// =============================================================================
+
+function loadCheckpointFromStorage(): SyncCheckpoint | null {
+  try {
+    const stored = localStorage.getItem(CHECKPOINT_STORAGE_KEY);
+    if (!stored) return null;
+    
+    const checkpoint = JSON.parse(stored) as SyncCheckpoint;
+    
+    // Check if checkpoint is expired
+    if (Date.now() - checkpoint.lastCheckpointTime > CHECKPOINT_EXPIRY_MS) {
+      localStorage.removeItem(CHECKPOINT_STORAGE_KEY);
+      return null;
+    }
+    
+    // Check if checkpoint is actually resumable (not idle or completed)
+    if (checkpoint.currentPhase === 'idle') {
+      localStorage.removeItem(CHECKPOINT_STORAGE_KEY);
+      return null;
+    }
+    
+    return checkpoint;
+  } catch (e) {
+    console.error('[SyncStore] Failed to load checkpoint:', e);
+    return null;
+  }
+}
+
+function saveCheckpointToStorage(checkpoint: SyncCheckpoint): void {
+  try {
+    localStorage.setItem(CHECKPOINT_STORAGE_KEY, JSON.stringify(checkpoint));
+  } catch (e) {
+    console.error('[SyncStore] Failed to save checkpoint:', e);
+  }
+}
+
+function clearCheckpointFromStorage(): void {
+  try {
+    localStorage.removeItem(CHECKPOINT_STORAGE_KEY);
+  } catch (e) {
+    console.error('[SyncStore] Failed to clear checkpoint:', e);
+  }
+}
+
+// =============================================================================
+// Initial Checkpoint State
+// =============================================================================
+
+function createEmptyCheckpoint(): SyncCheckpoint {
+  return {
+    currentPhase: 'idle',
+    incomeData: null,
+    tradesBySymbol: {},
+    ordersBySymbol: {},
+    processedSymbols: [],
+    failedSymbols: [],
+    allSymbols: [],
+    syncStartTime: Date.now(),
+    syncRangeDays: 90,
+    lastCheckpointTime: Date.now(),
+    timeRange: {
+      startTime: 0,
+      endTime: 0,
+    },
+  };
+}
+
+// =============================================================================
 // Store
 // =============================================================================
 
@@ -109,6 +200,7 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
   fullSyncStartTime: null,
   eta: null,
   selectedSyncRange: 90, // Default 90 days (optimized)
+  checkpoint: loadCheckpointFromStorage(), // Load on init
   
   // Actions
   startFullSync: () => {
@@ -119,6 +211,11 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
     }
     
     const now = Date.now();
+    const newCheckpoint = createEmptyCheckpoint();
+    newCheckpoint.syncStartTime = now;
+    newCheckpoint.syncRangeDays = get().selectedSyncRange;
+    newCheckpoint.lastCheckpointTime = now;
+    
     set({
       fullSyncStatus: 'running',
       fullSyncProgress: null,
@@ -131,7 +228,11 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
         lastPhaseTime: now,
         phaseTimes: {},
       },
+      checkpoint: newCheckpoint,
     });
+    
+    // Save initial checkpoint
+    saveCheckpointToStorage(newCheckpoint);
   },
   
   updateProgress: (progress: AggregationProgress) => {
@@ -164,16 +265,21 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
   },
   
   completeFullSync: (result: AggregationResult) => {
+    // Clear checkpoint on success
+    clearCheckpointFromStorage();
+    
     set({
       fullSyncStatus: 'success',
       fullSyncProgress: null,
       fullSyncResult: result,
       fullSyncError: null,
       eta: null,
+      checkpoint: null,
     });
   },
   
   failFullSync: (error: string) => {
+    // Keep checkpoint on failure for potential retry
     set({
       fullSyncStatus: 'error',
       fullSyncProgress: null,
@@ -183,6 +289,8 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
   },
   
   resetFullSync: () => {
+    clearCheckpointFromStorage();
+    
     set({
       fullSyncStatus: 'idle',
       fullSyncProgress: null,
@@ -190,11 +298,47 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
       fullSyncError: null,
       fullSyncStartTime: null,
       eta: null,
+      checkpoint: null,
     });
   },
   
   setSyncRange: (days: SyncRangeDays) => {
     set({ selectedSyncRange: days });
+  },
+  
+  // Checkpoint Actions
+  saveCheckpoint: (update: Partial<SyncCheckpoint>) => {
+    const current = get().checkpoint || createEmptyCheckpoint();
+    const newCheckpoint: SyncCheckpoint = {
+      ...current,
+      ...update,
+      lastCheckpointTime: Date.now(),
+    };
+    
+    set({ checkpoint: newCheckpoint });
+    saveCheckpointToStorage(newCheckpoint);
+  },
+  
+  clearCheckpoint: () => {
+    clearCheckpointFromStorage();
+    set({ checkpoint: null });
+  },
+  
+  loadCheckpoint: () => {
+    const checkpoint = loadCheckpointFromStorage();
+    if (checkpoint) {
+      set({ checkpoint });
+    }
+    return checkpoint;
+  },
+  
+  hasResumableSync: () => {
+    const checkpoint = get().checkpoint || loadCheckpointFromStorage();
+    if (!checkpoint) return false;
+    
+    // Check if it's a valid resumable state
+    const resumablePhases = ['fetching-income', 'fetching-trades', 'grouping', 'aggregating', 'inserting'];
+    return resumablePhases.includes(checkpoint.currentPhase);
   },
 }));
 
@@ -219,3 +363,9 @@ export const selectSyncETA = (state: SyncStoreState) =>
 
 export const selectSyncRange = (state: SyncStoreState) => 
   state.selectedSyncRange;
+
+export const selectCheckpoint = (state: SyncStoreState) =>
+  state.checkpoint;
+
+export const selectHasResumableSync = (state: SyncStoreState) =>
+  state.hasResumableSync();
