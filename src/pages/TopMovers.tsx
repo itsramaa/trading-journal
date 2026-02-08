@@ -23,6 +23,7 @@ import {
 import { useBinanceTopMovers, type Ticker24h } from "@/features/binance";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { cn } from "@/lib/utils";
+import { getBaseSymbol } from "@/lib/symbol-utils";
 
 type SortBy = 'percentage' | 'priceChange' | 'volume';
 
@@ -36,7 +37,7 @@ interface MoverCardProps {
 function MoverCard({ ticker, rank, type, sortBy }: MoverCardProps) {
   const { format } = useCurrencyConversion();
   const isPositive = ticker.priceChangePercent >= 0;
-  const symbol = ticker.symbol.replace('USDT', '');
+  const symbol = getBaseSymbol(ticker.symbol);
   
   // Determine what metric to show based on sortBy
   const showVolume = type === 'volume' || sortBy === 'volume';
@@ -252,7 +253,7 @@ export default function TopMovers() {
               ) : topGainers[0] ? (
                 <>
                   <div className="text-2xl font-bold">
-                    {topGainers[0].symbol.replace('USDT', '')}
+                    {getBaseSymbol(topGainers[0].symbol)}
                   </div>
                   <p className="text-profit font-semibold">
                     +{topGainers[0].priceChangePercent.toFixed(2)}%
@@ -277,7 +278,7 @@ export default function TopMovers() {
               ) : topLosers[0] ? (
                 <>
                   <div className="text-2xl font-bold">
-                    {topLosers[0].symbol.replace('USDT', '')}
+                    {getBaseSymbol(topLosers[0].symbol)}
                   </div>
                   <p className="text-loss font-semibold">
                     {topLosers[0].priceChangePercent.toFixed(2)}%
@@ -302,7 +303,7 @@ export default function TopMovers() {
               ) : topVolume[0] ? (
                 <>
                   <div className="text-2xl font-bold">
-                    {topVolume[0].symbol.replace('USDT', '')}
+                    {getBaseSymbol(topVolume[0].symbol)}
                   </div>
                   <p className="text-sm text-muted-foreground">
                     {format(topVolume[0].quoteVolume)}

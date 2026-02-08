@@ -5,6 +5,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { isUsdtPair } from '@/lib/symbol-utils';
 import type {
   BasisParams,
   BasisData,
@@ -17,6 +18,11 @@ import type {
   MarketStructureAnalysis,
 } from './advanced-analytics-types';
 import { getVolatilityRisk, analyzeBasisTrend } from './advanced-analytics-types';
+
+// Query timing constants
+const TOP_MOVERS_STALE_TIME = 15 * 1000; // 15 seconds
+const TOP_MOVERS_REFETCH_INTERVAL = 15 * 1000; // 15 seconds
+const STALE_DATA_THRESHOLD = 25 * 60 * 60 * 1000; // 25 hours - filter out stale/delisted pairs
 
 /**
  * Call the binance-market-data edge function
@@ -88,12 +94,12 @@ export function useBinanceTopMovers(limit = 10) {
     queryFn: async () => {
       const tickers = await callMarketDataFunction<Ticker24h[]>('ticker-24h', {});
       
-      // Filter USDT pairs only and ensure fresh data (closeTime within last 25 hours)
+      // Filter USDT pairs only and ensure fresh data
       const now = Date.now();
-      const staleThreshold = now - (25 * 60 * 60 * 1000); // 25 hours ago
+      const staleThreshold = now - STALE_DATA_THRESHOLD;
       
       const usdtPairs = tickers.filter(t => 
-        t.symbol.endsWith('USDT') && 
+        isUsdtPair(t.symbol) && 
         t.closeTime > staleThreshold // Exclude delisted/stale pairs
       );
       
@@ -112,8 +118,8 @@ export function useBinanceTopMovers(limit = 10) {
       // Also return raw tickers for custom sorting
       return { topGainers, topLosers, topVolume, allTickers: usdtPairs };
     },
-    staleTime: 15 * 1000, // 15 seconds
-    refetchInterval: 15 * 1000, // Auto-refresh every 15 seconds
+    staleTime: TOP_MOVERS_STALE_TIME,
+    refetchInterval: TOP_MOVERS_REFETCH_INTERVAL,
     refetchIntervalInBackground: true, // Continue refetching even when tab is inactive
     refetchOnMount: 'always', // Always refetch on mount
     refetchOnWindowFocus: true, // Refetch when user returns to tab
