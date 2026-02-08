@@ -1,178 +1,211 @@
 
-# Plan: Perbaikan Tab Fees & Funding untuk Menggunakan Data Lokal
+# Plan: Background-Persistent Full Sync
 
-## 1. Situasi Saat Ini
+## 1. Problem Summary
 
-### Problem yang Ditemukan:
+| Issue | Penyebab | Dampak |
+|-------|----------|--------|
+| **Sync restart saat navigasi** | State disimpan di `useState` dalam komponen | User harus re-click button setelah pindah halaman |
+| **Progress hilang** | Komponen unmount = state hilang | User tidak tahu sync masih jalan atau tidak |
+| **Inkonsisten dengan Settings** | Full Sync di TradeHistory, Auto-Sync di Settings | Membingungkan user |
 
-| Aspek | Status Saat Ini | Masalah |
-|-------|-----------------|---------|
-| **FeeHistoryTab** | Menggunakan `useBinanceAllIncome` | Fetch langsung dari Binance API setiap render |
-| **FundingHistoryTab** | Menggunakan `useBinanceAllIncome` | Fetch langsung dari Binance API setiap render |
-| **Data Lokal** | `trade_entries.commission`, `funding_fees` sudah tersedia | Tidak digunakan oleh tab ini |
-
-### Arsitektur yang Salah:
-```text
-┌─────────────────────────────────────────────────┐
-│           TAB FEES / FUNDING (CURRENT)          │
-│                                                 │
-│   useBinanceAllIncome() ─────► Binance API      │
-│          (Live fetch setiap render)             │
-│                                                 │
-│   ❌ Inkonsisten dengan "Local DB as Truth"     │
-│   ❌ Redundant API calls                        │
-│   ❌ Data tidak match dengan trade_entries      │
-└─────────────────────────────────────────────────┘
-```
-
----
-
-## 2. Arsitektur yang Benar
-
-### Target State:
-```text
-┌─────────────────────────────────────────────────┐
-│           TAB FEES / FUNDING (TARGET)           │
-│                                                 │
-│   useLocalFeeHistory() ─────► trade_entries     │
-│          (Query dari database lokal)            │
-│                                                 │
-│   ✅ Konsisten dengan aggregated data           │
-│   ✅ Cepat (no API calls)                       │
-│   ✅ Data match dengan P&L di journal           │
-└─────────────────────────────────────────────────┘
-```
-
-### Data Source Mapping:
-
-| Tab | Field dari `trade_entries` | Aggregasi |
-|-----|---------------------------|-----------|
-| **Fees** | `commission`, `commission_asset` | SUM per trade, grouped by pair/date |
-| **Funding** | `funding_fees` | SUM per trade, grouped by pair/date |
-
----
-
-## 3. Implementation Plan
-
-### Phase A: Create Local Fee/Funding Hooks
-
-**File Baru:** `src/hooks/use-local-fee-funding.ts`
-
-Hook ini akan query dari `trade_entries`:
-- `useLocalFeeHistory(filters)` - Aggregated commission data
-- `useLocalFundingHistory(filters)` - Aggregated funding_fees data
+## 2. Root Cause Analysis
 
 ```text
-Query: 
-SELECT 
-  pair, 
-  DATE(entry_datetime) as date,
-  SUM(commission) as total_commission,
-  SUM(funding_fees) as total_funding,
-  COUNT(*) as trade_count
-FROM trade_entries
-WHERE source = 'binance' AND deleted_at IS NULL
-GROUP BY pair, DATE(entry_datetime)
-ORDER BY date DESC
+CURRENT ARCHITECTURE (Broken):
+┌─────────────────────────────────────────────────────────────┐
+│                     TradeHistory Page                       │
+│                                                             │
+│   useBinanceAggregatedSync()                                │
+│   └── useState(progress)  ← HILANG saat unmount             │
+│   └── useState(result)    ← HILANG saat unmount             │
+│                                                             │
+│   BinanceFullSyncPanel                                      │
+│   └── useBinanceAggregatedSync() ← BUAT INSTANCE BARU       │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+                           │
+                           ▼ Navigation
+                           
+┌─────────────────────────────────────────────────────────────┐
+│                      Other Page                             │
+│                                                             │
+│   ❌ Tidak ada state sync                                   │
+│   ❌ Sync tetap jalan tapi tidak visible                    │
+│   ❌ Saat kembali ke TradeHistory = state reset             │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### Phase B: Update FeeHistoryTab
+## 3. Solution Architecture
 
-1. Ganti `useBinanceAllIncome` dengan `useLocalFeeHistory`
-2. Update UI untuk menampilkan data per-trade (bukan per-income-record)
-3. Tambahkan fallback message jika data kosong (belum Full Sync)
+```text
+TARGET ARCHITECTURE (Fixed):
+┌─────────────────────────────────────────────────────────────┐
+│                    DashboardLayout (App Level)              │
+│                                                             │
+│   useGlobalSyncState()  ← ZUSTAND STORE (PERSISTENT)        │
+│   └── syncState: { isRunning, progress, result }            │
+│   └── actions: startSync(), updateProgress(), etc.          │
+│                                                             │
+│   useBinanceBackgroundSync()                                │
+│   └── Untuk incremental auto-sync                           │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+                           │
+                           ▼ Shared State
+                           
+┌─────────────────────────────────────────────────────────────┐
+│                   Any Page (TradeHistory, Settings, etc.)   │
+│                                                             │
+│   const { isRunning, progress } = useGlobalSyncState()      │
+│                                                             │
+│   ✅ Sync state visible di semua halaman                    │
+│   ✅ Navigasi tidak mengganggu sync                         │
+│   ✅ Progress indicator persistent                          │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
 
-### Phase C: Update FundingHistoryTab
+## 4. Implementation Plan
 
-1. Ganti `useBinanceAllIncome` dengan `useLocalFundingHistory`
-2. Update UI untuk menampilkan data per-trade
-3. Tambahkan fallback message jika data kosong
+### Phase A: Create Global Sync Store
 
-### Phase D: Granular View (Optional Enhancement)
+**File:** `src/store/sync-store.ts`
 
-Untuk user yang ingin melihat detail per-transaksi (bukan per-trade), tambahkan:
-- Toggle "Per Trade" vs "Per Transaction"
-- "Per Transaction" tetap fetch dari API (existing behavior)
-- Default: "Per Trade" (dari lokal)
+Zustand store untuk menyimpan state sync secara global:
 
----
+```text
+State:
+- fullSyncState: 'idle' | 'running' | 'success' | 'error'
+- fullSyncProgress: AggregationProgress | null
+- fullSyncResult: AggregationResult | null
+- fullSyncError: string | null
+- fullSyncStartTime: number | null
 
-## 4. Detail Teknis
+Actions:
+- startFullSync(): Mark sync as running
+- updateProgress(progress): Update progress state
+- completeFullSync(result): Mark as complete with result
+- failFullSync(error): Mark as failed
+- resetFullSync(): Reset to idle
 
-### Hook: `useLocalFeeHistory`
+Persistence:
+- Partial persistence: lastResult, lastSyncTime (not running state)
+```
+
+### Phase B: Refactor useBinanceAggregatedSync
+
+**File:** `src/hooks/use-binance-aggregated-sync.ts`
+
+Modifikasi untuk menggunakan global store:
+
+1. **Replace useState dengan store selectors:**
+   - `progress` → `useGlobalSyncStore(s => s.fullSyncProgress)`
+   - `result` → `useGlobalSyncStore(s => s.fullSyncResult)`
+
+2. **Update mutation callbacks:**
+   - `onMutate` → `startFullSync()`
+   - Progress updates → `updateProgress()`
+   - `onSuccess` → `completeFullSync()`
+   - `onError` → `failFullSync()`
+
+3. **Prevent duplicate runs:**
+   - Cek `fullSyncState === 'running'` sebelum mulai
+   - Return early jika sudah jalan
+
+### Phase C: Update UI Components
+
+**Files:**
+- `src/components/trading/BinanceFullSyncPanel.tsx`
+- `src/pages/TradeHistory.tsx`
+
+Perubahan:
+1. Consume state dari store, bukan dari hook instance
+2. Disable button jika sync sudah running di tempat lain
+3. Show global progress indicator
+
+### Phase D: Add Global Progress Indicator
+
+**File:** `src/components/layout/GlobalSyncIndicator.tsx`
+
+Komponen kecil di header/footer untuk menunjukkan sync sedang berjalan:
+
+```text
+┌────────────────────────────────────────────────┐
+│ 🔄 Full Sync: Fetching trades (32/45)... 71%   │
+└────────────────────────────────────────────────┘
+```
+
+Mount di `DashboardLayout.tsx` agar visible di semua halaman.
+
+## 5. Technical Details
+
+### Store Schema
 
 ```typescript
-// Pseudocode
-interface LocalFeeRecord {
-  id: string;
-  pair: string;
-  date: string;
-  commission: number;
-  commission_asset: string;
-  entry_datetime: string;
-  direction: string;
-  realized_pnl: number;
-}
-
-function useLocalFeeHistory(filters: {
-  dateRange: DateRange;
-  selectedPairs: string[];
-}) {
-  return useQuery({
-    queryKey: ['local-fee-history', filters],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('trade_entries')
-        .select('id, pair, commission, commission_asset, entry_datetime, direction, realized_pnl')
-        .eq('source', 'binance')
-        .is('deleted_at', null)
-        .gte('entry_datetime', filters.dateRange.from)
-        .lte('entry_datetime', filters.dateRange.to);
-      return data;
-    }
-  });
+interface GlobalSyncState {
+  // Full Sync
+  fullSyncStatus: 'idle' | 'running' | 'success' | 'error';
+  fullSyncProgress: AggregationProgress | null;
+  fullSyncResult: AggregationResult | null;
+  fullSyncError: string | null;
+  fullSyncStartTime: number | null;
+  
+  // Actions
+  startFullSync: () => void;
+  updateProgress: (progress: AggregationProgress) => void;
+  completeFullSync: (result: AggregationResult) => void;
+  failFullSync: (error: string) => void;
+  resetFullSync: () => void;
 }
 ```
 
-### UI Changes:
+### Singleton Pattern untuk Actual Sync
 
-**FeeHistoryTab:**
-- Summary: Total Fees, Total Trades, Avg Fee per Trade
-- Table: Date, Pair, Direction, Commission, Trade P&L
+Karena hook bisa di-mount di multiple places, perlu guard:
 
-**FundingHistoryTab:**
-- Summary: Funding Paid, Funding Received, Net Funding
-- Table: Date, Pair, Direction, Funding Fee, Trade P&L
+```typescript
+// In hook
+const { fullSyncStatus, startFullSync } = useGlobalSyncStore();
 
----
+const sync = useCallback(() => {
+  // Guard: prevent multiple concurrent syncs
+  if (fullSyncStatus === 'running') {
+    toast.info('Sync already in progress');
+    return;
+  }
+  
+  startFullSync();
+  syncMutation.mutate(options);
+}, [fullSyncStatus]);
+```
 
-## 5. Files to Modify
+## 6. Files to Modify
 
-| File | Action |
-|------|--------|
-| `src/hooks/use-local-fee-funding.ts` | **CREATE** - New hooks for local data |
-| `src/components/trading/FeeHistoryTab.tsx` | **MODIFY** - Use local hook |
-| `src/components/trading/FundingHistoryTab.tsx` | **MODIFY** - Use local hook |
+| File | Action | Description |
+|------|--------|-------------|
+| `src/store/sync-store.ts` | **CREATE** | Global Zustand store for sync state |
+| `src/hooks/use-binance-aggregated-sync.ts` | **MODIFY** | Use global store instead of local state |
+| `src/components/trading/BinanceFullSyncPanel.tsx` | **MODIFY** | Read from global store |
+| `src/pages/TradeHistory.tsx` | **MODIFY** | Remove duplicate hook call, use store |
+| `src/components/layout/GlobalSyncIndicator.tsx` | **CREATE** | Persistent progress indicator |
+| `src/components/layout/DashboardLayout.tsx` | **MODIFY** | Add GlobalSyncIndicator |
 
----
+## 7. Benefits
 
-## 6. Scope Boundaries
+1. **Sync tetap jalan saat navigasi** - State di Zustand tidak hilang
+2. **Single source of truth** - Semua halaman baca dari satu store
+3. **Consistent UX** - Progress visible di mana saja
+4. **No duplicate syncs** - Guard mencegah double-trigger
+5. **Aligned with Settings** - Auto-sync dan Full Sync menggunakan arsitektur serupa
 
-### Dalam Scope:
-- Tab Fees dan Funding menggunakan data dari `trade_entries`
-- Konsisten dengan arsitektur "Local DB as Ledger of Truth"
-- UI menampilkan data per-trade
+## 8. Testing Checklist
 
-### Di Luar Scope (Future Enhancement):
-- Menyimpan raw income records ke tabel terpisah
-- Toggle untuk melihat data granular vs aggregated
-- Sync monitoring untuk fees/funding khusus
-
----
-
-## 7. Testing Checklist
-
-1. **Full Sync**: Jalankan Full Sync dari Trade History page
-2. **Verify Data**: Cek tab Fees dan Funding menampilkan data dari lokal
-3. **Filter Test**: Pastikan date range dan pair filter berfungsi
-4. **Consistency Check**: Pastikan total fees di tab = SUM(fees) di journal
+1. Mulai Full Sync di Trade History
+2. Navigasi ke halaman lain (Dashboard, Settings)
+3. Verify progress indicator tetap muncul
+4. Navigasi kembali ke Trade History
+5. Verify sync masih running (bukan restart)
+6. Tunggu sync selesai, verify result muncul
+7. Test cancel/error scenarios
