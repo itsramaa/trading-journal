@@ -1,20 +1,18 @@
 /**
- * FeeHistoryTab - Display trading fees and rebates from Binance
- * Shows: COMMISSION, COMMISSION_REBATE, API_REBATE income types
- * Uses unified filters from parent TradeHistory page
+ * FeeHistoryTab - Display trading fees from local trade_entries
+ * Uses aggregated commission data from Full Sync (Local DB as Ledger of Truth)
  */
 import { useMemo } from "react";
 import { format } from "date-fns";
-import { Percent, RefreshCw, Gift, TrendingDown, Info } from "lucide-react";
+import { Percent, TrendingDown, Calculator, Info, Database } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
-import { useBinanceAllIncome, type BinanceIncome } from "@/features/binance";
 import { BinanceNotConfiguredState } from "@/components/binance/BinanceNotConfiguredState";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
+import { useLocalFeeHistory, calculateFeeSummary, type LocalFeeRecord } from "@/hooks/use-local-fee-funding";
 import { cn } from "@/lib/utils";
 import type { DateRange } from "@/components/trading/DateRangeFilter";
 
@@ -25,94 +23,29 @@ interface FeeHistoryTabProps {
   showFullHistory: boolean;
 }
 
-const FEE_INCOME_TYPES = ['COMMISSION', 'COMMISSION_REBATE', 'API_REBATE'];
-
 export function FeeHistoryTab({ 
   isConnected, 
   dateRange, 
   selectedPairs, 
-  showFullHistory 
 }: FeeHistoryTabProps) {
-  const { format: formatCurrency, formatPnl } = useCurrencyConversion();
+  const { format: formatCurrency } = useCurrencyConversion();
   
-  // Calculate days from dateRange for API call
-  // Full history = 730 days (2 years) to support extended Binance history
-  const days = useMemo(() => {
-    if (showFullHistory) return 730; // Extended to 2 years
-    if (dateRange.from && dateRange.to) {
-      const diffMs = dateRange.to.getTime() - dateRange.from.getTime();
-      return Math.max(Math.ceil(diffMs / (1000 * 60 * 60 * 24)), 7) || 365;
-    }
-    return 365; // Default 1 year lookback
-  }, [dateRange, showFullHistory]);
-
-  const { data: allIncome, isLoading, refetch, isFetching } = useBinanceAllIncome(days, 1000);
-
-  // Filter to fee-related income only
-  const feeIncome = useMemo(() => {
-    if (!allIncome) return [];
-    return allIncome.filter((item: BinanceIncome) => 
-      FEE_INCOME_TYPES.includes(item.incomeType)
-    );
-  }, [allIncome]);
-
-  // Apply unified filters from parent
-  const filteredIncome = useMemo(() => {
-    let filtered = feeIncome;
-    
-    // Apply date range filter
-    if (dateRange.from) {
-      const fromTime = dateRange.from.getTime();
-      filtered = filtered.filter(item => item.time >= fromTime);
-    }
-    if (dateRange.to) {
-      const toTime = dateRange.to.getTime();
-      filtered = filtered.filter(item => item.time <= toTime);
-    }
-    
-    // Apply pair filter from parent
-    if (selectedPairs.length > 0) {
-      filtered = filtered.filter(item => 
-        selectedPairs.some(pair => item.symbol === pair || item.symbol?.includes(pair.replace('USDT', '')))
-      );
-    }
-    
-    return filtered;
-  }, [feeIncome, dateRange, selectedPairs]);
+  const { data: feeRecords, isLoading } = useLocalFeeHistory({
+    dateRange,
+    selectedPairs,
+  });
 
   // Calculate summary
   const summary = useMemo(() => {
-    if (!filteredIncome.length) return null;
-
-    let totalFees = 0;
-    let totalRebates = 0;
-    let feeCount = 0;
-    let rebateCount = 0;
-
-    filteredIncome.forEach((item: BinanceIncome) => {
-      if (item.incomeType === 'COMMISSION') {
-        totalFees += Math.abs(item.income);
-        feeCount++;
-      } else {
-        totalRebates += item.income;
-        rebateCount++;
-      }
-    });
-
-    return {
-      totalFees,
-      totalRebates,
-      netCost: totalFees - totalRebates,
-      feeCount,
-      rebateCount,
-    };
-  }, [filteredIncome]);
+    if (!feeRecords?.length) return null;
+    return calculateFeeSummary(feeRecords);
+  }, [feeRecords]);
 
   if (!isConnected) {
     return (
       <BinanceNotConfiguredState
         title="Fee History Requires Exchange"
-        description="Connect your Binance API to view trading fees and rebates."
+        description="Connect your Binance API to view trading fees."
       />
     );
   }
@@ -132,17 +65,12 @@ export function FeeHistoryTab({
 
   return (
     <div className="space-y-4">
-      {/* Unified filter info */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Info className="h-4 w-4" />
-          <span>Filters from trade history apply to this tab</span>
-        </div>
-        
-        <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
-          <RefreshCw className={cn("h-4 w-4 mr-2", isFetching && "animate-spin")} />
-          Refresh
-        </Button>
+      {/* Data source info */}
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Database className="h-4 w-4" />
+        <span>Data dari Local DB (Full Sync)</span>
+        <Info className="h-4 w-4 ml-2" />
+        <span>Filters dari trade history apply ke tab ini</span>
       </div>
 
       {/* Summary Cards */}
@@ -152,12 +80,12 @@ export function FeeHistoryTab({
             <CardContent className="pt-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs text-muted-foreground">Trading Fees</p>
+                  <p className="text-xs text-muted-foreground">Total Fees</p>
                   <p className="text-xl font-bold text-loss">
                     -{formatCurrency(summary.totalFees)}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {summary.feeCount} transactions
+                    {summary.tradeCount} trades
                   </p>
                 </div>
                 <Percent className="h-6 w-6 text-loss opacity-50" />
@@ -169,41 +97,32 @@ export function FeeHistoryTab({
             <CardContent className="pt-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs text-muted-foreground">Fee Rebates</p>
-                  <p className="text-xl font-bold text-profit">
-                    +{formatCurrency(summary.totalRebates)}
+                  <p className="text-xs text-muted-foreground">Avg Fee / Trade</p>
+                  <p className="text-xl font-bold">
+                    {formatCurrency(summary.avgFeePerTrade)}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {summary.rebateCount} rebates
+                    per closed position
                   </p>
                 </div>
-                <Gift className="h-6 w-6 text-profit opacity-50" />
+                <Calculator className="h-6 w-6 text-muted-foreground opacity-50" />
               </div>
             </CardContent>
           </Card>
 
-          <Card className={cn(
-            "border-2",
-            summary.netCost > 0 ? "border-loss/30 bg-loss/5" : "border-profit/30 bg-profit/5"
-          )}>
+          <Card className="border-2 border-loss/30 bg-loss/5">
             <CardContent className="pt-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs text-muted-foreground">Net Fee Cost</p>
-                  <p className={cn(
-                    "text-xl font-bold",
-                    summary.netCost > 0 ? "text-loss" : "text-profit"
-                  )}>
-                    {summary.netCost > 0 ? '-' : '+'}{formatCurrency(Math.abs(summary.netCost))}
+                  <p className="text-xs text-muted-foreground">Net Impact</p>
+                  <p className="text-xl font-bold text-loss">
+                    -{formatCurrency(summary.totalFees)}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Fees minus rebates
+                    Reduces P&L
                   </p>
                 </div>
-                <TrendingDown className={cn(
-                  "h-6 w-6 opacity-50",
-                  summary.netCost > 0 ? "text-loss" : "text-profit"
-                )} />
+                <TrendingDown className="h-6 w-6 text-loss opacity-50" />
               </div>
             </CardContent>
           </Card>
@@ -211,11 +130,11 @@ export function FeeHistoryTab({
       )}
 
       {/* Details Table */}
-      {filteredIncome.length === 0 ? (
+      {!feeRecords?.length ? (
         <EmptyState
           icon={Percent}
           title="No fee records found"
-          description="No trading fees or rebates recorded for the selected period and filters."
+          description="Run Full Sync in Trade History to load fee data, or adjust your filters."
         />
       ) : (
         <Card>
@@ -225,43 +144,54 @@ export function FeeHistoryTab({
                 <TableHeader>
                   <TableRow>
                     <TableHead>Date</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Symbol</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead>Pair</TableHead>
+                    <TableHead>Direction</TableHead>
+                    <TableHead className="text-right">Commission</TableHead>
+                    <TableHead className="text-right">Trade P&L</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredIncome
-                    .sort((a, b) => b.time - a.time)
-                    .map((item: BinanceIncome) => (
-                      <TableRow key={item.tranId}>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {format(new Date(item.time), "MMM dd HH:mm")}
-                        </TableCell>
-                        <TableCell>
-                          <Badge 
-                            variant={item.incomeType === 'COMMISSION' ? 'destructive' : 'default'}
-                            className="text-xs"
-                          >
-                            {item.incomeType === 'COMMISSION' ? 'Fee' : 'Rebate'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="font-mono text-sm">
-                          {item.symbol || '-'}
-                        </TableCell>
-                        <TableCell className={cn(
-                          "text-right font-mono",
-                          item.income >= 0 ? "text-profit" : "text-loss"
-                        )}>
-                          {formatPnl(item.income)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                  {feeRecords.map((record: LocalFeeRecord) => (
+                    <TableRow key={record.id}>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {record.entry_datetime 
+                          ? format(new Date(record.entry_datetime), "MMM dd HH:mm")
+                          : '-'}
+                      </TableCell>
+                      <TableCell className="font-mono text-sm">
+                        {record.pair}
+                      </TableCell>
+                      <TableCell>
+                        <Badge 
+                          variant={record.direction === 'long' ? 'default' : 'destructive'}
+                          className="text-xs"
+                        >
+                          {record.direction?.toUpperCase() || '-'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-loss">
+                        -{formatCurrency(record.commission || 0)}
+                        {record.commission_asset && (
+                          <span className="text-xs text-muted-foreground ml-1">
+                            ({record.commission_asset})
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className={cn(
+                        "text-right font-mono",
+                        (record.realized_pnl || 0) >= 0 ? "text-profit" : "text-loss"
+                      )}>
+                        {record.realized_pnl !== null 
+                          ? formatCurrency(record.realized_pnl)
+                          : '-'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
             </div>
             <p className="text-xs text-muted-foreground text-center mt-2">
-              Showing {filteredIncome.length} records
+              Showing {feeRecords.length} trades with fees
             </p>
           </CardContent>
         </Card>
