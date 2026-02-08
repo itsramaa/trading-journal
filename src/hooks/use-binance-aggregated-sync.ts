@@ -39,33 +39,75 @@ import {
 // =============================================================================
 
 const BINANCE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/binance-futures`;
-const RATE_LIMIT_DELAY = 200; // Reduced for faster sync
+const BASE_RATE_LIMIT_DELAY = 500; // Increased for stability
 const MAX_TRADES_INTERVAL_MS = 6.5 * 24 * 60 * 60 * 1000; // 6.5 days
 const MAX_INCOME_INTERVAL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 const RECORDS_PER_PAGE = 1000;
 const DEFAULT_HISTORY_DAYS = 90; // Optimized default
-const MAX_PARALLEL_SYMBOLS = 3; // Parallel fetching limit
+const MAX_PARALLEL_SYMBOLS = 2; // Reduced for rate limit safety
+
+// Rate limit state (shared across calls)
+let currentRateLimitDelay = BASE_RATE_LIMIT_DELAY;
 
 // =============================================================================
-// API Helper
+// API Helper with Rate Limit Handling
 // =============================================================================
+
+interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  code?: string;
+  retryAfter?: number;
+}
 
 async function callBinanceApi<T>(
   action: string,
-  params: Record<string, unknown> = {}
-): Promise<{ success: boolean; data?: T; error?: string }> {
+  params: Record<string, unknown> = {},
+  maxRetries = 3
+): Promise<ApiResponse<T>> {
   const { data: { session } } = await supabase.auth.getSession();
   
-  const response = await fetch(BINANCE_FUNCTION_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': session?.access_token ? `Bearer ${session.access_token}` : '',
-    },
-    body: JSON.stringify({ action, ...params }),
-  });
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const response = await fetch(BINANCE_FUNCTION_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': session?.access_token ? `Bearer ${session.access_token}` : '',
+      },
+      body: JSON.stringify({ action, ...params }),
+    });
+    
+    const result: ApiResponse<T> = await response.json();
+    
+    // Handle rate limit - wait and retry
+    if (response.status === 429 || result.code === 'RATE_LIMITED') {
+      const retryAfter = result.retryAfter || 10;
+      console.warn(`[BinanceAPI] Rate limited, waiting ${retryAfter}s before retry (attempt ${attempt + 1}/${maxRetries})`);
+      
+      // Increase delay for future requests
+      currentRateLimitDelay = Math.min(currentRateLimitDelay * 1.5, 2000);
+      
+      await new Promise(r => setTimeout(r, (retryAfter + 1) * 1000));
+      continue;
+    }
+    
+    // Success - gradually reduce delay
+    if (result.success) {
+      currentRateLimitDelay = Math.max(currentRateLimitDelay * 0.95, BASE_RATE_LIMIT_DELAY);
+    }
+    
+    return result;
+  }
   
-  return response.json();
+  return { success: false, error: 'Max retries exceeded due to rate limiting' };
+}
+
+/**
+ * Get adaptive delay based on current rate limit state
+ */
+function getAdaptiveDelay(): number {
+  return currentRateLimitDelay;
 }
 
 // =============================================================================
@@ -105,11 +147,11 @@ async function fetchTradesForSymbol(
       if (result.data.length < RECORDS_PER_PAGE) break;
       
       fromId = result.data[result.data.length - 1].id + 1;
-      await new Promise(r => setTimeout(r, RATE_LIMIT_DELAY));
+      await new Promise(r => setTimeout(r, getAdaptiveDelay()));
     }
     
     if (i < numChunks - 1) {
-      await new Promise(r => setTimeout(r, RATE_LIMIT_DELAY));
+      await new Promise(r => setTimeout(r, getAdaptiveDelay()));
     }
   }
   
@@ -143,7 +185,7 @@ async function fetchOrdersForSymbol(
     }
     
     if (i < numChunks - 1) {
-      await new Promise(r => setTimeout(r, RATE_LIMIT_DELAY));
+      await new Promise(r => setTimeout(r, getAdaptiveDelay()));
     }
   }
   
@@ -183,11 +225,11 @@ async function fetchAllIncome(
       if (result.data.length < RECORDS_PER_PAGE) break;
       
       page++;
-      await new Promise(r => setTimeout(r, RATE_LIMIT_DELAY));
+      await new Promise(r => setTimeout(r, getAdaptiveDelay()));
     }
     
     if (i < numChunks - 1) {
-      await new Promise(r => setTimeout(r, RATE_LIMIT_DELAY));
+      await new Promise(r => setTimeout(r, getAdaptiveDelay()));
     }
   }
   
@@ -356,9 +398,9 @@ export function useBinanceAggregatedSync() {
         
         completedSymbols += batch.length;
         
-        // Small delay between batches to respect rate limits
+        // Longer delay between batches to respect rate limits
         if (batchStart + MAX_PARALLEL_SYMBOLS < symbols.length) {
-          await new Promise(r => setTimeout(r, RATE_LIMIT_DELAY * 2));
+          await new Promise(r => setTimeout(r, getAdaptiveDelay() * 3));
         }
       }
       
