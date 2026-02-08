@@ -1193,6 +1193,30 @@ export type Database = {
           permissions: Json
         }[]
       }
+      get_deleted_trades: {
+        Args: { p_since: string; p_user_id: string }
+        Returns: {
+          created_at: string
+          deleted_at: string
+          direction: string
+          entry_price: number
+          exit_price: number
+          fees: number
+          id: string
+          pair: string
+          pnl: number
+          quantity: number
+          realized_pnl: number
+          result: string
+          source: string
+          status: string
+          stop_loss: number
+          take_profit: number
+          trade_date: string
+          updated_at: string
+          user_id: string
+        }[]
+      }
       get_rate_limit_status: {
         Args: { p_exchange?: string }
         Returns: {
@@ -1261,6 +1285,8 @@ export type Database = {
       }
       increment_sync_quota: { Args: { p_user_id: string }; Returns: number }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
+      permanent_delete_old_trades: { Args: never; Returns: number }
+      restore_trade_entry: { Args: { p_trade_id: string }; Returns: boolean }
       save_exchange_credential: {
         Args: {
           p_api_key: string

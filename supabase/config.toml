@@ -50,3 +50,6 @@ verify_jwt = false
 
 [functions.post-trade-chat]
 verify_jwt = false
+
+[functions.send-cleanup-notification]
+verify_jwt = false
