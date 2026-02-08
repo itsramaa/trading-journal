@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Activity, TrendingUp, AlertTriangle, Flame, Snowflake, Target, ArrowRight } from "lucide-react";
 import { useVolatilityBasedSizing, useBinanceVolatility } from "@/features/binance";
 import { cn } from "@/lib/utils";
+import { ATR_STOP_LOSS_CONFIG, ATR_PERIOD, VOLATILITY_LEVEL_LABELS } from "@/lib/constants/risk-multipliers";
 
 interface VolatilityStopLossProps {
   symbol: string;
@@ -49,19 +50,19 @@ export function VolatilityStopLoss({
   const { data: volatility, isLoading: volatilityLoading } = useBinanceVolatility(symbol);
   const sizing = useVolatilityBasedSizing(symbol, riskPercent);
   
-  // Calculate suggested stop-loss prices
+  // Calculate suggested stop-loss prices using centralized ATR config
   const stopLossSuggestions = useMemo(() => {
     if (!volatility || !sizing.suggestedStopLoss) return null;
     
     const { atrPercent } = volatility;
     const { suggestedStopLoss, atrBasedStopLoss } = sizing;
     
-    // Calculate stop-loss prices based on direction
+    // Calculate stop-loss prices based on direction using centralized multipliers
     const multipliers = {
-      tight: suggestedStopLoss,      // Based on volatility risk level
-      atr1x: atrPercent,             // 1x ATR
-      atr15x: atrBasedStopLoss || atrPercent * 1.5, // 1.5x ATR
-      atr2x: atrPercent * 2,         // 2x ATR
+      [ATR_STOP_LOSS_CONFIG.TIGHT.key]: suggestedStopLoss,
+      [ATR_STOP_LOSS_CONFIG.STANDARD.key]: atrPercent * ATR_STOP_LOSS_CONFIG.STANDARD.factor,
+      [ATR_STOP_LOSS_CONFIG.RECOMMENDED.key]: atrBasedStopLoss || atrPercent * ATR_STOP_LOSS_CONFIG.RECOMMENDED.factor,
+      [ATR_STOP_LOSS_CONFIG.WIDE.key]: atrPercent * ATR_STOP_LOSS_CONFIG.WIDE.factor,
     };
     
     const calculatePrice = (percent: number) => {
@@ -72,28 +73,20 @@ export function VolatilityStopLoss({
       }
     };
     
-    return {
-      tight: {
-        percent: multipliers.tight,
-        price: calculatePrice(multipliers.tight),
-        label: 'Tight (Risk Level)',
-      },
-      atr1x: {
-        percent: multipliers.atr1x,
-        price: calculatePrice(multipliers.atr1x),
-        label: '1x ATR',
-      },
-      atr15x: {
-        percent: multipliers.atr15x,
-        price: calculatePrice(multipliers.atr15x),
-        label: '1.5x ATR (Recommended)',
-      },
-      atr2x: {
-        percent: multipliers.atr2x,
-        price: calculatePrice(multipliers.atr2x),
-        label: '2x ATR (Wide)',
-      },
-    };
+    // Build suggestions from centralized config
+    const suggestions: Record<string, { percent: number; price: number; label: string; isRecommended: boolean }> = {};
+    
+    Object.values(ATR_STOP_LOSS_CONFIG).forEach(config => {
+      const percent = multipliers[config.key];
+      suggestions[config.key] = {
+        percent,
+        price: calculatePrice(percent),
+        label: config.label,
+        isRecommended: config.isRecommended,
+      };
+    });
+    
+    return suggestions;
   }, [volatility, sizing, entryPrice, direction]);
   
   if (volatilityLoading || sizing.isLoading) {
@@ -139,7 +132,7 @@ export function VolatilityStopLoss({
           </div>
         </div>
         <div>
-          <span className="text-muted-foreground">ATR (14d)</span>
+          <span className="text-muted-foreground">ATR ({ATR_PERIOD}d)</span>
           <div className="font-semibold font-mono-numbers">
             {volatility.atrPercent.toFixed(2)}%
           </div>
@@ -182,12 +175,12 @@ export function VolatilityStopLoss({
               key={key}
               className={cn(
                 "flex items-center justify-between p-2 rounded-lg border hover:bg-accent/50 transition-colors",
-                key === 'atr15x' && "border-primary/50 bg-primary/5"
+                suggestion.isRecommended && "border-primary/50 bg-primary/5"
               )}
             >
               <div className="flex items-center gap-2">
                 <span className="text-sm">{suggestion.label}</span>
-                {key === 'atr15x' && (
+                {suggestion.isRecommended && (
                   <Badge variant="secondary" className="text-xs">Best</Badge>
                 )}
               </div>

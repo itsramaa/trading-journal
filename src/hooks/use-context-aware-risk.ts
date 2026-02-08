@@ -9,6 +9,20 @@ import { useRiskProfile } from "@/hooks/use-risk-profile";
 import { useUnifiedMarketScore } from "@/hooks/use-unified-market-score";
 import { useBinanceVolatility } from "@/features/binance/useBinanceAdvancedAnalytics";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
+import { DEFAULT_RISK_VALUES } from "@/lib/constants/risk-thresholds";
+import {
+  VOLATILITY_MULTIPLIERS,
+  EVENT_MULTIPLIERS,
+  SENTIMENT_MULTIPLIERS,
+  FEAR_GREED_THRESHOLDS,
+  MOMENTUM_THRESHOLDS,
+  MOMENTUM_MULTIPLIERS,
+  PAIR_PERFORMANCE_THRESHOLDS,
+  PAIR_PERFORMANCE_MULTIPLIERS,
+  STRATEGY_PERFORMANCE_THRESHOLDS,
+  STRATEGY_PERFORMANCE_MULTIPLIERS,
+  RECOMMENDATION_THRESHOLDS,
+} from "@/lib/constants/risk-multipliers";
 
 export type AdjustmentLevel = 'positive' | 'neutral' | 'warning' | 'danger';
 
@@ -81,8 +95,8 @@ export function useContextAwareRisk(
   } = useUnifiedMarketScore({ symbol, enabled });
   const { data: volatilityData, isLoading: volLoading } = useBinanceVolatility(symbol);
   const { data: tradeEntries, isLoading: tradesLoading } = useTradeEntries();
-
-  const baseRisk = baseRiskPercent ?? riskProfile?.risk_per_trade_percent ?? 2;
+  // Use centralized default risk value
+  const baseRisk = baseRiskPercent ?? riskProfile?.risk_per_trade_percent ?? DEFAULT_RISK_VALUES.RISK_PER_TRADE;
 
   // Calculate historical performance for this pair
   const pairPerformance = useMemo(() => {
@@ -98,7 +112,8 @@ export function useContextAwareRisk(
       return tradePair === normalizedSymbol && trade.status === 'closed';
     });
 
-    if (pairTrades.length < 3) {
+    // Use centralized minimum trade count
+    if (pairTrades.length < PAIR_PERFORMANCE_THRESHOLDS.MIN_TRADES) {
       return { winRate: null, tradeCount: pairTrades.length };
     }
 
@@ -121,7 +136,8 @@ export function useContextAwareRisk(
       return trade.strategies?.some(s => s.id === strategyId);
     });
 
-    if (strategyTrades.length < 3) {
+    // Use centralized minimum trade count
+    if (strategyTrades.length < STRATEGY_PERFORMANCE_THRESHOLDS.MIN_TRADES) {
       return { winRate: null, tradeCount: strategyTrades.length };
     }
 
@@ -131,35 +147,35 @@ export function useContextAwareRisk(
     return { winRate, tradeCount: strategyTrades.length };
   }, [tradeEntries, strategyId]);
 
-  // Calculate all adjustment factors
+  // Calculate all adjustment factors using centralized multipliers
   const adjustmentFactors = useMemo<AdjustmentFactor[]>(() => {
     const factors: AdjustmentFactor[] = [];
 
-    // 1. Volatility Adjustment
+    // 1. Volatility Adjustment using centralized multipliers
     if (volatilityData?.risk) {
       const { level } = volatilityData.risk;
-      let volMultiplier = 1.0;
+      let volMultiplier = VOLATILITY_MULTIPLIERS.MEDIUM;
       let volLevel: AdjustmentLevel = 'neutral';
       let volReason = '';
 
       switch (level) {
         case 'extreme':
-          volMultiplier = 0.5;
+          volMultiplier = VOLATILITY_MULTIPLIERS.EXTREME;
           volLevel = 'danger';
           volReason = 'Extreme volatility detected - halve position size';
           break;
         case 'high':
-          volMultiplier = 0.75;
+          volMultiplier = VOLATILITY_MULTIPLIERS.HIGH;
           volLevel = 'warning';
           volReason = 'High volatility - reduce position by 25%';
           break;
         case 'medium':
-          volMultiplier = 1.0;
+          volMultiplier = VOLATILITY_MULTIPLIERS.MEDIUM;
           volLevel = 'neutral';
           volReason = 'Normal volatility conditions';
           break;
         case 'low':
-          volMultiplier = 1.1;
+          volMultiplier = VOLATILITY_MULTIPLIERS.LOW;
           volLevel = 'positive';
           volReason = 'Low volatility - can increase slightly';
           break;
@@ -184,12 +200,12 @@ export function useContextAwareRisk(
       });
     }
 
-    // 2. Event/Macro Adjustment
+    // 2. Event/Macro Adjustment using centralized multipliers
     if (hasHighImpactEvent) {
       factors.push({
         id: 'event',
         name: 'Economic Event',
-        multiplier: 0.5,
+        multiplier: EVENT_MULTIPLIERS.HIGH_IMPACT,
         reason: 'High-impact event today - reduce exposure significantly',
         level: 'danger',
         value: 'High Impact',
@@ -198,32 +214,32 @@ export function useContextAwareRisk(
       factors.push({
         id: 'event',
         name: 'Economic Event',
-        multiplier: 1.0,
+        multiplier: EVENT_MULTIPLIERS.NORMAL,
         reason: 'No major events affecting this trade',
         level: 'positive',
         value: 'Clear',
       });
     }
 
-    // 3. Market Sentiment/Bias Adjustment
-    let sentimentMultiplier = 1.0;
+    // 3. Market Sentiment/Bias Adjustment using centralized thresholds
+    let sentimentMultiplier = SENTIMENT_MULTIPLIERS.NEUTRAL;
     let sentimentLevel: AdjustmentLevel = 'neutral';
     let sentimentReason = '';
 
     if (bias === 'AVOID') {
-      sentimentMultiplier = 0.5;
+      sentimentMultiplier = SENTIMENT_MULTIPLIERS.AVOID;
       sentimentLevel = 'danger';
       sentimentReason = 'Market conditions unfavorable - reduce size';
-    } else if (components.fearGreed < 25) {
-      sentimentMultiplier = 0.8;
+    } else if (components.fearGreed < FEAR_GREED_THRESHOLDS.EXTREME_FEAR) {
+      sentimentMultiplier = SENTIMENT_MULTIPLIERS.EXTREME_FEAR;
       sentimentLevel = 'warning';
       sentimentReason = 'Extreme fear - proceed with caution';
-    } else if (components.fearGreed > 75) {
-      sentimentMultiplier = 0.9;
+    } else if (components.fearGreed > FEAR_GREED_THRESHOLDS.EXTREME_GREED) {
+      sentimentMultiplier = SENTIMENT_MULTIPLIERS.EXTREME_GREED;
       sentimentLevel = 'warning';
       sentimentReason = 'Extreme greed - watch for reversals';
     } else {
-      sentimentMultiplier = 1.0;
+      sentimentMultiplier = SENTIMENT_MULTIPLIERS.NEUTRAL;
       sentimentLevel = 'neutral';
       sentimentReason = 'Neutral sentiment conditions';
     }
@@ -237,21 +253,21 @@ export function useContextAwareRisk(
       value: `F&G: ${components.fearGreed}`,
     });
 
-    // 4. Momentum Adjustment (based on market score)
-    let momentumMultiplier = 1.0;
+    // 4. Momentum Adjustment using centralized thresholds
+    let momentumMultiplier = MOMENTUM_MULTIPLIERS.NEUTRAL;
     let momentumLevel: AdjustmentLevel = 'neutral';
     let momentumReason = '';
 
-    if (score >= 70) {
-      momentumMultiplier = 1.1;
+    if (score >= MOMENTUM_THRESHOLDS.STRONG_BULLISH) {
+      momentumMultiplier = MOMENTUM_MULTIPLIERS.STRONG;
       momentumLevel = 'positive';
       momentumReason = 'Strong bullish momentum - favorable conditions';
-    } else if (score <= 30) {
-      momentumMultiplier = 0.8;
+    } else if (score <= MOMENTUM_THRESHOLDS.WEAK) {
+      momentumMultiplier = MOMENTUM_MULTIPLIERS.WEAK;
       momentumLevel = 'warning';
       momentumReason = 'Weak momentum - reduce exposure';
     } else {
-      momentumMultiplier = 1.0;
+      momentumMultiplier = MOMENTUM_MULTIPLIERS.NEUTRAL;
       momentumLevel = 'neutral';
       momentumReason = 'Neutral momentum';
     }
@@ -265,26 +281,26 @@ export function useContextAwareRisk(
       value: `Score: ${score}`,
     });
 
-    // 5. Historical Performance Adjustment (NEW)
+    // 5. Historical Performance Adjustment using centralized thresholds
     if (pairPerformance.winRate !== null) {
-      let perfMultiplier = 1.0;
+      let perfMultiplier = PAIR_PERFORMANCE_MULTIPLIERS.AVERAGE;
       let perfLevel: AdjustmentLevel = 'neutral';
       let perfReason = '';
 
-      if (pairPerformance.winRate >= 60) {
-        perfMultiplier = 1.15;
+      if (pairPerformance.winRate >= PAIR_PERFORMANCE_THRESHOLDS.STRONG) {
+        perfMultiplier = PAIR_PERFORMANCE_MULTIPLIERS.STRONG;
         perfLevel = 'positive';
         perfReason = `Strong performance on this pair (${pairPerformance.winRate.toFixed(0)}% win rate)`;
-      } else if (pairPerformance.winRate >= 50) {
-        perfMultiplier = 1.0;
+      } else if (pairPerformance.winRate >= PAIR_PERFORMANCE_THRESHOLDS.AVERAGE) {
+        perfMultiplier = PAIR_PERFORMANCE_MULTIPLIERS.AVERAGE;
         perfLevel = 'neutral';
         perfReason = `Average performance on this pair (${pairPerformance.winRate.toFixed(0)}% win rate)`;
-      } else if (pairPerformance.winRate >= 40) {
-        perfMultiplier = 0.85;
+      } else if (pairPerformance.winRate >= PAIR_PERFORMANCE_THRESHOLDS.BELOW) {
+        perfMultiplier = PAIR_PERFORMANCE_MULTIPLIERS.BELOW_AVERAGE;
         perfLevel = 'warning';
         perfReason = `Below average performance - reduce size (${pairPerformance.winRate.toFixed(0)}% win rate)`;
       } else {
-        perfMultiplier = 0.7;
+        perfMultiplier = PAIR_PERFORMANCE_MULTIPLIERS.POOR;
         perfLevel = 'danger';
         perfReason = `Poor performance history - significantly reduce (${pairPerformance.winRate.toFixed(0)}% win rate)`;
       }
@@ -302,36 +318,36 @@ export function useContextAwareRisk(
         id: 'performance',
         name: 'Historical Performance',
         multiplier: 1.0,
-        reason: `Insufficient data (${pairPerformance.tradeCount} trades, need 3+)`,
+        reason: `Insufficient data (${pairPerformance.tradeCount} trades, need ${PAIR_PERFORMANCE_THRESHOLDS.MIN_TRADES}+)`,
         level: 'neutral',
         value: 'Limited data',
       });
     }
 
-    // 6. Strategy-Specific Performance Adjustment (NEW)
+    // 6. Strategy-Specific Performance Adjustment using centralized thresholds
     if (strategyPerformance.winRate !== null) {
-      let stratMultiplier = 1.0;
+      let stratMultiplier = STRATEGY_PERFORMANCE_MULTIPLIERS.AVERAGE;
       let stratLevel: AdjustmentLevel = 'neutral';
       let stratReason = '';
 
-      if (strategyPerformance.winRate >= 65) {
-        stratMultiplier = 1.2;
+      if (strategyPerformance.winRate >= STRATEGY_PERFORMANCE_THRESHOLDS.EXCELLENT) {
+        stratMultiplier = STRATEGY_PERFORMANCE_MULTIPLIERS.EXCELLENT;
         stratLevel = 'positive';
         stratReason = `Excellent strategy performance (${strategyPerformance.winRate.toFixed(0)}% win rate)`;
-      } else if (strategyPerformance.winRate >= 55) {
-        stratMultiplier = 1.1;
+      } else if (strategyPerformance.winRate >= STRATEGY_PERFORMANCE_THRESHOLDS.GOOD) {
+        stratMultiplier = STRATEGY_PERFORMANCE_MULTIPLIERS.GOOD;
         stratLevel = 'positive';
         stratReason = `Good strategy performance (${strategyPerformance.winRate.toFixed(0)}% win rate)`;
-      } else if (strategyPerformance.winRate >= 45) {
-        stratMultiplier = 1.0;
+      } else if (strategyPerformance.winRate >= STRATEGY_PERFORMANCE_THRESHOLDS.AVERAGE) {
+        stratMultiplier = STRATEGY_PERFORMANCE_MULTIPLIERS.AVERAGE;
         stratLevel = 'neutral';
         stratReason = `Average strategy performance (${strategyPerformance.winRate.toFixed(0)}% win rate)`;
-      } else if (strategyPerformance.winRate >= 35) {
-        stratMultiplier = 0.8;
+      } else if (strategyPerformance.winRate >= STRATEGY_PERFORMANCE_THRESHOLDS.BELOW) {
+        stratMultiplier = STRATEGY_PERFORMANCE_MULTIPLIERS.BELOW_AVERAGE;
         stratLevel = 'warning';
         stratReason = `Below average strategy - reduce size (${strategyPerformance.winRate.toFixed(0)}% win rate)`;
       } else {
-        stratMultiplier = 0.6;
+        stratMultiplier = STRATEGY_PERFORMANCE_MULTIPLIERS.POOR;
         stratLevel = 'danger';
         stratReason = `Poor strategy performance - significantly reduce (${strategyPerformance.winRate.toFixed(0)}% win rate)`;
       }
@@ -349,7 +365,7 @@ export function useContextAwareRisk(
         id: 'strategy',
         name: 'Strategy Performance',
         multiplier: 1.0,
-        reason: `Insufficient strategy data (${strategyPerformance.tradeCount} trades, need 3+)`,
+        reason: `Insufficient strategy data (${strategyPerformance.tradeCount} trades, need ${STRATEGY_PERFORMANCE_THRESHOLDS.MIN_TRADES}+)`,
         level: 'neutral',
         value: 'Limited data',
       });
@@ -358,7 +374,7 @@ export function useContextAwareRisk(
     return factors;
   }, [volatilityData, hasHighImpactEvent, bias, components, score, pairPerformance, strategyPerformance, strategyId]);
 
-  // Calculate final adjusted risk
+  // Calculate final adjusted risk using centralized thresholds
   const { totalMultiplier, adjustedRisk, recommendation, recommendationLabel } = useMemo(() => {
     const total = adjustmentFactors.reduce((acc, f) => acc * f.multiplier, 1);
     const adjusted = Math.round(baseRisk * total * 100) / 100;
@@ -366,16 +382,16 @@ export function useContextAwareRisk(
     let rec: ContextAwareRiskResult['recommendation'];
     let label: string;
 
-    if (total < 0.5) {
+    if (total < RECOMMENDATION_THRESHOLDS.SIGNIFICANTLY_REDUCE) {
       rec = 'significantly_reduce';
       label = 'Significantly Reduce';
-    } else if (total < 0.8) {
+    } else if (total < RECOMMENDATION_THRESHOLDS.REDUCE) {
       rec = 'reduce';
       label = 'Reduce Size';
-    } else if (total < 1) {
+    } else if (total < RECOMMENDATION_THRESHOLDS.SLIGHTLY_REDUCE) {
       rec = 'slightly_reduce';
       label = 'Slightly Reduce';
-    } else if (total > 1.05) {
+    } else if (total > RECOMMENDATION_THRESHOLDS.INCREASE) {
       rec = 'increase';
       label = 'Can Increase';
     } else {
