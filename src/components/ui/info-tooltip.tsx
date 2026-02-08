@@ -4,6 +4,7 @@
  * #10: Help and documentation
  */
 
+import { forwardRef } from "react";
 import { HelpCircle, Info, AlertCircle } from "lucide-react";
 import {
   Tooltip,
@@ -20,38 +21,36 @@ interface InfoTooltipProps {
   className?: string;
 }
 
-export function InfoTooltip({
-  content,
-  side = "top",
-  variant = "info",
-  className,
-}: InfoTooltipProps) {
-  const Icon = variant === "help" ? HelpCircle : variant === "warning" ? AlertCircle : Info;
-  
-  return (
-    <TooltipProvider>
-      <Tooltip delayDuration={300}>
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            className={cn(
-              "inline-flex items-center justify-center rounded-full p-0.5 transition-colors",
-              "text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
-              variant === "warning" && "text-yellow-500 hover:text-yellow-400",
-              className
-            )}
-          >
-            <Icon className="h-4 w-4" />
-            <span className="sr-only">More information</span>
-          </button>
-        </TooltipTrigger>
-        <TooltipContent side={side} className="max-w-xs">
-          <p className="text-sm">{content}</p>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  );
-}
+export const InfoTooltip = forwardRef<HTMLButtonElement, InfoTooltipProps>(
+  function InfoTooltip({ content, side = "top", variant = "info", className }, ref) {
+    const Icon = variant === "help" ? HelpCircle : variant === "warning" ? AlertCircle : Info;
+    
+    return (
+      <TooltipProvider>
+        <Tooltip delayDuration={300}>
+          <TooltipTrigger asChild>
+            <button
+              ref={ref}
+              type="button"
+              className={cn(
+                "inline-flex items-center justify-center rounded-full p-0.5 transition-colors",
+                "text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+                variant === "warning" && "text-yellow-500 hover:text-yellow-400",
+                className
+              )}
+            >
+              <Icon className="h-4 w-4" />
+              <span className="sr-only">More information</span>
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side={side} className="max-w-xs">
+            <p className="text-sm">{content}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+);
 
 // Pre-configured tooltips for common financial terms
 export function ProfitLossTooltip() {
