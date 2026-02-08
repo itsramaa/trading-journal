@@ -9,45 +9,33 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, Target, ShieldAlert, TrendingDown, Clock } from "lucide-react";
+import { Plus, Trash2, Target } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ExitRule, ExitRuleType, ExitRuleUnit } from "@/types/strategy";
+import {
+  EXIT_RULE_TYPES,
+  UNIT_OPTIONS,
+  EXIT_RULE_COLOR_CLASSES,
+  getExitRuleTypeConfig,
+  getUnitLabel,
+} from "@/lib/constants/strategy-rules";
 
 interface ExitRulesBuilderProps {
   rules: ExitRule[];
   onChange: (rules: ExitRule[]) => void;
 }
 
-const EXIT_TYPE_OPTIONS: { value: ExitRuleType; label: string; icon: React.ElementType; description: string }[] = [
-  { value: 'take_profit', label: 'Take Profit', icon: Target, description: 'Target price/ratio to exit with profit' },
-  { value: 'stop_loss', label: 'Stop Loss', icon: ShieldAlert, description: 'Maximum loss threshold' },
-  { value: 'trailing_stop', label: 'Trailing Stop', icon: TrendingDown, description: 'Dynamic stop that follows price' },
-  { value: 'time_based', label: 'Time-Based', icon: Clock, description: 'Exit after specific duration' },
-];
-
-const UNIT_OPTIONS: { value: ExitRuleUnit; label: string }[] = [
-  { value: 'percent', label: '%' },
-  { value: 'rr', label: 'R:R' },
-  { value: 'atr', label: 'ATR' },
-  { value: 'pips', label: 'Pips' },
-];
-
 export function ExitRulesBuilder({ rules, onChange }: ExitRulesBuilderProps) {
   const [isAddingRule, setIsAddingRule] = useState(false);
   const [newRuleType, setNewRuleType] = useState<ExitRuleType>('take_profit');
 
   const handleAddRule = () => {
-    const defaultValues: Record<ExitRuleType, { value: number; unit: ExitRuleUnit }> = {
-      'take_profit': { value: 2, unit: 'rr' },
-      'stop_loss': { value: 1, unit: 'rr' },
-      'trailing_stop': { value: 1.5, unit: 'percent' },
-      'time_based': { value: 24, unit: 'percent' }, // hours
-    };
-
+    const ruleConfig = getExitRuleTypeConfig(newRuleType);
     const newRule: ExitRule = {
       id: `${newRuleType}_${Date.now()}`,
       type: newRuleType,
-      ...defaultValues[newRuleType],
+      value: ruleConfig?.defaultValue || 1,
+      unit: ruleConfig?.defaultUnit || 'rr',
     };
     onChange([...rules, newRule]);
     setIsAddingRule(false);
@@ -62,29 +50,17 @@ export function ExitRulesBuilder({ rules, onChange }: ExitRulesBuilderProps) {
   };
 
   const getRuleIcon = (type: ExitRuleType) => {
-    const option = EXIT_TYPE_OPTIONS.find(r => r.value === type);
+    const option = getExitRuleTypeConfig(type);
     return option?.icon || Target;
   };
 
   const getRuleLabel = (type: ExitRuleType) => {
-    const option = EXIT_TYPE_OPTIONS.find(r => r.value === type);
+    const option = getExitRuleTypeConfig(type);
     return option?.label || type;
   };
 
-  const getUnitLabel = (unit: ExitRuleUnit) => {
-    const option = UNIT_OPTIONS.find(u => u.value === unit);
-    return option?.label || unit;
-  };
-
-  // Using design system tokens for consistent colors
   const getRuleColor = (type: ExitRuleType) => {
-    switch (type) {
-      case 'take_profit': return 'text-profit border-profit/30 bg-profit-muted';
-      case 'stop_loss': return 'text-loss border-loss/30 bg-loss-muted';
-      case 'trailing_stop': return 'text-[hsl(var(--chart-4))] border-[hsl(var(--chart-4))]/30 bg-[hsl(var(--chart-4))]/5';
-      case 'time_based': return 'text-[hsl(var(--chart-6))] border-[hsl(var(--chart-6))]/30 bg-[hsl(var(--chart-6))]/5';
-      default: return 'border-border bg-muted/30';
-    }
+    return EXIT_RULE_COLOR_CLASSES[type] || 'border-border bg-muted/30';
   };
 
   return (
@@ -172,7 +148,7 @@ export function ExitRulesBuilder({ rules, onChange }: ExitRulesBuilderProps) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {EXIT_TYPE_OPTIONS.map((option) => (
+                {EXIT_RULE_TYPES.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     <div className="flex items-center gap-2">
                       <option.icon className="h-4 w-4" />

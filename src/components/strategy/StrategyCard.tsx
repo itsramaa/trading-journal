@@ -13,18 +13,7 @@ import type { TradingStrategy } from "@/hooks/use-trading-strategies";
 import { getQualityScoreLabel, type StrategyPerformance } from "@/hooks/use-strategy-performance";
 import { useStrategyContext } from "@/hooks/use-strategy-context";
 import { formatWinRate, formatNumber } from "@/lib/formatters";
-
-// Design system color tokens
-const colorClasses: Record<string, string> = {
-  blue: 'bg-primary/10 text-primary border-primary/30',
-  green: 'bg-profit/10 text-profit border-profit/30',
-  purple: 'bg-[hsl(var(--chart-3))]/10 text-[hsl(var(--chart-3))] border-[hsl(var(--chart-3))]/30',
-  orange: 'bg-[hsl(var(--chart-4))]/10 text-[hsl(var(--chart-4))] border-[hsl(var(--chart-4))]/30',
-  red: 'bg-loss/10 text-loss border-loss/30',
-  teal: 'bg-[hsl(var(--chart-1))]/10 text-[hsl(var(--chart-1))] border-[hsl(var(--chart-1))]/30',
-  pink: 'bg-[hsl(var(--chart-6))]/10 text-[hsl(var(--chart-6))] border-[hsl(var(--chart-6))]/30',
-  yellow: 'bg-[hsl(var(--chart-4))]/15 text-[hsl(var(--chart-4))] border-[hsl(var(--chart-4))]/30',
-};
+import { STRATEGY_CARD_COLOR_CLASSES, STRATEGY_DEFAULTS } from "@/lib/constants/strategy-config";
 
 interface StrategyCardProps {
   strategy: TradingStrategy;
@@ -38,7 +27,7 @@ export function StrategyCard({ strategy, performance, onEdit, onDelete, onBackte
   const navigate = useNavigate();
   const qualityScore = performance?.aiQualityScore || 0;
   const scoreInfo = getQualityScoreLabel(qualityScore);
-  const colorClass = colorClasses[strategy.color || 'blue'] || colorClasses.blue;
+  const colorClass = STRATEGY_CARD_COLOR_CLASSES[strategy.color || STRATEGY_DEFAULTS.COLOR] || STRATEGY_CARD_COLOR_CLASSES.blue;
   
   // Get market fit context for this strategy
   const strategyContext = useStrategyContext(strategy);
@@ -169,15 +158,15 @@ export function StrategyCard({ strategy, performance, onEdit, onDelete, onBackte
             )}
             <Badge variant="outline" className="text-xs">
               <TrendingUp className="h-3 w-3 mr-1" aria-hidden="true" />
-              {strategy.market_type || 'spot'}
+              {strategy.market_type || STRATEGY_DEFAULTS.MARKET_TYPE}
             </Badge>
             <Badge variant="outline" className="text-xs">
               <Shield className="h-3 w-3 mr-1" aria-hidden="true" />
-              {strategy.min_confluences || 4} confluences
+              {strategy.min_confluences || STRATEGY_DEFAULTS.MIN_CONFLUENCES} confluences
             </Badge>
             <Badge variant="outline" className="text-xs">
               <Target className="h-3 w-3 mr-1" aria-hidden="true" />
-              {strategy.min_rr || 1.5}:1 R:R
+              {strategy.min_rr || STRATEGY_DEFAULTS.MIN_RR}:1 R:R
             </Badge>
           </div>
 

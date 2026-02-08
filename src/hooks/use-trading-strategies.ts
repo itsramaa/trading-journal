@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import type { EntryRule, ExitRule, TimeframeType, MarketType, StrategyStatus } from "@/types/strategy";
+import { STRATEGY_DEFAULTS } from "@/lib/constants/strategy-config";
 
 export interface TradingStrategy {
   id: string;
@@ -70,8 +71,8 @@ export function useTradingStrategies() {
         entry_rules: (Array.isArray(s.entry_rules) ? s.entry_rules : []) as unknown as EntryRule[] | null,
         exit_rules: (Array.isArray(s.exit_rules) ? s.exit_rules : []) as unknown as ExitRule[] | null,
         timeframe: s.timeframe as TimeframeType | null,
-        market_type: (s.market_type || 'spot') as MarketType,
-        status: (s.status || 'active') as StrategyStatus,
+        market_type: (s.market_type || STRATEGY_DEFAULTS.MARKET_TYPE) as MarketType,
+        status: (s.status || STRATEGY_DEFAULTS.STATUS) as StrategyStatus,
         source: s.source || null,
         source_url: s.source_url || null,
       })) as TradingStrategy[];
@@ -96,14 +97,14 @@ export function useCreateTradingStrategy() {
           name: input.name,
           description: input.description || null,
           tags: input.tags || [],
-          color: input.color || 'blue',
+          color: input.color || STRATEGY_DEFAULTS.COLOR,
           timeframe: input.timeframe || null,
-          market_type: input.market_type || 'spot',
-          min_confluences: input.min_confluences || 4,
-          min_rr: input.min_rr || 1.5,
+          market_type: input.market_type || STRATEGY_DEFAULTS.MARKET_TYPE,
+          min_confluences: input.min_confluences || STRATEGY_DEFAULTS.MIN_CONFLUENCES,
+          min_rr: input.min_rr || STRATEGY_DEFAULTS.MIN_RR,
           entry_rules: JSON.parse(JSON.stringify(input.entry_rules || [])),
           exit_rules: JSON.parse(JSON.stringify(input.exit_rules || [])),
-          valid_pairs: input.valid_pairs || ['BTC', 'ETH', 'BNB'],
+          valid_pairs: input.valid_pairs || [...STRATEGY_DEFAULTS.VALID_PAIRS],
         }])
         .select()
         .single();

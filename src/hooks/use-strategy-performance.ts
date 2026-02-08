@@ -3,6 +3,12 @@
  */
 import { useMemo } from "react";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
+import {
+  AI_QUALITY_SCORE_CONFIG,
+  QUALITY_SCORE_THRESHOLDS,
+  QUALITY_SCORE_LABELS,
+  type QualityScoreLabel,
+} from "@/lib/constants/strategy-config";
 
 export interface StrategyPerformance {
   strategyId: string;
@@ -24,19 +30,22 @@ function calculateAIQualityScore(
   profitFactor: number,
   totalTrades: number
 ): number {
+  const { WEIGHTS, PROFIT_FACTOR_NORMALIZATION, CONSISTENCY_TRADE_TARGET, SAMPLE_SIZE_MINIMUM } = AI_QUALITY_SCORE_CONFIG;
+
   // Win Rate component (40% weight) - normalized to 0-100
-  const winRateScore = Math.min(winRate * 100, 100) * 0.4;
+  const winRateScore = Math.min(winRate * 100, 100) * WEIGHTS.WIN_RATE;
 
-  // Profit Factor component (30% weight) - 1.5+ is good, 2.0+ is excellent
-  const pfNormalized = Math.min((profitFactor / 2.5) * 100, 100);
-  const pfScore = pfNormalized * 0.3;
+  // Profit Factor component (30% weight) - normalized using config
+  const pfNormalized = Math.min((profitFactor / PROFIT_FACTOR_NORMALIZATION) * 100, 100);
+  const pfScore = pfNormalized * WEIGHTS.PROFIT_FACTOR;
 
-  // Consistency component (20% weight) - based on sample size
-  // More trades = more reliable signal
-  const consistencyScore = Math.min((totalTrades / 20) * 100, 100) * 0.2;
+  // Consistency component (20% weight) - based on sample size relative to target
+  const consistencyScore = Math.min((totalTrades / CONSISTENCY_TRADE_TARGET) * 100, 100) * WEIGHTS.CONSISTENCY;
 
-  // Sample size bonus (10% weight) - having 10+ trades is minimum viable
-  const sampleSizeScore = totalTrades >= 10 ? 100 * 0.1 : (totalTrades / 10) * 100 * 0.1;
+  // Sample size bonus (10% weight) - having minimum trades is required
+  const sampleSizeScore = totalTrades >= SAMPLE_SIZE_MINIMUM 
+    ? 100 * WEIGHTS.SAMPLE_SIZE 
+    : (totalTrades / SAMPLE_SIZE_MINIMUM) * 100 * WEIGHTS.SAMPLE_SIZE;
 
   return Math.round(winRateScore + pfScore + consistencyScore + sampleSizeScore);
 }
@@ -80,7 +89,11 @@ export function useStrategyPerformance(): Map<string, StrategyPerformance> {
           .filter((t) => (t.pnl || 0) < 0)
           .reduce((sum, t) => sum + (t.pnl || 0), 0)
       );
-      const profitFactor = totalLossPnl > 0 ? totalWinPnl / totalLossPnl : totalWinPnl > 0 ? 99 : 0;
+      const profitFactor = totalLossPnl > 0 
+        ? totalWinPnl / totalLossPnl 
+        : totalWinPnl > 0 
+          ? AI_QUALITY_SCORE_CONFIG.PROFIT_FACTOR_INFINITY_FALLBACK 
+          : 0;
 
       // Calculate avg PnL
       const avgPnl =
@@ -110,19 +123,15 @@ export function useStrategyPerformance(): Map<string, StrategyPerformance> {
 /**
  * Get quality score label and color based on score
  */
-export function getQualityScoreLabel(score: number): {
-  label: string;
-  variant: 'default' | 'secondary' | 'destructive' | 'outline';
-  colorClass: string;
-} {
-  if (score >= 80) {
-    return { label: 'Excellent', variant: 'default', colorClass: 'bg-green-500/20 text-green-500' };
-  } else if (score >= 60) {
-    return { label: 'Good', variant: 'secondary', colorClass: 'bg-blue-500/20 text-blue-500' };
-  } else if (score >= 40) {
-    return { label: 'Fair', variant: 'outline', colorClass: 'bg-yellow-500/20 text-yellow-500' };
-  } else if (score > 0) {
-    return { label: 'Needs Work', variant: 'destructive', colorClass: 'bg-orange-500/20 text-orange-500' };
+export function getQualityScoreLabel(score: number): QualityScoreLabel {
+  if (score >= QUALITY_SCORE_THRESHOLDS.EXCELLENT) {
+    return QUALITY_SCORE_LABELS.EXCELLENT;
+  } else if (score >= QUALITY_SCORE_THRESHOLDS.GOOD) {
+    return QUALITY_SCORE_LABELS.GOOD;
+  } else if (score >= QUALITY_SCORE_THRESHOLDS.FAIR) {
+    return QUALITY_SCORE_LABELS.FAIR;
+  } else if (score > QUALITY_SCORE_THRESHOLDS.NO_DATA) {
+    return QUALITY_SCORE_LABELS.NEEDS_WORK;
   }
-  return { label: 'No Data', variant: 'outline', colorClass: 'bg-muted text-muted-foreground' };
+  return QUALITY_SCORE_LABELS.NO_DATA;
 }

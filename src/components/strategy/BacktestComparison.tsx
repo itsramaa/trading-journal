@@ -33,41 +33,10 @@ import { format } from 'date-fns';
 import { useBacktestHistory } from '@/hooks/use-backtest';
 import { useBacktestExport } from '@/hooks/use-backtest-export';
 import type { BacktestResult } from '@/types/backtest';
+import { COMPARISON_CONFIG, METRICS_CONFIG, type MetricConfig } from '@/lib/constants/backtest-config';
 
-const CHART_COLORS = [
-  'hsl(var(--primary))',      // Blue
-  'hsl(var(--chart-2))',      // Green  
-  'hsl(var(--chart-3))',      // Orange
-  'hsl(var(--chart-4))',      // Red
-];
-
-const COLOR_CLASSES = [
-  'bg-primary text-primary-foreground',
-  'bg-chart-2 text-primary-foreground',
-  'bg-chart-3 text-primary-foreground',
-  'bg-chart-4 text-primary-foreground',
-];
-
-interface MetricConfig {
-  key: keyof BacktestResult['metrics'] | 'finalCapital';
-  label: string;
-  format: (value: number) => string;
-  higherIsBetter: boolean;
-}
-
-const METRICS_CONFIG: MetricConfig[] = [
-  { key: 'totalReturn', label: 'Total Return', format: (v) => `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`, higherIsBetter: true },
-  { key: 'winRate', label: 'Win Rate', format: (v) => `${(v * 100).toFixed(1)}%`, higherIsBetter: true },
-  { key: 'maxDrawdown', label: 'Max Drawdown', format: (v) => `-${v.toFixed(2)}%`, higherIsBetter: false },
-  { key: 'sharpeRatio', label: 'Sharpe Ratio', format: (v) => v.toFixed(2), higherIsBetter: true },
-  { key: 'profitFactor', label: 'Profit Factor', format: (v) => v === Infinity ? '∞' : v.toFixed(2), higherIsBetter: true },
-  { key: 'totalTrades', label: 'Total Trades', format: (v) => v.toString(), higherIsBetter: true },
-  { key: 'avgWin', label: 'Avg Win', format: (v) => `$${v.toFixed(2)}`, higherIsBetter: true },
-  { key: 'avgLoss', label: 'Avg Loss', format: (v) => `-$${v.toFixed(2)}`, higherIsBetter: false },
-  { key: 'avgRiskReward', label: 'Avg R:R', format: (v) => v.toFixed(2), higherIsBetter: true },
-  { key: 'consecutiveWins', label: 'Max Consec. Wins', format: (v) => v.toString(), higherIsBetter: true },
-  { key: 'consecutiveLosses', label: 'Max Consec. Losses', format: (v) => v.toString(), higherIsBetter: false },
-];
+const CHART_COLORS = COMPARISON_CONFIG.CHART_COLORS;
+const COLOR_CLASSES = COMPARISON_CONFIG.COLOR_CLASSES;
 
 export function BacktestComparison() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -83,8 +52,8 @@ export function BacktestComparison() {
       if (prev.includes(id)) {
         return prev.filter((i) => i !== id);
       }
-      if (prev.length >= 4) {
-        return prev; // Max 4 selections
+      if (prev.length >= COMPARISON_CONFIG.MAX_SELECTIONS) {
+        return prev;
       }
       return [...prev, id];
     });
