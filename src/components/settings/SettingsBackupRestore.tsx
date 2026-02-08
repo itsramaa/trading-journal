@@ -23,6 +23,7 @@ import {
 import { useUserSettings, useUpdateUserSettings } from "@/hooks/use-user-settings";
 import { useRiskProfile } from "@/hooks/use-risk-profile";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
+import { DEFAULT_RISK_PROFILE } from "@/types/risk";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
@@ -99,12 +100,12 @@ export function SettingsBackupRestore() {
 
       if (includeRiskProfile && riskProfile) {
         backup.data.riskProfile = {
-          max_daily_loss_percent: riskProfile.max_daily_loss_percent ?? 3,
-          max_weekly_drawdown_percent: riskProfile.max_weekly_drawdown_percent ?? 10,
-          risk_per_trade_percent: riskProfile.risk_per_trade_percent ?? 1,
-          max_position_size_percent: riskProfile.max_position_size_percent ?? 5,
-          max_concurrent_positions: riskProfile.max_concurrent_positions ?? 3,
-          max_correlated_exposure: riskProfile.max_correlated_exposure ?? 40,
+          max_daily_loss_percent: riskProfile.max_daily_loss_percent ?? DEFAULT_RISK_PROFILE.max_daily_loss_percent,
+          max_weekly_drawdown_percent: riskProfile.max_weekly_drawdown_percent ?? DEFAULT_RISK_PROFILE.max_weekly_drawdown_percent,
+          risk_per_trade_percent: riskProfile.risk_per_trade_percent ?? DEFAULT_RISK_PROFILE.risk_per_trade_percent,
+          max_position_size_percent: riskProfile.max_position_size_percent ?? DEFAULT_RISK_PROFILE.max_position_size_percent,
+          max_concurrent_positions: riskProfile.max_concurrent_positions ?? DEFAULT_RISK_PROFILE.max_concurrent_positions,
+          max_correlated_exposure: riskProfile.max_correlated_exposure ?? DEFAULT_RISK_PROFILE.max_correlated_exposure,
         };
       }
 
