@@ -138,9 +138,12 @@ async function fetchUserTradesForSymbol(
 ): Promise<BinanceTrade[]> {
   const allTrades: BinanceTrade[] = [];
   
-  // Calculate number of 7-day chunks needed
+  // Calculate number of 6.5-day chunks needed
   const totalDuration = endTime - startTime;
   const numChunks = Math.ceil(totalDuration / MAX_TRADES_INTERVAL_MS);
+  
+  // Debug logging for performance monitoring
+  console.log(`[Enricher] ${symbol}: Fetching ${numChunks} chunks for ${Math.round(totalDuration / (24*60*60*1000))} days`);
   
   for (let i = 0; i < numChunks; i++) {
     const chunkStart = startTime + (i * MAX_TRADES_INTERVAL_MS);
