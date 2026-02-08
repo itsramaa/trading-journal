@@ -41,6 +41,8 @@ import type {
   BacktestVolatilityFilter 
 } from "@/types/backtest";
 import { COMMON_PAIRS } from "@/types/strategy";
+import { BACKTEST_DEFAULTS, BACKTEST_FILTERS, EXCHANGE_COMMISSION_RATES } from "@/lib/constants/backtest-config";
+import { STRATEGY_DEFAULTS } from "@/lib/constants/strategy-config";
 
 export function BacktestRunner() {
   const [searchParams] = useSearchParams();
@@ -49,18 +51,18 @@ export function BacktestRunner() {
   
   // Basic config
   const [selectedStrategyId, setSelectedStrategyId] = useState<string>(strategyFromUrl || '');
-  const [selectedPair, setSelectedPair] = useState('BTC');
-  const [periodStart, setPeriodStart] = useState<Date>(subMonths(new Date(), 3));
+  const [selectedPair, setSelectedPair] = useState<string>(BACKTEST_DEFAULTS.DEFAULT_PAIR);
+  const [periodStart, setPeriodStart] = useState<Date>(subMonths(new Date(), BACKTEST_DEFAULTS.PERIOD_MONTHS));
   const [periodEnd, setPeriodEnd] = useState<Date>(new Date());
-  const [initialCapital, setInitialCapital] = useState(10000);
-  const [commissionRate, setCommissionRate] = useState(0.04); // 0.04%
+  const [initialCapital, setInitialCapital] = useState<number>(BACKTEST_DEFAULTS.INITIAL_CAPITAL);
+  const [commissionRate, setCommissionRate] = useState<number>(EXCHANGE_COMMISSION_RATES.BINANCE_FUTURES.TAKER);
   const [result, setResult] = useState<BacktestResult | null>(null);
 
   // Enhanced filters
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [eventFilter, setEventFilter] = useState<BacktestEventFilter>({
     excludeHighImpact: false,
-    bufferHours: 4,
+    bufferHours: BACKTEST_FILTERS.EVENT_BUFFER.DEFAULT_HOURS,
   });
   const [sessionFilter, setSessionFilter] = useState<BacktestSessionFilter>('all');
   const [volatilityFilter, setVolatilityFilter] = useState<BacktestVolatilityFilter>('all');

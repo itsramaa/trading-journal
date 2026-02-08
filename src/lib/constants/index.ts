@@ -17,6 +17,9 @@ export * from './economic-calendar';
 
 // Trade history configuration
 export * from './trade-history';
+export * from './strategy-config';
+export * from './backtest-config';
+export * from './strategy-rules';
 
 // AI analytics thresholds
 export * from './ai-analytics';

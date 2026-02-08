@@ -10,41 +10,33 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, GripVertical, TrendingUp, BarChart3, LineChart, Clock, Link, MessageSquare } from "lucide-react";
+import { Plus, Trash2, GripVertical, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { EntryRule, EntryRuleType } from "@/types/strategy";
+import { 
+  ENTRY_RULE_TYPES, 
+  INDICATOR_OPTIONS, 
+  RULE_BUILDER_CONFIG,
+  getEntryRuleTypeConfig 
+} from "@/lib/constants/strategy-rules";
 
 interface EntryRulesBuilderProps {
   rules: EntryRule[];
   onChange: (rules: EntryRule[]) => void;
 }
 
-const RULE_TYPE_OPTIONS: { value: EntryRuleType; label: string; icon: React.ElementType; description: string }[] = [
-  { value: 'price_action', label: 'Price Action', icon: TrendingUp, description: 'Support/Resistance, candlestick patterns' },
-  { value: 'volume', label: 'Volume', icon: BarChart3, description: 'Volume confirmation signals' },
-  { value: 'indicator', label: 'Indicator', icon: LineChart, description: 'RSI, MACD, EMA, etc.' },
-  { value: 'higher_tf', label: 'Higher Timeframe', icon: Clock, description: 'HTF trend alignment' },
-  { value: 'on_chain', label: 'On-Chain', icon: Link, description: 'Whale movements, funding rates' },
-  { value: 'sentiment', label: 'Sentiment', icon: MessageSquare, description: 'Market sentiment, news' },
-];
-
-const INDICATOR_OPTIONS = [
-  'RSI', 'MACD', 'EMA', 'SMA', 'Bollinger Bands', 'Stochastic', 
-  'ATR', 'Volume Profile', 'VWAP', 'Ichimoku', 'Fibonacci'
-];
-
 export function EntryRulesBuilder({ rules, onChange }: EntryRulesBuilderProps) {
   const [isAddingRule, setIsAddingRule] = useState(false);
   const [newRuleType, setNewRuleType] = useState<EntryRuleType>('price_action');
 
   const handleAddRule = () => {
-    const ruleTypeInfo = RULE_TYPE_OPTIONS.find(r => r.value === newRuleType);
+    const ruleTypeInfo = getEntryRuleTypeConfig(newRuleType);
     const newRule: EntryRule = {
       id: `${newRuleType}_${Date.now()}`,
       type: newRuleType,
       condition: ruleTypeInfo?.description || '',
-      is_mandatory: rules.length < 4, // First 4 rules are mandatory by default
-      indicator: newRuleType === 'indicator' ? 'RSI' : undefined,
+      is_mandatory: rules.length < RULE_BUILDER_CONFIG.DEFAULT_MANDATORY_THRESHOLD,
+      indicator: newRuleType === 'indicator' ? RULE_BUILDER_CONFIG.DEFAULT_INDICATOR : undefined,
     };
     onChange([...rules, newRule]);
     setIsAddingRule(false);
@@ -59,12 +51,12 @@ export function EntryRulesBuilder({ rules, onChange }: EntryRulesBuilderProps) {
   };
 
   const getRuleIcon = (type: EntryRuleType) => {
-    const option = RULE_TYPE_OPTIONS.find(r => r.value === type);
+    const option = getEntryRuleTypeConfig(type);
     return option?.icon || TrendingUp;
   };
 
   const getRuleLabel = (type: EntryRuleType) => {
-    const option = RULE_TYPE_OPTIONS.find(r => r.value === type);
+    const option = getEntryRuleTypeConfig(type);
     return option?.label || type;
   };
 
@@ -80,7 +72,7 @@ export function EntryRulesBuilder({ rules, onChange }: EntryRulesBuilderProps) {
           </Badge>
         </div>
         <p className="text-xs text-muted-foreground">
-          Define confluence requirements. Markdown spec requires min 4 confluences.
+          Define confluence requirements. Markdown spec requires min {RULE_BUILDER_CONFIG.DEFAULT_MANDATORY_THRESHOLD} confluences.
         </p>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -90,7 +82,7 @@ export function EntryRulesBuilder({ rules, onChange }: EntryRulesBuilderProps) {
           </div>
         ) : (
           <div className="space-y-2">
-            {rules.map((rule, index) => {
+            {rules.map((rule) => {
               const Icon = getRuleIcon(rule.type);
               return (
                 <div
@@ -120,7 +112,7 @@ export function EntryRulesBuilder({ rules, onChange }: EntryRulesBuilderProps) {
                     
                     {rule.type === 'indicator' && (
                       <Select
-                        value={rule.indicator || 'RSI'}
+                        value={rule.indicator || RULE_BUILDER_CONFIG.DEFAULT_INDICATOR}
                         onValueChange={(v) => handleUpdateRule(rule.id, { indicator: v })}
                       >
                         <SelectTrigger className="h-8 text-sm w-40">
@@ -167,7 +159,7 @@ export function EntryRulesBuilder({ rules, onChange }: EntryRulesBuilderProps) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {RULE_TYPE_OPTIONS.map((option) => (
+                {ENTRY_RULE_TYPES.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     <div className="flex items-center gap-2">
                       <option.icon className="h-4 w-4" />
