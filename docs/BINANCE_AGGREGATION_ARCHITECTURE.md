@@ -1,8 +1,8 @@
 # Binance Aggregation Architecture
 ## Data Ingestion & Local DB Re-Architecture
 
-**Version**: 2.0  
-**Status**: ✅ IMPLEMENTED (Phase 1-3 Complete)  
+**Version**: 2.1  
+**Status**: ✅ IMPLEMENTED (Phase 1-4 Complete)  
 **Date**: 2025-02-08
 
 ---
@@ -678,6 +678,10 @@ Before inserting a trade entry, verify:
 | 3 | Status Badge | `src/components/trading/SyncStatusBadge.tsx` | ✅ Complete |
 | 3 | Reconciliation Report | `src/components/trading/SyncReconciliationReport.tsx` | ✅ Complete |
 | 3 | Trade History Integration | `src/pages/TradeHistory.tsx` | ✅ Complete |
+| 4 | Auto-Sync Toggle | `src/components/settings/BinanceAutoSyncToggle.tsx` | ✅ Complete |
+| 4 | Background Sync Hook | `src/hooks/use-binance-background-sync.ts` | ✅ Complete |
+| 4 | Re-Sync Time Window | `src/components/trading/ReSyncTimeWindow.tsx` | ✅ Complete |
+| 4 | Dashboard Integration | `src/components/layout/DashboardLayout.tsx` | ✅ Complete |
 
 ### Key Features Implemented
 
@@ -699,3 +703,17 @@ Before inserting a trade entry, verify:
    - Lists validation warnings
    - Shows failed lifecycle details
    - Clickable badge opens full report modal
+
+4. **Background Auto-Sync (Phase 4)**
+   - Toggle in Settings > Exchange tab to enable/disable
+   - Configurable sync interval (15min to 4 hours)
+   - Runs in background via `useBinanceBackgroundSync` in DashboardLayout
+   - Notifications on sync errors when enabled
+   - Last sync timestamp tracking
+
+5. **Re-Sync Time Window (Phase 4)**
+   - UI component for re-syncing specific date range
+   - Automatically shown when reconciliation fails (mismatch detected)
+   - Quick select buttons (7/30/90 days)
+   - Calendar date picker for custom range
+   - Progress and result indicators

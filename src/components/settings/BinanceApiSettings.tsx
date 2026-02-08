@@ -24,6 +24,7 @@ import {
 import { useExchangeCredentials } from "@/hooks/use-exchange-credentials";
 import { toast } from "sonner";
 import { BinanceAccountConfigCard } from "./BinanceAccountConfigCard";
+import { BinanceAutoSyncToggle } from "./BinanceAutoSyncToggle";
 import { ApiKeyForm } from "./ApiKeyForm";
 import { RateLimitDisplay } from "./RateLimitDisplay";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -237,6 +238,9 @@ export function BinanceApiSettings() {
       
       {/* Rate Limit Display */}
       {hasCredential && <RateLimitDisplay />}
+      
+      {/* Auto-Sync Toggle (only show if connected) */}
+      {isConnected && <BinanceAutoSyncToggle isConnected={isConnected} />}
       
       {/* Account Configuration Card (only show if connected) */}
       {isConnected && (
