@@ -38,6 +38,13 @@ import { SessionInsights } from "@/components/analytics/SessionInsights";
 import { cn } from "@/lib/utils";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { format as formatDate, subDays, isWithinInterval } from "date-fns";
+import { 
+  PERFORMANCE_THRESHOLDS, 
+  DATA_QUALITY, 
+  TIME_ANALYSIS,
+  getTimeSlotHour,
+  getDayLabel
+} from "@/lib/constants/ai-analytics";
 
 // Types
 interface PerformanceInsight {
@@ -73,11 +80,11 @@ export default function AIInsights() {
     trades.filter(t => t.status === 'closed'), [trades]
   );
 
-  // Recent trades (last 30 days)
+  // Recent trades (last 30 days using centralized constant)
   const recentTrades = useMemo(() => {
-    const thirtyDaysAgo = subDays(new Date(), 30);
+    const cutoffDate = subDays(new Date(), TIME_ANALYSIS.RECENT_DAYS);
     return closedTrades.filter(t => 
-      isWithinInterval(new Date(t.trade_date), { start: thirtyDaysAgo, end: new Date() })
+      isWithinInterval(new Date(t.trade_date), { start: cutoffDate, end: new Date() })
     );
   }, [closedTrades]);
 
@@ -130,16 +137,15 @@ export default function AIInsights() {
         winRate: (s.wins / (s.wins + s.losses)) * 100,
         trades: s.wins + s.losses
       }))
-      .filter(p => p.trades >= 3)
+      .filter(p => p.trades >= DATA_QUALITY.MIN_TRADES_FOR_RANKING)
       .sort((a, b) => b.pnl - a.pnl);
 
-    // Time analysis
+    // Time analysis using centralized functions
     const timeSlots: Record<string, TimeSlotAnalysis> = {};
-    const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     closedTrades.forEach(t => {
       const d = new Date(t.trade_date);
-      const day = DAYS[d.getDay()];
-      const hour = Math.floor(d.getHours() / 4) * 4;
+      const day = getDayLabel(d);
+      const hour = getTimeSlotHour(d);
       const key = `${day}-${hour}`;
       if (!timeSlots[key]) {
         timeSlots[key] = { day, hour, winRate: 0, trades: 0, avgPnl: 0 };
@@ -152,7 +158,7 @@ export default function AIInsights() {
       else slot.winRate = (slot.winRate * (slot.trades - 1) / 100) / slot.trades * 100;
     });
 
-    const sortedSlots = Object.values(timeSlots).filter(s => s.trades >= 3);
+    const sortedSlots = Object.values(timeSlots).filter(s => s.trades >= DATA_QUALITY.MIN_TRADES_FOR_RANKING);
     const bestTimeSlot = sortedSlots.sort((a, b) => b.winRate - a.winRate)[0];
     const worstTimeSlot = [...sortedSlots].sort((a, b) => a.winRate - b.winRate)[0];
 
@@ -180,8 +186,8 @@ export default function AIInsights() {
     
     const result: PerformanceInsight[] = [];
 
-    // Win rate insight
-    if (stats.winRate >= 60) {
+    // Win rate insight using centralized thresholds
+    if (stats.winRate >= PERFORMANCE_THRESHOLDS.WIN_RATE_STRONG) {
       result.push({
         type: 'positive',
         title: 'Strong Win Rate',
@@ -189,7 +195,7 @@ export default function AIInsights() {
         metric: `${stats.winRate.toFixed(1)}%`,
         icon: Trophy
       });
-    } else if (stats.winRate < 45) {
+    } else if (stats.winRate < PERFORMANCE_THRESHOLDS.WIN_RATE_POOR) {
       result.push({
         type: 'negative',
         title: 'Win Rate Needs Improvement',
@@ -199,8 +205,8 @@ export default function AIInsights() {
       });
     }
 
-    // Profit factor insight
-    if (stats.profitFactor >= 2) {
+    // Profit factor insight using centralized thresholds
+    if (stats.profitFactor >= PERFORMANCE_THRESHOLDS.PROFIT_FACTOR_EXCELLENT) {
       result.push({
         type: 'positive',
         title: 'Excellent Risk-Reward',
@@ -208,7 +214,7 @@ export default function AIInsights() {
         metric: `${stats.profitFactor.toFixed(2)}`,
         icon: TrendingUp
       });
-    } else if (stats.profitFactor < 1.2 && stats.profitFactor > 0) {
+    } else if (stats.profitFactor < PERFORMANCE_THRESHOLDS.PROFIT_FACTOR_POOR && stats.profitFactor > 0) {
       result.push({
         type: 'negative',
         title: 'Improve Risk-Reward Ratio',
@@ -218,8 +224,8 @@ export default function AIInsights() {
       });
     }
 
-    // Streak insight
-    if (stats.currentStreak >= 3) {
+    // Streak insight using centralized threshold
+    if (stats.currentStreak >= PERFORMANCE_THRESHOLDS.STREAK_SIGNIFICANT) {
       if (stats.streakType === 'win') {
         result.push({
           type: 'positive',
@@ -281,7 +287,7 @@ export default function AIInsights() {
     
     const items: ActionItem[] = [];
 
-    if (stats.winRate < 50) {
+    if (stats.winRate < PERFORMANCE_THRESHOLDS.ACTION_WIN_RATE_THRESHOLD) {
       items.push({
         priority: 'high',
         action: 'Review and refine entry criteria',
@@ -289,7 +295,7 @@ export default function AIInsights() {
       });
     }
 
-    if (stats.profitFactor < 1.5) {
+    if (stats.profitFactor < PERFORMANCE_THRESHOLDS.ACTION_PROFIT_FACTOR_THRESHOLD) {
       items.push({
         priority: 'high',
         action: 'Improve risk-reward targets',
@@ -297,7 +303,7 @@ export default function AIInsights() {
       });
     }
 
-    if (stats.worstTimeSlot && stats.worstTimeSlot.winRate < 40) {
+    if (stats.worstTimeSlot && stats.worstTimeSlot.winRate < PERFORMANCE_THRESHOLDS.ACTION_TIME_SLOT_WIN_RATE) {
       items.push({
         priority: 'medium',
         action: `Avoid trading on ${stats.worstTimeSlot.day} ${stats.worstTimeSlot.hour}:00`,
@@ -305,7 +311,7 @@ export default function AIInsights() {
       });
     }
 
-    if (stats.worstPair && stats.worstPair.pnl < -100) {
+    if (stats.worstPair && stats.worstPair.pnl < PERFORMANCE_THRESHOLDS.ACTION_PAIR_LOSS_THRESHOLD) {
       items.push({
         priority: 'medium',
         action: `Remove ${stats.worstPair.pair} from watchlist`,
@@ -313,7 +319,7 @@ export default function AIInsights() {
       });
     }
 
-    if (stats.streakType === 'loss' && stats.currentStreak >= 3) {
+    if (stats.streakType === 'loss' && stats.currentStreak >= PERFORMANCE_THRESHOLDS.STREAK_SIGNIFICANT) {
       items.push({
         priority: 'high',
         action: 'Take a trading break',
@@ -342,7 +348,7 @@ export default function AIInsights() {
               <Brain className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
               <h3 className="font-semibold mb-2">Not Enough Data</h3>
               <p className="text-muted-foreground">
-                Complete at least 5 trades to unlock AI insights about your trading patterns.
+                Complete at least {DATA_QUALITY.MIN_TRADES_FOR_INSIGHTS} trades to unlock AI insights about your trading patterns.
               </p>
             </CardContent>
           </Card>
