@@ -20,13 +20,12 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { 
   CloudDownload, 
   Loader2, 
-  CheckCircle, 
-  AlertTriangle,
   Database,
-  RefreshCw,
+  AlertTriangle,
 } from "lucide-react";
 import { useBinanceAggregatedSync } from "@/hooks/use-binance-aggregated-sync";
-import type { AggregationProgress, AggregationResult } from "@/services/binance/types";
+import { SyncStatusBadge } from "./SyncStatusBadge";
+import type { AggregationProgress } from "@/services/binance/types";
 
 interface BinanceFullSyncPanelProps {
   isBinanceConnected: boolean;
@@ -52,9 +51,28 @@ export function BinanceFullSyncPanel({
     return <SyncProgressIndicator progress={progress} />;
   }
 
-  // Show result briefly
+  // Show result with clickable badge
   if (result && !isLoading) {
-    return <SyncResultBadge result={result} onReset={() => sync({ daysToSync: 730 })} />;
+    return (
+      <div className="flex items-center gap-2">
+        <SyncStatusBadge result={result} />
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowConfirm(true)}
+                className="h-7 px-2"
+              >
+                <Database className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Sync again</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
+    );
   }
 
   // Show error
@@ -163,50 +181,5 @@ function SyncProgressIndicator({ progress }: { progress: AggregationProgress }) 
         </span>
       </div>
     </div>
-  );
-}
-
-function SyncResultBadge({ result, onReset }: { result: AggregationResult; onReset: () => void }) {
-  const isReconciled = result.reconciliation.isReconciled;
-  
-  return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Badge 
-            variant={isReconciled ? "outline" : "secondary"} 
-            className={`gap-1 cursor-pointer ${isReconciled ? 'text-profit' : 'text-warning'}`}
-          >
-            {isReconciled ? (
-              <CheckCircle className="h-3 w-3" />
-            ) : (
-              <AlertTriangle className="h-3 w-3" />
-            )}
-            {result.stats.validTrades} trades synced
-          </Badge>
-        </TooltipTrigger>
-        <TooltipContent className="max-w-xs">
-          <div className="space-y-2 text-xs">
-            <p className="font-medium">Sync Complete</p>
-            <ul className="space-y-1">
-              <li>Lifecycles: {result.stats.totalLifecycles}</li>
-              <li>Valid trades: {result.stats.validTrades}</li>
-              <li>Invalid: {result.stats.invalidTrades}</li>
-              <li>With warnings: {result.stats.warningTrades}</li>
-            </ul>
-            <div className="pt-1 border-t">
-              <p className={isReconciled ? 'text-profit' : 'text-warning'}>
-                PnL difference: {result.reconciliation.differencePercent.toFixed(3)}%
-                {isReconciled ? ' ✓' : ' ⚠'}
-              </p>
-            </div>
-            <Button size="sm" variant="ghost" onClick={onReset} className="w-full mt-2">
-              <RefreshCw className="h-3 w-3 mr-1" />
-              Sync Again
-            </Button>
-          </div>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
   );
 }
