@@ -26,6 +26,10 @@ import { formatWinRate } from "@/lib/formatters";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import type { PerformanceMetrics } from "@/hooks/use-contextual-analytics";
 import { cn } from "@/lib/utils";
+import { 
+  DATA_QUALITY, 
+  SESSION_THRESHOLDS,
+} from "@/lib/constants/ai-analytics";
 
 interface SessionInsightsProps {
   bySession: Record<TradingSession, PerformanceMetrics>;
@@ -50,7 +54,7 @@ export function SessionInsights({ bySession }: SessionInsightsProps) {
     const result: SessionInsight[] = [];
     
     // Filter sessions with enough trades
-    const validSessions = SESSION_ORDER.filter(s => bySession[s].trades >= 3);
+    const validSessions = SESSION_ORDER.filter(s => bySession[s].trades >= DATA_QUALITY.MIN_TRADES_FOR_RANKING);
     
     if (validSessions.length < 2) {
       return [];
@@ -70,7 +74,7 @@ export function SessionInsights({ bySession }: SessionInsightsProps) {
     });
     
     // Best session insight
-    if (bySession[bestSession].winRate >= 55) {
+    if (bySession[bestSession].winRate >= SESSION_THRESHOLDS.SESSION_OPPORTUNITY_WIN_RATE) {
       result.push({
         type: 'opportunity',
         title: `${SESSION_LABELS[bestSession]} Session is Your Edge`,
@@ -81,7 +85,7 @@ export function SessionInsights({ bySession }: SessionInsightsProps) {
     }
     
     // Worst session warning
-    if (bySession[worstSession].winRate < 45 && worstSession !== bestSession) {
+    if (bySession[worstSession].winRate < SESSION_THRESHOLDS.SESSION_WARNING_WIN_RATE && worstSession !== bestSession) {
       result.push({
         type: 'warning',
         title: `Avoid ${SESSION_LABELS[worstSession]} Session`,
@@ -93,8 +97,8 @@ export function SessionInsights({ bySession }: SessionInsightsProps) {
     
     // Off-hours pattern (now 'other')
     const otherData = bySession['other'];
-    if (otherData.trades >= 5) {
-      if (otherData.winRate < 45) {
+    if (otherData.trades >= SESSION_THRESHOLDS.OFF_HOURS_MIN_TRADES) {
+      if (otherData.winRate < SESSION_THRESHOLDS.SESSION_WARNING_WIN_RATE) {
         result.push({
           type: 'warning',
           title: 'Off-Hours Trading is Costing You',
@@ -102,7 +106,7 @@ export function SessionInsights({ bySession }: SessionInsightsProps) {
           session: 'other',
           recommendation: 'Stick to major market sessions for better liquidity and clearer price action.',
         });
-      } else if (otherData.winRate >= 55) {
+      } else if (otherData.winRate >= SESSION_THRESHOLDS.SESSION_OPPORTUNITY_WIN_RATE) {
         result.push({
           type: 'pattern',
           title: 'Off-Hours Edge Detected',
@@ -118,9 +122,9 @@ export function SessionInsights({ bySession }: SessionInsightsProps) {
     const nyWinRate = bySession.new_york.winRate;
     const asiaTrades = bySession.sydney.trades + bySession.tokyo.trades;
     
-    if (asiaTrades >= 3 && bySession.new_york.trades >= 3) {
+    if (asiaTrades >= DATA_QUALITY.MIN_TRADES_FOR_RANKING && bySession.new_york.trades >= DATA_QUALITY.MIN_TRADES_FOR_RANKING) {
       const diff = Math.abs(asiaWinRate - nyWinRate);
-      if (diff > 15) {
+      if (diff > SESSION_THRESHOLDS.PERFORMANCE_GAP_SIGNIFICANT) {
         const betterSession: TradingSession = asiaWinRate > nyWinRate 
           ? (bySession.sydney.winRate >= bySession.tokyo.winRate ? 'sydney' : 'tokyo')
           : 'new_york';
@@ -141,7 +145,7 @@ export function SessionInsights({ bySession }: SessionInsightsProps) {
   // Calculate totals
   const totalTrades = SESSION_ORDER.reduce((sum, s) => sum + bySession[s].trades, 0);
   
-  if (totalTrades < 5) {
+  if (totalTrades < DATA_QUALITY.MIN_TRADES_FOR_INSIGHTS) {
     return (
       <Card>
         <CardHeader>

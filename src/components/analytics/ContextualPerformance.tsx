@@ -26,14 +26,20 @@ import {
   Target,
   Info,
 } from "lucide-react";
+import { 
+  FEAR_GREED_ZONES, 
+  DATA_QUALITY,
+  CORRELATION_STRENGTH,
+  classifyCorrelation,
+} from "@/lib/constants/ai-analytics";
 
 // Zone label mappings
 const FEAR_GREED_LABELS: Record<FearGreedZone, { label: string; color: string; range: string }> = {
-  extremeFear: { label: 'Extreme Fear', color: 'text-red-500', range: '0-20' },
-  fear: { label: 'Fear', color: 'text-orange-500', range: '21-40' },
-  neutral: { label: 'Neutral', color: 'text-muted-foreground', range: '41-60' },
-  greed: { label: 'Greed', color: 'text-emerald-500', range: '61-80' },
-  extremeGreed: { label: 'Extreme Greed', color: 'text-green-500', range: '81-100' },
+  extremeFear: { label: 'Extreme Fear', color: 'text-red-500', range: `0-${FEAR_GREED_ZONES.EXTREME_FEAR_MAX}` },
+  fear: { label: 'Fear', color: 'text-orange-500', range: `${FEAR_GREED_ZONES.EXTREME_FEAR_MAX + 1}-${FEAR_GREED_ZONES.FEAR_MAX}` },
+  neutral: { label: 'Neutral', color: 'text-muted-foreground', range: `${FEAR_GREED_ZONES.FEAR_MAX + 1}-${FEAR_GREED_ZONES.NEUTRAL_MAX}` },
+  greed: { label: 'Greed', color: 'text-emerald-500', range: `${FEAR_GREED_ZONES.NEUTRAL_MAX + 1}-${FEAR_GREED_ZONES.GREED_MAX}` },
+  extremeGreed: { label: 'Extreme Greed', color: 'text-green-500', range: `${FEAR_GREED_ZONES.GREED_MAX + 1}-100` },
 };
 
 const VOLATILITY_LABELS: Record<VolatilityLevel, { label: string; icon: typeof Activity }> = {
@@ -187,7 +193,7 @@ export function ContextualPerformance() {
   return (
     <div className="space-y-6">
       {/* Data Quality Banner */}
-      {data.dataQualityPercent < 50 && (
+      {data.dataQualityPercent < DATA_QUALITY.QUALITY_WARNING_PERCENT && (
         <div className="flex items-center gap-3 p-4 rounded-lg bg-muted/50 border">
           <Info className="h-5 w-5 text-muted-foreground shrink-0" />
           <div className="text-sm">
@@ -336,11 +342,7 @@ function CorrelationRow({
   value: number; 
   description: string;
 }) {
-  const absValue = Math.abs(value);
-  const strength = absValue < 0.2 ? 'Weak' 
-    : absValue < 0.5 ? 'Moderate' 
-    : 'Strong';
-  const direction = value > 0 ? 'Positive' : value < 0 ? 'Negative' : 'None';
+  const { strength, direction } = classifyCorrelation(value);
   
   return (
     <div className="flex items-center justify-between py-2 border-b last:border-0">
@@ -351,7 +353,7 @@ function CorrelationRow({
       <div className="text-right">
         <p className={cn(
           "font-mono font-medium",
-          value > 0.2 ? "text-profit" : value < -0.2 ? "text-loss" : "text-muted-foreground"
+          value > CORRELATION_STRENGTH.WEAK_THRESHOLD ? "text-profit" : value < -CORRELATION_STRENGTH.WEAK_THRESHOLD ? "text-loss" : "text-muted-foreground"
         )}>
           {value > 0 ? '+' : ''}{value.toFixed(2)}
         </p>

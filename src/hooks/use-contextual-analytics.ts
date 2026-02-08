@@ -6,6 +6,12 @@ import { useMemo } from "react";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import type { UnifiedMarketContext } from "@/types/market-context";
 import { getTradeSession, TradingSession } from "@/lib/session-utils";
+import { 
+  FEAR_GREED_ZONES, 
+  DATA_QUALITY, 
+  EMOTIONAL_THRESHOLDS,
+  VOLATILITY_THRESHOLDS,
+} from "@/lib/constants/ai-analytics";
 
 // Performance metrics for a segment
 export interface PerformanceMetrics {
@@ -99,10 +105,10 @@ function calculateMetrics(trades: Array<{ pnl: number; result: string }>): Perfo
 
 // Get Fear/Greed zone from value
 function getFearGreedZone(value: number): FearGreedZone {
-  if (value <= 20) return 'extremeFear';
-  if (value <= 40) return 'fear';
-  if (value <= 60) return 'neutral';
-  if (value <= 80) return 'greed';
+  if (value <= FEAR_GREED_ZONES.EXTREME_FEAR_MAX) return 'extremeFear';
+  if (value <= FEAR_GREED_ZONES.FEAR_MAX) return 'fear';
+  if (value <= FEAR_GREED_ZONES.NEUTRAL_MAX) return 'neutral';
+  if (value <= FEAR_GREED_ZONES.GREED_MAX) return 'greed';
   return 'extremeGreed';
 }
 
@@ -120,7 +126,7 @@ function getEventProximity(context: UnifiedMarketContext): EventProximity {
 
 // Calculate correlation coefficient (simplified Pearson)
 function calculateCorrelation(pairs: Array<{ x: number; y: number }>): number {
-  if (pairs.length < 3) return 0;
+  if (pairs.length < DATA_QUALITY.MIN_TRADES_FOR_CORRELATION) return 0;
   
   const n = pairs.length;
   const sumX = pairs.reduce((s, p) => s + p.x, 0);
@@ -157,7 +163,7 @@ function generateInsights(
     ? greedZones.reduce((sum, z) => sum + byFearGreed[z].wins, 0) / greedTrades * 100 
     : 0;
   
-  if (fearTrades >= 5 && greedTrades >= 5) {
+  if (fearTrades >= DATA_QUALITY.MIN_TRADES_FOR_ZONE_COMPARISON && greedTrades >= DATA_QUALITY.MIN_TRADES_FOR_ZONE_COMPARISON) {
     if (fearWinRate > greedWinRate + 10) {
       insights.push({
         type: 'opportunity',
@@ -178,7 +184,7 @@ function generateInsights(
   }
   
   // Extreme Fear/Greed warnings
-  if (byFearGreed.extremeFear.trades >= 3 && byFearGreed.extremeFear.winRate < 40) {
+  if (byFearGreed.extremeFear.trades >= DATA_QUALITY.MIN_TRADES_FOR_RANKING && byFearGreed.extremeFear.winRate < EMOTIONAL_THRESHOLDS.POOR_WIN_RATE) {
     insights.push({
       type: 'warning',
       title: 'Struggling in Extreme Fear',
@@ -188,7 +194,7 @@ function generateInsights(
     });
   }
   
-  if (byFearGreed.extremeGreed.trades >= 3 && byFearGreed.extremeGreed.winRate < 40) {
+  if (byFearGreed.extremeGreed.trades >= DATA_QUALITY.MIN_TRADES_FOR_RANKING && byFearGreed.extremeGreed.winRate < EMOTIONAL_THRESHOLDS.POOR_WIN_RATE) {
     insights.push({
       type: 'warning',
       title: 'Struggling in Extreme Greed',
@@ -199,8 +205,8 @@ function generateInsights(
   }
   
   // Volatility insights
-  if (byVolatility.high.trades >= 5 && byVolatility.low.trades >= 5) {
-    if (byVolatility.high.winRate < byVolatility.low.winRate - 15) {
+  if (byVolatility.high.trades >= DATA_QUALITY.MIN_TRADES_FOR_ZONE_COMPARISON && byVolatility.low.trades >= DATA_QUALITY.MIN_TRADES_FOR_ZONE_COMPARISON) {
+    if (byVolatility.high.winRate < byVolatility.low.winRate - VOLATILITY_THRESHOLDS.HIGH_VS_LOW_DIFF) {
       insights.push({
         type: 'warning',
         title: 'High Volatility Hurts Performance',
@@ -208,7 +214,7 @@ function generateInsights(
         evidence: `${byVolatility.high.trades} high-vol trades vs ${byVolatility.low.trades} low-vol trades`,
         recommendation: 'Reduce position sizes or tighten stop losses during high volatility.',
       });
-    } else if (byVolatility.high.winRate > byVolatility.low.winRate + 15) {
+    } else if (byVolatility.high.winRate > byVolatility.low.winRate + VOLATILITY_THRESHOLDS.HIGH_VS_LOW_DIFF) {
       insights.push({
         type: 'opportunity',
         title: 'Volatility Trading Edge',
@@ -220,8 +226,8 @@ function generateInsights(
   }
   
   // Event day insights
-  if (byEventProximity.eventDay.trades >= 3 && byEventProximity.normalDay.trades >= 5) {
-    if (byEventProximity.eventDay.winRate < byEventProximity.normalDay.winRate - 10) {
+  if (byEventProximity.eventDay.trades >= DATA_QUALITY.MIN_TRADES_FOR_RANKING && byEventProximity.normalDay.trades >= DATA_QUALITY.MIN_TRADES_FOR_INSIGHTS) {
+    if (byEventProximity.eventDay.winRate < byEventProximity.normalDay.winRate - VOLATILITY_THRESHOLDS.EVENT_DAY_DIFF) {
       insights.push({
         type: 'warning',
         title: 'Event Days Reduce Edge',
@@ -229,7 +235,7 @@ function generateInsights(
         evidence: `${byEventProximity.eventDay.trades} trades on high-impact event days`,
         recommendation: 'Consider avoiding trades on days with major economic events.',
       });
-    } else if (byEventProximity.eventDay.avgPnl > byEventProximity.normalDay.avgPnl * 1.5) {
+    } else if (byEventProximity.eventDay.avgPnl > byEventProximity.normalDay.avgPnl * VOLATILITY_THRESHOLDS.EVENT_DAY_PNL_MULTIPLIER) {
       insights.push({
         type: 'pattern',
         title: 'Event Day Profit Potential',
@@ -253,7 +259,7 @@ export function useContextualAnalytics(): {
     if (!trades || trades.length === 0) return null;
     
     const closedTrades = trades.filter(t => t.status === 'closed');
-    if (closedTrades.length < 5) return null;
+    if (closedTrades.length < DATA_QUALITY.MIN_TRADES_FOR_INSIGHTS) return null;
     
     // Trades with market context
     const tradesWithContext = closedTrades.filter(t => t.market_context);

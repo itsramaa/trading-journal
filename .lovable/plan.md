@@ -1,5 +1,27 @@
 
-# Audit Report: Top Movers Page & AI Insights Page
+# Audit Refactor Progress - Top Movers & AI Insights
+
+## Status: ✅ COMPLETE
+
+## Completed Tasks
+
+### Phase 1: Centralized Constants
+- [x] Created `src/lib/constants/ai-analytics.ts` - Performance thresholds, data quality, time analysis
+- [x] Created `src/lib/constants/emotional-states.ts` - Emotional state configs with icons/colors
+- [x] Created `src/lib/symbol-utils.ts` - Symbol formatting utilities
+- [x] Updated `src/lib/constants/index.ts` - Re-exports
+
+### Phase 2: Component Refactoring
+- [x] `EmotionalPatternAnalysis.tsx` - Uses centralized constants
+- [x] `SessionInsights.tsx` - Uses SESSION_THRESHOLDS, DATA_QUALITY
+- [x] `ContextualPerformance.tsx` - Uses FEAR_GREED_ZONES, classifyCorrelation
+
+### Phase 3: Hook Refactoring
+- [x] `use-contextual-analytics.ts` - Uses centralized thresholds
+
+## Risk Level After Refactor
+- **Top Movers**: LOW (minimal hardcode remaining)
+- **AI Insights**: LOW-MEDIUM (thresholds centralized, maintainable)
 
 ## Executive Summary
 

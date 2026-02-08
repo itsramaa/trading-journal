@@ -8,28 +8,21 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { 
   Brain, 
-  Smile, 
-  Frown, 
   Meh,
-  Zap,
-  AlertTriangle,
-  TrendingUp,
-  TrendingDown,
   Sparkles
 } from "lucide-react";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { cn } from "@/lib/utils";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
-
-// Emotional states that can be tracked
-const EMOTIONAL_STATES = [
-  { id: 'calm', label: 'Calm', icon: Smile, color: 'text-profit' },
-  { id: 'confident', label: 'Confident', icon: TrendingUp, color: 'text-primary' },
-  { id: 'anxious', label: 'Anxious', icon: Meh, color: 'text-yellow-500' },
-  { id: 'fearful', label: 'Fearful', icon: Frown, color: 'text-loss' },
-  { id: 'fomo', label: 'FOMO', icon: Zap, color: 'text-orange-500' },
-  { id: 'revenge', label: 'Revenge', icon: AlertTriangle, color: 'text-loss' },
-] as const;
+import { 
+  EMOTIONAL_STATES, 
+  getEmotionalStateConfig,
+} from "@/lib/constants/emotional-states";
+import {
+  DATA_QUALITY,
+  EMOTIONAL_THRESHOLDS,
+  getProgressBarColorClass,
+} from "@/lib/constants/ai-analytics";
 
 interface EmotionalStats {
   state: string;
@@ -55,7 +48,7 @@ export function EmotionalPatternAnalysis() {
   const { emotionalStats, insights, hasEnoughData } = useMemo(() => {
     const closedTrades = trades.filter(t => t.status === 'closed' && t.emotional_state);
     
-    if (closedTrades.length < 10) {
+    if (closedTrades.length < DATA_QUALITY.MIN_TRADES_FOR_PATTERNS) {
       return { emotionalStats: [], insights: [], hasEnoughData: false };
     }
 
@@ -95,7 +88,7 @@ export function EmotionalPatternAnalysis() {
         winRate: stats.trades > 0 ? (stats.wins / stats.trades) * 100 : 0,
         avgPnl: stats.trades > 0 ? stats.totalPnl / stats.trades : 0,
       }))
-      .filter(s => s.trades >= 3) // Min 3 trades per emotion
+      .filter(s => s.trades >= DATA_QUALITY.MIN_TRADES_FOR_RANKING)
       .sort((a, b) => b.winRate - a.winRate);
 
     // Generate insights
@@ -106,7 +99,7 @@ export function EmotionalPatternAnalysis() {
       const worst = emotionalStats[emotionalStats.length - 1];
       
       // Best emotion insight
-      if (best.winRate >= 60) {
+      if (best.winRate >= EMOTIONAL_THRESHOLDS.GOOD_WIN_RATE) {
         insights.push({
           type: 'positive',
           title: `${best.label} State Works Best`,
@@ -115,7 +108,7 @@ export function EmotionalPatternAnalysis() {
       }
       
       // Worst emotion warning
-      if (worst.winRate < 40 && worst.trades >= 5) {
+      if (worst.winRate < EMOTIONAL_THRESHOLDS.POOR_WIN_RATE && worst.trades >= DATA_QUALITY.MIN_TRADES_FOR_INSIGHTS) {
         insights.push({
           type: 'negative',
           title: `Avoid ${worst.label} Trading`,
@@ -124,7 +117,7 @@ export function EmotionalPatternAnalysis() {
       }
       
       // Comparison insight
-      if (best.winRate - worst.winRate > 20) {
+      if (best.winRate - worst.winRate > EMOTIONAL_THRESHOLDS.EMOTIONAL_IMPACT_DIFF) {
         insights.push({
           type: 'neutral',
           title: 'Emotional Impact',
@@ -144,7 +137,7 @@ export function EmotionalPatternAnalysis() {
         });
       }
       
-      if (revengeStats && revengeStats.winRate < 30) {
+      if (revengeStats && revengeStats.winRate < EMOTIONAL_THRESHOLDS.REVENGE_WIN_RATE_WARNING) {
         insights.push({
           type: 'negative',
           title: 'Revenge Trading Alert',
@@ -195,7 +188,7 @@ export function EmotionalPatternAnalysis() {
         {/* Stats by Emotion */}
         <div className="space-y-4">
           {emotionalStats.map((stats) => {
-            const emotionConfig = EMOTIONAL_STATES.find(e => e.id === stats.state);
+            const emotionConfig = getEmotionalStateConfig(stats.state);
             const EmotionIcon = emotionConfig?.icon || Meh;
             
             return (
@@ -225,12 +218,7 @@ export function EmotionalPatternAnalysis() {
                 </div>
                 <Progress 
                   value={stats.winRate} 
-                  className={cn(
-                    "h-2",
-                    stats.winRate >= 60 && "[&>div]:bg-profit",
-                    stats.winRate >= 40 && stats.winRate < 60 && "[&>div]:bg-yellow-500",
-                    stats.winRate < 40 && "[&>div]:bg-loss"
-                  )}
+                  className={cn("h-2", getProgressBarColorClass(stats.winRate))}
                 />
               </div>
             );
