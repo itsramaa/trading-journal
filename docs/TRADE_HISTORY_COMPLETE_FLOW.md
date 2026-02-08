@@ -192,7 +192,7 @@ interface BinanceIncome {
 
 **Limitations:**
 - Max 1000 records per request
-- Max 90 days per request (we use 30-day chunks)
+- Max 90 days per request (we use 90-day chunks for maximum efficiency)
 - No entry/exit price information
 - No quantity information
 - No direction information
@@ -304,9 +304,9 @@ sequenceDiagram
 └─────────────────────────────────────────────────────────────────────┘
 
 TIME CHUNKING:
-- Chunk size: 30 days (reduced from 90 for reliability)
+- Chunk size: 90 days (CHUNK_DAYS constant in use-binance-full-sync.ts)
 - Direction: Recent to oldest (newest first)
-- Stop condition: 5 consecutive empty chunks OR max 450 days
+- Stop condition: 5 consecutive empty 90-day chunks OR max 450 days
 
 PAGINATION (within each chunk):
 - Page size: 1000 records (Binance max)
@@ -318,10 +318,10 @@ RATE LIMITING:
 - Weight per request: 30
 
 Example for 1-year sync:
-- Chunks: 365 / 30 = ~12 chunks
-- Per chunk: 1-5 pages typically
-- Total requests: ~20-60 requests
-- Total time: ~10-20 seconds
+- Chunks: 365 / 90 = ~4 chunks
+- Per chunk: 1-20 pages typically (depends on trading activity)
+- Total requests: ~10-80 requests
+- Total time: ~10-30 seconds (varies with activity level)
 ```
 
 ### 4.3 UserTrades Fetching Strategy
@@ -482,17 +482,18 @@ PRIORITY 1: Trade ID Matching (100% accurate)
 - Income records have optional `tradeId` field
 - If tradeId exists, match directly to fill
 
-PRIORITY 2: Time-Based Matching (fallback for legacy data)
-- Window: 60 seconds around exit time
-- Match by: symbol + time bucket
-- Reduced from 5 minutes to prevent cross-trade contamination
+PRIORITY 2: 5-Minute Bucket Matching (fallback for legacy/missing tradeId)
+- Window: 5-minute buckets (300,000ms) with adjacent bucket lookup
+- Match by: symbol + 5-minute time bucket (current ± 1 bucket)
+- Implemented in: binance-trade-enricher.ts → linkIncomeWithTrades()
+- Uses Math.floor(time / 300000) for bucket calculation
 
 PASS 1: REALIZED_PNL Records
   for each pnl in income:
     if pnl.tradeId exists AND matches fill ID:
       → Exact match (high confidence)
-    elif pnl.time within 60s of exit:
-      → Time-based match (medium confidence)
+    elif pnl symbol+bucket matches trade exit bucket (±1 adjacent):
+      → 5-minute bucket match (medium confidence)
 
 PASS 2: COMMISSION Records
   for each comm in income:
