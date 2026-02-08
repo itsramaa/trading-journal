@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatWinRate } from "@/lib/formatters";
+import { CONTEXTUAL_SCORE_CONFIG, DATA_QUALITY } from "@/lib/constants/ai-analytics";
 import type { UnifiedMarketContext } from "@/types/market-context";
 
 interface TradeWithContext {
@@ -62,28 +63,34 @@ export function CombinedContextualScore({ trades }: CombinedContextualScoreProps
       let score = 0;
       let factors = 0;
 
+      const { WEIGHTS, FEAR_GREED_RANGES } = CONTEXTUAL_SCORE_CONFIG;
+
       // Fear/Greed Factor (best: 40-60 neutral zone)
       if (context.fearGreed?.value !== undefined) {
         const fg = context.fearGreed.value;
-        if (fg >= 40 && fg <= 60) score += 2;
-        else if (fg >= 25 && fg <= 75) score += 1;
-        else score += 0;
+        if (fg >= FEAR_GREED_RANGES.NEUTRAL_MIN && fg <= FEAR_GREED_RANGES.NEUTRAL_MAX) {
+          score += WEIGHTS.FEAR_GREED.NEUTRAL;
+        } else if (fg >= FEAR_GREED_RANGES.MODERATE_MIN && fg <= FEAR_GREED_RANGES.MODERATE_MAX) {
+          score += WEIGHTS.FEAR_GREED.MODERATE;
+        } else {
+          score += WEIGHTS.FEAR_GREED.EXTREME;
+        }
         factors++;
       }
 
       // Volatility Factor (best: low-medium)
       if (context.volatility?.level) {
-        if (context.volatility.level === 'low') score += 2;
-        else if (context.volatility.level === 'medium') score += 1;
-        else score += 0;
+        if (context.volatility.level === 'low') score += WEIGHTS.VOLATILITY.LOW;
+        else if (context.volatility.level === 'medium') score += WEIGHTS.VOLATILITY.MEDIUM;
+        else score += WEIGHTS.VOLATILITY.HIGH;
         factors++;
       }
 
       // Event Factor (best: no high-impact events)
       if (context.events) {
-        if (!context.events.hasHighImpactToday) score += 2;
-        else if (context.events.riskLevel === 'MODERATE') score += 1;
-        else score += 0;
+        if (!context.events.hasHighImpactToday) score += WEIGHTS.EVENTS.NONE;
+        else if (context.events.riskLevel === 'MODERATE') score += WEIGHTS.EVENTS.MODERATE;
+        else score += WEIGHTS.EVENTS.HIGH;
         factors++;
       }
 
@@ -93,12 +100,13 @@ export function CombinedContextualScore({ trades }: CombinedContextualScoreProps
       totalContextualScore += normalizedScore;
       scoredTrades++;
 
-      // Categorize into buckets
+      // Categorize into buckets using centralized thresholds
+      const { BUCKET_THRESHOLDS } = CONTEXTUAL_SCORE_CONFIG;
       let bucket: string;
-      if (normalizedScore >= 80) bucket = 'optimal';
-      else if (normalizedScore >= 60) bucket = 'favorable';
-      else if (normalizedScore >= 40) bucket = 'moderate';
-      else if (normalizedScore >= 20) bucket = 'risky';
+      if (normalizedScore >= BUCKET_THRESHOLDS.OPTIMAL) bucket = 'optimal';
+      else if (normalizedScore >= BUCKET_THRESHOLDS.FAVORABLE) bucket = 'favorable';
+      else if (normalizedScore >= BUCKET_THRESHOLDS.MODERATE) bucket = 'moderate';
+      else if (normalizedScore >= BUCKET_THRESHOLDS.RISKY) bucket = 'risky';
       else bucket = 'extreme';
 
       const isWin = trade.result === 'win' || (trade.pnl && trade.pnl > 0);
@@ -164,7 +172,7 @@ export function CombinedContextualScore({ trades }: CombinedContextualScoreProps
     ];
 
     // Find best performing zone
-    const zonesWithTrades = zoneMetrics.filter(z => z.tradeCount >= 3);
+    const zonesWithTrades = zoneMetrics.filter(z => z.tradeCount >= CONTEXTUAL_SCORE_CONFIG.MIN_TRADES_FOR_ZONE);
     const bestZone = zonesWithTrades.length > 0
       ? zonesWithTrades.reduce((a, b) => a.winRate > b.winRate ? a : b)
       : null;
@@ -179,18 +187,20 @@ export function CombinedContextualScore({ trades }: CombinedContextualScoreProps
   }, [trades]);
 
   const getScoreLabel = (score: number) => {
-    if (score >= 80) return 'Excellent';
-    if (score >= 60) return 'Good';
-    if (score >= 40) return 'Moderate';
-    if (score >= 20) return 'Poor';
+    const { BUCKET_THRESHOLDS } = CONTEXTUAL_SCORE_CONFIG;
+    if (score >= BUCKET_THRESHOLDS.OPTIMAL) return 'Excellent';
+    if (score >= BUCKET_THRESHOLDS.FAVORABLE) return 'Good';
+    if (score >= BUCKET_THRESHOLDS.MODERATE) return 'Moderate';
+    if (score >= BUCKET_THRESHOLDS.RISKY) return 'Poor';
     return 'Critical';
   };
 
   const getScoreColor = (score: number) => {
-    if (score >= 80) return 'text-green-500';
-    if (score >= 60) return 'text-emerald-400';
-    if (score >= 40) return 'text-yellow-500';
-    if (score >= 20) return 'text-orange-500';
+    const { BUCKET_THRESHOLDS } = CONTEXTUAL_SCORE_CONFIG;
+    if (score >= BUCKET_THRESHOLDS.OPTIMAL) return 'text-green-500';
+    if (score >= BUCKET_THRESHOLDS.FAVORABLE) return 'text-emerald-400';
+    if (score >= BUCKET_THRESHOLDS.MODERATE) return 'text-yellow-500';
+    if (score >= BUCKET_THRESHOLDS.RISKY) return 'text-orange-500';
     return 'text-red-500';
   };
 
