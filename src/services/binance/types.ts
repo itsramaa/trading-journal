@@ -158,7 +158,7 @@ export interface ValidationWarning {
  * Progress callback for long-running aggregation
  */
 export interface AggregationProgress {
-  phase: 'fetching-trades' | 'fetching-income' | 'grouping' | 'aggregating' | 'validating';
+  phase: 'fetching-trades' | 'fetching-income' | 'grouping' | 'aggregating' | 'validating' | 'inserting';
   current: number;
   total: number;
   message: string;
@@ -200,6 +200,59 @@ export interface AggregationResult {
     differencePercent: number;    // Difference as percentage
     isReconciled: boolean;        // Within 0.1% tolerance
     incompletePositionsNote: string;  // Explanation of unmatched income
+  };
+  
+  // NEW: Partial success tracking
+  partialSuccess?: {
+    insertedCount: number;
+    failedBatches: Array<{ batch: number; error: string }>;
+    failedSymbols: Array<{ symbol: string; error: string }>;
+    skippedDueToError: number;
+  };
+}
+
+// =============================================================================
+// Checkpoint Types (for resumable sync)
+// =============================================================================
+
+/**
+ * Checkpoint state for resumable sync
+ */
+export interface SyncCheckpoint {
+  /** Current sync phase */
+  currentPhase: 'idle' | 'fetching-income' | 'fetching-trades' | 'grouping' | 'aggregating' | 'inserting';
+  
+  /** Fetched income data (checkpointed after income phase) */
+  incomeData: BinanceIncome[] | null;
+  
+  /** Trades fetched per symbol */
+  tradesBySymbol: Record<string, BinanceTrade[]>;
+  
+  /** Orders fetched per symbol */
+  ordersBySymbol: Record<string, BinanceOrder[]>;
+  
+  /** Symbols that have been successfully processed */
+  processedSymbols: string[];
+  
+  /** Symbols that failed with their error messages */
+  failedSymbols: Array<{ symbol: string; error: string }>;
+  
+  /** All symbols to process */
+  allSymbols: string[];
+  
+  /** Sync start time (ms) */
+  syncStartTime: number;
+  
+  /** Sync range in days or 'max' */
+  syncRangeDays: number | 'max';
+  
+  /** Last checkpoint timestamp (ms) */
+  lastCheckpointTime: number;
+  
+  /** Timestamp range for this sync */
+  timeRange: {
+    startTime: number;
+    endTime: number;
   };
 }
 

@@ -14,6 +14,9 @@
  * - All data passes through aggregation layer
  * - Validation before every insert
  * - Monitoring integration for health tracking
+ * - Checkpoint-based resume capability
+ * - Batched inserts with retry logic
+ * - Error tolerance (partial success)
  */
 
 import { useCallback } from 'react';
@@ -23,10 +26,11 @@ import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 import { invalidateTradeQueries } from '@/lib/query-invalidation';
 import { useSyncMonitoring } from '@/hooks/use-sync-monitoring';
-import { useSyncStore } from '@/store/sync-store';
+import { useSyncStore, selectCheckpoint, selectHasResumableSync } from '@/store/sync-store';
+import type { SyncRangeDays } from '@/store/sync-store';
 
 import type { BinanceTrade, BinanceOrder, BinanceIncome } from '@/features/binance/types';
-import type { RawBinanceData, AggregationProgress, AggregationResult, AggregatedTrade } from '@/services/binance/types';
+import type { RawBinanceData, AggregationProgress, AggregationResult, AggregatedTrade, SyncCheckpoint } from '@/services/binance/types';
 import { 
   groupIntoLifecycles,
   aggregateAllLifecycles,
@@ -45,6 +49,8 @@ const MAX_INCOME_INTERVAL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 const RECORDS_PER_PAGE = 1000;
 const DEFAULT_HISTORY_DAYS = 90; // Optimized default
 const MAX_PARALLEL_SYMBOLS = 2; // Reduced for rate limit safety
+const BATCH_INSERT_SIZE = 50; // Trades per DB insert batch
+const MAX_INSERT_RETRIES = 3; // Retries per batch
 
 // Rate limit state (shared across calls)
 let currentRateLimitDelay = BASE_RATE_LIMIT_DELAY;
@@ -250,13 +256,24 @@ function getUniqueSymbols(income: BinanceIncome[]): string[] {
 }
 
 // =============================================================================
+// Symbol Fetch Result Type
+// =============================================================================
+
+interface SymbolFetchResult {
+  symbol: string;
+  trades: BinanceTrade[];
+  orders: BinanceOrder[];
+  success: boolean;
+  error?: string;
+}
+
+// =============================================================================
 // Main Sync Hook
 // =============================================================================
 
-import type { SyncRangeDays } from '@/store/sync-store';
-
 export interface FullSyncOptions {
   daysToSync?: SyncRangeDays;
+  resumeFromCheckpoint?: boolean;
 }
 
 export function useBinanceAggregatedSync() {
@@ -273,17 +290,193 @@ export function useBinanceAggregatedSync() {
     updateProgress,
     completeFullSync,
     failFullSync,
+    saveCheckpoint,
+    clearCheckpoint,
+    hasResumableSync,
   } = useSyncStore();
+  
+  const checkpoint = useSyncStore(selectCheckpoint);
+  const canResume = useSyncStore(selectHasResumableSync);
   
   // Phase 5: Monitoring integration
   const { 
     recordSyncSuccess, 
     recordSyncFailure, 
-    scheduleRetry,
     lastSyncResult,
     lastSyncTimestamp,
     consecutiveFailures,
   } = useSyncMonitoring();
+  
+  /**
+   * Fetch trades for symbols with error tolerance (Promise.allSettled)
+   */
+  const fetchTradesWithTolerance = useCallback(async (
+    symbols: string[],
+    startTime: number,
+    endTime: number,
+    checkpointData: SyncCheckpoint,
+    onSymbolComplete: (symbol: string, result: SymbolFetchResult) => void
+  ): Promise<{
+    allTrades: BinanceTrade[];
+    allOrders: BinanceOrder[];
+    processedSymbols: string[];
+    failedSymbols: Array<{ symbol: string; error: string }>;
+  }> => {
+    const allTrades: BinanceTrade[] = [];
+    const allOrders: BinanceOrder[] = [];
+    const processedSymbols: string[] = [...checkpointData.processedSymbols];
+    const failedSymbols: Array<{ symbol: string; error: string }> = [...checkpointData.failedSymbols];
+    
+    // Filter out already processed symbols
+    const remainingSymbols = symbols.filter(s => 
+      !processedSymbols.includes(s) && !failedSymbols.some(f => f.symbol === s)
+    );
+    
+    // Add trades from checkpoint
+    for (const [symbol, trades] of Object.entries(checkpointData.tradesBySymbol)) {
+      allTrades.push(...trades);
+    }
+    for (const [symbol, orders] of Object.entries(checkpointData.ordersBySymbol)) {
+      allOrders.push(...orders);
+    }
+    
+    // Process remaining symbols in parallel batches
+    for (let batchStart = 0; batchStart < remainingSymbols.length; batchStart += MAX_PARALLEL_SYMBOLS) {
+      const batch = remainingSymbols.slice(batchStart, batchStart + MAX_PARALLEL_SYMBOLS);
+      
+      updateProgress({
+        phase: 'fetching-trades',
+        current: processedSymbols.length,
+        total: symbols.length,
+        message: `Fetching ${batch.join(', ')} (${processedSymbols.length + 1}/${symbols.length})...`,
+      });
+      
+      // Use Promise.allSettled for error tolerance
+      const batchResults = await Promise.allSettled(
+        batch.map(async (symbol): Promise<SymbolFetchResult> => {
+          try {
+            const [trades, orders] = await Promise.all([
+              fetchTradesForSymbol(symbol, startTime, endTime),
+              fetchOrdersForSymbol(symbol, startTime, endTime),
+            ]);
+            return { symbol, trades, orders, success: true };
+          } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+            console.error(`[FullSync] Failed to fetch ${symbol}:`, error);
+            return { symbol, trades: [], orders: [], success: false, error: errorMsg };
+          }
+        })
+      );
+      
+      // Process results - continue with successful ones
+      for (const settledResult of batchResults) {
+        if (settledResult.status === 'fulfilled') {
+          const fetchResult = settledResult.value;
+          
+          if (fetchResult.success) {
+            allTrades.push(...fetchResult.trades);
+            allOrders.push(...fetchResult.orders);
+            processedSymbols.push(fetchResult.symbol);
+            
+            // Save checkpoint after each successful symbol
+            saveCheckpoint({
+              currentPhase: 'fetching-trades',
+              tradesBySymbol: {
+                ...checkpointData.tradesBySymbol,
+                [fetchResult.symbol]: fetchResult.trades,
+              },
+              ordersBySymbol: {
+                ...checkpointData.ordersBySymbol,
+                [fetchResult.symbol]: fetchResult.orders,
+              },
+              processedSymbols,
+              failedSymbols,
+            });
+          } else {
+            failedSymbols.push({ 
+              symbol: fetchResult.symbol, 
+              error: fetchResult.error || 'Unknown error' 
+            });
+          }
+          
+          onSymbolComplete(fetchResult.symbol, fetchResult);
+        } else {
+          // Promise rejected (shouldn't happen with our try-catch, but handle it)
+          const symbol = batch[batchResults.indexOf(settledResult)];
+          failedSymbols.push({ symbol, error: settledResult.reason?.message || 'Promise rejected' });
+        }
+      }
+      
+      // Delay between batches
+      if (batchStart + MAX_PARALLEL_SYMBOLS < remainingSymbols.length) {
+        await new Promise(r => setTimeout(r, getAdaptiveDelay() * 3));
+      }
+    }
+    
+    return { allTrades, allOrders, processedSymbols, failedSymbols };
+  }, [updateProgress, saveCheckpoint]);
+  
+  /**
+   * Insert trades in batches with retry logic
+   */
+  const batchInsertTrades = useCallback(async (
+    trades: AggregatedTrade[],
+    userId: string,
+    existingIds: Set<string>
+  ): Promise<{
+    insertedCount: number;
+    failedBatches: Array<{ batch: number; error: string }>;
+  }> => {
+    const newTrades = trades.filter(t => !existingIds.has(t.binance_trade_id));
+    
+    if (newTrades.length === 0) {
+      return { insertedCount: 0, failedBatches: [] };
+    }
+    
+    let insertedCount = 0;
+    const failedBatches: Array<{ batch: number; error: string }> = [];
+    const totalBatches = Math.ceil(newTrades.length / BATCH_INSERT_SIZE);
+    
+    for (let i = 0; i < newTrades.length; i += BATCH_INSERT_SIZE) {
+      const batchIndex = Math.floor(i / BATCH_INSERT_SIZE) + 1;
+      const batch = newTrades.slice(i, i + BATCH_INSERT_SIZE);
+      const dbRows = batch.map(t => mapToDbRow(t, userId));
+      
+      updateProgress({
+        phase: 'inserting',
+        current: Math.min(i + BATCH_INSERT_SIZE, newTrades.length),
+        total: newTrades.length,
+        message: `Saving batch ${batchIndex}/${totalBatches}...`,
+      });
+      
+      // Retry logic per batch
+      let retries = MAX_INSERT_RETRIES;
+      let success = false;
+      
+      while (retries > 0 && !success) {
+        const { error } = await supabase
+          .from('trade_entries')
+          .insert(dbRows);
+        
+        if (!error) {
+          success = true;
+          insertedCount += batch.length;
+          console.log(`[FullSync] Batch ${batchIndex}/${totalBatches} inserted successfully (${batch.length} trades)`);
+        } else {
+          retries--;
+          if (retries > 0) {
+            console.warn(`[FullSync] Batch ${batchIndex} failed, retrying (${retries} left)...`, error.message);
+            await new Promise(r => setTimeout(r, 1000 * (MAX_INSERT_RETRIES - retries)));
+          } else {
+            console.error(`[FullSync] Batch ${batchIndex} failed after all retries:`, error.message);
+            failedBatches.push({ batch: batchIndex, error: error.message });
+          }
+        }
+      }
+    }
+    
+    return { insertedCount, failedBatches };
+  }, [updateProgress]);
   
   const syncMutation = useMutation({
     mutationFn: async (options: FullSyncOptions = {}): Promise<AggregationResult> => {
@@ -294,6 +487,9 @@ export function useBinanceAggregatedSync() {
         throw new Error('Sync already in progress');
       }
       
+      // Check if resuming from checkpoint
+      const isResuming = options.resumeFromCheckpoint && checkpoint && canResume;
+      
       // Mark sync as started in global store
       startFullSync();
       
@@ -302,39 +498,63 @@ export function useBinanceAggregatedSync() {
       let startTime: number;
       
       if (options.daysToSync === 'max') {
-        // Binance Futures launched around September 2019
         startTime = new Date('2019-09-01').getTime();
       } else {
         const daysToSync = options.daysToSync || DEFAULT_HISTORY_DAYS;
         startTime = endTime - (daysToSync * 24 * 60 * 60 * 1000);
       }
       
-      // =======================================================================
-      // Phase 1: Fetch Income Records
-      // =======================================================================
-      updateProgress({
-        phase: 'fetching-income',
-        current: 0,
-        total: 100,
-        message: 'Fetching income records from Binance...',
-      });
+      // Use checkpoint time range if resuming
+      if (isResuming && checkpoint) {
+        startTime = checkpoint.timeRange.startTime || startTime;
+      }
       
-      const income = await fetchAllIncome(startTime, endTime, (fetched) => {
+      // Track failed symbols and partial success
+      let failedSymbols: Array<{ symbol: string; error: string }> = [];
+      let income: BinanceIncome[] = [];
+      let symbols: string[] = [];
+      
+      // =======================================================================
+      // Phase 1: Fetch Income Records (or use checkpoint)
+      // =======================================================================
+      if (isResuming && checkpoint?.incomeData) {
+        console.log('[FullSync] Resuming with cached income data');
+        income = checkpoint.incomeData;
+        symbols = checkpoint.allSymbols;
+      } else {
         updateProgress({
           phase: 'fetching-income',
-          current: Math.min(fetched, 10000),
-          total: 10000,
-          message: `Fetched ${fetched} income records...`,
+          current: 0,
+          total: 100,
+          message: 'Fetching income records from Binance...',
         });
-      });
-      
-      console.log(`[FullSync] Fetched ${income.length} income records`);
-      
-      // Get unique symbols from income
-      const symbols = getUniqueSymbols(income);
-      console.log(`[FullSync] Found ${symbols.length} unique symbols`);
+        
+        income = await fetchAllIncome(startTime, endTime, (fetched) => {
+          updateProgress({
+            phase: 'fetching-income',
+            current: Math.min(fetched, 10000),
+            total: 10000,
+            message: `Fetched ${fetched} income records...`,
+          });
+        });
+        
+        console.log(`[FullSync] Fetched ${income.length} income records`);
+        
+        // Get unique symbols from income
+        symbols = getUniqueSymbols(income);
+        console.log(`[FullSync] Found ${symbols.length} unique symbols`);
+        
+        // Save checkpoint after income fetch
+        saveCheckpoint({
+          currentPhase: 'fetching-trades',
+          incomeData: income,
+          allSymbols: symbols,
+          timeRange: { startTime, endTime },
+        });
+      }
       
       if (symbols.length === 0) {
+        clearCheckpoint();
         return {
           success: true,
           trades: [],
@@ -357,54 +577,53 @@ export function useBinanceAggregatedSync() {
             isReconciled: true,
             incompletePositionsNote: '',
           },
+          partialSuccess: {
+            insertedCount: 0,
+            failedBatches: [],
+            failedSymbols: [],
+            skippedDueToError: 0,
+          },
         };
       }
       
       // =======================================================================
-      // Phase 2: Fetch Trades for Each Symbol (Parallel)
+      // Phase 2: Fetch Trades for Each Symbol (with error tolerance)
       // =======================================================================
-      const allTrades: BinanceTrade[] = [];
-      const allOrders: BinanceOrder[] = [];
+      const checkpointData: SyncCheckpoint = isResuming && checkpoint ? checkpoint : {
+        currentPhase: 'fetching-trades',
+        incomeData: income,
+        tradesBySymbol: {},
+        ordersBySymbol: {},
+        processedSymbols: [],
+        failedSymbols: [],
+        allSymbols: symbols,
+        syncStartTime: Date.now(),
+        syncRangeDays: options.daysToSync || DEFAULT_HISTORY_DAYS,
+        lastCheckpointTime: Date.now(),
+        timeRange: { startTime, endTime },
+      };
       
-      // Process symbols in parallel batches for speed
-      let completedSymbols = 0;
-      
-      for (let batchStart = 0; batchStart < symbols.length; batchStart += MAX_PARALLEL_SYMBOLS) {
-        const batch = symbols.slice(batchStart, batchStart + MAX_PARALLEL_SYMBOLS);
-        
-        updateProgress({
-          phase: 'fetching-trades',
-          current: completedSymbols,
-          total: symbols.length,
-          message: `Fetching trades for ${batch.join(', ')} (${completedSymbols + 1}-${Math.min(completedSymbols + batch.length, symbols.length)}/${symbols.length})...`,
-        });
-        
-        // Fetch batch in parallel
-        const batchResults = await Promise.all(
-          batch.map(async (symbol) => {
-            const [trades, orders] = await Promise.all([
-              fetchTradesForSymbol(symbol, startTime, endTime),
-              fetchOrdersForSymbol(symbol, startTime, endTime),
-            ]);
-            return { trades, orders };
-          })
-        );
-        
-        // Collect results
-        for (const result of batchResults) {
-          allTrades.push(...result.trades);
-          allOrders.push(...result.orders);
+      const { 
+        allTrades, 
+        allOrders, 
+        processedSymbols, 
+        failedSymbols: fetchFailedSymbols 
+      } = await fetchTradesWithTolerance(
+        symbols,
+        startTime,
+        endTime,
+        checkpointData,
+        (symbol, result) => {
+          if (!result.success) {
+            console.warn(`[FullSync] Symbol ${symbol} failed, continuing with others...`);
+          }
         }
-        
-        completedSymbols += batch.length;
-        
-        // Longer delay between batches to respect rate limits
-        if (batchStart + MAX_PARALLEL_SYMBOLS < symbols.length) {
-          await new Promise(r => setTimeout(r, getAdaptiveDelay() * 3));
-        }
-      }
+      );
       
-      console.log(`[FullSync] Fetched ${allTrades.length} trades, ${allOrders.length} orders (parallel)`);
+      failedSymbols = fetchFailedSymbols;
+      
+      console.log(`[FullSync] Fetched ${allTrades.length} trades, ${allOrders.length} orders`);
+      console.log(`[FullSync] Processed ${processedSymbols.length}/${symbols.length} symbols, ${failedSymbols.length} failed`);
       
       // =======================================================================
       // Phase 3: Group into Lifecycles
@@ -416,6 +635,8 @@ export function useBinanceAggregatedSync() {
         message: 'Grouping trades into position lifecycles...',
       });
       
+      saveCheckpoint({ currentPhase: 'grouping' });
+      
       const rawData: RawBinanceData = {
         trades: allTrades,
         orders: allOrders,
@@ -423,7 +644,7 @@ export function useBinanceAggregatedSync() {
         fetchedAt: new Date(),
         periodStart: startTime,
         periodEnd: endTime,
-        symbols,
+        symbols: processedSymbols,
       };
       
       const lifecycles = groupIntoLifecycles(rawData);
@@ -438,6 +659,8 @@ export function useBinanceAggregatedSync() {
         total: lifecycles.length,
         message: 'Aggregating position data...',
       });
+      
+      saveCheckpoint({ currentPhase: 'aggregating' });
       
       const { trades: aggregatedTrades, failures } = aggregateAllLifecycles(
         lifecycles,
@@ -467,11 +690,14 @@ export function useBinanceAggregatedSync() {
       console.log(`[FullSync] Validation: ${validationResult.valid.length} valid, ${validationResult.invalid.length} invalid`);
       
       // =======================================================================
-      // Phase 6: Insert Valid Trades to DB
+      // Phase 6: Insert Valid Trades to DB (batched with retry)
       // =======================================================================
       const tradesToInsert = validationResult.valid;
+      let insertResult = { insertedCount: 0, failedBatches: [] as Array<{ batch: number; error: string }> };
       
       if (tradesToInsert.length > 0) {
+        saveCheckpoint({ currentPhase: 'inserting' });
+        
         // Check for existing trades to avoid duplicates
         const binanceTradeIds = tradesToInsert.map(t => t.binance_trade_id);
         
@@ -483,27 +709,20 @@ export function useBinanceAggregatedSync() {
           .in('binance_trade_id', binanceTradeIds);
         
         const existingIds = new Set(existingTrades?.map(t => t.binance_trade_id) || []);
-        const newTrades = tradesToInsert.filter(t => !existingIds.has(t.binance_trade_id));
         
-        if (newTrades.length > 0) {
-          const dbRows = newTrades.map(t => mapToDbRow(t, user.id));
-          
-          const { error: insertError } = await supabase
-            .from('trade_entries')
-            .insert(dbRows);
-          
-          if (insertError) {
-            throw new Error(`Failed to insert trades: ${insertError.message}`);
-          }
-          
-          console.log(`[FullSync] Inserted ${newTrades.length} new trades`);
-        }
+        // Batched insert with retry
+        insertResult = await batchInsertTrades(tradesToInsert, user.id, existingIds);
+        
+        console.log(`[FullSync] Inserted ${insertResult.insertedCount} new trades, ${insertResult.failedBatches.length} batches failed`);
       }
       
       // =======================================================================
       // Phase 7: Calculate Reconciliation
       // =======================================================================
       const reconciliation = calculateReconciliation(tradesToInsert, income);
+      
+      // Clear checkpoint on success
+      clearCheckpoint();
       
       return {
         success: true,
@@ -518,6 +737,12 @@ export function useBinanceAggregatedSync() {
         },
         failures,
         reconciliation,
+        partialSuccess: {
+          insertedCount: insertResult.insertedCount,
+          failedBatches: insertResult.failedBatches,
+          failedSymbols,
+          skippedDueToError: failedSymbols.length,
+        },
       };
     },
     onSuccess: (successResult) => {
@@ -529,7 +754,20 @@ export function useBinanceAggregatedSync() {
       // Phase 5: Record success for monitoring
       recordSyncSuccess(successResult);
       
-      if (successResult.reconciliation.isReconciled) {
+      // Build success message
+      const { partialSuccess } = successResult;
+      const hasPartialFailures = partialSuccess && (
+        partialSuccess.failedSymbols.length > 0 || 
+        partialSuccess.failedBatches.length > 0
+      );
+      
+      if (hasPartialFailures) {
+        toast.warning(
+          `Synced ${successResult.stats.validTrades} trades. ` +
+          `${partialSuccess.failedSymbols.length} symbols failed. ` +
+          `PnL diff: ${successResult.reconciliation.differencePercent.toFixed(2)}%`
+        );
+      } else if (successResult.reconciliation.isReconciled) {
         toast.success(
           `Synced ${successResult.stats.validTrades} trades successfully. ` +
           `PnL reconciled within 0.1% tolerance.`
@@ -542,19 +780,37 @@ export function useBinanceAggregatedSync() {
       }
     },
     onError: (error) => {
-      // Update global store with error
+      // Update global store with error (checkpoint is preserved for resume)
       failFullSync(error.message);
       
-      // Phase 5: Record failure for monitoring and schedule retry
+      // Phase 5: Record failure for monitoring
       recordSyncFailure(error);
       
-      toast.error(`Sync failed: ${error.message}`);
+      toast.error(`Sync failed: ${error.message}. You can try to resume.`);
     },
   });
+  
+  /**
+   * Resume sync from last checkpoint
+   */
+  const resumeSync = useCallback(() => {
+    if (!canResume || !checkpoint) {
+      toast.error('No resumable sync found');
+      return;
+    }
+    
+    syncMutation.mutate({
+      daysToSync: checkpoint.syncRangeDays,
+      resumeFromCheckpoint: true,
+    });
+  }, [canResume, checkpoint, syncMutation]);
   
   return {
     sync: syncMutation.mutate,
     syncAsync: syncMutation.mutateAsync,
+    resumeSync,
+    canResume,
+    clearCheckpoint,
     isLoading: fullSyncStatus === 'running',
     progress,
     error: fullSyncError ? new Error(fullSyncError) : syncMutation.error,

@@ -19,6 +19,7 @@ export type {
   AggregationResult,
   RawBinanceData,
   GroupedIncome,
+  SyncCheckpoint,
 } from './types';
 
 // Position Lifecycle Grouper
