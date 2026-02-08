@@ -298,9 +298,12 @@ export function useBinanceAggregatedSync() {
           reconciliation: {
             binanceTotalPnl: 0,
             aggregatedTotalPnl: 0,
+            matchedIncomePnl: 0,
+            unmatchedIncomePnl: 0,
             difference: 0,
             differencePercent: 0,
             isReconciled: true,
+            incompletePositionsNote: '',
           },
         };
       }

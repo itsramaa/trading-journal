@@ -230,6 +230,14 @@ function generateTradeId(lifecycle: PositionLifecycle): string {
 
 /**
  * Calculate reconciliation between Binance and aggregated totals
+ * 
+ * IMPORTANT: To get accurate reconciliation, we compare:
+ * - aggregatedTotalPnl: P&L from completed lifecycles (our trades)
+ * - matchedIncomePnl: Only income records that were matched to those lifecycles
+ * 
+ * This avoids false mismatch caused by:
+ * - Open positions (incomplete lifecycles)
+ * - Income records outside the lifecycle time windows
  */
 export function calculateReconciliation(
   trades: AggregatedTrade[],
@@ -237,34 +245,69 @@ export function calculateReconciliation(
 ): {
   binanceTotalPnl: number;
   aggregatedTotalPnl: number;
+  matchedIncomePnl: number;
+  unmatchedIncomePnl: number;
   difference: number;
   differencePercent: number;
   isReconciled: boolean;
+  incompletePositionsNote: string;
 } {
-  // Binance total from raw income
-  const binanceTotalPnl = allIncome
-    .filter(i => i.incomeType === 'REALIZED_PNL')
-    .reduce((sum, i) => sum + i.income, 0);
-  
-  // Aggregated total from processed trades
+  // Aggregated total from processed trades (complete lifecycles only)
   const aggregatedTotalPnl = trades.reduce(
     (sum, t) => sum + t.realized_pnl,
     0
   );
   
-  const difference = Math.abs(binanceTotalPnl - aggregatedTotalPnl);
-  const differencePercent = binanceTotalPnl !== 0 
-    ? (difference / Math.abs(binanceTotalPnl)) * 100 
-    : 0;
+  // Get income that was matched to lifecycles (from _rawLifecycle)
+  const matchedIncomeIds = new Set<string>();
+  for (const trade of trades) {
+    const lifecycle = trade._rawLifecycle;
+    if (lifecycle) {
+      for (const inc of lifecycle.incomeRecords) {
+        if (inc.incomeType === 'REALIZED_PNL') {
+          // Use tranId as unique identifier
+          matchedIncomeIds.add(`${inc.symbol}_${inc.time}_${inc.income}`);
+        }
+      }
+    }
+  }
+  
+  // Calculate matched income P&L
+  const matchedIncomePnl = allIncome
+    .filter(i => i.incomeType === 'REALIZED_PNL')
+    .filter(i => matchedIncomeIds.has(`${i.symbol}_${i.time}_${i.income}`))
+    .reduce((sum, i) => sum + i.income, 0);
+  
+  // Total raw income (for reference)
+  const binanceTotalPnl = allIncome
+    .filter(i => i.incomeType === 'REALIZED_PNL')
+    .reduce((sum, i) => sum + i.income, 0);
+  
+  // Unmatched income = income from incomplete/open positions
+  const unmatchedIncomePnl = binanceTotalPnl - matchedIncomePnl;
+  
+  // COMPARE: aggregatedTotalPnl vs matchedIncomePnl (same data source)
+  const difference = Math.abs(aggregatedTotalPnl - matchedIncomePnl);
+  const differencePercent = matchedIncomePnl !== 0 
+    ? (difference / Math.abs(matchedIncomePnl)) * 100 
+    : (aggregatedTotalPnl !== 0 ? 100 : 0);
   
   // Reconciled if within 0.1% tolerance
   const isReconciled = differencePercent <= 0.1;
   
+  // Note about unmatched income
+  const incompletePositionsNote = unmatchedIncomePnl !== 0
+    ? `${unmatchedIncomePnl >= 0 ? '+' : ''}$${unmatchedIncomePnl.toFixed(2)} P&L from open/incomplete positions not included in aggregated trades.`
+    : '';
+  
   return {
     binanceTotalPnl,
     aggregatedTotalPnl,
+    matchedIncomePnl,
+    unmatchedIncomePnl,
     difference,
     differencePercent,
     isReconciled,
+    incompletePositionsNote,
   };
 }

@@ -194,6 +194,11 @@ function ReconciliationSection({ reconciliation }: { reconciliation: Aggregation
   const diffPercent = Math.abs(reconciliation.differencePercent);
   const progressValue = Math.max(0, 100 - (diffPercent * 100)); // 0.1% diff = 90%
   
+  // Use new fields directly since they're now part of the type
+  const matchedPnl = reconciliation.matchedIncomePnl;
+  const unmatchedPnl = reconciliation.unmatchedIncomePnl;
+  const incompleteNote = reconciliation.incompletePositionsNote;
+  
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -214,26 +219,46 @@ function ReconciliationSection({ reconciliation }: { reconciliation: Aggregation
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Main comparison: Aggregated vs Matched Income */}
         <div className="grid grid-cols-3 gap-4 text-sm">
           <div>
-            <div className="text-muted-foreground text-xs">Binance Total</div>
-            <div className="font-mono font-medium">
-              {formatCurrency(reconciliation.binanceTotalPnl)}
-            </div>
-          </div>
-          <div>
-            <div className="text-muted-foreground text-xs">Aggregated Total</div>
+            <div className="text-muted-foreground text-xs">Aggregated P&L</div>
             <div className="font-mono font-medium">
               {formatCurrency(reconciliation.aggregatedTotalPnl)}
             </div>
+            <div className="text-xs text-muted-foreground">From completed trades</div>
+          </div>
+          <div>
+            <div className="text-muted-foreground text-xs">Matched Income</div>
+            <div className="font-mono font-medium">
+              {formatCurrency(matchedPnl)}
+            </div>
+            <div className="text-xs text-muted-foreground">Binance REALIZED_PNL</div>
           </div>
           <div>
             <div className="text-muted-foreground text-xs">Difference</div>
             <div className={`font-mono font-medium ${Math.abs(reconciliation.difference) > 0.01 ? 'text-warning' : 'text-muted-foreground'}`}>
               {formatCurrency(reconciliation.difference)}
             </div>
+            <div className="text-xs text-muted-foreground">{diffPercent.toFixed(4)}%</div>
           </div>
         </div>
+        
+        {/* Unmatched income info */}
+        {unmatchedPnl !== 0 && (
+          <div className="rounded-lg bg-muted/50 p-3 space-y-1">
+            <div className="flex items-center gap-2 text-sm">
+              <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+              <span className="font-medium">Unmatched P&L: {formatCurrency(unmatchedPnl)}</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {incompleteNote || 'P&L from open or incomplete positions not included in aggregated trades.'}
+            </p>
+            <div className="text-xs text-muted-foreground">
+              Total Binance P&L: {formatCurrency(reconciliation.binanceTotalPnl)}
+            </div>
+          </div>
+        )}
         
         <div className="space-y-1">
           <div className="flex justify-between text-xs">

@@ -192,11 +192,14 @@ export interface AggregationResult {
   
   // Reconciliation data
   reconciliation: {
-    binanceTotalPnl: number;
-    aggregatedTotalPnl: number;
-    difference: number;
-    differencePercent: number;
-    isReconciled: boolean;  // Within 0.1% tolerance
+    binanceTotalPnl: number;      // Total raw income from Binance
+    aggregatedTotalPnl: number;   // Sum from completed lifecycles
+    matchedIncomePnl: number;     // Income matched to lifecycles
+    unmatchedIncomePnl: number;   // Income from open/incomplete positions
+    difference: number;           // |aggregatedTotalPnl - matchedIncomePnl|
+    differencePercent: number;    // Difference as percentage
+    isReconciled: boolean;        // Within 0.1% tolerance
+    incompletePositionsNote: string;  // Explanation of unmatched income
   };
 }
 
