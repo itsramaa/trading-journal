@@ -177,6 +177,8 @@ Display in UI after sync:
 | 2.1 Parallel increase | Low | Medium | ⭐⭐ | ✅ Done (4 parallel) |
 | 2.2 Skip orders | Low | Medium | ⭐⭐ | ⏸️ Deferred (optional) |
 | 3.1 Enhanced summary | Low | Low | ⭐ | ✅ Done |
+| 3.2 Sync Quality UI | Low | Medium | ⭐⭐ | ✅ Done |
+| **Incremental Sync** | Medium | High | ⭐⭐⭐ | ✅ Done |
 
 ---
 
@@ -238,15 +240,45 @@ Display in UI after sync:
 ## Recommendations
 
 **Immediate (Do Now):**
-1. Add debug logging untuk melihat berapa PnL yang unmatched
-2. Filter symbols berdasarkan REALIZED_PNL saja
+1. ✅ Add debug logging untuk melihat berapa PnL yang unmatched
+2. ✅ Filter symbols berdasarkan REALIZED_PNL saja
 
 **Short-term (Next Sprint):**
-1. Increase parallel fetching ke 4
-2. Make orders fetch optional
-3. Add sync quality score
+1. ✅ Increase parallel fetching ke 4
+2. ⏸️ Make orders fetch optional (deferred)
+3. ✅ Add sync quality score
 
 **Long-term:**
-1. Implement incremental sync (only new data since last sync)
+1. ✅ Implement incremental sync (only new data since last sync)
 2. Cache income data in localStorage for faster resume
+
+---
+
+## Incremental Sync Implementation
+
+### Overview
+Incremental sync allows fetching only new data since the last successful sync, dramatically reducing sync time for regular updates.
+
+### Key Features
+- **Last Sync Tracking**: Stores `lastSyncInfo` with timestamp, end time, trades count, match rate, and quality score
+- **Automatic Detection**: `canDoIncrementalSync()` checks if last sync was within 30 days
+- **Overlap Buffer**: Uses 5-minute overlap to prevent missing trades at boundaries
+- **Fallback**: If no previous sync exists, falls back to 7-day sync
+
+### Usage
+```typescript
+// Select 'incremental' as sync range
+setSyncRange('incremental');
+
+// Or programmatically:
+sync({ daysToSync: 'incremental' });
+```
+
+### Storage
+- `binance_last_successful_sync` localStorage key stores:
+  - `timestamp`: When sync completed
+  - `endTime`: The actual endTime used (for calculating next start)
+  - `tradesCount`: Number of trades synced
+  - `matchRate`: Match rate percentage
+  - `quality`: Sync quality score
 
