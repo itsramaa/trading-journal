@@ -27,6 +27,7 @@ import { BinanceAccountConfigCard } from "./BinanceAccountConfigCard";
 import { BinanceAutoSyncToggle } from "./BinanceAutoSyncToggle";
 import { ApiKeyForm } from "./ApiKeyForm";
 import { RateLimitDisplay } from "./RateLimitDisplay";
+import { SyncMonitoringPanel } from "@/components/trading/SyncMonitoringPanel";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { formatDistanceToNow } from "date-fns";
 
@@ -241,6 +242,21 @@ export function BinanceApiSettings() {
       
       {/* Auto-Sync Toggle (only show if connected) */}
       {isConnected && <BinanceAutoSyncToggle isConnected={isConnected} />}
+      
+      {/* Sync Monitoring Panel (only show if connected) */}
+      {isConnected && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Sync Health Monitoring</CardTitle>
+            <CardDescription>
+              Monitor data quality, reconciliation status, and sync failures
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <SyncMonitoringPanel />
+          </CardContent>
+        </Card>
+      )}
       
       {/* Account Configuration Card (only show if connected) */}
       {isConnected && (
