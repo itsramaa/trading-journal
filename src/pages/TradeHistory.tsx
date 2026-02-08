@@ -35,6 +35,7 @@ import { useSyncStore, selectIsFullSyncRunning, selectFullSyncProgress } from "@
 import { useTradeEnrichment } from "@/hooks/use-trade-enrichment";
 import { useTradeEnrichmentBinance, useTradesNeedingEnrichmentCount, type EnrichmentProgress } from "@/hooks/use-trade-enrichment-binance";
 import { useUserSettings } from "@/hooks/use-user-settings";
+import { useBinanceDataSource } from "@/hooks/use-binance-data-source";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTradeHistoryFilters, type ResultFilter, type DirectionFilter, type SessionFilter, type SortByAI } from "@/hooks/use-trade-history-filters";
@@ -105,6 +106,9 @@ export default function TradeHistory() {
   // Incremental sync hook
   const { sync: triggerIncrementalSync, isLoading: isIncrementalSyncing, lastSyncTime, isStale } = useBinanceIncrementalSync({ autoSyncOnMount: true });
   
+  // Data source filter based on user settings
+  const { sourceFilter: binanceSourceFilter, useBinanceHistory } = useBinanceDataSource();
+  
   // Trade enrichment
   const { enrichTrades, isEnriching } = useTradeEnrichmentBinance();
   const { data: tradesNeedingEnrichment = 0 } = useTradesNeedingEnrichmentCount();
@@ -126,6 +130,7 @@ export default function TradeHistory() {
   // Build paginated filters - memoized for stability
   // Session filter is now at DB level
   // Map 'profit' -> 'win' for DB query (UI uses 'profit', DB uses 'win')
+  // Apply source filter based on use_binance_history setting
   const paginatedFilters: TradeFilters = useMemo(() => {
     const mappedResult = resultFilter === 'profit' ? 'win' : resultFilter;
     return {
@@ -137,8 +142,10 @@ export default function TradeHistory() {
       direction: directionFilter !== 'all' ? directionFilter : undefined,
       strategyIds: selectedStrategyIds.length > 0 ? selectedStrategyIds : undefined,
       session: sessionFilter !== 'all' ? sessionFilter as TradeFilters['session'] : undefined,
+      // Apply source filter from user settings
+      source: binanceSourceFilter,
     };
-  }, [effectiveStartDate, effectiveEndDate, selectedPairs, resultFilter, directionFilter, selectedStrategyIds, sessionFilter]);
+  }, [effectiveStartDate, effectiveEndDate, selectedPairs, resultFilter, directionFilter, selectedStrategyIds, sessionFilter, binanceSourceFilter]);
 
   // Paginated query for trade list
   const {

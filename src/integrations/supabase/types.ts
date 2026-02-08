@@ -618,6 +618,33 @@ export type Database = {
         }
         Relationships: []
       }
+      sync_quota_usage: {
+        Row: {
+          created_at: string
+          id: string
+          last_sync_at: string
+          sync_count: number
+          sync_date: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_sync_at?: string
+          sync_count?: number
+          sync_date?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_sync_at?: string
+          sync_count?: number
+          sync_date?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       trade_entries: {
         Row: {
           ai_analysis_generated_at: string | null
@@ -1112,7 +1139,20 @@ export type Database = {
           reset_at: string
         }[]
       }
+      check_sync_quota: {
+        Args: { p_user_id: string }
+        Returns: {
+          allowed: boolean
+          current_count: number
+          max_quota: number
+        }[]
+      }
       cleanup_old_rate_limits: { Args: never; Returns: number }
+      cleanup_old_sync_quotas: { Args: never; Returns: number }
+      cleanup_old_trades: {
+        Args: { p_retention_days?: number }
+        Returns: number
+      }
       delete_exchange_credential: {
         Args: { p_credential_id: string }
         Returns: boolean
@@ -1209,6 +1249,7 @@ export type Database = {
         Args: { p_strategy_id: string }
         Returns: undefined
       }
+      increment_sync_quota: { Args: { p_user_id: string }; Returns: number }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
       save_exchange_credential: {
         Args: {

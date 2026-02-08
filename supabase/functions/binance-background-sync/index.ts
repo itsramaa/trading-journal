@@ -2,6 +2,11 @@
  * Binance Background Sync Edge Function
  * Called by Service Worker (browser background) or pg_cron (server-side)
  * Performs incremental sync of Binance Futures trades
+ * 
+ * Features:
+ * - Daily sync quota enforcement to prevent abuse
+ * - Incremental sync support
+ * - Per-user rate limiting
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
@@ -19,6 +24,17 @@ interface SyncResult {
   incomeCount: number;
   error?: string;
   syncedAt: string;
+  quotaInfo?: {
+    currentCount: number;
+    maxQuota: number;
+    remaining: number;
+  };
+}
+
+interface QuotaCheckResult {
+  allowed: boolean;
+  current_count: number;
+  max_quota: number;
 }
 
 /**
@@ -33,6 +49,49 @@ function decodeJwt(token: string): { sub: string; exp: number } {
   } catch {
     throw new Error('Failed to decode JWT');
   }
+}
+
+/**
+ * Check if user has remaining sync quota for today
+ */
+async function checkSyncQuota(
+  supabase: ReturnType<typeof createClient>,
+  userId: string
+): Promise<QuotaCheckResult> {
+  const { data, error } = await supabase.rpc('check_sync_quota', {
+    p_user_id: userId,
+  });
+
+  if (error) {
+    console.error('Quota check error:', error);
+    // Default to allowing if check fails (fail-open for better UX)
+    return { allowed: true, current_count: 0, max_quota: 10 };
+  }
+
+  if (!data || data.length === 0) {
+    return { allowed: true, current_count: 0, max_quota: 10 };
+  }
+
+  return data[0];
+}
+
+/**
+ * Increment user's sync quota usage
+ */
+async function incrementSyncQuota(
+  supabase: ReturnType<typeof createClient>,
+  userId: string
+): Promise<number> {
+  const { data, error } = await supabase.rpc('increment_sync_quota', {
+    p_user_id: userId,
+  });
+
+  if (error) {
+    console.error('Quota increment error:', error);
+    return 0;
+  }
+
+  return data || 0;
 }
 
 /**
@@ -180,6 +239,7 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     let userId: string;
+    let skipQuotaCheck = false; // Cron jobs skip quota check
     
     // Check if called by cron (no auth header) or by user
     const authHeader = req.headers.get('Authorization');
@@ -196,6 +256,7 @@ Deno.serve(async (req) => {
       userId = claims.sub;
     } else {
       // Cron-initiated sync - get userId from body
+      skipQuotaCheck = true; // Cron jobs bypass quota
       const body = await req.json();
       userId = body.userId;
       
@@ -217,7 +278,7 @@ Deno.serve(async (req) => {
         const results: SyncResult[] = [];
         for (const setting of settings) {
           try {
-            const result = await performSyncForUser(supabase, setting.user_id);
+            const result = await performSyncForUser(supabase, setting.user_id, true);
             results.push(result);
           } catch (error) {
             console.error(`Sync failed for user ${setting.user_id}:`, error);
@@ -238,8 +299,35 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ========================================================================
+    // QUOTA ENFORCEMENT (for user-initiated syncs only)
+    // ========================================================================
+    if (!skipQuotaCheck) {
+      const quotaCheck = await checkSyncQuota(supabase, userId);
+      
+      if (!quotaCheck.allowed) {
+        console.log(`User ${userId} exceeded daily sync quota: ${quotaCheck.current_count}/${quotaCheck.max_quota}`);
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'Daily sync quota exceeded',
+            quotaInfo: {
+              currentCount: quotaCheck.current_count,
+              maxQuota: quotaCheck.max_quota,
+              remaining: 0,
+            },
+            syncedAt: new Date().toISOString(),
+          }),
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      // Increment quota BEFORE performing sync
+      await incrementSyncQuota(supabase, userId);
+    }
+
     // Perform sync for single user
-    const result = await performSyncForUser(supabase, userId);
+    const result = await performSyncForUser(supabase, userId, skipQuotaCheck);
     
     // Send push notification
     await sendPushNotification(supabase, userId, result);
@@ -262,7 +350,8 @@ Deno.serve(async (req) => {
  */
 async function performSyncForUser(
   supabase: ReturnType<typeof createClient>,
-  userId: string
+  userId: string,
+  skipQuotaInfo = false
 ): Promise<SyncResult> {
   // Get user credentials
   const credentials = await getUserCredentials(supabase, userId);

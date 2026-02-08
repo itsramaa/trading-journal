@@ -17,6 +17,7 @@ export interface TradeFilters {
   direction?: 'LONG' | 'SHORT';
   result?: 'win' | 'loss' | 'breakeven' | 'profit';  // profit = alias for win
   source?: 'manual' | 'binance';
+  excludeSource?: 'manual' | 'binance'; // NEW: Exclude specific source
   startDate?: string;
   endDate?: string;
   strategyId?: string;
@@ -75,8 +76,13 @@ export function useTradeEntriesPaginated(options: PaginatedTradeEntriesOptions =
         query = query.eq("realized_pnl", 0);
       }
       
+      // Source filters
       if (filters?.source) {
         query = query.eq("source", filters.source);
+      }
+      // Exclude source (for use_binance_history = false)
+      if (filters?.excludeSource) {
+        query = query.neq("source", filters.excludeSource);
       }
       if (filters?.startDate) {
         query = query.gte("trade_date", filters.startDate);
