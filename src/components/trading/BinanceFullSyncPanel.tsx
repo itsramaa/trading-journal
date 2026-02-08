@@ -26,9 +26,11 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { useBinanceAggregatedSync } from "@/hooks/use-binance-aggregated-sync";
-import { useSyncStore, selectFullSyncStatus, selectFullSyncProgress, selectFullSyncResult } from "@/store/sync-store";
+import { useSyncStore, selectFullSyncStatus, selectFullSyncProgress, selectFullSyncResult, selectSyncRange } from "@/store/sync-store";
 import { SyncStatusBadge } from "./SyncStatusBadge";
 import { ReSyncTimeWindow } from "./ReSyncTimeWindow";
+import { SyncRangeSelector } from "./SyncRangeSelector";
+import { SyncETADisplay } from "./SyncETADisplay";
 import type { AggregationProgress } from "@/services/binance/types";
 import { toast } from "sonner";
 
@@ -50,6 +52,7 @@ export function BinanceFullSyncPanel({
   const status = useSyncStore(selectFullSyncStatus);
   const progress = useSyncStore(selectFullSyncProgress);
   const result = useSyncStore(selectFullSyncResult);
+  const selectedRange = useSyncStore(selectSyncRange);
   const fullSyncError = useSyncStore(state => state.fullSyncError);
 
   if (!isBinanceConnected) return null;
@@ -63,7 +66,7 @@ export function BinanceFullSyncPanel({
       return;
     }
     
-    sync({ daysToSync: 730 }); // 2 years
+    sync({ daysToSync: selectedRange });
   };
 
   // Show progress (running state from global store)
@@ -150,7 +153,7 @@ export function BinanceFullSyncPanel({
           <TooltipContent>
             <p className="font-medium">Aggregate-First Full Sync</p>
             <p className="text-xs text-muted-foreground mt-1">
-              Fetches up to 2 years of Binance history, groups into position lifecycles,
+              Fetches Binance history, groups into position lifecycles,
               aggregates fills with fees & funding, then inserts to local DB.
             </p>
           </TooltipContent>
@@ -158,32 +161,33 @@ export function BinanceFullSyncPanel({
       </TooltipProvider>
 
       <AlertDialog open={showConfirm} onOpenChange={setShowConfirm}>
-        <AlertDialogContent>
+        <AlertDialogContent className="max-w-md">
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <Database className="h-5 w-5 text-primary" />
               Full Sync with Aggregation
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
-              <div className="space-y-3 text-sm">
+              <div className="space-y-4 text-sm">
                 <p>
-                  This will fetch your complete Binance Futures trading history (up to 2 years)
-                  and process it through the aggregation layer:
+                  This will fetch your Binance Futures trading history
+                  and process it through the aggregation layer.
                 </p>
-                <ul className="list-disc pl-4 space-y-1">
-                  <li>Fetch all income records (PnL, fees, funding)</li>
-                  <li>Fetch trade fills for each symbol</li>
+                
+                {/* Sync Range Selector */}
+                <div className="pt-2 border-t">
+                  <SyncRangeSelector />
+                </div>
+                
+                <ul className="list-disc pl-4 space-y-1 text-muted-foreground">
+                  <li>Fetch income records (PnL, fees, funding)</li>
+                  <li>Fetch trade fills in parallel for each symbol</li>
                   <li>Group fills into position lifecycles</li>
-                  <li>Calculate weighted average entry/exit prices</li>
-                  <li>Attach fees, commissions, and funding</li>
+                  <li>Calculate weighted average prices</li>
                   <li>Validate and insert to local database</li>
                 </ul>
-                <p className="text-muted-foreground">
-                  This may take several minutes depending on your trading history.
-                  Existing trades will not be duplicated.
-                </p>
                 <p className="text-primary font-medium">
-                  ✓ Sync continues in background even if you navigate to other pages.
+                  ✓ Sync continues in background even if you navigate away.
                 </p>
               </div>
             </AlertDialogDescription>
@@ -192,7 +196,7 @@ export function BinanceFullSyncPanel({
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleSync}>
               <CloudDownload className="h-4 w-4 mr-2" />
-              Start Full Sync
+              Start Full Sync ({selectedRange} days)
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -225,9 +229,12 @@ function SyncProgressIndicator({ progress }: { progress: AggregationProgress }) 
           <span className="text-xs text-muted-foreground">{percent}%</span>
         </div>
         <Progress value={percent} className="h-2" />
-        <span className="text-xs text-muted-foreground truncate max-w-[250px]">
-          {progress.message}
-        </span>
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground truncate max-w-[180px]">
+            {progress.message}
+          </span>
+          <SyncETADisplay compact />
+        </div>
       </div>
     </div>
   );
