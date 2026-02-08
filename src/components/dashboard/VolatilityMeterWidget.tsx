@@ -5,22 +5,28 @@
  */
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { Activity, TrendingUp, AlertTriangle, Flame, Snowflake } from "lucide-react";
 import { useMultiSymbolVolatility, type VolatilityRisk } from "@/features/binance";
 import { cn } from "@/lib/utils";
-
-// Default watchlist symbols
-const DEFAULT_WATCHLIST = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT'];
+import { DEFAULT_WATCHLIST_SYMBOLS, DISPLAY_LIMITS } from "@/lib/constants/market-config";
+import { 
+  getMarketCondition, 
+  getVolatilityLevelConfig,
+  getVolatilityBarColor,
+  calculateBarPercentage,
+  VOLATILITY_DISPLAY,
+  VOLATILITY_LEVEL_CONFIG,
+  type VolatilityLevel 
+} from "@/lib/constants/volatility-config";
 
 interface VolatilityMeterWidgetProps {
   symbols?: string[];
   className?: string;
 }
 
-function getVolatilityIcon(level: VolatilityRisk['level']) {
+function getVolatilityIcon(level: VolatilityLevel) {
   switch (level) {
     case 'low': return Snowflake;
     case 'medium': return TrendingUp;
@@ -29,39 +35,22 @@ function getVolatilityIcon(level: VolatilityRisk['level']) {
   }
 }
 
-function getVolatilityColor(level: VolatilityRisk['level']) {
-  switch (level) {
-    case 'low': return 'text-blue-500';
-    case 'medium': return 'text-primary';
-    case 'high': return 'text-warning';
-    case 'extreme': return 'text-destructive';
-  }
+function getVolatilityColor(level: VolatilityLevel) {
+  return getVolatilityLevelConfig(level).color;
 }
 
-function getVolatilityBadgeVariant(level: VolatilityRisk['level']) {
-  switch (level) {
-    case 'low': return 'secondary';
-    case 'medium': return 'default';
-    case 'high': return 'outline';
-    case 'extreme': return 'destructive';
-  }
+function getVolatilityBadgeVariant(level: VolatilityLevel) {
+  return getVolatilityLevelConfig(level).badgeVariant;
 }
 
-function VolatilityBar({ value, max = 150 }: { value: number; max?: number }) {
-  const percentage = Math.min((value / max) * 100, 100);
-  
-  // Color based on percentage
-  const getBarColor = () => {
-    if (percentage < 30) return 'bg-blue-500';
-    if (percentage < 60) return 'bg-primary';
-    if (percentage < 80) return 'bg-warning';
-    return 'bg-destructive';
-  };
+function VolatilityBar({ value, max = VOLATILITY_DISPLAY.BAR_MAX }: { value: number; max?: number }) {
+  const percentage = calculateBarPercentage(value, max);
+  const barColor = getVolatilityBarColor(percentage);
   
   return (
     <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
       <div 
-        className={cn("h-full transition-all duration-500", getBarColor())}
+        className={cn("h-full transition-all duration-500", barColor)}
         style={{ width: `${percentage}%` }}
       />
     </div>
@@ -69,7 +58,7 @@ function VolatilityBar({ value, max = 150 }: { value: number; max?: number }) {
 }
 
 function VolatilityMeterContent({ 
-  symbols = DEFAULT_WATCHLIST,
+  symbols = [...DEFAULT_WATCHLIST_SYMBOLS],
   className 
 }: VolatilityMeterWidgetProps) {
   // Volatility data uses public Binance endpoints - no API key required
@@ -80,15 +69,8 @@ function VolatilityMeterContent({
     ? volatilityData.reduce((sum, v) => sum + v.annualizedVolatility, 0) / volatilityData.length
     : 0;
   
-  // Determine overall market condition
-  const getMarketCondition = () => {
-    if (avgVolatility < 30) return { label: 'Calm', color: 'text-blue-500' };
-    if (avgVolatility < 60) return { label: 'Normal', color: 'text-primary' };
-    if (avgVolatility < 100) return { label: 'Volatile', color: 'text-warning' };
-    return { label: 'Extreme', color: 'text-destructive' };
-  };
-  
-  const marketCondition = getMarketCondition();
+  // Determine overall market condition using centralized function
+  const marketCondition = getMarketCondition(avgVolatility);
 
   if (isLoading) {
     return (
@@ -102,7 +84,7 @@ function VolatilityMeterContent({
         <CardContent className="space-y-4">
           <Skeleton className="h-4 w-full" />
           <div className="space-y-3">
-            {Array.from({ length: 5 }).map((_, i) => (
+            {Array.from({ length: DISPLAY_LIMITS.SKELETON_COUNT }).map((_, i) => (
               <Skeleton key={i} className="h-12 w-full" />
             ))}
           </div>
@@ -137,7 +119,7 @@ function VolatilityMeterContent({
             <Activity className="h-4 w-4" />
             Volatility Meter
           </CardTitle>
-          <Badge variant="outline" className={marketCondition.color}>
+          <Badge variant="outline" className={marketCondition.colorClass}>
             {marketCondition.label} Market
           </Badge>
         </div>
@@ -150,7 +132,7 @@ function VolatilityMeterContent({
         <div className="p-3 rounded-lg bg-muted/50">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium">Market Average</span>
-            <span className={cn("text-lg font-bold", marketCondition.color)}>
+            <span className={cn("text-lg font-bold", marketCondition.colorClass)}>
               {avgVolatility.toFixed(1)}%
             </span>
           </div>
@@ -201,24 +183,17 @@ function VolatilityMeterContent({
           })}
         </div>
         
-        {/* Legend */}
+        {/* Legend - using centralized config */}
         <div className="flex flex-wrap items-center justify-center gap-3 pt-2 text-xs text-muted-foreground border-t">
-          <div className="flex items-center gap-1">
-            <Snowflake className="h-3 w-3 text-blue-500" />
-            <span>&lt;30%</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <TrendingUp className="h-3 w-3 text-primary" />
-            <span>30-60%</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <AlertTriangle className="h-3 w-3 text-warning" />
-            <span>60-100%</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <Flame className="h-3 w-3 text-destructive" />
-            <span>&gt;100%</span>
-          </div>
+          {Object.entries(VOLATILITY_LEVEL_CONFIG).map(([level, config]) => {
+            const Icon = getVolatilityIcon(level as VolatilityLevel);
+            return (
+              <div key={level} className="flex items-center gap-1">
+                <Icon className={cn("h-3 w-3", config.color)} />
+                <span>{config.rangeLabel}</span>
+              </div>
+            );
+          })}
         </div>
       </CardContent>
     </Card>
