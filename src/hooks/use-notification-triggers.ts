@@ -4,6 +4,8 @@
  * - Position closed (via realtime subscription)
  * - Daily loss limit warnings (via risk status monitoring)
  * - Market alerts (via market data monitoring)
+ * 
+ * IMPORTANT: Market alert deduplication is now DB-level (max 3/day per type)
  */
 import { useEffect, useRef, useCallback } from "react";
 import { useAuth } from "@/hooks/use-auth";
@@ -19,6 +21,9 @@ import type { TradeEntry } from "@/hooks/use-trade-entries";
 
 const FEAR_GREED_THRESHOLDS = { low: 25, high: 75 };
 const LOSS_THRESHOLDS = { warning: 70, danger: 90, limit: 100 };
+
+// Max market alerts per day (persisted via DB count, not memory)
+const MAX_DAILY_EXTREME_ALERTS = 3;
 
 interface NotificationTriggersOptions {
   enableTradeNotifications?: boolean;
@@ -135,42 +140,60 @@ export function useNotificationTriggers(options: NotificationTriggersOptions = {
     }
   }, [user?.id, enableRiskNotifications, riskStatus, wasNotificationSent, markNotificationSent]);
 
-  // 3. Market Alert Notifications (Extreme Fear/Greed)
+  // 3. Market Alert Notifications (Extreme Fear/Greed) - DB-level daily limit
   useEffect(() => {
     if (!user?.id || !enableMarketAlerts || !sentimentData) return;
     
     const fearGreedValue = sentimentData.sentiment.fearGreed.value;
-    const hour = new Date().getHours();
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStart = today.toISOString();
+    
+    const checkAndSendMarketAlert = async (
+      alertType: 'extreme_fear' | 'extreme_greed',
+      titlePattern: string,
+      description: string
+    ) => {
+      // Query DB for today's count of this alert type
+      const { count } = await supabase
+        .from('notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('type', 'market_alert')
+        .ilike('title', `%${titlePattern}%`)
+        .gte('created_at', todayStart);
+      
+      if ((count ?? 0) >= MAX_DAILY_EXTREME_ALERTS) {
+        console.log(`[NotificationTriggers] Skipping ${alertType}: already sent ${count} today (max ${MAX_DAILY_EXTREME_ALERTS})`);
+        return;
+      }
+      
+      await notifyMarketAlert({
+        userId: user.id,
+        alertType,
+        value: fearGreedValue,
+        description,
+      });
+    };
     
     // Extreme Fear
     if (fearGreedValue <= FEAR_GREED_THRESHOLDS.low) {
-      const notificationKey = `extreme-fear-${today}-${hour}`;
-      if (!wasNotificationSent(notificationKey)) {
-        notifyMarketAlert({
-          userId: user.id,
-          alertType: 'extreme_fear',
-          value: fearGreedValue,
-          description: `Fear & Greed Index at ${fearGreedValue} - potential accumulation opportunity for long-term positions. Consider scaling into positions with tight risk management.`,
-        });
-        markNotificationSent(notificationKey);
-      }
+      checkAndSendMarketAlert(
+        'extreme_fear',
+        'Extreme Fear',
+        `Fear & Greed Index at ${fearGreedValue} - potential accumulation opportunity for long-term positions. Consider scaling into positions with tight risk management.`
+      );
     }
     
     // Extreme Greed
     if (fearGreedValue >= FEAR_GREED_THRESHOLDS.high) {
-      const notificationKey = `extreme-greed-${today}-${hour}`;
-      if (!wasNotificationSent(notificationKey)) {
-        notifyMarketAlert({
-          userId: user.id,
-          alertType: 'extreme_greed',
-          value: fearGreedValue,
-          description: `Fear & Greed Index at ${fearGreedValue} - consider taking profits and reducing exposure. Market may be overheated.`,
-        });
-        markNotificationSent(notificationKey);
-      }
+      checkAndSendMarketAlert(
+        'extreme_greed',
+        'Extreme Greed',
+        `Fear & Greed Index at ${fearGreedValue} - consider taking profits and reducing exposure. Market may be overheated.`
+      );
     }
-  }, [user?.id, enableMarketAlerts, sentimentData, wasNotificationSent, markNotificationSent]);
+  }, [user?.id, enableMarketAlerts, sentimentData]);
 
   return {
     isActive: !!user?.id,
