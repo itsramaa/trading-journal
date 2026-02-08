@@ -525,8 +525,19 @@ async function getTicker24h(symbol?: string) {
       count: t.count,
     });
     
-    const result = Array.isArray(data) ? data.map(formatTicker) : formatTicker(data);
-    return { success: true, data: result };
+    // Filter out stale data - only include tickers with closeTime within last 25 hours
+    // (25h buffer to account for timezone differences and edge cases)
+    const now = Date.now();
+    const staleThreshold = now - (25 * 60 * 60 * 1000); // 25 hours ago
+    
+    if (Array.isArray(data)) {
+      const formatted = data.map(formatTicker);
+      // Filter out delisted/stale pairs
+      const fresh = formatted.filter(t => t.closeTime > staleThreshold);
+      return { success: true, data: fresh };
+    }
+    
+    return { success: true, data: formatTicker(data) };
   } catch (error) {
     return {
       success: false,
