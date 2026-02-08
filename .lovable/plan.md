@@ -167,16 +167,16 @@ Display in UI after sync:
 
 ---
 
-## Implementation Priority
+## Implementation Status
 
-| Phase | Effort | Impact | Priority |
-|-------|--------|--------|----------|
-| 1.1 tradeId mapping | Low | High | ⭐⭐⭐ |
-| 1.3 Debug logging | Low | Medium | ⭐⭐⭐ |
-| 2.4 Symbol filtering | Medium | High | ⭐⭐⭐ |
-| 2.1 Parallel increase | Low | Medium | ⭐⭐ |
-| 2.2 Skip orders | Low | Medium | ⭐⭐ |
-| 3.1 Enhanced summary | Low | Low | ⭐ |
+| Phase | Effort | Impact | Priority | Status |
+|-------|--------|--------|----------|--------|
+| 1.1 tradeId mapping | Low | High | ⭐⭐⭐ | ✅ Already implemented |
+| 1.3 Debug logging | Low | Medium | ⭐⭐⭐ | ✅ Done |
+| 2.4 Symbol filtering | Medium | High | ⭐⭐⭐ | ✅ Done |
+| 2.1 Parallel increase | Low | Medium | ⭐⭐ | ✅ Done (4 parallel) |
+| 2.2 Skip orders | Low | Medium | ⭐⭐ | ⏸️ Deferred (optional) |
+| 3.1 Enhanced summary | Low | Low | ⭐ | ✅ Done |
 
 ---
 
