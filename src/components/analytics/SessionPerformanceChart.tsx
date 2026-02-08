@@ -1,6 +1,6 @@
 /**
  * SessionPerformanceChart - Trading performance breakdown by market session
- * Shows win rate, P&L, and trade count for Asia, London, and New York sessions
+ * Shows win rate, P&L, and trade count for Sydney, Tokyo, London, and New York sessions
  */
 import { useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,15 +32,16 @@ interface SessionPerformanceChartProps {
   bySession: Record<TradingSession, PerformanceMetrics>;
 }
 
-// Session order for display
-const SESSION_ORDER: TradingSession[] = ['asia', 'london', 'newyork', 'off-hours'];
+// Session order aligned with database values
+const SESSION_ORDER: TradingSession[] = ['sydney', 'tokyo', 'london', 'new_york', 'other'];
 
 // Session-specific colors for charts
 const SESSION_CHART_COLORS: Record<TradingSession, string> = {
-  asia: 'hsl(var(--chart-1))',
-  london: 'hsl(var(--chart-2))',
-  newyork: 'hsl(var(--chart-3))',
-  'off-hours': 'hsl(var(--muted-foreground))',
+  sydney: 'hsl(var(--chart-1))',
+  tokyo: 'hsl(var(--chart-2))',
+  london: 'hsl(var(--chart-3))',
+  new_york: 'hsl(var(--chart-4))',
+  other: 'hsl(var(--muted-foreground))',
 };
 
 export function SessionPerformanceChart({ bySession }: SessionPerformanceChartProps) {
@@ -117,7 +118,7 @@ export function SessionPerformanceChart({ bySession }: SessionPerformanceChartPr
             <CardTitle className="flex items-center gap-2">
               <Clock className="h-5 w-5" />
               Session Performance
-              <InfoTooltip content="Trading sessions are determined by UTC time and displayed in your local timezone. Asia (20:00-05:00 UTC), London (08:00-17:00 UTC), New York (13:00-22:00 UTC)." />
+              <InfoTooltip content="Trading sessions are determined by UTC time and displayed in your local timezone. Sydney (21:00-06:00 UTC), Tokyo (00:00-09:00 UTC), London (07:00-16:00 UTC), New York (12:00-21:00 UTC)." />
             </CardTitle>
             <CardDescription>Win rate and P&L by trading session (your local time)</CardDescription>
           </div>
@@ -179,7 +180,7 @@ export function SessionPerformanceChart({ bySession }: SessionPerformanceChartPr
         </div>
 
         {/* Session Cards */}
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-5">
           {chartData.map((data) => (
             <div 
               key={data.session}

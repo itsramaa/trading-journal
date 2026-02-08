@@ -72,13 +72,14 @@ export default function TradingHeatmapPage() {
     return result;
   }, [trades, dateRange, selectedPair]);
 
-  // Session stats - uses UTC-based session detection
+  // Session stats - uses UTC-based session detection aligned with DB
   const sessionStats = useMemo((): SessionStatsMap => {
     const sessions: SessionStatsMap = {
-      asia: { trades: 0, pnl: 0, wins: 0, winRate: 0 },
+      sydney: { trades: 0, pnl: 0, wins: 0, winRate: 0 },
+      tokyo: { trades: 0, pnl: 0, wins: 0, winRate: 0 },
       london: { trades: 0, pnl: 0, wins: 0, winRate: 0 },
-      newyork: { trades: 0, pnl: 0, wins: 0, winRate: 0 },
-      'off-hours': { trades: 0, pnl: 0, wins: 0, winRate: 0 },
+      new_york: { trades: 0, pnl: 0, wins: 0, winRate: 0 },
+      other: { trades: 0, pnl: 0, wins: 0, winRate: 0 },
     };
     
     filteredTrades.forEach(trade => {
@@ -298,21 +299,39 @@ export default function TradingHeatmapPage() {
         ) : (
           <>
             {/* Session Performance Cards */}
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <Moon className="h-4 w-4 text-purple-500" />
+                    {SESSION_LABELS.sydney}
+                    <Badge variant="outline" className="ml-auto text-xs">{formatSessionTimeLocal('sydney')}</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className={`text-xl font-bold ${sessionStats.sydney.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                    {formatPnl(sessionStats.sydney.pnl)}
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {sessionStats.sydney.trades} trades • {formatWinRate(sessionStats.sydney.winRate)} win rate
+                  </p>
+                </CardContent>
+              </Card>
+
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium flex items-center gap-2">
                     <Moon className="h-4 w-4 text-blue-500" />
-                    {SESSION_LABELS.asia}
-                    <Badge variant="outline" className="ml-auto text-xs">{formatSessionTimeLocal('asia')}</Badge>
+                    {SESSION_LABELS.tokyo}
+                    <Badge variant="outline" className="ml-auto text-xs">{formatSessionTimeLocal('tokyo')}</Badge>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className={`text-xl font-bold ${sessionStats.asia.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                    {formatPnl(sessionStats.asia.pnl)}
+                  <div className={`text-xl font-bold ${sessionStats.tokyo.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                    {formatPnl(sessionStats.tokyo.pnl)}
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    {sessionStats.asia.trades} trades • {formatWinRate(sessionStats.asia.winRate)} win rate
+                    {sessionStats.tokyo.trades} trades • {formatWinRate(sessionStats.tokyo.winRate)} win rate
                   </p>
                 </CardContent>
               </Card>
@@ -339,16 +358,16 @@ export default function TradingHeatmapPage() {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium flex items-center gap-2">
                     <Sun className="h-4 w-4 text-yellow-500" />
-                    {SESSION_LABELS.newyork}
-                    <Badge variant="outline" className="ml-auto text-xs">{formatSessionTimeLocal('newyork')}</Badge>
+                    {SESSION_LABELS.new_york}
+                    <Badge variant="outline" className="ml-auto text-xs">{formatSessionTimeLocal('new_york')}</Badge>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className={`text-xl font-bold ${sessionStats.newyork.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                    {formatPnl(sessionStats.newyork.pnl)}
+                  <div className={`text-xl font-bold ${sessionStats.new_york.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                    {formatPnl(sessionStats.new_york.pnl)}
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    {sessionStats.newyork.trades} trades • {formatWinRate(sessionStats.newyork.winRate)} win rate
+                    {sessionStats.new_york.trades} trades • {formatWinRate(sessionStats.new_york.winRate)} win rate
                   </p>
                 </CardContent>
               </Card>
