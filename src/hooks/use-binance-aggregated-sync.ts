@@ -607,6 +607,13 @@ export function useBinanceAggregatedSync() {
         
         console.log(`[FullSync] Fetched ${income.length} income records`);
         
+        // Log breakdown of income types for debugging
+        const incomeTypeBreakdown = income.reduce((acc, r) => {
+          acc[r.incomeType] = (acc[r.incomeType] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+        console.log('[FullSync] Income breakdown by type:', incomeTypeBreakdown);
+        
         // Get unique symbols from income
         symbols = getUniqueSymbols(income);
         console.log(`[FullSync] Found ${symbols.length} unique symbols`);
