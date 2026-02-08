@@ -1,322 +1,372 @@
 
-# Plan: Audit Hardcode & Refactor Trading Journal / Trade History
+# Audit Report: Market Data Page & Economic Calendar Page
 
-## Status: ✅ COMPLETED
+## Executive Summary
 
-### Completed Tasks
-
-1. **✅ Phase 1: Extract Constants** - Created `src/lib/constants/trade-history.ts`
-2. **✅ Phase 2: Trade Utilities (DRY)** - Created `src/lib/trade-utils.ts`
-3. **✅ Phase 3: Filter Hook** - Created `src/hooks/use-trade-history-filters.ts`
-4. **✅ Phase 4: Export Utilities** - Created `src/lib/export/trade-export.ts`
-5. **✅ Phase 5: Component Updates** - Updated all components to use new utilities
-
-### 1.1 Hardcode di `TradeHistory.tsx`
-
-| Lokasi | Hardcode | Nilai | Dampak |
-|--------|----------|-------|--------|
-| Line 50 | `DEFAULT_START_DATE` | `subYears(new Date(), 1)` (1 tahun) | Lookback default terkunci, user tidak bisa kustomisasi |
-| Line 51 | `PAGE_SIZE` | `50` | Pagination size fixed, tidak bisa diatur user |
-| Line 415-417 | CSV Header | `'Date,Pair,Direction,Entry,Exit,P&L,Result,Notes\n'` | Export format hardcoded, tidak internationalized |
-| Line 537 | `daysBack` | `730` (2 tahun) | Enrichment lookback hardcoded |
-
-### 1.2 Hardcode di `TradingJournal.tsx`
-
-| Lokasi | Hardcode | Nilai | Dampak |
-|--------|----------|-------|--------|
-| Line 238 | `defaultValue` | `"active"` | Tab default hardcoded |
-| Line 238 | Tab max-width | `max-w-[300px]` | Responsive breakpoint hardcoded |
-
-### 1.3 Hardcode di Komponen Pendukung
-
-| File | Hardcode | Dampak |
-|------|----------|--------|
-| `TradeHistoryCard.tsx` Line 219 | `confluence_score` display `/5` | Skala konfluensi hardcoded ke 5, tidak fleksibel |
-| `TradeGalleryCard.tsx` Line 33-34 | Enrichment check `entry_price === 0` | Logika validasi tersebar |
-| `FeeHistoryTab.tsx` Line 70-74 | Bahasa Indonesia hardcoded | Tidak konsisten dengan i18n |
-| `FundingHistoryTab.tsx` Line 70-74 | Bahasa Indonesia hardcoded | Tidak konsisten dengan i18n |
-| `use-trade-entries-paginated.ts` Line 31 | `DEFAULT_PAGE_SIZE = 50` | Duplikasi dengan TradeHistory |
-
-### 1.4 Magic Numbers di Session Utils
-
-`session-utils.ts` sudah baik dengan konstanta `SESSION_UTC`, tetapi ada inkonsistensi:
-- Line 89-103: Overlap hours masih hardcoded inline (12-16, 7-9, 0-6)
+Audit dilakukan terhadap **Market Data Page** (`/market-data`) dan **Economic Calendar Page** (`/economic-calendar`) beserta seluruh komponen, hook, dan service terkait. Temuan menunjukkan beberapa kategori hardcode yang mempengaruhi akurasi data, konsistensi UI, dan skalabilitas sistem.
 
 ---
 
-## 2. Dampak Hardcode
+## STEP 1 — HARDCODE DETECTION
 
-### Dampak Negatif
+### 1.1 Market Data Page (`src/pages/MarketData.tsx`)
 
-1. **Maintainability Rendah**
-   - Perubahan pagination size memerlukan edit di 2 tempat
-   - Perubahan lookback default tersebar
-   
-2. **Internationalization Terhambat**
-   - String bahasa Indonesia inline (FeeHistoryTab, FundingHistoryTab)
-   - CSV headers tidak terlokalisasi
-   
-3. **Testing Sulit**
-   - Magic numbers tidak bisa di-mock atau dikonfigurasi untuk test
-   - E2E test harus match dengan hardcode values
-   
-4. **Flexibility Kurang**
-   - User tidak bisa mengatur pagination preference
-   - Power user tidak bisa custom export format
+| Lokasi | Hardcode | Jenis | Nilai |
+|--------|----------|-------|-------|
+| Line 17 | `TOP_5_SYMBOLS` | Data | `['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'XRPUSDT', 'BNBUSDT']` |
+| Line 21 | `selectedPair` default | UI State | `'BTCUSDT'` |
+| Line 45 | `slice(0, 6)` whale limit | Logic | 6 items max |
+| Line 51 | `slice(0, 6)` opportunities limit | Logic | 6 items max |
+| Line 123 | Sources text | UI | `'Sources: Binance, CoinGecko, Alternative.me'` |
 
-### Dampak Positif (Yang Sudah Baik)
+### 1.2 MarketSentimentWidget (`src/components/market/MarketSentimentWidget.tsx`)
 
-1. **Session constants** sudah terpusat di `session-utils.ts`
-2. **Formatters** sudah terpusat di `formatters.ts`
-3. **Query invalidation** sudah terpusat di `query-invalidation.ts`
+| Lokasi | Hardcode | Jenis | Nilai |
+|--------|----------|-------|-------|
+| Line 52-57 | `DEFAULT_QUICK_SYMBOLS` | Data | 4 symbols fixed |
+| Line 59-64 | `PERIODS` | Data | `['5m', '15m', '1h', '4h']` |
+| Line 67 | `defaultSymbol` | UI | `'BTCUSDT'` |
+| Line 73 | `period` default | Logic | `'1h'` |
+| Line 97-106 | Sentiment color thresholds | Logic | `60`, `40` |
+| Line 371-398 | Top Trader ratio thresholds | Logic | `1.2`, `0.8`, `1.5`, `0.7`, `1.1`, `0.9`, `0.001` |
 
----
+### 1.3 WhaleTrackingWidget (`src/components/market/WhaleTrackingWidget.tsx`)
 
-## 3. Rekomendasi Solusi
+| Lokasi | Hardcode | Jenis | Nilai |
+|--------|----------|-------|-------|
+| Line 37 | `isSelectedInTop5` default | Logic | `true` |
+| Line 72 | Badge text | UI | `'Top 5'` |
+| Line 82 | Skeleton count | UI | `5` items |
 
-### Phase 1: Extract Constants (Quick Win)
+### 1.4 TradingOpportunitiesWidget (`src/components/market/TradingOpportunitiesWidget.tsx`)
 
-Buat file `src/lib/constants/trade-history.ts`:
+| Lokasi | Hardcode | Jenis | Nilai |
+|--------|----------|-------|-------|
+| Line 29 | `isSelectedInTop5` default | Logic | `true` |
+| Line 64 | Badge text | UI | `'Top 5'` |
+| Line 74 | Skeleton count | UI | `5` items |
 
-```text
-// Constants for Trade History module
-export const TRADE_HISTORY_DEFAULTS = {
-  PAGE_SIZE: 50,
-  LOOKBACK_DAYS: 365,           // Default 1 year
-  ENRICHMENT_LOOKBACK_DAYS: 730, // 2 years for enrichment
-  EXPORT_FORMATS: ['csv', 'json'] as const,
-} as const;
+### 1.5 VolatilityMeterWidget (`src/components/dashboard/VolatilityMeterWidget.tsx`)
 
-export const CONFLUENCE_SCALE = {
-  MIN: 0,
-  MAX: 5,
-  DISPLAY_FORMAT: (score: number) => `${score}/${CONFLUENCE_SCALE.MAX}`,
-} as const;
+| Lokasi | Hardcode | Jenis | Nilai |
+|--------|----------|-------|-------|
+| Line 16 | `DEFAULT_WATCHLIST` | Data | 5 symbols fixed |
+| Line 50 | `max` volatility | Logic | `150` |
+| Line 54-58 | Color thresholds | Logic | `30`, `60`, `80` percentages |
+| Line 85-88 | Market condition thresholds | Logic | `30`, `60`, `100` |
+| Line 205-222 | Legend percentages | UI | `<30%`, `30-60%`, `60-100%`, `>100%` |
 
-export const TRADE_TABS = {
-  DEFAULT_JOURNAL: 'active',
-  DEFAULT_HISTORY: 'all',
-} as const;
-```
+### 1.6 Market Insight Edge Function (`supabase/functions/market-insight/index.ts`)
 
-### Phase 2: Refactor dengan SRP
+| Lokasi | Hardcode | Jenis | Nilai |
+|--------|----------|-------|-------|
+| Line 279 | Default symbols | Data | `['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'XRPUSDT', 'BNBUSDT']` |
+| Line 290 | Max symbols limit | Logic | `10` |
+| Line 9-10 | RSI period | Logic | `14` |
+| Line 117-118 | MA periods | Logic | `50`, `200` |
+| Line 143-160 | Momentum thresholds | Logic | `5`, `-5` change percent |
+| Line 169 | Min klines check | Logic | `48` |
+| Line 183-197 | Volume/price thresholds | Logic | `30`, `2`, `-2`, `50` |
+| Line 325 | Volatility thresholds | Logic | `4`, `2` |
+| Line 367-371 | Score weights | Logic | `0.30`, `0.25`, `0.25`, `0.20` |
+| Line 373-375 | Sentiment thresholds | Logic | `0.60`, `0.45` |
 
-#### 2.1 Extract CSV Export Logic
+### 1.7 Economic Calendar Page (`src/pages/EconomicCalendar.tsx`)
 
-**Masalah**: Export logic embedded di komponen (TradeHistory.tsx Line 410-424)
+| Lokasi | Hardcode | Jenis | Nilai |
+|--------|----------|-------|-------|
+| (Minimal) | Page title & description | UI | English strings |
 
-**Solusi**: Buat utility terpisah
+### 1.8 CalendarTab (`src/components/market-insight/CalendarTab.tsx`)
 
-File baru: `src/lib/export/trade-export.ts`
-- `exportTradesCsv(trades, options)`
-- `exportTradesJson(trades, options)`
-- `formatTradeForExport(trade, locale)`
+| Lokasi | Hardcode | Jenis | Nilai |
+|--------|----------|-------|-------|
+| Line 42-43 | Date comparison | Logic | `Today`, `Tomorrow` |
+| Line 105 | Risk level comparison | Logic | `'VERY_HIGH'`, `'HIGH'` strings |
+| Line 113-115 | Position adjustment text | UI | `'reduce_50%'`, `'reduce_30%'` |
+| Line 247-249 | Importance dot colors | UI | `high`=red, `medium`=secondary, `low`=green |
+| Line 313 | Disclaimer text | UI | English string |
 
-#### 2.2 Extract Filter Logic
+### 1.9 Economic Calendar Edge Function (`supabase/functions/economic-calendar/index.ts`)
 
-**Masalah**: Filter state management berulang di TradeHistory.tsx
+| Lokasi | Hardcode | Jenis | Nilai |
+|--------|----------|-------|-------|
+| Line 31-35 | Importance mapping | Logic | `>=3`=high, `2`=medium, else=low |
+| Line 52-59 | Risk adjustment thresholds | Logic | `>=2` high impact = VERY_HIGH, `1` = HIGH |
+| Line 211-219 | Country/event filter | Logic | `'United States'`, `'fed'`, `'fomc'`, `'powell'` |
+| Line 219 | Min importance | Logic | `>=2` |
+| Line 243 | Max events | Logic | `15` |
 
-**Solusi**: Custom hook `useTradeHistoryFilters`
+### 1.10 useEconomicEvents Hook (`src/hooks/use-economic-events.ts`)
 
-```text
-// Hook yang mengenkapsulasi semua filter state
-function useTradeHistoryFilters() {
-  return {
-    filters: { dateRange, resultFilter, directionFilter, ... },
-    handlers: { setDateRange, setResultFilter, clearAll, ... },
-    computed: { hasActiveFilters, activeFilterCount, ... }
-  }
-}
-```
+| Lokasi | Hardcode | Jenis | Nilai |
+|--------|----------|-------|-------|
+| Line 28-44 | `HIGH_IMPACT_PATTERNS` | Data | 14 keyword patterns |
+| Line 48-49 | Date range defaults | Logic | `subDays(90)`, `addDays(30)` |
+| Line 148-154 | Event label priority | Logic | `'FOMC'`, `'CPI'`, `'NFP'`, `'GDP'`, `'PCE'` |
 
-#### 2.3 Extract Enrichment Check Logic
+### 1.11 useBinanceMarketSentiment Hook (`src/features/binance/useBinanceMarketData.ts`)
 
-**Masalah**: `needsEnrichment` check duplicated (TradeGalleryCard, TradeHistoryCard)
-
-**Solusi**: Utility function
-
-```text
-// src/lib/trade-utils.ts
-export function tradeNeedsEnrichment(trade: TradeEntry): boolean {
-  return trade.source === 'binance' && (!trade.entry_price || trade.entry_price === 0);
-}
-```
-
-### Phase 3: Component Decomposition (SRP)
-
-#### 3.1 TradeHistory.tsx Refactor
-
-**Current State**: 770 lines, menangani terlalu banyak responsibility
-
-**Decomposition Plan**:
-
-```text
-TradeHistory.tsx (Container - 150 lines)
-├── TradeHistoryHeader.tsx (Header + Stats)
-├── TradeHistoryFiltersSection.tsx (Filter Card)
-├── TradeHistoryContent.tsx (Tabs + Trade List)
-│   ├── TradeListView.tsx (List mode)
-│   └── TradeGalleryView.tsx (Gallery mode)
-├── TradeHistorySyncControls.tsx (Sync buttons)
-└── TradeHistoryDialogs.tsx (Enrichment + Delete dialogs)
-```
-
-#### 3.2 TradingJournal.tsx Refactor
-
-**Current State**: 342 lines, acceptable tapi bisa dipecah
-
-**Decomposition Plan**:
-
-```text
-TradingJournal.tsx (Container - 100 lines)
-├── JournalHeader.tsx
-├── JournalSummaryCards.tsx (reuse TradeSummaryStats)
-├── JournalTradeManagement.tsx
-│   ├── PendingPositionsTab.tsx
-│   └── ActivePositionsTab.tsx
-└── JournalDialogs.tsx (Close, Edit, Enrichment)
-```
-
-### Phase 4: DRY Improvements
-
-#### 4.1 Unified Empty State Messages
-
-Buat konstanta pesan empty state:
-
-```text
-// src/lib/constants/messages.ts
-export const EMPTY_STATE_MESSAGES = {
-  NO_TRADES: {
-    title: 'No trades found',
-    description: 'No trades match your current filters.',
-  },
-  NO_BINANCE_TRADES: (connected: boolean) => ({
-    title: 'No Binance trades',
-    description: connected 
-      ? 'No Binance trades match your filters.'
-      : 'Connect Binance in Settings to import trades.',
-  }),
-  // ... etc
-}
-```
-
-#### 4.2 Unified Badge Styling
-
-`TradeHistoryCard` dan `TradeGalleryCard` memiliki logika badge direction yang sama:
-
-```text
-// src/lib/trade-utils.ts
-export function getDirectionBadgeVariant(direction: string): 'long' | 'short' | 'outline' {
-  if (direction === 'LONG') return 'long';
-  if (direction === 'SHORT') return 'short';
-  return 'outline';
-}
-```
+| Lokasi | Hardcode | Jenis | Nilai |
+|--------|----------|-------|-------|
+| Line 371-398 | All threshold values | Logic | `1.2`, `0.8`, `1.5`, `0.7`, `1.1`, `0.9`, `0.001` |
+| Line 400-402 | Sentiment classification | Logic | `>60`=bullish, `<40`=bearish |
 
 ---
 
-## 4. Implementation Priority
+## STEP 2 — HARDCODE IMPACT ANALYSIS
 
-### Immediate (Phase 1) - Low Risk, Quick Win
-1. Extract constants ke `trade-history.ts`
-2. Replace hardcoded values dengan constants
-3. **Effort**: ~2 jam
+### 2.1 Symbol List Hardcode (`TOP_5_SYMBOLS`, `DEFAULT_WATCHLIST`)
 
-### Short-term (Phase 2) - Medium Risk
-4. Extract CSV export utility
-5. Create `useTradeHistoryFilters` hook
-6. Create `tradeNeedsEnrichment` utility
-7. **Effort**: ~4 jam
+**Dampak ke Akurasi:**
+- Jika market berubah (e.g., SOL diganti asset baru yang lebih populer), data yang ditampilkan tidak relevan
+- User tidak bisa menyesuaikan watchlist sesuai portofolio mereka
 
-### Medium-term (Phase 3 & 4) - Higher Risk
-8. Decompose `TradeHistory.tsx` ke sub-components
-9. Decompose `TradingJournal.tsx` ke sub-components
-10. Unify empty state messages
-11. **Effort**: ~8 jam
+**Dampak ke Trust:**
+- User dengan portofolio berbeda merasa app tidak personal
+- Data tidak mencerminkan aset yang user perdagangkan
 
----
+**Dampak ke Konsistensi:**
+- `TOP_5_SYMBOLS` didefinisikan di 3 tempat berbeda (page, widget, edge function) → risiko mismatch
 
-## 5. Files to Create/Modify
-
-### New Files
-- `src/lib/constants/trade-history.ts`
-- `src/lib/export/trade-export.ts`
-- `src/hooks/use-trade-history-filters.ts`
-- `src/components/journal/TradeHistoryHeader.tsx`
-- `src/components/journal/TradeHistoryFiltersSection.tsx`
-- `src/components/journal/TradeHistoryContent.tsx`
-- `src/components/journal/TradeHistorySyncControls.tsx`
-
-### Modified Files
-- `src/pages/TradeHistory.tsx` - Major refactor
-- `src/pages/trading-journey/TradingJournal.tsx` - Minor refactor
-- `src/components/trading/TradeHistoryCard.tsx` - Use utilities
-- `src/components/journal/TradeGalleryCard.tsx` - Use utilities
-- `src/components/trading/FeeHistoryTab.tsx` - i18n prep
-- `src/components/trading/FundingHistoryTab.tsx` - i18n prep
-- `src/hooks/use-trade-entries-paginated.ts` - Use shared constants
+**Risiko Jangka Panjang:**
+- Menambah exchange lain memerlukan update di banyak tempat
+- Tidak bisa support user preference per account
 
 ---
 
-## 6. Risk Mitigation
+### 2.2 Sentiment Threshold Hardcode (`60/40`, `1.2/0.8`, etc.)
 
-1. **Testing**: Pastikan unit test dan integration test berjalan setelah setiap phase
-2. **Incremental**: Commit per sub-task, bukan big bang refactor
-3. **Backward Compat**: Export lama harus tetap berfungsi selama transisi
-4. **Documentation**: Update `docs/FRONTEND.md` setelah refactor
+**Dampak ke Akurasi:**
+- Threshold `bullishScore > 60` tidak berdasarkan statistical significance
+- Dalam kondisi market tertentu, `60` bisa terlalu sensitif atau terlalu konservatif
+- Top trader ratio `1.2` mungkin tidak optimal untuk semua pair
+
+**Dampak ke Trust:**
+- User tidak tahu kenapa sentiment berubah dari "neutral" ke "bullish"
+- Tidak ada penjelasan metodologi di UI
+
+**Risiko Jangka Panjang:**
+- Jika ingin A/B test threshold berbeda → hardcode di banyak tempat
+- Tidak bisa per-symbol tuning (BTC vs altcoin behavior berbeda)
 
 ---
 
-## Technical Section
+### 2.3 Display Limit Hardcode (`slice(0, 6)`)
 
-### Contoh Implementasi Constants
+**Dampak ke Akurasi:**
+- Data ke-7 dan seterusnya tidak ditampilkan meski relevan
+- Opportunity bagus bisa terlewat
 
-```typescript
-// src/lib/constants/trade-history.ts
-export const TRADE_HISTORY_CONFIG = {
-  pagination: {
-    defaultPageSize: 50,
-    maxPageSize: 100,
-  },
-  lookback: {
-    defaultDays: 365,
-    enrichmentDays: 730,
-    maxHistoryDays: 1095, // 3 years
-  },
-  tabs: {
-    defaultJournal: 'active',
-    defaultHistory: 'all',
-  },
-  export: {
-    csvDelimiter: ',',
-    dateFormat: 'yyyy-MM-dd',
-  },
-} as const;
+**Dampak ke Konsistensi:**
+- Skeleton loading menampilkan 5 item, tapi data real 6 item → visual mismatch
+
+**Risiko Jangka Panjang:**
+- Tidak bisa responsive (mobile = 4, desktop = 8)
+- User tidak bisa expand/collapse
+
+---
+
+### 2.4 Economic Event Filter Hardcode
+
+**Dampak ke Akurasi:**
+- Filter `'United States'` mengabaikan event penting dari EU, China, Japan
+- Crypto market global, tapi calendar hanya US-centric
+- `HIGH_IMPACT_PATTERNS` keyword-based → bisa miss event baru atau typo berbeda
+
+**Dampak ke Trust:**
+- User di timezone Asia tidak melihat event lokal
+- Incomplete picture of macro landscape
+
+**Risiko Jangka Panjang:**
+- Menambah region baru = edit edge function + frontend
+- Tidak bisa user-configurable
+
+---
+
+### 2.5 Volatility Threshold Hardcode (`30%`, `60%`, `100%`)
+
+**Dampak ke Akurasi:**
+- Threshold statis tidak memperhitungkan regime volatility saat ini
+- Dalam bull market, 60% bisa "normal"; dalam bear market, bisa "extreme"
+
+**Dampak ke Konsistensi:**
+- Threshold di widget berbeda dengan threshold di edge function
+- Widget: `30/60/100`, Edge: `4/2` (percentage berbeda)
+
+**Risiko Jangka Panjang:**
+- Tidak adaptive terhadap market conditions
+- Sulit untuk backtest dan validasi
+
+---
+
+### 2.6 Score Weight Hardcode (`0.30/0.25/0.25/0.20`)
+
+**Dampak ke Akurasi:**
+- Weighting tidak berdasarkan historical validation
+- Technical vs on-chain importance bisa berubah per market cycle
+
+**Risiko Jangka Panjang:**
+- Tidak bisa ML-tuned
+- Tidak transparan ke user
+
+---
+
+## STEP 3 — RESPONSIBILITY & STRUCTURE AUDIT
+
+### 3.1 Single Responsibility Violations
+
+| File | Violation | Severity |
+|------|-----------|----------|
+| `MarketData.tsx` | Page melakukan data slicing (`slice(0,6)`) - seharusnya di hook/service | Medium |
+| `MarketSentimentWidget.tsx` | Komponen berisi business logic sentiment calculation | High |
+| `useBinanceMarketSentiment` | Hook melakukan sentiment scoring AND data fetching | Medium |
+| `market-insight/index.ts` (edge) | Edge function melakukan fetch, calculation, scoring, formatting semua sekaligus (400+ lines) | High |
+| `CalendarTab.tsx` | Date formatting logic inline di component | Low |
+
+### 3.2 DRY Violations
+
+| Pattern | Locations | Issue |
+|---------|-----------|-------|
+| `TOP_5_SYMBOLS` / `DEFAULT_WATCHLIST` | `MarketData.tsx`, `VolatilityMeterWidget.tsx`, edge function | Duplicate symbol lists |
+| Sentiment thresholds | `useBinanceMarketSentiment`, `MarketSentimentWidget` | Threshold logic duplicated |
+| Skeleton count | `WhaleTrackingWidget`, `TradingOpportunitiesWidget` | Hardcoded `5` in both |
+| "Top 5" badge text | Multiple widgets | Same string repeated |
+| Color mapping functions | `getSentimentColor`, `getVolatilityColor` | Similar patterns, not unified |
+
+### 3.3 Data Aggregation di Component
+
+| Component | Issue |
+|-----------|-------|
+| `MarketData.tsx` | Line 43-51: `useMemo` untuk slicing whale/opportunities data |
+| `MarketSentimentWidget.tsx` | Line 96-106: Color calculation di component |
+| `VolatilityMeterWidget.tsx` | Line 79-81: Average calculation di component |
+
+---
+
+## STEP 4 — REFACTOR DIRECTION (HIGH-LEVEL)
+
+### 4.1 Extract Constants ke Dedicated Files
+
+```text
+src/lib/constants/
+├── market-config.ts         # Symbol lists, display limits
+├── sentiment-thresholds.ts  # All scoring thresholds
+├── volatility-config.ts     # Volatility level definitions
+└── economic-calendar.ts     # Event patterns, filters
 ```
 
-### Contoh useTradeHistoryFilters Hook
+**Prinsip:**
+- Single source of truth untuk setiap domain
+- Shared antara frontend dan edge function (via import atau duplicated constants file di Deno)
 
-```typescript
-export function useTradeHistoryFilters() {
-  const [dateRange, setDateRange] = useState<DateRange>({ from: null, to: null });
-  const [resultFilter, setResultFilter] = useState<ResultFilter>('all');
-  // ... other states
+### 4.2 Extract Scoring Logic ke Service/Utils
 
-  const hasActiveFilters = useMemo(() => 
-    dateRange.from !== null || resultFilter !== 'all' || /* ... */
-  , [dateRange, resultFilter]);
+**Seharusnya Pindah:**
+- Sentiment calculation → `src/services/sentiment-scorer.ts`
+- Volatility risk assessment → `src/services/volatility-assessor.ts`
+- Event impact prediction → `src/services/event-analyzer.ts`
 
-  const clearAll = useCallback(() => {
-    setDateRange({ from: null, to: null });
-    setResultFilter('all');
-    // ...
-  }, []);
+**Benefit:**
+- Testable secara unit
+- Reusable di multiple components
+- Tidak perlu refetch jika hanya threshold berubah
 
-  return {
-    filters: { dateRange, resultFilter, /* ... */ },
-    setters: { setDateRange, setResultFilter, /* ... */ },
-    meta: { hasActiveFilters, activeFilterCount: /* ... */ },
-    actions: { clearAll },
-  };
-}
+### 4.3 Separate Data Fetching dari Scoring
+
+**Current:**
+```text
+useBinanceMarketSentiment → fetch + calculate score (coupled)
 ```
+
+**Ideal:**
+```text
+useBinanceMarketRawData → fetch only
+useSentimentScore(rawData) → calculate score (pure function)
+```
+
+### 4.4 Component Simplification
+
+**MarketSentimentWidget seharusnya:**
+- Terima `sentimentData` sebagai prop ATAU gunakan hook yang sudah processed
+- Tidak melakukan color/threshold logic
+- Fokus pada rendering
+
+**MarketData.tsx seharusnya:**
+- Orchestration only
+- Tidak slice data - hook harus return limited data
+
+### 4.5 Edge Function Decomposition
+
+**Current:** 1 monolithic function 420 lines
+
+**Ideal:**
+```text
+supabase/functions/market-insight/
+├── index.ts              # Router/orchestrator only
+├── fetchers.ts           # API call functions
+├── calculators.ts        # RSI, MA, volatility calc
+├── scorers.ts            # Sentiment scoring
+└── formatters.ts         # Response formatting
+```
+
+### 4.6 Economic Calendar Regionalization
+
+**Seharusnya:**
+- User preference untuk regions (stored di DB/localStorage)
+- Edge function accept `regions` parameter
+- Frontend pass user preference
+
+### 4.7 Data Flow Ideal
+
+```text
+[Edge Function]
+    ↓ (raw API data)
+[Service Layer] ← Constants
+    ↓ (scored/processed data)
+[Custom Hook]
+    ↓ (UI-ready data with limits applied)
+[Component] ← Pure rendering only
+```
+
+---
+
+## STEP 5 — RISK LEVEL ASSESSMENT
+
+### Market Data Page: **MEDIUM-HIGH**
+
+**Alasan:**
+- Multiple hardcoded thresholds mempengaruhi sentiment accuracy
+- Symbol list hardcode membatasi personalization
+- Scoring logic di edge function sulit di-tune tanpa redeploy
+- Tapi: Data masih dari real source (Binance), bukan dummy
+
+### Economic Calendar Page: **MEDIUM**
+
+**Alasan:**
+- US-centric filter bisa miss important events
+- Keyword-based high-impact detection fragile
+- Tapi: Core data dari Trading Economics API tetap accurate
+- AI prediction layer menambah value
+
+---
+
+## Summary Table
+
+| Category | Count | Severity |
+|----------|-------|----------|
+| Static Symbol Lists | 3 locations | Medium |
+| Threshold Hardcodes | 15+ values | High |
+| Display Limits | 4 locations | Low |
+| Business Logic in UI | 3 components | Medium |
+| DRY Violations | 5 patterns | Medium |
+| Edge Function Monolith | 1 (420 lines) | High |
+
+---
+
+## Recommended Priority
+
+1. **Immediate**: Extract `TOP_5_SYMBOLS` dan sentiment thresholds ke constants file
+2. **Short-term**: Separate scoring logic dari data fetching hooks
+3. **Medium-term**: Decompose edge function, add user-configurable watchlist
+4. **Long-term**: Per-symbol threshold tuning, regional calendar support
