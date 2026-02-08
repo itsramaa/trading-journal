@@ -1,345 +1,158 @@
 
-# Plan: Membuat Sync Binance Lebih Robust, Continueable, dan Tanpa Miss
 
-## Analisis Masalah
+# Plan: Perbaikan Full Sync untuk Memastikan Semua Data Ter-fetch
 
-Berdasarkan cross-check kode, saya mengidentifikasi beberapa **titik kegagalan potensial** yang menyebabkan sync berhenti tiba-tiba tanpa menyimpan data:
+## Diagnosis Masalah
 
-### 1. **Tidak Ada Checkpoint/Resume Capability**
-- **File**: `src/hooks/use-binance-aggregated-sync.ts`
-- **Masalah**: Jika proses berhenti di tengah-tengah (network error, tab ditutup, rate limit), semua progress hilang dan harus mulai dari awal
-- **Dampak**: Data yang sudah di-fetch sebelum error tidak disimpan
+Berdasarkan analisis mendalam terhadap kode dan network logs, saya menemukan beberapa masalah kritis:
 
-### 2. **Single-Transaction Insert**
-- **File**: `src/hooks/use-binance-aggregated-sync.ts` (lines 473-502)
-- **Masalah**: Semua trades di-insert dalam satu batch besar. Jika batch gagal, tidak ada yang tersimpan
-- **Dampak**: Error di satu trade membatalkan seluruh batch
+### 1. Pagination Bug di Income Fetching
+```
+File: src/hooks/use-binance-aggregated-sync.ts (lines 204-243)
+```
+**Masalah**: Fungsi `fetchAllIncome` menggunakan parameter `page` yang **tidak didukung** oleh Binance Income API. Binance hanya mendukung time-based atau `fromId` cursor pagination.
 
-### 3. **Error Handling Tidak Granular**
-- **Masalah**: Ketika `Promise.all` untuk parallel fetch gagal, seluruh proses berhenti
-- **Dampak**: Satu symbol gagal = semua symbol gagal
+**Akibat**: Hanya 1000 income records pertama yang diambil, sisanya hilang.
 
-### 4. **Tidak Ada Partial Progress Save**
-- **Masalah**: Progress hanya disimpan di memory (Zustand store), bukan persisted dengan data fetch
-- **Dampak**: Jika error terjadi setelah fetch tapi sebelum insert, data hilang
+### 2. Time Chunking Tidak Optimal
+**Masalah**: Menggunakan 30-day chunks untuk income, tapi tidak ada mekanisme untuk fetch beyond 1000 records per chunk.
 
-### 5. **Income API Empty Response Handling**
-- **Dari network logs**: `{"success":true,"data":[]}` untuk income
-- **Masalah**: Jika income kosong, proses berhenti dengan "0 symbols found"
-- **Dampak**: Akun baru atau periode tanpa trade tidak handle dengan baik
+**Akibat**: Jika dalam 30 hari ada >1000 trades, sebagian akan hilang.
+
+### 3. Tidak Ada Logging untuk Debugging
+**Masalah**: Tidak ada console.log yang menunjukkan actual startTime dan endTime saat fetch income.
+
+**Akibat**: Sulit debug kenapa data tidak lengkap.
 
 ---
 
-## Solusi: Robust Sync Architecture
+## Solusi: Refactor Income Fetching dengan Proper Pagination
 
-### Phase 1: Checkpoint-Based Sync dengan Partial Saves
+### Perubahan di `src/hooks/use-binance-aggregated-sync.ts`
 
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
-│                     IMPROVED SYNC FLOW                          │
+│                    IMPROVED INCOME FETCHING                     │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  1. FETCH INCOME ──────────────────────────────────────────────│
-│     └── Save checkpoint: { phase: 'income', data: [...] }      │
+│  1. TIME-BASED CHUNKING (30-day windows)                        │
+│     └── For each 30-day chunk:                                  │
+│         ├── Fetch first 1000 records                            │
+│         ├── If got 1000 → use last tranId for cursor           │
+│         └── Continue until < 1000 records returned              │
 │                                                                 │
-│  2. FETCH TRADES (per symbol with error tolerance)              │
-│     ├── Symbol A: success ──> save checkpoint                  │
-│     ├── Symbol B: FAIL ──> log, continue next                  │
-│     └── Symbol C: success ──> save checkpoint                  │
+│  2. LOGGING untuk debug                                         │
+│     └── Log actual time range dan record count                  │
 │                                                                 │
-│  3. GROUP INTO LIFECYCLES ─────────────────────────────────────│
-│     └── Save checkpoint: { phase: 'grouped', lifecycles }      │
-│                                                                 │
-│  4. AGGREGATE (batch insert with retry)                         │
-│     ├── Batch 1 (50 trades): success ──> committed to DB       │
-│     ├── Batch 2 (50 trades): FAIL ──> retry 3x                 │
-│     └── Batch 3 (50 trades): success ──> committed to DB       │
-│                                                                 │
-│  5. RECONCILE & REPORT ────────────────────────────────────────│
-│     └── Report partial success + failed symbols list           │
+│  3. SAFETY LIMIT                                                │
+│     └── Max 20,000 income records per sync (prevent hang)      │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
----
+### Kode yang Akan Diubah:
 
-## Implementasi Teknis
-
-### File-file yang Dimodifikasi:
-
-1. **`src/store/sync-store.ts`** - Tambah checkpoint state
-2. **`src/hooks/use-binance-aggregated-sync.ts`** - Rewrite dengan checkpoint logic
-3. **`src/services/binance/types.ts`** - Tambah checkpoint types
-4. **`src/components/trading/BinanceFullSyncPanel.tsx`** - UI untuk resume
-
----
-
-### 1. Update `src/store/sync-store.ts` - Checkpoint Persistence
-
-Tambahkan checkpoint state yang persist ke localStorage:
+**A. Update `fetchAllIncome` function:**
 
 ```typescript
-interface SyncCheckpoint {
-  // Phase tracking
-  currentPhase: 'idle' | 'fetching-income' | 'fetching-trades' | 'grouping' | 'aggregating' | 'inserting';
+async function fetchAllIncome(
+  startTime: number,
+  endTime: number,
+  onProgress?: (fetched: number) => void
+): Promise<BinanceIncome[]> {
+  const allRecords: BinanceIncome[] = [];
+  const numChunks = Math.ceil((endTime - startTime) / MAX_INCOME_INTERVAL_MS);
   
-  // Data checkpoints
-  incomeData: BinanceIncome[] | null;
-  tradesBySymbol: Record<string, BinanceTrade[]>;
-  ordersBySymbol: Record<string, BinanceOrder[]>;
+  console.log(`[FullSync] Fetching income from ${new Date(startTime).toISOString()} to ${new Date(endTime).toISOString()}`);
+  console.log(`[FullSync] Time range: ${Math.round((endTime - startTime) / (24 * 60 * 60 * 1000))} days in ${numChunks} chunks`);
   
-  // Progress tracking
-  processedSymbols: string[];
-  failedSymbols: Array<{ symbol: string; error: string }>;
+  const MAX_RECORDS_SAFETY = 20000; // Safety limit
   
-  // Resume metadata
-  syncStartTime: number;
-  syncRangeDays: number | 'max';
-  lastCheckpointTime: number;
-}
-
-interface SyncStoreState {
-  // ... existing state ...
-  
-  // NEW: Checkpoint
-  checkpoint: SyncCheckpoint | null;
-  
-  // NEW: Actions
-  saveCheckpoint: (checkpoint: Partial<SyncCheckpoint>) => void;
-  clearCheckpoint: () => void;
-  hasResumableSync: () => boolean;
-}
-```
-
-### 2. Update `src/hooks/use-binance-aggregated-sync.ts` - Core Logic
-
-#### A. Per-Symbol Error Tolerance (Replace parallel fetch)
-
-```typescript
-// BEFORE: Promise.all fails if ANY symbol fails
-const batchResults = await Promise.all(
-  batch.map(async (symbol) => { ... })
-);
-
-// AFTER: Promise.allSettled continues even if some fail
-const batchResults = await Promise.allSettled(
-  batch.map(async (symbol) => {
-    try {
-      const [trades, orders] = await Promise.all([
-        fetchTradesForSymbol(symbol, startTime, endTime),
-        fetchOrdersForSymbol(symbol, startTime, endTime),
-      ]);
-      return { symbol, trades, orders, success: true };
-    } catch (error) {
-      console.error(`[FullSync] Failed to fetch ${symbol}:`, error);
-      return { symbol, trades: [], orders: [], success: false, error };
-    }
-  })
-);
-
-// Process results - continue with successful ones
-for (const result of batchResults) {
-  if (result.status === 'fulfilled') {
-    const { symbol, trades, orders, success } = result.value;
-    if (success) {
-      allTrades.push(...trades);
-      allOrders.push(...orders);
-      processedSymbols.push(symbol);
-    } else {
-      failedSymbols.push({ symbol, error: result.value.error?.message });
-    }
-    // Save checkpoint after each symbol
-    saveCheckpoint({ 
-      tradesBySymbol: { ...checkpoint.tradesBySymbol, [symbol]: trades }
-    });
-  }
-}
-```
-
-#### B. Batched DB Insert dengan Retry
-
-```typescript
-// BEFORE: Single insert for all trades
-const { error: insertError } = await supabase
-  .from('trade_entries')
-  .insert(dbRows);
-
-// AFTER: Batched insert with retry per batch
-const BATCH_SIZE = 50;
-const insertedTrades: AggregatedTrade[] = [];
-const insertErrors: Array<{ batch: number; error: string }> = [];
-
-for (let i = 0; i < newTrades.length; i += BATCH_SIZE) {
-  const batch = newTrades.slice(i, i + BATCH_SIZE);
-  const dbRows = batch.map(t => mapToDbRow(t, user.id));
-  
-  // Retry logic per batch
-  let retries = 3;
-  let success = false;
-  
-  while (retries > 0 && !success) {
-    const { error } = await supabase
-      .from('trade_entries')
-      .insert(dbRows);
+  for (let i = 0; i < numChunks; i++) {
+    const chunkStart = startTime + (i * MAX_INCOME_INTERVAL_MS);
+    const chunkEnd = Math.min(chunkStart + MAX_INCOME_INTERVAL_MS, endTime);
     
-    if (!error) {
-      success = true;
-      insertedTrades.push(...batch);
-      console.log(`[FullSync] Batch ${Math.floor(i/BATCH_SIZE) + 1} inserted successfully`);
-    } else {
-      retries--;
-      if (retries > 0) {
-        console.warn(`[FullSync] Batch failed, retrying (${retries} left)...`);
-        await new Promise(r => setTimeout(r, 1000));
-      } else {
-        insertErrors.push({ 
-          batch: Math.floor(i/BATCH_SIZE) + 1, 
-          error: error.message 
-        });
-      }
-    }
-  }
-  
-  // Update progress for each batch
-  updateProgress({
-    phase: 'inserting',
-    current: Math.min(i + BATCH_SIZE, newTrades.length),
-    total: newTrades.length,
-    message: `Saving batch ${Math.floor(i/BATCH_SIZE) + 1}...`,
-  });
-}
-```
-
-#### C. Resume Capability
-
-```typescript
-export function useBinanceAggregatedSync() {
-  const { checkpoint, saveCheckpoint, clearCheckpoint, hasResumableSync } = useSyncStore();
-  
-  // Check if there's a resumable sync
-  const canResume = hasResumableSync();
-  
-  const resumeSync = useCallback(async () => {
-    if (!checkpoint) return;
+    console.log(`[FullSync] Chunk ${i + 1}/${numChunks}: ${new Date(chunkStart).toISOString()} - ${new Date(chunkEnd).toISOString()}`);
     
-    // Resume from last checkpoint phase
-    switch (checkpoint.currentPhase) {
-      case 'fetching-income':
-        // Income was fetched, continue to trades
-        await fetchTradesForSymbols(checkpoint.incomeData);
-        break;
-        
-      case 'fetching-trades':
-        // Resume from remaining symbols
-        const remainingSymbols = getSymbolsNotInCheckpoint(checkpoint);
-        await fetchTradesForSymbols(remainingSymbols);
-        break;
-        
-      case 'grouping':
-        // Trades fetched, continue grouping
-        await groupAndAggregate(checkpoint.tradesBySymbol);
-        break;
-        
-      case 'aggregating':
-        // Continue from aggregation
-        await completeAggregation(checkpoint);
-        break;
+    // Cursor-based pagination within chunk
+    let lastTranId: number | undefined = undefined;
+    let chunkRecords = 0;
+    
+    while (allRecords.length < MAX_RECORDS_SAFETY) {
+      const result = await callBinanceApi<BinanceIncome[]>('income', {
+        startTime: chunkStart,
+        endTime: chunkEnd,
+        limit: RECORDS_PER_PAGE,
+        ...(lastTranId && { fromId: lastTranId }),
+      });
+      
+      if (!result.success || !result.data?.length) break;
+      
+      allRecords.push(...result.data);
+      chunkRecords += result.data.length;
+      onProgress?.(allRecords.length);
+      
+      // If less than limit, we've got all records for this chunk
+      if (result.data.length < RECORDS_PER_PAGE) break;
+      
+      // Get cursor for next page (tranId of last record + 1)
+      const lastRecord = result.data[result.data.length - 1];
+      lastTranId = typeof lastRecord.tranId === 'string' 
+        ? parseInt(lastRecord.tranId, 10) + 1
+        : lastRecord.tranId + 1;
+      
+      await new Promise(r => setTimeout(r, getAdaptiveDelay()));
     }
-  }, [checkpoint]);
-  
-  return {
-    // ... existing returns ...
-    canResume,
-    resumeSync,
-  };
-}
-```
-
-### 3. Update `src/components/trading/BinanceFullSyncPanel.tsx` - Resume UI
-
-Tambahkan tombol Resume ketika ada checkpoint tersimpan:
-
-```typescript
-export function BinanceFullSyncPanel({ isBinanceConnected, compact }: Props) {
-  const { canResume, resumeSync } = useBinanceAggregatedSync();
-  
-  // Show resume option if checkpoint exists
-  if (canResume && status === 'idle') {
-    return (
-      <div className="flex items-center gap-2">
-        <Badge variant="outline" className="gap-1">
-          <Clock className="h-3 w-3" />
-          Incomplete sync found
-        </Badge>
-        
-        <Button variant="default" size="sm" onClick={resumeSync}>
-          <PlayCircle className="h-4 w-4 mr-2" />
-          Resume Sync
-        </Button>
-        
-        <Button variant="ghost" size="sm" onClick={clearCheckpoint}>
-          <X className="h-4 w-4 mr-2" />
-          Discard
-        </Button>
-      </div>
-    );
+    
+    console.log(`[FullSync] Chunk ${i + 1} fetched ${chunkRecords} records`);
+    
+    if (i < numChunks - 1) {
+      await new Promise(r => setTimeout(r, getAdaptiveDelay()));
+    }
   }
   
-  // ... rest of existing logic
+  console.log(`[FullSync] Total income records fetched: ${allRecords.length}`);
+  
+  return allRecords;
 }
 ```
 
-### 4. Update Types (`src/services/binance/types.ts`)
+**B. Update Edge Function untuk mendukung `fromId` dengan benar:**
+
+Edge function sudah mendukung `fromId` (line 614), jadi tidak perlu diubah.
+
+**C. Tambahkan logging di mutation function:**
 
 ```typescript
-// Add phase for 'inserting'
-export interface AggregationProgress {
-  phase: 'fetching-trades' | 'fetching-income' | 'grouping' | 'aggregating' | 'validating' | 'inserting';
-  current: number;
-  total: number;
-  message: string;
-}
-
-// Add partial result tracking
-export interface AggregationResult {
-  // ... existing fields ...
-  
-  // NEW: Partial success tracking
-  partialSuccess: {
-    insertedCount: number;
-    failedBatches: Array<{ batch: number; error: string }>;
-    failedSymbols: Array<{ symbol: string; error: string }>;
-    skippedDueToError: number;
-  };
-}
+// Di dalam syncMutation.mutationFn (sekitar line 535)
+console.log(`[FullSync] Starting sync with range: ${options.daysToSync}`);
+console.log(`[FullSync] Time range: ${new Date(startTime).toISOString()} - ${new Date(endTime).toISOString()}`);
 ```
 
 ---
 
-## Urutan Implementasi
+## File yang Akan Dimodifikasi
 
-| Step | File | Perubahan |
-|------|------|-----------|
-| 1 | `src/services/binance/types.ts` | Tambah checkpoint types & update AggregationProgress |
-| 2 | `src/store/sync-store.ts` | Tambah checkpoint state & persistence |
-| 3 | `src/hooks/use-binance-aggregated-sync.ts` | Rewrite dengan checkpoint, batched insert, error tolerance |
-| 4 | `src/components/trading/BinanceFullSyncPanel.tsx` | UI Resume button |
+| File | Perubahan |
+|------|-----------|
+| `src/hooks/use-binance-aggregated-sync.ts` | Fix income pagination, tambah logging |
 
 ---
 
-## Hasil yang Diharapkan
+## Expected Result
 
-1. **Continueable**: Jika sync berhenti di tengah, bisa di-resume dari checkpoint terakhir
-2. **Partial Success**: Jika beberapa symbol gagal, yang sukses tetap tersimpan
-3. **Batched Insert**: Error di satu batch tidak membatalkan batch lain
-4. **No Data Loss**: Progress di-checkpoint setiap tahap, data tidak hilang
-5. **Transparent Reporting**: UI menampilkan berapa yang sukses, berapa yang skip/failed
+Setelah perbaikan:
+1. **Semua income records** akan ter-fetch, tidak hanya 1000 pertama
+2. **Console logs** akan menunjukkan actual time range yang di-fetch
+3. **Debug lebih mudah** jika ada masalah
+4. **Safety limit** mencegah infinite loop atau memory issues
 
 ---
 
 ## Catatan Teknis
 
-- Checkpoint disimpan ke localStorage dengan key `binance_sync_checkpoint`
-- Checkpoint expired setelah 24 jam (untuk menghindari stale data)
-- Batched insert menggunakan 50 trades per batch (optimized for Supabase)
-- Failed symbols dicatat dan bisa di-retry manual via Re-Sync Time Window
+- Binance Income API menggunakan **tranId** sebagai cursor, bukan page number
+- Limit per request adalah 1000 records
+- Time-based chunking (30 hari) tetap diperlukan karena Binance mungkin membatasi data lama
+- `fromId` harus berupa tranId + 1 untuk mendapat record berikutnya
+
