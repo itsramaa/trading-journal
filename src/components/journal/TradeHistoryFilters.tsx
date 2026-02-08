@@ -23,6 +23,7 @@ import { TradingSession, SESSION_LABELS, formatSessionTimeLocal } from "@/lib/se
 
 export type ResultFilter = 'all' | 'profit' | 'loss' | 'breakeven';
 export type DirectionFilter = 'all' | 'LONG' | 'SHORT';
+// Session filter values MUST match database session column values
 export type SessionFilter = 'all' | TradingSession;
 
 interface TradeHistoryFiltersProps {
@@ -177,10 +178,16 @@ export function TradeHistoryFilters({
             </SelectTrigger>
             <SelectContent className="bg-popover border shadow-lg z-50">
               <SelectItem value="all">All Sessions</SelectItem>
-              <SelectItem value="asia">
+              <SelectItem value="sydney">
+                <span className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-purple-500" />
+                  Sydney ({formatSessionTimeLocal('sydney')})
+                </span>
+              </SelectItem>
+              <SelectItem value="tokyo">
                 <span className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-blue-500" />
-                  Asia ({formatSessionTimeLocal('asia')})
+                  Tokyo ({formatSessionTimeLocal('tokyo')})
                 </span>
               </SelectItem>
               <SelectItem value="london">
@@ -189,16 +196,16 @@ export function TradeHistoryFilters({
                   London ({formatSessionTimeLocal('london')})
                 </span>
               </SelectItem>
-              <SelectItem value="newyork">
+              <SelectItem value="new_york">
                 <span className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-yellow-500" />
-                  New York ({formatSessionTimeLocal('newyork')})
+                  New York ({formatSessionTimeLocal('new_york')})
                 </span>
               </SelectItem>
-              <SelectItem value="off-hours">
+              <SelectItem value="other">
                 <span className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-muted-foreground" />
-                  Off Hours
+                  Other
                 </span>
               </SelectItem>
             </SelectContent>

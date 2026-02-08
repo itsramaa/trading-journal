@@ -39,7 +39,8 @@ interface SessionInsight {
   recommendation: string;
 }
 
-const SESSION_ORDER: TradingSession[] = ['asia', 'london', 'newyork', 'off-hours'];
+// Session order aligned with database values
+const SESSION_ORDER: TradingSession[] = ['sydney', 'tokyo', 'london', 'new_york', 'other'];
 
 export function SessionInsights({ bySession }: SessionInsightsProps) {
   const { formatPnl } = useCurrencyConversion();
@@ -90,37 +91,40 @@ export function SessionInsights({ bySession }: SessionInsightsProps) {
       });
     }
     
-    // Off-hours pattern
-    const offHoursData = bySession['off-hours'];
-    if (offHoursData.trades >= 5) {
-      if (offHoursData.winRate < 45) {
+    // Off-hours pattern (now 'other')
+    const otherData = bySession['other'];
+    if (otherData.trades >= 5) {
+      if (otherData.winRate < 45) {
         result.push({
           type: 'warning',
           title: 'Off-Hours Trading is Costing You',
-          description: `Trading outside major sessions has only ${formatWinRate(offHoursData.winRate)} win rate with ${formatPnl(offHoursData.totalPnl)} total P&L.`,
-          session: 'off-hours',
+          description: `Trading outside major sessions has only ${formatWinRate(otherData.winRate)} win rate with ${formatPnl(otherData.totalPnl)} total P&L.`,
+          session: 'other',
           recommendation: 'Stick to major market sessions for better liquidity and clearer price action.',
         });
-      } else if (offHoursData.winRate >= 55) {
+      } else if (otherData.winRate >= 55) {
         result.push({
           type: 'pattern',
           title: 'Off-Hours Edge Detected',
-          description: `You perform well outside major sessions with ${formatWinRate(offHoursData.winRate)} win rate.`,
-          session: 'off-hours',
+          description: `You perform well outside major sessions with ${formatWinRate(otherData.winRate)} win rate.`,
+          session: 'other',
           recommendation: 'You may have an edge in quieter markets - continue this strategy carefully.',
         });
       }
     }
     
-    // Session comparison pattern
-    const asiaWinRate = bySession.asia.winRate;
-    const nyWinRate = bySession.newyork.winRate;
+    // Session comparison pattern (Sydney/Tokyo vs New York)
+    const asiaWinRate = Math.max(bySession.sydney.winRate, bySession.tokyo.winRate);
+    const nyWinRate = bySession.new_york.winRate;
+    const asiaTrades = bySession.sydney.trades + bySession.tokyo.trades;
     
-    if (bySession.asia.trades >= 3 && bySession.newyork.trades >= 3) {
+    if (asiaTrades >= 3 && bySession.new_york.trades >= 3) {
       const diff = Math.abs(asiaWinRate - nyWinRate);
       if (diff > 15) {
-        const betterSession = asiaWinRate > nyWinRate ? 'asia' : 'newyork';
-        const worseSession = asiaWinRate > nyWinRate ? 'newyork' : 'asia';
+        const betterSession: TradingSession = asiaWinRate > nyWinRate 
+          ? (bySession.sydney.winRate >= bySession.tokyo.winRate ? 'sydney' : 'tokyo')
+          : 'new_york';
+        const worseSession: TradingSession = asiaWinRate > nyWinRate ? 'new_york' : 'sydney';
         result.push({
           type: 'pattern',
           title: 'Session Performance Gap',
@@ -132,7 +136,7 @@ export function SessionInsights({ bySession }: SessionInsightsProps) {
     }
     
     return result;
-  }, [bySession]);
+  }, [bySession, formatPnl]);
 
   // Calculate totals
   const totalTrades = SESSION_ORDER.reduce((sum, s) => sum + bySession[s].trades, 0);
@@ -177,7 +181,7 @@ export function SessionInsights({ bySession }: SessionInsightsProps) {
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Session Summary Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {SESSION_ORDER.map(session => {
             const data = bySession[session];
             return (

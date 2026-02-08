@@ -43,7 +43,7 @@ export interface ContextualAnalyticsResult {
   byFearGreed: Record<FearGreedZone, PerformanceMetrics>;
   byEventProximity: Record<EventProximity, PerformanceMetrics>;
   
-  // Session Segmentation (NEW)
+  // Session Segmentation - aligned with database values
   bySession: Record<TradingSession, PerformanceMetrics>;
   
   // Correlations (-1 to 1)
@@ -280,12 +280,13 @@ export function useContextualAnalytics(): {
       normalDay: [],
     };
     
-    // Session segmentation buckets (NEW)
+    // Session segmentation buckets - aligned with database values
     const bySessionBuckets: Record<TradingSession, Array<{ pnl: number; result: string }>> = {
-      asia: [],
+      sydney: [],
+      tokyo: [],
       london: [],
-      newyork: [],
-      'off-hours': [],
+      new_york: [],
+      other: [],
     };
     
     // Correlation data points
@@ -302,6 +303,7 @@ export function useContextualAnalytics(): {
       // Segment by session (works for ALL closed trades)
       const session = getTradeSession({
         trade_date: trade.trade_date,
+        session: (trade as any).session, // Use stored session if available
         entry_datetime: null, // Not exposed in TradeEntry interface, use trade_date as fallback
         market_context: trade.market_context as { session?: { current: TradingSession } } | null,
       });
@@ -362,12 +364,13 @@ export function useContextualAnalytics(): {
       normalDay: calculateMetrics(byEventProximity.normalDay),
     };
     
-    // Session metrics (NEW)
+    // Session metrics - aligned with database values
     const sessionMetrics: Record<TradingSession, PerformanceMetrics> = {
-      asia: calculateMetrics(bySessionBuckets.asia),
+      sydney: calculateMetrics(bySessionBuckets.sydney),
+      tokyo: calculateMetrics(bySessionBuckets.tokyo),
       london: calculateMetrics(bySessionBuckets.london),
-      newyork: calculateMetrics(bySessionBuckets.newyork),
-      'off-hours': calculateMetrics(bySessionBuckets['off-hours']),
+      new_york: calculateMetrics(bySessionBuckets.new_york),
+      other: calculateMetrics(bySessionBuckets.other),
     };
     
     // Calculate correlations

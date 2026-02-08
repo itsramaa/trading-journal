@@ -54,11 +54,13 @@ const HOUR_LABELS = [
   '18:00', '19:00', '20:00', '21:00', '22:00', '23:00'
 ];
 
+// Session label map aligned with database values
 const SESSION_LABEL_MAP: Record<TradingSession, string> = {
-  'asia': `${SESSION_LABELS.asia} Session`,
-  'london': `${SESSION_LABELS.london} Session`,
-  'newyork': `${SESSION_LABELS.newyork} Session`,
-  'off-hours': SESSION_LABELS['off-hours'],
+  sydney: `${SESSION_LABELS.sydney} Session`,
+  tokyo: `${SESSION_LABELS.tokyo} Session`,
+  london: `${SESSION_LABELS.london} Session`,
+  new_york: `${SESSION_LABELS.new_york} Session`,
+  other: SESSION_LABELS.other,
 };
 
 export function TradingHeatmapChart({ trades }: TradingHeatmapChartProps) {
@@ -70,10 +72,11 @@ export function TradingHeatmapChart({ trades }: TradingHeatmapChartProps) {
     const hourlyBuckets: Record<number, { wins: number; total: number; pnl: number }> = {};
     const dailyBuckets: Record<number, { wins: number; total: number; pnl: number }> = {};
     const sessionBuckets: Record<TradingSession, { wins: number; total: number; pnl: number }> = {
-      asia: { wins: 0, total: 0, pnl: 0 },
+      sydney: { wins: 0, total: 0, pnl: 0 },
+      tokyo: { wins: 0, total: 0, pnl: 0 },
       london: { wins: 0, total: 0, pnl: 0 },
-      newyork: { wins: 0, total: 0, pnl: 0 },
-      'off-hours': { wins: 0, total: 0, pnl: 0 },
+      new_york: { wins: 0, total: 0, pnl: 0 },
+      other: { wins: 0, total: 0, pnl: 0 },
     };
 
     for (let i = 0; i < 24; i++) hourlyBuckets[i] = { wins: 0, total: 0, pnl: 0 };
@@ -132,7 +135,8 @@ export function TradingHeatmapChart({ trades }: TradingHeatmapChartProps) {
         ? dailyBuckets[i].pnl / dailyBuckets[i].total : 0,
     }));
 
-    const sessionData: TimeMetrics[] = (['asia', 'london', 'newyork'] as TradingSession[]).map(key => ({
+    // Include main sessions (exclude 'other' from chart for cleaner view)
+    const sessionData: TimeMetrics[] = (['sydney', 'tokyo', 'london', 'new_york'] as TradingSession[]).map(key => ({
       label: SESSION_LABEL_MAP[key],
       winRate: sessionBuckets[key].total > 0 ? (sessionBuckets[key].wins / sessionBuckets[key].total) * 100 : 0,
       tradeCount: sessionBuckets[key].total,
@@ -179,7 +183,7 @@ export function TradingHeatmapChart({ trades }: TradingHeatmapChartProps) {
             <span className="text-muted-foreground">Win Rate:</span>
             <span className={cn(
               "font-medium",
-              data.winRate >= 50 ? 'text-green-500' : 'text-red-500'
+              data.winRate >= 50 ? 'text-profit' : 'text-loss'
             )}>
               {formatWinRate(data.winRate)}
             </span>
@@ -192,7 +196,7 @@ export function TradingHeatmapChart({ trades }: TradingHeatmapChartProps) {
             <span className="text-muted-foreground">Total P&L:</span>
             <span className={cn(
               "font-medium",
-              data.totalPnl >= 0 ? 'text-green-500' : 'text-red-500'
+              data.totalPnl >= 0 ? 'text-profit' : 'text-loss'
             )}>
               {formatPnl(data.totalPnl)}
             </span>
@@ -201,7 +205,7 @@ export function TradingHeatmapChart({ trades }: TradingHeatmapChartProps) {
             <span className="text-muted-foreground">Avg P&L:</span>
             <span className={cn(
               "font-medium",
-              data.avgPnl >= 0 ? 'text-green-500' : 'text-red-500'
+              data.avgPnl >= 0 ? 'text-profit' : 'text-loss'
             )}>
               {formatPnl(data.avgPnl)}
             </span>
@@ -259,13 +263,13 @@ export function TradingHeatmapChart({ trades }: TradingHeatmapChartProps) {
     return (
       <div className="flex flex-wrap gap-2">
         {bestWorst.best && (
-          <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-green-500/10 text-green-600 text-xs">
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-profit/10 text-profit text-xs">
             <TrendingUp className="h-3 w-3" />
             <span>Best: {bestWorst.best.label} ({formatWinRate(bestWorst.best.winRate)})</span>
           </div>
         )}
         {bestWorst.worst && bestWorst.worst.label !== bestWorst.best?.label && (
-          <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-red-500/10 text-red-600 text-xs">
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-loss/10 text-loss text-xs">
             <TrendingDown className="h-3 w-3" />
             <span>Worst: {bestWorst.worst.label} ({formatWinRate(bestWorst.worst.winRate)})</span>
           </div>
