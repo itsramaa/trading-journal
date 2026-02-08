@@ -445,9 +445,15 @@ async function getTrades(
     }
     
     const params: Record<string, any> = { symbol, limit };
-    if (startTime) params.startTime = startTime;
-    if (endTime) params.endTime = endTime;
-    if (fromId) params.fromId = fromId;
+    // When using cursor-based pagination (fromId), time filters are ignored by Binance API
+    // Only send time filters for initial request (no fromId) to prevent debugging confusion
+    if (fromId) {
+      params.fromId = fromId;
+      // Note: startTime/endTime intentionally NOT sent with fromId
+    } else {
+      if (startTime) params.startTime = startTime;
+      if (endTime) params.endTime = endTime;
+    }
     
     const response = await binanceRequest('/fapi/v1/userTrades', 'GET', params, apiKey, apiSecret);
     const data = await response.json();
@@ -609,9 +615,15 @@ async function getIncomeHistory(
   try {
     const params: Record<string, any> = { limit };
     if (incomeType) params.incomeType = incomeType;
-    if (startTime) params.startTime = startTime;
-    if (endTime) params.endTime = endTime;
-    if (fromId) params.fromId = fromId;  // Cursor for pagination
+    // When using cursor-based pagination (fromId), time filters are ignored by Binance API
+    // Only send time filters for initial request (no fromId) to prevent debugging confusion
+    if (fromId) {
+      params.fromId = fromId;
+      // Note: startTime/endTime intentionally NOT sent with fromId
+    } else {
+      if (startTime) params.startTime = startTime;
+      if (endTime) params.endTime = endTime;
+    }
     
     const response = await binanceRequest('/fapi/v1/income', 'GET', params, apiKey, apiSecret);
     const data = await response.json();

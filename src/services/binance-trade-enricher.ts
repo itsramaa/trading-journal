@@ -18,6 +18,8 @@ import type { BinanceIncome, BinanceTrade } from "@/features/binance/types";
 
 const BINANCE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/binance-futures`;
 const RATE_LIMIT_DELAY = 300;
+const EMPTY_RETRY_LIMIT = 2; // Retry empty responses to handle race conditions
+const EMPTY_RETRY_DELAY = 500; // Longer delay for race condition recovery
 
 // Binance userTrades API has a max 7-day window per request
 // Using 6.5 days (93%) to ensure we don't hit the boundary exactly
@@ -104,18 +106,30 @@ async function fetchUserTradesChunk(
 ): Promise<BinanceTrade[]> {
   const allTrades: BinanceTrade[] = [];
   let fromId: number | undefined = undefined;
+  let emptyRetryCount = 0;
   
   while (true) {
     const result = await callBinanceApi<BinanceTrade[]>('trades', {
       symbol,
-      startTime,
-      endTime,
+      // Only send time filters for initial request (no fromId)
+      // When using cursor-based pagination, Binance ignores time filters anyway
+      ...(fromId === undefined && { startTime, endTime }),
       limit: 1000,
       ...(fromId && { fromId }),
     });
     
-    if (!result.success || !result.data?.length) break;
+    // Handle empty response with retry (race condition handling)
+    if (!result.success || !result.data?.length) {
+      if (result.success && fromId !== undefined && emptyRetryCount < EMPTY_RETRY_LIMIT) {
+        emptyRetryCount++;
+        console.log(`[Enricher] ${symbol}: Empty response, retry ${emptyRetryCount}/${EMPTY_RETRY_LIMIT}`);
+        await new Promise(r => setTimeout(r, EMPTY_RETRY_DELAY));
+        continue;
+      }
+      break;
+    }
     
+    emptyRetryCount = 0; // Reset on successful data
     allTrades.push(...result.data);
     
     if (result.data.length < 1000) break;

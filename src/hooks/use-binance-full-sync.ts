@@ -82,6 +82,10 @@ async function callBinanceApi<T>(
   return response.json();
 }
 
+// Empty response retry constants for race condition handling
+const EMPTY_RETRY_LIMIT = 2;
+const EMPTY_RETRY_DELAY = 500; // Longer delay for race condition recovery
+
 /**
  * Fetch ALL income records within a time chunk using cursor-based pagination
  * This handles the case where a single chunk has >1000 records
@@ -95,14 +99,16 @@ async function fetchPaginatedIncomeChunk(
   const errors: string[] = [];
   let fromId: number | undefined = undefined;
   let page = 0;
+  let emptyRetryCount = 0;
   
   while (true) {
     page++;
     
     try {
       const result = await callBinanceApi<BinanceIncome[]>('income', {
-        startTime,
-        endTime,
+        // Only send time filters for initial request (no fromId)
+        // When using cursor-based pagination, Binance ignores time filters anyway
+        ...(fromId === undefined && { startTime, endTime }),
         limit: RECORDS_PER_PAGE,
         ...(fromId && { fromId }),
       });
@@ -112,10 +118,19 @@ async function fetchPaginatedIncomeChunk(
         break; // Stop pagination on error
       }
       
+      // Handle empty response with retry (race condition handling)
       if (!result.data?.length) {
-        break; // No more records
+        if (emptyRetryCount < EMPTY_RETRY_LIMIT && fromId !== undefined) {
+          // Only retry if we had previous data (fromId set) - race condition possible
+          emptyRetryCount++;
+          console.log(`[FullSync] Empty response, retry ${emptyRetryCount}/${EMPTY_RETRY_LIMIT}`);
+          await new Promise(r => setTimeout(r, EMPTY_RETRY_DELAY));
+          continue; // Retry same request
+        }
+        break; // Truly no more records
       }
       
+      emptyRetryCount = 0; // Reset on successful data
       allRecords.push(...result.data);
       onPageProgress?.(page, allRecords.length);
       
