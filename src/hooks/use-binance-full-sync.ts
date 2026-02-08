@@ -28,6 +28,7 @@ const BINANCE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/
 // Binance API limit: 3 months (90 days) per request
 const CHUNK_DAYS = 90;
 const RATE_LIMIT_DELAY = 300; // ms between requests
+const MAX_EMPTY_CHUNKS = 5; // Increased from 2 to handle longer trading gaps
 const RECORDS_PER_PAGE = 1000; // Binance API limit per request
 
 export interface FullSyncProgress {
@@ -39,12 +40,16 @@ export interface FullSyncProgress {
   recordsToInsert: number;
   enrichedCount: number;
   percent: number;
+  // Rate limit info
+  rateLimitWarning?: boolean;
+  rateLimitMessage?: string;
 }
 
 export interface FullSyncOptions {
   monthsBack?: number;
   fetchAll?: boolean; // Fetch unlimited history (up to account creation)
   skipEnrichment?: boolean; // Skip userTrades enrichment (faster but less accurate)
+  forceRefetch?: boolean; // Ignore duplicates and re-download all income records
   onProgress?: (progress: FullSyncProgress) => void;
 }
 
@@ -153,11 +158,16 @@ async function fetchChunkedIncomeHistory(
   const maxChunks = fetchAll ? 40 : Math.ceil((monthsBack * 30) / CHUNK_DAYS);
   let completedChunks = 0;
   let emptyChunksInRow = 0;
-  const MAX_EMPTY_CHUNKS = 2;
+  
+  console.log(`[FullSync] Starting fetch: ${monthsBack} months back, fetchAll=${fetchAll}, maxChunks=${maxChunks}`);
   
   for (let i = 0; i < maxChunks; i++) {
     const endTime = now - (i * chunkMs);
     const startTime = endTime - chunkMs;
+    
+    const chunkStartDate = new Date(startTime).toISOString().split('T')[0];
+    const chunkEndDate = new Date(endTime).toISOString().split('T')[0];
+    console.log(`[FullSync] Chunk ${i + 1}/${maxChunks}: ${chunkStartDate} - ${chunkEndDate}`);
     
     // Update progress: fetching phase
     onProgress?.({
@@ -191,14 +201,18 @@ async function fetchChunkedIncomeHistory(
     
     if (chunkErrors.length > 0) {
       errors.push(...chunkErrors.map(e => `Chunk ${i + 1}: ${e}`));
+      console.warn(`[FullSync] Chunk ${i + 1} had errors:`, chunkErrors);
     }
     
     if (chunkRecords.length > 0) {
       allIncome.push(...chunkRecords);
       emptyChunksInRow = 0;
+      console.log(`[FullSync] Chunk ${i + 1} fetched ${chunkRecords.length} records. Total: ${allIncome.length}`);
     } else {
       emptyChunksInRow++;
+      console.log(`[FullSync] Chunk ${i + 1} empty. Empty chunks in row: ${emptyChunksInRow}/${MAX_EMPTY_CHUNKS}`);
       if (fetchAll && emptyChunksInRow >= MAX_EMPTY_CHUNKS) {
+        console.log(`[FullSync] Stopping after ${MAX_EMPTY_CHUNKS} consecutive empty chunks`);
         break;
       }
     }
@@ -209,6 +223,8 @@ async function fetchChunkedIncomeHistory(
       await new Promise(r => setTimeout(r, RATE_LIMIT_DELAY));
     }
   }
+  
+  console.log(`[FullSync] Fetching complete. Total records: ${allIncome.length}, Completed chunks: ${completedChunks}`);
   
   // Deduplicate by tranId
   onProgress?.({
@@ -299,7 +315,9 @@ export function useBinanceFullSync() {
   
   const syncFullHistory = useMutation({
     mutationFn: async (options: FullSyncOptions = {}): Promise<FullSyncResult> => {
-      const { monthsBack = 24, fetchAll = false, skipEnrichment = false, onProgress } = options;
+      const { monthsBack = 24, fetchAll = false, skipEnrichment = false, forceRefetch = false, onProgress } = options;
+      
+      console.log('[FullSync] Starting sync with options:', { monthsBack, fetchAll, skipEnrichment, forceRefetch });
       
       if (!user?.id) {
         throw new Error("User not authenticated");
@@ -359,21 +377,42 @@ export function useBinanceFullSync() {
         return { synced: 0, skipped: 0, enriched: 0, totalFetched: allIncome.length, errors };
       }
       
-      // Step 3: Check for duplicates
+      // Step 3: Check for duplicates (skip if forceRefetch is enabled)
       const incomeIds = pnlRecords.map(r => `income_${r.tranId}`);
       const existingIds = new Set<string>();
       
-      for (let i = 0; i < incomeIds.length; i += 500) {
-        const batch = incomeIds.slice(i, i + 500);
-        const { data: existing } = await supabase
-          .from('trade_entries')
-          .select('binance_trade_id')
-          .in('binance_trade_id', batch);
+      if (forceRefetch) {
+        console.log('[FullSync] Force re-fetch enabled - deleting existing trades first');
         
-        existing?.forEach(t => existingIds.add(t.binance_trade_id));
+        // Delete existing trades with these binance_trade_ids to allow re-insert
+        for (let i = 0; i < incomeIds.length; i += 500) {
+          const batch = incomeIds.slice(i, i + 500);
+          await supabase
+            .from('trade_entries')
+            .delete()
+            .in('binance_trade_id', batch);
+        }
+        console.log(`[FullSync] Deleted ${incomeIds.length} existing trades for force re-fetch`);
+      } else {
+        // Normal deduplication check
+        for (let i = 0; i < incomeIds.length; i += 500) {
+          const batch = incomeIds.slice(i, i + 500);
+          const { data: existing } = await supabase
+            .from('trade_entries')
+            .select('binance_trade_id')
+            .in('binance_trade_id', batch);
+          
+          existing?.forEach(t => existingIds.add(t.binance_trade_id));
+        }
+        
+        console.log(`[FullSync] Found ${existingIds.size} existing trades (will skip)`);
       }
       
-      const newRecords = pnlRecords.filter(r => !existingIds.has(`income_${r.tranId}`));
+      const newRecords = forceRefetch 
+        ? pnlRecords 
+        : pnlRecords.filter(r => !existingIds.has(`income_${r.tranId}`));
+      
+      console.log(`[FullSync] New records to process: ${newRecords.length} (from ${pnlRecords.length} REALIZED_PNL)`);
       
       if (newRecords.length === 0) {
         onProgress?.({

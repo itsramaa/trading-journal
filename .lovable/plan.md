@@ -1,158 +1,52 @@
+# Plan: Sync Improvements - COMPLETED
 
+## Implemented Changes
 
-# Plan: Perbaikan Full Sync untuk Memastikan Semua Data Ter-fetch
+### 1. Increase MAX_EMPTY_CHUNKS (5 instead of 2)
+- **File**: `src/hooks/use-binance-full-sync.ts`
+- **Change**: Changed `MAX_EMPTY_CHUNKS` from 2 to 5
+- **Effect**: Sync will continue fetching for up to 450 days of empty history instead of 180 days
 
-## Diagnosis Masalah
+### 2. Force Re-fetch Option
+- **Files**: 
+  - `src/hooks/use-binance-full-sync.ts`
+  - `src/hooks/use-binance-aggregated-sync.ts`
+  - `src/components/trading/BinanceFullSyncPanel.tsx`
+- **Change**: Added `forceRefetch` option that:
+  - Deletes existing trades with matching `binance_trade_id` before inserting
+  - Ignores deduplication logic when enabled
+- **UI**: Checkbox in sync confirmation dialog
 
-Berdasarkan analisis mendalam terhadap kode dan network logs, saya menemukan beberapa masalah kritis:
+### 3. Detailed Logging
+- **Files**: 
+  - `src/hooks/use-binance-full-sync.ts`
+  - `src/hooks/use-binance-aggregated-sync.ts`
+- **Console Logs Added**:
+  - Sync start with options
+  - Each chunk's date range
+  - Records fetched per chunk
+  - Empty chunks counter
+  - Total records fetched
+  - Existing trades count (dedupe check)
+  - Delete count for force re-fetch
 
-### 1. Pagination Bug di Income Fetching
-```
-File: src/hooks/use-binance-aggregated-sync.ts (lines 204-243)
-```
-**Masalah**: Fungsi `fetchAllIncome` menggunakan parameter `page` yang **tidak didukung** oleh Binance Income API. Binance hanya mendukung time-based atau `fromId` cursor pagination.
+### 4. Rate Limit Warnings UI
+- **File**: `src/components/trading/BinanceFullSyncPanel.tsx`
+- **Change**: 
+  - Progress indicator turns yellow when rate limited
+  - Shows "Rate Limited" badge with tooltip
+  - Auto-detects rate limit from progress message
 
-**Akibat**: Hanya 1000 income records pertama yang diambil, sisanya hilang.
+## Testing Notes
 
-### 2. Time Chunking Tidak Optimal
-**Masalah**: Menggunakan 30-day chunks untuk income, tapi tidak ada mekanisme untuk fetch beyond 1000 records per chunk.
+After IP ban expires (~7 minutes), user can:
+1. Open sync dialog
+2. Enable "Force Re-fetch" checkbox
+3. Select desired time range
+4. Start sync - should see detailed logs in console
 
-**Akibat**: Jika dalam 30 hari ada >1000 trades, sebagian akan hilang.
-
-### 3. Tidak Ada Logging untuk Debugging
-**Masalah**: Tidak ada console.log yang menunjukkan actual startTime dan endTime saat fetch income.
-
-**Akibat**: Sulit debug kenapa data tidak lengkap.
-
----
-
-## Solusi: Refactor Income Fetching dengan Proper Pagination
-
-### Perubahan di `src/hooks/use-binance-aggregated-sync.ts`
-
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│                    IMPROVED INCOME FETCHING                     │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  1. TIME-BASED CHUNKING (30-day windows)                        │
-│     └── For each 30-day chunk:                                  │
-│         ├── Fetch first 1000 records                            │
-│         ├── If got 1000 → use last tranId for cursor           │
-│         └── Continue until < 1000 records returned              │
-│                                                                 │
-│  2. LOGGING untuk debug                                         │
-│     └── Log actual time range dan record count                  │
-│                                                                 │
-│  3. SAFETY LIMIT                                                │
-│     └── Max 20,000 income records per sync (prevent hang)      │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Kode yang Akan Diubah:
-
-**A. Update `fetchAllIncome` function:**
-
-```typescript
-async function fetchAllIncome(
-  startTime: number,
-  endTime: number,
-  onProgress?: (fetched: number) => void
-): Promise<BinanceIncome[]> {
-  const allRecords: BinanceIncome[] = [];
-  const numChunks = Math.ceil((endTime - startTime) / MAX_INCOME_INTERVAL_MS);
-  
-  console.log(`[FullSync] Fetching income from ${new Date(startTime).toISOString()} to ${new Date(endTime).toISOString()}`);
-  console.log(`[FullSync] Time range: ${Math.round((endTime - startTime) / (24 * 60 * 60 * 1000))} days in ${numChunks} chunks`);
-  
-  const MAX_RECORDS_SAFETY = 20000; // Safety limit
-  
-  for (let i = 0; i < numChunks; i++) {
-    const chunkStart = startTime + (i * MAX_INCOME_INTERVAL_MS);
-    const chunkEnd = Math.min(chunkStart + MAX_INCOME_INTERVAL_MS, endTime);
-    
-    console.log(`[FullSync] Chunk ${i + 1}/${numChunks}: ${new Date(chunkStart).toISOString()} - ${new Date(chunkEnd).toISOString()}`);
-    
-    // Cursor-based pagination within chunk
-    let lastTranId: number | undefined = undefined;
-    let chunkRecords = 0;
-    
-    while (allRecords.length < MAX_RECORDS_SAFETY) {
-      const result = await callBinanceApi<BinanceIncome[]>('income', {
-        startTime: chunkStart,
-        endTime: chunkEnd,
-        limit: RECORDS_PER_PAGE,
-        ...(lastTranId && { fromId: lastTranId }),
-      });
-      
-      if (!result.success || !result.data?.length) break;
-      
-      allRecords.push(...result.data);
-      chunkRecords += result.data.length;
-      onProgress?.(allRecords.length);
-      
-      // If less than limit, we've got all records for this chunk
-      if (result.data.length < RECORDS_PER_PAGE) break;
-      
-      // Get cursor for next page (tranId of last record + 1)
-      const lastRecord = result.data[result.data.length - 1];
-      lastTranId = typeof lastRecord.tranId === 'string' 
-        ? parseInt(lastRecord.tranId, 10) + 1
-        : lastRecord.tranId + 1;
-      
-      await new Promise(r => setTimeout(r, getAdaptiveDelay()));
-    }
-    
-    console.log(`[FullSync] Chunk ${i + 1} fetched ${chunkRecords} records`);
-    
-    if (i < numChunks - 1) {
-      await new Promise(r => setTimeout(r, getAdaptiveDelay()));
-    }
-  }
-  
-  console.log(`[FullSync] Total income records fetched: ${allRecords.length}`);
-  
-  return allRecords;
-}
-```
-
-**B. Update Edge Function untuk mendukung `fromId` dengan benar:**
-
-Edge function sudah mendukung `fromId` (line 614), jadi tidak perlu diubah.
-
-**C. Tambahkan logging di mutation function:**
-
-```typescript
-// Di dalam syncMutation.mutationFn (sekitar line 535)
-console.log(`[FullSync] Starting sync with range: ${options.daysToSync}`);
-console.log(`[FullSync] Time range: ${new Date(startTime).toISOString()} - ${new Date(endTime).toISOString()}`);
-```
-
----
-
-## File yang Akan Dimodifikasi
-
-| File | Perubahan |
-|------|-----------|
-| `src/hooks/use-binance-aggregated-sync.ts` | Fix income pagination, tambah logging |
-
----
-
-## Expected Result
-
-Setelah perbaikan:
-1. **Semua income records** akan ter-fetch, tidak hanya 1000 pertama
-2. **Console logs** akan menunjukkan actual time range yang di-fetch
-3. **Debug lebih mudah** jika ada masalah
-4. **Safety limit** mencegah infinite loop atau memory issues
-
----
-
-## Catatan Teknis
-
-- Binance Income API menggunakan **tranId** sebagai cursor, bukan page number
-- Limit per request adalah 1000 records
-- Time-based chunking (30 hari) tetap diperlukan karena Binance mungkin membatasi data lama
-- `fromId` harus berupa tranId + 1 untuk mendapat record berikutnya
-
+## Related Files Modified
+- `src/hooks/use-binance-full-sync.ts`
+- `src/hooks/use-binance-aggregated-sync.ts`
+- `src/components/trading/BinanceFullSyncPanel.tsx`
+- `.lovable/plan.md` (this file)

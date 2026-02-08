@@ -8,6 +8,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,6 +29,8 @@ import {
   PlayCircle,
   X,
   Clock,
+  RefreshCw,
+  Zap,
 } from "lucide-react";
 import { useBinanceAggregatedSync } from "@/hooks/use-binance-aggregated-sync";
 import { useSyncStore, selectFullSyncStatus, selectFullSyncProgress, selectFullSyncResult, selectSyncRange, selectCheckpoint } from "@/store/sync-store";
@@ -47,6 +51,7 @@ export function BinanceFullSyncPanel({
   compact = false 
 }: BinanceFullSyncPanelProps) {
   const [showConfirm, setShowConfirm] = useState(false);
+  const [forceRefetch, setForceRefetch] = useState(false);
   
   // Hook for triggering sync
   const { sync, resumeSync, canResume, clearCheckpoint } = useBinanceAggregatedSync();
@@ -70,7 +75,11 @@ export function BinanceFullSyncPanel({
       return;
     }
     
-    sync({ daysToSync: selectedRange });
+    console.log('[FullSyncPanel] Starting sync with forceRefetch:', forceRefetch);
+    sync({ daysToSync: selectedRange, forceRefetch });
+    
+    // Reset forceRefetch after starting
+    setForceRefetch(false);
   };
 
   const handleResume = () => {
@@ -156,6 +165,24 @@ export function BinanceFullSyncPanel({
                   {/* Sync Range Selector */}
                   <div className="pt-2 border-t">
                     <SyncRangeSelector />
+                  </div>
+                  
+                  {/* Force Re-fetch Option */}
+                  <div className="flex items-center gap-2 pt-2 border-t">
+                    <Checkbox 
+                      id="force-refetch-resume" 
+                      checked={forceRefetch}
+                      onCheckedChange={(checked) => setForceRefetch(checked === true)}
+                    />
+                    <div className="flex flex-col">
+                      <Label htmlFor="force-refetch-resume" className="flex items-center gap-1.5 cursor-pointer">
+                        <RefreshCw className="h-3.5 w-3.5 text-warning" />
+                        Force Re-fetch
+                      </Label>
+                      <span className="text-xs text-muted-foreground">
+                        Delete existing trades and re-download all
+                      </span>
+                    </div>
                   </div>
                 </div>
               </AlertDialogDescription>
@@ -351,6 +378,24 @@ export function BinanceFullSyncPanel({
                   <SyncRangeSelector />
                 </div>
                 
+                {/* Force Re-fetch Option */}
+                <div className="flex items-center gap-2 pt-2 border-t">
+                  <Checkbox 
+                    id="force-refetch" 
+                    checked={forceRefetch}
+                    onCheckedChange={(checked) => setForceRefetch(checked === true)}
+                  />
+                  <div className="flex flex-col">
+                    <Label htmlFor="force-refetch" className="flex items-center gap-1.5 cursor-pointer">
+                      <RefreshCw className="h-3.5 w-3.5 text-warning" />
+                      Force Re-fetch
+                    </Label>
+                    <span className="text-xs text-muted-foreground">
+                      Delete existing trades and re-download all data from Binance
+                    </span>
+                  </div>
+                </div>
+                
                 <ul className="list-disc pl-4 space-y-1 text-muted-foreground">
                   <li>Fetch income records (PnL, fees, funding)</li>
                   <li>Fetch trade fills in parallel for each symbol</li>
@@ -399,12 +444,37 @@ function SyncProgressIndicator({ progress }: { progress: AggregationProgress }) 
     'inserting': 'Saving to DB',
   }[progress.phase] || progress.phase;
 
+  // Check for rate limit warning in message
+  const isRateLimited = progress.message?.toLowerCase().includes('rate limit') || 
+                         progress.message?.toLowerCase().includes('429');
+
   return (
-    <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20">
-      <Loader2 className="h-4 w-4 animate-spin text-primary" />
+    <div className={`flex items-center gap-3 px-3 py-2 rounded-lg border ${
+      isRateLimited 
+        ? 'bg-warning/10 border-warning/30' 
+        : 'bg-primary/10 border-primary/20'
+    }`}>
+      <Loader2 className={`h-4 w-4 animate-spin ${isRateLimited ? 'text-warning' : 'text-primary'}`} />
       <div className="flex flex-col gap-1 min-w-[200px]">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium">{phaseLabel}</span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm font-medium">{phaseLabel}</span>
+            {isRateLimited && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant="outline" className="gap-1 bg-warning/10 border-warning/30 text-warning text-[10px] py-0 px-1.5">
+                      <Zap className="h-2.5 w-2.5" />
+                      Rate Limited
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="text-xs">API rate limit hit. Sync will auto-retry with delay.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </div>
           <span className="text-xs text-muted-foreground">{percent}%</span>
         </div>
         <Progress value={percent} className="h-2" />
