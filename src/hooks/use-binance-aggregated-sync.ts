@@ -39,11 +39,12 @@ import {
 // =============================================================================
 
 const BINANCE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/binance-futures`;
-const RATE_LIMIT_DELAY = 300;
+const RATE_LIMIT_DELAY = 200; // Reduced for faster sync
 const MAX_TRADES_INTERVAL_MS = 6.5 * 24 * 60 * 60 * 1000; // 6.5 days
 const MAX_INCOME_INTERVAL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 const RECORDS_PER_PAGE = 1000;
-const MAX_HISTORY_DAYS = 730; // 2 years
+const DEFAULT_HISTORY_DAYS = 90; // Optimized default
+const MAX_PARALLEL_SYMBOLS = 3; // Parallel fetching limit
 
 // =============================================================================
 // API Helper
@@ -252,7 +253,7 @@ export function useBinanceAggregatedSync() {
       // Mark sync as started in global store
       startFullSync();
       
-      const daysToSync = options.daysToSync || MAX_HISTORY_DAYS;
+      const daysToSync = options.daysToSync || DEFAULT_HISTORY_DAYS;
       const endTime = Date.now();
       const startTime = endTime - (daysToSync * 24 * 60 * 60 * 1000);
       
@@ -305,31 +306,50 @@ export function useBinanceAggregatedSync() {
       }
       
       // =======================================================================
-      // Phase 2: Fetch Trades for Each Symbol
+      // Phase 2: Fetch Trades for Each Symbol (Parallel)
       // =======================================================================
       const allTrades: BinanceTrade[] = [];
       const allOrders: BinanceOrder[] = [];
       
-      for (let i = 0; i < symbols.length; i++) {
-        const symbol = symbols[i];
+      // Process symbols in parallel batches for speed
+      let completedSymbols = 0;
+      
+      for (let batchStart = 0; batchStart < symbols.length; batchStart += MAX_PARALLEL_SYMBOLS) {
+        const batch = symbols.slice(batchStart, batchStart + MAX_PARALLEL_SYMBOLS);
         
         updateProgress({
           phase: 'fetching-trades',
-          current: i + 1,
+          current: completedSymbols,
           total: symbols.length,
-          message: `Fetching trades for ${symbol} (${i + 1}/${symbols.length})...`,
+          message: `Fetching trades for ${batch.join(', ')} (${completedSymbols + 1}-${Math.min(completedSymbols + batch.length, symbols.length)}/${symbols.length})...`,
         });
         
-        const trades = await fetchTradesForSymbol(symbol, startTime, endTime);
-        allTrades.push(...trades);
+        // Fetch batch in parallel
+        const batchResults = await Promise.all(
+          batch.map(async (symbol) => {
+            const [trades, orders] = await Promise.all([
+              fetchTradesForSymbol(symbol, startTime, endTime),
+              fetchOrdersForSymbol(symbol, startTime, endTime),
+            ]);
+            return { trades, orders };
+          })
+        );
         
-        const orders = await fetchOrdersForSymbol(symbol, startTime, endTime);
-        allOrders.push(...orders);
+        // Collect results
+        for (const result of batchResults) {
+          allTrades.push(...result.trades);
+          allOrders.push(...result.orders);
+        }
         
-        await new Promise(r => setTimeout(r, RATE_LIMIT_DELAY));
+        completedSymbols += batch.length;
+        
+        // Small delay between batches to respect rate limits
+        if (batchStart + MAX_PARALLEL_SYMBOLS < symbols.length) {
+          await new Promise(r => setTimeout(r, RATE_LIMIT_DELAY * 2));
+        }
       }
       
-      console.log(`[FullSync] Fetched ${allTrades.length} trades, ${allOrders.length} orders`);
+      console.log(`[FullSync] Fetched ${allTrades.length} trades, ${allOrders.length} orders (parallel)`);
       
       // =======================================================================
       // Phase 3: Group into Lifecycles
