@@ -12,29 +12,9 @@ import { useEconomicCalendar } from "@/features/calendar/useEconomicCalendar";
 import { useBinanceVolatility } from "@/features/binance/useBinanceAdvancedAnalytics";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { cn } from "@/lib/utils";
-
-// Correlation map for crypto pairs
-const CORRELATION_MAP: Record<string, Record<string, number>> = {
-  BTC: { ETH: 0.85, BNB: 0.78, SOL: 0.82, XRP: 0.72, ADA: 0.68, DOT: 0.75, AVAX: 0.80, MATIC: 0.76 },
-  ETH: { BTC: 0.85, BNB: 0.72, SOL: 0.78, XRP: 0.65, ADA: 0.62, DOT: 0.70, AVAX: 0.75, MATIC: 0.73 },
-  BNB: { BTC: 0.78, ETH: 0.72, SOL: 0.65, XRP: 0.55, ADA: 0.52, DOT: 0.58, AVAX: 0.62, MATIC: 0.60 },
-  SOL: { BTC: 0.82, ETH: 0.78, BNB: 0.65, XRP: 0.58, ADA: 0.55, DOT: 0.68, AVAX: 0.72, MATIC: 0.65 },
-};
-
-function extractBaseAsset(pair: string): string {
-  const suffixes = ['USDT', 'USD', 'BUSD', 'USDC'];
-  for (const suffix of suffixes) {
-    if (pair.toUpperCase().endsWith(suffix)) {
-      return pair.toUpperCase().replace(suffix, '');
-    }
-  }
-  return pair.toUpperCase().slice(0, 3);
-}
-
-function getCorrelation(asset1: string, asset2: string): number {
-  if (asset1 === asset2) return 1.0;
-  return CORRELATION_MAP[asset1]?.[asset2] ?? CORRELATION_MAP[asset2]?.[asset1] ?? 0.3;
-}
+import { getCorrelation } from "@/lib/correlation-utils";
+import { getBaseSymbol } from "@/lib/symbol-utils";
+import { CORRELATION_COLOR_THRESHOLDS } from "@/lib/constants/risk-thresholds";
 
 interface ContextWarningsProps {
   symbol?: string;
@@ -53,7 +33,8 @@ export function ContextWarnings({ symbol = 'BTCUSDT' }: ContextWarningsProps) {
   const { data: volatilityData, isLoading: volatilityLoading } = useBinanceVolatility(symbol);
   const { data: trades = [] } = useTradeEntries();
   
-  const baseAsset = extractBaseAsset(symbol);
+  // Use centralized getBaseSymbol utility
+  const baseAsset = getBaseSymbol(symbol);
   
   // Find high-impact events today
   const highImpactEvents = useMemo(() => {
@@ -67,19 +48,30 @@ export function ContextWarnings({ symbol = 'BTCUSDT' }: ContextWarningsProps) {
     });
   }, [calendarData]);
 
-  // Find correlated open positions
+  // Find correlated open positions using centralized utilities
   const correlatedPositions = useMemo(() => {
     const openPositions = trades.filter(t => t.status === 'open');
     
     return openPositions
       .filter(pos => {
-        const posAsset = extractBaseAsset(pos.pair);
-        return posAsset !== baseAsset && getCorrelation(baseAsset, posAsset) >= 0.7;
+        const posAsset = getBaseSymbol(pos.pair);
+        if (posAsset === baseAsset) return false;
+        
+        // Use centralized getCorrelation (expects full symbol format)
+        const symbol1 = `${baseAsset}USDT`;
+        const symbol2 = `${posAsset}USDT`;
+        const correlation = getCorrelation(symbol1, symbol2);
+        return correlation >= CORRELATION_COLOR_THRESHOLDS.HIGH;
       })
-      .map(pos => ({
-        pair: pos.pair,
-        correlation: getCorrelation(baseAsset, extractBaseAsset(pos.pair)),
-      }));
+      .map(pos => {
+        const posAsset = getBaseSymbol(pos.pair);
+        const symbol1 = `${baseAsset}USDT`;
+        const symbol2 = `${posAsset}USDT`;
+        return {
+          pair: pos.pair,
+          correlation: getCorrelation(symbol1, symbol2),
+        };
+      });
   }, [trades, baseAsset]);
 
   // Build warnings list
@@ -128,12 +120,12 @@ export function ContextWarnings({ symbol = 'BTCUSDT' }: ContextWarningsProps) {
       }
     }
 
-    // Correlated positions warnings
+    // Correlated positions warnings using centralized thresholds
     if (correlatedPositions.length > 0) {
       const highestCorr = correlatedPositions[0];
       result.push({
         type: 'correlation',
-        level: highestCorr.correlation >= 0.8 ? 'danger' : 'warning',
+        level: highestCorr.correlation >= CORRELATION_COLOR_THRESHOLDS.VERY_HIGH ? 'danger' : 'warning',
         title: 'Correlated Position',
         message: `Open ${highestCorr.pair} (${Math.round(highestCorr.correlation * 100)}% correlation)`,
         adjustment: 'Review total exposure',

@@ -7,7 +7,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { useBinanceDailyPnl, useBinanceTotalBalance } from "@/hooks/use-binance-daily-pnl";
-import type { RiskProfile, DailyRiskSnapshot, DailyRiskStatus, DEFAULT_RISK_PROFILE } from "@/types/risk";
+import type { RiskProfile, DailyRiskSnapshot, DailyRiskStatus } from "@/types/risk";
+import { DEFAULT_RISK_PROFILE, RISK_THRESHOLDS } from "@/types/risk";
+import { 
+  DAILY_LOSS_THRESHOLDS, 
+  DEFAULT_RISK_VALUES 
+} from "@/lib/constants/risk-thresholds";
 
 // Fetch risk profile
 export function useRiskProfile() {
@@ -64,17 +69,17 @@ export function useUpsertRiskProfile() {
         if (error) throw error;
         return data;
       } else {
-        // Create new
+        // Create new with centralized defaults
         const { data, error } = await supabase
           .from("risk_profiles")
           .insert({
             user_id: user.id,
-            risk_per_trade_percent: input.risk_per_trade_percent ?? 2.0,
-            max_daily_loss_percent: input.max_daily_loss_percent ?? 5.0,
-            max_weekly_drawdown_percent: input.max_weekly_drawdown_percent ?? 10.0,
-            max_position_size_percent: input.max_position_size_percent ?? 40.0,
-            max_correlated_exposure: input.max_correlated_exposure ?? 0.75,
-            max_concurrent_positions: input.max_concurrent_positions ?? 3,
+            risk_per_trade_percent: input.risk_per_trade_percent ?? DEFAULT_RISK_PROFILE.risk_per_trade_percent,
+            max_daily_loss_percent: input.max_daily_loss_percent ?? DEFAULT_RISK_PROFILE.max_daily_loss_percent,
+            max_weekly_drawdown_percent: input.max_weekly_drawdown_percent ?? DEFAULT_RISK_PROFILE.max_weekly_drawdown_percent,
+            max_position_size_percent: input.max_position_size_percent ?? DEFAULT_RISK_PROFILE.max_position_size_percent,
+            max_correlated_exposure: input.max_correlated_exposure ?? DEFAULT_RISK_PROFILE.max_correlated_exposure,
+            max_concurrent_positions: input.max_concurrent_positions ?? DEFAULT_RISK_PROFILE.max_concurrent_positions,
             is_active: true,
           })
           .select()
@@ -189,7 +194,7 @@ export function useDailyRiskStatus() {
   const calculateStatus = (): DailyRiskStatus | null => {
     if (!riskProfile) return null;
     
-    const maxDailyLossPercent = riskProfile.max_daily_loss_percent || 5;
+    const maxDailyLossPercent = riskProfile.max_daily_loss_percent || DEFAULT_RISK_PROFILE.max_daily_loss_percent;
     
     // Priority 1: Use Binance data if connected and has balance
     if (isBinanceConnected && binanceBalance > 0) {
@@ -201,10 +206,11 @@ export function useDailyRiskStatus() {
         : 0;
       const remainingBudget = lossLimit + Math.min(0, currentPnl);
       
+      // Use centralized thresholds
       let status: 'ok' | 'warning' | 'disabled' = 'ok';
-      if (lossUsedPercent >= 100) {
+      if (lossUsedPercent >= DAILY_LOSS_THRESHOLDS.DISABLED) {
         status = 'disabled';
-      } else if (lossUsedPercent >= 70) {
+      } else if (lossUsedPercent >= DAILY_LOSS_THRESHOLDS.WARNING) {
         status = 'warning';
       }
 
@@ -228,10 +234,11 @@ export function useDailyRiskStatus() {
         : 0;
       const remainingBudget = lossLimit + Math.min(0, snapshot.current_pnl || 0);
       
+      // Use centralized thresholds
       let status: 'ok' | 'warning' | 'disabled' = 'ok';
-      if (lossUsedPercent >= 100) {
+      if (lossUsedPercent >= DAILY_LOSS_THRESHOLDS.DISABLED) {
         status = 'disabled';
-      } else if (lossUsedPercent >= 70) {
+      } else if (lossUsedPercent >= DAILY_LOSS_THRESHOLDS.WARNING) {
         status = 'warning';
       }
 

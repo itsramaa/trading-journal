@@ -23,3 +23,9 @@ export * from './ai-analytics';
 
 // Emotional state configuration
 export * from './emotional-states';
+
+// Risk management thresholds
+export * from './risk-thresholds';
+
+// Risk multipliers for context-aware adjustments
+export * from './risk-multipliers';

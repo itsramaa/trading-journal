@@ -10,41 +10,15 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { AlertTriangle, Link2, ChevronDown, ChevronRight } from "lucide-react";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { cn } from "@/lib/utils";
-
-// Simplified correlation values for crypto pairs
-const CORRELATION_MAP: Record<string, Record<string, number>> = {
-  BTC: { ETH: 0.85, BNB: 0.78, SOL: 0.82, XRP: 0.72, ADA: 0.68, DOT: 0.75, AVAX: 0.80, MATIC: 0.76 },
-  ETH: { BTC: 0.85, BNB: 0.72, SOL: 0.78, XRP: 0.65, ADA: 0.62, DOT: 0.70, AVAX: 0.75, MATIC: 0.73 },
-  BNB: { BTC: 0.78, ETH: 0.72, SOL: 0.65, XRP: 0.55, ADA: 0.52, DOT: 0.58, AVAX: 0.62, MATIC: 0.60 },
-  SOL: { BTC: 0.82, ETH: 0.78, BNB: 0.65, XRP: 0.58, ADA: 0.55, DOT: 0.68, AVAX: 0.72, MATIC: 0.65 },
-  XRP: { BTC: 0.72, ETH: 0.65, BNB: 0.55, SOL: 0.58, ADA: 0.60, DOT: 0.52, AVAX: 0.55, MATIC: 0.50 },
-  ADA: { BTC: 0.68, ETH: 0.62, BNB: 0.52, SOL: 0.55, XRP: 0.60, DOT: 0.65, AVAX: 0.58, MATIC: 0.55 },
-  DOT: { BTC: 0.75, ETH: 0.70, BNB: 0.58, SOL: 0.68, XRP: 0.52, ADA: 0.65, AVAX: 0.68, MATIC: 0.62 },
-  AVAX: { BTC: 0.80, ETH: 0.75, BNB: 0.62, SOL: 0.72, XRP: 0.55, ADA: 0.58, DOT: 0.68, MATIC: 0.65 },
-  MATIC: { BTC: 0.76, ETH: 0.73, BNB: 0.60, SOL: 0.65, XRP: 0.50, ADA: 0.55, DOT: 0.62, AVAX: 0.65 },
-};
-
-// Extract base asset from pair (e.g., "BTCUSDT" -> "BTC")
-function extractBaseAsset(pair: string): string {
-  const suffixes = ['USDT', 'USD', 'BUSD', 'USDC', 'BTC', 'ETH'];
-  for (const suffix of suffixes) {
-    if (pair.toUpperCase().endsWith(suffix)) {
-      return pair.toUpperCase().replace(suffix, '');
-    }
-  }
-  return pair.toUpperCase().slice(0, 3);
-}
-
-function getCorrelation(asset1: string, asset2: string): number {
-  if (asset1 === asset2) return 1.0;
-  return CORRELATION_MAP[asset1]?.[asset2] ?? CORRELATION_MAP[asset2]?.[asset1] ?? 0.3;
-}
+import { getCorrelation } from "@/lib/correlation-utils";
+import { getBaseSymbol } from "@/lib/symbol-utils";
+import { CORRELATION_COLOR_THRESHOLDS, CORRELATION_THRESHOLDS } from "@/lib/constants/risk-thresholds";
 
 // Design system color tokens for correlation levels
 function getCorrelationColor(value: number): string {
-  if (value >= 0.8) return "text-loss bg-loss-muted";
-  if (value >= 0.7) return "text-[hsl(var(--chart-4))] bg-[hsl(var(--chart-4))]/10";
-  if (value >= 0.5) return "text-[hsl(var(--chart-6))] bg-[hsl(var(--chart-6))]/10";
+  if (value >= CORRELATION_COLOR_THRESHOLDS.VERY_HIGH) return "text-loss bg-loss-muted";
+  if (value >= CORRELATION_COLOR_THRESHOLDS.HIGH) return "text-[hsl(var(--chart-4))] bg-[hsl(var(--chart-4))]/10";
+  if (value >= CORRELATION_COLOR_THRESHOLDS.MODERATE) return "text-[hsl(var(--chart-6))] bg-[hsl(var(--chart-6))]/10";
   return "text-profit bg-profit-muted";
 }
 
@@ -72,11 +46,15 @@ export function CorrelationMatrix() {
     
     for (let i = 0; i < openPositions.length; i++) {
       for (let j = i + 1; j < openPositions.length; j++) {
-        const asset1 = extractBaseAsset(openPositions[i].pair);
-        const asset2 = extractBaseAsset(openPositions[j].pair);
+        // Use centralized getBaseSymbol utility
+        const asset1 = getBaseSymbol(openPositions[i].pair);
+        const asset2 = getBaseSymbol(openPositions[j].pair);
         
         if (asset1 !== asset2) {
-          const correlation = getCorrelation(asset1, asset2);
+          // Use centralized getCorrelation - needs full symbol format
+          const symbol1 = `${asset1}USDT`;
+          const symbol2 = `${asset2}USDT`;
+          const correlation = getCorrelation(symbol1, symbol2);
           pairs.push({
             asset1,
             asset2,
@@ -91,7 +69,10 @@ export function CorrelationMatrix() {
     return pairs.sort((a, b) => b.correlation - a.correlation);
   }, [openPositions]);
 
-  const highCorrelationPairs = correlationPairs.filter(p => p.correlation >= 0.7);
+  // Use centralized threshold for high correlation
+  const highCorrelationPairs = correlationPairs.filter(
+    p => p.correlation >= CORRELATION_COLOR_THRESHOLDS.HIGH
+  );
   
   // Auto-expand if there are high correlation warnings
   const shouldAutoExpand = highCorrelationPairs.length > 0;
@@ -188,7 +169,7 @@ export function CorrelationMatrix() {
                   Correlated Exposure Warning
                 </div>
                 <p className="text-sm text-destructive/80">
-                  You have {highCorrelationPairs.length} position pair(s) with high correlation (&gt;70%). 
+                  You have {highCorrelationPairs.length} position pair(s) with high correlation (&gt;{CORRELATION_COLOR_THRESHOLDS.HIGH * 100}%). 
                   Consider reducing exposure to avoid amplified losses.
                 </p>
               </div>
@@ -201,7 +182,7 @@ export function CorrelationMatrix() {
                   key={index}
                   className={cn(
                     "flex items-center justify-between p-3 rounded-lg border",
-                    pair.correlation >= 0.7 ? "border-destructive/30 bg-destructive/5" : "border-border"
+                    pair.correlation >= CORRELATION_COLOR_THRESHOLDS.HIGH ? "border-destructive/30 bg-destructive/5" : "border-border"
                   )}
                 >
                   <div className="flex items-center gap-3">
@@ -224,10 +205,10 @@ export function CorrelationMatrix() {
                     >
                       {(pair.correlation * 100).toFixed(0)}%
                     </div>
-                    {pair.correlation >= 0.8 && (
+                    {pair.correlation >= CORRELATION_COLOR_THRESHOLDS.VERY_HIGH && (
                       <AlertTriangle className="h-4 w-4 text-loss" />
                     )}
-                    {pair.correlation >= 0.7 && pair.correlation < 0.8 && (
+                    {pair.correlation >= CORRELATION_COLOR_THRESHOLDS.HIGH && pair.correlation < CORRELATION_COLOR_THRESHOLDS.VERY_HIGH && (
                       <AlertTriangle className="h-4 w-4 text-[hsl(var(--chart-4))]" />
                     )}
                   </div>
