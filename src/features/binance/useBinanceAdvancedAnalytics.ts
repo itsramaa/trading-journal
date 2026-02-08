@@ -88,8 +88,14 @@ export function useBinanceTopMovers(limit = 10) {
     queryFn: async () => {
       const tickers = await callMarketDataFunction<Ticker24h[]>('ticker-24h', {});
       
-      // Filter USDT pairs only and sort
-      const usdtPairs = tickers.filter(t => t.symbol.endsWith('USDT'));
+      // Filter USDT pairs only and ensure fresh data (closeTime within last 25 hours)
+      const now = Date.now();
+      const staleThreshold = now - (25 * 60 * 60 * 1000); // 25 hours ago
+      
+      const usdtPairs = tickers.filter(t => 
+        t.symbol.endsWith('USDT') && 
+        t.closeTime > staleThreshold // Exclude delisted/stale pairs
+      );
       
       const topGainers = [...usdtPairs]
         .sort((a, b) => b.priceChangePercent - a.priceChangePercent)
