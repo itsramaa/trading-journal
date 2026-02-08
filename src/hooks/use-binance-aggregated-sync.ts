@@ -16,13 +16,14 @@
  * - Monitoring integration for health tracking
  */
 
-import { useState, useCallback } from 'react';
+import { useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 import { invalidateTradeQueries } from '@/lib/query-invalidation';
 import { useSyncMonitoring } from '@/hooks/use-sync-monitoring';
+import { useSyncStore } from '@/store/sync-store';
 
 import type { BinanceTrade, BinanceOrder, BinanceIncome } from '@/features/binance/types';
 import type { RawBinanceData, AggregationProgress, AggregationResult, AggregatedTrade } from '@/services/binance/types';
@@ -216,7 +217,18 @@ export interface FullSyncOptions {
 export function useBinanceAggregatedSync() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [progress, setProgress] = useState<AggregationProgress | null>(null);
+  
+  // Global sync store - persistent across navigation
+  const {
+    fullSyncStatus,
+    fullSyncProgress: progress,
+    fullSyncResult: result,
+    fullSyncError,
+    startFullSync,
+    updateProgress,
+    completeFullSync,
+    failFullSync,
+  } = useSyncStore();
   
   // Phase 5: Monitoring integration
   const { 
@@ -232,6 +244,14 @@ export function useBinanceAggregatedSync() {
     mutationFn: async (options: FullSyncOptions = {}): Promise<AggregationResult> => {
       if (!user?.id) throw new Error('User not authenticated');
       
+      // Guard: prevent duplicate syncs
+      if (fullSyncStatus === 'running') {
+        throw new Error('Sync already in progress');
+      }
+      
+      // Mark sync as started in global store
+      startFullSync();
+      
       const daysToSync = options.daysToSync || MAX_HISTORY_DAYS;
       const endTime = Date.now();
       const startTime = endTime - (daysToSync * 24 * 60 * 60 * 1000);
@@ -239,7 +259,7 @@ export function useBinanceAggregatedSync() {
       // =======================================================================
       // Phase 1: Fetch Income Records
       // =======================================================================
-      setProgress({
+      updateProgress({
         phase: 'fetching-income',
         current: 0,
         total: 100,
@@ -247,11 +267,12 @@ export function useBinanceAggregatedSync() {
       });
       
       const income = await fetchAllIncome(startTime, endTime, (fetched) => {
-        setProgress(prev => prev ? {
-          ...prev,
+        updateProgress({
+          phase: 'fetching-income',
           current: Math.min(fetched, 10000),
+          total: 10000,
           message: `Fetched ${fetched} income records...`,
-        } : null);
+        });
       });
       
       console.log(`[FullSync] Fetched ${income.length} income records`);
@@ -292,7 +313,7 @@ export function useBinanceAggregatedSync() {
       for (let i = 0; i < symbols.length; i++) {
         const symbol = symbols[i];
         
-        setProgress({
+        updateProgress({
           phase: 'fetching-trades',
           current: i + 1,
           total: symbols.length,
@@ -313,7 +334,7 @@ export function useBinanceAggregatedSync() {
       // =======================================================================
       // Phase 3: Group into Lifecycles
       // =======================================================================
-      setProgress({
+      updateProgress({
         phase: 'grouping',
         current: 0,
         total: 100,
@@ -336,7 +357,7 @@ export function useBinanceAggregatedSync() {
       // =======================================================================
       // Phase 4: Aggregate Lifecycles
       // =======================================================================
-      setProgress({
+      updateProgress({
         phase: 'aggregating',
         current: 0,
         total: lifecycles.length,
@@ -346,12 +367,12 @@ export function useBinanceAggregatedSync() {
       const { trades: aggregatedTrades, failures } = aggregateAllLifecycles(
         lifecycles,
         (current, total) => {
-          setProgress(prev => prev ? {
-            ...prev,
+          updateProgress({
+            phase: 'aggregating',
             current,
             total,
             message: `Aggregating trade ${current}/${total}...`,
-          } : null);
+          });
         }
       );
       
@@ -360,7 +381,7 @@ export function useBinanceAggregatedSync() {
       // =======================================================================
       // Phase 5: Validate
       // =======================================================================
-      setProgress({
+      updateProgress({
         phase: 'validating',
         current: 0,
         total: aggregatedTrades.length,
@@ -424,30 +445,33 @@ export function useBinanceAggregatedSync() {
         reconciliation,
       };
     },
-    onSuccess: (result) => {
+    onSuccess: (successResult) => {
       invalidateTradeQueries(queryClient);
-      setProgress(null);
+      
+      // Update global store with result
+      completeFullSync(successResult);
       
       // Phase 5: Record success for monitoring
-      recordSyncSuccess(result);
+      recordSyncSuccess(successResult);
       
-      if (result.reconciliation.isReconciled) {
+      if (successResult.reconciliation.isReconciled) {
         toast.success(
-          `Synced ${result.stats.validTrades} trades successfully. ` +
+          `Synced ${successResult.stats.validTrades} trades successfully. ` +
           `PnL reconciled within 0.1% tolerance.`
         );
       } else {
         toast.warning(
-          `Synced ${result.stats.validTrades} trades. ` +
-          `Warning: PnL differs by ${result.reconciliation.differencePercent.toFixed(2)}%`
+          `Synced ${successResult.stats.validTrades} trades. ` +
+          `Warning: PnL differs by ${successResult.reconciliation.differencePercent.toFixed(2)}%`
         );
       }
     },
     onError: (error) => {
-      setProgress(null);
+      // Update global store with error
+      failFullSync(error.message);
       
       // Phase 5: Record failure for monitoring and schedule retry
-      const failures = recordSyncFailure(error);
+      recordSyncFailure(error);
       
       toast.error(`Sync failed: ${error.message}`);
     },
@@ -456,10 +480,10 @@ export function useBinanceAggregatedSync() {
   return {
     sync: syncMutation.mutate,
     syncAsync: syncMutation.mutateAsync,
-    isLoading: syncMutation.isPending,
+    isLoading: fullSyncStatus === 'running',
     progress,
-    error: syncMutation.error,
-    result: syncMutation.data,
+    error: fullSyncError ? new Error(fullSyncError) : syncMutation.error,
+    result,
     // Phase 5: Monitoring data
     monitoring: {
       lastSyncResult,

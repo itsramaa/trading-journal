@@ -1,6 +1,8 @@
 /**
  * Binance Full Sync Panel - UI for triggering and monitoring aggregated sync
  * Features: Full Sync button, Progress indicator, Reconciliation status, Re-Sync
+ * 
+ * Now uses global sync store for persistent state across navigation.
  */
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -24,9 +26,11 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { useBinanceAggregatedSync } from "@/hooks/use-binance-aggregated-sync";
+import { useSyncStore, selectFullSyncStatus, selectFullSyncProgress, selectFullSyncResult } from "@/store/sync-store";
 import { SyncStatusBadge } from "./SyncStatusBadge";
 import { ReSyncTimeWindow } from "./ReSyncTimeWindow";
 import type { AggregationProgress } from "@/services/binance/types";
+import { toast } from "sonner";
 
 interface BinanceFullSyncPanelProps {
   isBinanceConnected: boolean;
@@ -38,25 +42,40 @@ export function BinanceFullSyncPanel({
   compact = false 
 }: BinanceFullSyncPanelProps) {
   const [showConfirm, setShowConfirm] = useState(false);
-  const { sync, isLoading, progress, result, error } = useBinanceAggregatedSync();
+  
+  // Hook for triggering sync
+  const { sync } = useBinanceAggregatedSync();
+  
+  // Global store for persistent state
+  const status = useSyncStore(selectFullSyncStatus);
+  const progress = useSyncStore(selectFullSyncProgress);
+  const result = useSyncStore(selectFullSyncResult);
+  const fullSyncError = useSyncStore(state => state.fullSyncError);
 
   if (!isBinanceConnected) return null;
 
   const handleSync = () => {
     setShowConfirm(false);
+    
+    // Guard against duplicate syncs
+    if (status === 'running') {
+      toast.info('Sync already in progress');
+      return;
+    }
+    
     sync({ daysToSync: 730 }); // 2 years
   };
 
-  // Show progress
-  if (isLoading && progress) {
+  // Show progress (running state from global store)
+  if (status === 'running' && progress) {
     return <SyncProgressIndicator progress={progress} />;
   }
 
   // Determine if there's a reconciliation issue
   const hasReconciliationIssue = result && !result.reconciliation.isReconciled;
 
-  // Show result with clickable badge
-  if (result && !isLoading) {
+  // Show result with clickable badge (success state)
+  if (status === 'success' && result) {
     return (
       <div className="flex items-center gap-2">
         <SyncStatusBadge result={result} />
@@ -85,17 +104,34 @@ export function BinanceFullSyncPanel({
     );
   }
 
-  // Show error
-  if (error) {
+  // Show error (error state from global store)
+  if (status === 'error' || fullSyncError) {
     return (
-      <Badge variant="destructive" className="gap-1">
-        <AlertTriangle className="h-3 w-3" />
-        Sync failed
-      </Badge>
+      <div className="flex items-center gap-2">
+        <Badge variant="destructive" className="gap-1">
+          <AlertTriangle className="h-3 w-3" />
+          Sync failed
+        </Badge>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowConfirm(true)}
+                className="h-7 px-2"
+              >
+                <Database className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Retry sync</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
     );
   }
 
-  // Default: Show sync button
+  // Default: Show sync button (idle state)
   return (
     <>
       <TooltipProvider>
@@ -145,6 +181,9 @@ export function BinanceFullSyncPanel({
                 <p className="text-muted-foreground">
                   This may take several minutes depending on your trading history.
                   Existing trades will not be duplicated.
+                </p>
+                <p className="text-primary font-medium">
+                  ✓ Sync continues in background even if you navigate to other pages.
                 </p>
               </div>
             </AlertDialogDescription>
