@@ -13,6 +13,8 @@ export type NotificationType =
   | 'daily_loss_limit'
   | 'market_alert'
   | 'weekly_report'
+  | 'sync_error'
+  | 'sync_warning'
   | 'system';
 
 export interface CreateNotificationInput {
@@ -178,5 +180,71 @@ export async function notifyWeeklyReport(params: {
     title: `${resultEmoji} Weekly Report Ready`,
     message: `Week ${weekStart} - ${weekEnd}: ${totalTrades} trades, ${pnlSign}$${netPnl.toFixed(2)}, ${winRate.toFixed(1)}% win rate`,
     metadata: { weekStart, weekEnd, totalTrades, netPnl, winRate },
+  });
+}
+
+/**
+ * Notify when sync fails multiple times
+ */
+export async function notifySyncFailure(params: {
+  userId: string;
+  failureCount: number;
+  lastError: string;
+  sendEmail?: boolean;
+}): Promise<boolean> {
+  const { userId, failureCount, lastError, sendEmail = true } = params;
+  
+  // Create in-app notification
+  const created = await createNotification({
+    userId,
+    type: 'sync_error',
+    title: `🔴 Sync Failed ${failureCount}x Consecutively`,
+    message: `Binance sync has failed ${failureCount} times in a row. Last error: ${lastError}. Please check your API credentials.`,
+    metadata: { failureCount, lastError, timestamp: new Date().toISOString() },
+  });
+  
+  // Optionally trigger email notification via edge function
+  if (sendEmail && failureCount >= 3) {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session?.access_token) {
+        await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sync-failure-email`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            failureCount,
+            lastError,
+          }),
+        });
+      }
+    } catch (err) {
+      console.error('Failed to send sync failure email:', err);
+    }
+  }
+  
+  return created;
+}
+
+/**
+ * Notify when sync has reconciliation issues
+ */
+export async function notifySyncReconciliationIssue(params: {
+  userId: string;
+  differencePercent: number;
+  validTrades: number;
+  invalidTrades: number;
+}): Promise<boolean> {
+  const { userId, differencePercent, validTrades, invalidTrades } = params;
+  
+  return createNotification({
+    userId,
+    type: 'sync_warning',
+    title: `⚠️ P&L Reconciliation Mismatch`,
+    message: `Sync completed but P&L differs by ${differencePercent.toFixed(2)}%. ${validTrades} valid trades, ${invalidTrades} invalid. Consider running Re-Sync.`,
+    metadata: { differencePercent, validTrades, invalidTrades },
   });
 }
