@@ -22,6 +22,7 @@ import { useSidebarPersistence } from "@/hooks/use-sidebar-persistence";
 import { useNotificationsRealtime } from "@/hooks/use-notifications";
 import { useNotificationTriggers } from "@/hooks/use-notification-triggers";
 import { useBinanceBackgroundSync } from "@/hooks/use-binance-background-sync";
+import { GlobalSyncIndicator } from "./GlobalSyncIndicator";
 import { Button } from "@/components/ui/button";
 import { Search } from "lucide-react";
 
@@ -146,8 +147,11 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           {/* Spacer */}
           <div className="flex-1" />
 
-          {/* Right side: Command Palette trigger + Controls */}
-          <div className="flex items-center gap-1 pr-4">
+          {/* Right side: Global Sync Indicator + Command Palette trigger + Controls */}
+          <div className="flex items-center gap-2 pr-4">
+            {/* Global Sync Progress Indicator */}
+            <GlobalSyncIndicator />
+            
             {/* Command Palette Button */}
             <Button
               variant="outline"

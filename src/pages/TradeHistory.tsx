@@ -29,9 +29,9 @@ import { useTradeEntriesPaginated, type TradeFilters } from "@/hooks/use-trade-e
 import type { TradeEntry } from "@/hooks/use-trade-entries";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { useBinanceConnectionStatus } from "@/features/binance";
-import { useBinanceAggregatedSync } from "@/hooks/use-binance-aggregated-sync";
 import { useBinanceIncrementalSync } from "@/hooks/use-binance-incremental-sync";
 import { BinanceFullSyncPanel } from "@/components/trading/BinanceFullSyncPanel";
+import { useSyncStore, selectIsFullSyncRunning, selectFullSyncProgress } from "@/store/sync-store";
 import { useTradeEnrichment } from "@/hooks/use-trade-enrichment";
 import { useTradeEnrichmentBinance, useTradesNeedingEnrichmentCount, type EnrichmentProgress } from "@/hooks/use-trade-enrichment-binance";
 import { formatCurrency as formatCurrencyUtil } from "@/lib/formatters";
@@ -80,8 +80,11 @@ export default function TradeHistory() {
   const { data: connectionStatus } = useBinanceConnectionStatus();
   const isBinanceConnected = connectionStatus?.isConnected ?? false;
   
-  // Aggregated sync hooks
-  const { isLoading: isFullSyncing, progress: syncProgress } = useBinanceAggregatedSync();
+  // Global sync state from store (persists across navigation)
+  const isFullSyncing = useSyncStore(selectIsFullSyncRunning);
+  const syncProgress = useSyncStore(selectFullSyncProgress);
+  
+  // Incremental sync hook
   const { sync: triggerIncrementalSync, isLoading: isIncrementalSyncing, lastSyncTime, isStale } = useBinanceIncrementalSync({ autoSyncOnMount: true });
   
   // Trade enrichment
