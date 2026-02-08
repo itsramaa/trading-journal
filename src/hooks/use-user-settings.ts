@@ -28,6 +28,7 @@ export interface UserSettings {
   // Binance data source settings
   use_binance_history?: boolean;
   binance_daily_sync_quota?: number;
+  trade_retention_days?: number | null;
   created_at: string;
   updated_at: string;
 }
