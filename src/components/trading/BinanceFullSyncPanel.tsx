@@ -231,6 +231,38 @@ export function BinanceFullSyncPanel({
           <Database className="h-3.5 w-3.5" />
           Sync Again
         </Button>
+        
+        {/* Confirmation Dialog for Sync Again */}
+        <AlertDialog open={showConfirm} onOpenChange={setShowConfirm}>
+          <AlertDialogContent className="max-w-md">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <Database className="h-5 w-5 text-primary" />
+                Sync Again
+              </AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                <div className="space-y-4 text-sm">
+                  <p>
+                    This will start a new full sync from Binance Futures.
+                    Existing trades will be deduplicated automatically.
+                  </p>
+                  
+                  {/* Sync Range Selector */}
+                  <div className="pt-2 border-t">
+                    <SyncRangeSelector />
+                  </div>
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleSync}>
+                <CloudDownload className="h-4 w-4 mr-2" />
+                Start Sync ({selectedRange === 'max' ? 'All Time' : `${selectedRange} days`})
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     );
   }
