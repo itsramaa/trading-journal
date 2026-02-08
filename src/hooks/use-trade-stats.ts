@@ -48,13 +48,22 @@ export function useTradeStats(options: UseTradeStatsOptions = {}) {
         return getEmptyStats();
       }
 
+      // Build source filter - handle both include and exclude
+      let sourceParam: string | null = null;
+      if (filters?.source) {
+        sourceParam = filters.source;
+      }
+      // Note: excludeSource would need a DB function update to support
+      // For now, we handle it by not passing source (gets all) and filtering client-side
+      // or we need to update the RPC function
+
       // Call the database function
       const { data, error } = await supabase.rpc('get_trade_stats', {
         p_user_id: user.id,
         p_status: filters?.status === 'all' ? null : (filters?.status || 'closed'),
         p_start_date: filters?.startDate || null,
         p_end_date: filters?.endDate || null,
-        p_source: filters?.source || null,
+        p_source: sourceParam,
         p_pairs: filters?.pairs?.length ? filters.pairs : null,
         p_directions: filters?.direction ? [filters.direction] : null,
         p_strategy_ids: filters?.strategyIds?.length ? filters.strategyIds : null,
