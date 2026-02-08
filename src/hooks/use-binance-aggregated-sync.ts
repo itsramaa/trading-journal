@@ -199,7 +199,8 @@ async function fetchOrdersForSymbol(
 }
 
 /**
- * Fetch all income records within time range (handles 90-day limit)
+ * Fetch all income records within time range (handles 30-day limit)
+ * Uses cursor-based pagination with fromId (tranId) instead of page parameter
  */
 async function fetchAllIncome(
   startTime: number,
@@ -208,36 +209,55 @@ async function fetchAllIncome(
 ): Promise<BinanceIncome[]> {
   const allRecords: BinanceIncome[] = [];
   const numChunks = Math.ceil((endTime - startTime) / MAX_INCOME_INTERVAL_MS);
+  const MAX_RECORDS_SAFETY = 20000; // Safety limit to prevent infinite loops
+  
+  console.log(`[FullSync] Fetching income from ${new Date(startTime).toISOString()} to ${new Date(endTime).toISOString()}`);
+  console.log(`[FullSync] Time range: ${Math.round((endTime - startTime) / (24 * 60 * 60 * 1000))} days in ${numChunks} chunks`);
   
   for (let i = 0; i < numChunks; i++) {
     const chunkStart = startTime + (i * MAX_INCOME_INTERVAL_MS);
     const chunkEnd = Math.min(chunkStart + MAX_INCOME_INTERVAL_MS, endTime);
     
-    let page = 1;
+    console.log(`[FullSync] Chunk ${i + 1}/${numChunks}: ${new Date(chunkStart).toISOString()} - ${new Date(chunkEnd).toISOString()}`);
     
-    while (true) {
+    // Cursor-based pagination within chunk using tranId
+    let lastTranId: number | undefined = undefined;
+    let chunkRecords = 0;
+    
+    while (allRecords.length < MAX_RECORDS_SAFETY) {
       const result = await callBinanceApi<BinanceIncome[]>('income', {
         startTime: chunkStart,
         endTime: chunkEnd,
         limit: RECORDS_PER_PAGE,
-        page,
+        ...(lastTranId && { fromId: lastTranId }),
       });
       
       if (!result.success || !result.data?.length) break;
       
       allRecords.push(...result.data);
+      chunkRecords += result.data.length;
       onProgress?.(allRecords.length);
       
+      // If less than limit, we've got all records for this chunk
       if (result.data.length < RECORDS_PER_PAGE) break;
       
-      page++;
+      // Get cursor for next page (tranId of last record + 1)
+      const lastRecord = result.data[result.data.length - 1];
+      lastTranId = typeof lastRecord.tranId === 'string' 
+        ? parseInt(lastRecord.tranId, 10) + 1
+        : (lastRecord.tranId as number) + 1;
+      
       await new Promise(r => setTimeout(r, getAdaptiveDelay()));
     }
+    
+    console.log(`[FullSync] Chunk ${i + 1} fetched ${chunkRecords} records`);
     
     if (i < numChunks - 1) {
       await new Promise(r => setTimeout(r, getAdaptiveDelay()));
     }
   }
+  
+  console.log(`[FullSync] Total income records fetched: ${allRecords.length}`);
   
   return allRecords;
 }
