@@ -1,12 +1,13 @@
 
 
-# Optimization Plan: Binance Sync Accuracy & Speed
+# Optimization Plan: Binance Sync & Multi-User Scalability
 
 ## Summary
 
-Dua area utama yang dapat dioptimasi:
+Tiga area utama yang dioptimasi:
 1. **Accuracy**: Meningkatkan match rate antara income dan trades
-2. **Speed**: Mempercepat waktu sync dengan parallel fetching dan caching
+2. **Speed**: Mempercepat waktu sync dengan parallel fetching, incremental sync
+3. **Multi-User Scalability**: Data isolation, rate limiting, dan storage optimization
 
 ---
 

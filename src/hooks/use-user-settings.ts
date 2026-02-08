@@ -25,6 +25,9 @@ export interface UserSettings {
   target_allocations?: Record<string, number> | null;
   ai_settings?: Record<string, boolean | number | string> | null;
   default_trading_account_id?: string | null;
+  // Binance data source settings
+  use_binance_history?: boolean;
+  binance_daily_sync_quota?: number;
   created_at: string;
   updated_at: string;
 }
