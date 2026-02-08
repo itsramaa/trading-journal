@@ -46,7 +46,14 @@ export function groupIntoLifecycles(rawData: RawBinanceData): PositionLifecycle[
       openPositions.set(positionKey, tracker);
     }
     
-    // Determine if this is entry or exit
+    // IMPORTANT: Set direction from FIRST trade before determining entry/exit
+    // This fixes one-way mode (positionSide = BOTH) where direction must be inferred
+    if (tracker.entryTime === 0) {
+      // First trade for this position - infer direction
+      tracker.direction = inferDirection(trade);
+    }
+    
+    // Determine if this is entry or exit based on correct direction
     const isEntry = isEntryTrade(trade, tracker.direction);
     
     if (isEntry) {
@@ -54,7 +61,6 @@ export function groupIntoLifecycles(rawData: RawBinanceData): PositionLifecycle[
       tracker.entryQty += trade.qty;
       if (tracker.entryTime === 0) {
         tracker.entryTime = trade.time;
-        tracker.direction = inferDirection(trade);
       }
     } else {
       tracker.exitFills.push(trade);
@@ -112,10 +118,17 @@ function createPositionTracker(
   symbol: string, 
   positionSide: 'LONG' | 'SHORT' | 'BOTH'
 ): PositionTracker {
+  // For hedge mode, direction is explicit from positionSide
+  // For one-way mode (BOTH), direction will be set by first trade in inferDirection()
+  const initialDirection: 'LONG' | 'SHORT' = 
+    positionSide === 'LONG' ? 'LONG' : 
+    positionSide === 'SHORT' ? 'SHORT' : 
+    'LONG'; // Temporary default, will be overwritten by inferDirection on first trade
+    
   return {
     symbol,
     positionSide,
-    direction: positionSide === 'SHORT' ? 'SHORT' : 'LONG',
+    direction: initialDirection,
     entryFills: [],
     exitFills: [],
     entryQty: 0,
