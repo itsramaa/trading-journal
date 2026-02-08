@@ -60,7 +60,7 @@ export function ClosePositionDialog({
           <div className="p-4 rounded-lg bg-muted/50 space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Direction:</span>
-              <Badge variant={position?.direction === "LONG" ? "default" : "secondary"}>
+              <Badge variant={position?.direction === "LONG" ? "long" : "short"}>
                 {position?.direction}
               </Badge>
             </div>
@@ -119,7 +119,7 @@ export function EditPositionDialog({
           <div className="p-4 rounded-lg bg-muted/50 space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Direction:</span>
-              <Badge variant={position?.direction === "LONG" ? "default" : "secondary"}>
+              <Badge variant={position?.direction === "LONG" ? "long" : "short"}>
                 {position?.direction}
               </Badge>
             </div>
