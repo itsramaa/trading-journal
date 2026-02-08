@@ -7,7 +7,8 @@
  * - Calculating hold time and linking commissions
  * - RE-ENRICHING existing trades that have entry_price = 0
  * 
- * Use case: After syncing trades, run enrichment to fill missing data
+ * OPTIMIZED: Uses weekly windowed fetching instead of full date range
+ * to reduce income records from 100k+ to ~500
  */
 
 import { useState, useCallback } from "react";
@@ -26,6 +27,7 @@ import type { BinanceIncome } from "@/features/binance/types";
 const BINANCE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/binance-futures`;
 const RATE_LIMIT_DELAY = 300;
 const RECORDS_PER_PAGE = 1000;
+const MAX_INCOME_RECORDS = 10000; // Safety limit to prevent 100k+ fetches
 
 export interface EnrichmentProgress {
   phase: 'checking' | 'fetching-income' | 'fetching-trades' | 'enriching' | 'updating' | 'done';
@@ -33,6 +35,8 @@ export interface EnrichmentProgress {
   total: number;
   percent: number;
   message?: string;
+  windowInfo?: { current: number; total: number };
+  recordsFetched?: number;
 }
 
 export interface EnrichmentResult {
@@ -45,6 +49,69 @@ export interface EnrichmentResult {
 export interface EnrichmentOptions {
   daysBack?: number;
   onProgress?: (progress: EnrichmentProgress) => void;
+}
+
+/**
+ * Trade window for grouping fetches by time period
+ */
+interface TradeWindow {
+  startTime: number;
+  endTime: number;
+  trades: Array<{ id: string; trade_date: string; pair: string }>;
+  index: number;
+}
+
+/**
+ * Group trades into 7-day windows for efficient fetching
+ */
+function groupTradesIntoWeeklyWindows(
+  trades: Array<{ id: string; trade_date: string; pair: string }>
+): TradeWindow[] {
+  if (trades.length === 0) return [];
+  
+  // Sort by date
+  const sorted = [...trades].sort((a, b) => 
+    new Date(a.trade_date).getTime() - new Date(b.trade_date).getTime()
+  );
+  
+  const windows: TradeWindow[] = [];
+  const WINDOW_SIZE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+  const BUFFER_MS = 2 * 60 * 60 * 1000; // 2 hour buffer
+  
+  let currentWindow: TradeWindow | null = null;
+  
+  for (const trade of sorted) {
+    const tradeTime = new Date(trade.trade_date).getTime();
+    
+    if (!currentWindow || tradeTime > currentWindow.endTime) {
+      // Start new window
+      currentWindow = {
+        startTime: tradeTime - BUFFER_MS,
+        endTime: tradeTime + WINDOW_SIZE_MS,
+        trades: [],
+        index: windows.length,
+      };
+      windows.push(currentWindow);
+    }
+    
+    currentWindow.trades.push(trade);
+  }
+  
+  console.log(`[Enrichment] Grouped ${trades.length} trades into ${windows.length} weekly windows`);
+  return windows;
+}
+
+/**
+ * Deduplicate income records by tranId
+ */
+function deduplicateByTranId(records: BinanceIncome[]): BinanceIncome[] {
+  const seen = new Map<number, BinanceIncome>();
+  for (const record of records) {
+    if (!seen.has(record.tranId)) {
+      seen.set(record.tranId, record);
+    }
+  }
+  return Array.from(seen.values());
 }
 
 /**
@@ -69,21 +136,31 @@ async function callBinanceApi<T>(
 }
 
 /**
- * Fetch ALL income records with cursor-based pagination
+ * Fetch income records with cursor-based pagination AND max limit
  */
 async function fetchPaginatedIncome(
   startTime: number,
   endTime: number,
+  maxRecords: number = 5000,
   onProgress?: (fetched: number) => void
 ): Promise<BinanceIncome[]> {
   const allRecords: BinanceIncome[] = [];
   let fromId: number | undefined = undefined;
   
   while (true) {
+    // Safety limit check
+    if (allRecords.length >= maxRecords) {
+      console.warn(`[Enrichment] Hit max records limit (${maxRecords}), stopping pagination`);
+      break;
+    }
+    
+    const remainingCapacity = maxRecords - allRecords.length;
+    const requestLimit = Math.min(RECORDS_PER_PAGE, remainingCapacity);
+    
     const result = await callBinanceApi<BinanceIncome[]>('income', {
       startTime,
       endTime,
-      limit: RECORDS_PER_PAGE,
+      limit: requestLimit,
       ...(fromId && { fromId }),
     });
     
@@ -92,7 +169,7 @@ async function fetchPaginatedIncome(
     allRecords.push(...result.data);
     onProgress?.(allRecords.length);
     
-    if (result.data.length < RECORDS_PER_PAGE) break;
+    if (result.data.length < requestLimit) break;
     
     fromId = result.data[result.data.length - 1].tranId + 1;
     await new Promise(r => setTimeout(r, RATE_LIMIT_DELAY));
@@ -184,39 +261,73 @@ export function useTradeEnrichmentBinance() {
         return { enriched: 0, failed: 0, tradesNeedingEnrichment: 0, errors: [] };
       }
       
-      // Step 2: Determine date range from trades
-      const tradeDates = tradesToEnrich!.map(t => new Date(t.trade_date).getTime());
-      const oldestTrade = Math.min(...tradeDates);
-      const newestTrade = Math.max(...tradeDates);
+      // Step 2: Group trades into weekly windows for efficient fetching
+      const tradeWindows = groupTradesIntoWeeklyWindows(
+        tradesToEnrich!.map(t => ({ id: t.id, trade_date: t.trade_date, pair: t.pair }))
+      );
       
-      // Extend range by 2 days on each side to capture entry trades
-      const startTime = oldestTrade - (2 * 24 * 60 * 60 * 1000);
-      const endTime = newestTrade + (2 * 24 * 60 * 60 * 1000);
+      if (tradeWindows.length === 0) {
+        throw new Error('Failed to group trades into windows');
+      }
       
       onProgress?.({
         phase: 'fetching-income',
         current: 0,
-        total: tradesNeedingEnrichment,
+        total: tradeWindows.length,
         percent: 5,
-        message: `Fetching income data for ${tradesNeedingEnrichment} trades...`,
+        message: `Fetching income data from ${tradeWindows.length} time windows...`,
+        windowInfo: { current: 0, total: tradeWindows.length },
+        recordsFetched: 0,
       });
       
-      // Step 3: Fetch income history with pagination
-      const allIncome = await fetchPaginatedIncome(
-        startTime,
-        endTime,
-        (fetched) => {
-          onProgress?.({
-            phase: 'fetching-income',
-            current: fetched,
-            total: tradesNeedingEnrichment,
-            percent: 5 + Math.min(20, (fetched / 1000) * 5),
-            message: `Fetched ${fetched} income records...`,
-          });
-        }
-      );
+      // Step 3: Fetch income history per window (OPTIMIZED - not full range!)
+      const allIncome: BinanceIncome[] = [];
+      let totalRecordsFetched = 0;
       
-      if (allIncome.length === 0) {
+      for (let w = 0; w < tradeWindows.length; w++) {
+        const window = tradeWindows[w];
+        
+        // Safety limit check
+        if (totalRecordsFetched >= MAX_INCOME_RECORDS) {
+          console.warn(`[Enrichment] Hit global max limit (${MAX_INCOME_RECORDS}), stopping`);
+          break;
+        }
+        
+        const remainingCapacity = MAX_INCOME_RECORDS - totalRecordsFetched;
+        
+        const windowIncome = await fetchPaginatedIncome(
+          window.startTime,
+          window.endTime,
+          Math.min(remainingCapacity, 2000), // Max 2000 per window
+          (fetched) => {
+            onProgress?.({
+              phase: 'fetching-income',
+              current: w + 1,
+              total: tradeWindows.length,
+              percent: 5 + (w / tradeWindows.length) * 20,
+              message: `Window ${w + 1}/${tradeWindows.length}: ${fetched} records...`,
+              windowInfo: { current: w + 1, total: tradeWindows.length },
+              recordsFetched: totalRecordsFetched + fetched,
+            });
+          }
+        );
+        
+        allIncome.push(...windowIncome);
+        totalRecordsFetched += windowIncome.length;
+        
+        console.log(`[Enrichment] Window ${w + 1}/${tradeWindows.length}: fetched ${windowIncome.length} income records`);
+        
+        // Rate limit between windows
+        if (w < tradeWindows.length - 1) {
+          await new Promise(r => setTimeout(r, RATE_LIMIT_DELAY));
+        }
+      }
+      
+      // Deduplicate income records
+      const deduplicatedIncome = deduplicateByTranId(allIncome);
+      console.log(`[Enrichment] Total income: ${allIncome.length} -> Deduplicated: ${deduplicatedIncome.length}`);
+      
+      if (deduplicatedIncome.length === 0) {
         return { 
           enriched: 0, 
           failed: tradesNeedingEnrichment, 
@@ -225,8 +336,8 @@ export function useTradeEnrichmentBinance() {
         };
       }
       
-      // Step 4: Get unique symbols
-      const uniqueSymbols = getUniqueSymbolsFromIncome(allIncome);
+      // Step 4: Get unique symbols from deduplicated income
+      const uniqueSymbols = getUniqueSymbolsFromIncome(deduplicatedIncome);
       
       if (uniqueSymbols.length === 0) {
         return { 
@@ -237,20 +348,25 @@ export function useTradeEnrichmentBinance() {
         };
       }
       
-      // Step 5: Fetch userTrades for each symbol
+      // Step 5: Calculate overall time range for userTrades fetch
+      const allTradeTimestamps = tradesToEnrich!.map(t => new Date(t.trade_date).getTime());
+      const minTime = Math.min(...allTradeTimestamps) - (2 * 60 * 60 * 1000); // 2 hour buffer
+      const maxTime = Math.max(...allTradeTimestamps) + (2 * 60 * 60 * 1000);
+      
       onProgress?.({
         phase: 'fetching-trades',
         current: 0,
         total: uniqueSymbols.length,
         percent: 25,
         message: `Fetching userTrades for ${uniqueSymbols.length} symbols...`,
+        recordsFetched: deduplicatedIncome.length,
       });
       
       const enrichedTrades = await fetchEnrichedTradesForSymbols(
         uniqueSymbols,
-        startTime,
-        endTime,
-        allIncome,
+        minTime,
+        maxTime,
+        deduplicatedIncome,
         (current, total) => {
           onProgress?.({
             phase: 'fetching-trades',
@@ -258,6 +374,7 @@ export function useTradeEnrichmentBinance() {
             total,
             percent: 25 + (current / total) * 30,
             message: `Processing ${current}/${total} symbols...`,
+            recordsFetched: deduplicatedIncome.length,
           });
         }
       );
