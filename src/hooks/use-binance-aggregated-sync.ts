@@ -7,11 +7,13 @@
  * 3. Aggregate into trade entries
  * 4. Validate and insert to local DB
  * 5. Reconcile totals
+ * 6. Record sync result for monitoring (Phase 5)
  * 
  * Key Principles:
  * - No direct insert of raw Binance data
  * - All data passes through aggregation layer
  * - Validation before every insert
+ * - Monitoring integration for health tracking
  */
 
 import { useState, useCallback } from 'react';
@@ -20,6 +22,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 import { invalidateTradeQueries } from '@/lib/query-invalidation';
+import { useSyncMonitoring } from '@/hooks/use-sync-monitoring';
 
 import type { BinanceTrade, BinanceOrder, BinanceIncome } from '@/features/binance/types';
 import type { RawBinanceData, AggregationProgress, AggregationResult, AggregatedTrade } from '@/services/binance/types';
@@ -214,6 +217,16 @@ export function useBinanceAggregatedSync() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [progress, setProgress] = useState<AggregationProgress | null>(null);
+  
+  // Phase 5: Monitoring integration
+  const { 
+    recordSyncSuccess, 
+    recordSyncFailure, 
+    scheduleRetry,
+    lastSyncResult,
+    lastSyncTimestamp,
+    consecutiveFailures,
+  } = useSyncMonitoring();
   
   const syncMutation = useMutation({
     mutationFn: async (options: FullSyncOptions = {}): Promise<AggregationResult> => {
@@ -415,6 +428,9 @@ export function useBinanceAggregatedSync() {
       invalidateTradeQueries(queryClient);
       setProgress(null);
       
+      // Phase 5: Record success for monitoring
+      recordSyncSuccess(result);
+      
       if (result.reconciliation.isReconciled) {
         toast.success(
           `Synced ${result.stats.validTrades} trades successfully. ` +
@@ -429,6 +445,10 @@ export function useBinanceAggregatedSync() {
     },
     onError: (error) => {
       setProgress(null);
+      
+      // Phase 5: Record failure for monitoring and schedule retry
+      const failures = recordSyncFailure(error);
+      
       toast.error(`Sync failed: ${error.message}`);
     },
   });
@@ -440,6 +460,12 @@ export function useBinanceAggregatedSync() {
     progress,
     error: syncMutation.error,
     result: syncMutation.data,
+    // Phase 5: Monitoring data
+    monitoring: {
+      lastSyncResult,
+      lastSyncTimestamp,
+      consecutiveFailures,
+    },
   };
 }
 
