@@ -82,14 +82,18 @@ export function useAuth() {
       }),
     }, { onConflict: 'user_id,name,account_type', ignoreDuplicates: true });
 
-    // Welcome notification - atomic insert with partial unique index protection
-    // DB has unique index: (user_id) WHERE type='system' AND title='Welcome to Portfolio Manager!'
-    await supabase.from('notifications').insert({
+    // Welcome notification - use upsert to prevent 409 conflict
+    // DB has partial unique index, but we use upsert for cleaner handling
+    await supabase.from('notifications').upsert({
       user_id: user.id,
       type: 'system',
       title: 'Welcome to Portfolio Manager!',
       message: 'Your account is set up. Start by adding your first asset or account.',
-    }).select().maybeSingle(); // Will silently fail on duplicate due to unique index
+      read: false,
+    }, { 
+      onConflict: 'user_id,type,title',
+      ignoreDuplicates: true 
+    });
   };
 
   const signUp = useCallback(async (email: string, password: string, fullName: string) => {
