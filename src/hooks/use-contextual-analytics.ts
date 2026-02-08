@@ -11,6 +11,7 @@ import {
   DATA_QUALITY, 
   EMOTIONAL_THRESHOLDS,
   VOLATILITY_THRESHOLDS,
+  INSIGHT_GENERATION,
 } from "@/lib/constants/ai-analytics";
 
 // Performance metrics for a segment
@@ -164,7 +165,7 @@ function generateInsights(
     : 0;
   
   if (fearTrades >= DATA_QUALITY.MIN_TRADES_FOR_ZONE_COMPARISON && greedTrades >= DATA_QUALITY.MIN_TRADES_FOR_ZONE_COMPARISON) {
-    if (fearWinRate > greedWinRate + 10) {
+    if (fearWinRate > greedWinRate + INSIGHT_GENERATION.WIN_RATE_DIFF_SIGNIFICANT) {
       insights.push({
         type: 'opportunity',
         title: 'Fear Markets Favor You',
@@ -172,7 +173,7 @@ function generateInsights(
         evidence: `${fearTrades} trades in Fear vs ${greedTrades} in Greed zones`,
         recommendation: 'Consider increasing position sizes during market fear periods.',
       });
-    } else if (greedWinRate > fearWinRate + 10) {
+    } else if (greedWinRate > fearWinRate + INSIGHT_GENERATION.WIN_RATE_DIFF_SIGNIFICANT) {
       insights.push({
         type: 'opportunity',
         title: 'Greed Markets Favor You',

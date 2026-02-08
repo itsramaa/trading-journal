@@ -105,6 +105,50 @@ export const EMOTIONAL_THRESHOLDS = {
   EMOTIONAL_IMPACT_DIFF: 20,
 } as const;
 
+// Insight generation thresholds
+export const INSIGHT_GENERATION = {
+  // Win rate difference (percentage points) to consider significant
+  WIN_RATE_DIFF_SIGNIFICANT: 10,
+} as const;
+
+// Combined Contextual Score configuration
+export const CONTEXTUAL_SCORE_CONFIG = {
+  // Score weights for each factor (score 0-2)
+  WEIGHTS: {
+    FEAR_GREED: {
+      NEUTRAL: 2,      // F/G 40-60
+      MODERATE: 1,     // F/G 25-75
+      EXTREME: 0,      // F/G < 25 or > 75
+    },
+    VOLATILITY: {
+      LOW: 2,
+      MEDIUM: 1,
+      HIGH: 0,
+    },
+    EVENTS: {
+      NONE: 2,         // No high-impact events
+      MODERATE: 1,     // Moderate risk
+      HIGH: 0,         // High-impact events
+    },
+  },
+  // Bucket thresholds for categorizing context quality (0-100 scale)
+  BUCKET_THRESHOLDS: {
+    OPTIMAL: 80,
+    FAVORABLE: 60,
+    MODERATE: 40,
+    RISKY: 20,
+  },
+  // Fear/Greed zone boundaries for score calculation
+  FEAR_GREED_RANGES: {
+    NEUTRAL_MIN: 40,
+    NEUTRAL_MAX: 60,
+    MODERATE_MIN: 25,
+    MODERATE_MAX: 75,
+  },
+  // Min trades for zone-level analysis
+  MIN_TRADES_FOR_ZONE: 3,
+} as const;
+
 /**
  * Classify performance based on win rate
  */
