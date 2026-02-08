@@ -9,6 +9,8 @@
  * - Checkpoint-based resume capability
  * - LocalStorage persistence for crash recovery
  * - ETA calculation with phase weights
+ * - Incremental sync support (tracks last sync timestamp)
+ * - Sync Quality tracking
  */
 
 import { create } from 'zustand';
@@ -19,6 +21,7 @@ import type { AggregationProgress, AggregationResult, SyncCheckpoint } from '@/s
 // =============================================================================
 
 const CHECKPOINT_STORAGE_KEY = 'binance_sync_checkpoint';
+const LAST_SYNC_STORAGE_KEY = 'binance_last_successful_sync';
 const CHECKPOINT_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 // =============================================================================
@@ -27,13 +30,23 @@ const CHECKPOINT_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 export type FullSyncStatus = 'idle' | 'running' | 'success' | 'error';
 
-export type SyncRangeDays = number | 'max';
+export type SyncRangeDays = number | 'max' | 'incremental';
+
+export type SyncQualityScore = 'Excellent' | 'Good' | 'Fair' | 'Poor' | null;
 
 export interface ETAState {
   estimatedSeconds: number | null;
   startTime: number;
   lastPhaseTime: number;
   phaseTimes: Record<string, number>;
+}
+
+export interface LastSyncInfo {
+  timestamp: number;
+  endTime: number; // The actual endTime used in the sync
+  tradesCount: number;
+  matchRate: number;
+  quality: SyncQualityScore;
 }
 
 interface SyncStoreState {
@@ -53,10 +66,13 @@ interface SyncStoreState {
   // Checkpoint for resume capability
   checkpoint: SyncCheckpoint | null;
   
+  // Last successful sync info (for incremental sync)
+  lastSyncInfo: LastSyncInfo | null;
+  
   // Actions
   startFullSync: () => void;
   updateProgress: (progress: AggregationProgress) => void;
-  completeFullSync: (result: AggregationResult) => void;
+  completeFullSync: (result: AggregationResult, syncQuality: SyncQualityScore, matchRate: number) => void;
   failFullSync: (error: string) => void;
   resetFullSync: () => void;
   setSyncRange: (days: SyncRangeDays) => void;
@@ -66,6 +82,10 @@ interface SyncStoreState {
   clearCheckpoint: () => void;
   loadCheckpoint: () => SyncCheckpoint | null;
   hasResumableSync: () => boolean;
+  
+  // Incremental sync helpers
+  getIncrementalStartTime: () => number | null;
+  canDoIncrementalSync: () => boolean;
 }
 
 // =============================================================================
@@ -165,6 +185,29 @@ function clearCheckpointFromStorage(): void {
 }
 
 // =============================================================================
+// Last Sync Storage Helpers
+// =============================================================================
+
+function loadLastSyncInfo(): LastSyncInfo | null {
+  try {
+    const stored = localStorage.getItem(LAST_SYNC_STORAGE_KEY);
+    if (!stored) return null;
+    return JSON.parse(stored) as LastSyncInfo;
+  } catch (e) {
+    console.error('[SyncStore] Failed to load last sync info:', e);
+    return null;
+  }
+}
+
+function saveLastSyncInfo(info: LastSyncInfo): void {
+  try {
+    localStorage.setItem(LAST_SYNC_STORAGE_KEY, JSON.stringify(info));
+  } catch (e) {
+    console.error('[SyncStore] Failed to save last sync info:', e);
+  }
+}
+
+// =============================================================================
 // Initial Checkpoint State
 // =============================================================================
 
@@ -201,6 +244,7 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
   eta: null,
   selectedSyncRange: 90, // Default 90 days (optimized)
   checkpoint: loadCheckpointFromStorage(), // Load on init
+  lastSyncInfo: loadLastSyncInfo(), // Load last sync info for incremental sync
   
   // Actions
   startFullSync: () => {
@@ -213,7 +257,9 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
     const now = Date.now();
     const newCheckpoint = createEmptyCheckpoint();
     newCheckpoint.syncStartTime = now;
-    newCheckpoint.syncRangeDays = get().selectedSyncRange;
+    const selectedRange = get().selectedSyncRange;
+    // For checkpoint, convert 'incremental' to number
+    newCheckpoint.syncRangeDays = selectedRange === 'incremental' ? 7 : selectedRange;
     newCheckpoint.lastCheckpointTime = now;
     
     set({
@@ -264,9 +310,19 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
     });
   },
   
-  completeFullSync: (result: AggregationResult) => {
+  completeFullSync: (result: AggregationResult, syncQuality: SyncQualityScore, matchRate: number) => {
     // Clear checkpoint on success
     clearCheckpointFromStorage();
+    
+    // Save last sync info for incremental sync
+    const lastSyncInfo: LastSyncInfo = {
+      timestamp: Date.now(),
+      endTime: Date.now(),
+      tradesCount: result.stats.validTrades,
+      matchRate,
+      quality: syncQuality,
+    };
+    saveLastSyncInfo(lastSyncInfo);
     
     set({
       fullSyncStatus: 'success',
@@ -275,6 +331,7 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
       fullSyncError: null,
       eta: null,
       checkpoint: null,
+      lastSyncInfo,
     });
   },
   
@@ -340,6 +397,25 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
     const resumablePhases = ['fetching-income', 'fetching-trades', 'grouping', 'aggregating', 'inserting'];
     return resumablePhases.includes(checkpoint.currentPhase);
   },
+  
+  // Incremental sync helpers
+  getIncrementalStartTime: () => {
+    const lastSync = get().lastSyncInfo;
+    if (!lastSync) return null;
+    
+    // Start from last sync end time (with small overlap for safety)
+    const OVERLAP_MS = 5 * 60 * 1000; // 5 minutes overlap
+    return lastSync.endTime - OVERLAP_MS;
+  },
+  
+  canDoIncrementalSync: () => {
+    const lastSync = get().lastSyncInfo;
+    if (!lastSync) return false;
+    
+    // Can do incremental if last sync was within 30 days
+    const MAX_INCREMENTAL_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+    return Date.now() - lastSync.timestamp < MAX_INCREMENTAL_AGE_MS;
+  },
 }));
 
 // =============================================================================
@@ -369,3 +445,12 @@ export const selectCheckpoint = (state: SyncStoreState) =>
 
 export const selectHasResumableSync = (state: SyncStoreState) =>
   state.hasResumableSync();
+
+export const selectLastSyncInfo = (state: SyncStoreState) =>
+  state.lastSyncInfo;
+
+export const selectCanDoIncrementalSync = (state: SyncStoreState) =>
+  state.canDoIncrementalSync();
+
+export const selectSyncQuality = (state: SyncStoreState) =>
+  state.lastSyncInfo?.quality ?? null;

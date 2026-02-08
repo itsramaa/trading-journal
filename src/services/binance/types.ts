@@ -209,6 +209,12 @@ export interface AggregationResult {
     failedSymbols: Array<{ symbol: string; error: string }>;
     skippedDueToError: number;
   };
+  
+  // Sync quality metadata (internal use)
+  _syncMeta?: {
+    syncQuality: 'Excellent' | 'Good' | 'Fair' | 'Poor';
+    matchRate: number;
+  };
 }
 
 // =============================================================================

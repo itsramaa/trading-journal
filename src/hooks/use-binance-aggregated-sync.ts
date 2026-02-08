@@ -563,12 +563,23 @@ export function useBinanceAggregatedSync() {
       // Mark sync as started in global store
       startFullSync();
       
-      // Handle 'max' - use Binance Futures launch date (Sept 2019) as earliest possible
+      // Handle 'max', 'incremental', or days
       const endTime = Date.now();
       let startTime: number;
       
       if (options.daysToSync === 'max') {
         startTime = new Date('2019-09-01').getTime();
+      } else if (options.daysToSync === 'incremental') {
+        // Incremental sync: start from last successful sync
+        const incrementalStart = useSyncStore.getState().getIncrementalStartTime();
+        if (incrementalStart) {
+          startTime = incrementalStart;
+          console.log(`[FullSync] Incremental sync from ${new Date(startTime).toISOString()}`);
+        } else {
+          // Fallback to 7 days if no previous sync
+          startTime = endTime - (7 * 24 * 60 * 60 * 1000);
+          console.log('[FullSync] No previous sync found, falling back to 7 days');
+        }
       } else {
         const daysToSync = options.daysToSync || DEFAULT_HISTORY_DAYS;
         startTime = endTime - (daysToSync * 24 * 60 * 60 * 1000);
@@ -672,6 +683,12 @@ export function useBinanceAggregatedSync() {
       // =======================================================================
       // Phase 2: Fetch Trades for Each Symbol (with error tolerance)
       // =======================================================================
+      // Determine syncRangeDays for checkpoint (convert 'incremental' to number)
+      const syncRangeDaysForCheckpoint: number | 'max' = 
+        options.daysToSync === 'incremental' 
+          ? 7 
+          : (options.daysToSync || DEFAULT_HISTORY_DAYS);
+      
       const checkpointData: SyncCheckpoint = isResuming && checkpoint ? checkpoint : {
         currentPhase: 'fetching-trades',
         incomeData: income,
@@ -681,7 +698,7 @@ export function useBinanceAggregatedSync() {
         failedSymbols: [],
         allSymbols: symbols,
         syncStartTime: Date.now(),
-        syncRangeDays: options.daysToSync || DEFAULT_HISTORY_DAYS,
+        syncRangeDays: syncRangeDaysForCheckpoint,
         lastCheckpointTime: Date.now(),
         timeRange: { startTime, endTime },
       };
@@ -858,6 +875,10 @@ export function useBinanceAggregatedSync() {
       // Clear checkpoint on success
       clearCheckpoint();
       
+      // Store sync quality in result for use in onSuccess
+      const syncQualityTyped = syncQuality as 'Excellent' | 'Good' | 'Fair' | 'Poor';
+      const matchRateNum = parseFloat(matchRate);
+      
       return {
         success: true,
         trades: tradesToInsert,
@@ -877,13 +898,23 @@ export function useBinanceAggregatedSync() {
           failedSymbols,
           skippedDueToError: failedSymbols.length,
         },
+        // Internal metadata for sync quality (not in type, accessed via _meta)
+        _syncMeta: {
+          syncQuality: syncQualityTyped,
+          matchRate: matchRateNum,
+        },
       };
     },
     onSuccess: (successResult) => {
       invalidateTradeQueries(queryClient);
       
+      // Extract sync quality from result metadata
+      const meta = (successResult as any)._syncMeta;
+      const syncQuality = meta?.syncQuality || 'Fair';
+      const matchRate = meta?.matchRate || 0;
+      
       // Update global store with result
-      completeFullSync(successResult);
+      completeFullSync(successResult, syncQuality, matchRate);
       
       // Phase 5: Record success for monitoring
       recordSyncSuccess(successResult);
