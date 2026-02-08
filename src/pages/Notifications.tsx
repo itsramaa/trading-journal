@@ -14,6 +14,7 @@ import {
   useClearAllNotifications,
 } from "@/hooks/use-notifications";
 import { useWeeklyReportExport } from "@/hooks/use-weekly-report-export";
+import { getNotificationConfig } from "@/lib/constants/notification-config";
 
 export default function Notifications() {
   const { data: notifications = [], isLoading } = useNotifications();
@@ -23,20 +24,6 @@ export default function Notifications() {
   const clearAll = useClearAllNotifications();
   const { exportCurrentWeek, exportLastWeek, isGenerating } = useWeeklyReportExport();
 
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case "success":
-      case "price_alert":
-        return "bg-profit/10 text-profit";
-      case "warning":
-        return "bg-warning/10 text-warning";
-      case "error":
-        return "bg-loss/10 text-loss";
-      default:
-        return "bg-primary/10 text-primary";
-    }
-  };
-
   const formatTimestamp = (dateStr: string) => {
     try {
       return formatDistanceToNow(new Date(dateStr), { addSuffix: true });
@@ -45,44 +32,48 @@ export default function Notifications() {
     }
   };
 
-  const NotificationCard = ({ notification }: { notification: typeof notifications[0] }) => (
-    <Card className={notification.read ? "opacity-60" : ""}>
-      <CardContent className="flex items-start gap-4 p-4">
-        <div
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${getTypeColor(notification.type)}`}
-        >
-          <Bell className="h-5 w-5" />
-        </div>
-        <div className="flex-1 space-y-1">
-          <div className="flex items-center gap-2">
-            <p className="font-medium">{notification.title}</p>
+  const NotificationCard = ({ notification }: { notification: typeof notifications[0] }) => {
+    const typeConfig = getNotificationConfig(notification.type);
+    
+    return (
+      <Card className={notification.read ? "opacity-60" : ""}>
+        <CardContent className="flex items-start gap-4 p-4">
+          <div
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${typeConfig.iconBgClass}`}
+          >
+            <Bell className="h-5 w-5" />
+          </div>
+          <div className="flex-1 space-y-1">
+            <div className="flex items-center gap-2">
+              <p className="font-medium">{notification.title}</p>
+              {!notification.read && (
+                <Badge variant="default" className="h-2 w-2 rounded-full p-0" />
+              )}
+            </div>
+            <p className="text-sm text-muted-foreground">{notification.message}</p>
+            {notification.asset_symbol && (
+              <Badge variant="outline" className="mt-1">{notification.asset_symbol}</Badge>
+            )}
+            <p className="text-xs text-muted-foreground">
+              {formatTimestamp(notification.created_at)}
+            </p>
+          </div>
+          <div className="flex gap-2">
             {!notification.read && (
-              <Badge variant="default" className="h-2 w-2 rounded-full p-0" />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => markAsRead.mutate(notification.id)}
+                disabled={markAsRead.isPending}
+              >
+                <Check className="h-4 w-4" />
+              </Button>
             )}
           </div>
-          <p className="text-sm text-muted-foreground">{notification.message}</p>
-          {notification.asset_symbol && (
-            <Badge variant="outline" className="mt-1">{notification.asset_symbol}</Badge>
-          )}
-          <p className="text-xs text-muted-foreground">
-            {formatTimestamp(notification.created_at)}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          {!notification.read && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => markAsRead.mutate(notification.id)}
-              disabled={markAsRead.isPending}
-            >
-              <Check className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  );
+        </CardContent>
+      </Card>
+    );
+  };
 
   if (isLoading) {
     return (
