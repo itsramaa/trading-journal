@@ -1,20 +1,18 @@
 /**
- * FundingHistoryTab - Display funding rate payments from Binance
- * Shows: FUNDING_FEE income types (paid and received)
- * Uses unified filters from parent TradeHistory page
+ * FundingHistoryTab - Display funding rate payments from local trade_entries
+ * Uses aggregated funding_fees data from Full Sync (Local DB as Ledger of Truth)
  */
 import { useMemo } from "react";
 import { format } from "date-fns";
-import { ArrowUpDown, RefreshCw, TrendingUp, TrendingDown, DollarSign, Info } from "lucide-react";
+import { ArrowUpDown, TrendingUp, TrendingDown, DollarSign, Info, Database } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
-import { useBinanceAllIncome, type BinanceIncome } from "@/features/binance";
 import { BinanceNotConfiguredState } from "@/components/binance/BinanceNotConfiguredState";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
+import { useLocalFundingHistory, calculateFundingSummary, type LocalFundingRecord } from "@/hooks/use-local-fee-funding";
 import { cn } from "@/lib/utils";
 import type { DateRange } from "@/components/trading/DateRangeFilter";
 
@@ -29,83 +27,19 @@ export function FundingHistoryTab({
   isConnected, 
   dateRange, 
   selectedPairs, 
-  showFullHistory 
 }: FundingHistoryTabProps) {
   const { format: formatCurrency, formatPnl } = useCurrencyConversion();
   
-  // Calculate days from dateRange for API call
-  // Full history = 730 days (2 years) to support extended Binance history
-  const days = useMemo(() => {
-    if (showFullHistory) return 730; // Extended to 2 years
-    if (dateRange.from && dateRange.to) {
-      const diffMs = dateRange.to.getTime() - dateRange.from.getTime();
-      return Math.max(Math.ceil(diffMs / (1000 * 60 * 60 * 24)), 7) || 365;
-    }
-    return 365; // Default 1 year lookback
-  }, [dateRange, showFullHistory]);
-
-  const { data: allIncome, isLoading, refetch, isFetching } = useBinanceAllIncome(days, 1000);
-
-  // Filter to funding fee income only
-  const fundingIncome = useMemo(() => {
-    if (!allIncome) return [];
-    return allIncome.filter((item: BinanceIncome) => 
-      item.incomeType === 'FUNDING_FEE'
-    );
-  }, [allIncome]);
-
-  // Apply unified filters from parent
-  const filteredIncome = useMemo(() => {
-    let filtered = fundingIncome;
-    
-    // Apply date range filter
-    if (dateRange.from) {
-      const fromTime = dateRange.from.getTime();
-      filtered = filtered.filter(item => item.time >= fromTime);
-    }
-    if (dateRange.to) {
-      const toTime = dateRange.to.getTime();
-      filtered = filtered.filter(item => item.time <= toTime);
-    }
-    
-    // Apply pair filter from parent
-    if (selectedPairs.length > 0) {
-      filtered = filtered.filter(item => 
-        selectedPairs.some(pair => item.symbol === pair || item.symbol?.includes(pair.replace('USDT', '')))
-      );
-    }
-    
-    return filtered;
-  }, [fundingIncome, dateRange, selectedPairs]);
+  const { data: fundingRecords, isLoading } = useLocalFundingHistory({
+    dateRange,
+    selectedPairs,
+  });
 
   // Calculate summary
   const summary = useMemo(() => {
-    if (!filteredIncome.length) return null;
-
-    let fundingPaid = 0;
-    let fundingReceived = 0;
-    let paidCount = 0;
-    let receivedCount = 0;
-
-    filteredIncome.forEach((item: BinanceIncome) => {
-      if (item.income < 0) {
-        fundingPaid += Math.abs(item.income);
-        paidCount++;
-      } else {
-        fundingReceived += item.income;
-        receivedCount++;
-      }
-    });
-
-    return {
-      fundingPaid,
-      fundingReceived,
-      netFunding: fundingReceived - fundingPaid,
-      paidCount,
-      receivedCount,
-      totalCount: filteredIncome.length,
-    };
-  }, [filteredIncome]);
+    if (!fundingRecords?.length) return null;
+    return calculateFundingSummary(fundingRecords);
+  }, [fundingRecords]);
 
   if (!isConnected) {
     return (
@@ -131,17 +65,12 @@ export function FundingHistoryTab({
 
   return (
     <div className="space-y-4">
-      {/* Unified filter info */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Info className="h-4 w-4" />
-          <span>Filters from trade history apply to this tab</span>
-        </div>
-        
-        <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
-          <RefreshCw className={cn("h-4 w-4 mr-2", isFetching && "animate-spin")} />
-          Refresh
-        </Button>
+      {/* Data source info */}
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Database className="h-4 w-4" />
+        <span>Data dari Local DB (Full Sync)</span>
+        <Info className="h-4 w-4 ml-2" />
+        <span>Filters dari trade history apply ke tab ini</span>
       </div>
 
       {/* Summary Cards */}
@@ -156,7 +85,7 @@ export function FundingHistoryTab({
                     -{formatCurrency(summary.fundingPaid)}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {summary.paidCount} payments (longs in contango)
+                    {summary.paidCount} trades (longs in contango)
                   </p>
                 </div>
                 <TrendingDown className="h-6 w-6 text-loss opacity-50" />
@@ -173,7 +102,7 @@ export function FundingHistoryTab({
                     +{formatCurrency(summary.fundingReceived)}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {summary.receivedCount} payments (shorts in contango)
+                    {summary.receivedCount} trades (shorts in contango)
                   </p>
                 </div>
                 <TrendingUp className="h-6 w-6 text-profit opacity-50" />
@@ -196,7 +125,7 @@ export function FundingHistoryTab({
                     {formatPnl(summary.netFunding)}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {summary.totalCount} total intervals
+                    {summary.totalCount} total trades
                   </p>
                 </div>
                 <DollarSign className={cn(
@@ -210,11 +139,11 @@ export function FundingHistoryTab({
       )}
 
       {/* Details Table */}
-      {filteredIncome.length === 0 ? (
+      {!fundingRecords?.length ? (
         <EmptyState
           icon={ArrowUpDown}
           title="No funding records found"
-          description="No funding rate payments recorded for the selected period and filters."
+          description="Run Full Sync in Trade History to load funding data, or adjust your filters."
         />
       ) : (
         <Card>
@@ -224,43 +153,52 @@ export function FundingHistoryTab({
                 <TableHeader>
                   <TableRow>
                     <TableHead>Date</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Symbol</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead>Pair</TableHead>
+                    <TableHead>Direction</TableHead>
+                    <TableHead className="text-right">Funding Fee</TableHead>
+                    <TableHead className="text-right">Trade P&L</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredIncome
-                    .sort((a, b) => b.time - a.time)
-                    .map((item: BinanceIncome) => (
-                      <TableRow key={item.tranId}>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {format(new Date(item.time), "MMM dd HH:mm")}
-                        </TableCell>
-                        <TableCell>
-                          <Badge 
-                            variant={item.income >= 0 ? 'default' : 'destructive'}
-                            className="text-xs"
-                          >
-                            {item.income >= 0 ? 'Received' : 'Paid'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="font-mono text-sm">
-                          {item.symbol || '-'}
-                        </TableCell>
-                        <TableCell className={cn(
-                          "text-right font-mono",
-                          item.income >= 0 ? "text-profit" : "text-loss"
-                        )}>
-                          {formatPnl(item.income)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                  {fundingRecords.map((record: LocalFundingRecord) => (
+                    <TableRow key={record.id}>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {record.entry_datetime 
+                          ? format(new Date(record.entry_datetime), "MMM dd HH:mm")
+                          : '-'}
+                      </TableCell>
+                      <TableCell className="font-mono text-sm">
+                        {record.pair}
+                      </TableCell>
+                      <TableCell>
+                        <Badge 
+                          variant={record.direction === 'long' ? 'default' : 'destructive'}
+                          className="text-xs"
+                        >
+                          {record.direction?.toUpperCase() || '-'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className={cn(
+                        "text-right font-mono",
+                        (record.funding_fees || 0) >= 0 ? "text-profit" : "text-loss"
+                      )}>
+                        {formatPnl(record.funding_fees || 0)}
+                      </TableCell>
+                      <TableCell className={cn(
+                        "text-right font-mono",
+                        (record.realized_pnl || 0) >= 0 ? "text-profit" : "text-loss"
+                      )}>
+                        {record.realized_pnl !== null 
+                          ? formatCurrency(record.realized_pnl)
+                          : '-'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
             </div>
             <p className="text-xs text-muted-foreground text-center mt-2">
-              Showing {filteredIncome.length} funding intervals
+              Showing {fundingRecords.length} trades with funding fees
             </p>
           </CardContent>
         </Card>
