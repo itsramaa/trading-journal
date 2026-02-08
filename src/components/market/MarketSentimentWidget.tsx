@@ -40,6 +40,13 @@ import { useBinanceMarketSentiment } from "@/features/binance";
 import { useTradingPairs } from "@/hooks/use-trading-pairs";
 import type { OpenInterestPeriod } from "@/features/binance/market-data-types";
 import { cn } from "@/lib/utils";
+import { 
+  QUICK_ACCESS_SYMBOLS, 
+  DEFAULT_SYMBOL, 
+  SENTIMENT_PERIODS, 
+  DEFAULT_SENTIMENT_PERIOD 
+} from "@/lib/constants/market-config";
+import { getSentimentColorClass, getSentimentBgClass } from "@/lib/constants/sentiment-thresholds";
 
 interface MarketSentimentWidgetProps {
   defaultSymbol?: string;
@@ -48,29 +55,14 @@ interface MarketSentimentWidgetProps {
   onSymbolChange?: (symbol: string) => void;
 }
 
-// Default quick-access symbols shown before search
-const DEFAULT_QUICK_SYMBOLS = [
-  { value: "BTCUSDT", label: "BTC" },
-  { value: "ETHUSDT", label: "ETH" },
-  { value: "SOLUSDT", label: "SOL" },
-  { value: "XRPUSDT", label: "XRP" },
-];
-
-const PERIODS: { value: OpenInterestPeriod; label: string }[] = [
-  { value: "5m", label: "5m" },
-  { value: "15m", label: "15m" },
-  { value: "1h", label: "1H" },
-  { value: "4h", label: "4H" },
-];
-
 export function MarketSentimentWidget({ 
-  defaultSymbol = "BTCUSDT",
+  defaultSymbol = DEFAULT_SYMBOL,
   showSymbolSelector = true,
   className,
   onSymbolChange
 }: MarketSentimentWidgetProps) {
   const [symbol, setSymbol] = useState(defaultSymbol);
-  const [period, setPeriod] = useState<OpenInterestPeriod>("1h");
+  const [period, setPeriod] = useState<OpenInterestPeriod>(DEFAULT_SENTIMENT_PERIOD as OpenInterestPeriod);
   const [open, setOpen] = useState(false);
   
   const { data: sentiment, isLoading, refetch } = useBinanceMarketSentiment(symbol, period);
@@ -79,7 +71,7 @@ export function MarketSentimentWidget({
   // Build symbol options from trading pairs
   const symbolOptions = useMemo(() => {
     if (!tradingPairs.length) {
-      return DEFAULT_QUICK_SYMBOLS;
+      return [...QUICK_ACCESS_SYMBOLS];
     }
     
     return tradingPairs
@@ -92,18 +84,6 @@ export function MarketSentimentWidget({
   
   // Get current symbol label
   const currentLabel = symbolOptions.find(s => s.value === symbol)?.label || symbol.replace('USDT', '');
-
-  const getSentimentColor = (score: number) => {
-    if (score >= 60) return "text-green-500";
-    if (score <= 40) return "text-red-500";
-    return "text-yellow-500";
-  };
-
-  const getSentimentBg = (score: number) => {
-    if (score >= 60) return "bg-green-500/10";
-    if (score <= 40) return "bg-red-500/10";
-    return "bg-yellow-500/10";
-  };
 
   const getFactorIcon = (factor: string) => {
     switch (factor) {
@@ -203,16 +183,16 @@ export function MarketSentimentWidget({
                     <CommandInput placeholder="Search pair..." className="h-9" />
                     <CommandList>
                       <CommandEmpty>No pair found.</CommandEmpty>
-                      {/* Quick access defaults */}
-                      <CommandGroup heading="Popular">
-                        {DEFAULT_QUICK_SYMBOLS.map((s) => (
-                          <CommandItem
-                            key={s.value}
-                            value={s.value}
-                            onSelect={() => {
-                              setSymbol(s.value);
-                              onSymbolChange?.(s.value);
-                              setOpen(false);
+                        {/* Quick access defaults */}
+                        <CommandGroup heading="Popular">
+                          {QUICK_ACCESS_SYMBOLS.map((s) => (
+                            <CommandItem
+                              key={s.value}
+                              value={s.value}
+                              onSelect={() => {
+                                setSymbol(s.value);
+                                onSymbolChange?.(s.value);
+                                setOpen(false);
                             }}
                           >
                             <Check
@@ -225,10 +205,10 @@ export function MarketSentimentWidget({
                           </CommandItem>
                         ))}
                       </CommandGroup>
-                      {/* All pairs */}
-                      <CommandGroup heading="All Pairs">
-                        {symbolOptions
-                          .filter(s => !DEFAULT_QUICK_SYMBOLS.some(d => d.value === s.value))
+                        {/* All pairs */}
+                        <CommandGroup heading="All Pairs">
+                          {symbolOptions
+                            .filter(s => !QUICK_ACCESS_SYMBOLS.some(d => d.value === s.value))
                           .map((s) => (
                             <CommandItem
                               key={s.value}
@@ -259,7 +239,7 @@ export function MarketSentimentWidget({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {PERIODS.map(p => (
+                {SENTIMENT_PERIODS.map(p => (
                   <SelectItem key={p.value} value={p.value}>
                     {p.label}
                   </SelectItem>
@@ -284,12 +264,12 @@ export function MarketSentimentWidget({
             <div className="flex justify-center">
               <div className={cn(
                 "relative w-28 h-28 rounded-full flex items-center justify-center",
-                getSentimentBg(sentiment.bullishScore)
+                getSentimentBgClass(sentiment.bullishScore)
               )}>
                 <div className="text-center">
                   <div className={cn(
                     "text-3xl font-bold",
-                    getSentimentColor(sentiment.bullishScore)
+                    getSentimentColorClass(sentiment.bullishScore)
                   )}>
                     {sentiment.bullishScore}
                   </div>
@@ -319,7 +299,7 @@ export function MarketSentimentWidget({
                     stroke="currentColor"
                     strokeWidth="4"
                     strokeDasharray={`${(sentiment.bullishScore / 100) * 327} 327`}
-                    className={getSentimentColor(sentiment.bullishScore)}
+                    className={getSentimentColorClass(sentiment.bullishScore)}
                   />
                 </svg>
               </div>

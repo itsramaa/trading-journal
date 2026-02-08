@@ -19,6 +19,16 @@ import type {
   AggregateTrade,
   MarketDataApiResponse,
 } from './market-data-types';
+import {
+  TOP_TRADER_RATIO,
+  RETAIL_RATIO,
+  TAKER_VOLUME,
+  FUNDING_RATE,
+  classifySentiment,
+  analyzeTopTraderRatio,
+  analyzeRetailRatio,
+  analyzeTakerVolume,
+} from '@/lib/constants/sentiment-thresholds';
 
 const MARKET_DATA_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/binance-market-data`;
 
@@ -353,7 +363,7 @@ export function useBinanceMarketSentiment(
   const isError = topTraderQuery.isError || globalRatioQuery.isError || 
                   takerVolumeQuery.isError || openInterestQuery.isError || markPriceQuery.isError;
   
-  // Calculate sentiment score
+  // Calculate sentiment score using centralized thresholds
   const calculateSentiment = () => {
     const topTrader = topTraderQuery.data?.[0];
     const globalRatio = globalRatioQuery.data?.[0];
@@ -368,20 +378,23 @@ export function useBinanceMarketSentiment(
     
     // Top traders sentiment (contrarian - if pros are long, bullish)
     if (topTrader) {
-      if (topTrader.longShortRatio > 1.2) bullishFactors++;
-      else if (topTrader.longShortRatio < 0.8) bearishFactors++;
+      const traderSentiment = analyzeTopTraderRatio(topTrader.longShortRatio);
+      if (traderSentiment === 'bullish') bullishFactors++;
+      else if (traderSentiment === 'bearish') bearishFactors++;
     }
     
     // Retail sentiment (contrarian - if retail is long, might be bearish)
     if (globalRatio) {
-      if (globalRatio.longShortRatio > 1.5) bearishFactors++; // Too many longs
-      else if (globalRatio.longShortRatio < 0.7) bullishFactors++; // Too many shorts
+      const retailSentiment = analyzeRetailRatio(globalRatio.longShortRatio);
+      if (retailSentiment === 'bullish') bullishFactors++;
+      else if (retailSentiment === 'bearish') bearishFactors++;
     }
     
     // Taker volume (buy pressure = bullish)
     if (takerVolume) {
-      if (takerVolume.buySellRatio > 1.1) bullishFactors++;
-      else if (takerVolume.buySellRatio < 0.9) bearishFactors++;
+      const takerSentiment = analyzeTakerVolume(takerVolume.buySellRatio);
+      if (takerSentiment === 'bullish') bullishFactors++;
+      else if (takerSentiment === 'bearish') bearishFactors++;
     }
     
     // Open interest trend
@@ -393,8 +406,8 @@ export function useBinanceMarketSentiment(
     
     // Funding rate
     if (markPrice && markPrice.lastFundingRate) {
-      if (markPrice.lastFundingRate > 0.001) bearishFactors++; // High positive = potential short squeeze
-      else if (markPrice.lastFundingRate < -0.001) bullishFactors++; // Negative = potential long squeeze
+      if (markPrice.lastFundingRate > FUNDING_RATE.POSITIVE_EXTREME) bearishFactors++; // High positive = potential short squeeze
+      else if (markPrice.lastFundingRate < FUNDING_RATE.NEGATIVE_EXTREME) bullishFactors++; // Negative = potential long squeeze
     }
     
     const totalFactors = bullishFactors + bearishFactors;
@@ -405,11 +418,11 @@ export function useBinanceMarketSentiment(
       symbol,
       bullishScore,
       bearishScore,
-      sentiment: bullishScore > 60 ? 'bullish' as const : bullishScore < 40 ? 'bearish' as const : 'neutral' as const,
+      sentiment: classifySentiment(bullishScore),
       factors: {
-        topTraders: topTrader ? (topTrader.longShortRatio > 1.2 ? 'bullish' : topTrader.longShortRatio < 0.8 ? 'bearish' : 'neutral') : 'neutral',
-        retail: globalRatio ? (globalRatio.longShortRatio > 1.5 ? 'bearish' : globalRatio.longShortRatio < 0.7 ? 'bullish' : 'neutral') : 'neutral',
-        takerVolume: takerVolume ? (takerVolume.buySellRatio > 1.1 ? 'bullish' : takerVolume.buySellRatio < 0.9 ? 'bearish' : 'neutral') : 'neutral',
+        topTraders: topTrader ? analyzeTopTraderRatio(topTrader.longShortRatio) : 'neutral',
+        retail: globalRatio ? analyzeRetailRatio(globalRatio.longShortRatio) : 'neutral',
+        takerVolume: takerVolume ? analyzeTakerVolume(takerVolume.buySellRatio) : 'neutral',
         openInterest: openInterest && openInterest.length >= 2 
           ? (openInterest[0].sumOpenInterest > openInterest[1].sumOpenInterest ? 'increasing' : 'decreasing') 
           : 'stable',

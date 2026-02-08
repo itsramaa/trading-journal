@@ -5,6 +5,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, parseISO, subDays, addDays } from "date-fns";
+import { 
+  HIGH_IMPACT_PATTERNS, 
+  CALENDAR_DATE_RANGE,
+  getEventLabel as getEventLabelFromConstants 
+} from "@/lib/constants/economic-calendar";
 
 export interface EconomicEvent {
   id: string;
@@ -24,29 +29,10 @@ interface UseEconomicEventsOptions {
   highImpactOnly?: boolean;
 }
 
-// Key high-impact event patterns
-const HIGH_IMPACT_PATTERNS = [
-  'FOMC',
-  'Federal Reserve',
-  'Interest Rate Decision',
-  'CPI',
-  'Consumer Price Index',
-  'NFP',
-  'Non-Farm Payrolls',
-  'Nonfarm Payrolls',
-  'Employment Change',
-  'GDP',
-  'Gross Domestic Product',
-  'PCE',
-  'Core PCE',
-  'Retail Sales',
-  'PMI',
-];
-
 export function useEconomicEvents(options: UseEconomicEventsOptions = {}) {
   const {
-    startDate = subDays(new Date(), 90),
-    endDate = addDays(new Date(), 30),
+    startDate = subDays(new Date(), CALENDAR_DATE_RANGE.LOOKBACK_DAYS),
+    endDate = addDays(new Date(), CALENDAR_DATE_RANGE.LOOKAHEAD_DAYS),
     highImpactOnly = false,
   } = options;
 
@@ -93,7 +79,7 @@ export function useHighImpactEventDates(options: Omit<UseEconomicEventsOptions, 
         const dateKey = format(parseISO(event.date), 'yyyy-MM-dd');
         const existing = eventDateMap.get(dateKey) || [];
         
-        // Check if it matches high-impact patterns
+        // Check if it matches high-impact patterns using centralized config
         const isHighImpact = HIGH_IMPACT_PATTERNS.some(pattern => 
           event.title.toLowerCase().includes(pattern.toLowerCase())
         );
@@ -140,24 +126,8 @@ export function isHighImpactEventDay(
 
 /**
  * Get abbreviated event label for display
+ * Re-exports centralized function for backward compatibility
  */
 export function getEventLabel(events: string[]): string {
-  if (events.length === 0) return '';
-  
-  // Priority order for labels
-  if (events.some(e => e.includes('FOMC') || e.includes('Federal Reserve'))) return 'FOMC';
-  if (events.some(e => e.includes('CPI') || e.includes('Consumer Price'))) return 'CPI';
-  if (events.some(e => e.includes('NFP') || e.includes('Payrolls'))) return 'NFP';
-  if (events.some(e => e.includes('GDP'))) return 'GDP';
-  if (events.some(e => e.includes('PCE'))) return 'PCE';
-  
-  // Just return count if multiple misc events
-  if (events.length > 1) return `${events.length} Events`;
-  
-  // Abbreviate single event
-  const first = events[0];
-  if (first.length > 10) {
-    return first.substring(0, 8) + '…';
-  }
-  return first;
+  return getEventLabelFromConstants(events);
 }

@@ -10,13 +10,14 @@ import { ErrorBoundary, AsyncErrorFallback } from "@/components/ui/error-boundar
 import { Target } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { TradingOpportunity } from "@/features/market-insight/types";
+import { DISPLAY_LIMITS, BADGE_LABELS } from "@/lib/constants/market-config";
 
 interface TradingOpportunitiesWidgetProps {
   opportunities: TradingOpportunity[];
   isLoading: boolean;
   error?: Error | null;
   selectedAsset?: string;
-  isSelectedInTop5?: boolean;
+  isSelectedInWatchlist?: boolean;
   onRetry?: () => void;
   className?: string;
 }
@@ -26,7 +27,7 @@ function TradingOpportunitiesContent({
   isLoading,
   error,
   selectedAsset = '',
-  isSelectedInTop5 = true,
+  isSelectedInWatchlist = true,
   onRetry,
   className,
 }: TradingOpportunitiesWidgetProps) {
@@ -61,7 +62,9 @@ function TradingOpportunitiesContent({
             <CardTitle className="text-lg">Trading Opportunities</CardTitle>
           </div>
           <Badge variant="outline">
-            {!isSelectedInTop5 && selectedAsset ? `+${selectedAsset}` : 'Top 5'}
+            {!isSelectedInWatchlist && selectedAsset 
+              ? BADGE_LABELS.formatAdditionalSymbol(selectedAsset) 
+              : BADGE_LABELS.TOP_WATCHLIST}
           </Badge>
         </div>
         <CardDescription>
@@ -71,7 +74,7 @@ function TradingOpportunitiesContent({
       <CardContent>
         {isLoading ? (
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 5 }).map((_, i) => (
+            {Array.from({ length: DISPLAY_LIMITS.SKELETON_COUNT }).map((_, i) => (
               <Skeleton key={i} className="h-24" />
             ))}
           </div>

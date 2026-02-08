@@ -28,6 +28,13 @@ import {
 import { cn } from "@/lib/utils";
 import { useEconomicCalendar } from "@/features/calendar";
 import { format } from "date-fns";
+import { 
+  RISK_LEVELS, 
+  RISK_LEVEL_CONFIG,
+  POSITION_ADJUSTMENTS,
+  IMPORTANCE_CONFIG,
+  getPositionAdjustment 
+} from "@/lib/constants/economic-calendar";
 
 interface CalendarTabProps {
   hideTitle?: boolean;
@@ -101,18 +108,18 @@ export function CalendarTab({ hideTitle = false }: CalendarTabProps) {
       )}
 
       {/* Impact Alert Banner */}
-      {data?.impactSummary?.hasHighImpact && data.impactSummary.riskLevel !== 'LOW' && (
-        <Alert variant={data.impactSummary.riskLevel === 'VERY_HIGH' ? 'destructive' : 'default'} className="border-primary/30 bg-primary/5">
+      {data?.impactSummary?.hasHighImpact && data.impactSummary.riskLevel !== RISK_LEVELS.LOW && (
+        <Alert 
+          variant={data.impactSummary.riskLevel === RISK_LEVELS.VERY_HIGH ? 'destructive' : 'default'} 
+          className="border-primary/30 bg-primary/5"
+        >
           <Shield className="h-4 w-4" />
           <AlertTitle className="font-semibold">
-            {data.impactSummary.riskLevel === 'VERY_HIGH' ? 'Very High Impact Day' : 
-             data.impactSummary.riskLevel === 'HIGH' ? 'High Impact Event' : 'Upcoming High Impact Events'}
+            {RISK_LEVEL_CONFIG[data.impactSummary.riskLevel as keyof typeof RISK_LEVEL_CONFIG]?.label || 'Impact Alert'}
           </AlertTitle>
           <AlertDescription>
             {data.impactSummary.eventCount} high-impact event{data.impactSummary.eventCount > 1 ? 's' : ''} detected. 
-            {data.impactSummary.positionAdjustment === 'reduce_50%' && ' Consider reducing position sizes by 50%.'}
-            {data.impactSummary.positionAdjustment === 'reduce_30%' && ' Consider reducing position sizes by 30%.'}
-            {data.impactSummary.positionAdjustment === 'normal' && ' Stay alert for potential volatility.'}
+            {getPositionAdjustment(data.impactSummary.positionAdjustment)}
           </AlertDescription>
         </Alert>
       )}
@@ -244,9 +251,7 @@ export function CalendarTab({ hideTitle = false }: CalendarTabProps) {
                       <div 
                         className={cn(
                           "w-2 h-2 rounded-full mt-2 shrink-0",
-                          event.importance === 'high' && "bg-loss",
-                          event.importance === 'medium' && "bg-secondary",
-                          event.importance === 'low' && "bg-profit"
+                          IMPORTANCE_CONFIG[event.importance]?.dotColor || 'bg-muted'
                         )} 
                         aria-hidden="true"
                       />

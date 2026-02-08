@@ -10,13 +10,14 @@ import { ErrorBoundary, AsyncErrorFallback } from "@/components/ui/error-boundar
 import { Activity } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { WhaleActivity, WhaleSignal } from "@/features/market-insight/types";
+import { DISPLAY_LIMITS, BADGE_LABELS } from "@/lib/constants/market-config";
 
 interface WhaleTrackingWidgetProps {
   whaleData: WhaleActivity[];
   isLoading: boolean;
   error?: Error | null;
   selectedAsset?: string;
-  isSelectedInTop5?: boolean;
+  isSelectedInWatchlist?: boolean;
   onRetry?: () => void;
   className?: string;
 }
@@ -34,7 +35,7 @@ function WhaleTrackingContent({
   isLoading,
   error,
   selectedAsset = '',
-  isSelectedInTop5 = true,
+  isSelectedInWatchlist = true,
   onRetry,
   className,
 }: WhaleTrackingWidgetProps) {
@@ -69,7 +70,9 @@ function WhaleTrackingContent({
             <CardTitle className="text-lg">Whale Tracking</CardTitle>
           </div>
           <Badge variant="outline">
-            {!isSelectedInTop5 && selectedAsset ? `+${selectedAsset}` : 'Top 5'}
+            {!isSelectedInWatchlist && selectedAsset 
+              ? BADGE_LABELS.formatAdditionalSymbol(selectedAsset) 
+              : BADGE_LABELS.TOP_WATCHLIST}
           </Badge>
         </div>
         <CardDescription>
@@ -79,7 +82,7 @@ function WhaleTrackingContent({
       <CardContent className="space-y-3">
         {isLoading ? (
           <div className="space-y-3">
-            {Array.from({ length: 5 }).map((_, i) => (
+            {Array.from({ length: DISPLAY_LIMITS.SKELETON_COUNT }).map((_, i) => (
               <Skeleton key={i} className="h-14" />
             ))}
           </div>

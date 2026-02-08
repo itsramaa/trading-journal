@@ -12,20 +12,25 @@ import { BarChart3, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMultiSymbolMarketInsight } from "@/features/market-insight";
 import { cn } from "@/lib/utils";
-
-// Base top 5 symbols (USDT format for API)
-const TOP_5_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'XRPUSDT', 'BNBUSDT'];
+import { 
+  DEFAULT_WATCHLIST_SYMBOLS, 
+  DEFAULT_SYMBOL,
+  DISPLAY_LIMITS,
+  formatDataSources,
+  BADGE_LABELS 
+} from "@/lib/constants/market-config";
 
 export default function MarketData() {
   // Selected pair from Market Sentiment widget
-  const [selectedPair, setSelectedPair] = useState('BTCUSDT');
+  const [selectedPair, setSelectedPair] = useState(DEFAULT_SYMBOL);
   
-  // Compute symbols to fetch - Top 5 + selected if not in top 5 (same pattern as Volatility)
+  // Compute symbols to fetch - watchlist + selected if not in watchlist
   const symbolsToFetch = useMemo(() => {
-    if (selectedPair && !TOP_5_SYMBOLS.includes(selectedPair)) {
-      return [selectedPair, ...TOP_5_SYMBOLS];
+    const watchlist = [...DEFAULT_WATCHLIST_SYMBOLS];
+    if (selectedPair && !watchlist.includes(selectedPair as any)) {
+      return [selectedPair, ...watchlist];
     }
-    return TOP_5_SYMBOLS;
+    return watchlist;
   }, [selectedPair]);
 
   // Use new hook that passes symbols to edge function (dynamic fetching)
@@ -42,16 +47,16 @@ export default function MarketData() {
   // Get whale data - already fetched for all requested symbols
   const whaleData = useMemo(() => {
     if (!marketData?.whaleActivity) return [];
-    return marketData.whaleActivity.slice(0, 6);
+    return marketData.whaleActivity.slice(0, DISPLAY_LIMITS.WHALE_ACTIVITY);
   }, [marketData?.whaleActivity]);
 
   // Get opportunities data - already fetched for all requested symbols
   const opportunitiesData = useMemo(() => {
     if (!marketData?.opportunities) return [];
-    return marketData.opportunities.slice(0, 6);
+    return marketData.opportunities.slice(0, DISPLAY_LIMITS.TRADING_OPPORTUNITIES);
   }, [marketData?.opportunities]);
 
-  const isSelectedInTop5 = TOP_5_SYMBOLS.includes(selectedPair);
+  const isSelectedInWatchlist = (DEFAULT_WATCHLIST_SYMBOLS as readonly string[]).includes(selectedPair);
   const apiError = error instanceof Error ? error : error ? new Error(String(error)) : null;
 
   return (
@@ -89,25 +94,25 @@ export default function MarketData() {
 
         {/* 2. Volatility Meter + Whale Tracker - Grid 2 */}
         <div className="grid gap-4 md:grid-cols-2">
-          <VolatilityMeterWidget symbols={symbolsToFetch} />
+          <VolatilityMeterWidget symbols={symbolsToFetch as string[]} />
           
           <WhaleTrackingWidget 
             whaleData={whaleData}
             isLoading={isLoading}
             error={error}
             selectedAsset={selectedAsset}
-            isSelectedInTop5={isSelectedInTop5}
+            isSelectedInWatchlist={isSelectedInWatchlist}
             onRetry={() => refetch()}
           />
         </div>
 
-        {/* 3. Trading Opportunities - Full Width at Bottom - Top 5 + selected */}
+        {/* 3. Trading Opportunities - Full Width at Bottom - watchlist + selected */}
         <TradingOpportunitiesWidget
           opportunities={opportunitiesData}
           isLoading={isLoading}
           error={apiError}
           selectedAsset={selectedAsset}
-          isSelectedInTop5={isSelectedInTop5}
+          isSelectedInWatchlist={isSelectedInWatchlist}
           onRetry={() => refetch()}
         />
 
@@ -120,7 +125,7 @@ export default function MarketData() {
               : '-'}
           </span>
           <span>
-            Sources: Binance, CoinGecko, Alternative.me
+            {formatDataSources()}
           </span>
         </div>
       </div>
