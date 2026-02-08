@@ -9,13 +9,15 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar, Tag, Target, MoreVertical, Trash2, Brain, Wifi, Edit3, ImageIcon, MessageSquarePlus, MessageSquare, Loader2, ExternalLink } from "lucide-react";
+import { Calendar, Tag, Target, MoreVertical, Trash2, Brain, Wifi, Edit3, ImageIcon, MessageSquarePlus, MessageSquare, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { TradeEntry } from "@/hooks/use-trade-entries";
 import { cn } from "@/lib/utils";
 import { RiskRewardTooltip, ConfluenceScoreTooltip, InfoTooltip } from "@/components/ui/info-tooltip";
 import { FearGreedBadge, EventDayBadge } from "@/components/market/MarketContextBadge";
 import { formatFee } from "@/lib/formatters";
+import { CONFLUENCE_SCALE } from "@/lib/constants/trade-history";
+import { tradeHasScreenshots, getScreenshotCount, tradeHasNotes, getNotesLineCount, hasMultipleNotes as checkMultipleNotes, hasRecentNoteTimestamp } from "@/lib/trade-utils";
 import type { UnifiedMarketContext } from "@/types/market-context";
 
 interface TradeHistoryCardProps {
@@ -45,18 +47,13 @@ export function TradeHistoryCard({
   const [isNotesExpanded, setIsNotesExpanded] = useState(false);
 
   const rr = calculateRR(entry);
-  const hasScreenshots = entry.screenshots && Array.isArray(entry.screenshots) && entry.screenshots.length > 0;
-  const screenshotCount = hasScreenshots ? entry.screenshots!.length : 0;
-  const hasNotes = entry.notes && entry.notes.length > 0;
+  // Use centralized utility functions
+  const hasScreenshots = tradeHasScreenshots(entry);
+  const screenshotCount = getScreenshotCount(entry);
+  const hasNotes = tradeHasNotes(entry);
   const notesLines = hasNotes ? entry.notes!.split('\n').filter(line => line.trim()) : [];
-  const hasMultipleNotes = notesLines.length > 2;
-  
-  // Check if notes contain recent timestamps (within 24h)
-  const hasRecentNote = hasNotes && entry.notes!.includes(`[${new Date().toLocaleDateString()}`) ||
-    (hasNotes && (() => {
-      const timestampMatch = entry.notes!.match(/\[(\d{1,2}:\d{2}:\d{2}\s*[AP]?M?)\]/g);
-      return timestampMatch && timestampMatch.length > 0;
-    })());
+  const hasMultipleNotes = checkMultipleNotes(entry);
+  const hasRecentNote = hasRecentNoteTimestamp(entry);
   
   // Parse market context from trade entry (may be partial or null)
   const rawMarketContext = entry.market_context as unknown;
@@ -216,7 +213,7 @@ export function TradeHistoryCard({
               <span className="text-muted-foreground">Confluence:</span>
               <ConfluenceScoreTooltip />
               {entry.confluence_score !== null && entry.confluence_score !== undefined ? (
-                <Badge variant="outline" className="text-xs">{entry.confluence_score}/5</Badge>
+                <Badge variant="outline" className="text-xs">{CONFLUENCE_SCALE.format(entry.confluence_score)}</Badge>
               ) : '-'}
             </div>
             {/* Fee Display - Improved handling for missing data */}

@@ -9,8 +9,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { LazyImage } from "@/components/ui/lazy-image";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { getTradeSession, SESSION_LABELS, SESSION_COLORS } from "@/lib/session-utils";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
+import { tradeNeedsEnrichment, tradeHasScreenshots, getThumbnailUrl, isTradeProfit, isTradeLoss, getDirectionBadgeVariant, getDirectionDisplay } from "@/lib/trade-utils";
 import type { TradeEntry } from "@/hooks/use-trade-entries";
 
 interface TradeGalleryCardProps {
@@ -23,15 +23,14 @@ export function TradeGalleryCard({
   onTradeClick,
 }: TradeGalleryCardProps) {
   const { formatPnl } = useCurrencyConversion();
-  const hasScreenshots = trade.screenshots && trade.screenshots.length > 0;
-  const thumbnailUrl = hasScreenshots ? trade.screenshots![0].url : null;
-  const pnl = trade.realized_pnl ?? trade.pnl ?? 0;
-  const isProfit = pnl > 0;
-  const isLoss = pnl < 0;
   
-  // Check if trade needs enrichment (Binance trades with missing entry price)
-  const needsEnrichment = trade.source === 'binance' && 
-    (!trade.entry_price || trade.entry_price === 0);
+  // Use centralized utility functions
+  const hasScreenshots = tradeHasScreenshots(trade);
+  const thumbnailUrl = getThumbnailUrl(trade);
+  const pnl = trade.realized_pnl ?? trade.pnl ?? 0;
+  const isProfit = isTradeProfit(pnl);
+  const isLoss = isTradeLoss(pnl);
+  const needsEnrichment = tradeNeedsEnrichment(trade);
   
   return (
     <Card 

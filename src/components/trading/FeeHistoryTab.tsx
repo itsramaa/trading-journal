@@ -68,9 +68,9 @@ export function FeeHistoryTab({
       {/* Data source info */}
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Database className="h-4 w-4" />
-        <span>Data dari Local DB (Full Sync)</span>
+        <span>Data from Local DB (Full Sync)</span>
         <Info className="h-4 w-4 ml-2" />
-        <span>Filters dari trade history apply ke tab ini</span>
+        <span>Filters from trade history apply to this tab</span>
       </div>
 
       {/* Summary Cards */}

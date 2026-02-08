@@ -235,7 +235,7 @@ export default function TradingJournal() {
           </CardHeader>
           <CardContent className="space-y-4">
             <Tabs defaultValue="active">
-              <TabsList className="grid w-full grid-cols-2 max-w-[300px]">
+              <TabsList className="grid w-full grid-cols-2 max-w-xs">
                 <TabsTrigger value="pending" className="gap-2">
                   <Clock className="h-4 w-4" aria-hidden="true" />
                   <span className="hidden sm:inline">Pending</span>
