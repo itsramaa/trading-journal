@@ -6,6 +6,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { AlertTriangle, CheckCircle } from "lucide-react";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
+import { QUANTITY_FORMAT_THRESHOLDS } from "@/lib/constants/risk-thresholds";
 import type { calculatePositionSize } from "@/lib/calculations/position-sizing";
 
 interface CalculatorResultsProps {
@@ -16,10 +17,10 @@ export function CalculatorResults({ result }: CalculatorResultsProps) {
   const { formatCompact } = useCurrencyConversion();
 
   const formatQuantity = (value: number) => {
-    if (value >= 1) {
-      return value.toFixed(4);
+    if (value >= QUANTITY_FORMAT_THRESHOLDS.LARGE_QUANTITY_MIN) {
+      return value.toFixed(QUANTITY_FORMAT_THRESHOLDS.LARGE_DECIMALS);
     }
-    return value.toFixed(8);
+    return value.toFixed(QUANTITY_FORMAT_THRESHOLDS.SMALL_DECIMALS);
   };
 
   return (

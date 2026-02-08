@@ -24,6 +24,11 @@ import { useMarketContext } from "@/contexts/MarketContext";
 import { trackEvent, ANALYTICS_EVENTS } from "@/lib/analytics";
 import { formatPercentUnsigned, formatCurrency } from "@/lib/formatters";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { 
+  DEFAULT_RISK_VALUES, 
+  POSITION_SIZING_THRESHOLDS, 
+  CALCULATOR_INPUT_DEFAULTS 
+} from "@/lib/constants/risk-thresholds";
 
 export default function PositionCalculator() {
   const [activeTab, setActiveTab] = useState("calculator");
@@ -41,21 +46,21 @@ export default function PositionCalculator() {
   // Use combined balance (Binance if connected, else Paper accounts)
   const defaultBalance = useMemo(() => {
     if (combinedBalance > 0) return combinedBalance;
-    return 10000;
+    return DEFAULT_RISK_VALUES.FALLBACK_BALANCE;
   }, [combinedBalance]);
   
-  const [accountBalance, setAccountBalance] = useState(defaultBalance);
-  const [riskPercent, setRiskPercent] = useState(2);
-  const [entryPrice, setEntryPrice] = useState(50000);
-  const [stopLossPrice, setStopLossPrice] = useState(49000);
+  const [accountBalance, setAccountBalance] = useState<number>(defaultBalance);
+  const [riskPercent, setRiskPercent] = useState<number>(DEFAULT_RISK_VALUES.RISK_PER_TRADE);
+  const [entryPrice, setEntryPrice] = useState<number>(CALCULATOR_INPUT_DEFAULTS.ENTRY_PRICE);
+  const [stopLossPrice, setStopLossPrice] = useState<number>(CALCULATOR_INPUT_DEFAULTS.STOP_LOSS_PRICE);
   const [direction, setDirection] = useState<'long' | 'short'>('long');
-  const [leverage, setLeverage] = useState(1);
+  const [leverage, setLeverage] = useState<number>(CALCULATOR_INPUT_DEFAULTS.LEVERAGE);
   
   // Calculate max leverage based on position value
   const estimatedNotional = (accountBalance * riskPercent / 100) / (Math.abs(entryPrice - stopLossPrice) / entryPrice) * entryPrice;
   const maxAllowedLeverage = leverageBrackets && 'brackets' in leverageBrackets
     ? getMaxLeverageForNotional(leverageBrackets, estimatedNotional)
-    : 125;
+    : POSITION_SIZING_THRESHOLDS.MAX_LEVERAGE_DEFAULT;
 
   // Update when risk profile loads
   useEffect(() => {

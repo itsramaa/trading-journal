@@ -73,3 +73,10 @@ export const QUANTITY_FORMAT_THRESHOLDS = {
   LARGE_DECIMALS: 4,
   SMALL_DECIMALS: 8,
 } as const;
+
+// Default Calculator Input Values (UI defaults)
+export const CALCULATOR_INPUT_DEFAULTS = {
+  ENTRY_PRICE: 50000,
+  STOP_LOSS_PRICE: 49000,
+  LEVERAGE: 1,
+} as const;

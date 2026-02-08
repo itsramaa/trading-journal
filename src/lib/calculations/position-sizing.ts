@@ -2,6 +2,7 @@
  * Position Sizing Calculator - Per Trading Journey Markdown spec
  */
 import type { PositionSizeInput, PositionSizeResult, RiskProfile } from "@/types/risk";
+import { POSITION_SIZING_THRESHOLDS } from "@/lib/constants/risk-thresholds";
 
 export function calculatePositionSize(input: PositionSizeInput): PositionSizeResult {
   const { account_balance, risk_percent, entry_price, stop_loss_price, leverage = 1 } = input;
@@ -32,12 +33,12 @@ export function calculatePositionSize(input: PositionSizeInput): PositionSizeRes
   const warnings: string[] = [];
   let isValid = true;
 
-  if (stopDistancePercent > 10) {
-    warnings.push("Stop loss is very far (>10%). Consider tighter stop or smaller position.");
+  if (stopDistancePercent > POSITION_SIZING_THRESHOLDS.STOP_DISTANCE_WARNING) {
+    warnings.push(`Stop loss is very far (>${POSITION_SIZING_THRESHOLDS.STOP_DISTANCE_WARNING}%). Consider tighter stop or smaller position.`);
   }
 
-  if (capitalDeploymentPercent > 40) {
-    warnings.push("Position size exceeds 40% of capital. Consider reducing.");
+  if (capitalDeploymentPercent > POSITION_SIZING_THRESHOLDS.CAPITAL_DEPLOYMENT_WARNING) {
+    warnings.push(`Position size exceeds ${POSITION_SIZING_THRESHOLDS.CAPITAL_DEPLOYMENT_WARNING}% of capital. Consider reducing.`);
     isValid = false;
   }
 
