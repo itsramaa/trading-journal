@@ -14,12 +14,13 @@ export interface TradeFilters {
   pair?: string;
   pairs?: string[];               // Multi-select pairs
   direction?: 'LONG' | 'SHORT';
-  result?: 'win' | 'loss' | 'breakeven' | 'profit' | 'loss';  // Added profit alias
+  result?: 'win' | 'loss' | 'breakeven' | 'profit';  // profit = alias for win
   source?: 'manual' | 'binance';
   startDate?: string;
   endDate?: string;
   strategyId?: string;
   strategyIds?: string[];         // Multi-select strategies
+  session?: 'sydney' | 'tokyo' | 'london' | 'new_york' | 'all';  // DB-level session filter
 }
 
 export interface PaginatedTradeEntriesOptions {
@@ -38,7 +39,7 @@ export function useTradeEntriesPaginated(options: PaginatedTradeEntriesOptions =
     queryFn: async ({ pageParam }) => {
       if (!user?.id) return { trades: [], nextCursor: null, hasMore: false };
 
-      // Build query
+      // Build query with ALL filters at database level
       let query = supabase
         .from("trade_entries")
         .select("*", { count: "exact" })
@@ -47,7 +48,7 @@ export function useTradeEntriesPaginated(options: PaginatedTradeEntriesOptions =
         .order("id", { ascending: false })
         .limit(limit + 1); // +1 to detect hasMore
 
-      // Apply filters
+      // Apply filters at DB level
       if (filters?.status && filters.status !== 'all') {
         query = query.eq("status", filters.status);
       }
@@ -62,10 +63,16 @@ export function useTradeEntriesPaginated(options: PaginatedTradeEntriesOptions =
       if (filters?.direction) {
         query = query.eq("direction", filters.direction);
       }
-      // Result filter - map 'profit' to positive pnl check handled post-filter
-      if (filters?.result && filters.result !== 'profit' && filters.result !== 'loss') {
-        query = query.eq("result", filters.result);
+      
+      // Result filter - now using DB-level filtering
+      if (filters?.result === 'win' || filters?.result === 'profit') {
+        query = query.gt("realized_pnl", 0);
+      } else if (filters?.result === 'loss') {
+        query = query.lt("realized_pnl", 0);
+      } else if (filters?.result === 'breakeven') {
+        query = query.eq("realized_pnl", 0);
       }
+      
       if (filters?.source) {
         query = query.eq("source", filters.source);
       }
@@ -74,6 +81,11 @@ export function useTradeEntriesPaginated(options: PaginatedTradeEntriesOptions =
       }
       if (filters?.endDate) {
         query = query.lte("trade_date", filters.endDate);
+      }
+      
+      // Session filter at DB level (new session column)
+      if (filters?.session && filters.session !== 'all') {
+        query = query.eq("session", filters.session);
       }
 
       // Apply cursor for pagination
@@ -132,29 +144,25 @@ export function useTradeEntriesPaginated(options: PaginatedTradeEntriesOptions =
         ? { cursorDate: lastTrade.trade_date, cursorId: lastTrade.id }
         : null;
 
-      // Post-query filters (need join data or complex logic)
+      // Post-query filters - only for strategy join (requires separate query)
+      // All other filters are now at DB level for accurate pagination
       let finalTrades = transformedTrades;
       
-      // Single strategy filter
+      // Single strategy filter (requires join data)
       if (filters?.strategyId) {
         finalTrades = finalTrades.filter(t => 
           t.strategies?.some(s => s.id === filters.strategyId)
         );
       }
       
-      // Multi-strategy filter
+      // Multi-strategy filter (requires join data)
       if (filters?.strategyIds && filters.strategyIds.length > 0) {
         finalTrades = finalTrades.filter(t => 
           t.strategies?.some(s => filters.strategyIds!.includes(s.id))
         );
       }
       
-      // Profit/Loss filter (based on realized_pnl since result may not be set)
-      if (filters?.result === 'profit') {
-        finalTrades = finalTrades.filter(t => (t.realized_pnl ?? t.pnl ?? 0) > 0);
-      } else if (filters?.result === 'loss') {
-        finalTrades = finalTrades.filter(t => (t.realized_pnl ?? t.pnl ?? 0) < 0);
-      }
+      // NOTE: Profit/Loss and Session filters are now at DB level
 
       return {
         trades: finalTrades,

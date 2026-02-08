@@ -14,8 +14,9 @@
 import type { BinanceTrade, BinanceOrder, BinanceIncome } from '@/features/binance/types';
 import type { PositionLifecycle, RawBinanceData, GroupedIncome } from './types';
 
-// Time tolerance for matching income to fills (5 minutes)
-const INCOME_MATCH_TOLERANCE_MS = 5 * 60 * 1000;
+// Time tolerance for matching income to fills (REDUCED to 60 seconds)
+// Only used as fallback when tradeId matching fails
+const INCOME_MATCH_TOLERANCE_MS = 60 * 1000;
 
 /**
  * Group raw Binance data into position lifecycles
@@ -215,10 +216,15 @@ function createLifecycleFromTracker(
   allOrders: BinanceOrder[],
   groupedIncome: GroupedIncome
 ): PositionLifecycle {
-  // Find related orders
+  // Collect all order IDs and trade IDs from fills
   const orderIds = new Set([
     ...tracker.entryFills.map(f => f.orderId),
     ...tracker.exitFills.map(f => f.orderId),
+  ]);
+  
+  const tradeIds = new Set([
+    ...tracker.entryFills.map(f => f.id.toString()),
+    ...tracker.exitFills.map(f => f.id.toString()),
   ]);
   
   const relatedOrders = allOrders.filter(o => orderIds.has(o.orderId));
@@ -229,9 +235,10 @@ function createLifecycleFromTracker(
     tracker.exitFills.some(f => f.orderId === o.orderId)
   );
   
-  // Find related income records
-  const incomeRecords = findRelatedIncome(
+  // Find related income records using trade ID matching (primary) + time fallback (secondary)
+  const incomeRecords = findRelatedIncomeByTradeId(
     tracker.symbol,
+    tradeIds,
     tracker.entryTime,
     tracker.exitTime || Date.now(),
     groupedIncome
@@ -257,35 +264,60 @@ function createLifecycleFromTracker(
 }
 
 /**
- * Find income records related to a position lifecycle
+ * Find income records related to a position lifecycle using trade ID matching
+ * 
+ * PRIMARY: Match by tradeId field in income records (accurate)
+ * FALLBACK: Match by symbol + time window for records without tradeId
  */
-function findRelatedIncome(
+function findRelatedIncomeByTradeId(
   symbol: string,
+  tradeIds: Set<string>,
   entryTime: number,
   exitTime: number,
   groupedIncome: GroupedIncome
 ): BinanceIncome[] {
   const related: BinanceIncome[] = [];
+  const matchedTranIds = new Set<number>();
   
-  // Match REALIZED_PNL by symbol and time (near exit time)
+  // PASS 1: Match REALIZED_PNL by tradeId (most accurate)
   for (const pnl of groupedIncome.realizedPnl) {
-    if (pnl.symbol === symbol && 
-        pnl.time >= entryTime - INCOME_MATCH_TOLERANCE_MS &&
-        pnl.time <= exitTime + INCOME_MATCH_TOLERANCE_MS) {
-      related.push(pnl);
+    if (pnl.symbol === symbol) {
+      // Primary: Match by tradeId
+      if (pnl.tradeId && tradeIds.has(pnl.tradeId)) {
+        related.push(pnl);
+        matchedTranIds.add(pnl.tranId);
+        continue;
+      }
+      // Fallback: Match by tight time window (only if tradeId unavailable)
+      if (!pnl.tradeId && 
+          pnl.time >= entryTime - INCOME_MATCH_TOLERANCE_MS &&
+          pnl.time <= exitTime + INCOME_MATCH_TOLERANCE_MS) {
+        related.push(pnl);
+        matchedTranIds.add(pnl.tranId);
+      }
     }
   }
   
-  // Match COMMISSION by symbol and time (during trade lifecycle)
+  // PASS 2: Match COMMISSION by tradeId or tight time window
   for (const comm of groupedIncome.commission) {
-    if (comm.symbol === symbol &&
-        comm.time >= entryTime - INCOME_MATCH_TOLERANCE_MS &&
-        comm.time <= exitTime + INCOME_MATCH_TOLERANCE_MS) {
-      related.push(comm);
+    if (comm.symbol === symbol) {
+      if (matchedTranIds.has(comm.tranId)) continue; // Already matched
+      
+      // Primary: Match by tradeId
+      if (comm.tradeId && tradeIds.has(comm.tradeId)) {
+        related.push(comm);
+        continue;
+      }
+      // Fallback: Match by tight time window
+      if (!comm.tradeId &&
+          comm.time >= entryTime - INCOME_MATCH_TOLERANCE_MS &&
+          comm.time <= exitTime + INCOME_MATCH_TOLERANCE_MS) {
+        related.push(comm);
+      }
     }
   }
   
-  // Match FUNDING_FEE by symbol and time (between entry and exit)
+  // PASS 3: Match FUNDING_FEE by exact time range (no tradeId available for funding)
   for (const funding of groupedIncome.fundingFee) {
     if (funding.symbol === symbol &&
         funding.time >= entryTime &&
@@ -295,6 +327,25 @@ function findRelatedIncome(
   }
   
   return related;
+}
+
+/**
+ * Legacy function for backward compatibility
+ * @deprecated Use findRelatedIncomeByTradeId instead
+ */
+function findRelatedIncome(
+  symbol: string,
+  entryTime: number,
+  exitTime: number,
+  groupedIncome: GroupedIncome
+): BinanceIncome[] {
+  return findRelatedIncomeByTradeId(
+    symbol,
+    new Set<string>(), // No trade IDs, will fall back to time matching
+    entryTime,
+    exitTime,
+    groupedIncome
+  );
 }
 
 /**

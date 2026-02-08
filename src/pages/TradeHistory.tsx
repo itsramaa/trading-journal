@@ -26,6 +26,7 @@ import { History, Wifi, BookOpen, FileText, Loader2, List, LayoutGrid, Download,
 import { FilterActiveIndicator } from "@/components/ui/filter-active-indicator";
 import { format } from "date-fns";
 import { useTradeEntriesPaginated, type TradeFilters } from "@/hooks/use-trade-entries-paginated";
+import { useTradeStats } from "@/hooks/use-trade-stats";
 import type { TradeEntry } from "@/hooks/use-trade-entries";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { useBinanceConnectionStatus } from "@/features/binance";
@@ -41,7 +42,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { DateRange } from "@/components/trading/DateRangeFilter";
 import { TradeHistoryFilters, TradeEnrichmentDrawer, type ResultFilter, type DirectionFilter, type SessionFilter } from "@/components/journal";
 import type { UnifiedPosition } from "@/components/journal";
-import { getTradeSession, TradingSession } from "@/lib/session-utils";
+// Session filtering is now at DB level (via session column)
 
 type ViewMode = 'list' | 'gallery';
 
@@ -106,6 +107,7 @@ export default function TradeHistory() {
   // Currency helper - using the hook version now (displayCurrency and formatCurrency defined above)
 
   // Build paginated filters - memoized for stability
+  // Session filter is now at DB level
   const paginatedFilters: TradeFilters = useMemo(() => ({
     status: 'closed' as const,
     startDate: showFullHistory ? undefined : (dateRange.from?.toISOString().split('T')[0] || DEFAULT_START_DATE),
@@ -114,9 +116,10 @@ export default function TradeHistory() {
     result: resultFilter !== 'all' ? resultFilter as TradeFilters['result'] : undefined,
     direction: directionFilter !== 'all' ? directionFilter : undefined,
     strategyIds: selectedStrategyIds.length > 0 ? selectedStrategyIds : undefined,
-  }), [dateRange, selectedPairs, resultFilter, directionFilter, selectedStrategyIds, showFullHistory]);
+    session: sessionFilter !== 'all' ? sessionFilter as TradeFilters['session'] : undefined,
+  }), [dateRange, selectedPairs, resultFilter, directionFilter, selectedStrategyIds, showFullHistory, sessionFilter]);
 
-  // Paginated query
+  // Paginated query for trade list
   const {
     data,
     fetchNextPage,
@@ -127,6 +130,9 @@ export default function TradeHistory() {
     error,
   } = useTradeEntriesPaginated({ limit: PAGE_SIZE, filters: paginatedFilters });
 
+  // Server-side stats (accurate totals regardless of pagination)
+  const { data: tradeStats, isLoading: isStatsLoading } = useTradeStats({ filters: paginatedFilters });
+
   // Flatten all pages
   const allTrades = useMemo(() => 
     data?.pages.flatMap(page => page.trades) ?? [], 
@@ -134,30 +140,17 @@ export default function TradeHistory() {
   );
   const totalCount = data?.pages[0]?.totalCount ?? 0;
 
-  // Sort by AI score (client-side after fetch) and filter by session
+  // Sort by AI score (client-side after fetch)
+  // Session filtering is now at DB level, so no client-side filter needed
   const sortedTrades = useMemo(() => {
-    let filtered = allTrades;
-    
-    // Filter by session (client-side since session is computed from trade_date)
-    if (sessionFilter !== 'all') {
-      filtered = filtered.filter(trade => {
-        const session = getTradeSession({
-          trade_date: trade.trade_date,
-          entry_datetime: null,
-          market_context: trade.market_context as { session?: { current: TradingSession } } | null,
-        });
-        return session === sessionFilter;
-      });
-    }
-    
     // Sort by AI
-    if (sortByAI === 'none') return filtered;
-    return [...filtered].sort((a, b) => {
+    if (sortByAI === 'none') return allTrades;
+    return [...allTrades].sort((a, b) => {
       const scoreA = a.ai_quality_score ?? -1;
       const scoreB = b.ai_quality_score ?? -1;
       return sortByAI === 'asc' ? scoreA - scoreB : scoreB - scoreA;
     });
-  }, [allTrades, sortByAI, sessionFilter]);
+  }, [allTrades, sortByAI]);
 
   // Separate by source for tabs
   const binanceTrades = useMemo(() => sortedTrades.filter(t => t.source === 'binance'), [sortedTrades]);
@@ -222,10 +215,11 @@ export default function TradeHistory() {
     setEnrichingPosition(unified);
   };
 
-  // Stats based on loaded trades
-  const totalPnL = sortedTrades.reduce((sum, t) => sum + (t.realized_pnl || 0), 0);
-  const winCount = sortedTrades.filter(t => (t.realized_pnl || 0) > 0).length;
-  const winRate = sortedTrades.length > 0 ? (winCount / sortedTrades.length) * 100 : 0;
+  // Use server-side stats for accurate totals (not dependent on pagination)
+  const totalPnLGross = tradeStats?.totalPnlGross ?? 0;
+  const totalPnLNet = tradeStats?.totalPnlNet ?? 0;
+  const winRate = tradeStats?.winRate ?? 0;
+  const serverTotalTrades = tradeStats?.totalTrades ?? 0;
 
   // Filter state detection
   const hasActiveFilters = useMemo(() => 
@@ -352,22 +346,39 @@ export default function TradeHistory() {
               <div className="text-center">
                 <div className="text-2xl font-bold">
                   {sortedTrades.length}
-                  {totalCount > sortedTrades.length && (
-                    <span className="text-sm text-muted-foreground font-normal">/{totalCount}</span>
+                  {serverTotalTrades > sortedTrades.length && (
+                    <span className="text-sm text-muted-foreground font-normal">/{serverTotalTrades}</span>
                   )}
                 </div>
                 <div className="text-muted-foreground">
                   {hasActiveFilters ? 'Filtered' : 'Trades'}
                 </div>
               </div>
-              <div className="text-center">
-                <div className={`text-2xl font-bold ${totalPnL >= 0 ? 'text-profit' : 'text-loss'}`}>
-                  {formatCurrency(totalPnL)}
-                </div>
-                <div className="text-muted-foreground">
-                  {hasActiveFilters ? 'Filtered P&L' : 'P&L'}
-                </div>
-              </div>
+              {/* P&L with clear terminology */}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="text-center cursor-help">
+                      <div className={`text-2xl font-bold ${totalPnLGross >= 0 ? 'text-profit' : 'text-loss'}`}>
+                        {formatCurrency(totalPnLGross)}
+                      </div>
+                      <div className="text-muted-foreground text-xs">
+                        Gross P&L
+                      </div>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <div className="space-y-1">
+                      <p><strong>Gross P&L</strong>: {formatCurrency(totalPnLGross)}</p>
+                      <p className="text-xs text-muted-foreground">Before fees (realized_pnl from Binance)</p>
+                      <div className="border-t pt-1 mt-1">
+                        <p><strong>Net P&L</strong>: {formatCurrency(totalPnLNet)}</p>
+                        <p className="text-xs text-muted-foreground">After commission & funding fees</p>
+                      </div>
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
               <div className="text-center">
                 <div className="text-2xl font-bold">{winRate.toFixed(1)}%</div>
                 <div className="text-muted-foreground">Win Rate</div>
