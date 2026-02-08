@@ -1,293 +1,253 @@
 
-# Audit Report: Bulk Export Page & Settings Page
+# Audit Report: Profile Page & Notification Page
 
 ## Executive Summary
 
-Audit dilakukan terhadap **Bulk Export Page** (`/export`) dan **Settings Page** (`/settings`) beserta seluruh komponen, hook, dan service terkait. **Kedua halaman ini memiliki arsitektur yang BAIK** dengan:
+Audit dilakukan terhadap **Profile Page** (`/profile`) dan **Notification Page** (`/notifications`) beserta seluruh komponen, hook, dan service terkait. **Kedua halaman ini memiliki arsitektur yang BAIK** dengan:
 
-- Exchange registry sudah tersentralisasi di `src/types/exchange.ts`
-- Risk thresholds sudah tersentralisasi di `src/types/risk.ts`
-- User settings menggunakan centralized hook `use-user-settings.ts`
-- Export workflow menggunakan clean hook pattern
+- Data hooks menggunakan pattern yang konsisten (`useUserProfile`, `useUserSettings`, `useNotifications`)
+- Mutation hooks dengan proper query invalidation
+- React Query untuk caching dan state management
+- Supabase realtime subscription untuk notifications
 
-Namun terdapat **beberapa hardcode** yang perlu diperhatikan, terutama pada:
-- Backup version dan fallback values
-- AI settings default values
-- Auto-sync configuration
-
-**Risiko keseluruhan: LOW** - Kedua halaman sudah memiliki arsitektur yang solid dengan minor hardcode yang tidak critical.
+**Risiko keseluruhan: LOW** - Kedua halaman sudah memiliki arsitektur yang solid dengan minor hardcode yang tidak mempengaruhi akurasi data.
 
 ---
 
 ## STEP 1 — HARDCODE DETECTION
 
-### 1.1 BulkExport.tsx Page
+### 1.1 Profile.tsx Page
 
 | Line | Hardcode | Jenis | Nilai |
 |------|----------|-------|-------|
-| 55-57 | Default date range | Data | `startOfYear(new Date())` to `endOfDay(new Date())` |
-| 74-78 | Preset date ranges | Data | `30`, `90` days, YTD, last year |
-| 94-95 | Source badge text | UI | `'🔗 Exchange Connected'`, `'📝 Paper Mode'` |
-| 100 | Default tab logic | Logic | `isConnected ? "binance" : "journal"` |
-| 150 | Max range description | UI | `"Maximum range is 1 year"` (tidak enforced) |
-| 276 | Progress max polls | Logic | `(exportProgress.pollCount / 30) * 100` |
-| 348 | Currency hardcode | UI | `"USDT"` dalam tax tips |
+| 97 | Password min length | Logic | `< 6` |
+| 98 | Password error message | UI | `"Password must be at least 6 characters"` |
+| 145 | Tab width | UI | `lg:w-[300px]` |
+| 186 | Accepted file types | Data | `image/jpeg,image/png,image/gif,image/webp` |
+| 209 | File size limit text | UI | `"Max 2MB"` |
+| 250 | Currency fallback | Data | `settings?.default_currency \|\| "USD"` |
+| 257-260 | Currency options | Data | `["USD", "IDR", "BTC_USD", "BTC_IDR"]` inline |
+| 267 | Language fallback | Data | `settings?.language \|\| "en"` |
+| 274-275 | Language options | Data | `["en", "id"]` inline |
+| 354 | 2FA badge | UI | `"Coming Soon"` |
 
-### 1.2 Settings.tsx Page
-
-| Line | Hardcode | Jenis | Nilai |
-|------|----------|-------|-------|
-| 23 | Default tab | Logic | `searchParams.get('tab') \|\| 'trading'` |
-| 81 | Tab grid columns | UI | `grid-cols-5` |
-| 127, 137, 154, 164, 181, 191 | Notification defaults | Data | `?? true`, `?? false` fallbacks |
-| - | ✅ Uses `useUserSettings` | - | Centralized hook |
-| - | ✅ Theme logic correct | - | Light/dark/system |
-
-### 1.3 TradingConfigTab.tsx Component
+### 1.2 Notifications.tsx Page
 
 | Line | Hardcode | Jenis | Nilai |
 |------|----------|-------|-------|
-| 30-33 | Initial state values | Data | Uses `DEFAULT_RISK_PROFILE.*` - ✅ Centralized |
-| 124 | Badge color thresholds | Logic | `riskPerTrade <= 2`, `<= 5` |
-| 131-133 | Slider min/max/step | UI | `min={0.5}`, `max={10}`, `step={0.5}` |
-| 153 | Badge color thresholds | Logic | `maxDailyLoss <= 3`, `<= 5` |
-| 160-162 | Slider min/max/step | UI | `min={1}`, `max={15}`, `step={0.5}` |
-| 167 | Warning threshold display | UI | `RISK_THRESHOLDS.warning_percent` - ✅ Centralized |
-| 188-190 | Slider min/max/step | UI | `min={10}`, `max={100}`, `step={5}` |
-| 206-208 | Slider min/max/step | UI | `min={1}`, `max={10}`, `step={1}` |
-| - | ✅ Uses `DEFAULT_RISK_PROFILE` | - | Centralized |
-| - | ✅ Uses `RISK_THRESHOLDS` | - | Centralized |
+| 26-37 | `getTypeColor` function | Logic | Type-to-color mapping inline |
+| 28-29 | Type match: `"success"`, `"price_alert"` | Data | Notification types inline |
+| 31 | Type match: `"warning"` | Data | Inline |
+| 33 | Type match: `"error"` | Data | Inline |
+| 99-101 | Skeleton count | UI | `[1, 2, 3]` for loading state |
+| 157-158 | Weekly report description | UI | `"Download your trading performance summary as PDF"` |
 
-### 1.4 AISettingsTab.tsx Component
+### 1.3 use-notifications.ts Hook
 
 | Line | Hardcode | Jenis | Nilai |
 |------|----------|-------|-------|
-| 29-40 | `defaultSettings` object | Data | All AI defaults inline |
-| 36 | Confidence threshold default | Data | `75` |
-| 37 | Suggestion style default | Data | `'balanced'` |
-| 232-234 | Slider min/max/step | UI | `min={60}`, `max={90}`, `step={5}` |
-| 252 | Suggestion style options | Data | `['conservative', 'balanced', 'aggressive']` inline |
-| 261-263 | Style descriptions | UI | Inline descriptions |
+| 34 | Query limit | Data | `limit(50)` |
+| 40 | Stale time | Data | `30_000` (30 seconds) |
+| - | ✅ Uses centralized query key | - | `NOTIFICATIONS_KEY` constant |
 
-### 1.5 BinanceApiSettings.tsx Component
+### 1.4 use-user-settings.ts Hook
 
 | Line | Hardcode | Jenis | Nilai |
 |------|----------|-------|-------|
-| - | ✅ Clean implementation | - | Uses hook pattern |
-| - | ✅ Uses `useExchangeCredentials` | - | Centralized |
-| 226 | Binance API URL | Data | `https://www.binance.com/en/my/settings/api-management` |
+| 68 | Default currency | Data | `'USD'` |
+| 69 | Default theme | Data | `'dark'` |
+| 70 | Default language | Data | `'en'` |
+| 72-73 | Default subscription | Data | `'free'`, `'active'` |
+| 86 | Stale time | Data | `5 * 60 * 1000` (5 minutes) |
+| 130-133 | Display name fallback chain | Logic | `user_metadata?.full_name \|\| name \|\| email?.split('@')[0] \|\| 'User'` |
+| 153 | Stale time | Data | `5 * 60 * 1000` (5 minutes) |
+| 194 | File size limit | Logic | `2 * 1024 * 1024` (2MB) |
+| 198-200 | Allowed image types | Data | `['image/jpeg', 'image/png', 'image/gif', 'image/webp']` |
+| 269-271 | Plan expiration calculation | Logic | `30 * 24 * 60 * 60 * 1000` (30 days) |
 
-### 1.6 BinanceAutoSyncToggle.tsx Component
-
-| Line | Hardcode | Jenis | Nilai |
-|------|----------|-------|-------|
-| 19 | Storage key | Data | `'binance_auto_sync_settings'` |
-| 30-37 | `DEFAULT_SETTINGS` object | Data | All defaults inline |
-| 31 | Default interval | Data | `60` minutes |
-| 35-36 | Server/browser sync defaults | Data | `true` |
-| 190-194 | Interval options | UI | `15, 30, 60, 120, 240` minutes |
-| 260 | Server cron label | UI | `"✓ Server Cron (4h)"` |
-
-### 1.7 ApiKeyForm.tsx Component
+### 1.5 use-weekly-report-export.ts Hook
 
 | Line | Hardcode | Jenis | Nilai |
 |------|----------|-------|-------|
-| 23 | Default label | Data | `'Main Account'` |
-| 42 | Fallback label | Data | `'Main Account'` |
-| - | ✅ Clean implementation | - | Form logic correct |
+| 93 | Top pairs slice | Logic | `slice(0, 5)` |
+| 144-148 | PDF colors (zinc-900) | UI | `[24, 24, 27]` |
+| 167-168 | PDF colors (zinc-800) | UI | `[39, 39, 42]` |
+| 175 | Profit color | UI | `[34, 197, 94]` (green) |
+| 175 | Loss color | UI | `[239, 68, 68]` (red) |
+| 195 | Table header color | UI | `[59, 130, 246]` (blue) |
+| 221-224 | Green header color | UI | `[34, 197, 94]` |
+| 267-270 | Purple header color | UI | `[147, 51, 234]` |
+| 299 | Footer text | UI | `"Trading Journey Weekly Report"` |
+| 320 | Week starts on | Data | `weekStartsOn: 1` (Monday) |
 
-### 1.8 RateLimitDisplay.tsx Component
-
-| Line | Hardcode | Jenis | Nilai |
-|------|----------|-------|-------|
-| 29 | Warning threshold | Logic | `usagePercent > 70` |
-| 30 | Critical threshold | Logic | `usagePercent > 90` |
-| 59 | Default exchange | Data | `'binance'` |
-
-### 1.9 SettingsBackupRestore.tsx Component
-
-| Line | Hardcode | Jenis | Nilai |
-|------|----------|-------|-------|
-| 79 | Backup version | Data | `'1.0'` |
-| 102-107 | Risk profile fallbacks | Data | `?? 3`, `?? 10`, `?? 1`, `?? 5`, `?? 3`, `?? 40` |
-| 118-119 | Strategy fallbacks | Data | `?? 2`, `?? 2` |
-| 128 | Filename prefix | Data | `'trading_journey_backup_'` |
-
-### 1.10 JournalExportCard.tsx Component
+### 1.6 notification-service.ts (Shared Service)
 
 | Line | Hardcode | Jenis | Nilai |
 |------|----------|-------|-------|
-| 39-44 | Default export options | Data | All `true` |
-| 113, 206 | Filename format | Data | `'trades_export_'` prefix |
-| 183 | Event check format | UI | `'Yes' : 'No'` |
-
-### 1.11 ComingSoonExchangeCard.tsx Component
-
-| Line | Hardcode | Jenis | Nilai |
-|------|----------|-------|-------|
-| - | ✅ Uses `EXCHANGE_REGISTRY` | - | Centralized |
-| - | ✅ Clean implementation | - | No hardcode |
-
-### 1.12 BinanceAccountConfigCard.tsx Component
-
-| Line | Hardcode | Jenis | Nilai |
-|------|----------|-------|-------|
-| - | ✅ Uses `useExtendedAccountData` | - | Centralized |
-| - | ✅ Tooltip content inline | UI | Acceptable - educational text |
-
-### 1.13 useBinanceBulkExport.ts Hook
-
-| Line | Hardcode | Jenis | Nilai |
-|------|----------|-------|-------|
-| 131 | Max polls | Logic | `30` |
-| 132 | Poll interval | Logic | `10000` ms (10 seconds) |
-| - | ✅ Clean implementation | - | Well-structured hook |
+| 10-18 | NotificationType enum | Data | Type literals inline |
+| 71-72 | Result emoji mapping | UI | `🟢`, `🔴`, `⚪` |
+| 101-102 | Warning messages | UI | `"70%"`, `"90%"` inline |
+| 139-148 | Alert emoji mapping | UI | `😨`, `🤑`, `⚔️` |
+| 175-176 | Weekly report emoji | UI | `📈`, `📉` |
+| 207 | Email trigger threshold | Logic | `failureCount >= 3` |
 
 ---
 
 ## STEP 2 — HARDCODE IMPACT ANALYSIS
 
-### 2.1 Positive Findings: Centralization Already Strong ✅
+### 2.1 Positive Findings: Architecture Strong ✅
 
-**Exchange Registry - 100% Centralized:**
-- `EXCHANGE_REGISTRY` di `types/exchange.ts` defines all exchanges
-- `ComingSoonExchangeCard` uses centralized metadata
-- **Impact:** Zero risk of inconsistency
+**React Query Pattern - Consistent:**
+- `useUserProfile`, `useUserSettings` use consistent query patterns
+- `useNotifications` uses centralized query key constant
+- Proper `queryClient.invalidateQueries` on mutations
+- **Impact:** Excellent cache management
 
-**Risk Profile - 100% Centralized:**
-- `DEFAULT_RISK_PROFILE` di `types/risk.ts`
-- `RISK_THRESHOLDS` di `types/risk.ts`
-- `TradingConfigTab` uses these constants
-- **Impact:** Zero risk of data inconsistency
+**Hooks - Clean Separation:**
+- `useUploadAvatar` handles upload + profile update in single mutation
+- `useUpdatePassword` wraps Supabase auth API
+- `useDeleteAccount` handles sign out (dengan catatan: actual deletion belum implemented)
+- **Impact:** Clean API surface
 
-**User Settings Hook - Proper Architecture:**
-- `useUserSettings` provides centralized access
-- `useUpdateUserSettings` handles mutations
-- Settings state managed in database
-- **Impact:** Excellent data flow
+**Realtime Subscription:**
+- `useNotificationsRealtime` menggunakan Supabase channel
+- Proper cleanup on unmount
+- **Impact:** Live notification updates
 
 ### 2.2 Minor Hardcodes - LOW Impact
 
-**AI Settings Defaults (AISettingsTab.tsx line 29-40):**
+**Currency Options (Profile.tsx line 257-260):**
 ```typescript
-const defaultSettings: AISettings = {
-  confidence_threshold: 75,
-  suggestion_style: 'balanced',
-  ...
+<SelectItem value="USD">USD</SelectItem>
+<SelectItem value="IDR">IDR</SelectItem>
+<SelectItem value="BTC_USD">BTC/USD</SelectItem>
+<SelectItem value="BTC_IDR">BTC/IDR</SelectItem>
+```
+
+**Dampak:**
+- Options inline, tidak tersentralisasi
+- Jika menambah currency baru, harus update di component
+
+**Risiko:** LOW - Currency options rarely change, acceptable inline
+
+---
+
+**Language Options (Profile.tsx line 274-275):**
+```typescript
+<SelectItem value="en">English</SelectItem>
+<SelectItem value="id">Bahasa Indonesia</SelectItem>
+```
+
+**Dampak:**
+- i18n options inline
+- Consistent with i18next configuration
+
+**Risiko:** LOW - Language list is stable
+
+---
+
+**Notification Type Colors (Notifications.tsx line 26-37):**
+```typescript
+const getTypeColor = (type: string) => {
+  switch (type) {
+    case "success":
+    case "price_alert":
+      return "bg-profit/10 text-profit";
+    ...
+  }
 };
 ```
 
 **Dampak:**
-- Defaults tidak tersentralisasi
-- Jika berubah, harus update di component
+- Type-to-color mapping inline
+- TIDAK SINKRON dengan `NotificationType` di `notification-service.ts`
+- Service defines: `trade_closed`, `daily_loss_warning`, `market_alert`, etc.
+- UI handles: `success`, `price_alert`, `warning`, `error`
 
-**Risiko:** LOW - These are sensible defaults, rarely change
-
----
-
-**Backup Version String (SettingsBackupRestore.tsx line 79):**
-```typescript
-version: '1.0',
-```
-
-**Dampak:**
-- Version tidak tersentralisasi
-- Future versions might need migration logic
-
-**Risiko:** LOW - Backup format rarely changes
+**Risiko:** MEDIUM - Type mismatch bisa menyebabkan warna salah
 
 ---
 
-**Rate Limit Thresholds (RateLimitDisplay.tsx line 29-30):**
+**Password Minimum Length (Profile.tsx line 97):**
 ```typescript
-const isWarning = usagePercent > 70;
-const isCritical = usagePercent > 90;
+if (newPassword.length < 6) {
+  toast.error("Password must be at least 6 characters");
+}
 ```
 
 **Dampak:**
-- Thresholds inline, tidak sinkron dengan `RISK_THRESHOLDS`
-- `RISK_THRESHOLDS.warning_percent = 70` sudah ada
+- Same validation in `Auth.tsx` menggunakan Zod schema
+- Duplicated validation rule
 
-**Risiko:** LOW - Could use centralized constant
+**Risiko:** LOW - Auth.tsx uses centralized zod schema, Profile.tsx uses inline check
 
 ---
 
-**Auto-Sync Defaults (BinanceAutoSyncToggle.tsx line 30-37):**
+**PDF Export Colors (use-weekly-report-export.ts):**
 ```typescript
-const DEFAULT_SETTINGS: AutoSyncSettings = {
-  intervalMinutes: 60,
-  serverSyncEnabled: true,
-  browserBackgroundEnabled: true,
-};
+doc.setFillColor(24, 24, 27); // zinc-900
+doc.setTextColor(isProfit ? 34 : 239, isProfit ? 197 : 68, isProfit ? 94 : 68);
 ```
 
 **Dampak:**
-- Defaults inline in component
-- Not shared with other sync-related features
+- Colors hardcoded for jsPDF (tidak bisa pakai CSS variables)
+- Warna berbeda dari Tailwind theme
 
-**Risiko:** LOW - Component-specific, acceptable
+**Risiko:** LOW - PDF is separate context, acceptable
 
 ---
 
-**Backup Fallback Values (SettingsBackupRestore.tsx line 102-107):**
+**File Upload Constraints (use-user-settings.ts line 194-200):**
 ```typescript
-max_daily_loss_percent: riskProfile.max_daily_loss_percent ?? 3,
-max_weekly_drawdown_percent: riskProfile.max_weekly_drawdown_percent ?? 10,
+if (file.size > 2 * 1024 * 1024) {
+  throw new Error('File size must be less than 2MB');
+}
+const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 ```
 
 **Dampak:**
-- Fallbacks **TIDAK SINKRON** dengan `DEFAULT_RISK_PROFILE`
-- `DEFAULT_RISK_PROFILE.max_daily_loss_percent = 5.0` tapi fallback `3`
-- `DEFAULT_RISK_PROFILE.max_weekly_drawdown_percent = 10.0` (sama)
+- UI text says "Max 2MB" - konsisten
+- Same types displayed in accept attribute - konsisten
 
-**Risiko:** MEDIUM - Potential data mismatch in backup
+**Risiko:** NONE - Consistent across UI and validation
 
 ---
 
-**Slider Boundaries (TradingConfigTab.tsx various lines):**
+**Notification Query Limit (use-notifications.ts line 34):**
 ```typescript
-min={0.5} max={10} step={0.5}  // Risk per trade
-min={1} max={15} step={0.5}     // Max daily loss
+.limit(50)
 ```
 
 **Dampak:**
-- UI constraints tidak tersentralisasi
-- Jika business rules berubah, harus update di component
+- Arbitrary limit, tidak configurable
+- May truncate old notifications
 
-**Risiko:** LOW - UI-only, does not affect data integrity
+**Risiko:** LOW - Reasonable default for UX
 
 ---
 
-### 2.3 Date Range Presets (BulkExport.tsx line 74-78)
+### 2.3 Medium Risk: Notification Type Mismatch
 
-```typescript
-const presetRanges = [
-  { label: 'Last 30 Days', from: subDays(new Date(), 30), to: new Date() },
-  { label: 'Last 90 Days', from: subDays(new Date(), 90), to: new Date() },
-  { label: 'Year to Date', from: startOfYear(new Date()), to: new Date() },
-  { label: 'Last Year', ... },
-];
-```
+**Issue:** `getTypeColor()` di Notifications.tsx handles types yang berbeda dari `NotificationType` di notification-service.ts
 
-**Dampak:**
-- Domain-correct values untuk tax/export context
-- Inline definition acceptable
-
-**Risiko:** NONE - Standard industry presets
-
----
-
-### 2.4 USDT Currency Hardcode (BulkExport.tsx line 348)
-
-```typescript
-<span>All amounts are in <strong>USDT</strong>...</span>
-```
+| notification-service.ts types | Notifications.tsx getTypeColor |
+|------------------------------|--------------------------------|
+| `trade_closed` | ❌ Not handled |
+| `daily_loss_warning` | ❌ Not handled |
+| `daily_loss_limit` | ❌ Not handled |
+| `market_alert` | ❌ Not handled |
+| `weekly_report` | ❌ Not handled |
+| `sync_error` | Maps to `"error"` |
+| `sync_warning` | Maps to `"warning"` |
+| `system` | Falls through to default |
+| - | `success` (custom) |
+| - | `price_alert` (custom) |
 
 **Dampak:**
-- Binance Futures uses USDT as base currency
-- This is factually correct
+- Sebagian besar notification types akan mendapat warna default (primary)
+- User tidak mendapat visual cue yang tepat
 
-**Risiko:** NONE - Exchange-specific truth
+**Risiko:** MEDIUM - Visual inconsistency, tidak mempengaruhi data
 
 ---
 
@@ -297,172 +257,168 @@ const presetRanges = [
 
 | Component/Hook | Status | Notes |
 |----------------|--------|-------|
-| `BulkExport.tsx` | ✅ Page Orchestrator | Combines tabs, date selection, export workflow |
-| `Settings.tsx` | ✅ Page Orchestrator | Tab-based settings navigation |
-| `TradingConfigTab.tsx` | ✅ Form Component | Risk settings + default account |
-| `AISettingsTab.tsx` | ✅ Form Component | AI configuration |
-| `BinanceApiSettings.tsx` | ✅ Form Component | API credential management |
-| `BinanceAutoSyncToggle.tsx` | ✅ Widget | Auto-sync controls |
-| `BinanceAccountConfigCard.tsx` | ✅ Display Component | Read-only account info |
-| `JournalExportCard.tsx` | ✅ Form Component | Export options + trigger |
-| `SettingsBackupRestore.tsx` | ✅ Form Component | Backup/restore workflow |
-| `RateLimitDisplay.tsx` | ✅ Display Component | API usage visualization |
-| `ApiKeyForm.tsx` | ✅ Form Component | Credential input |
-| `useBulkExportWorkflow` | ✅ Workflow Hook | Export state machine |
+| `Profile.tsx` | ✅ Page | Orchestrates profile + security tabs |
+| `Notifications.tsx` | ✅ Page | Orchestrates notification list + weekly export |
+| `useUserProfile` | ✅ Data Hook | Profile CRUD |
 | `useUserSettings` | ✅ Data Hook | Settings CRUD |
-| `useExchangeCredentials` | ✅ Data Hook | Credential management |
+| `useUploadAvatar` | ✅ Action Hook | Single-purpose: upload avatar |
+| `useUpdatePassword` | ✅ Action Hook | Single-purpose: password change |
+| `useNotifications` | ✅ Data Hook | Notification list fetch |
+| `useMarkAsRead` | ✅ Action Hook | Single-purpose |
+| `useWeeklyReportExport` | ⚠️ Mixed | Data fetch + PDF generation + download |
 
 ### 3.2 DRY Compliance - GOOD ✅
 
 | Pattern | Status | Notes |
 |---------|--------|-------|
-| Exchange definitions | ✅ Centralized | `EXCHANGE_REGISTRY` |
-| Risk defaults | ✅ Centralized | `DEFAULT_RISK_PROFILE` |
-| Risk thresholds | ✅ Centralized | `RISK_THRESHOLDS` |
-| AI settings defaults | ⚠️ Inline | Could centralize |
-| Backup fallbacks | ⚠️ Mismatch | Should use `DEFAULT_RISK_PROFILE` |
-| Rate limit thresholds | ⚠️ Inline | Could use `RISK_THRESHOLDS` |
+| Query keys | ✅ Centralized | `NOTIFICATIONS_KEY`, `userSettingsKeys` |
+| Password validation | ⚠️ Duplicated | Profile uses inline, Auth uses Zod |
+| Notification types | ⚠️ Not synced | Service vs UI mismatch |
+| File constraints | ✅ Consistent | UI text matches validation |
 
 ### 3.3 Data Flow - EXCELLENT ✅
 
 ```text
-[Settings Page]
-├── TradingConfigTab
-│   ├── useRiskProfile → Supabase risk_profiles
-│   ├── useAccounts → Supabase accounts
-│   └── useUserSettings → Supabase user_settings
-├── AISettingsTab
-│   └── useUserSettings → ai_settings JSONB column
-├── BinanceApiSettings
-│   └── useExchangeCredentials → Supabase exchange_credentials
-└── Notifications (inline)
-    └── useUserSettings
+[Profile Page]
+├── useAuth() → Current user
+├── useUserProfile() → Supabase users_profile
+├── useUserSettings() → Supabase user_settings
+├── useUploadAvatar() → Supabase Storage + users_profile
+├── useUpdatePassword() → Supabase Auth
+└── useDeleteAccount() → Supabase Auth sign out
 
-[Bulk Export Page]
-├── Binance Tab
-│   ├── useBinanceConnectionStatus
-│   └── useBulkExportWorkflow → Edge Function
-├── Journal Tab
-│   └── useTradeEntries → Supabase trade_entries
-└── Backup Tab
-    ├── useUserSettings
-    ├── useRiskProfile
-    └── useTradingStrategies
+[Notifications Page]
+├── useNotifications() → Supabase notifications
+├── useUnreadCount() → Derived from useNotifications
+├── useMarkAsRead() → Supabase notifications update
+├── useMarkAllAsRead() → Supabase notifications update
+├── useClearAllNotifications() → Supabase notifications delete
+└── useWeeklyReportExport()
+    ├── calculateWeeklyStats() → Supabase trade_entries
+    └── generatePDF() → jsPDF output
 ```
 
 ---
 
 ## STEP 4 — REFACTOR DIRECTION (HIGH-LEVEL)
 
-### 4.1 Quick Win: Sync Backup Fallbacks with Centralized Defaults
+### 4.1 Quick Win: Centralize Notification Type Configuration
 
-**Current (SettingsBackupRestore.tsx line 102-107):**
-```text
-Fallback values inline: 3, 10, 1, 5, 3, 40
-```
+**Current:** `getTypeColor()` inline di Notifications.tsx, `NotificationType` di notification-service.ts
 
 **Ideal:**
 ```text
-Use DEFAULT_RISK_PROFILE.* for all fallbacks
-Ensures backup data matches system defaults
+src/lib/constants/notification-config.ts
+├── NOTIFICATION_TYPES (with metadata)
+│   ├── trade_closed: { color: 'profit', icon: 'CheckCircle' }
+│   ├── daily_loss_warning: { color: 'warning', icon: 'AlertTriangle' }
+│   ├── sync_error: { color: 'loss', icon: 'XCircle' }
+│   └── ...
 ```
 
-**Priority:** MEDIUM - Prevents potential data mismatch
+**Priority:** MEDIUM - Ensures visual consistency
 
-### 4.2 Optional: Centralize AI Settings Defaults
+### 4.2 Optional: Extract Password Validation Constant
 
-**Current:** `AISettingsTab.tsx` has inline defaults
+**Current:** `< 6` in Profile.tsx, `min(6)` in Auth.tsx zod schema
 
 **Potential:**
 ```text
-src/lib/constants/ai-config.ts
-├── DEFAULT_AI_SETTINGS
-│   ├── confidence_threshold: 75
-│   ├── suggestion_style: 'balanced'
-│   └── ... other defaults
+src/lib/constants/auth-config.ts
+├── AUTH_CONFIG
+│   ├── MIN_PASSWORD_LENGTH: 6
+│   └── PASSWORD_ERROR_MESSAGE: "Password must be at least 6 characters"
 ```
 
-**Recommendation:** LOW Priority - Only if AI settings are used elsewhere
+**Recommendation:** LOW Priority - Both locations work independently
 
-### 4.3 Optional: Sync Rate Limit Thresholds
+### 4.3 Optional: Centralize Currency/Language Options
 
-**Current:** `RateLimitDisplay.tsx` uses `70` and `90`
+**Current:** Inline di Profile.tsx
 
-**Ideal:**
+**Potential:**
 ```text
-Use RISK_THRESHOLDS.warning_percent (70)
-Add RISK_THRESHOLDS.danger_percent (90) if not exists
+src/lib/constants/user-preferences.ts
+├── CURRENCY_OPTIONS: [{ value: 'USD', label: 'USD' }, ...]
+├── LANGUAGE_OPTIONS: [{ value: 'en', label: 'English' }, ...]
 ```
 
-**Recommendation:** LOW Priority - Minor consistency improvement
+**Recommendation:** SKIP - Options are stable, inline acceptable
 
-### 4.4 No Major Refactoring Needed ✅
+### 4.4 useWeeklyReportExport Refactor
 
-The codebase is already well-architected:
-1. Exchange registry centralized
-2. Risk defaults centralized
-3. Hooks follow clean patterns
-4. Form components have clear responsibilities
+**Current:** Hook does data fetching + PDF generation + file download
+
+**Potential Split:**
+```text
+src/services/weekly-report.service.ts
+├── calculateWeeklyStats() - Pure function
+├── generatePDF() - Pure function
+
+src/hooks/use-weekly-report-export.ts
+├── Uses service functions
+├── Manages loading state
+├── Triggers toast notifications
+```
+
+**Recommendation:** LOW Priority - Current structure works, hook is self-contained
 
 ---
 
 ## STEP 5 — RISK LEVEL ASSESSMENT
 
-### Bulk Export Page: **LOW** ✅
+### Profile Page: **LOW** ✅
 
 **Justifikasi:**
-- Tab switching logic correct ✅
-- System-First compliant (Paper mode works) ✅
-- Export workflow hook well-structured ✅
-- Date presets are domain-correct ✅
-- Journal export correctly uses `useTradeEntries` ✅
+- Uses centralized hooks correctly ✅
+- File upload validation consistent ✅
+- Password validation works (duplicate but functional) ✅
+- 2FA marked as "Coming Soon" correctly ✅
+- Delete account properly shows confirmation ✅
 
 **Minor Issues:**
-- USDT hardcode in tax tips (factually correct)
-- Preset ranges inline (acceptable)
+- Currency/language options inline (acceptable)
+- Password validation duplicated (functional)
 
-### Settings Page: **LOW** ✅
+### Notification Page: **LOW** ✅
 
 **Justifikasi:**
-- Uses centralized hooks for all data access ✅
-- `DEFAULT_RISK_PROFILE` properly used in TradingConfigTab ✅
-- `RISK_THRESHOLDS` displayed correctly ✅
-- Exchange registry powers ComingSoonExchangeCard ✅
-- Tab navigation with query params works ✅
+- Uses React Query hooks correctly ✅
+- Realtime subscription available ✅
+- Weekly report export functional ✅
+- Empty states handled properly ✅
 
 **Minor Issues:**
-- AI settings defaults inline (acceptable, component-specific)
-- Backup fallbacks not synced with `DEFAULT_RISK_PROFILE` (MEDIUM)
-- Rate limit thresholds inline (LOW)
+- `getTypeColor()` tidak sinkron dengan `NotificationType` (MEDIUM)
+- Weekly export PDF colors hardcoded (acceptable - jsPDF context)
 
 ---
 
 ## Summary Table
 
-| Category | Bulk Export Page | Settings Page |
-|----------|------------------|---------------|
-| Hardcode Count | ~8 minor | ~15 minor |
-| DRY Violations | 0 critical | 1 medium (backup fallbacks) |
+| Category | Profile Page | Notification Page |
+|----------|--------------|-------------------|
+| Hardcode Count | ~10 minor | ~8 minor |
+| DRY Violations | 1 minor (password) | 1 medium (type colors) |
 | SRP Violations | 0 | 0 |
-| Data Accuracy Risk | **NONE** | **LOW** (backup fallbacks) |
-| Centralized Constants | ✅ Uses exchange types | ✅ Uses risk defaults |
+| Data Accuracy Risk | **NONE** | **NONE** |
 | Hook Architecture | ✅ Excellent | ✅ Excellent |
-| System-First Compliant | ✅ Yes | ✅ Yes |
+| Data Flow | ✅ Clean | ✅ Clean |
 
 ---
 
 ## Recommended Priority
 
 ### Recommended Fix (Low Effort, Medium Impact)
-1. **MEDIUM**: Sync `SettingsBackupRestore.tsx` fallbacks with `DEFAULT_RISK_PROFILE`
+1. **MEDIUM**: Sync `getTypeColor()` dengan `NotificationType` - Buat constant yang shared antara notification-service.ts dan Notifications.tsx
 
 ### Optional (Low Effort, Low Impact)
-2. **LOW**: Use `RISK_THRESHOLDS` in `RateLimitDisplay.tsx`
+2. **LOW**: Extract password min length ke constant
 
 ### Not Recommended (Over-Engineering)
-- ❌ Centralize AI settings defaults - Component-specific
-- ❌ Centralize date range presets - Domain-correct, inline acceptable
-- ❌ Extract slider boundaries - UI-only concerns
+- ❌ Centralize currency/language options - Stable, inline acceptable
+- ❌ Refactor useWeeklyReportExport - Works correctly as-is
+- ❌ Extract PDF colors - jsPDF context is different from CSS
 
 ---
 
@@ -470,64 +426,57 @@ The codebase is already well-architected:
 
 | Page | Risk Level | Justification |
 |------|------------|---------------|
-| **Bulk Export** | **LOW** ✅ | Clean workflow hook, System-First compliant, proper tab isolation |
-| **Settings** | **LOW** ✅ | Centralized risk/exchange types, minor backup fallback mismatch |
+| **Profile** | **LOW** ✅ | Hooks clean, data flow correct, minor duplications acceptable |
+| **Notification** | **LOW** ✅ | Realtime works, type color mismatch is visual-only |
 
 ---
 
 ## Key Architecture Highlights
 
-### 1. Exchange Registry - Single Source of Truth ✅
+### 1. User Settings Hook Pattern ✅
 ```text
-types/exchange.ts
-├── EXCHANGE_REGISTRY
-│   ├── binance: { status: 'active', ... }
-│   ├── bybit: { status: 'coming_soon', ... }
-│   └── okx: { status: 'coming_soon', ... }
+use-user-settings.ts
+├── useUserSettings - Settings query with auto-create
+├── useUpdateUserSettings - Partial update mutation
+├── useUserProfile - Profile query with auto-create
+├── useUpdateUserProfile - Profile mutation
+├── useUploadAvatar - Storage + profile mutation
+├── useUpdatePassword - Auth mutation
+├── useDeleteAccount - Auth sign out (TODO: full deletion)
 ```
 
-### 2. Risk Profile Constants - Centralized ✅
+### 2. Notifications Hook Pattern ✅
 ```text
-types/risk.ts
-├── DEFAULT_RISK_PROFILE
-│   ├── risk_per_trade_percent: 2.0
-│   ├── max_daily_loss_percent: 5.0
-│   └── ... other defaults
-├── RISK_THRESHOLDS
-│   ├── warning_percent: 70
-│   └── danger_percent: 90
+use-notifications.ts
+├── useNotifications - List query with limit
+├── useNotificationsRealtime - Supabase channel subscription
+├── useUnreadCount - Derived from query
+├── useMarkAsRead - Single update mutation
+├── useMarkAllAsRead - Bulk update mutation
+├── useClearAllNotifications - Bulk delete mutation
 ```
 
-### 3. Export Workflow - Clean State Machine ✅
-```text
-useBulkExportWorkflow
-├── progress state (per export type)
-├── startExport (request → poll → ready)
-├── downloadFile (trigger download)
-└── resetProgress (clear state)
-```
-
-### 4. Settings Data Flow ✅
-```text
-useUserSettings ← Central hook for all settings
-├── Read: data?.theme, data?.ai_settings, etc.
-├── Write: updateSettings.mutateAsync({ key: value })
-└── Database: user_settings table
-```
+### 3. Data Auto-Creation Pattern ✅
+Both `useUserSettings` dan `useUserProfile` implement auto-creation pattern:
+- Query checks for existing record
+- If `PGRST116` (not found), creates with defaults
+- Returns new record immediately
+- No manual setup required for new users
 
 ---
 
 ## Conclusion
 
-Kedua halaman ini memiliki **arsitektur yang sangat baik**:
+Kedua halaman ini memiliki **arsitektur yang solid**:
 
-1. ✅ `EXCHANGE_REGISTRY` sebagai SSOT untuk exchange metadata
-2. ✅ `DEFAULT_RISK_PROFILE` dan `RISK_THRESHOLDS` untuk risk management
-3. ✅ `useBulkExportWorkflow` sebagai clean state machine
-4. ✅ `useUserSettings` sebagai centralized settings hook
-5. ✅ System-First compliance (Paper mode works when Binance disconnected)
+1. ✅ React Query hooks dengan proper caching
+2. ✅ Supabase realtime untuk notifications
+3. ✅ Auto-creation pattern untuk new users
+4. ✅ Single responsibility di hooks
+5. ✅ Clean data flow dari database ke UI
 
-**Satu-satunya fix yang direkomendasikan:**
-- Sinkronisasi fallback values di `SettingsBackupRestore.tsx` dengan `DEFAULT_RISK_PROFILE` untuk mencegah potential data mismatch saat restore backup.
+**Satu fix yang direkomendasikan:**
+- Sinkronisasi `getTypeColor()` dengan `NotificationType` untuk memastikan semua notification types mendapat warna yang tepat.
 
 Selain itu, kedua halaman sudah **PRODUCTION-READY**.
+
