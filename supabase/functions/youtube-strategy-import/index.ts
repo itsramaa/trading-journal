@@ -278,6 +278,9 @@ serve(async (req) => {
         transcriptPreview = unifiedResult.transcriptPreview || '';
         transcriptWordCount = unifiedResult.transcriptWordCount || transcriptPreview.split(/\s+/).length;
         
+        // Use extracted strategy directly (declare first to avoid reference errors)
+        const unifiedStrategy = unifiedResult.strategy;
+        
         // Build debug info for unified response with enhanced fields
         const unifiedDebugInfo: DebugInfo = {
           transcriptSource,
@@ -314,9 +317,6 @@ serve(async (req) => {
             unifiedDebugInfo
           );
         }
-        
-        // Use extracted strategy directly
-        const unifiedStrategy = unifiedResult.strategy;
         
         // Add IDs to rules if missing
         const normalizedEntryRules = (unifiedStrategy.entryRules || []).map((rule, idx) => ({
