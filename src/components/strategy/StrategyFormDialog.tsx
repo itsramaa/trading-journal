@@ -394,12 +394,12 @@ export function StrategyFormDialog({
                 <div className="grid grid-cols-3 gap-2">
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">Higher TF (Bias)</Label>
-                    <Select value={selectedHigherTimeframe} onValueChange={setSelectedHigherTimeframe}>
+                    <Select value={selectedHigherTimeframe || "none"} onValueChange={(v) => setSelectedHigherTimeframe(v === "none" ? "" : v)}>
                       <SelectTrigger className="h-9">
                         <SelectValue placeholder="—" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">None</SelectItem>
+                        <SelectItem value="none">None</SelectItem>
                         {TIMEFRAME_OPTIONS.map(tf => (
                           <SelectItem key={tf.value} value={tf.value}>
                             {tf.label}
@@ -427,12 +427,12 @@ export function StrategyFormDialog({
 
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">Lower TF (Entry)</Label>
-                    <Select value={selectedLowerTimeframe} onValueChange={setSelectedLowerTimeframe}>
+                    <Select value={selectedLowerTimeframe || "none"} onValueChange={(v) => setSelectedLowerTimeframe(v === "none" ? "" : v)}>
                       <SelectTrigger className="h-9">
                         <SelectValue placeholder="—" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">None</SelectItem>
+                        <SelectItem value="none">None</SelectItem>
                         {TIMEFRAME_OPTIONS.map(tf => (
                           <SelectItem key={tf.value} value={tf.value}>
                             {tf.label}
