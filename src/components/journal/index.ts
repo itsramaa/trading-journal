@@ -11,5 +11,6 @@ export { TradeEnrichmentDrawer } from './TradeEnrichmentDrawer';
 export { ScreenshotUploader } from './ScreenshotUploader';
 export { TradeHistoryInfiniteScroll } from './TradeHistoryInfiniteScroll';
 export { TradeGalleryCard, TradeGalleryCardSkeleton } from './TradeGalleryCard';
+export { BinanceOpenOrdersTable } from './BinanceOpenOrdersTable';
 export type { UnifiedPosition } from './AllPositionsTable';
 export type { PositionsTableProps } from './PositionsTable';
