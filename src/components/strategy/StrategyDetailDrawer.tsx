@@ -1,11 +1,13 @@
 /**
  * StrategyDetailDrawer - Full strategy detail view with Market Fit and Pair Recommendations
+ * Enhanced with Multi-Timeframe Analysis and Professional Trading Fields
  */
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
 import { 
   Clock, 
   TrendingUp, 
@@ -20,7 +22,10 @@ import {
   XCircle,
   AlertCircle,
   Download,
-  Share2
+  Share2,
+  Layers,
+  Timer,
+  Globe,
 } from "lucide-react";
 import { format } from "date-fns";
 import type { TradingStrategy } from "@/hooks/use-trading-strategies";
@@ -31,6 +36,7 @@ import { MarketFitSection } from "./MarketFitSection";
 import { PairRecommendations } from "./PairRecommendations";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
+import { METHODOLOGY_OPTIONS, TRADING_STYLE_OPTIONS, SESSION_OPTIONS } from "@/lib/constants/strategy-config";
 
 // Design system color tokens
 const colorClasses: Record<string, string> = {
@@ -135,14 +141,79 @@ export function StrategyDetailDrawer({
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium">Strategy Details</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
+              {/* Methodology & Style */}
               <div className="flex flex-wrap gap-2">
-                {strategy.timeframe && (
-                  <Badge variant="outline" className="text-xs">
-                    <Clock className="h-3 w-3 mr-1" />
-                    {strategy.timeframe}
+                {strategy.methodology && (
+                  <Badge variant="secondary" className="text-xs">
+                    <Layers className="h-3 w-3 mr-1" />
+                    {METHODOLOGY_OPTIONS.find(m => m.value === strategy.methodology)?.label || strategy.methodology}
                   </Badge>
                 )}
+                {strategy.trading_style && (
+                  <Badge variant="outline" className="text-xs">
+                    <Timer className="h-3 w-3 mr-1" />
+                    {TRADING_STYLE_OPTIONS.find(s => s.value === strategy.trading_style)?.label || strategy.trading_style}
+                  </Badge>
+                )}
+                {strategy.difficulty_level && (
+                  <Badge variant="outline" className="text-xs capitalize">
+                    {strategy.difficulty_level}
+                  </Badge>
+                )}
+              </div>
+
+              <Separator />
+
+              {/* Multi-Timeframe Analysis */}
+              {(strategy.timeframe || strategy.higher_timeframe || strategy.lower_timeframe) && (
+                <div className="space-y-2">
+                  <div className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    Multi-Timeframe Analysis
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    {strategy.higher_timeframe && (
+                      <>
+                        <Badge variant="outline" className="text-xs">{strategy.higher_timeframe}</Badge>
+                        <span className="text-muted-foreground">→</span>
+                      </>
+                    )}
+                    <Badge variant="default" className="text-xs">{strategy.timeframe || 'N/A'}</Badge>
+                    {strategy.lower_timeframe && (
+                      <>
+                        <span className="text-muted-foreground">→</span>
+                        <Badge variant="outline" className="text-xs">{strategy.lower_timeframe}</Badge>
+                      </>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {strategy.higher_timeframe ? 'Higher TF for bias' : ''}{strategy.higher_timeframe && strategy.lower_timeframe ? ', ' : ''}{strategy.lower_timeframe ? 'Lower TF for entry' : ''}
+                  </p>
+                </div>
+              )}
+
+              {/* Session Preference */}
+              {strategy.session_preference && strategy.session_preference.length > 0 && !strategy.session_preference.includes('all') && (
+                <div className="space-y-2">
+                  <div className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                    <Globe className="h-3 w-3" />
+                    Preferred Sessions
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {strategy.session_preference.map(session => (
+                      <Badge key={session} variant="outline" className="text-xs">
+                        {SESSION_OPTIONS.find(s => s.value === session)?.label || session}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <Separator />
+              
+              {/* Core Settings */}
+              <div className="flex flex-wrap gap-2">
                 <Badge variant="outline" className="text-xs">
                   <TrendingUp className="h-3 w-3 mr-1" />
                   {strategy.market_type || 'spot'}

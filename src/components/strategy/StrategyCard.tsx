@@ -148,12 +148,30 @@ export function StrategyCard({ strategy, performance, onEdit, onDelete, onBackte
       
       <CardContent>
         <div className="space-y-3">
+          {/* Methodology & Style badges */}
+          <div className="flex flex-wrap gap-1.5">
+            {strategy.methodology && strategy.methodology !== 'price_action' && (
+              <Badge variant="secondary" className="text-xs uppercase">
+                {strategy.methodology === 'smc' ? 'SMC' : 
+                 strategy.methodology === 'ict' ? 'ICT' : 
+                 strategy.methodology.replace('_', ' ')}
+              </Badge>
+            )}
+            {strategy.trading_style && (
+              <Badge variant="outline" className="text-xs">
+                {strategy.trading_style.replace('_', ' ')}
+              </Badge>
+            )}
+          </div>
+          
           {/* Strategy metadata badges */}
           <div className="flex flex-wrap gap-2">
             {strategy.timeframe && (
               <Badge variant="outline" className="text-xs">
                 <Clock className="h-3 w-3 mr-1" aria-hidden="true" />
+                {strategy.higher_timeframe && `${strategy.higher_timeframe} → `}
                 {strategy.timeframe}
+                {strategy.lower_timeframe && ` → ${strategy.lower_timeframe}`}
               </Badge>
             )}
             <Badge variant="outline" className="text-xs">

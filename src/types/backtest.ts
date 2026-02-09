@@ -184,6 +184,9 @@ export interface YouTubeStrategyDataV2 {
   difficultyLevel: 'beginner' | 'intermediate' | 'advanced';
   riskLevel: 'low' | 'medium' | 'high';
   
+  // NEW: Session preference for professional alignment
+  sessionPreference?: string; // 'all' | 'asian' | 'london' | 'ny'
+  
   // Scores
   confidence: number;      // 0-100 (final calculated)
   automationScore: number; // 0-100
@@ -192,6 +195,14 @@ export interface YouTubeStrategyDataV2 {
   sourceUrl: string;
   sourceTitle: string;
   transcriptLength?: number;
+  
+  // Extraction confidence breakdown (optional)
+  extractionConfidence?: {
+    entryClarity: number;
+    exitClarity: number;
+    riskClarity: number;
+    reproducibility: number;
+  };
 }
 
 // V2 Validation result

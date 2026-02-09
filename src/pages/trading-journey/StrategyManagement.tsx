@@ -32,7 +32,7 @@ import {
   YouTubeStrategyImporter,
 } from "@/components/strategy";
 import { StrategyCloneStatsWidget } from "@/components/dashboard/StrategyCloneStatsWidget";
-import type { EntryRule, ExitRule } from "@/types/strategy";
+import type { EntryRule, ExitRule, TradingMethodology, TradingStyle, TradingSession, DifficultyLevel } from "@/types/strategy";
 
 export default function StrategyManagement() {
   const navigate = useNavigate();
@@ -71,9 +71,15 @@ export default function StrategyManagement() {
     exitRules: ExitRule[];
     color: string;
     timeframe: string;
+    higherTimeframe: string;
+    lowerTimeframe: string;
     marketType: string;
     min_confluences: number;
     min_rr: number;
+    methodology: TradingMethodology;
+    tradingStyle: TradingStyle;
+    sessionPreference: TradingSession[];
+    difficultyLevel: DifficultyLevel | null;
   }) => {
     const tagsArray = values.tags
       ? values.tags.split(',').map(t => t.trim()).filter(Boolean)
@@ -88,12 +94,18 @@ export default function StrategyManagement() {
           tags: tagsArray,
           color: values.color,
           timeframe: values.timeframe as any || undefined,
+          higher_timeframe: values.higherTimeframe as any || undefined,
+          lower_timeframe: values.lowerTimeframe as any || undefined,
           market_type: values.marketType as any || 'spot',
           min_confluences: values.min_confluences,
           min_rr: values.min_rr,
           valid_pairs: values.validPairs,
           entry_rules: values.entryRules,
           exit_rules: values.exitRules,
+          methodology: values.methodology,
+          trading_style: values.tradingStyle,
+          session_preference: values.sessionPreference,
+          difficulty_level: values.difficultyLevel,
         });
       } else {
         await createStrategy.mutateAsync({
@@ -102,12 +114,18 @@ export default function StrategyManagement() {
           tags: tagsArray,
           color: values.color,
           timeframe: values.timeframe as any || undefined,
+          higher_timeframe: values.higherTimeframe as any || undefined,
+          lower_timeframe: values.lowerTimeframe as any || undefined,
           market_type: values.marketType as any || 'spot',
           min_confluences: values.min_confluences,
           min_rr: values.min_rr,
           valid_pairs: values.validPairs,
           entry_rules: values.entryRules,
           exit_rules: values.exitRules,
+          methodology: values.methodology,
+          trading_style: values.tradingStyle,
+          session_preference: values.sessionPreference,
+          difficulty_level: values.difficultyLevel,
         });
       }
       setIsFormOpen(false);

@@ -152,24 +152,64 @@ export function useYouTubeStrategyImport() {
         });
       }
 
+      // Map methodology to proper type
+      const methodologyMap: Record<string, string> = {
+        'smc': 'smc',
+        'ict': 'ict',
+        'price_action': 'price_action',
+        'indicator_based': 'indicator_based',
+        'wyckoff': 'wyckoff',
+        'elliott_wave': 'elliott_wave',
+        'hybrid': 'hybrid',
+      };
+
+      // Infer trading style from primary timeframe
+      const inferTradingStyle = (tf: string | undefined): string => {
+        if (!tf) return 'day_trading';
+        if (['1m', '5m'].includes(tf)) return 'scalping';
+        if (['15m', '1h'].includes(tf)) return 'day_trading';
+        if (['4h', '1d'].includes(tf)) return 'swing';
+        return 'position';
+      };
+
+      // Map session preference
+      const mapSessionPreference = (session: string | undefined): string[] => {
+        if (!session) return ['all'];
+        if (session === 'all' || session === 'any') return ['all'];
+        // Handle comma-separated values
+        const sessions = session.toLowerCase().split(',').map(s => s.trim());
+        const validSessions = ['asian', 'london', 'ny', 'all'];
+        return sessions.filter(s => validSessions.includes(s)).length > 0
+          ? sessions.filter(s => validSessions.includes(s))
+          : ['all'];
+      };
+
       const { data, error } = await supabase
         .from("trading_strategies")
         .insert([{
           user_id: user.id,
           name: strategy.strategyName,
           description: `${strategy.description}\n\nMethodology: ${strategy.methodology.toUpperCase()}\nConfidence: ${strategy.confidence}%`,
+          // Multi-Timeframe Analysis
           timeframe: strategy.timeframeContext.primary,
+          higher_timeframe: strategy.timeframeContext.higherTF || null,
+          lower_timeframe: strategy.timeframeContext.lowerTF || null,
           market_type: 'futures',
           entry_rules: JSON.parse(JSON.stringify(entryRules)),
           exit_rules: JSON.parse(JSON.stringify(exitRules)),
           valid_pairs: strategy.suitablePairs,
           min_confluences: Math.min(strategy.entryRules.filter(r => r.is_mandatory).length, 4),
           min_rr: strategy.riskManagement?.riskRewardRatio || 1.5,
+          // NEW: Professional trading fields
+          methodology: methodologyMap[strategy.methodology] || 'price_action',
+          trading_style: inferTradingStyle(strategy.timeframeContext.primary),
+          session_preference: mapSessionPreference(strategy.sessionPreference),
+          difficulty_level: strategy.difficultyLevel || 'intermediate',
+          // YouTube source fields
           source: 'youtube',
           source_url: strategy.sourceUrl,
           validation_score: strategy.confidence,
           automation_score: strategy.automationScore,
-          difficulty_level: strategy.difficultyLevel,
           tags: [
             strategy.methodology,
             ...strategy.conceptsUsed.slice(0, 3),
