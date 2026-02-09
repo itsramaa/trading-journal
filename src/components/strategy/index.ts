@@ -9,6 +9,7 @@ export { StrategyValidationBadge } from './StrategyValidationBadge';
 export { EntryRulesBuilder } from './EntryRulesBuilder';
 export { ExitRulesBuilder } from './ExitRulesBuilder';
 export { YouTubeStrategyImporter } from './YouTubeStrategyImporter';
+export { YouTubeTranscriptGuide } from './YouTubeTranscriptGuide';
 export { BacktestRunner } from './BacktestRunner';
 export { BacktestComparison } from './BacktestComparison';
 export { BacktestResults } from './BacktestResults';

@@ -130,9 +130,11 @@ export type SMCConcept =
 // Structured entry rule (V2 - type-safe)
 export interface StructuredEntryRule {
   id: string;
-  type: 'smc' | 'ict' | 'indicator' | 'price_action' | 'liquidity' | 'structure';
+  type: 'smc' | 'ict' | 'indicator' | 'price_action' | 'liquidity' | 'structure' | 'time' | 'confluence';
   concept: string;       // e.g., "order_block", "rsi_divergence"
   condition: string;     // Observable & testable condition
+  parameters?: Record<string, unknown>;
+  sourceQuote?: string;  // Direct quote from transcript for evidence
   timeframe?: string;
   is_mandatory: boolean;
 }
@@ -140,10 +142,13 @@ export interface StructuredEntryRule {
 // Structured exit rule (V2)
 export interface StructuredExitRule {
   id: string;
-  type: 'take_profit' | 'stop_loss' | 'trailing_stop' | 'time_based';
-  value: number | null;
-  unit: 'percent' | 'atr' | 'rr' | 'pips' | null;
-  concept: string;
+  type: 'take_profit' | 'stop_loss' | 'trailing_stop' | 'time_based' | 'fixed_target' | 'risk_reward' | 'structure' | 'indicator' | 'trailing';
+  value?: number | null;
+  unit?: 'percent' | 'atr' | 'rr' | 'pips' | null;
+  description?: string;
+  parameters?: Record<string, unknown>;
+  sourceQuote?: string;  // Direct quote from transcript for evidence
+  concept?: string;
 }
 
 // Import status enum
