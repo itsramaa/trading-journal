@@ -105,8 +105,9 @@ src/components/
 │   ├── EntryRulesBuilder.tsx
 │   ├── ExitRulesBuilder.tsx
 │   ├── YouTubeStrategyImporter.tsx
-│   ├── BacktestRunner.tsx
-│   ├── BacktestResults.tsx
+│   ├── BacktestRunner.tsx         # Enhanced with MTFA context
+│   ├── BacktestResults.tsx        # Tabs: Equity, Sessions, Trades
+│   ├── BacktestSessionBreakdown.tsx # NEW: Session performance analysis
 │   ├── BacktestComparison.tsx
 │   ├── MarketFitSection.tsx
 │   └── PairRecommendations.tsx

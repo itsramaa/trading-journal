@@ -175,19 +175,28 @@ CREATE TABLE trading_strategies (
   entry_rules JSONB,
   exit_rules JSONB,
   
-  -- Configuration
-  timeframe TEXT,
+  -- Timeframe Configuration (MTFA)
+  timeframe TEXT,               -- Primary execution TF
+  higher_timeframe TEXT,        -- Bias/trend TF
+  lower_timeframe TEXT,         -- Entry precision TF
+  
+  -- Trading Configuration
   market_type TEXT,
   valid_pairs TEXT[],
   min_confluences INTEGER,
   min_rr NUMERIC,
   
+  -- Professional Trading Fields (Enhanced 2026-02)
+  methodology TEXT,             -- indicator_based, price_action, smc, ict, wyckoff, elliott_wave, hybrid
+  trading_style TEXT,           -- scalping, day_trading, swing, position
+  session_preference TEXT[],    -- ['all'], ['asian'], ['london'], ['ny']
+  difficulty_level TEXT,        -- beginner, intermediate, advanced
+  
   -- Metadata
   color TEXT,
   tags TEXT[],
-  source TEXT,
-  source_url TEXT,
-  difficulty_level TEXT,
+  source TEXT,                  -- 'youtube', 'manual', 'cloned'
+  source_url TEXT,              -- YouTube URL if imported
   
   -- Sharing
   is_shared BOOLEAN DEFAULT false,
@@ -195,8 +204,8 @@ CREATE TABLE trading_strategies (
   clone_count INTEGER DEFAULT 0,
   last_cloned_at TIMESTAMPTZ,
   
-  -- Scoring
-  validation_score NUMERIC,
+  -- Scoring (AI)
+  validation_score NUMERIC,     -- 0-100 extraction confidence
   automation_score NUMERIC,
   
   -- Status
@@ -205,9 +214,34 @@ CREATE TABLE trading_strategies (
   version INTEGER DEFAULT 1,
   
   created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  deleted_at TIMESTAMPTZ        -- Soft delete
 );
 ```
+
+**MTFA (Multi-Timeframe Analysis)**:
+- `higher_timeframe`: Used for trend/bias identification (e.g., 4h, 1d)
+- `timeframe`: Primary execution timeframe (e.g., 15m, 1h)
+- `lower_timeframe`: Entry precision (e.g., 5m, 1m)
+
+**Methodology Options**:
+| Value | Description |
+|-------|-------------|
+| `indicator_based` | Moving averages, RSI, MACD, etc. |
+| `price_action` | Candlestick patterns, S/R levels |
+| `smc` | Smart Money Concepts |
+| `ict` | ICT methodology |
+| `wyckoff` | Wyckoff method |
+| `elliott_wave` | Elliott Wave theory |
+| `hybrid` | Combination of methods |
+
+**Trading Style Options**:
+| Value | Typical Timeframe | Hold Time |
+|-------|-------------------|-----------|
+| `scalping` | 1m-5m | Minutes |
+| `day_trading` | 5m-1h | Hours |
+| `swing` | 4h-1d | Days-Weeks |
+| `position` | 1d-1w | Weeks-Months |
 
 ### risk_profiles
 

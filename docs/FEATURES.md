@@ -198,6 +198,24 @@ Strategy library untuk define, test, dan share trading strategies.
 | Cloning | Clone shared strategies |
 | Backtesting | Test dengan real Klines |
 
+### Strategy Schema (Enhanced)
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Strategy name |
+| `description` | string | Strategy description |
+| `methodology` | enum | `indicator_based`, `price_action`, `smc`, `ict`, `wyckoff`, `elliott_wave`, `hybrid` |
+| `trading_style` | enum | `scalping`, `day_trading`, `swing`, `position` |
+| `timeframe` | string | Primary execution timeframe |
+| `higher_timeframe` | string | Bias/trend timeframe (MTFA) |
+| `lower_timeframe` | string | Entry precision timeframe (MTFA) |
+| `session_preference` | array | `['all']`, `['asian']`, `['london']`, `['ny']` |
+| `difficulty_level` | enum | `beginner`, `intermediate`, `advanced` |
+| `entry_rules` | JSONB | Entry criteria |
+| `exit_rules` | JSONB | Exit criteria |
+| `valid_pairs` | array | Suitable trading pairs |
+| `min_confluences` | number | Minimum required confluences |
+| `min_rr` | number | Minimum Risk:Reward ratio |
+
 ### Entry Rule Types
 1. `indicator` - Technical indicator
 2. `price` - Price action pattern
@@ -205,6 +223,18 @@ Strategy library untuk define, test, dan share trading strategies.
 4. `trend` - Trend confirmation
 5. `confluence` - Multiple conditions
 6. `custom` - Custom rule
+
+### YouTube Strategy Import
+| Feature | Description |
+|---------|-------------|
+| AI Extraction | Gemini 2.5 Flash mengekstrak rules dari transcript |
+| MTFA Detection | Auto-detect Higher TF, Primary TF, Lower TF |
+| Session Preference | Extract preferred trading sessions |
+| Trading Style | Infer dari timeframe atau explicit extraction |
+| Methodology | Detect ICT, SMC, Price Action, Indicator-based, dll |
+| Confidence Score | 0-100 extraction confidence |
+| Actionability Gate | Block save jika rules tidak lengkap |
+| Source Quote | Setiap rule include quote dari transcript |
 
 ### Components
 | Component | Purpose |
@@ -224,7 +254,7 @@ Strategy library untuk define, test, dan share trading strategies.
 ## Backtesting
 
 ### Purpose
-Test strategies dengan historical data.
+Test strategies dengan historical data dan analisis session-based performance.
 
 ### Features
 - Real Binance Klines data
@@ -232,13 +262,43 @@ Test strategies dengan historical data.
 - Equity curve visualization
 - Trade-by-trade results
 - Comparison mode
+- **Session Performance Breakdown** (Sydney, Tokyo, London, NY analysis)
+- **MTFA Context Display** (Higher TF → Primary TF → Lower TF chain)
+- **Auto-Apply Strategy Settings** (session filter, methodology from strategy)
 
 ### Components
 | Component | Purpose |
 |-----------|---------|
-| `BacktestRunner` | Backtest execution |
-| `BacktestResults` | Results display |
+| `BacktestRunner` | Backtest execution with strategy context |
+| `BacktestResults` | Results display with tabs (Equity, Sessions, Trades) |
+| `BacktestSessionBreakdown` | Session performance analysis with charts |
 | `BacktestComparison` | Compare multiple runs |
+
+### Session Breakdown Features
+| Feature | Description |
+|---------|-------------|
+| Best Session Card | Session dengan P&L tertinggi |
+| Most Active Card | Session dengan trade terbanyak |
+| Highest Win Rate | Session dengan win rate tertinggi |
+| P&L Bar Chart | Horizontal bar chart per session |
+| Distribution Pie | Trade distribution per session |
+| Detailed Stats | Win/Loss, Avg P&L, Profit Factor per session |
+
+### Backtest Result Tabs
+| Tab | Content |
+|-----|---------|
+| Equity Curve | Line chart equity progression |
+| Sessions | Session performance breakdown |
+| Trade List | Individual trade entries |
+
+### Strategy Context in Backtest
+```typescript
+// Auto-applied from strategy
+- session_preference → Session filter
+- methodology → Display badge
+- higher_timeframe → MTFA chain display
+- lower_timeframe → MTFA chain display
+```
 
 ---
 
