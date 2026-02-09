@@ -1,143 +1,227 @@
 
 
-# Plan: Enhanced Debug UI untuk YouTube Strategy Import
+# Plan: Unified Gemini YouTube Strategy Extraction
 
-## Masalah yang Ditemukan
+## Problem Analysis
 
-Dari logs edge function:
+Dari hasil testing sebelumnya:
+1. **Gemini Grounding** memberikan **summary/analysis** bukan raw transcript
+2. **Pipeline 3-step saat ini**:
+   - Step 1: Transcript acquisition → Gemini kadang return konten tidak relevan
+   - Step 2: Methodology detection → Gagal karena input bukan trading content
+   - Step 3: Strategy extraction → Tidak dijalankan karena Step 2 gagal
+
+## Solution: Single-Pass Unified Extraction
+
+Gabungkan semua step dalam **satu prompt** yang komprehensif. Jika Gemini bisa mengakses konten YouTube, ia akan langsung extract strategy. Jika tidak, kita fallback ke manual transcript.
+
+### New Flow Architecture
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│                    YouTube URL Input                         │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│ Option A: Unified Gemini Extraction (NEW)                    │
+│ - Single prompt dengan enhanced prompts                      │
+│ - Langsung methodology + entry/exit + risk management        │
+│ - Return structured JSON                                     │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                 ┌────────────┴────────────┐
+                 │                         │
+                 ▼                         ▼
+         ┌──────────────┐         ┌──────────────┐
+         │   SUCCESS    │         │    FAILED    │
+         │ JSON dengan  │         │ GROUNDING_   │
+         │ strategy     │         │ UNAVAILABLE  │
+         └──────────────┘         └──────────────┘
+                                          │
+                                          ▼
+                              ┌─────────────────────────┐
+                              │ Fallback: YouTube API   │
+                              │ atau Manual Transcript  │
+                              └─────────────────────────┘
+                                          │
+                                          ▼
+                              ┌─────────────────────────┐
+                              │ Traditional 2-step:     │
+                              │ 1. Methodology detect   │
+                              │ 2. Strategy extract     │
+                              └─────────────────────────┘
 ```
-[Transcript] Gemini grounding SUCCESS
-[Transcript] Final source: gemini, words: 356
+
+---
+
+## Implementation Details
+
+### 1. Create New Unified Prompt (`gemini-unified-extract.ts`)
+
+Buat file baru yang menggabungkan:
+- Methodology detection logic dari `prompts.ts`
+- Strategy extraction logic dari `prompts.ts`
+- Transcription request jika URL provided
+
+**Unified Prompt Structure:**
+```typescript
+const UNIFIED_YOUTUBE_EXTRACTION_PROMPT = `
+You are an expert trading strategy analyst with access to YouTube content.
+
+## TASK
+Analyze this YouTube video and extract the complete trading strategy.
+
+YouTube URL: {url}
+
+## STEP 1: ACCESS VIDEO CONTENT
+Access the video content and identify all spoken trading-related information.
+If you cannot access the video, respond with exactly: {"error": "CANNOT_ACCESS_VIDEO"}
+
+## STEP 2: METHODOLOGY CLASSIFICATION
+[Include full METHODOLOGY_DETECTION_PROMPT content here]
+
+## STEP 3: STRATEGY EXTRACTION  
+[Include full STRATEGY_EXTRACTION_PROMPT content here]
+
+## OUTPUT FORMAT
+Return a single JSON object:
+{
+  "canAccessVideo": true,
+  "transcriptPreview": "<first 500 chars of what you heard>",
+  "methodology": {...},
+  "strategy": {...}
+}
+`;
 ```
 
-Transcript **berhasil diambil** (356 words), tapi methodology detection menghasilkan **confidence 0%**. Kemungkinan:
-1. Gemini Grounding tidak mengembalikan transcript asli, tapi summary/analisis
-2. Transcript terlalu pendek atau tidak mengandung trading terminology
-3. AI gagal parse JSON response
+### 2. Update Edge Function (`index.ts`)
 
-## Solusi: Tampilkan Debug Info Lengkap
-
-### 1. Update Edge Function Response
-
-Tambah field `debug` di response untuk transparansi:
+Modify flow:
+1. **If URL provided** → Try unified extraction first
+2. **If unified fails** → Fallback to YouTube caption API + traditional 2-step
+3. **If manual transcript** → Use traditional 2-step (no change)
 
 ```typescript
+// New function signature
+async function unifiedGeminiExtraction(
+  youtubeUrl: string,
+  videoId: string,
+  apiKey: string
+): Promise<UnifiedExtractionResult>
+```
+
+### 3. Update Debug Info
+
+Tambah step baru di debug:
+```typescript
 {
-  status: "blocked" | "success" | ...,
-  reason: "...",
-  strategy: {...},
-  validation: {...},
-  // NEW
-  debug: {
-    transcriptSource: "gemini" | "youtube_captions" | "manual",
-    transcriptLength: 356,
-    transcriptPreview: "First 500 chars of transcript...",
-    methodologyRaw: {
-      methodology: "unknown",
-      confidence: 0,
-      evidence: [],
-      reasoning: "No trading-specific terminology found"
-    },
-    processingSteps: [
-      { step: "transcript_acquisition", status: "success", details: "Gemini grounding" },
-      { step: "quality_check", status: "success", details: "Has actionable content" },
-      { step: "methodology_detection", status: "failed", details: "Confidence 0%" }
-    ]
+  step: 'unified_extraction',
+  status: 'success' | 'failed',
+  details: 'Gemini unified extraction with enhanced prompts'
+}
+```
+
+---
+
+## Technical Specifications
+
+### Files to Create/Modify
+
+| File | Action | Description |
+|------|--------|-------------|
+| `supabase/functions/youtube-strategy-import/gemini-unified-extract.ts` | **CREATE** | New unified extraction logic |
+| `supabase/functions/youtube-strategy-import/index.ts` | **MODIFY** | Integrate unified extraction as primary method |
+| `supabase/functions/youtube-strategy-import/gemini-transcribe.ts` | **KEEP** | Fallback if unified fails |
+
+### New Interface Definition
+
+```typescript
+export interface UnifiedExtractionResult {
+  success: boolean;
+  canAccessVideo: boolean;
+  transcriptPreview?: string;
+  transcriptWordCount?: number;
+  methodology?: {
+    methodology: string;
+    confidence: number;
+    evidence: string[];
+    reasoning: string;
+  };
+  strategy?: ExtractedStrategy;
+  error?: string;
+}
+```
+
+### Prompt Merge Strategy
+
+1. **Inject full enhanced prompts** ke dalam unified prompt
+2. **Temperature: 0.2** (low for accuracy)
+3. **Model: gemini-2.5-pro** (better grounding capability)
+4. **Require structured JSON output** dengan validation markers
+
+---
+
+## Validation & Quality Checks
+
+### Success Criteria for Unified Extraction:
+1. `canAccessVideo: true`
+2. `methodology.confidence >= 60`
+3. `strategy.entryRules.length >= 1`
+4. JSON parseable
+
+### Fallback Triggers:
+1. `canAccessVideo: false`
+2. JSON parse error
+3. API error (429, 402, etc.)
+4. Confidence < 60 (ambiguous strategy)
+
+---
+
+## Example Unified Response
+
+```json
+{
+  "canAccessVideo": true,
+  "transcriptPreview": "Okay jadi hari ini kita akan belajar tentang...",
+  "methodology": {
+    "methodology": "smc",
+    "confidence": 85,
+    "evidence": [
+      "order block di H4",
+      "FVG sebagai entry point",
+      "BOS sebagai konfirmasi"
+    ],
+    "reasoning": "Strategy clearly uses SMC concepts..."
+  },
+  "strategy": {
+    "strategyName": "SMC Order Block Strategy",
+    "description": "...",
+    "entryRules": [...],
+    "exitRules": [...],
+    "riskManagement": {...}
   }
 }
 ```
 
-### 2. Update Frontend Types
+---
 
-Tambah `YouTubeImportDebugInfo` interface di `src/types/backtest.ts`:
+## Benefits
 
-```typescript
-export interface YouTubeImportDebugStep {
-  step: string;
-  status: 'success' | 'warning' | 'failed' | 'skipped';
-  details: string;
-}
-
-export interface YouTubeImportDebugInfo {
-  transcriptSource: 'gemini' | 'youtube_captions' | 'manual';
-  transcriptLength: number;
-  transcriptPreview: string;
-  methodologyRaw?: {
-    methodology: string;
-    confidence: number;
-    evidence: string[];
-    reasoning?: string;
-  };
-  processingSteps: YouTubeImportDebugStep[];
-}
-```
-
-### 3. Update Frontend Component
-
-Tambah expandable "Debug Info" section di `YouTubeStrategyImporter.tsx`:
-
-- Tampilkan **Processing Steps** sebagai timeline
-- Tampilkan **Transcript Preview** (first 500 chars)
-- Tampilkan **Methodology Detection Raw Result**
-- Gunakan Collapsible/Accordion untuk tidak mengganggu UX normal
-
-```text
-┌──────────────────────────────────────────┐
-│ ⚠️ Strategy blocked (0% confidence)       │
-│                                          │
-│ [▼ Show Debug Info]                      │
-│ ┌────────────────────────────────────┐   │
-│ │ Processing Steps:                   │   │
-│ │ ✓ Transcript: gemini (356 words)   │   │
-│ │ ✓ Quality Check: passed            │   │
-│ │ ✗ Methodology: 0% confidence       │   │
-│ │                                    │   │
-│ │ Transcript Preview:                │   │
-│ │ "Video ini membahas tentang..."    │   │
-│ │                                    │   │
-│ │ Methodology Detection Result:      │   │
-│ │ { evidence: [], reasoning: "..." } │   │
-│ └────────────────────────────────────┘   │
-└──────────────────────────────────────────┘
-```
-
-### 4. Update Hook
-
-Update `use-youtube-strategy-import.ts` untuk menyimpan debug info dari response.
+1. **Efisiensi**: Satu API call vs 2-3 calls
+2. **Akurasi**: Full context dalam satu prompt
+3. **Konsistensi**: Tidak ada data loss antar step
+4. **Debugging**: Unified response easier to trace
+5. **Fallback ready**: Traditional pipeline tetap ada sebagai backup
 
 ---
 
-## Technical Implementation
+## Risk Mitigation
 
-### Files to Modify
-
-| File | Change |
-|------|--------|
-| `supabase/functions/youtube-strategy-import/index.ts` | Tambah `debug` field di response |
-| `src/types/backtest.ts` | Tambah `YouTubeImportDebugInfo` interface |
-| `src/hooks/use-youtube-strategy-import.ts` | Handle debug info dari response |
-| `src/components/strategy/YouTubeStrategyImporter.tsx` | Render debug info UI |
-
-### Edge Function Changes
-
-1. Capture transcript preview (first 500 chars)
-2. Capture raw methodology detection result (termasuk saat confidence rendah)
-3. Track each processing step dengan status
-4. **Selalu return debug info** (baik success maupun blocked/failed)
-
-### UI Changes
-
-1. Tambah `Collapsible` component untuk debug section
-2. Tampilkan transcript preview dalam `<pre>` atau code block
-3. Tampilkan methodology result sebagai JSON
-4. Gunakan color-coded badges untuk step status
-
----
-
-## Benefit
-
-1. **Transparansi**: User bisa lihat exactly what happened
-2. **Debugging**: Mudah identify kenapa extraction gagal
-3. **Trust**: User paham bahwa sistem tidak arbitrary
-4. **Improvement**: Data untuk improve prompt/logic ke depan
+| Risk | Mitigation |
+|------|-----------|
+| Gemini API tidak support grounding | Fallback to traditional pipeline |
+| Response too long | Limit to first 10k chars of video content |
+| JSON parse error | Robust parsing with markdown cleanup |
+| Low confidence result | Return for manual review, don't auto-save |
 
