@@ -22,6 +22,10 @@ import {
   transcribeWithGemini,
   transcribeWithGeminiGrounding,
 } from "./gemini-transcribe.ts";
+import {
+  unifiedGeminiExtraction,
+  type UnifiedExtractionResult,
+} from "./gemini-unified-extract.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -233,16 +237,190 @@ serve(async (req) => {
         });
       }
 
-      console.log(`[Transcript] Processing video ID: ${videoId}`);
+      console.log(`[Import] Processing video ID: ${videoId}`);
 
       // ================================================================
-      // EXPERIMENT: Try Gemini direct transcription first
+      // PRIMARY: Try Unified Gemini Extraction (single-pass)
+      // This combines transcript access + methodology + strategy in one call
       // ================================================================
-      console.log('[Transcript] Attempting Gemini direct transcription...');
+      console.log('[Import] Attempting unified Gemini extraction...');
+      const unifiedResult = await unifiedGeminiExtraction(url, videoId, LOVABLE_API_KEY);
+      
+      if (unifiedResult.success && unifiedResult.methodology && unifiedResult.strategy) {
+        console.log(`[Import] Unified extraction SUCCESS - ${unifiedResult.methodology.methodology} @ ${unifiedResult.methodology.confidence}%`);
+        
+        // Unified extraction succeeded - use the results directly
+        debugSteps.push({
+          step: 'unified_extraction',
+          status: 'success',
+          details: `Single-pass extraction: ${unifiedResult.methodology.methodology} @ ${unifiedResult.methodology.confidence}% confidence`,
+        });
+        
+        transcriptSource = 'gemini';
+        transcriptPreview = unifiedResult.transcriptPreview || '';
+        transcriptWordCount = unifiedResult.transcriptWordCount || transcriptPreview.split(/\s+/).length;
+        
+        // Build debug info for unified response
+        const unifiedDebugInfo: DebugInfo = {
+          transcriptSource,
+          transcriptLength: transcriptWordCount,
+          transcriptPreview,
+          methodologyRaw: unifiedResult.methodology,
+          processingSteps: debugSteps,
+        };
+        
+        // Check confidence threshold
+        if (unifiedResult.methodology.confidence < 60) {
+          debugSteps.push({
+            step: 'methodology_validation',
+            status: 'failed',
+            details: `Confidence too low: ${unifiedResult.methodology.confidence}%`,
+          });
+          return errorResponse(
+            'blocked',
+            `Unable to confidently determine trading methodology (${unifiedResult.methodology.confidence}% confidence). The video may not describe a clear trading strategy.`,
+            undefined,
+            unifiedDebugInfo
+          );
+        }
+        
+        // Use extracted strategy directly
+        const unifiedStrategy = unifiedResult.strategy;
+        
+        // Add IDs to rules if missing
+        const normalizedEntryRules = (unifiedStrategy.entryRules || []).map((rule, idx) => ({
+          ...rule,
+          id: `entry_${idx}`,
+          is_mandatory: idx < 2, // First 2 rules are mandatory
+        }));
+        
+        const normalizedExitRules = (unifiedStrategy.exitRules || []).map((rule, idx) => ({
+          ...rule,
+          id: `exit_${idx}`,
+        }));
+        
+        // Calculate actionability
+        const hasEntry = normalizedEntryRules.length > 0;
+        const hasExit = normalizedExitRules.length > 0;
+        const hasRiskManagement = !!(
+          unifiedStrategy.riskManagement?.stopLoss ||
+          unifiedStrategy.riskManagement?.positionSizing ||
+          unifiedStrategy.riskManagement?.riskRewardRatio
+        );
+        
+        const actionabilityScore = (hasEntry ? 40 : 0) + (hasExit ? 30 : 0) + (hasRiskManagement ? 30 : 0);
+        const isActionable = hasEntry && (hasExit || hasRiskManagement);
+        
+        const missingElements: string[] = [];
+        if (!hasEntry) missingElements.push('entry_rules');
+        if (!hasExit) missingElements.push('exit_rules');
+        if (!hasRiskManagement) missingElements.push('risk_management');
+        
+        // Calculate final confidence
+        const extractionConfidence = unifiedStrategy.extractionConfidence?.overall || 70;
+        const finalConfidence = Math.round(
+          (unifiedResult.methodology.confidence * 0.4) +
+          (actionabilityScore * 0.3) +
+          (extractionConfidence * 0.3)
+        );
+        
+        // Determine status
+        let importStatus: ImportStatus = 'success';
+        if (finalConfidence < 50 || !isActionable) {
+          importStatus = 'blocked';
+        } else if (finalConfidence < 70 || missingElements.length > 1) {
+          importStatus = 'review';
+        }
+        
+        // Calculate automation score
+        let automationScore = 50;
+        if (normalizedEntryRules.length >= 2) automationScore += 10;
+        if (normalizedEntryRules.length >= 3) automationScore += 5;
+        if (normalizedExitRules.length > 0) automationScore += 10;
+        if (unifiedResult.methodology.methodology === 'indicator_based') automationScore += 15;
+        if (unifiedResult.methodology.methodology === 'smc' || unifiedResult.methodology.methodology === 'ict') automationScore -= 10;
+        automationScore = Math.max(0, Math.min(100, automationScore));
+        
+        debugSteps.push({
+          step: 'validation',
+          status: isActionable ? 'success' : 'warning',
+          details: `Actionability: ${actionabilityScore}%, ${missingElements.length} missing elements`,
+        });
+        
+        // Build response
+        const response = {
+          status: importStatus,
+          reason: importStatus === 'success' 
+            ? 'Strategy extracted successfully via unified Gemini analysis'
+            : importStatus === 'review'
+            ? 'Strategy needs review - some elements may be incomplete'
+            : 'Strategy extraction incomplete - missing key elements',
+          strategy: {
+            strategyName: unifiedStrategy.strategyName || 'Imported Strategy',
+            description: unifiedStrategy.description || '',
+            methodology: unifiedResult.methodology.methodology,
+            methodologyConfidence: unifiedResult.methodology.confidence,
+            methodologyReasoning: unifiedResult.methodology.reasoning || '',
+            
+            conceptsUsed: unifiedStrategy.conceptsUsed || [],
+            indicatorsUsed: unifiedStrategy.indicatorsUsed || [],
+            patternsUsed: unifiedStrategy.patternsUsed || [],
+            
+            entryRules: normalizedEntryRules,
+            exitRules: normalizedExitRules,
+            
+            riskManagement: unifiedStrategy.riskManagement || {},
+            timeframeContext: unifiedStrategy.timeframeContext || { primary: '1h' },
+            
+            suitablePairs: unifiedStrategy.suitablePairs || [],
+            difficultyLevel: unifiedStrategy.difficultyLevel || 'intermediate',
+            riskLevel: unifiedStrategy.riskLevel || 'medium',
+            
+            confidence: finalConfidence,
+            automationScore,
+            
+            additionalFilters: unifiedStrategy.additionalFilters || [],
+            notes: unifiedStrategy.notes || [],
+            extractionConfidence: unifiedStrategy.extractionConfidence || null,
+            
+            sourceUrl: url,
+            sourceTitle: '',
+            transcriptLength: transcriptWordCount,
+          },
+          validation: {
+            isActionable,
+            hasEntry,
+            hasExit,
+            hasRiskManagement,
+            warnings: [],
+            missingElements,
+            score: actionabilityScore,
+          },
+          debug: unifiedDebugInfo,
+        };
+        
+        return new Response(
+          JSON.stringify(response),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      
+      // ================================================================
+      // FALLBACK: Unified extraction failed - try traditional pipeline
+      // ================================================================
+      console.log(`[Import] Unified extraction failed: ${unifiedResult.error || 'Unknown error'}`);
+      debugSteps.push({
+        step: 'unified_extraction',
+        status: 'failed',
+        details: unifiedResult.error || 'Gemini could not access video content',
+      });
+      
+      // Try Gemini direct transcription
+      console.log('[Import] Fallback: Attempting Gemini direct transcription...');
       const geminiResult = await transcribeWithGemini(url, LOVABLE_API_KEY);
       
       if (geminiResult.success && geminiResult.transcript) {
-        console.log(`[Transcript] Gemini transcription SUCCESS via ${geminiResult.method}`);
+        console.log(`[Import] Gemini transcription SUCCESS via ${geminiResult.method}`);
         transcript = geminiResult.transcript;
         transcriptWordCount = transcript.split(/\s+/).filter(w => w.length > 0).length;
         transcriptSource = 'gemini';
@@ -254,78 +432,48 @@ serve(async (req) => {
           details: `Gemini direct: ${transcriptWordCount} words`,
         });
       } else {
-        console.log(`[Transcript] Gemini failed: ${geminiResult.error}`);
+        console.log(`[Import] Gemini direct failed: ${geminiResult.error}`);
         debugSteps.push({
           step: 'gemini_direct',
           status: 'failed',
           details: geminiResult.error || 'Unable to fetch transcript',
         });
         
-        // Try grounding approach as fallback
-        console.log('[Transcript] Trying Gemini grounding approach...');
-        const groundingResult = await transcribeWithGeminiGrounding(url, videoId, LOVABLE_API_KEY);
+        // Fallback to YouTube caption API
+        console.log('[Import] Fallback: Trying YouTube caption API...');
+        const transcriptResult = await fetchYouTubeTranscript(videoId);
+        videoTitle = transcriptResult.videoTitle;
         
-        if (groundingResult.success && groundingResult.transcript) {
-          console.log(`[Transcript] Gemini grounding SUCCESS`);
-          transcript = groundingResult.transcript;
-          transcriptWordCount = transcript.split(/\s+/).filter(w => w.length > 0).length;
-          transcriptSource = 'gemini';
-          transcriptPreview = transcript.slice(0, 500);
-          isAutoGenerated = false;
+        if (!transcriptResult.success || !transcriptResult.transcript) {
           debugSteps.push({
             step: 'transcript_acquisition',
-            status: 'success',
-            details: `Gemini grounding: ${transcriptWordCount} words`,
-          });
-        } else {
-          console.log(`[Transcript] Gemini grounding failed: ${groundingResult.error}`);
-          debugSteps.push({
-            step: 'gemini_grounding',
             status: 'failed',
-            details: groundingResult.error || 'Unable to fetch transcript via grounding',
+            details: transcriptResult.error || 'All transcript methods failed',
           });
           
-          // Fallback to YouTube caption API
-          console.log('[Transcript] Falling back to YouTube caption API...');
-          const transcriptResult = await fetchYouTubeTranscript(videoId);
-          videoTitle = transcriptResult.videoTitle;
-          
-          if (!transcriptResult.success || !transcriptResult.transcript) {
-            // All methods failed - provide helpful error
-            const geminiNote = geminiResult.error?.includes('cannot directly access') 
-              ? 'Gemini API tidak memiliki akses langsung ke YouTube seperti Gemini Web App. '
-              : '';
-            
-            debugSteps.push({
-              step: 'transcript_acquisition',
-              status: 'failed',
-              details: transcriptResult.error || 'All transcript methods failed',
-            });
-            
-            return errorResponse(
-              'failed', 
-              `${geminiNote}${transcriptResult.error || 'Unable to retrieve video transcript.'} Please copy the transcript from YouTube using the guide provided.`,
-              videoTitle,
-              {
-                transcriptSource: 'unknown',
-                transcriptLength: 0,
-                transcriptPreview: '',
-                processingSteps: debugSteps,
-              }
-            );
-          }
-
-          transcript = transcriptResult.transcript;
-          isAutoGenerated = transcriptResult.isAutoGenerated || false;
-          transcriptWordCount = transcript.split(/\s+/).filter(w => w.length > 0).length;
-          transcriptSource = 'youtube_captions';
-          transcriptPreview = transcript.slice(0, 500);
-          debugSteps.push({
-            step: 'transcript_acquisition',
-            status: 'success',
-            details: `YouTube captions${isAutoGenerated ? ' (auto-generated)' : ''}: ${transcriptWordCount} words`,
-          });
+          return errorResponse(
+            'failed', 
+            `Unable to retrieve video transcript. ${transcriptResult.error || ''} Please copy the transcript from YouTube manually.`,
+            videoTitle,
+            {
+              transcriptSource: 'unknown',
+              transcriptLength: 0,
+              transcriptPreview: '',
+              processingSteps: debugSteps,
+            }
+          );
         }
+
+        transcript = transcriptResult.transcript;
+        isAutoGenerated = transcriptResult.isAutoGenerated || false;
+        transcriptWordCount = transcript.split(/\s+/).filter(w => w.length > 0).length;
+        transcriptSource = 'youtube_captions';
+        transcriptPreview = transcript.slice(0, 500);
+        debugSteps.push({
+          step: 'transcript_acquisition',
+          status: 'success',
+          details: `YouTube captions${isAutoGenerated ? ' (auto-generated)' : ''}: ${transcriptWordCount} words`,
+        });
       }
     } else {
       debugSteps.push({
