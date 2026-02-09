@@ -26,7 +26,7 @@ import {
   Clock, 
 } from "lucide-react";
 import { useTradeEntries, useDeleteTradeEntry, useClosePosition, useUpdateTradeEntry, TradeEntry } from "@/hooks/use-trade-entries";
-import { useBinancePositions, useBinanceBalance, useBinanceConnectionStatus } from "@/features/binance";
+import { useBinancePositions, useBinanceBalance, useBinanceConnectionStatus, useBinanceOpenOrders } from "@/features/binance";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { TradeEntryWizard } from "@/components/trade/entry/TradeEntryWizard";
 import { useQueryClient } from "@tanstack/react-query";
@@ -37,6 +37,7 @@ import {
   EditPositionDialog,
   AllPositionsTable,
   TradeEnrichmentDrawer,
+  BinanceOpenOrdersTable,
 } from "@/components/journal";
 import type { UnifiedPosition } from "@/components/journal";
 
@@ -70,6 +71,7 @@ export default function TradingJournal() {
   // Binance data
   const { data: connectionStatus } = useBinanceConnectionStatus();
   const { data: binancePositions = [], isLoading: binancePositionsLoading } = useBinancePositions();
+  const { data: binanceOpenOrders = [], isLoading: binanceOrdersLoading } = useBinanceOpenOrders();
   const { data: binanceBalance } = useBinanceBalance();
   const isBinanceConnected = connectionStatus?.isConnected ?? false;
   
@@ -227,7 +229,7 @@ export default function TradingJournal() {
               Trade Management
               {isBinanceConnected && (
                 <Badge variant="outline" className="text-xs gap-1 ml-2">
-                  <Wifi className="h-3 w-3 text-green-500" aria-hidden="true" />
+                  <Wifi className="h-3 w-3 text-profit" aria-hidden="true" />
                   Binance Connected
                 </Badge>
               )}
@@ -239,9 +241,9 @@ export default function TradingJournal() {
                 <TabsTrigger value="pending" className="gap-2">
                   <Clock className="h-4 w-4" aria-hidden="true" />
                   <span className="hidden sm:inline">Pending</span>
-                  {openPositions.filter(p => !p.entry_price || p.entry_price === 0).length > 0 && (
+                  {(openPositions.filter(p => !p.entry_price || p.entry_price === 0).length + binanceOpenOrders.length) > 0 && (
                     <Badge variant="secondary" className="ml-1 h-5 px-1.5">
-                      {openPositions.filter(p => !p.entry_price || p.entry_price === 0).length}
+                      {openPositions.filter(p => !p.entry_price || p.entry_price === 0).length + binanceOpenOrders.length}
                     </Badge>
                   )}
                 </TabsTrigger>
@@ -257,21 +259,39 @@ export default function TradingJournal() {
               </TabsList>
               
               {/* Pending Orders Tab */}
-              <TabsContent value="pending" className="mt-4">
-                <AllPositionsTable
-                  paperPositions={openPositions.filter(p => !p.entry_price || p.entry_price === 0)}
-                  binancePositions={[]}
-                  isLoading={tradesLoading}
-                  isBinanceConnected={false}
-                  onEnrich={setEnrichingPosition}
-                  onEdit={handleOpenEditDialog}
-                  onClose={(pos) => {
-                    setClosingPosition(pos);
-                    closeForm.reset();
-                  }}
-                  onDelete={setDeletingTrade}
-                  formatCurrency={formatCurrency}
-                />
+              <TabsContent value="pending" className="mt-4 space-y-6">
+                {/* Binance Open Orders Section */}
+                {isBinanceConnected && (
+                  <BinanceOpenOrdersTable
+                    orders={binanceOpenOrders}
+                    isLoading={binanceOrdersLoading}
+                    formatCurrency={formatCurrency}
+                  />
+                )}
+
+                {/* Paper Pending Trades Section */}
+                <div className="space-y-3">
+                  {isBinanceConnected && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Circle className="h-4 w-4" />
+                      <span>Paper Pending Trades</span>
+                    </div>
+                  )}
+                  <AllPositionsTable
+                    paperPositions={openPositions.filter(p => !p.entry_price || p.entry_price === 0)}
+                    binancePositions={[]}
+                    isLoading={tradesLoading}
+                    isBinanceConnected={false}
+                    onEnrich={setEnrichingPosition}
+                    onEdit={handleOpenEditDialog}
+                    onClose={(pos) => {
+                      setClosingPosition(pos);
+                      closeForm.reset();
+                    }}
+                    onDelete={setDeletingTrade}
+                    formatCurrency={formatCurrency}
+                  />
+                </div>
               </TabsContent>
               
               {/* Active Positions Tab */}
