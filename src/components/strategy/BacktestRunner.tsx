@@ -83,12 +83,22 @@ export function BacktestRunner() {
   const isBinanceConnected = connectionStatus?.isConnected;
   const binanceAvailableBalance = binanceBalance?.availableBalance || 0;
 
+  const selectedStrategy = strategies?.find(s => s.id === selectedStrategyId);
+
   // Update selected strategy when URL param changes or strategies load
   useEffect(() => {
     if (strategyFromUrl && strategies?.some(s => s.id === strategyFromUrl)) {
       setSelectedStrategyId(strategyFromUrl);
     }
   }, [strategyFromUrl, strategies]);
+
+  // Auto-populate session filter from strategy's session_preference
+  useEffect(() => {
+    if (selectedStrategy?.session_preference?.length && 
+        !selectedStrategy.session_preference.includes('all')) {
+      setSessionFilter(selectedStrategy.session_preference[0] as BacktestSessionFilter);
+    }
+  }, [selectedStrategy]);
 
   const availablePairs = baseAssets.length > 0 ? baseAssets : COMMON_PAIRS;
 
@@ -118,8 +128,6 @@ export function BacktestRunner() {
       // Error handled by mutation
     }
   };
-
-  const selectedStrategy = strategies?.find(s => s.id === selectedStrategyId);
 
   return (
     <div className="space-y-6">
@@ -405,7 +413,17 @@ export function BacktestRunner() {
               <AlertDescription>
                 <strong>{selectedStrategy.name}</strong> will be tested with:
                 <ul className="list-disc list-inside mt-1 text-sm">
-                  <li>Timeframe: {selectedStrategy.timeframe || 'Not set'}</li>
+                  <li>
+                    Timeframe: {selectedStrategy.higher_timeframe && `${selectedStrategy.higher_timeframe} → `}
+                    {selectedStrategy.timeframe || 'Not set'}
+                    {selectedStrategy.lower_timeframe && ` → ${selectedStrategy.lower_timeframe}`}
+                  </li>
+                  {selectedStrategy.methodology && (
+                    <li>Methodology: {selectedStrategy.methodology.toUpperCase()}</li>
+                  )}
+                  {selectedStrategy.session_preference && !selectedStrategy.session_preference.includes('all') && (
+                    <li>Sessions: {selectedStrategy.session_preference.join(', ')}</li>
+                  )}
                   <li>Market: {selectedStrategy.market_type || 'spot'}</li>
                   <li>Min confluences: {selectedStrategy.min_confluences || 4}</li>
                   <li>TP/SL from exit rules</li>

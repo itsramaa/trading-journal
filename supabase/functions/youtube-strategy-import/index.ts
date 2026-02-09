@@ -411,6 +411,10 @@ serve(async (req) => {
             difficultyLevel: unifiedStrategy.difficultyLevel || 'intermediate',
             riskLevel: unifiedStrategy.riskLevel || 'medium',
             
+            // NEW: Session preference and trading style from AI extraction
+            sessionPreference: (unifiedStrategy as any).sessionPreference || null,
+            tradingStyle: (unifiedStrategy as any).tradingStyle || null,
+            
             confidence: finalConfidence,
             automationScore,
             
@@ -698,6 +702,10 @@ serve(async (req) => {
         suitablePairs: normalizedStrategy.suitablePairs || [],
         difficultyLevel: normalizedStrategy.difficultyLevel || 'intermediate',
         riskLevel: normalizedStrategy.riskLevel || 'medium',
+        
+        // NEW: Session preference and trading style from AI extraction
+        sessionPreference: normalizedStrategy.metadata?.sessionPreference || null,
+        tradingStyle: normalizedStrategy.metadata?.tradingStyle || null,
         
         confidence: finalConfidence,
         automationScore,
