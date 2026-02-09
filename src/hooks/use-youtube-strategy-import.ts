@@ -12,12 +12,14 @@ import type {
   StructuredExitRule,
 } from "@/types/backtest";
 import type { EntryRule, ExitRule } from "@/types/strategy";
+import type { YouTubeImportDebugInfo } from "@/types/backtest";
 
 interface ImportResultV2 {
   status: 'success' | 'warning' | 'blocked' | 'failed';
   reason?: string;
   strategy: YouTubeStrategyDataV2 | null;
   validation: StrategyValidationV2 | null;
+  debug: YouTubeImportDebugInfo | null;
 }
 
 export function useYouTubeStrategyImport() {

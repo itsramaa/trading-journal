@@ -30,7 +30,8 @@ import {
 import { useYouTubeStrategyImport } from "@/hooks/use-youtube-strategy-import";
 import { StrategyValidationBadge } from "./StrategyValidationBadge";
 import { YouTubeTranscriptGuide } from "./YouTubeTranscriptGuide";
-import type { YouTubeStrategyDataV2, StrategyValidationV2, YouTubeImportStatus } from "@/types/backtest";
+import { YouTubeImportDebugInfo } from "./YouTubeImportDebugInfo";
+import type { YouTubeStrategyDataV2, StrategyValidationV2, YouTubeImportStatus, YouTubeImportDebugInfo as DebugInfoType } from "@/types/backtest";
 
 interface YouTubeStrategyImporterProps {
   onStrategyImported?: () => void;
@@ -59,6 +60,7 @@ export function YouTubeStrategyImporter({
   const [validation, setValidation] = useState<StrategyValidationV2 | null>(null);
   const [importStatus, setImportStatus] = useState<YouTubeImportStatus | null>(null);
   const [statusReason, setStatusReason] = useState<string>('');
+  const [debugInfo, setDebugInfo] = useState<DebugInfoType | null>(null);
 
   const { 
     importStrategy, 
@@ -80,6 +82,7 @@ export function YouTubeStrategyImporter({
       setValidation(result.validation);
       setImportStatus(result.status);
       setStatusReason(result.reason || '');
+      setDebugInfo(result.debug);
     } catch (error) {
       // Error handled by hook
     }
@@ -93,6 +96,7 @@ export function YouTubeStrategyImporter({
       setValidation(null);
       setImportStatus(null);
       setStatusReason('');
+      setDebugInfo(null);
       setUrl('');
       setTranscript('');
       resetProgress();
@@ -107,6 +111,7 @@ export function YouTubeStrategyImporter({
     setValidation(null);
     setImportStatus(null);
     setStatusReason('');
+    setDebugInfo(null);
     resetProgress();
   };
 
@@ -210,6 +215,11 @@ export function YouTubeStrategyImporter({
                   {progress.details && <p className="text-xs mt-1">{progress.details}</p>}
                 </AlertDescription>
               </Alert>
+            )}
+
+            {/* Debug Info - shown when import fails or is blocked */}
+            {(progress.stage === 'error' || progress.stage === 'blocked') && debugInfo && (
+              <YouTubeImportDebugInfo debugInfo={debugInfo} />
             )}
 
             <Button 
@@ -534,6 +544,11 @@ export function YouTubeStrategyImporter({
                     </ul>
                   </AlertDescription>
                 </Alert>
+              )}
+
+              {/* Debug Info - collapsible for successful imports too */}
+              {debugInfo && (
+                <YouTubeImportDebugInfo debugInfo={debugInfo} />
               )}
 
               {/* Action Buttons */}

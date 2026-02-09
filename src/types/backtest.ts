@@ -211,6 +211,7 @@ export interface YouTubeStrategyImportV2 {
   reason?: string;
   strategy?: YouTubeStrategyDataV2;
   validation?: StrategyValidationV2;
+  debug?: YouTubeImportDebugInfo; // Debug info for transparency
 }
 
 // ============================================
@@ -254,6 +255,30 @@ export interface YouTubeImportProgress {
   progress: number; // 0-100
   message: string;
   details?: string;
+}
+
+// ============================================
+// YouTube Import Debug Types (Transparency)
+// ============================================
+
+export interface YouTubeImportDebugStep {
+  step: string;
+  status: 'success' | 'warning' | 'failed' | 'skipped';
+  details: string;
+  timestamp?: string;
+}
+
+export interface YouTubeImportDebugInfo {
+  transcriptSource: 'gemini' | 'youtube_captions' | 'manual' | 'unknown';
+  transcriptLength: number;
+  transcriptPreview: string; // First 500 chars
+  methodologyRaw?: {
+    methodology: string;
+    confidence: number;
+    evidence: string[];
+    reasoning?: string;
+  };
+  processingSteps: YouTubeImportDebugStep[];
 }
 
 // Default backtest config
