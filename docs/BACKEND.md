@@ -6,27 +6,37 @@ Backend dijalankan melalui **Supabase Edge Functions** (Deno runtime) yang berfu
 1. API proxy untuk Binance (dengan HMAC signature)
 2. AI processing layer
 3. External API aggregation
+4. Background sync & notifications
 
-## Edge Functions List
+## Edge Functions List (25 Functions)
 
 ```
 supabase/functions/
-├── binance-futures/        # Binance authenticated API proxy
-├── binance-market-data/    # Binance public market data
-├── ai-preflight/           # Pre-trade AI validation
-├── trade-quality/          # Trade quality scoring
-├── dashboard-insights/     # AI dashboard insights
-├── post-trade-analysis/    # Post-trade AI analysis
-├── confluence-detection/   # Confluence validation
-├── macro-analysis/         # Macro market analysis
-├── market-insight/         # Market sentiment
-├── economic-calendar/      # Economic events
-├── youtube-strategy-import/# YouTube strategy extraction (enhanced)
-├── backtest-strategy/      # Strategy backtesting (with session analysis)
-├── check-permission/       # Feature permission check
-├── sync-trading-pairs/     # Trading pairs sync
-├── strategy-clone-notify/  # Clone notification
-└── trading-analysis/       # General trading analysis
+├── binance-futures/           # Binance authenticated API proxy
+├── binance-market-data/       # Binance public market data
+├── binance-background-sync/   # Background sync worker
+├── ai-preflight/              # Pre-trade AI validation
+├── trade-quality/             # Trade quality scoring
+├── dashboard-insights/        # AI dashboard insights
+├── post-trade-analysis/       # Post-trade AI analysis
+├── post-trade-chat/           # Post-trade chat interface
+├── confluence-detection/      # Confluence validation
+├── confluence-chat/           # Confluence chat interface
+├── macro-analysis/            # Macro market analysis
+├── market-insight/            # Market sentiment
+├── market-analysis/           # Market analysis
+├── economic-calendar/         # Economic events
+├── youtube-strategy-import/   # YouTube strategy extraction
+├── backtest-strategy/         # Strategy backtesting
+├── trading-analysis/          # General trading analysis
+├── sync-trading-pairs/        # Trading pairs sync
+├── strategy-clone-notify/     # Clone notification
+├── reconcile-balances/        # Balance reconciliation
+├── send-cleanup-notification/ # Cleanup notifications
+├── send-push-notification/    # Push notifications
+├── send-sync-failure-email/   # Sync failure emails
+├── weekly-report/             # Weekly report generation
+└── _shared/                   # Shared utilities
 ```
 
 ## Function Details
@@ -95,6 +105,16 @@ supabase/functions/
 | `historical-volatility` | Volatility data |
 | `top-movers` | Price change leaders |
 
+### binance-background-sync
+
+**Purpose**: Background worker untuk sync otomatis trade history.
+
+**Features**:
+- Incremental sync (hanya data baru)
+- Rate limit aware
+- Error recovery
+- Quota management
+
 ### ai-preflight
 
 **Purpose**: Pre-trade AI validation sebelum entry.
@@ -142,12 +162,26 @@ supabase/functions/
 **Input**: Closed trade data
 **Output**: Analysis (what went well, improvements, patterns)
 
+### post-trade-chat
+
+**Purpose**: Interactive chat untuk post-trade review.
+
+**Input**: Trade data, user questions
+**Output**: AI responses tentang trade tersebut
+
 ### confluence-detection
 
 **Purpose**: Validate trade confluences.
 
 **Input**: Entry rules, market data
 **Output**: Confluence score, met/unmet rules
+
+### confluence-chat
+
+**Purpose**: Interactive chat untuk confluence analysis.
+
+**Input**: Strategy rules, market context
+**Output**: AI guidance tentang confluences
 
 ### macro-analysis
 
@@ -162,6 +196,13 @@ supabase/functions/
 
 **Input**: Symbol atau symbols array
 **Output**: Sentiment score, signals, recommendation
+
+### market-analysis
+
+**Purpose**: Technical market analysis.
+
+**Input**: Symbol, timeframe
+**Output**: Technical signals, support/resistance
 
 ### economic-calendar
 
@@ -216,12 +257,60 @@ supabase/functions/
 | Session Auto-Apply | Apply strategy.session_preference to filter |
 | Trade Session Tags | Each trade tagged with entry session |
 
+### trading-analysis
+
+**Purpose**: General trading analysis.
+
+**Input**: Trading data
+**Output**: Analysis dan rekomendasi
+
+### sync-trading-pairs
+
+**Purpose**: Sync available trading pairs dari Binance.
+
+**Output**: Updated trading_pairs table
+
 ### strategy-clone-notify
 
 **Purpose**: Send notification saat strategy di-clone.
 
 **Input**: Strategy ID, cloner info
 **Output**: Success status
+
+### reconcile-balances
+
+**Purpose**: Reconcile balance antara calculated dan actual.
+
+**Input**: Account ID
+**Output**: Discrepancy report
+
+### send-cleanup-notification
+
+**Purpose**: Send notification tentang data cleanup.
+
+**Input**: Cleanup results
+**Output**: Notification sent status
+
+### send-push-notification
+
+**Purpose**: Send push notification ke user.
+
+**Input**: User ID, title, message
+**Output**: Success status
+
+### send-sync-failure-email
+
+**Purpose**: Send email notification saat sync gagal.
+
+**Input**: User ID, error details
+**Output**: Email sent status
+
+### weekly-report
+
+**Purpose**: Generate weekly performance report.
+
+**Input**: User ID, date range
+**Output**: Report data (PDF/JSON)
 
 ## Edge Function Pattern
 
@@ -315,8 +404,23 @@ async function createSignature(
 - Returns upcoming economic events
 
 ### Lovable AI
-- Model: Gemini 2.5 Flash
+- Model: Gemini 2.5 Flash (default)
+- Supported models: gemini-2.5-pro, gpt-5, gpt-5-mini
 - Used for: Trade analysis, strategy extraction, insights
+
+## Domain State Pattern
+
+Edge functions menggunakan domain state pattern untuk credential errors:
+
+```typescript
+// Instead of throwing error
+return new Response(JSON.stringify({
+  success: false,
+  code: 'CREDENTIALS_NOT_CONFIGURED'
+}), { status: 200 });
+```
+
+Frontend detects dan renders `BinanceNotConfiguredState` UI.
 
 ## Error Handling
 
@@ -342,6 +446,35 @@ async function createSignature(
 Edge functions access secrets via:
 ```typescript
 const apiKey = Deno.env.get('BINANCE_API_KEY');
+const lovableKey = Deno.env.get('LOVABLE_API_KEY');
 ```
 
+**Available Secrets**:
+- `BINANCE_API_KEY` - Binance API key
+- `BINANCE_API_SECRET` - Binance API secret
+- `LOVABLE_API_KEY` - Lovable AI API key
+- `SUPABASE_URL` - Supabase URL
+- `SUPABASE_ANON_KEY` - Supabase anon key
+- `SUPABASE_SERVICE_ROLE_KEY` - Service role key
+- `RESEND_API_KEY` - Email service
+- `FINNHUB_API_KEY` - Market data
+- `COINGECKO_API_KEY` - Crypto data
+- `ALPHA_VANTAGE_API_KEY` - Stock data
+- `FCSAPI_API_KEY` - Forex data
+
 User-specific credentials passed in request body (encrypted in transit).
+
+## JWT Authentication Pattern
+
+For user-specific operations, extract user_id from JWT:
+
+```typescript
+const authHeader = req.headers.get('Authorization');
+if (!authHeader) {
+  return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+}
+
+const token = authHeader.replace('Bearer ', '');
+const payload = JSON.parse(atob(token.split('.')[1]));
+const userId = payload.sub;
+```
