@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { formatPercent, formatWinRate, formatNumber } from "@/lib/formatters";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { BacktestDisclaimer } from "./BacktestDisclaimer";
+import { BacktestSessionBreakdown } from "./BacktestSessionBreakdown";
 
 interface BacktestResultsProps {
   result: BacktestResult;
@@ -244,10 +245,11 @@ export function BacktestResults({ result }: BacktestResultsProps) {
         </CardContent>
       </Card>
 
-      {/* Tabs for Chart and Trades */}
+      {/* Tabs for Chart, Sessions, and Trades */}
       <Tabs defaultValue="equity">
         <TabsList>
           <TabsTrigger value="equity">Equity Curve</TabsTrigger>
+          <TabsTrigger value="sessions">Sessions</TabsTrigger>
           <TabsTrigger value="trades">Trade List ({trades.length})</TabsTrigger>
         </TabsList>
 
@@ -309,6 +311,10 @@ export function BacktestResults({ result }: BacktestResultsProps) {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="sessions">
+          <BacktestSessionBreakdown trades={trades} />
         </TabsContent>
 
         <TabsContent value="trades">
