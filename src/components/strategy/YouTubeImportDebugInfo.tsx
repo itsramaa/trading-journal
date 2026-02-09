@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Progress } from "@/components/ui/progress";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import type { YouTubeImportDebugInfo as DebugInfoType, YouTubeImportDebugStep } from "@/types/backtest";
 
 interface YouTubeImportDebugInfoProps {
@@ -39,6 +40,15 @@ const METHODOLOGY_LABELS: Record<string, string> = {
   ict: 'ICT',
   wyckoff: 'Wyckoff',
   elliott_wave: 'Elliott Wave',
+};
+
+const METHODOLOGY_TOOLTIPS: Record<string, string> = {
+  indicator_based: 'Strategy menggunakan indikator teknikal seperti RSI, MACD, Moving Averages, Bollinger Bands. Skor tinggi = banyak referensi indikator terdeteksi.',
+  price_action: 'Strategy berbasis pola candlestick, support/resistance, trendlines tanpa indikator. Skor tinggi = fokus pada naked chart analysis.',
+  smc: 'Smart Money Concepts: Order Blocks, Fair Value Gaps, Break of Structure, Liquidity sweeps. Skor tinggi = terminologi SMC dominan.',
+  ict: 'Inner Circle Trader: Killzones, OTE, PD Arrays, session-based entries. Skor tinggi = konsep ICT spesifik terdeteksi.',
+  wyckoff: 'Wyckoff Method: Accumulation/Distribution phases, Spring, Volume analysis. Skor tinggi = fase Wyckoff disebutkan.',
+  elliott_wave: 'Elliott Wave Theory: Wave counts (1-5), ABC corrections, Fibonacci extensions. Skor tinggi = wave analysis terdeteksi.',
 };
 
 export function YouTubeImportDebugInfo({ debugInfo }: YouTubeImportDebugInfoProps) {
@@ -145,8 +155,11 @@ export function YouTubeImportDebugInfo({ debugInfo }: YouTubeImportDebugInfoProp
                   <div className="grid grid-cols-2 gap-2">
                     {Object.entries(terminologyScore).map(([key, value]) => (
                       <div key={key} className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground min-w-[80px]">
+                        <span className="text-xs text-muted-foreground min-w-[80px] flex items-center gap-1">
                           {METHODOLOGY_LABELS[key] || key}
+                          {METHODOLOGY_TOOLTIPS[key] && (
+                            <InfoTooltip content={METHODOLOGY_TOOLTIPS[key]} side="top" />
+                          )}
                         </span>
                         <Progress value={value * 10} className="h-2 flex-1" />
                         <span className="text-xs text-muted-foreground w-6 text-right">{value}</span>
