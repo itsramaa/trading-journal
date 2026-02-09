@@ -62,7 +62,25 @@ interface DebugInfo {
     confidence: number;
     evidence: string[];
     reasoning?: string;
+    secondaryElements?: string[];
+    terminologyScore?: {
+      indicator_based: number;
+      price_action: number;
+      smc: number;
+      ict: number;
+      wyckoff: number;
+      elliott_wave: number;
+    };
   };
+  extractionQuality?: {
+    overall: number;
+    entryClarity: number;
+    exitClarity: number;
+    riskClarity: number;
+    reproducibility?: number;
+  };
+  informationGaps?: string[];
+  ambiguities?: string[];
   processingSteps: DebugStep[];
 }
 
@@ -260,12 +278,25 @@ serve(async (req) => {
         transcriptPreview = unifiedResult.transcriptPreview || '';
         transcriptWordCount = unifiedResult.transcriptWordCount || transcriptPreview.split(/\s+/).length;
         
-        // Build debug info for unified response
+        // Build debug info for unified response with enhanced fields
         const unifiedDebugInfo: DebugInfo = {
           transcriptSource,
           transcriptLength: transcriptWordCount,
           transcriptPreview,
-          methodologyRaw: unifiedResult.methodology,
+          methodologyRaw: {
+            ...unifiedResult.methodology,
+            secondaryElements: (unifiedResult.methodology as any).secondaryElements,
+            terminologyScore: (unifiedResult.methodology as any).terminologyScore,
+          },
+          extractionQuality: unifiedStrategy.extractionConfidence ? {
+            overall: unifiedStrategy.extractionConfidence.overall,
+            entryClarity: unifiedStrategy.extractionConfidence.entryClarity,
+            exitClarity: unifiedStrategy.extractionConfidence.exitClarity,
+            riskClarity: unifiedStrategy.extractionConfidence.riskClarity,
+            reproducibility: (unifiedStrategy.extractionConfidence as any).reproducibility,
+          } : undefined,
+          informationGaps: (unifiedResult.strategy as any)?.validation?.informationGaps,
+          ambiguities: (unifiedResult.strategy as any)?.validation?.ambiguities,
           processingSteps: debugSteps,
         };
         
@@ -369,7 +400,11 @@ serve(async (req) => {
             entryRules: normalizedEntryRules,
             exitRules: normalizedExitRules,
             
-            riskManagement: unifiedStrategy.riskManagement || {},
+            // Parse riskRewardRatio string "1:2" to number 2.0
+            riskManagement: {
+              ...unifiedStrategy.riskManagement,
+              riskRewardRatio: parseRiskRewardRatio(unifiedStrategy.riskManagement?.riskRewardRatio),
+            },
             timeframeContext: unifiedStrategy.timeframeContext || { primary: '1h' },
             
             suitablePairs: unifiedStrategy.suitablePairs || [],
@@ -721,6 +756,50 @@ serve(async (req) => {
     );
   }
 });
+
+/**
+ * Parse risk-reward ratio string "1:2" to numeric value 2.0
+ * Handles formats: "1:2", "1:3", "1 to 2", "2R", etc.
+ */
+function parseRiskRewardRatio(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  
+  // Already a number
+  if (typeof value === 'number') return value;
+  
+  if (typeof value === 'string') {
+    const str = value.trim().toLowerCase();
+    
+    // Handle "1:2" format
+    const colonMatch = str.match(/^1:(\d+(?:\.\d+)?)$/);
+    if (colonMatch) return parseFloat(colonMatch[1]);
+    
+    // Handle "1 to 2" format
+    const toMatch = str.match(/^1\s*to\s*(\d+(?:\.\d+)?)$/);
+    if (toMatch) return parseFloat(toMatch[1]);
+    
+    // Handle "2R" format
+    const rMatch = str.match(/^(\d+(?:\.\d+)?)r$/);
+    if (rMatch) return parseFloat(rMatch[1]);
+    
+    // Handle "2:1" reverse format (interpret as 0.5)
+    const reverseMatch = str.match(/^(\d+(?:\.\d+)?):1$/);
+    if (reverseMatch) return 1 / parseFloat(reverseMatch[1]);
+    
+    // Try direct parse
+    const direct = parseFloat(str);
+    if (!isNaN(direct)) return direct;
+  }
+  
+  // Handle object with minimum/target fields
+  if (typeof value === 'object') {
+    const obj = value as Record<string, unknown>;
+    if (obj.minimum) return parseRiskRewardRatio(obj.minimum);
+    if (obj.target) return parseRiskRewardRatio(obj.target);
+  }
+  
+  return null;
+}
 
 /**
  * Calculate automation score based on how programmable the rules are
