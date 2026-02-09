@@ -895,20 +895,25 @@ export type Database = {
           difficulty_level: string | null
           entry_rules: Json | null
           exit_rules: Json | null
+          higher_timeframe: string | null
           id: string
           is_active: boolean | null
           is_shared: boolean | null
           last_cloned_at: string | null
+          lower_timeframe: string | null
           market_type: string | null
+          methodology: string | null
           min_confluences: number | null
           min_rr: number | null
           name: string
+          session_preference: string[] | null
           share_token: string | null
           source: string | null
           source_url: string | null
           status: string | null
           tags: string[] | null
           timeframe: string | null
+          trading_style: string | null
           updated_at: string
           user_id: string
           valid_pairs: string[] | null
@@ -925,20 +930,25 @@ export type Database = {
           difficulty_level?: string | null
           entry_rules?: Json | null
           exit_rules?: Json | null
+          higher_timeframe?: string | null
           id?: string
           is_active?: boolean | null
           is_shared?: boolean | null
           last_cloned_at?: string | null
+          lower_timeframe?: string | null
           market_type?: string | null
+          methodology?: string | null
           min_confluences?: number | null
           min_rr?: number | null
           name: string
+          session_preference?: string[] | null
           share_token?: string | null
           source?: string | null
           source_url?: string | null
           status?: string | null
           tags?: string[] | null
           timeframe?: string | null
+          trading_style?: string | null
           updated_at?: string
           user_id: string
           valid_pairs?: string[] | null
@@ -955,20 +965,25 @@ export type Database = {
           difficulty_level?: string | null
           entry_rules?: Json | null
           exit_rules?: Json | null
+          higher_timeframe?: string | null
           id?: string
           is_active?: boolean | null
           is_shared?: boolean | null
           last_cloned_at?: string | null
+          lower_timeframe?: string | null
           market_type?: string | null
+          methodology?: string | null
           min_confluences?: number | null
           min_rr?: number | null
           name?: string
+          session_preference?: string[] | null
           share_token?: string | null
           source?: string | null
           source_url?: string | null
           status?: string | null
           tags?: string[] | null
           timeframe?: string | null
+          trading_style?: string | null
           updated_at?: string
           user_id?: string
           valid_pairs?: string[] | null

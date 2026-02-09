@@ -1,5 +1,6 @@
 /**
  * Strategy Form Dialog - Create/Edit strategy dialog
+ * Enhanced with Multi-Timeframe Analysis (MTFA) and Professional Trading Fields
  */
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
@@ -15,12 +16,33 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Target, ListChecks, LogOut, X, ChevronsUpDown } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Target, ListChecks, LogOut, X, ChevronsUpDown, Clock, Layers } from "lucide-react";
 import { EntryRulesBuilder } from "@/components/strategy/EntryRulesBuilder";
 import { ExitRulesBuilder } from "@/components/strategy/ExitRulesBuilder";
-import { TIMEFRAME_OPTIONS, COMMON_PAIRS, DEFAULT_ENTRY_RULES, DEFAULT_EXIT_RULES, type EntryRule, type ExitRule } from "@/types/strategy";
+import { 
+  TIMEFRAME_OPTIONS, 
+  COMMON_PAIRS, 
+  DEFAULT_ENTRY_RULES, 
+  DEFAULT_EXIT_RULES, 
+  type EntryRule, 
+  type ExitRule,
+  type TradingMethodology,
+  type TradingStyle,
+  type TradingSession,
+  type DifficultyLevel,
+} from "@/types/strategy";
 import type { TradingStrategy } from "@/hooks/use-trading-strategies";
-import { STRATEGY_COLORS, STRATEGY_COLOR_CLASSES, STRATEGY_DEFAULTS, STRATEGY_FORM_CONSTRAINTS } from "@/lib/constants/strategy-config";
+import { 
+  STRATEGY_COLORS, 
+  STRATEGY_COLOR_CLASSES, 
+  STRATEGY_DEFAULTS, 
+  STRATEGY_FORM_CONSTRAINTS,
+  METHODOLOGY_OPTIONS,
+  TRADING_STYLE_OPTIONS,
+  SESSION_OPTIONS,
+  DIFFICULTY_OPTIONS,
+} from "@/lib/constants/strategy-config";
 
 const strategyFormSchema = z.object({
   name: z.string()
@@ -54,7 +76,13 @@ interface StrategyFormDialogProps {
     exitRules: ExitRule[];
     color: string;
     timeframe: string;
+    higherTimeframe: string;
+    lowerTimeframe: string;
     marketType: string;
+    methodology: TradingMethodology;
+    tradingStyle: TradingStyle;
+    sessionPreference: TradingSession[];
+    difficultyLevel: DifficultyLevel | null;
   }) => Promise<void>;
   isPending: boolean;
 }
@@ -69,10 +97,17 @@ export function StrategyFormDialog({
 }: StrategyFormDialogProps) {
   const [selectedColor, setSelectedColor] = useState<string>(STRATEGY_DEFAULTS.COLOR);
   const [selectedTimeframe, setSelectedTimeframe] = useState<string>('');
+  const [selectedHigherTimeframe, setSelectedHigherTimeframe] = useState<string>('');
+  const [selectedLowerTimeframe, setSelectedLowerTimeframe] = useState<string>('');
   const [selectedMarketType, setSelectedMarketType] = useState<string>(STRATEGY_DEFAULTS.MARKET_TYPE);
   const [selectedValidPairs, setSelectedValidPairs] = useState<string[]>([...STRATEGY_DEFAULTS.VALID_PAIRS]);
   const [entryRules, setEntryRules] = useState<EntryRule[]>([]);
   const [exitRules, setExitRules] = useState<ExitRule[]>([]);
+  // NEW: Professional trading fields
+  const [selectedMethodology, setSelectedMethodology] = useState<TradingMethodology>(STRATEGY_DEFAULTS.METHODOLOGY);
+  const [selectedTradingStyle, setSelectedTradingStyle] = useState<TradingStyle>(STRATEGY_DEFAULTS.TRADING_STYLE);
+  const [selectedSessions, setSelectedSessions] = useState<TradingSession[]>([...STRATEGY_DEFAULTS.SESSION_PREFERENCE]);
+  const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyLevel | null>(null);
 
   const form = useForm<StrategyFormValues>({
     resolver: zodResolver(strategyFormSchema),
@@ -102,10 +137,17 @@ export function StrategyFormDialog({
         });
         setSelectedColor(editingStrategy.color || STRATEGY_DEFAULTS.COLOR);
         setSelectedTimeframe(editingStrategy.timeframe || '');
+        setSelectedHigherTimeframe(editingStrategy.higher_timeframe || '');
+        setSelectedLowerTimeframe(editingStrategy.lower_timeframe || '');
         setSelectedMarketType(editingStrategy.market_type || STRATEGY_DEFAULTS.MARKET_TYPE);
         setSelectedValidPairs(editingStrategy.valid_pairs || [...STRATEGY_DEFAULTS.VALID_PAIRS]);
         setEntryRules(editingStrategy.entry_rules || []);
         setExitRules(editingStrategy.exit_rules || []);
+        // NEW: Professional fields
+        setSelectedMethodology(editingStrategy.methodology || STRATEGY_DEFAULTS.METHODOLOGY);
+        setSelectedTradingStyle(editingStrategy.trading_style || STRATEGY_DEFAULTS.TRADING_STYLE);
+        setSelectedSessions(editingStrategy.session_preference || [...STRATEGY_DEFAULTS.SESSION_PREFERENCE]);
+        setSelectedDifficulty(editingStrategy.difficulty_level || null);
       } else {
         form.reset({
           name: '',
@@ -119,10 +161,17 @@ export function StrategyFormDialog({
         });
         setSelectedColor(STRATEGY_DEFAULTS.COLOR);
         setSelectedTimeframe('');
+        setSelectedHigherTimeframe('');
+        setSelectedLowerTimeframe('');
         setSelectedMarketType(STRATEGY_DEFAULTS.MARKET_TYPE);
         setSelectedValidPairs([...STRATEGY_DEFAULTS.VALID_PAIRS]);
         setEntryRules(DEFAULT_ENTRY_RULES.slice(0, STRATEGY_DEFAULTS.DEFAULT_ENTRY_RULES_COUNT));
         setExitRules(DEFAULT_EXIT_RULES);
+        // NEW: Reset professional fields
+        setSelectedMethodology(STRATEGY_DEFAULTS.METHODOLOGY);
+        setSelectedTradingStyle(STRATEGY_DEFAULTS.TRADING_STYLE);
+        setSelectedSessions([...STRATEGY_DEFAULTS.SESSION_PREFERENCE]);
+        setSelectedDifficulty(null);
       }
     }
   }, [open, editingStrategy, form]);
@@ -135,8 +184,28 @@ export function StrategyFormDialog({
       exitRules,
       color: selectedColor,
       timeframe: selectedTimeframe,
+      higherTimeframe: selectedHigherTimeframe,
+      lowerTimeframe: selectedLowerTimeframe,
       marketType: selectedMarketType,
+      methodology: selectedMethodology,
+      tradingStyle: selectedTradingStyle,
+      sessionPreference: selectedSessions,
+      difficultyLevel: selectedDifficulty,
     });
+  };
+
+  const toggleSession = (session: TradingSession) => {
+    if (session === 'all') {
+      setSelectedSessions(['all']);
+    } else {
+      const withoutAll = selectedSessions.filter(s => s !== 'all');
+      if (withoutAll.includes(session)) {
+        const updated = withoutAll.filter(s => s !== session);
+        setSelectedSessions(updated.length === 0 ? ['all'] : updated);
+      } else {
+        setSelectedSessions([...withoutAll, session]);
+      }
+    }
   };
 
   const pairsToShow = availablePairs.length > 0 ? availablePairs : COMMON_PAIRS;
@@ -151,18 +220,23 @@ export function StrategyFormDialog({
         </DialogHeader>
         <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6 pt-4">
           <Tabs defaultValue="basic" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="basic">Basic Info</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="basic">Basic</TabsTrigger>
+              <TabsTrigger value="method">
+                <Layers className="h-3 w-3 mr-1" aria-hidden="true" />
+                Method
+              </TabsTrigger>
               <TabsTrigger value="entry">
                 <ListChecks className="h-3 w-3 mr-1" aria-hidden="true" />
-                Entry Rules
+                Entry
               </TabsTrigger>
               <TabsTrigger value="exit">
                 <LogOut className="h-3 w-3 mr-1" aria-hidden="true" />
-                Exit Rules
+                Exit
               </TabsTrigger>
             </TabsList>
 
+            {/* Basic Info Tab */}
             <TabsContent value="basic" className="space-y-4 pt-4">
               <div className="space-y-2">
                 <Label>Name *</Label>
@@ -179,37 +253,6 @@ export function StrategyFormDialog({
                   placeholder="Describe when and how you use this strategy..."
                   rows={3}
                 />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Timeframe</Label>
-                  <Select value={selectedTimeframe} onValueChange={setSelectedTimeframe}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select timeframe" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {TIMEFRAME_OPTIONS.map(tf => (
-                        <SelectItem key={tf.value} value={tf.value}>
-                          {tf.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Market Type</Label>
-                  <Select value={selectedMarketType} onValueChange={setSelectedMarketType}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select market" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="spot">Spot</SelectItem>
-                      <SelectItem value="futures">Futures</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
               </div>
 
               {/* Valid Pairs Multi-select */}
@@ -265,10 +308,6 @@ export function StrategyFormDialog({
                     </Command>
                   </PopoverContent>
                 </Popover>
-                
-                <p className="text-xs text-muted-foreground">
-                  Selected: {selectedValidPairs.length}
-                </p>
               </div>
 
               <div className="space-y-2">
@@ -301,6 +340,168 @@ export function StrategyFormDialog({
               </div>
             </TabsContent>
 
+            {/* Methodology & Timeframes Tab */}
+            <TabsContent value="method" className="space-y-4 pt-4">
+              {/* Trading Methodology */}
+              <div className="space-y-3">
+                <Label className="flex items-center gap-2">
+                  <Layers className="h-4 w-4" aria-hidden="true" />
+                  Trading Methodology
+                </Label>
+                <RadioGroup 
+                  value={selectedMethodology} 
+                  onValueChange={(v) => setSelectedMethodology(v as TradingMethodology)}
+                  className="grid grid-cols-2 gap-2"
+                >
+                  {METHODOLOGY_OPTIONS.map((opt) => (
+                    <div key={opt.value} className="flex items-center space-x-2">
+                      <RadioGroupItem value={opt.value} id={`method-${opt.value}`} />
+                      <Label htmlFor={`method-${opt.value}`} className="text-sm font-normal cursor-pointer">
+                        {opt.label}
+                      </Label>
+                    </div>
+                  ))}
+                </RadioGroup>
+                <p className="text-xs text-muted-foreground">
+                  {METHODOLOGY_OPTIONS.find(m => m.value === selectedMethodology)?.description}
+                </p>
+              </div>
+
+              {/* Trading Style */}
+              <div className="space-y-2">
+                <Label>Trading Style</Label>
+                <Select value={selectedTradingStyle} onValueChange={(v) => setSelectedTradingStyle(v as TradingStyle)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select style" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TRADING_STYLE_OPTIONS.map(style => (
+                      <SelectItem key={style.value} value={style.value}>
+                        {style.label} ({style.typicalTimeframes})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Multi-Timeframe Analysis */}
+              <div className="space-y-3 p-3 border rounded-lg bg-muted/20">
+                <Label className="flex items-center gap-2 text-sm font-medium">
+                  <Clock className="h-4 w-4" aria-hidden="true" />
+                  Multi-Timeframe Analysis
+                </Label>
+                
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Higher TF (Bias)</Label>
+                    <Select value={selectedHigherTimeframe} onValueChange={setSelectedHigherTimeframe}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="—" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">None</SelectItem>
+                        {TIMEFRAME_OPTIONS.map(tf => (
+                          <SelectItem key={tf.value} value={tf.value}>
+                            {tf.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Primary TF *</Label>
+                    <Select value={selectedTimeframe} onValueChange={setSelectedTimeframe}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Select" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {TIMEFRAME_OPTIONS.map(tf => (
+                          <SelectItem key={tf.value} value={tf.value}>
+                            {tf.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Lower TF (Entry)</Label>
+                    <Select value={selectedLowerTimeframe} onValueChange={setSelectedLowerTimeframe}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="—" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">None</SelectItem>
+                        {TIMEFRAME_OPTIONS.map(tf => (
+                          <SelectItem key={tf.value} value={tf.value}>
+                            {tf.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Session Preference */}
+              <div className="space-y-2">
+                <Label>Preferred Sessions</Label>
+                <div className="flex flex-wrap gap-2">
+                  {SESSION_OPTIONS.map((session) => (
+                    <Badge
+                      key={session.value}
+                      variant={selectedSessions.includes(session.value) ? "default" : "outline"}
+                      className="cursor-pointer transition-colors"
+                      onClick={() => toggleSession(session.value)}
+                    >
+                      {session.label}
+                    </Badge>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {selectedSessions.includes('all') 
+                    ? 'Strategy works on all trading sessions' 
+                    : `Optimized for: ${selectedSessions.map(s => SESSION_OPTIONS.find(o => o.value === s)?.label).join(', ')}`
+                  }
+                </p>
+              </div>
+
+              {/* Difficulty Level */}
+              <div className="space-y-2">
+                <Label>Difficulty Level</Label>
+                <RadioGroup 
+                  value={selectedDifficulty || ''} 
+                  onValueChange={(v) => setSelectedDifficulty(v as DifficultyLevel || null)}
+                  className="flex gap-4"
+                >
+                  {DIFFICULTY_OPTIONS.map((opt) => (
+                    <div key={opt.value} className="flex items-center space-x-2">
+                      <RadioGroupItem value={opt.value} id={`diff-${opt.value}`} />
+                      <Label htmlFor={`diff-${opt.value}`} className="text-sm font-normal cursor-pointer">
+                        {opt.label}
+                      </Label>
+                    </div>
+                  ))}
+                </RadioGroup>
+              </div>
+
+              {/* Market Type */}
+              <div className="space-y-2">
+                <Label>Market Type</Label>
+                <Select value={selectedMarketType} onValueChange={setSelectedMarketType}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select market" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="spot">Spot</SelectItem>
+                    <SelectItem value="futures">Futures</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </TabsContent>
+
+            {/* Entry Rules Tab */}
             <TabsContent value="entry" className="space-y-4 pt-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -337,6 +538,7 @@ export function StrategyFormDialog({
               />
             </TabsContent>
 
+            {/* Exit Rules Tab */}
             <TabsContent value="exit" className="space-y-4 pt-4">
               <ExitRulesBuilder 
                 rules={exitRules}

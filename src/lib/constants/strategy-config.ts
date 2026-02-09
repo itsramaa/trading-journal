@@ -3,6 +3,8 @@
  * Centralized defaults, colors, and scoring thresholds for strategy system
  */
 
+import type { TradingMethodology, TradingStyle, TradingSession, DifficultyLevel } from '@/types/strategy';
+
 // =============================================================================
 // STRATEGY DEFAULTS
 // =============================================================================
@@ -19,7 +21,83 @@ export const STRATEGY_DEFAULTS = {
   // YouTube import defaults
   YOUTUBE_MANDATORY_ENTRY_RULES: 2,
   YOUTUBE_MAX_TAGS: 5,
+  // NEW: Professional trading defaults
+  METHODOLOGY: 'price_action' as TradingMethodology,
+  TRADING_STYLE: 'day_trading' as TradingStyle,
+  SESSION_PREFERENCE: ['all'] as TradingSession[],
+  DIFFICULTY_LEVEL: 'intermediate' as DifficultyLevel,
 } as const;
+
+// =============================================================================
+// METHODOLOGY OPTIONS
+// =============================================================================
+
+export interface MethodologyOption {
+  value: TradingMethodology;
+  label: string;
+  description: string;
+}
+
+export const METHODOLOGY_OPTIONS: MethodologyOption[] = [
+  { value: 'price_action', label: 'Price Action', description: 'Support/Resistance, candlestick patterns' },
+  { value: 'smc', label: 'SMC', description: 'Smart Money Concepts (OB, FVG, BOS)' },
+  { value: 'ict', label: 'ICT', description: 'Inner Circle Trader (Killzones, Liquidity)' },
+  { value: 'indicator_based', label: 'Indicator-Based', description: 'RSI, MACD, Moving Averages' },
+  { value: 'wyckoff', label: 'Wyckoff', description: 'Accumulation/Distribution cycles' },
+  { value: 'elliott_wave', label: 'Elliott Wave', description: 'Wave patterns and Fibonacci' },
+  { value: 'hybrid', label: 'Hybrid', description: 'Combination of multiple methods' },
+];
+
+// =============================================================================
+// TRADING STYLE OPTIONS
+// =============================================================================
+
+export interface TradingStyleOption {
+  value: TradingStyle;
+  label: string;
+  description: string;
+  typicalTimeframes: string;
+}
+
+export const TRADING_STYLE_OPTIONS: TradingStyleOption[] = [
+  { value: 'scalping', label: 'Scalping', description: 'Quick trades, small profits', typicalTimeframes: '1m-5m' },
+  { value: 'day_trading', label: 'Day Trading', description: 'Intraday, close before EOD', typicalTimeframes: '5m-1h' },
+  { value: 'swing', label: 'Swing Trading', description: 'Multi-day positions', typicalTimeframes: '1h-1d' },
+  { value: 'position', label: 'Position Trading', description: 'Long-term holds', typicalTimeframes: '4h-1w' },
+];
+
+// =============================================================================
+// SESSION OPTIONS
+// =============================================================================
+
+export interface SessionOption {
+  value: TradingSession;
+  label: string;
+  utcHours: string;
+}
+
+export const SESSION_OPTIONS: SessionOption[] = [
+  { value: 'all', label: 'All Sessions', utcHours: '24h' },
+  { value: 'asian', label: 'Asian', utcHours: '00:00-08:00 UTC' },
+  { value: 'london', label: 'London', utcHours: '08:00-17:00 UTC' },
+  { value: 'ny', label: 'New York', utcHours: '13:00-22:00 UTC' },
+];
+
+// =============================================================================
+// DIFFICULTY LEVEL OPTIONS
+// =============================================================================
+
+export interface DifficultyOption {
+  value: DifficultyLevel;
+  label: string;
+  description: string;
+}
+
+export const DIFFICULTY_OPTIONS: DifficultyOption[] = [
+  { value: 'beginner', label: 'Beginner', description: 'Simple rules, easy to follow' },
+  { value: 'intermediate', label: 'Intermediate', description: 'Moderate complexity' },
+  { value: 'advanced', label: 'Advanced', description: 'Complex confluences required' },
+];
 
 // =============================================================================
 // STRATEGY COLORS

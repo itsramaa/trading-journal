@@ -1,10 +1,38 @@
 /**
  * Strategy Types - Enhanced per Trading Journey Markdown spec
+ * Includes Multi-Timeframe Analysis (MTFA) and Professional Trading Fields
  */
 
 export type TimeframeType = '1m' | '5m' | '15m' | '1h' | '4h' | '1d' | '1w';
 export type MarketType = 'spot' | 'futures';
 export type StrategyStatus = 'active' | 'paused' | 'killed';
+
+// NEW: Trading Methodology Types
+export type TradingMethodology = 
+  | 'indicator_based'
+  | 'price_action' 
+  | 'smc'
+  | 'ict'
+  | 'wyckoff'
+  | 'elliott_wave'
+  | 'hybrid';
+
+export type TradingStyle = 
+  | 'scalping' 
+  | 'day_trading' 
+  | 'swing' 
+  | 'position';
+
+export type TradingSession = 
+  | 'all' 
+  | 'asian' 
+  | 'london' 
+  | 'ny';
+
+export type DifficultyLevel = 
+  | 'beginner' 
+  | 'intermediate' 
+  | 'advanced';
 
 export type EntryRuleType = 
   | 'price_action' 
@@ -43,7 +71,11 @@ export interface TradingStrategyEnhanced {
   user_id: string;
   name: string;
   description: string | null;
+  // Primary timeframe for trade management
   timeframe: TimeframeType | null;
+  // Multi-Timeframe Analysis (MTFA)
+  higher_timeframe: TimeframeType | null;
+  lower_timeframe: TimeframeType | null;
   market_type: MarketType;
   entry_rules: EntryRule[];
   exit_rules: ExitRule[];
@@ -55,6 +87,16 @@ export interface TradingStrategyEnhanced {
   tags: string[] | null;
   color: string | null;
   is_active: boolean;
+  // NEW: Professional trading fields
+  methodology: TradingMethodology;
+  trading_style: TradingStyle;
+  session_preference: TradingSession[];
+  difficulty_level: DifficultyLevel | null;
+  // YouTube import fields
+  validation_score: number | null;
+  automation_score: number | null;
+  source: string | null;
+  source_url: string | null;
   created_at: string;
   updated_at: string;
 }
