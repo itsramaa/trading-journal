@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { ChevronDown, CheckCircle, XCircle, AlertTriangle, Clock, FileText, Brain, Bug } from "lucide-react";
+import { ChevronDown, CheckCircle, XCircle, AlertTriangle, Clock, FileText, Brain, Bug, BarChart3, Target } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Progress } from "@/components/ui/progress";
 import type { YouTubeImportDebugInfo as DebugInfoType, YouTubeImportDebugStep } from "@/types/backtest";
 
 interface YouTubeImportDebugInfoProps {
@@ -12,14 +13,14 @@ interface YouTubeImportDebugInfoProps {
 
 const STEP_ICONS: Record<YouTubeImportDebugStep['status'], React.ReactNode> = {
   success: <CheckCircle className="h-3.5 w-3.5 text-profit" />,
-  warning: <AlertTriangle className="h-3.5 w-3.5 text-yellow-500" />,
+  warning: <AlertTriangle className="h-3.5 w-3.5 text-warning" />,
   failed: <XCircle className="h-3.5 w-3.5 text-loss" />,
   skipped: <Clock className="h-3.5 w-3.5 text-muted-foreground" />,
 };
 
 const STEP_COLORS: Record<YouTubeImportDebugStep['status'], string> = {
   success: 'border-profit/30 bg-profit/5',
-  warning: 'border-yellow-500/30 bg-yellow-500/5',
+  warning: 'border-warning/30 bg-warning/5',
   failed: 'border-loss/30 bg-loss/5',
   skipped: 'border-muted bg-muted/50',
 };
@@ -31,8 +32,20 @@ const SOURCE_LABELS: Record<DebugInfoType['transcriptSource'], string> = {
   unknown: 'Unknown',
 };
 
+const METHODOLOGY_LABELS: Record<string, string> = {
+  indicator_based: 'Indicator Based',
+  price_action: 'Price Action',
+  smc: 'SMC',
+  ict: 'ICT',
+  wyckoff: 'Wyckoff',
+  elliott_wave: 'Elliott Wave',
+};
+
 export function YouTubeImportDebugInfo({ debugInfo }: YouTubeImportDebugInfoProps) {
   const [isOpen, setIsOpen] = useState(false);
+
+  const terminologyScore = debugInfo.methodologyRaw?.terminologyScore;
+  const extractionQuality = debugInfo.extractionQuality;
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -102,7 +115,7 @@ export function YouTubeImportDebugInfo({ debugInfo }: YouTubeImportDebugInfoProp
             <div className="space-y-2">
               <h5 className="text-sm font-medium flex items-center gap-2">
                 <Brain className="h-4 w-4" />
-                Methodology Detection Result
+                Methodology Detection
               </h5>
               <div className="flex flex-wrap gap-2 mb-2">
                 <Badge 
@@ -118,7 +131,30 @@ export function YouTubeImportDebugInfo({ debugInfo }: YouTubeImportDebugInfoProp
                 <Badge variant="outline">
                   {debugInfo.methodologyRaw.confidence}% confidence
                 </Badge>
+                {debugInfo.methodologyRaw.secondaryElements?.map((el, i) => (
+                  <Badge key={i} variant="secondary" className="text-xs">
+                    +{el}
+                  </Badge>
+                ))}
               </div>
+
+              {/* Terminology Score Visualization */}
+              {terminologyScore && (
+                <div className="space-y-2 mt-3">
+                  <span className="text-xs text-muted-foreground font-medium">Terminology Score:</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    {Object.entries(terminologyScore).map(([key, value]) => (
+                      <div key={key} className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground min-w-[80px]">
+                          {METHODOLOGY_LABELS[key] || key}
+                        </span>
+                        <Progress value={value * 10} className="h-2 flex-1" />
+                        <span className="text-xs text-muted-foreground w-6 text-right">{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {debugInfo.methodologyRaw.evidence && debugInfo.methodologyRaw.evidence.length > 0 && (
                 <div className="space-y-1">
@@ -144,6 +180,97 @@ export function YouTubeImportDebugInfo({ debugInfo }: YouTubeImportDebugInfoProp
                       {debugInfo.methodologyRaw.reasoning}
                     </p>
                   </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Extraction Quality */}
+          {extractionQuality && (
+            <div className="space-y-2">
+              <h5 className="text-sm font-medium flex items-center gap-2">
+                <Target className="h-4 w-4" />
+                Extraction Quality
+              </h5>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Overall</span>
+                    <span className={extractionQuality.overall >= 70 ? 'text-profit' : 'text-yellow-500'}>
+                      {extractionQuality.overall}%
+                    </span>
+                  </div>
+                  <Progress value={extractionQuality.overall} className="h-2" />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Entry Clarity</span>
+                    <span className={extractionQuality.entryClarity >= 70 ? 'text-profit' : 'text-yellow-500'}>
+                      {extractionQuality.entryClarity}%
+                    </span>
+                  </div>
+                  <Progress value={extractionQuality.entryClarity} className="h-2" />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Exit Clarity</span>
+                    <span className={extractionQuality.exitClarity >= 70 ? 'text-profit' : 'text-yellow-500'}>
+                      {extractionQuality.exitClarity}%
+                    </span>
+                  </div>
+                  <Progress value={extractionQuality.exitClarity} className="h-2" />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Risk Clarity</span>
+                    <span className={extractionQuality.riskClarity >= 70 ? 'text-profit' : 'text-yellow-500'}>
+                      {extractionQuality.riskClarity}%
+                    </span>
+                  </div>
+                  <Progress value={extractionQuality.riskClarity} className="h-2" />
+                </div>
+                {extractionQuality.reproducibility !== undefined && (
+                  <div className="space-y-1 col-span-2">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">Reproducibility</span>
+                      <span className={extractionQuality.reproducibility >= 70 ? 'text-profit' : 'text-yellow-500'}>
+                        {extractionQuality.reproducibility}%
+                      </span>
+                    </div>
+                    <Progress value={extractionQuality.reproducibility} className="h-2" />
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Information Gaps & Ambiguities */}
+          {(debugInfo.informationGaps?.length || debugInfo.ambiguities?.length) && (
+            <div className="space-y-2">
+              <h5 className="text-sm font-medium flex items-center gap-2">
+                <BarChart3 className="h-4 w-4" />
+                Quality Notes
+              </h5>
+              
+              {debugInfo.informationGaps && debugInfo.informationGaps.length > 0 && (
+                <div className="space-y-1">
+                  <span className="text-xs text-muted-foreground">Missing Information:</span>
+                  <ul className="list-disc list-inside text-xs text-warning pl-2">
+                    {debugInfo.informationGaps.map((gap, i) => (
+                      <li key={i}>{gap}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              
+              {debugInfo.ambiguities && debugInfo.ambiguities.length > 0 && (
+                <div className="space-y-1">
+                  <span className="text-xs text-muted-foreground">Ambiguous Statements:</span>
+                  <ul className="list-disc list-inside text-xs text-warning pl-2">
+                    {debugInfo.ambiguities.map((amb, i) => (
+                      <li key={i}>{amb}</li>
+                    ))}
+                  </ul>
                 </div>
               )}
             </div>

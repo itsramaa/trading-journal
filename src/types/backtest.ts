@@ -277,7 +277,25 @@ export interface YouTubeImportDebugInfo {
     confidence: number;
     evidence: string[];
     reasoning?: string;
+    secondaryElements?: string[];
+    terminologyScore?: {
+      indicator_based: number;
+      price_action: number;
+      smc: number;
+      ict: number;
+      wyckoff: number;
+      elliott_wave: number;
+    };
   };
+  extractionQuality?: {
+    overall: number;
+    entryClarity: number;
+    exitClarity: number;
+    riskClarity: number;
+    reproducibility?: number;
+  };
+  informationGaps?: string[];
+  ambiguities?: string[];
   processingSteps: YouTubeImportDebugStep[];
 }
 
