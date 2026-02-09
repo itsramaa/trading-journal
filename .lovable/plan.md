@@ -1,285 +1,216 @@
 
-# Plan: Strategy Schema Enhancement & Multi-Timeframe Support
+# Plan: YouTube Import & Backtest Alignment with Enhanced Strategy Schema
 
-**Status: ✅ COMPLETED**
+## Audit Summary
 
-### 1. Timeframe Single Select → Multiple Select Issue
-**Current State:**
-- Database: `timeframe TEXT` (single value)
-- Form: Single `<Select>` component
-- YouTube Import: Sudah punya `timeframeContext` dengan `primary`, `higherTF`, `lowerTF`
+### A. YouTube Import ↔ Strategy Fields Analysis
 
-**Professional Standard:**
-- Trader profesional menggunakan **Multi-Timeframe Analysis (MTFA)**
-- HTF (Higher Timeframe): Untuk bias direction
-- LTF (Lower Timeframe): Untuk entry precision
-- Primary TF: Untuk trade management
+| Field | YouTube Import (extracts) | Strategy DB (saves to) | Status |
+|-------|---------------------------|------------------------|--------|
+| `strategyName` | ✓ Extracted | `name` | ✓ Aligned |
+| `description` | ✓ Extracted | `description` | ✓ Aligned |
+| `methodology` | ✓ Extracted | `methodology` | ✓ Aligned |
+| `timeframeContext.primary` | ✓ Extracted | `timeframe` | ✓ Aligned |
+| `timeframeContext.higherTF` | ✓ Extracted | `higher_timeframe` | ✓ Aligned |
+| `timeframeContext.lowerTF` | ✓ Extracted | `lower_timeframe` | ✓ Aligned |
+| `trading_style` | ✗ Not extracted (inferred) | `trading_style` | ⚠ Inferred only |
+| `sessionPreference` | ✓ Extracted (Gemini) | `session_preference` | ⚠ Mapping exists but edge function doesn't return it |
+| `difficultyLevel` | ✓ Extracted | `difficulty_level` | ✓ Aligned |
+| `suitablePairs` | ✓ Extracted | `valid_pairs` | ✓ Aligned |
+| `conceptsUsed` | ✓ Extracted | Stored in `tags` | ✓ Partial |
+| `indicatorsUsed` | ✓ Extracted | Stored in `tags` | ✓ Partial |
 
-### 2. Strategy Fields Missing vs YouTube Import
+### B. Issues Found
 
-| Field | YouTube Import | Strategy DB | Strategy Form |
-|-------|---------------|-------------|---------------|
-| `methodology` | smc/ict/price_action/etc | Missing | Missing |
-| `difficultyLevel` | beginner/intermediate/advanced | Exists (column) | Missing |
-| `tradingStyle` | scalping/day_trading/swing/position | Missing | Missing |
-| `sessionPreference` | london/ny/asian/all | Missing | Missing |
-| `conceptsUsed` | OB/FVG/RSI divergence/etc | Missing (in entry_rules) | Partial |
-| `timeframeContext` | {primary, higherTF, lowerTF} | Single `timeframe` | Single |
-| `validation_score` | 0-100 | Exists (column) | Missing |
-| `automation_score` | 0-100 | Exists (column) | Missing |
+**Issue 1: `sessionPreference` Not Returned from Edge Function**
+- Gemini unified extraction defines `sessionPreference` in schema (line 334)
+- But the edge function response builder (lines 382-434) doesn't include it
+- The `use-youtube-strategy-import.ts` has `mapSessionPreference()` but receives `undefined`
 
----
+**Issue 2: `trading_style` Only Inferred, Not Extracted**
+- YouTube import infers trading style from timeframe (scalping/day/swing/position)
+- AI extraction schema in `gemini-unified-extract.ts` has `tradingStyle` field (line 293)
+- But it's not mapped to the response
 
-## Solution Design
+**Issue 3: Edge Function Missing Session Preference Passthrough**
+- The unified extraction result has `strategy.sessionPreference` but it's not passed through to the final response
 
-### Phase 1: Database Schema Update
+### C. Backtest ↔ Strategy Alignment Analysis
 
-Tambah kolom baru ke `trading_strategies`:
+| Strategy Field | Backtest Uses | Status |
+|----------------|---------------|--------|
+| `timeframe` | ✓ For interval selection | ✓ Working |
+| `higher_timeframe` | ✗ Not used | ⚠ Should use for bias |
+| `lower_timeframe` | ✗ Not used | ⚠ Should use for entry |
+| `session_preference` | ✗ Not used (has filter UI) | ⚠ Should auto-apply |
+| `methodology` | ✗ Not used | Info only |
+| `trading_style` | ✗ Not used | ⚠ Could affect holding |
+| `exit_rules` | ✓ Used for TP/SL | ✓ Working |
+| `entry_rules` | ✗ Simplified simulation | ⚠ Not rule-based |
 
-```sql
-ALTER TABLE trading_strategies ADD COLUMN IF NOT EXISTS 
-  methodology TEXT DEFAULT 'price_action';
-
-ALTER TABLE trading_strategies ADD COLUMN IF NOT EXISTS 
-  trading_style TEXT DEFAULT 'day_trading';
-
-ALTER TABLE trading_strategies ADD COLUMN IF NOT EXISTS 
-  session_preference TEXT[] DEFAULT ARRAY['all']::TEXT[];
-
-ALTER TABLE trading_strategies ADD COLUMN IF NOT EXISTS 
-  higher_timeframe TEXT;
-
-ALTER TABLE trading_strategies ADD COLUMN IF NOT EXISTS 
-  lower_timeframe TEXT;
-
--- Rename existing timeframe to primary_timeframe for clarity (optional)
--- Or keep as primary and add higher/lower
-```
-
-**New Columns:**
-| Column | Type | Default | Description |
-|--------|------|---------|-------------|
-| `methodology` | `TEXT` | `'price_action'` | Trading methodology (smc, ict, indicator_based, etc.) |
-| `trading_style` | `TEXT` | `'day_trading'` | Trading style (scalping, day_trading, swing, position) |
-| `session_preference` | `TEXT[]` | `['all']` | Preferred sessions (london, ny, asian, all) |
-| `higher_timeframe` | `TEXT` | `NULL` | HTF for directional bias |
-| `lower_timeframe` | `TEXT` | `NULL` | LTF for entry precision |
+**Key Backtest Gaps:**
+1. Session filter in UI is manual, but strategy already has `session_preference` - should auto-populate
+2. Multi-timeframe (HTF/LTF) not utilized in simulation
+3. Trading style could influence position holding logic
 
 ---
 
-### Phase 2: Type Updates
+## Implementation Plan
 
-**File: `src/types/strategy.ts`**
+### Phase 1: Fix YouTube Import → Strategy Field Mapping
 
+**File: `supabase/functions/youtube-strategy-import/index.ts`**
+
+1. Add `sessionPreference` to the unified extraction response (line ~389-420):
 ```typescript
-// New types
-export type TradingMethodology = 
-  | 'indicator_based'
-  | 'price_action' 
-  | 'smc'
-  | 'ict'
-  | 'wyckoff'
-  | 'elliott_wave'
-  | 'hybrid';
-
-export type TradingStyle = 
-  | 'scalping' 
-  | 'day_trading' 
-  | 'swing' 
-  | 'position';
-
-export type TradingSession = 
-  | 'all' 
-  | 'asian' 
-  | 'london' 
-  | 'ny';
-
-export type DifficultyLevel = 
-  | 'beginner' 
-  | 'intermediate' 
-  | 'advanced';
-
-// Enhanced interface
-export interface TradingStrategyEnhanced {
+// In the unified extraction response builder
+strategy: {
   // ... existing fields
-  
-  // NEW fields
-  methodology: TradingMethodology;
-  trading_style: TradingStyle;
-  session_preference: TradingSession[];
-  higher_timeframe: TimeframeType | null;
-  lower_timeframe: TimeframeType | null;
-  difficulty_level: DifficultyLevel | null;
+  sessionPreference: unifiedStrategy.sessionPreference || null, // ADD THIS
+  tradingStyle: unifiedStrategy.tradingStyle || null, // ADD THIS
 }
 ```
 
----
-
-### Phase 3: Strategy Form Update
-
-**File: `src/components/strategy/StrategyFormDialog.tsx`**
-
-Tambah fields baru ke form:
-
-1. **Methodology Select** (single)
-   - Options: Indicator-Based, Price Action, SMC, ICT, Wyckoff, Elliott Wave, Hybrid
-
-2. **Trading Style Select** (single)
-   - Options: Scalping, Day Trading, Swing, Position
-
-3. **Session Preference** (multi-select badges)
-   - Options: All Sessions, Asian, London, New York
-   - Allow multiple selection
-
-4. **Timeframe Section Redesign:**
-   ```
-   ┌─────────────────────────────────────────┐
-   │ Multi-Timeframe Analysis                │
-   ├─────────────────────────────────────────┤
-   │ Higher TF (Bias)    │ [4H ▼]           │
-   │ Primary TF (Trade)  │ [15m ▼]          │
-   │ Lower TF (Entry)    │ [5m ▼]           │
-   └─────────────────────────────────────────┘
-   ```
-
-5. **Difficulty Level** (optional)
-   - Beginner / Intermediate / Advanced
-
----
-
-### Phase 4: Hook Updates
-
-**File: `src/hooks/use-trading-strategies.ts`**
-
-Update interfaces:
+2. Add `sessionPreference` to the fallback extraction response (line ~680-710):
 ```typescript
-export interface TradingStrategy {
-  // ... existing
-  methodology: TradingMethodology | null;
-  trading_style: TradingStyle | null;
-  session_preference: TradingSession[] | null;
-  higher_timeframe: TimeframeType | null;
-  lower_timeframe: TimeframeType | null;
-  difficulty_level: DifficultyLevel | null;
-}
-
-export interface CreateStrategyInput {
-  // ... existing
-  methodology?: TradingMethodology;
-  trading_style?: TradingStyle;
-  session_preference?: TradingSession[];
-  higher_timeframe?: TimeframeType;
-  lower_timeframe?: TimeframeType;
-  difficulty_level?: DifficultyLevel;
+strategy: {
+  // ... existing fields  
+  sessionPreference: normalizedStrategy.metadata?.sessionPreference || null,
 }
 ```
-
----
-
-### Phase 5: YouTube Import Alignment
 
 **File: `src/hooks/use-youtube-strategy-import.ts`**
 
-Update `saveToLibrary` untuk map semua fields:
-
+3. Update `saveToLibrary` to use extracted `tradingStyle` if available:
 ```typescript
-const { data, error } = await supabase
-  .from("trading_strategies")
-  .insert([{
-    // ... existing mappings
-    
-    // NEW field mappings
-    methodology: strategy.methodology,
-    trading_style: mapTimeframeToStyle(strategy.timeframeContext.primary),
-    session_preference: strategy.sessionPreference 
-      ? [strategy.sessionPreference] 
-      : ['all'],
-    higher_timeframe: strategy.timeframeContext.higherTF,
-    lower_timeframe: strategy.timeframeContext.lowerTF,
-    difficulty_level: strategy.difficultyLevel,
-  }]);
+// Line 205 - enhance trading style mapping
+trading_style: strategy.tradingStyle || inferTradingStyle(strategy.timeframeContext.primary),
 ```
 
 ---
 
-### Phase 6: Strategy Card & Detail Updates
+### Phase 2: Backtest Auto-Apply Strategy Settings
 
-**Components to update:**
-1. `StrategyCard.tsx` - Show methodology badge, trading style
-2. `StrategyDetailDrawer.tsx` - Show all new fields
-3. `StrategyStats.tsx` - Group by methodology if useful
+**File: `src/components/strategy/BacktestRunner.tsx`**
 
----
+1. Auto-populate session filter from selected strategy's `session_preference`:
+```typescript
+// After selectedStrategy is resolved (line ~122)
+useEffect(() => {
+  if (selectedStrategy?.session_preference?.length > 0 && 
+      !selectedStrategy.session_preference.includes('all')) {
+    setSessionFilter(selectedStrategy.session_preference[0] as BacktestSessionFilter);
+  }
+}, [selectedStrategy]);
+```
 
-## Implementation Sequence
-
-```text
-Step 1: Database Migration
-        ↓
-Step 2: Type Updates (src/types/strategy.ts)
-        ↓
-Step 3: Hook Updates (use-trading-strategies.ts)
-        ↓
-Step 4: Form Dialog Updates (StrategyFormDialog.tsx)
-        ↓
-Step 5: YouTube Import Alignment
-        ↓
-Step 6: Card/Detail UI Updates
-        ↓
-Step 7: Documentation Update (docs/)
+2. Display strategy's Multi-Timeframe info in the Strategy Info alert (line ~408):
+```typescript
+<li>Timeframe: {selectedStrategy.higher_timeframe && `${selectedStrategy.higher_timeframe} → `}
+  {selectedStrategy.timeframe || 'Not set'}
+  {selectedStrategy.lower_timeframe && ` → ${selectedStrategy.lower_timeframe}`}
+</li>
+{selectedStrategy.session_preference && !selectedStrategy.session_preference.includes('all') && (
+  <li>Sessions: {selectedStrategy.session_preference.join(', ')}</li>
+)}
+{selectedStrategy.methodology && (
+  <li>Methodology: {selectedStrategy.methodology.toUpperCase()}</li>
+)}
 ```
 
 ---
 
-## New Form Layout Preview
+### Phase 3: Edge Function Backtest Enhancement
 
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│ Strategy Form                                                    │
-├─────────────────────────────────────────────────────────────────┤
-│ [Basic Info] [Methodology] [Timeframes] [Entry Rules] [Exit]    │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│ METHODOLOGY TAB (NEW):                                          │
-│ ┌─────────────────────────────────────────────────────────────┐ │
-│ │ Trading Methodology                                          │ │
-│ │ ○ Price Action  ○ SMC  ○ ICT  ○ Indicator  ○ Hybrid         │ │
-│ ├─────────────────────────────────────────────────────────────┤ │
-│ │ Trading Style                                                │ │
-│ │ [Day Trading ▼]                                              │ │
-│ ├─────────────────────────────────────────────────────────────┤ │
-│ │ Preferred Sessions                                           │ │
-│ │ [London ✓] [New York ✓] [Asian] [All]                       │ │
-│ ├─────────────────────────────────────────────────────────────┤ │
-│ │ Difficulty Level                                             │ │
-│ │ ○ Beginner  ○ Intermediate  ● Advanced                      │ │
-│ └─────────────────────────────────────────────────────────────┘ │
-│                                                                  │
-│ TIMEFRAMES TAB:                                                 │
-│ ┌─────────────────────────────────────────────────────────────┐ │
-│ │ Multi-Timeframe Analysis                                     │ │
-│ │ ┌─────────────────┬────────────────────────────────────────┐│ │
-│ │ │ Higher TF       │ [4 Hours ▼]  (Directional bias)       ││ │
-│ │ ├─────────────────┼────────────────────────────────────────┤│ │
-│ │ │ Primary TF      │ [15 Minutes ▼]  (Trade management) *  ││ │
-│ │ ├─────────────────┼────────────────────────────────────────┤│ │
-│ │ │ Lower TF        │ [5 Minutes ▼]  (Entry precision)      ││ │
-│ │ └─────────────────┴────────────────────────────────────────┘│ │
-│ │ * Required                                                   │ │
-│ └─────────────────────────────────────────────────────────────┘ │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
+**File: `supabase/functions/backtest-strategy/index.ts`**
+
+1. Pass session filter from strategy if available (line ~90-95):
+```typescript
+// After fetching strategy, use its session_preference
+const strategySession = strategy.session_preference?.[0];
+if (strategySession && strategySession !== 'all' && !config.sessionFilter) {
+  config.sessionFilter = strategySession;
+}
+```
+
+2. Log Multi-Timeframe context for transparency (add to assumptions):
+```typescript
+const assumptions = {
+  // ... existing
+  multiTimeframe: {
+    higherTF: strategy.higher_timeframe || null,
+    primaryTF: strategy.timeframe,
+    lowerTF: strategy.lower_timeframe || null,
+  },
+  methodology: strategy.methodology || 'unknown',
+  tradingStyle: strategy.trading_style || 'day_trading',
+};
+```
+
+3. Add methodology info to backtest result response (line ~152-168):
+```typescript
+return new Response(
+  JSON.stringify({
+    // ... existing
+    strategyMethodology: strategy.methodology,
+    strategyTradingStyle: strategy.trading_style,
+    strategySessionPreference: strategy.session_preference,
+  }),
+  // ...
+);
 ```
 
 ---
 
-## Benefits
+### Phase 4: Update Backtest Types
 
-1. **Alignment**: Strategy form selaras dengan YouTube Import data
-2. **Professional Standard**: Multi-timeframe analysis support
-3. **Better Analytics**: Filter/group by methodology, style, session
-4. **Backtest Enhancement**: Filter by session preference
-5. **User Experience**: More complete strategy definition
+**File: `src/types/backtest.ts`**
+
+1. Extend `BacktestResult` interface to include strategy metadata:
+```typescript
+export interface BacktestResult {
+  // ... existing fields
+  
+  // NEW: Strategy metadata for context
+  strategyMethodology?: string;
+  strategyTradingStyle?: string;
+  strategySessionPreference?: string[];
+}
+```
+
+2. Extend `BacktestAssumptions` to include MTFA:
+```typescript
+export interface BacktestAssumptions {
+  // ... existing
+  multiTimeframe?: {
+    higherTF: string | null;
+    primaryTF: string | null;
+    lowerTF: string | null;
+  };
+  methodology?: string;
+  tradingStyle?: string;
+}
+```
+
+---
+
+### Phase 5: Update BacktestResults UI
+
+**File: `src/components/strategy/BacktestResults.tsx`**
+
+Display strategy context in results:
+```typescript
+{result.strategyMethodology && (
+  <Badge variant="outline">{result.strategyMethodology.toUpperCase()}</Badge>
+)}
+{result.assumptions?.multiTimeframe && (
+  <span className="text-xs text-muted-foreground">
+    MTFA: {result.assumptions.multiTimeframe.higherTF || '-'} → 
+    {result.assumptions.multiTimeframe.primaryTF} → 
+    {result.assumptions.multiTimeframe.lowerTF || '-'}
+  </span>
+)}
+```
 
 ---
 
@@ -287,12 +218,36 @@ Step 7: Documentation Update (docs/)
 
 | File | Changes |
 |------|---------|
-| `trading_strategies` table | Add 5 new columns via migration |
-| `src/types/strategy.ts` | Add new types + update interface |
-| `src/hooks/use-trading-strategies.ts` | Update interfaces + CRUD |
-| `src/components/strategy/StrategyFormDialog.tsx` | Add new fields + tabs |
-| `src/hooks/use-youtube-strategy-import.ts` | Map all new fields |
-| `src/components/strategy/StrategyCard.tsx` | Show methodology badge |
-| `src/components/strategy/StrategyDetailDrawer.tsx` | Show all new fields |
-| `src/lib/constants/strategy-config.ts` | Add new defaults + options |
-| `docs/FEATURES.md` | Update Strategy Management section |
+| `supabase/functions/youtube-strategy-import/index.ts` | Add sessionPreference + tradingStyle to response |
+| `src/hooks/use-youtube-strategy-import.ts` | Use extracted tradingStyle if available |
+| `src/components/strategy/BacktestRunner.tsx` | Auto-populate session filter, show MTFA info |
+| `supabase/functions/backtest-strategy/index.ts` | Apply strategy session, add MTFA to assumptions |
+| `src/types/backtest.ts` | Extend BacktestResult + BacktestAssumptions |
+| `src/components/strategy/BacktestResults.tsx` | Display strategy context |
+
+---
+
+## Implementation Order
+
+```text
+Step 1: Fix YouTube Import edge function (sessionPreference + tradingStyle)
+        ↓
+Step 2: Update frontend YouTube import hook
+        ↓
+Step 3: Extend backtest types
+        ↓
+Step 4: Update backtest edge function (MTFA, session, methodology)
+        ↓
+Step 5: Update BacktestRunner (auto-apply, display)
+        ↓
+Step 6: Update BacktestResults (display context)
+```
+
+---
+
+## Benefits
+
+1. **Full Field Alignment**: YouTube import saves all professional fields correctly
+2. **Context-Aware Backtesting**: Session preference auto-applied from strategy
+3. **Transparency**: MTFA and methodology visible in backtest results
+4. **Professional UX**: Strategy context displayed throughout backtest workflow
