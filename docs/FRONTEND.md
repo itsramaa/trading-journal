@@ -35,38 +35,42 @@ src/pages/
 
 ```
 src/components/
-├── ui/                # shadcn primitives (50+ components)
+├── ui/                        # shadcn primitives (50+ components)
 │   ├── button.tsx
 │   ├── card.tsx
 │   ├── dialog.tsx
 │   ├── table.tsx
 │   └── ...
 │
-├── dashboard/         # Dashboard widgets
+├── dashboard/                 # Dashboard widgets
 │   ├── TodayPerformance.tsx
 │   ├── SmartQuickActions.tsx
 │   ├── MarketScoreWidget.tsx
 │   ├── SystemStatusIndicator.tsx
 │   ├── MarketSessionsWidget.tsx
-│   ├── RiskSummaryCard.tsx (also in risk/)
 │   ├── AIInsightsWidget.tsx
 │   ├── VolatilityMeterWidget.tsx
 │   ├── DashboardAnalyticsSummary.tsx
-│   └── ADLRiskWidget.tsx
+│   ├── ADLRiskWidget.tsx
+│   ├── PortfolioOverviewCard.tsx
+│   └── StrategyCloneStatsWidget.tsx
 │
-├── journal/           # Trade journal
+├── journal/                   # Trade journal
 │   ├── AllPositionsTable.tsx
-│   ├── OpenPositionsTable.tsx
-│   ├── BinancePositionsTab.tsx
+│   ├── PositionsTable.tsx
+│   ├── BinanceOpenOrdersTable.tsx
 │   ├── TradeEnrichmentDrawer.tsx
 │   ├── TradeSummaryStats.tsx
 │   ├── ScreenshotUploader.tsx
 │   ├── TradeFilters.tsx
 │   ├── TradeHistoryFilters.tsx
 │   ├── TradeHistoryTabs.tsx
-│   └── PositionDialogs.tsx
+│   ├── TradeHistoryInfiniteScroll.tsx
+│   ├── TradeGalleryCard.tsx
+│   ├── PositionDialogs.tsx
+│   └── index.ts
 │
-├── trade/             # Trade entry wizard
+├── trade/                     # Trade entry wizard
 │   └── entry/
 │       ├── TradeEntryWizard.tsx
 │       ├── SetupStep.tsx
@@ -74,9 +78,10 @@ src/components/
 │       ├── PositionSizingStep.tsx
 │       ├── FinalChecklist.tsx
 │       ├── TradeConfirmation.tsx
+│       ├── PreflightResultCard.tsx
 │       └── WizardProgress.tsx
 │
-├── risk/              # Risk management
+├── risk/                      # Risk management
 │   ├── DailyLossTracker.tsx
 │   ├── RiskSettingsForm.tsx
 │   ├── RiskEventLog.tsx
@@ -86,15 +91,17 @@ src/components/
 │   ├── CorrelationMatrix.tsx
 │   ├── MarginHistoryTab.tsx
 │   ├── PositionSizeCalculator.tsx
+│   ├── index.ts
 │   └── calculator/
 │       ├── CalculatorInputs.tsx
 │       ├── CalculatorResults.tsx
 │       ├── ContextWarnings.tsx
 │       ├── RiskAdjustmentBreakdown.tsx
 │       ├── VolatilityStopLoss.tsx
-│       └── QuickReferenceR.tsx
+│       ├── QuickReferenceR.tsx
+│       └── index.ts
 │
-├── strategy/          # Strategy management
+├── strategy/                  # Strategy management
 │   ├── StrategyCard.tsx
 │   ├── StrategyFormDialog.tsx
 │   ├── StrategyDetailDrawer.tsx
@@ -105,14 +112,18 @@ src/components/
 │   ├── EntryRulesBuilder.tsx
 │   ├── ExitRulesBuilder.tsx
 │   ├── YouTubeStrategyImporter.tsx
-│   ├── BacktestRunner.tsx         # Enhanced with MTFA context
-│   ├── BacktestResults.tsx        # Tabs: Equity, Sessions, Trades
-│   ├── BacktestSessionBreakdown.tsx # NEW: Session performance analysis
+│   ├── YouTubeImportDebugInfo.tsx
+│   ├── YouTubeTranscriptGuide.tsx
+│   ├── BacktestRunner.tsx
+│   ├── BacktestResults.tsx
+│   ├── BacktestSessionBreakdown.tsx
 │   ├── BacktestComparison.tsx
+│   ├── BacktestDisclaimer.tsx
 │   ├── MarketFitSection.tsx
-│   └── PairRecommendations.tsx
+│   ├── PairRecommendations.tsx
+│   └── index.ts
 │
-├── analytics/         # Charts & visualizations
+├── analytics/                 # Charts & visualizations
 │   ├── DrawdownChart.tsx
 │   ├── EquityCurveWithEvents.tsx
 │   ├── TradingHeatmap.tsx
@@ -124,26 +135,48 @@ src/components/
 │   ├── CombinedContextualScore.tsx
 │   ├── FearGreedZoneChart.tsx
 │   ├── EventDayComparison.tsx
-│   └── VolatilityLevelChart.tsx
+│   ├── VolatilityLevelChart.tsx
+│   ├── SessionPerformanceChart.tsx
+│   ├── SessionInsights.tsx
+│   └── SevenDayStatsCard.tsx
 │
-├── market/            # Market widgets
+├── market/                    # Market widgets
 │   ├── MarketContextBadge.tsx
-│   └── MarketSentimentWidget.tsx
+│   ├── MarketSentimentWidget.tsx
+│   ├── TradingOpportunitiesWidget.tsx
+│   ├── WhaleTrackingWidget.tsx
+│   └── index.ts
 │
-├── market-insight/    # Market insight tabs
+├── market-insight/            # Market insight tabs
 │   ├── MarketDataTab.tsx
 │   ├── CalendarTab.tsx
 │   ├── AIAnalysisTab.tsx
-│   └── CombinedAnalysisCard.tsx
+│   ├── CombinedAnalysisCard.tsx
+│   └── index.ts
 │
-├── trading/           # Binance trading
+├── trading/                   # Binance trading & sync
 │   ├── BinanceTradeHistory.tsx
 │   ├── BinanceIncomeHistory.tsx
 │   ├── BinanceTransactionHistory.tsx
+│   ├── BinanceFullSyncPanel.tsx
 │   ├── TradeHistoryCard.tsx
-│   └── DateRangeFilter.tsx
+│   ├── DateRangeFilter.tsx
+│   ├── SyncMonitoringPanel.tsx
+│   ├── SyncStatusBadge.tsx
+│   ├── SyncETADisplay.tsx
+│   ├── SyncQuotaDisplay.tsx
+│   ├── SyncRangeSelector.tsx
+│   ├── SyncReconciliationReport.tsx
+│   ├── ReSyncTimeWindow.tsx
+│   ├── DataQualitySummary.tsx
+│   ├── FeeHistoryTab.tsx
+│   └── FundingHistoryTab.tsx
 │
-├── accounts/          # Account management
+├── binance/                   # Binance-specific UI
+│   ├── BinanceNotConfiguredState.tsx
+│   └── index.ts
+│
+├── accounts/                  # Account management
 │   ├── AccountCardList.tsx
 │   ├── AccountSelect.tsx
 │   ├── AddAccountForm.tsx
@@ -151,53 +184,103 @@ src/components/
 │   ├── AccountTransactionDialog.tsx
 │   └── FinancialSummaryCard.tsx
 │
-├── settings/          # Settings
+├── settings/                  # Settings
 │   ├── BinanceApiSettings.tsx
 │   ├── BinanceAccountConfigCard.tsx
+│   ├── BinanceAutoSyncToggle.tsx
+│   ├── BinanceDataSourceToggle.tsx
 │   ├── TradingConfigTab.tsx
 │   ├── AISettingsTab.tsx
 │   ├── JournalExportCard.tsx
-│   └── SettingsBackupRestore.tsx
+│   ├── SettingsBackupRestore.tsx
+│   ├── ApiKeyForm.tsx
+│   ├── RateLimitDisplay.tsx
+│   ├── RetentionPeriodSetting.tsx
+│   ├── DeletedTradesPanel.tsx
+│   └── ComingSoonExchangeCard.tsx
 │
-├── chat/              # AI chatbot
+├── chat/                      # AI chatbot
 │   ├── AIChatbot.tsx
 │   ├── ChatMessage.tsx
 │   ├── QuickActionsPanel.tsx
 │   └── TipsPanel.tsx
 │
-└── layout/            # Layout components
-    ├── DashboardLayout.tsx
-    ├── AppSidebar.tsx
-    ├── NavGroup.tsx
-    ├── NavUser.tsx
-    ├── HeaderControls.tsx
-    ├── CommandPalette.tsx
-    └── CurrencyDisplay.tsx
+├── layout/                    # Layout components
+│   ├── DashboardLayout.tsx
+│   ├── AppSidebar.tsx
+│   ├── NavGroup.tsx
+│   ├── NavUser.tsx
+│   ├── HeaderControls.tsx
+│   ├── CommandPalette.tsx
+│   ├── CurrencyDisplay.tsx
+│   └── GlobalSyncIndicator.tsx
+│
+└── ProtectedRoute.tsx         # Auth guard
 ```
 
-## Custom Hooks
+## Features Directory
 
-### Binance Hooks (`src/features/binance/`)
-```typescript
-useBinanceFutures()           // Core API hook
-useBinanceAccountData()       // Account summary
-useBinanceAdvancedAnalytics() // ADL, volatility
-useBinanceBulkExport()        // CSV export
-useBinanceExtendedData()      // Extended data
-useBinanceMarketData()        // Public market data
-useBinanceTransactionHistory()// Transaction log
+```
+src/features/
+├── binance/                   # Binance integration
+│   ├── useBinanceFutures.ts
+│   ├── useBinanceAccountData.ts
+│   ├── useBinanceAdvancedAnalytics.ts
+│   ├── useBinanceBulkExport.ts
+│   ├── useBinanceExtendedData.ts
+│   ├── useBinanceMarketData.ts
+│   ├── useBinanceTransactionHistory.ts
+│   ├── types.ts
+│   ├── market-data-types.ts
+│   ├── advanced-analytics-types.ts
+│   └── index.ts
+│
+├── ai/                        # AI features
+│   ├── useAIConfluenceDetection.ts
+│   ├── useAIPreflight.ts
+│   ├── useAITradeQuality.ts
+│   └── useDashboardInsights.ts
+│
+├── market-insight/            # Market analysis
+│   ├── useMarketSentiment.ts
+│   ├── useMacroAnalysis.ts
+│   ├── useMarketAlerts.ts
+│   ├── useCombinedAnalysis.ts
+│   ├── useMultiSymbolMarketInsight.ts
+│   ├── types.ts
+│   └── index.ts
+│
+├── calendar/                  # Economic calendar
+│   ├── useEconomicCalendar.ts
+│   ├── types.ts
+│   └── index.ts
+│
+└── trade/                     # Trade entry
+    ├── useTradeEntryWizard.ts
+    └── usePreTradeValidation.ts
 ```
 
-### Trade Hooks (`src/hooks/`)
+## Custom Hooks (`src/hooks/`)
+
+### Trade Hooks
 ```typescript
 use-trade-entries.ts          // Trade CRUD
+use-trade-entries-paginated.ts // Paginated trade list
 use-trading-strategies.ts     // Strategy CRUD
 use-trading-pairs.ts          // Pair management
 use-trading-gate.ts           // Trading gate status
 use-trade-screenshots.ts      // Screenshot upload
+use-trade-enrichment.ts       // Trade enrichment
+use-trade-enrichment-binance.ts // Binance enrichment
+use-trade-validation.ts       // Trade validation
+use-trade-ai-analysis.ts      // AI analysis trigger
+use-trade-stats.ts            // Trade statistics
+use-trade-history-filters.ts  // Filter management
+use-deleted-trades.ts         // Deleted trades recovery
+use-post-trade-analysis.ts    // Post-trade AI
 ```
 
-### Risk Hooks (`src/hooks/`)
+### Risk Hooks
 ```typescript
 use-risk-profile.ts           // Risk profile CRUD
 use-risk-events.ts            // Risk event log
@@ -205,223 +288,86 @@ use-context-aware-risk.ts     // Dynamic risk adjustment
 use-daily-pnl.ts              // Local P&L calc
 ```
 
-### Analytics Hooks (`src/hooks/`)
+### Binance Sync Hooks
+```typescript
+use-binance-sync.ts           // Core sync
+use-binance-full-sync.ts      // Full history sync
+use-binance-incremental-sync.ts // Incremental sync
+use-binance-aggregated-sync.ts  // Aggregated sync
+use-binance-background-sync.ts  // Background sync
+use-binance-auto-sync.ts       // Auto sync toggle
+use-sync-quota.ts              // Quota management
+use-sync-monitoring.ts         // Sync monitoring
+```
+
+### Analytics Hooks
 ```typescript
 use-binance-daily-pnl.ts      // Binance daily P&L
 use-binance-weekly-pnl.ts     // Weekly P&L
 use-binance-week-comparison.ts// Week over week
 use-contextual-analytics.ts   // Context-based stats
 use-strategy-performance.ts   // Strategy metrics
+use-unified-daily-pnl.ts      // Unified daily P&L
+use-unified-weekly-pnl.ts     // Unified weekly P&L
+use-unified-week-comparison.ts // Unified comparison
+use-unified-portfolio-data.ts  // Portfolio data
+use-symbol-breakdown.ts        // Symbol breakdown
+use-monthly-pnl.ts             // Monthly P&L
 ```
 
-### MARKET Domain Hooks
-
-#### Core Market Hooks (`src/hooks/` & `src/features/market-insight/`)
-
-| Hook | Location | Purpose |
-|------|----------|---------|
-| `useUnifiedMarketScore` | `hooks/use-unified-market-score.ts` | Composite market score (0-100) with trading bias |
-| `useMarketSentiment` | `features/market-insight/useMarketSentiment.ts` | Binance sentiment aggregation |
-| `useMacroAnalysis` | `features/market-insight/useMacroAnalysis.ts` | AI-powered macro narrative |
-| `useMarketAlerts` | `features/market-insight/useMarketAlerts.ts` | Extreme condition notifications |
-| `useEconomicCalendar` | `features/calendar/useEconomicCalendar.ts` | Economic event fetching |
-| `useEconomicEvents` | `hooks/use-economic-events.ts` | Event filtering & processing |
-| `useCombinedAnalysis` | `features/market-insight/useCombinedAnalysis.ts` | Unified market recommendation |
-| `useMultiSymbolMarketInsight` | `features/market-insight/useMultiSymbolMarketInsight.ts` | Multi-symbol technical data |
-
-#### Hook Dependency Graph
-
-```
-┌──────────────────────────────────────────────────────────────────────────┐
-│                         MARKET DOMAIN HOOKS                              │
-├──────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│  External APIs                                                           │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐     │
-│  │ Binance API │  │ Fear/Greed  │  │  Calendar   │  │  Lovable AI │     │
-│  │ (sentiment) │  │   API       │  │    API      │  │  (macro)    │     │
-│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘     │
-│         │                │                │                │            │
-│         ▼                ▼                ▼                ▼            │
-│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐    │
-│  │useMarket     │ │(internal)    │ │useEconomic   │ │useMacro      │    │
-│  │Sentiment     │ │Fear/Greed    │ │Calendar      │ │Analysis      │    │
-│  │              │ │fetch         │ │              │ │              │    │
-│  └──────┬───────┘ └──────┬───────┘ └──────┬───────┘ └──────┬───────┘    │
-│         │                │                │                │            │
-│         └────────┬───────┴────────┬───────┴────────┬───────┘            │
-│                  │                │                │                     │
-│                  ▼                ▼                ▼                     │
-│         ┌─────────────────────────────────────────────────┐             │
-│         │            useUnifiedMarketScore                │             │
-│         │                                                 │             │
-│         │  Aggregates:                                    │             │
-│         │  • Technical Score (25%)                        │             │
-│         │  • Fear/Greed (25%)                             │             │
-│         │  • Macro Score (25%)                            │             │
-│         │  • Event Safety (25%)                           │             │
-│         │                                                 │             │
-│         │  Outputs:                                       │             │
-│         │  • score: 0-100                                 │             │
-│         │  • bias: LONG_FAVORABLE | SHORT | NEUTRAL | ... │             │
-│         │  • components: { tech, fg, macro, event }       │             │
-│         │  • warnings: string[]                           │             │
-│         └──────────────────────┬──────────────────────────┘             │
-│                                │                                        │
-│         ┌──────────────────────┼──────────────────────┐                 │
-│         │                      │                      │                 │
-│         ▼                      ▼                      ▼                 │
-│  ┌──────────────┐      ┌──────────────┐      ┌──────────────┐          │
-│  │useMarket     │      │useContext    │      │useStrategy   │          │
-│  │Alerts        │      │AwareRisk     │      │Context       │          │
-│  │              │      │              │      │              │          │
-│  │ Monitors:    │      │ Adjusts:     │      │ Evaluates:   │          │
-│  │ • F&G ≤25/≥75│      │ • Vol factor │      │ • Market fit │          │
-│  │ • Conflicts  │      │ • Event mult │      │ • Trend align│          │
-│  │ • Events     │      │ • Sentiment  │      │ • Vol match  │          │
-│  └──────────────┘      └──────────────┘      └──────────────┘          │
-│                                                                          │
-└──────────────────────────────────────────────────────────────────────────┘
-```
-
-#### Detailed Hook Specifications
-
-**`useUnifiedMarketScore(symbol?: string)`**
+### Market Hooks
 ```typescript
-// Returns
-{
-  score: number;                    // 0-100 composite
-  bias: TradingBias;               // Enum: LONG_FAVORABLE, SHORT_FAVORABLE, NEUTRAL, CAUTION, AVOID
-  components: {
-    technical: number;             // 0-100
-    fearGreed: number;             // 0-100
-    macro: number;                 // 0-100
-    eventSafety: number;           // 0-100
-  };
-  warnings: string[];              // Active warnings
-  recommendation: string;          // Human-readable
-  isLoading: boolean;
-  error: Error | null;
-}
-
-// Consumers: MarketScoreWidget, PositionCalculator, TradeEntryWizard, useTradingGate
+use-unified-market-score.ts   // Composite market score
+use-economic-events.ts        // Economic events
+use-capture-market-context.ts // Market context capture
+use-strategy-context.ts       // Strategy context
 ```
 
-**`useMarketSentiment(symbol: string)`**
+### Account & Balance Hooks
 ```typescript
-// Returns
-{
-  sentimentScore: number;          // 0-100 (0=bearish, 100=bullish)
-  topTraderRatio: number;          // Long/short ratio
-  globalRatio: number;             // Global L/S
-  openInterestChange: number;      // OI % change
-  takerVolume: { buy: number; sell: number };
-  fundingRate: number;
-  bias: 'bullish' | 'bearish' | 'neutral';
-  isLoading: boolean;
-}
-
-// Data Source: binance-market-data edge function
-// Consumers: MarketSentimentWidget, useUnifiedMarketScore
+use-accounts.ts               // Account management
+use-trading-accounts.ts       // Trading accounts
+use-exchange-credentials.ts   // API credentials
+use-exchange-balance.ts       // Exchange balance
+use-combined-balance.ts       // Combined balance
+use-balance-snapshots.ts      // Balance snapshots
+use-balance-reconciliation.ts // Reconciliation
+use-currency-conversion.ts    // Currency conversion
+use-exchange-rate.ts          // Exchange rates
 ```
 
-**`useMacroAnalysis()`**
-```typescript
-// Returns
-{
-  narrative: string;               // AI-generated analysis
-  keyDrivers: string[];           // Main market drivers
-  riskFactors: string[];          // Current risks
-  outlook: 'bullish' | 'bearish' | 'neutral';
-  confidence: number;             // 0-100
-  isLoading: boolean;
-}
-
-// Data Source: macro-analysis edge function (Lovable AI)
-// Consumers: AIAnalysisTab, useUnifiedMarketScore
-```
-
-**`useEconomicCalendar({ startDate, endDate, impact? })`**
-```typescript
-// Returns
-{
-  events: EconomicEvent[];
-  upcomingHighImpact: EconomicEvent[];  // Next 24h high-impact
-  isEventDay: boolean;                   // High-impact today
-  nextEvent: EconomicEvent | null;
-  isLoading: boolean;
-}
-
-// Data Source: economic-calendar edge function
-// Consumers: CalendarTab, useUnifiedMarketScore, ContextWarnings
-```
-
-**`useMarketAlerts()`**
-```typescript
-// Side-effect hook - monitors conditions and triggers toasts
-// Monitors:
-// - Fear & Greed extremes (≤25 or ≥75)
-// - Sentiment conflicts (Crypto vs Macro)
-// - High-impact events within 1 hour
-
-// Usage: Called once in MarketInsight or Dashboard
-```
-
-**`useContextAwareRisk(symbol: string, baseRisk: number)`**
-```typescript
-// Returns
-{
-  adjustedRisk: number;            // Final risk % after adjustments
-  multipliers: {
-    volatility: number;            // 0.5-1.5 based on ATR
-    event: number;                 // 0.5-1.0 based on calendar
-    sentiment: number;             // 0.7-1.3 based on F&G
-    momentum: number;              // 0.8-1.2 based on score
-    performance: number;           // 0.8-1.0 based on pair history
-  };
-  warnings: string[];
-  breakdown: string;               // Human-readable explanation
-}
-
-// Consumers: PositionCalculator, TradeEntryWizard, RiskAdjustmentBreakdown
-```
-
-**`useStrategyContext(strategyId: string)`**
-```typescript
-// Returns
-{
-  marketFit: number;               // 0-100 strategy-market alignment
-  fitLevel: 'optimal' | 'acceptable' | 'poor';
-  factors: {
-    volatilityMatch: number;       // Timeframe vs ATR
-    trendAlignment: number;        // Strategy vs market bias
-    eventRisk: number;             // High-impact proximity
-    pairHistory: number;           // Historical performance
-  };
-  recommendation: string;
-}
-
-// Consumers: StrategyCard (Market Fit Badge), MarketFitSection
-```
-
-### AI Hooks (`src/features/ai/`)
-```typescript
-useAIConfluenceDetection.ts   // Confluence validation
-useAIPreflight.ts             // Pre-trade check
-useAITradeQuality.ts          // Quality scoring
-useDashboardInsights.ts       // AI insights
-```
-
-### Utility Hooks (`src/hooks/`)
+### Utility Hooks
 ```typescript
 use-auth.ts                   // Authentication
-use-accounts.ts               // Account management
 use-realtime.ts               // Realtime subscriptions
 use-notifications.ts          // Notification system
+use-push-notifications.ts     // Push notifications
+use-notification-triggers.ts  // Notification triggers
 use-user-settings.ts          // User preferences
 use-language.ts               // i18n
 use-mobile.tsx                // Mobile detection
 use-ai-settings-enforcement.ts // AI feature gating
+use-api-rate-limit.ts         // API rate limiting
+use-saved-filters.ts          // Saved filters
+use-sidebar-persistence.ts    // Sidebar state
+use-toast.ts                  // Toast notifications
+```
+
+### Export Hooks
+```typescript
+use-backtest.ts               // Backtest execution
+use-backtest-export.ts        // Backtest export
+use-performance-export.ts     // Performance export
+use-contextual-export.ts      // Contextual export
+use-strategy-export.ts        // Strategy export
+use-weekly-report-export.ts   // Weekly report export
+use-strategy-sharing.ts       // Strategy sharing
+use-youtube-strategy-import.ts // YouTube import
+use-ai-strategy-recommendation.ts // AI recommendations
+use-paper-account-validation.ts // Paper account validation
+use-local-fee-funding.ts       // Local fee calculation
+use-positions.ts               // Positions management
+use-background-sync.ts         // Background sync
 ```
 
 ## State Management
@@ -464,6 +410,7 @@ interface AppState {
 // Trades
 ['trade-entries', userId]
 ['trade-entries', 'stats']
+['trade-entries', 'paginated', filters]
 
 // Strategies
 ['trading-strategies', userId]
@@ -493,6 +440,13 @@ interface AppState {
 ['ai-preflight', params]
 ['trade-quality', tradeId]
 ['dashboard-insights', userId]
+
+// Backtest
+['backtest', strategyId, params]
+['backtest-session-breakdown', backtestId]
+
+// YouTube Import
+['youtube-import', url]
 ```
 
 ## UI Patterns
