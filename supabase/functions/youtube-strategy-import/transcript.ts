@@ -49,16 +49,38 @@ export async function fetchYouTubeTranscript(videoId: string): Promise<Transcrip
     const videoPageUrl = `https://www.youtube.com/watch?v=${videoId}`;
     const pageResponse = await fetch(videoPageUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
         'Accept-Language': 'en-US,en;q=0.9',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1',
+        'Cache-Control': 'max-age=0',
       },
     });
 
     if (!pageResponse.ok) {
-      return { success: false, error: `Failed to fetch video page: ${pageResponse.status}` };
+      console.error(`YouTube page fetch failed: ${pageResponse.status}`);
+      return { 
+        success: false, 
+        error: `YouTube is blocking automated requests. Please provide the transcript manually using the "Paste Transcript" option.` 
+      };
     }
 
     const pageHtml = await pageResponse.text();
+    
+    // Check if we got a valid YouTube page or a bot detection page
+    if (pageHtml.includes('consent.youtube.com') || pageHtml.includes('To continue with your YouTube experience')) {
+      console.error('YouTube consent/bot detection page received');
+      return {
+        success: false,
+        error: 'YouTube requires consent verification. Please provide the transcript manually.',
+      };
+    }
 
     // Extract video title
     const titleMatch = pageHtml.match(/<title>([^<]+)<\/title>/);
@@ -90,9 +112,21 @@ export async function fetchYouTubeTranscript(videoId: string): Promise<Transcrip
     const captionTracks = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
     
     if (!captionTracks || captionTracks.length === 0) {
+      // Check if captions are disabled or video is restricted
+      const playabilityStatus = playerResponse?.playabilityStatus?.status;
+      const reason = playerResponse?.playabilityStatus?.reason;
+      
+      if (playabilityStatus === 'UNPLAYABLE' || playabilityStatus === 'ERROR') {
+        return {
+          success: false,
+          error: `Video is not accessible: ${reason || 'Unknown reason'}. Please provide the transcript manually.`,
+          videoTitle,
+        };
+      }
+      
       return { 
         success: false, 
-        error: 'No captions available for this video. Please provide the transcript manually.',
+        error: 'No captions/subtitles available for this video. Please copy the transcript from YouTube and paste it in the text area below.',
         videoTitle 
       };
     }
