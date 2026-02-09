@@ -97,7 +97,122 @@ export interface BacktestResult {
   simulationVersion?: string;
 }
 
-// YouTube Strategy Import Types
+// ============================================
+// YouTube Strategy Import V2 Types
+// ============================================
+
+// Trading methodology taxonomy
+export type TradingMethodology = 
+  | 'indicator_based'
+  | 'price_action' 
+  | 'smc'           // Smart Money Concepts
+  | 'ict'           // Inner Circle Trader
+  | 'wyckoff'
+  | 'elliott_wave'
+  | 'hybrid';
+
+// SMC/ICT concept taxonomy
+export type SMCConcept = 
+  | 'order_block'
+  | 'fair_value_gap'
+  | 'break_of_structure'
+  | 'change_of_character'
+  | 'liquidity_sweep'
+  | 'mitigation_block'
+  | 'premium_discount'
+  | 'equilibrium'
+  | 'inducement'
+  | 'killzone'
+  | 'optimal_trade_entry'
+  | 'market_structure_shift'
+  | 'displacement';
+
+// Structured entry rule (V2 - type-safe)
+export interface StructuredEntryRule {
+  id: string;
+  type: 'smc' | 'ict' | 'indicator' | 'price_action' | 'liquidity' | 'structure';
+  concept: string;       // e.g., "order_block", "rsi_divergence"
+  condition: string;     // Observable & testable condition
+  timeframe?: string;
+  is_mandatory: boolean;
+}
+
+// Structured exit rule (V2)
+export interface StructuredExitRule {
+  id: string;
+  type: 'take_profit' | 'stop_loss' | 'trailing_stop' | 'time_based';
+  value: number | null;
+  unit: 'percent' | 'atr' | 'rr' | 'pips' | null;
+  concept: string;
+}
+
+// Import status enum
+export type YouTubeImportStatus = 'success' | 'warning' | 'blocked' | 'failed';
+
+// V2 Strategy data structure
+export interface YouTubeStrategyDataV2 {
+  strategyName: string;
+  description: string;
+  methodology: TradingMethodology;
+  methodologyConfidence: number;
+  
+  conceptsUsed: string[];    // SMC: OB, FVG, BOS | ICT: Killzones, OTE
+  indicatorsUsed: string[];  // RSI, MACD (empty for pure SMC)
+  patternsUsed: string[];    // Double top, H&S, Wyckoff accumulation
+  
+  entryRules: StructuredEntryRule[];
+  exitRules: StructuredExitRule[];
+  
+  riskManagement: {
+    riskRewardRatio?: number | null;
+    stopLossLogic?: string | null;
+    positionSizing?: string | null;
+  };
+  
+  timeframeContext: {
+    primary: string;
+    higherTF?: string | null;
+    lowerTF?: string | null;
+  };
+  
+  suitablePairs: string[];
+  difficultyLevel: 'beginner' | 'intermediate' | 'advanced';
+  riskLevel: 'low' | 'medium' | 'high';
+  
+  // Scores
+  confidence: number;      // 0-100 (final calculated)
+  automationScore: number; // 0-100
+  
+  // Source
+  sourceUrl: string;
+  sourceTitle: string;
+  transcriptLength?: number;
+}
+
+// V2 Validation result
+export interface StrategyValidationV2 {
+  isActionable: boolean;
+  hasEntry: boolean;
+  hasExit: boolean;
+  hasRiskManagement: boolean;
+  warnings: string[];
+  missingElements: string[];
+  score: number;
+}
+
+// V2 Import result (full response from edge function)
+export interface YouTubeStrategyImportV2 {
+  status: YouTubeImportStatus;
+  reason?: string;
+  strategy?: YouTubeStrategyDataV2;
+  validation?: StrategyValidationV2;
+}
+
+// ============================================
+// Legacy YouTube Strategy Import Types (V1)
+// Keep for backwards compatibility
+// ============================================
+
 export interface YouTubeStrategyImport {
   strategyName: string;
   description: string;
@@ -130,9 +245,10 @@ export interface StrategyValidation {
 }
 
 export interface YouTubeImportProgress {
-  stage: 'idle' | 'fetching' | 'transcribing' | 'extracting' | 'validating' | 'complete' | 'error';
+  stage: 'idle' | 'fetching' | 'transcribing' | 'detecting' | 'extracting' | 'validating' | 'complete' | 'error' | 'blocked' | 'warning';
   progress: number; // 0-100
   message: string;
+  details?: string;
 }
 
 // Default backtest config

@@ -1,4 +1,22 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { 
+  fetchYouTubeTranscript, 
+  extractVideoId, 
+  validateTranscriptQuality 
+} from "./transcript.ts";
+import { 
+  buildMethodologyPrompt, 
+  buildExtractionPrompt 
+} from "./prompts.ts";
+import {
+  validateActionability,
+  calculateFinalConfidence,
+  determineImportStatus,
+  generateStatusReason,
+  normalizeRules,
+  type ExtractedStrategy,
+  type ImportStatus,
+} from "./validation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -10,19 +28,125 @@ interface YouTubeImportRequest {
   transcript?: string;
 }
 
+interface MethodologyDetectionResult {
+  methodology: string;
+  confidence: number;
+  evidence: string[];
+}
+
+/**
+ * Create error response with proper status
+ */
+function errorResponse(status: ImportStatus, reason: string, videoTitle?: string) {
+  return new Response(
+    JSON.stringify({
+      status,
+      reason,
+      strategy: null,
+      validation: null,
+      videoTitle,
+    }),
+    { 
+      status: status === 'failed' ? 400 : 200, 
+      headers: { ...corsHeaders, "Content-Type": "application/json" } 
+    }
+  );
+}
+
+/**
+ * Call AI for methodology detection
+ */
+async function detectMethodology(
+  transcript: string, 
+  apiKey: string
+): Promise<MethodologyDetectionResult | null> {
+  const prompt = buildMethodologyPrompt(transcript);
+  
+  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "google/gemini-2.5-flash",
+      messages: [
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.3, // Lower for more consistent classification
+    }),
+  });
+
+  if (!response.ok) {
+    console.error("Methodology detection failed:", response.status);
+    return null;
+  }
+
+  const aiResponse = await response.json();
+  const content = aiResponse.choices?.[0]?.message?.content || "";
+  
+  try {
+    const cleanContent = content.replace(/```json\n?|\n?```/g, '').trim();
+    return JSON.parse(cleanContent) as MethodologyDetectionResult;
+  } catch {
+    console.error("Failed to parse methodology response:", content);
+    return null;
+  }
+}
+
+/**
+ * Call AI for strategy extraction
+ */
+async function extractStrategy(
+  transcript: string,
+  methodology: string,
+  confidence: number,
+  apiKey: string
+): Promise<ExtractedStrategy | null> {
+  const prompt = buildExtractionPrompt(transcript, methodology, confidence);
+  
+  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "google/gemini-2.5-flash",
+      messages: [
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.5,
+    }),
+  });
+
+  if (!response.ok) {
+    console.error("Strategy extraction failed:", response.status);
+    return null;
+  }
+
+  const aiResponse = await response.json();
+  const content = aiResponse.choices?.[0]?.message?.content || "";
+  
+  try {
+    const cleanContent = content.replace(/```json\n?|\n?```/g, '').trim();
+    return JSON.parse(cleanContent) as ExtractedStrategy;
+  } catch (e) {
+    console.error("Failed to parse strategy response:", content);
+    return null;
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { url, transcript } = await req.json() as YouTubeImportRequest;
+    const { url, transcript: manualTranscript } = await req.json() as YouTubeImportRequest;
     
-    if (!url && !transcript) {
-      return new Response(
-        JSON.stringify({ error: "URL or transcript is required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    if (!url && !manualTranscript) {
+      return errorResponse('failed', 'URL or transcript is required');
     }
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -30,171 +154,226 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    // Extract video info from URL if provided
-    let videoTitle = "Trading Strategy Video";
-    let videoContent = transcript || "";
-    
-    if (url && !transcript) {
-      // Try to extract video ID and fetch info
-      const videoIdMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/);
-      if (videoIdMatch) {
-        const videoId = videoIdMatch[1];
-        
-        // Try to get video info using oEmbed (no API key needed)
-        try {
-          const oembedUrl = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`;
-          const oembedRes = await fetch(oembedUrl);
-          if (oembedRes.ok) {
-            const oembedData = await oembedRes.json();
-            videoTitle = oembedData.title || videoTitle;
-          }
-        } catch (e) {
-          console.log("Could not fetch video info:", e);
-        }
-        
-        // Since we can't get transcript automatically, use the URL as context
-        videoContent = `YouTube Video: ${videoTitle}\nURL: ${url}\n\nNote: Please analyze based on the video title and generate a typical trading strategy structure. User should edit the details.`;
+    // ================================================================
+    // STEP 0: Transcript Acquisition (MANDATORY)
+    // ================================================================
+    let transcript: string;
+    let videoTitle: string | undefined;
+    let isAutoGenerated = false;
+    let transcriptWordCount = 0;
+
+    if (manualTranscript) {
+      // User provided transcript manually
+      transcript = manualTranscript;
+      transcriptWordCount = transcript.split(/\s+/).filter(w => w.length > 0).length;
+    } else if (url) {
+      // Extract video ID and fetch transcript
+      const videoId = extractVideoId(url);
+      if (!videoId) {
+        return errorResponse('failed', 'Invalid YouTube URL format');
       }
+
+      const transcriptResult = await fetchYouTubeTranscript(videoId);
+      videoTitle = transcriptResult.videoTitle;
+      
+      if (!transcriptResult.success || !transcriptResult.transcript) {
+        return errorResponse(
+          'failed', 
+          transcriptResult.error || 'Unable to retrieve video transcript. Please provide the transcript manually.',
+          videoTitle
+        );
+      }
+
+      transcript = transcriptResult.transcript;
+      isAutoGenerated = transcriptResult.isAutoGenerated || false;
+      transcriptWordCount = transcript.split(/\s+/).filter(w => w.length > 0).length;
+    } else {
+      return errorResponse('failed', 'No input provided');
     }
 
-    // Use Gemini to extract strategy
-    const systemPrompt = `You are a trading strategy analyst. Extract trading strategy details from video content or descriptions.
+    // ================================================================
+    // STEP 1: Transcript Quality Validation
+    // ================================================================
+    const qualityCheck = validateTranscriptQuality(transcript);
     
-IMPORTANT: If the content is limited, create a reasonable placeholder strategy based on the video title.
-Generate valid JSON that follows this exact structure.`;
+    if (!qualityCheck.hasActionableContent) {
+      return errorResponse(
+        'failed',
+        `Transcript does not contain actionable trading rules. ${qualityCheck.warnings.join('. ')}`,
+        videoTitle
+      );
+    }
 
-    const userPrompt = `Analyze this trading video content and extract the strategy:
+    // ================================================================
+    // STEP 2: Methodology Detection
+    // ================================================================
+    const methodologyResult = await detectMethodology(transcript, LOVABLE_API_KEY);
+    
+    if (!methodologyResult) {
+      return errorResponse(
+        'failed',
+        'Failed to analyze trading methodology from transcript',
+        videoTitle
+      );
+    }
 
-TITLE: ${videoTitle}
-CONTENT: ${videoContent}
+    if (methodologyResult.confidence < 60) {
+      return errorResponse(
+        'blocked',
+        `Unable to confidently determine trading methodology (${methodologyResult.confidence}% confidence). The transcript may not describe a clear trading strategy.`,
+        videoTitle
+      );
+    }
 
-Extract the trading strategy and return ONLY valid JSON (no markdown, no code blocks):
-{
-  "strategyName": "Strategy name based on title",
-  "description": "Brief description",
-  "type": "day_trading",
-  "timeframe": "1h",
-  "entryConditions": ["Entry condition 1", "Entry condition 2", "Entry condition 3"],
-  "exitConditions": {
-    "takeProfit": 2,
-    "takeProfitUnit": "percent",
-    "stopLoss": 1,
-    "stopLossUnit": "percent"
-  },
-  "indicatorsUsed": ["RSI", "MACD", "EMA"],
-  "positionSizing": "1-2% of capital per trade",
-  "suitablePairs": ["BTC", "ETH", "SOL"],
-  "difficultyLevel": "intermediate",
-  "riskLevel": "medium",
-  "confidenceScore": 70,
-  "automationScore": 50
-}`;
+    // ================================================================
+    // STEP 3: Strategy Extraction (Methodology-Aware)
+    // ================================================================
+    const extractedStrategy = await extractStrategy(
+      transcript,
+      methodologyResult.methodology,
+      methodologyResult.confidence,
+      LOVABLE_API_KEY
+    );
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
+    if (!extractedStrategy) {
+      return errorResponse(
+        'failed',
+        'Failed to extract strategy details from transcript',
+        videoTitle
+      );
+    }
+
+    // Normalize rules (add IDs, set mandatory flags)
+    const normalizedStrategy = normalizeRules(extractedStrategy);
+
+    // ================================================================
+    // STEP 4: Actionability Gate
+    // ================================================================
+    const actionability = validateActionability(normalizedStrategy);
+
+    // ================================================================
+    // STEP 5: Confidence Scoring & Status Determination
+    // ================================================================
+    const finalConfidence = calculateFinalConfidence(
+      methodologyResult.confidence,
+      actionability.score,
+      transcriptWordCount,
+      isAutoGenerated
+    );
+
+    const importStatus = determineImportStatus(finalConfidence, actionability);
+    const statusReason = generateStatusReason(importStatus, actionability, finalConfidence);
+
+    // Calculate automation score based on rule clarity
+    const automationScore = calculateAutomationScore(normalizedStrategy);
+
+    // Build final response
+    const response = {
+      status: importStatus,
+      reason: statusReason,
+      strategy: {
+        strategyName: normalizedStrategy.strategyName || videoTitle || 'Imported Strategy',
+        description: normalizedStrategy.description || '',
+        methodology: methodologyResult.methodology,
+        methodologyConfidence: methodologyResult.confidence,
+        
+        conceptsUsed: normalizedStrategy.conceptsUsed || [],
+        indicatorsUsed: normalizedStrategy.indicatorsUsed || [],
+        patternsUsed: normalizedStrategy.patternsUsed || [],
+        
+        entryRules: normalizedStrategy.entryRules || [],
+        exitRules: normalizedStrategy.exitRules || [],
+        
+        riskManagement: normalizedStrategy.riskManagement || {},
+        timeframeContext: normalizedStrategy.timeframeContext || { primary: '1h' },
+        
+        suitablePairs: normalizedStrategy.suitablePairs || [],
+        difficultyLevel: normalizedStrategy.difficultyLevel || 'intermediate',
+        riskLevel: normalizedStrategy.riskLevel || 'medium',
+        
+        confidence: finalConfidence,
+        automationScore,
+        
+        sourceUrl: url || '',
+        sourceTitle: videoTitle || '',
+        transcriptLength: transcriptWordCount,
       },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
+      validation: {
+        isActionable: actionability.isActionable,
+        hasEntry: actionability.hasEntry,
+        hasExit: actionability.hasExit,
+        hasRiskManagement: actionability.hasRiskManagement,
+        warnings: [
+          ...actionability.warnings,
+          ...(isAutoGenerated ? ['Transcript was auto-generated (may contain errors)'] : []),
+          ...qualityCheck.warnings,
         ],
-        temperature: 0.7,
-      }),
-    });
-
-    if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Rate limit exceeded. Please try again later." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "AI credits exhausted. Please add funds." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      throw new Error(`AI request failed: ${response.status}`);
-    }
-
-    const aiResponse = await response.json();
-    const content = aiResponse.choices?.[0]?.message?.content || "";
-    
-    // Parse the JSON response
-    let strategy;
-    try {
-      // Remove any markdown code blocks if present
-      const cleanContent = content.replace(/```json\n?|\n?```/g, '').trim();
-      strategy = JSON.parse(cleanContent);
-    } catch (e) {
-      console.error("Failed to parse AI response:", content);
-      throw new Error("Failed to parse strategy from AI response");
-    }
-
-    // Validate and enhance the strategy
-    const validation = validateStrategy(strategy);
-    
-    // Add source info
-    strategy.sourceUrl = url || "";
-    strategy.sourceTitle = videoTitle;
+        missingElements: actionability.missingElements,
+        score: actionability.score,
+      },
+    };
 
     return new Response(
-      JSON.stringify({ 
-        strategy,
-        validation,
-      }),
+      JSON.stringify(response),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
   } catch (error: unknown) {
     console.error("YouTube import error:", error);
     const message = error instanceof Error ? error.message : "Unknown error";
+    
+    // Handle rate limits and payment errors
+    if (message.includes('429') || message.includes('rate limit')) {
+      return new Response(
+        JSON.stringify({ status: 'failed', reason: 'Rate limit exceeded. Please try again later.' }),
+        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    if (message.includes('402') || message.includes('payment')) {
+      return new Response(
+        JSON.stringify({ status: 'failed', reason: 'AI credits exhausted. Please add funds.' }),
+        { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    
     return new Response(
-      JSON.stringify({ error: message }),
+      JSON.stringify({ status: 'failed', reason: message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
 
-function validateStrategy(strategy: any) {
-  const missingElements: string[] = [];
-  const warnings: string[] = [];
+/**
+ * Calculate automation score based on how programmable the rules are
+ */
+function calculateAutomationScore(strategy: ExtractedStrategy): number {
+  let score = 50; // Base score
   
-  // Check required fields
-  if (!strategy.entryConditions?.length) {
-    missingElements.push("Entry conditions");
-  } else if (strategy.entryConditions.length < 2) {
-    warnings.push("Strategy has less than 2 entry conditions");
+  // Entry rules clarity
+  const entryRules = strategy.entryRules || [];
+  if (entryRules.length >= 2) score += 10;
+  if (entryRules.length >= 3) score += 5;
+  
+  // Check if entry rules have clear types
+  const clearTypes = entryRules.filter(r => 
+    ['indicator', 'price_action', 'structure'].includes(r.type)
+  );
+  score += clearTypes.length * 5;
+  
+  // Exit rules with numeric values
+  const exitRules = strategy.exitRules || [];
+  const numericExits = exitRules.filter(r => r.value && r.value > 0);
+  score += numericExits.length * 10;
+  
+  // Indicator-based strategies are more automatable
+  if (strategy.methodology === 'indicator_based') {
+    score += 15;
   }
   
-  if (!strategy.exitConditions?.takeProfit) {
-    missingElements.push("Take profit level");
+  // SMC/ICT requires more discretion
+  if (strategy.methodology === 'smc' || strategy.methodology === 'ict') {
+    score -= 10;
   }
   
-  if (!strategy.exitConditions?.stopLoss) {
-    missingElements.push("Stop loss level");
-  }
-  
-  if (!strategy.indicatorsUsed?.length) {
-    warnings.push("No indicators specified");
-  }
-  
-  if (!strategy.timeframe) {
-    missingElements.push("Timeframe");
-  }
-
-  const isValid = missingElements.length === 0;
-  const score = Math.max(0, 100 - (missingElements.length * 20) - (warnings.length * 10));
-
-  return {
-    isValid,
-    missingElements,
-    warnings,
-    score,
-  };
+  return Math.max(0, Math.min(100, score));
 }
