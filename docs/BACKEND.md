@@ -21,8 +21,8 @@ supabase/functions/
 ├── macro-analysis/         # Macro market analysis
 ├── market-insight/         # Market sentiment
 ├── economic-calendar/      # Economic events
-├── youtube-strategy-import/# YouTube strategy extraction
-├── backtest-strategy/      # Strategy backtesting
+├── youtube-strategy-import/# YouTube strategy extraction (enhanced)
+├── backtest-strategy/      # Strategy backtesting (with session analysis)
 ├── check-permission/       # Feature permission check
 ├── sync-trading-pairs/     # Trading pairs sync
 ├── strategy-clone-notify/  # Clone notification
@@ -172,17 +172,49 @@ supabase/functions/
 
 ### youtube-strategy-import
 
-**Purpose**: Extract trading strategy dari YouTube video.
+**Purpose**: Extract trading strategy dari YouTube video dengan AI.
 
 **Input**: YouTube URL
-**Output**: Parsed strategy (name, rules, timeframe)
+**Output**: Parsed strategy dengan full schema alignment
+
+**Extracted Fields**:
+| Field | Description |
+|-------|-------------|
+| `strategyName` | Nama strategi |
+| `description` | Deskripsi lengkap |
+| `methodology` | ICT, SMC, Price Action, Indicator-based, Hybrid |
+| `tradingStyle` | Scalping, Day Trading, Swing, Position |
+| `timeframeContext` | Primary, Higher TF, Lower TF (MTFA) |
+| `sessionPreference` | Trading session yang direkomendasikan |
+| `difficultyLevel` | Beginner, Intermediate, Advanced |
+| `entryRules` | Array of entry conditions dengan source quote |
+| `exitRules` | TP, SL, trailing stop logic |
+| `suitablePairs` | Pair yang cocok untuk strategi |
+| `indicatorsUsed` | Indikator yang digunakan |
+| `conceptsUsed` | Konsep trading (Order Blocks, FVG, dll) |
+| `riskManagement` | SL logic, position sizing rules |
+
+**Accuracy Pipeline**:
+1. Transcript acquisition (mandatory)
+2. Quality validation
+3. Methodology detection
+4. Structured extraction
+5. Actionability gate (blocks if incomplete)
 
 ### backtest-strategy
 
-**Purpose**: Run strategy backtest dengan historical data.
+**Purpose**: Run strategy backtest dengan historical data dan session analysis.
 
-**Input**: Strategy rules, pair, date range
-**Output**: Metrics (win rate, profit factor, trades)
+**Input**: Strategy rules, pair, date range, session filter
+**Output**: Metrics (win rate, profit factor, trades), equity curve, session breakdown
+
+**Enhanced Features**:
+| Feature | Description |
+|---------|-------------|
+| MTFA Assumptions | Higher/Lower TF context in results |
+| Methodology Badge | Display strategy methodology |
+| Session Auto-Apply | Apply strategy.session_preference to filter |
+| Trade Session Tags | Each trade tagged with entry session |
 
 ### strategy-clone-notify
 

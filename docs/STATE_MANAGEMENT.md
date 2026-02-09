@@ -115,11 +115,13 @@ const queryClient = new QueryClient({
 ['trade-entries', userId, { status: 'open' }]
 ['trade-entry', tradeId]
 
-// Strategies
+// Strategies & Backtesting
 ['trading-strategies', userId]
 ['trading-strategy', strategyId]
 ['shared-strategy', shareToken]
 ['backtest-results', strategyId]
+['backtest-session-breakdown', backtestId]  // Session performance analysis
+['youtube-import', youtubeUrl]              // YouTube strategy extraction
 
 // Binance (real-time data)
 ['binance', 'connection-status']

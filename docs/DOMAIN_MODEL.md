@@ -186,7 +186,49 @@ interface EntryRule {
   name: string;
   description: string;
   required: boolean;
+  sourceQuote?: string;  // For YouTube import - quote from transcript
 }
+```
+
+## Strategy Multi-Timeframe Analysis (MTFA)
+
+```typescript
+interface MTFAConfig {
+  higherTimeframe: string | null;  // Bias/trend (e.g., '4h', '1d')
+  primaryTimeframe: string;         // Execution (e.g., '15m', '1h')
+  lowerTimeframe: string | null;   // Entry precision (e.g., '5m', '1m')
+}
+
+// Example MTFA Chain Display
+// "4h → 15m → 5m"
+// Higher TF (bias) → Primary TF (execution) → Lower TF (entry)
+```
+
+## Strategy Trading Style
+
+```typescript
+type TradingStyle = 'scalping' | 'day_trading' | 'swing' | 'position';
+
+// Inferred from timeframe if not explicitly set
+function inferTradingStyle(timeframe: string): TradingStyle {
+  if (['1m', '3m', '5m'].includes(timeframe)) return 'scalping';
+  if (['15m', '30m', '1h'].includes(timeframe)) return 'day_trading';
+  if (['4h', '6h', '12h'].includes(timeframe)) return 'swing';
+  return 'position'; // 1d, 1w, 1M
+}
+```
+
+## Strategy Methodology
+
+```typescript
+type TradingMethodology = 
+  | 'indicator_based'  // RSI, MACD, Moving Averages
+  | 'price_action'     // Candlesticks, S/R
+  | 'smc'              // Smart Money Concepts
+  | 'ict'              // ICT methodology
+  | 'wyckoff'          // Wyckoff method
+  | 'elliott_wave'     // Elliott Wave
+  | 'hybrid';          // Combination
 ```
 
 ## Trading Session Model

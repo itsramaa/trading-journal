@@ -280,12 +280,14 @@ src/
 └── integrations/      # Supabase client
 
 supabase/
-└── functions/         # Edge functions (16 functions)
+└── functions/         # Edge functions (17 functions)
     ├── binance-futures/
     ├── binance-market-data/
     ├── ai-preflight/
     ├── trade-quality/
     ├── macro-analysis/
+    ├── youtube-strategy-import/   # Enhanced with MTFA extraction
+    ├── backtest-strategy/         # Session analysis support
     └── ...
 ```
 
