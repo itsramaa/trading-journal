@@ -1,285 +1,185 @@
 
+# Plan: Integrasi Binance Open Orders ke Trading Journal
 
-# Optimization Plan: Binance Sync & Multi-User Scalability
+## Problem Statement
+Tab "Pending" di Trading Journal saat ini **hanya menampilkan paper trades lokal** yang belum memiliki entry price. **Binance Open Orders** (limit orders, stop orders yang belum terisi) tidak diambil atau ditampilkan sama sekali.
 
-## Summary
-
-Tiga area utama yang dioptimasi:
-1. **Accuracy**: Meningkatkan match rate antara income dan trades
-2. **Speed**: Mempercepat waktu sync dengan parallel fetching, incremental sync
-3. **Multi-User Scalability**: Data isolation, rate limiting, dan storage optimization
-
----
-
-## Current Analysis
-
-### Bottleneck Identification
-
-| Area | Current State | Issue |
-|------|---------------|-------|
-| Symbol Fetching | 2 parallel, sequential between batches | 76 symbols × ~2 API calls = ~152 API calls untuk trades saja |
-| Income Matching | 5-minute bucket fallback | Jika tidak ada `tradeId`, matching bisa miss |
-| Trades API | 6.5-day chunks per symbol | 90 hari = ~14 chunks per symbol |
-| Orders API | Fetched per symbol | Sering tidak diperlukan untuk P&L calculation |
-| Rate Limit Delay | 500ms base, adaptive | Bisa lebih agresif untuk initial burst |
-
-### Why Only 50 Trades from 347 REALIZED_PNL?
-
-1. **Incomplete Lifecycles**: Position belum ditutup → skip
-2. **Aggregation Consolidation**: Multiple fills → 1 lifecycle → 1 trade
-3. **Income No Match**: Income tanpa matching trades → tidak jadi lifecycle
-4. **Zero PnL Filter**: Breakeven dengan PnL = 0 mungkin di-skip
-
----
-
-## Optimization Plan
-
-### Phase 1: Improve Match Accuracy (Priority: HIGH)
-
-#### 1.1 Add tradeId to Income Records (Edge Function)
-
-**File:** `supabase/functions/binance-futures/index.ts`
-
-**Current:** Income API response tidak selalu punya `tradeId`
-**Solution:** Binance /fapi/v1/income sudah include `tradeId` field sejak update 2023
-
-```typescript
-// In getIncomeHistory, ensure tradeId is mapped
-const records = data.map((r: any) => ({
-  // ... existing fields
-  tradeId: r.tradeId ? String(r.tradeId) : null, // Ensure string for consistency
-}));
-```
-
-#### 1.2 Enhance Matching with tradeId Priority
-
-**File:** `src/services/binance/position-lifecycle-grouper.ts`
-
-```typescript
-// findRelatedIncomeByTradeId already uses tradeId as PRIMARY
-// But we need to verify tradeId is being passed correctly
-```
-
-#### 1.3 Add Debug Logging for Unmatched Income
-
-**File:** `src/hooks/use-binance-aggregated-sync.ts`
-
-```typescript
-// After aggregation, log unmatched REALIZED_PNL for debugging
-const unmatchedPnl = income.filter(i => 
-  i.incomeType === 'REALIZED_PNL' && 
-  !matchedIncomeIds.has(...)
-);
-console.log(`[FullSync] ${unmatchedPnl.length} unmatched REALIZED_PNL records`);
-```
-
----
-
-### Phase 2: Speed Optimization (Priority: MEDIUM)
-
-#### 2.1 Increase Parallel Symbol Fetching
-
-**File:** `src/hooks/use-binance-aggregated-sync.ts`
-
-```typescript
-// Current
-const MAX_PARALLEL_SYMBOLS = 2;
-
-// Proposed - more aggressive but within rate limits
-const MAX_PARALLEL_SYMBOLS = 4;
-```
-
-**Risk:** Rate limit (429) lebih sering. Mitigasi: adaptive backoff sudah ada.
-
-#### 2.2 Skip Orders Fetch (Optional)
-
-**Observation:** Orders data used for `entryOrderType` dan `exitOrderType` saja.
-**Proposal:** Make orders fetch optional, default off untuk speed.
-
-```typescript
-interface FullSyncOptions {
-  // ... existing
-  includeOrderTypes?: boolean; // default false
-}
-
-// In fetchTradesWithTolerance:
-if (options.includeOrderTypes) {
-  const orders = await fetchOrdersForSymbol(...);
-}
-```
-
-**Impact:** Removes ~76 API calls, saves ~38 seconds.
-
-#### 2.3 Reduce Rate Limit Delay for Burst
-
-```typescript
-// More aggressive initial delay
-const BURST_RATE_LIMIT_DELAY = 300; // First 50 calls
-const SUSTAINED_RATE_LIMIT_DELAY = 500; // After rate limit hit
-```
-
-#### 2.4 Smart Income-First Symbol Filtering
-
-**Current:** Fetch trades for ALL symbols with ANY income type.
-**Proposed:** Only fetch trades for symbols with REALIZED_PNL.
-
-```typescript
-function getSymbolsWithPnl(income: BinanceIncome[]): string[] {
-  return [...new Set(
-    income
-      .filter(i => i.incomeType === 'REALIZED_PNL' && i.income !== 0)
-      .map(i => i.symbol)
-      .filter(isValidFuturesSymbol)
-  )];
-}
-```
-
-**Impact:** If 76 symbols have income but only 40 have PnL, saves 36 symbol fetches = ~72 API calls.
-
----
-
-### Phase 3: Diagnostic Improvements (Priority: LOW)
-
-#### 3.1 Enhanced Sync Summary
-
-Add detailed post-sync log:
-
-```typescript
-console.log('[FullSync] === SYNC SUMMARY ===');
-console.log(`Total Income Records: ${income.length}`);
-console.log(`  - REALIZED_PNL: ${pnlCount} (non-zero: ${nonZeroPnl})`);
-console.log(`  - COMMISSION: ${commCount}`);
-console.log(`  - FUNDING_FEE: ${fundingCount}`);
-console.log(`Symbols Processed: ${processedSymbols.length}`);
-console.log(`Lifecycles Created: ${lifecycles.length}`);
-console.log(`  - Complete: ${completeCount}`);
-console.log(`  - Incomplete: ${incompleteCount}`);
-console.log(`Trades Inserted: ${insertedCount}`);
-console.log(`Match Rate: ${(aggregatedTrades.length / nonZeroPnl * 100).toFixed(1)}%`);
-```
-
-#### 3.2 Add "Sync Quality" Score
-
-Display in UI after sync:
-- **Excellent**: 95%+ match rate
-- **Good**: 80-95% match rate  
-- **Fair**: 60-80% match rate
-- **Poor**: <60% match rate
-
----
-
-## Implementation Status
-
-| Phase | Effort | Impact | Priority | Status |
-|-------|--------|--------|----------|--------|
-| 1.1 tradeId mapping | Low | High | ⭐⭐⭐ | ✅ Already implemented |
-| 1.3 Debug logging | Low | Medium | ⭐⭐⭐ | ✅ Done |
-| 2.4 Symbol filtering | Medium | High | ⭐⭐⭐ | ✅ Done |
-| 2.1 Parallel increase | Low | Medium | ⭐⭐ | ✅ Done (4 parallel) |
-| 2.2 Skip orders | Low | Medium | ⭐⭐ | ⏸️ Deferred (optional) |
-| 3.1 Enhanced summary | Low | Low | ⭐ | ✅ Done |
-| 3.2 Sync Quality UI | Low | Medium | ⭐⭐ | ✅ Done |
-| **Incremental Sync** | Medium | High | ⭐⭐⭐ | ✅ Done |
-
----
-
-## Expected Results
-
-| Metric | Before | After |
-|--------|--------|-------|
-| Sync Time (90 days, 76 symbols) | ~5-8 min | ~2-4 min |
-| Match Rate (PnL to trades) | Unknown | Visible with logging |
-| API Calls per Sync | ~300+ | ~150-200 |
-
----
-
-## Technical Flow After Optimization
+## Root Cause Analysis
 
 ```text
-┌─────────────────────────────────────────────────────────────────┐
-│                    OPTIMIZED SYNC FLOW                          │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  1. FETCH INCOME (unchanged)                                    │
-│     └─> All income types (REALIZED_PNL, COMMISSION, etc)        │
-│                                                                 │
-│  2. FILTER SYMBOLS (NEW)                                        │
-│     └─> Only symbols with non-zero REALIZED_PNL                 │
-│     └─> 76 symbols → ~40 symbols (estimated 50% reduction)      │
-│                                                                 │
-│  3. FETCH TRADES (FASTER)                                       │
-│     └─> 4 parallel instead of 2                                 │
-│     └─> Skip orders fetch (optional)                            │
-│                                                                 │
-│  4. MATCH INCOME → TRADES (IMPROVED)                            │
-│     └─> Primary: tradeId matching (100% accurate)               │
-│     └─> Fallback: 5-min time bucket                             │
-│     └─> Log unmatched for debugging                             │
-│                                                                 │
-│  5. GROUP → AGGREGATE → VALIDATE → INSERT (unchanged)           │
-│                                                                 │
-│  6. SUMMARY (NEW)                                               │
-│     └─> Detailed breakdown                                      │
-│     └─> Match rate percentage                                   │
-│     └─> Quality score                                           │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                    Current State                                  │
+├──────────────────────────────────────────────────────────────────┤
+│  TradingJournal.tsx                                              │
+│  ├── useBinancePositions()    ✅ Used for Active tab             │
+│  ├── useBinanceOpenOrders()   ❌ NOT USED (hook exists!)         │
+│  └── useTradeEntries()        ✅ Used for paper trades           │
+│                                                                   │
+│  Tab "Pending" currently shows:                                   │
+│  └── Paper trades where entry_price = 0 or null                  │
+│                                                                   │
+│  Tab "Pending" SHOULD also show:                                  │
+│  └── Binance Open Orders (LIMIT, STOP, TAKE_PROFIT orders)       │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
----
+## Solution Architecture
 
-## Files to Modify
+```text
+┌─────────────────────────────────────────────────────────────────────┐
+│                       Proposed Architecture                          │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  ┌────────────────────┐    ┌────────────────────┐                   │
+│  │ useBinanceOpenOrders │────►│ BinanceOpenOrders  │                │
+│  │ (existing hook)      │    │ Table (NEW)        │                  │
+│  └────────────────────┘    └────────────────────┘                   │
+│            │                          │                              │
+│            ▼                          ▼                              │
+│  ┌────────────────────────────────────────────────┐                 │
+│  │          TradingJournal "Pending" Tab           │                │
+│  │                                                  │                │
+│  │   ┌─────────────────────────────────────────┐  │                 │
+│  │   │  Section 1: Binance Open Orders          │  │                │
+│  │   │  - LIMIT orders awaiting fill            │  │                │
+│  │   │  - STOP orders not triggered             │  │                │
+│  │   │  - Cancel button per order               │  │                │
+│  │   └─────────────────────────────────────────┘  │                 │
+│  │                                                  │                │
+│  │   ┌─────────────────────────────────────────┐  │                 │
+│  │   │  Section 2: Paper Pending Trades         │  │                │
+│  │   │  - Draft trades (entry_price = 0)        │  │                │
+│  │   └─────────────────────────────────────────┘  │                 │
+│  └────────────────────────────────────────────────┘                 │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
 
+## Implementation Steps
+
+### Step 1: Create BinanceOpenOrdersTable Component
+Komponen baru untuk menampilkan open orders dari Binance:
+
+**File:** `src/components/journal/BinanceOpenOrdersTable.tsx`
+
+**Features:**
+- Display semua open orders (LIMIT, STOP, STOP_MARKET, TAKE_PROFIT, etc.)
+- Kolom: Symbol, Type, Side, Price, Stop Price, Quantity, Status, Time, Actions
+- Badge untuk order type (LIMIT, STOP, TP/SL)
+- Button Cancel Order per row
+- Auto-refresh setiap 30 detik (sudah di hook)
+- Empty state jika tidak ada pending orders
+
+**Columns:**
+| Column | Source |
+|--------|--------|
+| Symbol | `order.symbol` |
+| Type | `order.type` (LIMIT, STOP, etc.) |
+| Side | `order.side` (BUY/SELL) |
+| Direction | `order.positionSide` (LONG/SHORT) |
+| Price | `order.price` |
+| Stop Price | `order.stopPrice` (for STOP orders) |
+| Quantity | `order.origQty` |
+| Filled | `order.executedQty` |
+| Time | `order.time` (formatted) |
+| Actions | Cancel button |
+
+### Step 2: Update TradingJournal Page
+**File:** `src/pages/trading-journey/TradingJournal.tsx`
+
+**Changes:**
+1. Import dan call `useBinanceOpenOrders()` hook
+2. Import `useCancelBinanceOrder()` untuk cancel functionality
+3. Update tab "Pending" untuk menampilkan:
+   - Section: Binance Open Orders (jika connected)
+   - Section: Paper Pending Trades (existing)
+4. Update badge count untuk include Binance open orders
+
+### Step 3: Export Component dari index
+**File:** `src/components/journal/index.ts`
+
+Tambahkan export untuk `BinanceOpenOrdersTable`
+
+## UI/UX Design
+
+### Pending Tab Layout
+```text
+┌────────────────────────────────────────────────────────────┐
+│  📋 Pending Orders                                          │
+├────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ┌─ Binance Open Orders ─────────────────────────────────┐ │
+│  │                                                         │ │
+│  │  [📡 Binance] BTCUSDT  LIMIT BUY  $95,000  0.01 BTC   │ │
+│  │                        @ LONG     ━━━━━━━  [Cancel]    │ │
+│  │                                                         │ │
+│  │  [📡 Binance] ETHUSDT  STOP  SELL $3,000   2.0 ETH    │ │
+│  │                        @ SHORT    Stop: $3,050 [Cancel] │ │
+│  │                                                         │ │
+│  └─────────────────────────────────────────────────────────┘ │
+│                                                             │
+│  ┌─ Paper Pending (Draft) ───────────────────────────────┐ │
+│  │                                                         │ │
+│  │  [📄 Paper] SOLUSDT   LONG   Entry: -   Planning...    │ │
+│  │                                         [Edit] [Delete] │ │
+│  │                                                         │ │
+│  └─────────────────────────────────────────────────────────┘ │
+│                                                             │
+└────────────────────────────────────────────────────────────┘
+```
+
+### Cancel Order Flow
+1. User clicks "Cancel" button
+2. Show confirmation dialog
+3. Call `useCancelBinanceOrder` mutation
+4. On success: Toast "Order cancelled" + refetch orders
+5. On error: Toast error message
+
+## Technical Details
+
+### Files to Create
+| File | Description |
+|------|-------------|
+| `src/components/journal/BinanceOpenOrdersTable.tsx` | Table component for Binance open orders |
+
+### Files to Modify
 | File | Changes |
 |------|---------|
-| `supabase/functions/binance-futures/index.ts` | Verify tradeId mapping in income response |
-| `src/hooks/use-binance-aggregated-sync.ts` | Symbol filtering, parallel increase, debug logging |
-| `src/services/binance/position-lifecycle-grouper.ts` | Verify tradeId matching logic |
+| `src/pages/trading-journey/TradingJournal.tsx` | Add useBinanceOpenOrders hook, update Pending tab UI |
+| `src/components/journal/index.ts` | Export new component |
 
----
+### Existing Hooks Used (No Changes Needed)
+- `useBinanceOpenOrders()` - fetch open orders
+- `useCancelBinanceOrder()` - cancel order mutation
+- Both hooks already have proper staleTime, refetchInterval, and query invalidation
 
-## Recommendations
-
-**Immediate (Do Now):**
-1. ✅ Add debug logging untuk melihat berapa PnL yang unmatched
-2. ✅ Filter symbols berdasarkan REALIZED_PNL saja
-
-**Short-term (Next Sprint):**
-1. ✅ Increase parallel fetching ke 4
-2. ⏸️ Make orders fetch optional (deferred)
-3. ✅ Add sync quality score
-
-**Long-term:**
-1. ✅ Implement incremental sync (only new data since last sync)
-2. Cache income data in localStorage for faster resume
-
----
-
-## Incremental Sync Implementation
-
-### Overview
-Incremental sync allows fetching only new data since the last successful sync, dramatically reducing sync time for regular updates.
-
-### Key Features
-- **Last Sync Tracking**: Stores `lastSyncInfo` with timestamp, end time, trades count, match rate, and quality score
-- **Automatic Detection**: `canDoIncrementalSync()` checks if last sync was within 30 days
-- **Overlap Buffer**: Uses 5-minute overlap to prevent missing trades at boundaries
-- **Fallback**: If no previous sync exists, falls back to 7-day sync
-
-### Usage
+### Type Reference (Already Exists)
 ```typescript
-// Select 'incremental' as sync range
-setSyncRange('incremental');
-
-// Or programmatically:
-sync({ daysToSync: 'incremental' });
+interface BinanceOrder {
+  orderId: number;
+  symbol: string;
+  status: string;
+  price: number;
+  avgPrice: number;
+  origQty: number;
+  executedQty: number;
+  type: 'LIMIT' | 'MARKET' | 'STOP' | 'STOP_MARKET' | 'TAKE_PROFIT' | 'TAKE_PROFIT_MARKET';
+  side: 'BUY' | 'SELL';
+  positionSide: 'LONG' | 'SHORT' | 'BOTH';
+  stopPrice: number;
+  time: number;
+  updateTime: number;
+  // ... other fields
+}
 ```
 
-### Storage
-- `binance_last_successful_sync` localStorage key stores:
-  - `timestamp`: When sync completed
-  - `endTime`: The actual endTime used (for calculating next start)
-  - `tradesCount`: Number of trades synced
-  - `matchRate`: Match rate percentage
-  - `quality`: Sync quality score
+## Edge Cases Handled
 
+1. **No Binance Connection**: Hide Binance section, only show paper trades
+2. **No Open Orders**: Show empty state "No pending orders on Binance"
+3. **Cancel Failed**: Show error toast with Binance error message
+4. **Loading State**: Show skeleton while fetching
+5. **Real-time Updates**: Auto-refresh every 30 seconds (existing hook config)
+
+## Estimated Complexity
+- **Low-Medium** - Menggunakan hook dan tipe yang sudah ada, hanya perlu membuat UI component baru dan integrasi ke halaman existing.
