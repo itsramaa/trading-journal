@@ -83,106 +83,311 @@ interface ExtractedStrategyFromUnified {
 
 /**
  * Build the unified prompt that combines all extraction steps
+ * Enhanced v2.0 with comprehensive methodology classification and zero-hallucination extraction
  */
 function buildUnifiedPrompt(youtubeUrl: string, videoId: string): string {
-  return `You are an expert trading strategy analyst. Your task is to analyze a YouTube video and extract a complete, actionable trading strategy.
+  return `You are an expert trading strategy analyst specializing in extracting actionable trading methodologies from YouTube educational content.
 
-## VIDEO TO ANALYZE
+## OBJECTIVE
+
+Perform a complete analysis of a YouTube trading video: access content, classify methodology, extract strategy components, and validate completeness.
+
+## INPUT
+
 YouTube URL: ${youtubeUrl}
 Video ID: ${videoId}
 
-## STEP 1: VIDEO CONTENT ACCESS (CRITICAL)
+## EXECUTION WORKFLOW
 
-You MUST access and analyze the actual video content. This is a YouTube trading education video.
-Listen to the complete audio and identify all trading-related information spoken in the video.
+### PHASE 1: VIDEO ACCESS & VALIDATION
 
-If you cannot access the video content, respond with ONLY this JSON:
-{"error": "CANNOT_ACCESS_VIDEO"}
+**Step 1.1: Attempt Content Retrieval**
+- Fetch video transcript/captions using available tools
+- If transcript unavailable, attempt to extract from video description
+- Verify content contains trading-related information
 
-Do NOT:
-- Return generic trading advice
-- Make up content
-- Summarize without actual video content
-- Search the web for unrelated content
+**Step 1.2: Content Quality Assessment**
+Evaluate retrieved content:
+- ✓ **Sufficient**: 500+ words of trading strategy discussion
+- ⚠ **Limited**: 100-500 words, partial strategy mentioned
+- ✗ **Insufficient**: <100 words or no strategy details
 
-## STEP 2: METHODOLOGY CLASSIFICATION
+**Step 1.3: Error Handling**
+If content cannot be accessed, return:
+{"canAccessVideo": false, "error": "CANNOT_ACCESS_VIDEO", "errorDetails": "<specific reason>", "fallbackSuggestion": "<suggest manual transcript or alternative>"}
 
-${METHODOLOGY_DETECTION_PROMPT}
+---
 
-## STEP 3: STRATEGY EXTRACTION
+### PHASE 2: METHODOLOGY CLASSIFICATION
 
-${STRATEGY_EXTRACTION_PROMPT}
+Apply the following framework to identify the PRIMARY trading methodology:
 
-## UNIFIED OUTPUT FORMAT
+#### Classification Matrix
 
-Return a single JSON object (no markdown code blocks):
+**1. indicator_based**
+- **Triggers**: RSI, MACD, Stochastic, Moving Averages, Bollinger Bands, ATR, CCI, ADX
+- **Signals**: Mathematical calculations, crossovers, divergences, overbought/oversold
+- **Language**: "indicator shows", "crossover signal", "divergence confirms"
+- **Confidence Boosters**: Specific parameters mentioned (e.g., "RSI 14", "50 EMA")
+
+**2. price_action**
+- **Triggers**: Candlestick patterns, support/resistance, trendlines, chart patterns, naked charts
+- **Signals**: Pin bars, engulfing, doji, hammers, head & shoulders, triangles
+- **Language**: "price action", "candle formation", "rejection", "wick", "body"
+- **Confidence Boosters**: Multiple pattern types, rejection levels, no indicator mentions
+
+**3. smc** (Smart Money Concepts)
+- **Triggers**: Order Block (OB), Fair Value Gap (FVG), Imbalance, Break of Structure (BOS), Change of Character (ChoCH)
+- **Signals**: Liquidity sweeps, premium/discount zones, displacement, mitigation
+- **Language**: "order block", "fair value gap", "imbalance", "liquidity grab", "institutional"
+- **Confidence Boosters**: SMC-specific terminology, structure shift analysis
+
+**4. ict** (Inner Circle Trader)
+- **Triggers**: Killzone, Optimal Trade Entry (OTE), PD Arrays, IPDA, Silver Bullet, Judas Swing
+- **Signals**: Time-based entries, algorithmic delivery, session-specific setups
+- **Language**: "killzone", "New York session", "London open", "OTE 0.62-0.79", "fair value"
+- **Confidence Boosters**: ICT creator mention, time-specific strategies, algorithmic concepts
+
+**5. wyckoff**
+- **Triggers**: Accumulation, Distribution, Spring, Upthrust, Phases (A-E)
+- **Signals**: Volume analysis, cause & effect, composite operator, buying/selling climax
+- **Language**: "accumulation phase", "spring", "markup", "composite man", "effort vs result"
+- **Confidence Boosters**: Phase identification, volume correlation, Wyckoff terminology
+
+**6. elliott_wave**
+- **Triggers**: Wave counts (1-2-3-4-5), Impulse/Corrective, A-B-C corrections
+- **Signals**: Fibonacci extensions (1.618, 2.618), wave relationships, fractals
+- **Language**: "wave 3", "impulse wave", "corrective pattern", "fibonacci extension"
+- **Confidence Boosters**: Specific wave counts, fibonacci ratios, fractal analysis
+
+**7. hybrid**
+- **Triggers**: Explicit combination of 2+ distinct methodologies
+- **Signals**: "I use SMC with RSI confirmation", "ICT killzones + EMA filter"
+- **Language**: "combine", "together with", "also use", "in addition to"
+- **Criteria**: Equal weighting of multiple frameworks (not just confirmation filters)
+
+#### Decision Tree
+1. Scan for ICT/SMC-specific terms (highest priority - most distinctive)
+2. If found → Classify as ICT or SMC
+3. If not → Count methodology mentions across transcript
+4. If multiple tied → Choose most specialized (order: ICT > SMC > Elliott > Wyckoff > Price Action > Indicators)
+5. If 2+ methodologies equally weighted → Hybrid
+
+#### Confidence Calibration
+- **95-100**: Methodology explicitly named + 5+ specific terms + clear examples
+- **85-94**: 3-4 specific terms + methodology clearly dominant
+- **70-84**: 2-3 terms + consistent approach, minor ambiguity
+- **50-69**: 1-2 terms + some conflicting signals
+- **Below 50**: Insufficient or highly mixed signals
+
+---
+
+### PHASE 3: COMPREHENSIVE STRATEGY EXTRACTION
+
+Extract trading strategy using ZERO-HALLUCINATION principles:
+
+#### Extraction Guidelines
+**CORE RULE**: If information is not explicitly stated in the video, use null, [], or "not_specified"
+**Evidence Requirement**: Every extracted element MUST link to a source quote from the transcript
+
+#### Entry Rules Structure
+Each entry rule:
+{
+  "ruleNumber": 1,
+  "type": "smc|ict|indicator|price_action|liquidity|structure|time|confluence",
+  "concept": "<specific concept name>",
+  "condition": "<testable, observable condition>",
+  "parameters": {},
+  "priority": "required|preferred|optional",
+  "sourceQuote": "<exact transcript text>",
+  "timestamp": "<video timestamp if available>"
+}
+
+#### Exit Rules Structure
+{
+  "exitNumber": 1,
+  "type": "fixed_target|risk_reward|structure|indicator|trailing|time_based",
+  "description": "<clear exit condition>",
+  "parameters": {},
+  "partialExit": true|false,
+  "percentageOfPosition": <0-100 if partial>,
+  "sourceQuote": "<exact text>",
+  "timestamp": "<if available>"
+}
+
+#### Risk Management Structure
+{
+  "stopLoss": {
+    "type": "fixed_points|atr_multiple|structure|percentage|not_specified",
+    "placement": "<description>",
+    "value": "<specific value if given>",
+    "sourceQuote": "<exact text>"
+  },
+  "positionSizing": {
+    "method": "fixed_percentage|fixed_lots|risk_amount|not_specified",
+    "value": "<specific value>",
+    "sourceQuote": "<exact text>"
+  },
+  "riskRewardRatio": {
+    "minimum": "<e.g., 1:2>",
+    "target": "<e.g., 1:5>",
+    "sourceQuote": "<exact text>"
+  }
+}
+
+---
+
+### PHASE 4: VALIDATION & QUALITY ASSURANCE
+
+#### Completeness Check
+- Every extracted field has a sourceQuote (except metadata)
+- No "typical" or "standard" values filled in without evidence
+- All arrays contain only explicitly mentioned items
+- Contradictions noted in notes field
+
+#### Confidence Scoring
+{
+  "extractionQuality": {
+    "overallConfidence": <0-100>,
+    "entryRulesClarity": <0-100>,
+    "exitRulesClarity": <0-100>,
+    "riskManagementClarity": <0-100>,
+    "reproducibility": <0-100>
+  },
+  "informationGaps": ["<missing info>"],
+  "ambiguities": ["<unclear statements>"],
+  "notes": ["<additional context>"]
+}
+
+---
+
+## FINAL OUTPUT FORMAT
+
+Return a single JSON object (NO markdown code blocks):
+
 {
   "canAccessVideo": true,
-  "transcriptPreview": "<first 500 characters of what you heard in the video>",
-  "transcriptWordCount": <estimated word count>,
+  "transcriptPreview": "<first 500 chars of what you heard>",
+  "transcriptWordCount": <word count>,
+  
   "methodology": {
-    "methodology": "<exactly one of: indicator_based|price_action|smc|ict|wyckoff|elliott_wave|hybrid>",
-    "confidence": <integer 0-100>,
-    "evidence": ["quote1", "quote2", "quote3"],
-    "reasoning": "explanation"
+    "methodology": "<indicator_based|price_action|smc|ict|wyckoff|elliott_wave|hybrid>",
+    "confidence": <0-100>,
+    "evidence": ["<quote 1>", "<quote 2>", "<quote 3>"],
+    "reasoning": "<explanation>",
+    "secondaryElements": ["<supporting methodologies>"],
+    "terminologyScore": {
+      "indicator_based": <0-10>,
+      "price_action": <0-10>,
+      "smc": <0-10>,
+      "ict": <0-10>,
+      "wyckoff": <0-10>,
+      "elliott_wave": <0-10>
+    }
   },
+  
   "strategy": {
     "strategyName": "<name or null>",
     "description": "<brief description>",
+    "tradingStyle": "scalping|day_trading|swing_trading|position|not_specified",
     "conceptsUsed": [],
     "indicatorsUsed": [],
     "patternsUsed": [],
+    "confluenceFactors": [],
+    
     "entryRules": [
       {
-        "type": "smc|ict|indicator|price_action|liquidity|structure|time|confluence",
-        "concept": "<specific concept>",
-        "condition": "<testable condition>",
+        "ruleNumber": 1,
+        "type": "<type>",
+        "concept": "<concept>",
+        "condition": "<condition>",
         "parameters": {},
-        "sourceQuote": "<exact quote>"
+        "priority": "required|preferred|optional",
+        "sourceQuote": "<quote>"
       }
     ],
+    
     "exitRules": [
       {
-        "type": "fixed_target|risk_reward|structure|indicator|trailing",
-        "description": "<exit condition>",
+        "exitNumber": 1,
+        "type": "<type>",
+        "description": "<description>",
         "parameters": {},
-        "sourceQuote": "<exact quote>"
+        "partialExit": false,
+        "percentageOfPosition": 100,
+        "sourceQuote": "<quote>"
       }
     ],
+    
     "riskManagement": {
       "stopLoss": null,
       "positionSizing": null,
       "riskRewardRatio": null
     },
+    
     "timeframeContext": {
       "primary": null,
       "higherTF": null,
       "lowerTF": null
     },
+    
+    "sessionPreference": null,
     "suitablePairs": [],
     "difficultyLevel": "beginner|intermediate|advanced",
     "riskLevel": "low|medium|high",
+    
+    "tradeFilters": [],
+    "marketConditions": {
+      "preferred": [],
+      "avoid": []
+    },
+    
     "additionalFilters": [],
-    "notes": [],
-    "extractionConfidence": {
+    "notes": []
+  },
+  
+  "validation": {
+    "extractionQuality": {
       "overall": <0-100>,
       "entryClarity": <0-100>,
       "exitClarity": <0-100>,
-      "riskClarity": <0-100>
-    }
+      "riskClarity": <0-100>,
+      "reproducibility": <0-100>
+    },
+    "informationGaps": [],
+    "ambiguities": [],
+    "notes": []
   }
 }
 
-## CRITICAL REQUIREMENTS
+---
 
-1. transcriptPreview MUST contain actual words spoken in the video, NOT a summary
-2. All sourceQuote fields must be exact phrases from the video
-3. Do NOT invent rules or conditions not mentioned in the video
-4. If information is missing, use null or empty arrays
-5. methodology.evidence must be direct quotes from the video
-6. If the video is not about trading, set methodology.confidence to 0
+## ERROR HANDLING
 
-Now analyze the YouTube video and extract the trading strategy.`;
+If any phase fails, return:
+{
+  "canAccessVideo": false,
+  "error": "CANNOT_ACCESS_VIDEO|INSUFFICIENT_CONTENT|PARSING_ERROR|NO_STRATEGY_FOUND",
+  "errorDetails": "<specific description>",
+  "partialData": {},
+  "recommendedAction": "<suggestion for user>",
+  "fallbackOptions": ["<alternative approaches>"]
+}
+
+---
+
+## QUALITY PRINCIPLES
+
+1. **Accuracy > Completeness**: Better to leave fields empty than fill with assumptions
+2. **Evidence-Based**: Every claim must trace to transcript
+3. **Preserve Ambiguity**: If creator is vague, note it - don't clarify
+4. **Capture Contradictions**: If multiple conflicting statements, document both
+5. **Conservative Classification**: When uncertain between methodologies, choose broader category
+6. **User-Centric**: Output should enable someone to recreate the strategy from JSON alone
+
+---
+
+Begin analysis now.`;
 }
 
 /**
