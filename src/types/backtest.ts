@@ -76,6 +76,14 @@ export interface BacktestAssumptions {
   liquidationRisk?: string;
   fundingRates?: string;
   marketImpact?: string;
+  // NEW: Multi-Timeframe Analysis context
+  multiTimeframe?: {
+    higherTF: string | null;
+    primaryTF: string | null;
+    lowerTF: string | null;
+  };
+  methodology?: string;
+  tradingStyle?: string;
 }
 
 export interface BacktestResult {
@@ -95,6 +103,10 @@ export interface BacktestResult {
   assumptions?: BacktestAssumptions;
   accuracyNotes?: string;
   simulationVersion?: string;
+  // NEW: Strategy metadata for context
+  strategyMethodology?: string;
+  strategyTradingStyle?: string;
+  strategySessionPreference?: string[];
 }
 
 // ============================================

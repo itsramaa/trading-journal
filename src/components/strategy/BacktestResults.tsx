@@ -60,9 +60,17 @@ export function BacktestResults({ result }: BacktestResultsProps) {
               <CardTitle className="flex items-center gap-2">
                 <BarChart3 className="h-5 w-5" />
                 Backtest Results: {result.strategyName || 'Strategy'}
+                {result.strategyMethodology && (
+                  <Badge variant="outline" className="ml-2">{result.strategyMethodology.toUpperCase()}</Badge>
+                )}
               </CardTitle>
-              <CardDescription>
-                {result.pair}/USDT • {formatDate(new Date(result.periodStart), 'MMM d, yyyy')} - {formatDate(new Date(result.periodEnd), 'MMM d, yyyy')}
+              <CardDescription className="flex flex-col gap-1">
+                <span>{result.pair}/USDT • {formatDate(new Date(result.periodStart), 'MMM d, yyyy')} - {formatDate(new Date(result.periodEnd), 'MMM d, yyyy')}</span>
+                {result.assumptions?.multiTimeframe && (
+                  <span className="text-xs">
+                    MTFA: {result.assumptions.multiTimeframe.higherTF || '-'} → {result.assumptions.multiTimeframe.primaryTF || '-'} → {result.assumptions.multiTimeframe.lowerTF || '-'}
+                  </span>
+                )}
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">

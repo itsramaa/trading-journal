@@ -163,8 +163,12 @@ export function useYouTubeStrategyImport() {
         'hybrid': 'hybrid',
       };
 
-      // Infer trading style from primary timeframe
-      const inferTradingStyle = (tf: string | undefined): string => {
+      // Infer trading style from primary timeframe (fallback if not extracted)
+      const inferTradingStyle = (tf: string | undefined, extractedStyle?: string | null): string => {
+        // Use extracted style if available
+        if (extractedStyle && ['scalping', 'day_trading', 'swing', 'position'].includes(extractedStyle)) {
+          return extractedStyle;
+        }
         if (!tf) return 'day_trading';
         if (['1m', '5m'].includes(tf)) return 'scalping';
         if (['15m', '1h'].includes(tf)) return 'day_trading';
@@ -202,7 +206,7 @@ export function useYouTubeStrategyImport() {
           min_rr: strategy.riskManagement?.riskRewardRatio || 1.5,
           // NEW: Professional trading fields
           methodology: methodologyMap[strategy.methodology] || 'price_action',
-          trading_style: inferTradingStyle(strategy.timeframeContext.primary),
+          trading_style: inferTradingStyle(strategy.timeframeContext.primary, (strategy as any).tradingStyle),
           session_preference: mapSessionPreference(strategy.sessionPreference),
           difficulty_level: strategy.difficultyLevel || 'intermediate',
           // YouTube source fields

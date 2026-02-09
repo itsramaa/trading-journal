@@ -105,7 +105,7 @@ serve(async (req) => {
     // Run backtest simulation
     const result = runBacktest(candles, strategy, config);
 
-    // Build simulation assumptions metadata
+    // Build simulation assumptions metadata with MTFA context
     const assumptions = {
       slippage: config.slippage || 0.001,
       slippageModel: 'fixed_percentage',
@@ -114,6 +114,14 @@ serve(async (req) => {
       liquidationRisk: 'not_modeled',
       fundingRates: 'not_included',
       marketImpact: 'not_modeled',
+      // NEW: Multi-Timeframe Analysis context
+      multiTimeframe: {
+        higherTF: strategy.higher_timeframe || null,
+        primaryTF: strategy.timeframe || null,
+        lowerTF: strategy.lower_timeframe || null,
+      },
+      methodology: strategy.methodology || 'unknown',
+      tradingStyle: strategy.trading_style || 'day_trading',
     };
 
     const accuracyNotes = `This backtest uses simplified simulation:
@@ -163,6 +171,10 @@ Actual results may vary significantly.`;
         assumptions,
         accuracyNotes,
         simulationVersion,
+        // NEW: Strategy metadata for context
+        strategyMethodology: strategy.methodology || null,
+        strategyTradingStyle: strategy.trading_style || null,
+        strategySessionPreference: strategy.session_preference || null,
         createdAt: new Date().toISOString(),
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
