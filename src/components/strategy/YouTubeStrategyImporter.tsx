@@ -339,11 +339,18 @@ export function YouTubeStrategyImporter({
                     Concepts Used
                   </h4>
                   <div className="flex flex-wrap gap-2">
-                    {importedStrategy.conceptsUsed.map((concept, i) => (
-                      <Badge key={i} variant="outline" className="bg-purple-500/10 text-purple-300 border-purple-500/30">
-                        {concept.replace(/_/g, ' ').toUpperCase()}
-                      </Badge>
-                    ))}
+                    {importedStrategy.conceptsUsed.map((concept, i) => {
+                      const conceptStr = typeof concept === 'string' 
+                        ? concept 
+                        : typeof concept === 'object' && concept !== null
+                          ? (concept as any).name || JSON.stringify(concept)
+                          : String(concept);
+                      return (
+                        <Badge key={i} variant="outline" className="bg-purple-500/10 text-purple-300 border-purple-500/30">
+                          {conceptStr.replace(/_/g, ' ').toUpperCase()}
+                        </Badge>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -459,7 +466,23 @@ export function YouTubeStrategyImporter({
                     {importedStrategy.riskManagement.stopLossLogic && (
                       <div className="p-2 rounded bg-muted/50 col-span-2">
                         <div className="text-muted-foreground">Stop Loss</div>
-                        <div className="text-xs">{importedStrategy.riskManagement.stopLossLogic}</div>
+                        <div className="text-xs">
+                          {typeof importedStrategy.riskManagement.stopLossLogic === 'string'
+                            ? importedStrategy.riskManagement.stopLossLogic
+                            : JSON.stringify(importedStrategy.riskManagement.stopLossLogic)
+                          }
+                        </div>
+                      </div>
+                    )}
+                    {importedStrategy.riskManagement.positionSizing && (
+                      <div className="p-2 rounded bg-muted/50 col-span-2">
+                        <div className="text-muted-foreground">Position Sizing</div>
+                        <div className="text-xs">
+                          {typeof importedStrategy.riskManagement.positionSizing === 'string'
+                            ? importedStrategy.riskManagement.positionSizing
+                            : JSON.stringify(importedStrategy.riskManagement.positionSizing)
+                          }
+                        </div>
                       </div>
                     )}
                   </div>
@@ -472,7 +495,14 @@ export function YouTubeStrategyImporter({
                   <h4 className="font-medium">Indicators Used</h4>
                   <div className="flex flex-wrap gap-2">
                     {importedStrategy.indicatorsUsed.map((indicator, i) => (
-                      <Badge key={i} variant="outline">{indicator}</Badge>
+                      <Badge key={i} variant="outline">
+                        {typeof indicator === 'string' 
+                          ? indicator 
+                          : typeof indicator === 'object' && indicator !== null
+                            ? (indicator as any).name || JSON.stringify(indicator)
+                            : String(indicator)
+                        }
+                      </Badge>
                     ))}
                   </div>
                 </div>
@@ -493,7 +523,9 @@ export function YouTubeStrategyImporter({
                   <h4 className="font-medium">Suitable Pairs</h4>
                   <div className="flex flex-wrap gap-2">
                     {importedStrategy.suitablePairs.map((pair, i) => (
-                      <Badge key={i} variant="secondary">{pair}</Badge>
+                      <Badge key={i} variant="secondary">
+                        {typeof pair === 'string' ? pair : JSON.stringify(pair)}
+                      </Badge>
                     ))}
                   </div>
                 </div>
