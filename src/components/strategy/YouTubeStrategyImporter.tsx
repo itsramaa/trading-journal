@@ -24,10 +24,12 @@ import {
   Brain,
   ShieldAlert,
   Boxes,
-  TrendingUp
+  TrendingUp,
+  Quote
 } from "lucide-react";
 import { useYouTubeStrategyImport } from "@/hooks/use-youtube-strategy-import";
 import { StrategyValidationBadge } from "./StrategyValidationBadge";
+import { YouTubeTranscriptGuide } from "./YouTubeTranscriptGuide";
 import type { YouTubeStrategyDataV2, StrategyValidationV2, YouTubeImportStatus } from "@/types/backtest";
 
 interface YouTubeStrategyImporterProps {
@@ -154,6 +156,9 @@ export function YouTubeStrategyImporter({
               </TabsContent>
               
               <TabsContent value="transcript" className="space-y-4">
+                {/* Transcript Guide */}
+                <YouTubeTranscriptGuide />
+                
                 <div className="space-y-2">
                   <Label htmlFor="transcript">Video Transcript</Label>
                   <Textarea
@@ -355,6 +360,18 @@ export function YouTubeStrategyImporter({
                           )}
                         </div>
                         <p className="text-sm text-muted-foreground">{rule.condition}</p>
+                        
+                        {/* Source Quote Evidence */}
+                        {rule.sourceQuote && (
+                          <div className="mt-2 p-2 rounded bg-primary/5 border border-primary/20">
+                            <div className="flex items-start gap-2">
+                              <Quote className="h-3 w-3 text-primary mt-0.5 flex-shrink-0" />
+                              <p className="text-xs text-muted-foreground italic">
+                                "{rule.sourceQuote}"
+                              </p>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -370,18 +387,20 @@ export function YouTubeStrategyImporter({
                   Exit Rules
                 </h4>
                 {importedStrategy.exitRules && importedStrategy.exitRules.length > 0 ? (
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
                     {importedStrategy.exitRules.map((rule, i) => (
                       <div 
                         key={i}
                         className={`p-3 rounded-md border ${
-                          rule.type === 'take_profit' ? 'bg-profit-muted border-profit/20' :
+                          rule.type === 'take_profit' || rule.type === 'fixed_target' || rule.type === 'risk_reward' 
+                            ? 'bg-profit-muted border-profit/20' :
                           rule.type === 'stop_loss' ? 'bg-loss-muted border-loss/20' :
                           'bg-muted/50 border-border/50'
                         }`}
                       >
                         <div className={`font-medium ${
-                          rule.type === 'take_profit' ? 'text-profit' :
+                          rule.type === 'take_profit' || rule.type === 'fixed_target' || rule.type === 'risk_reward'
+                            ? 'text-profit' :
                           rule.type === 'stop_loss' ? 'text-loss' :
                           'text-foreground'
                         }`}>
@@ -391,8 +410,22 @@ export function YouTubeStrategyImporter({
                           <div className="font-mono">
                             {rule.value}{rule.unit === 'percent' ? '%' : rule.unit ? ` ${rule.unit}` : ''}
                           </div>
+                        ) : rule.description ? (
+                          <div className="text-sm text-muted-foreground">{rule.description}</div>
                         ) : (
                           <div className="text-sm text-muted-foreground">{rule.concept}</div>
+                        )}
+                        
+                        {/* Source Quote Evidence */}
+                        {rule.sourceQuote && (
+                          <div className="mt-2 p-2 rounded bg-background/50 border border-border/30">
+                            <div className="flex items-start gap-2">
+                              <Quote className="h-3 w-3 text-muted-foreground mt-0.5 flex-shrink-0" />
+                              <p className="text-xs text-muted-foreground italic">
+                                "{rule.sourceQuote}"
+                              </p>
+                            </div>
+                          </div>
                         )}
                       </div>
                     ))}
