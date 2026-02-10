@@ -20,9 +20,9 @@
 
 ## Rencana Implementasi (4 Phase)
 
-### Phase 1: Database — Extend Schema
+### Phase 1: Database — Extend Schema ✅ DONE
 
-**1a. Tambah kolom `exchange` di tabel `accounts`**
+**Status:** Completed. Migration applied successfully.
 ```sql
 ALTER TABLE accounts ADD COLUMN exchange text DEFAULT 'manual';
 ```

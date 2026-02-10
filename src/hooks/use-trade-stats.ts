@@ -38,12 +38,14 @@ export interface UseTradeStatsOptions {
   enabled?: boolean;
   /** Override trade mode filter (uses active mode from useTradeMode if not set) */
   tradeMode?: 'paper' | 'live' | null;
+  /** Filter stats to a specific trading account */
+  accountId?: string;
 }
 
 export function useTradeStats(options: UseTradeStatsOptions = {}) {
   const { user } = useAuth();
   const { tradeMode: globalTradeMode } = useTradeMode();
-  const { filters, enabled = true, tradeMode: overrideMode } = options;
+  const { filters, enabled = true, tradeMode: overrideMode, accountId } = options;
   
   // Use override if provided, otherwise use filter's tradeMode, otherwise use global mode
   const effectiveMode = overrideMode !== undefined 
@@ -51,7 +53,7 @@ export function useTradeStats(options: UseTradeStatsOptions = {}) {
     : (filters?.tradeMode ?? globalTradeMode);
 
   return useQuery({
-    queryKey: ["trade-stats", user?.id, filters, effectiveMode],
+    queryKey: ["trade-stats", user?.id, filters, effectiveMode, accountId],
     queryFn: async (): Promise<TradeStats> => {
       if (!user?.id) {
         return getEmptyStats();
@@ -78,6 +80,7 @@ export function useTradeStats(options: UseTradeStatsOptions = {}) {
         p_strategy_ids: filters?.strategyIds?.length ? filters.strategyIds : null,
         p_sessions: filters?.session && filters.session !== 'all' ? [filters.session] : null,
         p_trade_mode: effectiveMode || null,
+        p_account_id: accountId || null,
       });
 
       if (error) {
