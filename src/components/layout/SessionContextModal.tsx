@@ -80,21 +80,21 @@ export function SessionContextModal({ open, onComplete }: SessionContextModalPro
     setIsSubmitting(true);
 
     try {
-      // Set mode and style
+      // Set mode and style locally first (always succeeds)
       setTradeMode(selectedMode);
       setTradingStyle(selectedStyle);
 
-      // Mark context as explicitly selected
+      // Persist to DB (best-effort)
       await updateSettings.mutateAsync({
         active_trade_mode: selectedMode,
         active_trading_style: selectedStyle,
       } as any);
-
-      onComplete();
     } catch (err) {
-      console.error("[SessionContextModal] Failed to save:", err);
+      console.error("[SessionContextModal] Failed to save to DB:", err);
     } finally {
       setIsSubmitting(false);
+      // Always close modal — local state is already set
+      onComplete();
     }
   };
 
