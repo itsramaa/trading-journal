@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { invalidateTradeQueries, invalidateAccountQueries } from "@/lib/query-invalidation";
+import { logAuditEvent } from "@/lib/audit-logger";
 import { TRADE_HISTORY_CONFIG } from "@/lib/constants/trade-history";
 import type { TradeEntry, TradingStrategy, TradeScreenshot } from "./use-trade-entries";
 
@@ -193,6 +194,7 @@ export function useTradeEntriesPaginated(options: PaginatedTradeEntriesOptions =
 
 // Soft delete trade entry
 export function useSoftDeleteTradeEntry() {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -203,10 +205,14 @@ export function useSoftDeleteTradeEntry() {
         .eq("id", id);
 
       if (error) throw error;
+      return id;
     },
-    onSuccess: () => {
+    onSuccess: (id) => {
       invalidateTradeQueries(queryClient);
       toast.success("Trade entry deleted");
+      if (user?.id) {
+        logAuditEvent(user.id, { action: 'trade_deleted', entityType: 'trade_entry', entityId: id });
+      }
     },
     onError: (error) => {
       toast.error(`Failed to delete trade: ${error.message}`);
@@ -216,22 +222,25 @@ export function useSoftDeleteTradeEntry() {
 
 // Restore soft-deleted trade entry
 export function useRestoreTradeEntry() {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (id: string) => {
-      // Need to bypass RLS to update deleted_at, use service role or RPC
-      // For now, we'll use a direct update (RLS allows UPDATE on user's trades)
       const { error } = await supabase
         .from("trade_entries")
         .update({ deleted_at: null })
         .eq("id", id);
 
       if (error) throw error;
+      return id;
     },
-    onSuccess: () => {
+    onSuccess: (id) => {
       invalidateTradeQueries(queryClient);
       toast.success("Trade entry restored");
+      if (user?.id) {
+        logAuditEvent(user.id, { action: 'trade_restored', entityType: 'trade_entry', entityId: id });
+      }
     },
     onError: (error) => {
       toast.error(`Failed to restore trade: ${error.message}`);

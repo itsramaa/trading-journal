@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
+import { logAuditEvent } from '@/lib/audit-logger';
 
 export interface UserSettings {
   id: string;
@@ -112,8 +113,15 @@ export function useUpdateUserSettings() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_, updates) => {
       queryClient.invalidateQueries({ queryKey: userSettingsKeys.current() });
+      if (user?.id) {
+        logAuditEvent(user.id, {
+          action: 'settings_changed',
+          entityType: 'user_settings',
+          metadata: { changed_keys: Object.keys(updates) },
+        });
+      }
     },
   });
 }

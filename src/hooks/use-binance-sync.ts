@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
+import { logAuditEvent } from "@/lib/audit-logger";
 import { invalidateTradeQueries } from "@/lib/query-invalidation";
 import { BinanceTrade } from "@/features/binance/types";
 import { resolveStateFromTrade } from "@/services/binance/trade-state-machine";
@@ -99,15 +100,30 @@ export function useSyncTradeToJournal() {
 
       return trade;
     },
-    onSuccess: () => {
+    onSuccess: (trade) => {
       invalidateTradeQueries(queryClient);
       toast.success("Trade synced to journal");
+      if (user?.id && trade) {
+        logAuditEvent(user.id, {
+          action: 'sync_completed',
+          entityType: 'sync_operation',
+          entityId: trade.id,
+          metadata: { pair: trade.pair, source: 'binance', type: 'single' },
+        });
+      }
     },
     onError: (error) => {
       if (error.message === "Trade already synced to journal") {
         toast.info("Trade already exists in journal");
       } else {
         toast.error(`Failed to sync trade: ${error.message}`);
+        if (user?.id) {
+          logAuditEvent(user.id, {
+            action: 'sync_failed',
+            entityType: 'sync_operation',
+            metadata: { error: error.message, type: 'single' },
+          });
+        }
       }
     },
   });
@@ -205,9 +221,23 @@ export function useBulkSyncTrades() {
     onSuccess: (result) => {
       invalidateTradeQueries(queryClient);
       toast.success(`Synced ${result.synced} trades${result.skipped > 0 ? ` (${result.skipped} already existed)` : ''}`);
+      if (user?.id) {
+        logAuditEvent(user.id, {
+          action: 'sync_completed',
+          entityType: 'sync_operation',
+          metadata: { synced: result.synced, skipped: result.skipped, source: 'binance', type: 'bulk' },
+        });
+      }
     },
     onError: (error) => {
       toast.error(`Failed to sync trades: ${error.message}`);
+      if (user?.id) {
+        logAuditEvent(user.id, {
+          action: 'sync_failed',
+          entityType: 'sync_operation',
+          metadata: { error: error.message, type: 'bulk' },
+        });
+      }
     },
   });
 }

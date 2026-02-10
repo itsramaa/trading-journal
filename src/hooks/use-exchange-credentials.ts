@@ -6,6 +6,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { logAuditEvent } from '@/lib/audit-logger';
+import { useAuth } from '@/hooks/use-auth';
 
 export interface CredentialStatus {
   id: string;
@@ -52,6 +54,7 @@ export function useCredentialStatus(exchange = 'binance') {
  */
 export function useSaveCredentials() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   
   return useMutation({
     mutationFn: async ({ apiKey, apiSecret, label = 'Main Account', exchange = 'binance' }: SaveCredentialParams) => {
@@ -69,9 +72,12 @@ export function useSaveCredentials() {
       
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (credentialId) => {
       queryClient.invalidateQueries({ queryKey: ['exchange-credential'] });
       queryClient.invalidateQueries({ queryKey: ['binance', 'connection'] });
+      if (user?.id) {
+        logAuditEvent(user.id, { action: 'api_key_saved', entityType: 'exchange_credential', entityId: credentialId as string });
+      }
     },
   });
 }
@@ -81,6 +87,7 @@ export function useSaveCredentials() {
  */
 export function useDeleteCredentials() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   
   return useMutation({
     mutationFn: async (credentialId: string) => {
@@ -93,12 +100,15 @@ export function useDeleteCredentials() {
         throw new Error(error.message);
       }
       
-      return data;
+      return credentialId;
     },
-    onSuccess: () => {
+    onSuccess: (credentialId) => {
       queryClient.invalidateQueries({ queryKey: ['exchange-credential'] });
       queryClient.invalidateQueries({ queryKey: ['binance', 'connection'] });
       toast.success('API credentials removed');
+      if (user?.id) {
+        logAuditEvent(user.id, { action: 'api_key_deleted', entityType: 'exchange_credential', entityId: credentialId });
+      }
     },
     onError: (error: Error) => {
       toast.error(error.message || 'Failed to remove credentials');

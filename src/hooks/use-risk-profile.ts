@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
+import { logAuditEvent } from "@/lib/audit-logger";
 import { useBinanceDailyPnl, useBinanceTotalBalance } from "@/hooks/use-binance-daily-pnl";
 import type { RiskProfile, DailyRiskSnapshot, DailyRiskStatus } from "@/types/risk";
 import { DEFAULT_RISK_PROFILE, RISK_THRESHOLDS } from "@/types/risk";
@@ -89,12 +90,17 @@ export function useUpsertRiskProfile() {
         return data;
       }
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["risk-profile"] });
       toast.success("Risk profile saved successfully");
-    },
-    onError: (error) => {
-      toast.error(`Failed to save risk profile: ${error.message}`);
+      if (user?.id && data) {
+        logAuditEvent(user.id, {
+          action: 'risk_profile_updated',
+          entityType: 'risk_profile',
+          entityId: data.id,
+          metadata: { changed_fields: Object.keys(data) },
+        });
+      }
     },
   });
 }
