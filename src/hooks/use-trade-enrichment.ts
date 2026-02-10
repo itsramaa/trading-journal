@@ -20,6 +20,10 @@ interface EnrichmentData {
   customTags: string;
   screenshots: Screenshot[];
   selectedStrategies: string[];
+  biasTimeframe: string;
+  executionTimeframe: string;
+  precisionTimeframe: string;
+  tradeRating: string;
 }
 
 export function useTradeEnrichment() {
@@ -46,7 +50,7 @@ export function useTradeEnrichment() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      const { notes, emotionalState, chartTimeframe, customTags, screenshots, selectedStrategies } = enrichmentData;
+      const { notes, emotionalState, chartTimeframe, customTags, screenshots, selectedStrategies, biasTimeframe, executionTimeframe, precisionTimeframe, tradeRating } = enrichmentData;
       const tags = customTags ? customTags.split(",").map((t) => t.trim()).filter(Boolean) : [];
 
       if (position.source === "paper") {
@@ -60,6 +64,10 @@ export function useTradeEnrichment() {
           tags,
           screenshots: screenshots as any,
           chart_timeframe: chartTimeframe || null,
+          bias_timeframe: biasTimeframe || null,
+          execution_timeframe: executionTimeframe || null,
+          precision_timeframe: precisionTimeframe || null,
+          trade_rating: tradeRating || null,
         } as any);
 
         // Update linked strategies
@@ -95,6 +103,10 @@ export function useTradeEnrichment() {
               tags,
               screenshots: screenshots as unknown as any,
               chart_timeframe: chartTimeframe || null,
+              bias_timeframe: biasTimeframe || null,
+              execution_timeframe: executionTimeframe || null,
+              precision_timeframe: precisionTimeframe || null,
+              trade_rating: tradeRating || null,
             })
             .eq("id", existingTrade.id);
         } else {
@@ -115,6 +127,10 @@ export function useTradeEnrichment() {
               tags,
               screenshots: screenshots as unknown as any,
               chart_timeframe: chartTimeframe || null,
+              bias_timeframe: biasTimeframe || null,
+              execution_timeframe: executionTimeframe || null,
+              precision_timeframe: precisionTimeframe || null,
+              trade_rating: tradeRating || null,
             })
             .select()
             .single();

@@ -4,6 +4,7 @@
  * Refactored to use useTradeEnrichment hook
  */
 import { useState, useEffect } from "react";
+import { toast } from "sonner";
 import {
   Sheet,
   SheetContent,
@@ -27,6 +28,8 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScreenshotUploader } from "./ScreenshotUploader";
+import { TradeTimeframeSection } from "./TradeTimeframeSection";
+import { TradeRatingSection } from "./TradeRatingSection";
 import { 
   Lightbulb, 
   Save, 
@@ -64,6 +67,7 @@ interface Screenshot {
   path: string;
 }
 
+// Legacy chart timeframe kept for backward compat display only
 const CHART_TIMEFRAMES = [
   { value: "1m", label: "1 Minute" },
   { value: "5m", label: "5 Minutes" },
@@ -197,6 +201,10 @@ export function TradeEnrichmentDrawer({
   const [chartTimeframe, setChartTimeframe] = useState<string>("");
   const [customTags, setCustomTags] = useState<string>("");
   const [isAnalysisOpen, setIsAnalysisOpen] = useState(false);
+  const [biasTimeframe, setBiasTimeframe] = useState<string>("");
+  const [executionTimeframe, setExecutionTimeframe] = useState<string>("");
+  const [precisionTimeframe, setPrecisionTimeframe] = useState<string>("");
+  const [tradeRating, setTradeRating] = useState<string>("");
 
   // Load existing data when position changes
   useEffect(() => {
@@ -208,6 +216,10 @@ export function TradeEnrichmentDrawer({
         setScreenshots((trade as any).screenshots || []);
         setChartTimeframe((trade as any).chart_timeframe || "");
         setCustomTags(trade.tags?.join(", ") || "");
+        setBiasTimeframe((trade as any).bias_timeframe || "");
+        setExecutionTimeframe((trade as any).execution_timeframe || "");
+        setPrecisionTimeframe((trade as any).precision_timeframe || "");
+        setTradeRating((trade as any).trade_rating || "");
         
         // Load linked strategies using hook
         const strategyIds = await loadLinkedStrategies(trade.id);
@@ -219,6 +231,10 @@ export function TradeEnrichmentDrawer({
         setScreenshots([]);
         setChartTimeframe("");
         setCustomTags("");
+        setBiasTimeframe("");
+        setExecutionTimeframe("");
+        setPrecisionTimeframe("");
+        setTradeRating("");
         setSelectedStrategies([]);
       }
     };
@@ -238,7 +254,10 @@ export function TradeEnrichmentDrawer({
 
   const handleSave = async () => {
     if (!position) return;
-    
+    if (!executionTimeframe) {
+      toast.error("Execution timeframe is required");
+      return;
+    }
     try {
       await saveEnrichment(
         position,
@@ -249,6 +268,10 @@ export function TradeEnrichmentDrawer({
           customTags,
           screenshots,
           selectedStrategies,
+          biasTimeframe,
+          executionTimeframe,
+          precisionTimeframe,
+          tradeRating,
         },
         () => {
           onSaved?.();
@@ -340,22 +363,23 @@ export function TradeEnrichmentDrawer({
 
             <Separator />
 
-            {/* Chart Timeframe */}
-            <div className="space-y-3">
-              <Label>Chart Timeframe</Label>
-              <Select value={chartTimeframe} onValueChange={setChartTimeframe}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select timeframe" />
-                </SelectTrigger>
-                <SelectContent>
-                  {CHART_TIMEFRAMES.map((tf) => (
-                    <SelectItem key={tf.value} value={tf.value}>
-                      {tf.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* 3-Timeframe System */}
+            <TradeTimeframeSection
+              biasTimeframe={biasTimeframe}
+              executionTimeframe={executionTimeframe}
+              precisionTimeframe={precisionTimeframe}
+              onBiasChange={setBiasTimeframe}
+              onExecutionChange={setExecutionTimeframe}
+              onPrecisionChange={setPrecisionTimeframe}
+            />
+
+            <Separator />
+
+            {/* Trade Rating */}
+            <TradeRatingSection
+              rating={tradeRating}
+              onRatingChange={setTradeRating}
+            />
 
             <Separator />
 
