@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useBinanceMarginHistory, useBinanceConnectionStatus } from "@/features/binance";
 import { usePositions } from "@/hooks/use-positions";
+import { useModeVisibility } from "@/hooks/use-mode-visibility";
 import { BinanceNotConfiguredState } from "@/components/binance/BinanceNotConfiguredState";
 import { format, formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -22,6 +23,7 @@ import { useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export function MarginHistoryTab() {
+  const { showExchangeData } = useModeVisibility();
   const { data: connectionStatus, isLoading: statusLoading } = useBinanceConnectionStatus();
   const isConfigured = connectionStatus?.isConfigured ?? false;
   
@@ -39,13 +41,15 @@ export function MarginHistoryTab() {
 
   const isLoading = statusLoading || positionsLoading || historyLoading;
 
-  // Show not configured state first
-  if (!statusLoading && !isConfigured) {
+  // Show not configured state first or hide in Paper mode (M-24)
+  if (!statusLoading && (!isConfigured || !showExchangeData)) {
     return (
       <div className="mt-4">
         <BinanceNotConfiguredState 
-          title="API Required"
-          description="Connect your Binance API to view margin history for your positions."
+          title={!showExchangeData ? "Live Mode Only" : "API Required"}
+          description={!showExchangeData 
+            ? "Margin history is only available in Live mode." 
+            : "Connect your Binance API to view margin history for your positions."}
         />
       </div>
     );

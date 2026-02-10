@@ -44,11 +44,21 @@ export function useWeeklyReportExport() {
   ): Promise<{ stats: WeeklyStats; dailyPnl: DailyPnL[] } | null> => {
     if (!user) return null;
 
+    // Get active trade mode for mode isolation (M-31)
+    const { data: settings } = await supabase
+      .from('user_settings')
+      .select('active_trade_mode')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    
+    const activeMode = settings?.active_trade_mode || 'live';
+
     const { data: trades, error } = await supabase
       .from('trade_entries')
       .select('realized_pnl, commission, pair, trade_date, direction')
       .eq('user_id', user.id)
       .eq('status', 'closed')
+      .eq('trade_mode', activeMode)
       .gte('trade_date', format(weekStart, 'yyyy-MM-dd'))
       .lte('trade_date', format(weekEnd, 'yyyy-MM-dd'));
 

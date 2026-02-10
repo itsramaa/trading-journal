@@ -7,6 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { useMemo } from 'react';
 import { useBinanceDailyPnl } from '@/hooks/use-binance-daily-pnl';
+import { useTradeMode } from '@/hooks/use-trade-mode';
 
 interface DailyPnlStats {
   tradesOpened: number;
@@ -22,6 +23,7 @@ interface DailyPnlStats {
 
 export function useDailyPnl() {
   const { user } = useAuth();
+  const { isPaper } = useTradeMode();
   const binancePnl = useBinanceDailyPnl();
 
   const today = new Date().toISOString().split('T')[0];
@@ -44,14 +46,14 @@ export function useDailyPnl() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!user?.id && !binancePnl.isConnected,
+    enabled: !!user?.id && (isPaper || !binancePnl.isConnected),
     staleTime: 30 * 1000,
     refetchInterval: 60 * 1000,
   });
 
   const stats = useMemo((): DailyPnlStats => {
-    // Use Binance data if connected
-    if (binancePnl.isConnected) {
+    // Use Binance data if connected AND NOT in Paper mode (M-25)
+    if (!isPaper && binancePnl.isConnected) {
       return {
         tradesOpened: 0, // Binance doesn't track "opened today" separately
         tradesClosed: binancePnl.totalTrades,
@@ -115,7 +117,7 @@ export function useDailyPnl() {
       worstTrade,
       source: 'local',
     };
-  }, [localTrades, binancePnl]);
+  }, [localTrades, binancePnl, isPaper]);
 
   return {
     ...stats,

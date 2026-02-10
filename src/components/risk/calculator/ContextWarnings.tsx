@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, Calendar, Activity, Link2, CheckCircle, Info } from "lucide-react";
 import { useEconomicCalendar } from "@/features/calendar/useEconomicCalendar";
 import { useBinanceVolatility } from "@/features/binance/useBinanceAdvancedAnalytics";
-import { useTradeEntries } from "@/hooks/use-trade-entries";
+import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import { cn } from "@/lib/utils";
 import { getCorrelation } from "@/lib/correlation-utils";
 import { getBaseSymbol } from "@/lib/symbol-utils";
@@ -31,7 +31,7 @@ interface Warning {
 export function ContextWarnings({ symbol = 'BTCUSDT' }: ContextWarningsProps) {
   const { data: calendarData, isLoading: calendarLoading } = useEconomicCalendar();
   const { data: volatilityData, isLoading: volatilityLoading } = useBinanceVolatility(symbol);
-  const { data: trades = [] } = useTradeEntries();
+  const { data: trades = [] } = useModeFilteredTrades();
   
   // Use centralized getBaseSymbol utility
   const baseAsset = getBaseSymbol(symbol);

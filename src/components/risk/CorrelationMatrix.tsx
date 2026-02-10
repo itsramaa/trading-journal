@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { AlertTriangle, Link2, ChevronDown, ChevronRight } from "lucide-react";
-import { useTradeEntries } from "@/hooks/use-trade-entries";
+import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import { cn } from "@/lib/utils";
 import { getCorrelation } from "@/lib/correlation-utils";
 import { getBaseSymbol } from "@/lib/symbol-utils";
@@ -31,7 +31,7 @@ interface CorrelationPair {
 }
 
 export function CorrelationMatrix() {
-  const { data: trades = [] } = useTradeEntries();
+  const { data: trades = [] } = useModeFilteredTrades();
   // Default collapsed per UX audit - advanced feature
   const [isOpen, setIsOpen] = useState(false);
   

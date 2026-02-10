@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/table";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { useAccounts, useAccountTransactions } from "@/hooks/use-accounts";
-import { useTradeEntries } from "@/hooks/use-trade-entries";
+import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import type { AccountType, AccountTransactionType } from "@/types/account";
 
@@ -55,7 +55,7 @@ export default function AccountDetail() {
   const navigate = useNavigate();
   const { data: accounts, isLoading: accountsLoading } = useAccounts();
   const { data: transactions, isLoading: transactionsLoading } = useAccountTransactions(accountId);
-  const { data: allTrades } = useTradeEntries();
+  const { data: allTrades } = useModeFilteredTrades();
   const { format: formatCurrency, formatPnl } = useCurrencyConversion();
   
   // Filter trades for this account

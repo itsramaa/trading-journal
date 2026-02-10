@@ -16,7 +16,7 @@ import { ClipboardCheck, Brain, Heart, CheckCircle, Sparkles, Loader2, AlertTria
 import { cn } from "@/lib/utils";
 import { useTradeEntryWizard } from "@/features/trade/useTradeEntryWizard";
 import { useAITradeQuality } from "@/features/ai/useAITradeQuality";
-import { useTradeEntries } from "@/hooks/use-trade-entries";
+import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { EMOTIONAL_STATES } from "@/types/trade-wizard";
 import { calculateTradingStats } from "@/lib/trading-calculations";
@@ -30,7 +30,7 @@ interface FinalChecklistProps {
 export function FinalChecklist({ onNext, onBack }: FinalChecklistProps) {
   const wizard = useTradeEntryWizard();
   const { getQualityScore, isLoading: aiLoading, result: aiResult, error: aiError } = useAITradeQuality();
-  const { data: trades = [] } = useTradeEntries();
+  const { data: trades = [] } = useModeFilteredTrades();
   const { format } = useCurrencyConversion();
   
   const [emotionalState, setEmotionalState] = useState<string>(
