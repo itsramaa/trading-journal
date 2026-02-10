@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar, Tag, Target, MoreVertical, Trash2, Brain, Wifi, Edit3, ImageIcon, MessageSquarePlus, MessageSquare, Loader2 } from "lucide-react";
 import { TradeStateBadge } from "@/components/ui/trade-state-badge";
+import { TradeRatingBadge } from "@/components/ui/trade-rating-badge";
 import { format } from "date-fns";
 import { TradeEntry } from "@/hooks/use-trade-entries";
 import { cn } from "@/lib/utils";
@@ -109,6 +110,8 @@ export function TradeHistoryCard({
               )}
               {/* Trade State Badge */}
               <TradeStateBadge state={entry.trade_state} />
+              {/* Trade Rating Badge */}
+              <TradeRatingBadge rating={entry.trade_rating} />
               {/* AI Quality Score Badge */}
               {entry.ai_quality_score !== null && entry.ai_quality_score !== undefined && (
                 <Badge 

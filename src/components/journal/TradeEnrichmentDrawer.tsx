@@ -30,6 +30,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { ScreenshotUploader } from "./ScreenshotUploader";
 import { TradeTimeframeSection } from "./TradeTimeframeSection";
 import { TradeRatingSection } from "./TradeRatingSection";
+import { TradeReviewSection, type RuleCompliance } from "./TradeReviewSection";
 import { 
   Lightbulb, 
   Save, 
@@ -205,6 +206,8 @@ export function TradeEnrichmentDrawer({
   const [executionTimeframe, setExecutionTimeframe] = useState<string>("");
   const [precisionTimeframe, setPrecisionTimeframe] = useState<string>("");
   const [tradeRating, setTradeRating] = useState<string>("");
+  const [lessonLearned, setLessonLearned] = useState<string>("");
+  const [ruleCompliance, setRuleCompliance] = useState<RuleCompliance>({});
 
   // Load existing data when position changes
   useEffect(() => {
@@ -220,6 +223,8 @@ export function TradeEnrichmentDrawer({
         setExecutionTimeframe((trade as any).execution_timeframe || "");
         setPrecisionTimeframe((trade as any).precision_timeframe || "");
         setTradeRating((trade as any).trade_rating || "");
+        setLessonLearned((trade as any).lesson_learned || "");
+        setRuleCompliance((trade as any).rule_compliance || {});
         
         // Load linked strategies using hook
         const strategyIds = await loadLinkedStrategies(trade.id);
@@ -235,6 +240,8 @@ export function TradeEnrichmentDrawer({
         setExecutionTimeframe("");
         setPrecisionTimeframe("");
         setTradeRating("");
+        setLessonLearned("");
+        setRuleCompliance({});
         setSelectedStrategies([]);
       }
     };
@@ -272,6 +279,8 @@ export function TradeEnrichmentDrawer({
           executionTimeframe,
           precisionTimeframe,
           tradeRating,
+          lessonLearned,
+          ruleCompliance,
         },
         () => {
           onSaved?.();
@@ -379,6 +388,21 @@ export function TradeEnrichmentDrawer({
             <TradeRatingSection
               rating={tradeRating}
               onRatingChange={setTradeRating}
+            />
+
+            <Separator />
+
+            {/* Lesson Learned & Rule Compliance */}
+            <TradeReviewSection
+              lessonLearned={lessonLearned}
+              ruleCompliance={ruleCompliance}
+              onLessonChange={setLessonLearned}
+              onRuleToggle={(ruleId) =>
+                setRuleCompliance((prev) => ({
+                  ...prev,
+                  [ruleId]: !prev[ruleId],
+                }))
+              }
             />
 
             <Separator />

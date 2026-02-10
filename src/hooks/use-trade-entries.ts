@@ -46,6 +46,12 @@ export interface TradeEntry {
   // Enrichment fields (from DB as Json, cast in runtime)
   screenshots: TradeScreenshot[] | null;
   chart_timeframe: string | null;
+  bias_timeframe: string | null;
+  execution_timeframe: string | null;
+  precision_timeframe: string | null;
+  trade_rating: string | null;
+  lesson_learned: string | null;
+  rule_compliance: Record<string, boolean> | null;
   market_context: Record<string, unknown> | null;
   // Joined data
   strategies?: TradingStrategy[];
