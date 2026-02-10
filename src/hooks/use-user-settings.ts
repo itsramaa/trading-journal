@@ -29,6 +29,9 @@ export interface UserSettings {
   use_binance_history?: boolean;
   binance_daily_sync_quota?: number;
   trade_retention_days?: number | null;
+  // Trading mode & style (Phase 2)
+  active_trade_mode?: string;
+  active_trading_style?: string;
   created_at: string;
   updated_at: string;
 }
