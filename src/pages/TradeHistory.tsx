@@ -208,9 +208,11 @@ export default function TradeHistory() {
   const handleDeleteTrade = async () => {
     if (!deletingTrade) return;
     try {
-      // Use soft delete from paginated hook exports
+      // Soft delete: set deleted_at timestamp (recoverable from Settings > Deleted Trades)
       const { error } = await import("@/integrations/supabase/client").then(m => 
-        m.supabase.from("trade_entries").delete().eq("id", deletingTrade.id)
+        m.supabase.from("trade_entries")
+          .update({ deleted_at: new Date().toISOString() })
+          .eq("id", deletingTrade.id)
       );
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ["trade-entries"] });
@@ -734,7 +736,7 @@ export default function TradeHistory() {
           open={!!deletingTrade}
           onOpenChange={(open) => !open && setDeletingTrade(null)}
           title="Delete Trade Entry"
-          description={`Are you sure you want to delete this ${deletingTrade?.pair} trade? This action cannot be undone.`}
+          description={`Are you sure you want to delete this ${deletingTrade?.pair} trade? You can recover it later from Settings > Deleted Trades.`}
           confirmLabel="Delete"
           variant="destructive"
           onConfirm={handleDeleteTrade}

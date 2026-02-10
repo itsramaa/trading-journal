@@ -351,7 +351,7 @@ export default function TradingJournal() {
           open={!!deletingTrade}
           onOpenChange={(open) => !open && setDeletingTrade(null)}
           title="Delete Trade Entry"
-          description={`Are you sure you want to delete this ${deletingTrade?.pair} trade? This action cannot be undone.`}
+          description={`Are you sure you want to delete this ${deletingTrade?.pair} trade? You can recover it later from Settings > Deleted Trades.`}
           confirmLabel="Delete"
           variant="destructive"
           onConfirm={handleDelete}
