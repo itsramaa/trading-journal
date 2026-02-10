@@ -4,6 +4,7 @@
  */
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { TradeStateBadge } from "@/components/ui/trade-state-badge";
 import {
   Table,
   TableBody,
@@ -38,6 +39,7 @@ interface UnifiedPosition {
   unrealizedPnL: number;
   unrealizedPnLPercent?: number;
   leverage?: number;
+  tradeState?: string | null;
   // Original data for actions
   originalData: TradeEntry | BinancePosition;
 }
@@ -68,9 +70,10 @@ function mapToUnifiedPositions(
       symbol: pos.pair,
       direction: pos.direction as 'LONG' | 'SHORT',
       entryPrice: pos.entry_price,
-      currentPrice: pos.entry_price, // No live price for paper
+      currentPrice: pos.entry_price,
       quantity: pos.quantity,
       unrealizedPnL: pos.pnl || 0,
+      tradeState: pos.trade_state || 'ACTIVE',
       originalData: pos,
     });
   });
@@ -92,6 +95,7 @@ function mapToUnifiedPositions(
           ? (pos.unrealizedProfit / (pos.entryPrice * Math.abs(pos.positionAmt))) * 100 
           : 0,
         leverage: pos.leverage,
+        tradeState: 'ACTIVE',
         originalData: pos,
       });
     });
@@ -144,6 +148,7 @@ export function AllPositionsTable({
             <TableHead className="w-[100px]">Source</TableHead>
             <TableHead>Symbol</TableHead>
             <TableHead className="hidden sm:table-cell">Direction</TableHead>
+            <TableHead className="hidden sm:table-cell">State</TableHead>
             <TableHead className="text-right hidden md:table-cell">Entry</TableHead>
             <TableHead className="text-right hidden md:table-cell">Current</TableHead>
             <TableHead className="text-right hidden lg:table-cell">Size</TableHead>
@@ -196,6 +201,9 @@ export function AllPositionsTable({
                     )}
                     {position.direction}
                   </Badge>
+                </TableCell>
+                <TableCell className="hidden sm:table-cell">
+                  <TradeStateBadge state={position.tradeState} />
                 </TableCell>
                 <TableCell className="text-right font-mono hidden md:table-cell">
                   {position.entryPrice.toFixed(2)}

@@ -33,6 +33,7 @@ export interface TradeEntry {
   notes: string | null;
   tags: string[] | null;
   status: 'open' | 'closed';
+  trade_state: string | null;
   realized_pnl: number | null;
   created_at: string;
   updated_at: string;
