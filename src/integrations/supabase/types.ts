@@ -205,6 +205,7 @@ export type Database = {
           currency: string
           deleted_at: string | null
           description: string | null
+          exchange: string | null
           icon: string | null
           id: string
           is_active: boolean
@@ -223,6 +224,7 @@ export type Database = {
           currency?: string
           deleted_at?: string | null
           description?: string | null
+          exchange?: string | null
           icon?: string | null
           id?: string
           is_active?: boolean
@@ -241,6 +243,7 @@ export type Database = {
           currency?: string
           deleted_at?: string | null
           description?: string | null
+          exchange?: string | null
           icon?: string | null
           id?: string
           is_active?: boolean
@@ -1261,6 +1264,22 @@ export type Database = {
         Returns: boolean
       }
       generate_share_token: { Args: never; Returns: string }
+      get_account_level_stats: {
+        Args: { p_status?: string; p_trade_mode?: string; p_user_id: string }
+        Returns: {
+          account_exchange: string
+          account_id: string
+          account_name: string
+          avg_pnl_per_trade: number
+          loss_count: number
+          profit_factor: number
+          total_pnl_gross: number
+          total_pnl_net: number
+          total_trades: number
+          win_count: number
+          win_rate: number
+        }[]
+      }
       get_credential_status: {
         Args: { p_exchange?: string }
         Returns: {
@@ -1352,6 +1371,37 @@ export type Database = {
           }
         | {
             Args: {
+              p_directions?: string[]
+              p_end_date?: string
+              p_pairs?: string[]
+              p_sessions?: string[]
+              p_source?: string
+              p_start_date?: string
+              p_status?: string
+              p_strategy_ids?: string[]
+              p_trade_mode?: string
+              p_user_id: string
+            }
+            Returns: {
+              avg_loss: number
+              avg_pnl_per_trade: number
+              avg_win: number
+              breakeven_count: number
+              loss_count: number
+              profit_factor: number
+              total_commission: number
+              total_fees: number
+              total_funding_fees: number
+              total_pnl_gross: number
+              total_pnl_net: number
+              total_trades: number
+              win_count: number
+              win_rate: number
+            }[]
+          }
+        | {
+            Args: {
+              p_account_id?: string
               p_directions?: string[]
               p_end_date?: string
               p_pairs?: string[]
