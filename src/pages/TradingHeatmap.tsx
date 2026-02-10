@@ -13,7 +13,7 @@ import {
   Grid3X3, TrendingUp, TrendingDown, Clock, Download, Sun, Moon, Sunrise,
   Trophy, AlertTriangle, Flame, Snowflake
 } from "lucide-react";
-import { useTradeEntries } from "@/hooks/use-trade-entries";
+import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import { TradingHeatmap } from "@/components/analytics/TradingHeatmap";
 import { formatWinRate } from "@/lib/formatters";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
@@ -38,7 +38,7 @@ interface StreakData {
 }
 
 export default function TradingHeatmapPage() {
-  const { data: trades, isLoading } = useTradeEntries();
+  const { data: trades, isLoading } = useModeFilteredTrades();
   const { formatPnl } = useCurrencyConversion();
   const [dateRange, setDateRange] = useState<DateRangeOption>('30d');
   const [selectedPair, setSelectedPair] = useState<string>('all');

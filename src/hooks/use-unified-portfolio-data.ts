@@ -12,7 +12,8 @@ import { useBinanceConnectionStatus } from '@/features/binance';
 import { useBinanceDailyPnl, useBinanceTotalBalance } from '@/hooks/use-binance-daily-pnl';
 import { useBinanceWeeklyPnl } from '@/hooks/use-binance-weekly-pnl';
 import { useAccounts } from '@/hooks/use-accounts';
-import { useTradeEntries } from '@/hooks/use-trade-entries';
+import { useModeFilteredTrades } from '@/hooks/use-mode-filtered-trades';
+import { useTradeMode } from '@/hooks/use-trade-mode';
 import { subDays, format, startOfDay, isWithinInterval } from 'date-fns';
 
 export type PortfolioDataSource = 'binance' | 'paper' | 'none';
@@ -51,19 +52,24 @@ export interface UnifiedPortfolioData {
  * Always shows data if available from any source
  */
 export function useUnifiedPortfolioData(): UnifiedPortfolioData {
+  const { tradeMode } = useTradeMode();
+  
   // Connection status
   const { data: connectionStatus, isLoading: connectionLoading } = useBinanceConnectionStatus();
   const isConfigured = connectionStatus?.isConfigured ?? false;
   const isConnected = connectionStatus?.isConnected ?? false;
   
-  // Binance data (optional enrichment)
+  // C-02 FIX: Only use Binance data in Live mode
+  const useBinance = tradeMode === 'live' && isConnected;
+  
+  // Binance data (optional enrichment — only used in Live mode)
   const binanceDailyPnl = useBinanceDailyPnl();
   const { totalBalance: binanceBalance, isLoading: binanceLoading, isConnected: binanceBalanceConnected } = useBinanceTotalBalance();
   const { totalNet: binanceWeeklyNet, totalTrades: binanceWeeklyTrades, isLoading: weeklyLoading } = useBinanceWeeklyPnl();
   
-  // Internal data (always available)
+  // Internal data (mode-filtered)
   const { data: accounts, isLoading: accountsLoading } = useAccounts();
-  const { data: trades = [], isLoading: tradesLoading } = useTradeEntries();
+  const { data: trades = [], isLoading: tradesLoading } = useModeFilteredTrades();
   
   // Calculate paper trading balance
   const paperData = useMemo(() => {
@@ -153,9 +159,8 @@ export function useUnifiedPortfolioData(): UnifiedPortfolioData {
   return useMemo((): UnifiedPortfolioData => {
     const isLoading = connectionLoading || accountsLoading || tradesLoading || binanceLoading;
     
-    // Priority 1: Binance configured and connected - use Binance data (even if balance is 0)
-    // This ensures users with only Binance accounts see their data correctly
-    if (isConfigured && isConnected) {
+    // Priority 1: Live mode + Binance connected → use Binance data
+    if (useBinance) {
       return {
         totalCapital: binanceBalance,
         availableBalance: binanceBalance,
@@ -206,8 +211,8 @@ export function useUnifiedPortfolioData(): UnifiedPortfolioData {
       };
     }
     
-    // Priority 3: Binance configured but still loading - show loading state with binance source
-    if (isConfigured && (connectionLoading || binanceLoading)) {
+    // Priority 3: Live mode, Binance configured but still loading
+    if (tradeMode === 'live' && isConfigured && (connectionLoading || binanceLoading)) {
       return {
         totalCapital: 0,
         availableBalance: 0,

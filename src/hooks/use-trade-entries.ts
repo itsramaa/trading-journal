@@ -41,6 +41,7 @@ export interface TradeEntry {
   binance_trade_id: string | null;
   binance_order_id: number | null;
   source: 'manual' | 'binance' | null;
+  trade_mode: 'paper' | 'live' | null;
   commission: number | null;
   commission_asset: string | null;
   // Enrichment fields (from DB as Json, cast in runtime)

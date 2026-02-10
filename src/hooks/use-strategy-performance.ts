@@ -2,7 +2,7 @@
  * Hook to calculate strategy performance metrics for AI Quality Score
  */
 import { useMemo } from "react";
-import { useTradeEntries } from "@/hooks/use-trade-entries";
+import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import {
   AI_QUALITY_SCORE_CONFIG,
   QUALITY_SCORE_THRESHOLDS,
@@ -51,7 +51,7 @@ function calculateAIQualityScore(
 }
 
 export function useStrategyPerformance(): Map<string, StrategyPerformance> {
-  const { data: trades } = useTradeEntries();
+  const { data: trades } = useModeFilteredTrades();
 
   return useMemo(() => {
     const performanceMap = new Map<string, StrategyPerformance>();

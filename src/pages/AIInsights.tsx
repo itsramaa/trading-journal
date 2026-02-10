@@ -28,7 +28,7 @@ import {
   Activity,
   Download,
 } from "lucide-react";
-import { useTradeEntries } from "@/hooks/use-trade-entries";
+import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { useContextualAnalytics } from "@/hooks/use-contextual-analytics";
 import { useContextualExport } from "@/hooks/use-contextual-export";
@@ -70,7 +70,7 @@ interface TimeSlotAnalysis {
 }
 
 export default function AIInsights() {
-  const { data: trades = [] } = useTradeEntries();
+  const { data: trades = [] } = useModeFilteredTrades();
   const { data: strategies = [] } = useTradingStrategies();
   const { data: contextualData } = useContextualAnalytics();
   const { exportContextualPDF } = useContextualExport();

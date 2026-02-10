@@ -26,6 +26,7 @@ import { FilterActiveIndicator } from "@/components/ui/filter-active-indicator";
 import { format } from "date-fns";
 import { useTradeEntriesPaginated, type TradeFilters } from "@/hooks/use-trade-entries-paginated";
 import { useTradeStats } from "@/hooks/use-trade-stats";
+import { useTradeMode } from "@/hooks/use-trade-mode";
 import type { TradeEntry } from "@/hooks/use-trade-entries";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { useBinanceConnectionStatus } from "@/features/binance";
@@ -93,6 +94,7 @@ export default function TradeHistory() {
 
   const queryClient = useQueryClient();
   const { data: userSettings } = useUserSettings();
+  const { tradeMode } = useTradeMode();
   const { data: strategies = [] } = useTradingStrategies();
   
   // Binance connection
@@ -144,8 +146,10 @@ export default function TradeHistory() {
       session: sessionFilter !== 'all' ? sessionFilter as TradeFilters['session'] : undefined,
       // Apply source filter from user settings
       source: binanceSourceFilter,
+      // C-05: Mode isolation
+      tradeMode,
     };
-  }, [effectiveStartDate, effectiveEndDate, selectedPairs, resultFilter, directionFilter, selectedStrategyIds, sessionFilter, binanceSourceFilter]);
+  }, [effectiveStartDate, effectiveEndDate, selectedPairs, resultFilter, directionFilter, selectedStrategyIds, sessionFilter, binanceSourceFilter, tradeMode]);
 
   // Paginated query for trade list
   const {

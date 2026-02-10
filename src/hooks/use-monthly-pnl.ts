@@ -3,7 +3,7 @@
  * Provides month-over-month performance comparison
  */
 import { useMemo } from 'react';
-import { useTradeEntries } from '@/hooks/use-trade-entries';
+import { useModeFilteredTrades } from '@/hooks/use-mode-filtered-trades';
 import { 
   startOfMonth, 
   endOfMonth, 
@@ -41,7 +41,7 @@ export interface MonthlyPnlResult {
 }
 
 export function useMonthlyPnl(): MonthlyPnlResult {
-  const { data: trades = [], isLoading } = useTradeEntries();
+  const { data: trades = [], isLoading } = useModeFilteredTrades();
   
   return useMemo(() => {
     const now = new Date();

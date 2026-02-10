@@ -34,6 +34,7 @@ import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useBinanceConnectionStatus } from "@/features/binance";
 import { usePositions } from "@/hooks/use-positions";
+import { useModeVisibility } from "@/hooks/use-mode-visibility";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { 
   ChevronRight,
@@ -76,11 +77,14 @@ const Dashboard = () => {
   // Trading data
   const { data: trades = [] } = useTradeEntries();
   
-  // Binance data for Active Positions
+  // Mode visibility (C-01)
+  const { showExchangeData } = useModeVisibility();
+  
+  // Binance data for Active Positions — only in Live mode
   const { data: connectionStatus } = useBinanceConnectionStatus();
   const { positions: activePositions } = usePositions();
   
-  const isConnected = connectionStatus?.isConnected;
+  const isConnected = showExchangeData && (connectionStatus?.isConnected ?? false);
 
   return (
     <DashboardLayout>
