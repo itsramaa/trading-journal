@@ -76,6 +76,7 @@ import {
   formatPercentUnsigned,
 } from "@/lib/formatters";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
+import { FilterActiveIndicator } from "@/components/ui/filter-active-indicator";
 import { format } from "date-fns";
 import type { UnifiedMarketContext } from "@/types/market-context";
 
@@ -377,6 +378,23 @@ export default function Performance() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Scope Indicator Banner */}
+        {analyticsSelection.level !== 'overall' && (
+          <FilterActiveIndicator
+            isActive
+            filterCount={0}
+            onClear={() => setAnalyticsSelection({ level: 'overall' })}
+            className="bg-primary/10 border-primary/30"
+            scopeLabel={
+              analyticsSelection.level === 'account'
+                ? `Account: ${accounts.find(a => a.id === analyticsSelection.accountId)?.name || 'Unknown'}`
+                : analyticsSelection.level === 'exchange'
+                  ? `Exchange: ${analyticsSelection.exchange}`
+                  : `Type: ${analyticsSelection.tradeType === 'paper' ? 'Paper' : 'Live'}`
+            }
+          />
+        )}
 
         {trades && trades.length === 0 ? (
           <EmptyState
