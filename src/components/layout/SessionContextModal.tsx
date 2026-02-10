@@ -22,7 +22,7 @@ import {
   Clock 
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useTradeMode, type TradeMode, type TradingStyle, TRADE_MODE_LABELS, TRADING_STYLE_LABELS, TRADING_STYLE_TIMEFRAMES } from "@/hooks/use-trade-mode";
+import { type TradeMode, type TradingStyle, TRADE_MODE_LABELS, TRADING_STYLE_LABELS, TRADING_STYLE_TIMEFRAMES } from "@/hooks/use-trade-mode";
 import { useUpdateUserSettings } from "@/hooks/use-user-settings";
 
 interface SessionContextModalProps {
@@ -70,7 +70,6 @@ export function SessionContextModal({ open, onComplete }: SessionContextModalPro
   const [selectedMode, setSelectedMode] = useState<TradeMode | null>(null);
   const [selectedStyle, setSelectedStyle] = useState<TradingStyle | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { setTradeMode, setTradingStyle } = useTradeMode();
   const updateSettings = useUpdateUserSettings();
 
   const canSubmit = selectedMode !== null && selectedStyle !== null;
@@ -80,22 +79,18 @@ export function SessionContextModal({ open, onComplete }: SessionContextModalPro
     setIsSubmitting(true);
 
     try {
-      // Set mode and style locally first (always succeeds)
-      setTradeMode(selectedMode);
-      setTradingStyle(selectedStyle);
-
-      // Persist to DB (best-effort)
+      // Single mutation to persist both values at once
       await updateSettings.mutateAsync({
         active_trade_mode: selectedMode,
         active_trading_style: selectedStyle,
       } as any);
     } catch (err) {
       console.error("[SessionContextModal] Failed to save to DB:", err);
-    } finally {
-      setIsSubmitting(false);
-      // Always close modal — local state is already set
-      onComplete();
     }
+
+    // Always close modal regardless of success/failure
+    setIsSubmitting(false);
+    onComplete();
   };
 
   return (
