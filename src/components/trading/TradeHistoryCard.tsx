@@ -10,6 +10,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar, Tag, Target, MoreVertical, Trash2, Brain, Wifi, Edit3, ImageIcon, MessageSquarePlus, MessageSquare, Loader2 } from "lucide-react";
+import { TradeStateBadge } from "@/components/ui/trade-state-badge";
 import { format } from "date-fns";
 import { TradeEntry } from "@/hooks/use-trade-entries";
 import { cn } from "@/lib/utils";
@@ -106,6 +107,8 @@ export function TradeHistoryCard({
                   Binance
                 </Badge>
               )}
+              {/* Trade State Badge */}
+              <TradeStateBadge state={entry.trade_state} />
               {/* AI Quality Score Badge */}
               {entry.ai_quality_score !== null && entry.ai_quality_score !== undefined && (
                 <Badge 
