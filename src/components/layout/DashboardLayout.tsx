@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { AppSidebar } from "./AppSidebar";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
@@ -16,6 +17,8 @@ import {
 } from "./HeaderControls";
 import { CurrencyDisplay } from "./CurrencyDisplay";
 import { TradeModeSelector } from "./TradeModeSelector";
+import { SimulationBanner } from "./SimulationBanner";
+import { SessionContextModal } from "./SessionContextModal";
 import { RiskAlertBanner } from "@/components/risk/RiskAlertBanner";
 import { useNavigationShortcuts, Kbd } from "@/components/ui/keyboard-shortcut";
 import { CommandPalette, useCommandPalette } from "./CommandPalette";
@@ -24,6 +27,7 @@ import { useNotificationsRealtime } from "@/hooks/use-notifications";
 import { useNotificationTriggers } from "@/hooks/use-notification-triggers";
 import { useBinanceBackgroundSync } from "@/hooks/use-binance-background-sync";
 import { GlobalSyncIndicator } from "./GlobalSyncIndicator";
+import { useUserSettings } from "@/hooks/use-user-settings";
 import { Button } from "@/components/ui/button";
 import { Search } from "lucide-react";
 
@@ -97,6 +101,27 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   // Enable Binance background sync (runs based on user settings)
   useBinanceBackgroundSync();
 
+  // H-04: Session Context Modal — show if user has never explicitly chosen mode
+  const { data: userSettings, isLoading: settingsLoading } = useUserSettings();
+  const [showSessionModal, setShowSessionModal] = useState(false);
+  const [sessionDismissed, setSessionDismissed] = useState(false);
+
+  useEffect(() => {
+    if (settingsLoading || sessionDismissed) return;
+    // Show modal if settings exist but mode was never explicitly set
+    // We detect this via localStorage flag set after first explicit selection
+    const hasExplicitlySelected = localStorage.getItem('session_context_selected');
+    if (userSettings && !hasExplicitlySelected) {
+      setShowSessionModal(true);
+    }
+  }, [userSettings, settingsLoading, sessionDismissed]);
+
+  const handleSessionComplete = () => {
+    localStorage.setItem('session_context_selected', 'true');
+    setShowSessionModal(false);
+    setSessionDismissed(true);
+  };
+
   return (
     <SidebarProvider 
       defaultOpen={sidebarOpen}
@@ -114,6 +139,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       </a>
       <AppSidebar />
       <SidebarInset>
+        {/* H-03: SIMULATION Banner (Paper mode only) */}
+        <SimulationBanner />
         {/* Global Risk Alert Banner */}
         <RiskAlertBanner />
         <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-2 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
@@ -187,6 +214,12 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           {children}
         </main>
       </SidebarInset>
+
+      {/* H-04: Session Context Modal (first visit only) */}
+      <SessionContextModal
+        open={showSessionModal}
+        onComplete={handleSessionComplete}
+      />
     </SidebarProvider>
   );
 }
