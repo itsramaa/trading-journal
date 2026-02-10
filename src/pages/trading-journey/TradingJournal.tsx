@@ -27,6 +27,7 @@ import {
   Clock, 
 } from "lucide-react";
 import { useTradeEntries, useDeleteTradeEntry, useClosePosition, useUpdateTradeEntry, TradeEntry } from "@/hooks/use-trade-entries";
+import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import { useBinancePositions, useBinanceBalance, useBinanceConnectionStatus, useBinanceOpenOrders } from "@/features/binance";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { TradeEntryWizard } from "@/components/trade/entry/TradeEntryWizard";
@@ -67,7 +68,8 @@ export default function TradingJournal() {
 
   const queryClient = useQueryClient();
   const { format: formatCurrency } = useCurrencyConversion();
-  const { data: trades, isLoading: tradesLoading } = useTradeEntries();
+  // M-27: Filter trades by active trade_mode
+  const { data: trades, isLoading: tradesLoading } = useModeFilteredTrades();
   const { showExchangeData, showExchangeOrders, showExchangeBalance, canCreateManualTrade, showPaperData } = useModeVisibility();
   
   // Binance data — only fetch when in Live mode

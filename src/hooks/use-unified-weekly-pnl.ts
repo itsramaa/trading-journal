@@ -6,6 +6,7 @@ import { useMemo } from 'react';
 import { useBinanceConnectionStatus } from '@/features/binance';
 import { useBinanceWeeklyPnl } from '@/hooks/use-binance-weekly-pnl';
 import { useTradeEntries } from '@/hooks/use-trade-entries';
+import { useTradeMode } from '@/hooks/use-trade-mode';
 import { subDays, format, startOfDay, isWithinInterval } from 'date-fns';
 
 export type WeeklyPnlSource = 'binance' | 'paper';
@@ -42,6 +43,7 @@ export interface UnifiedWeeklyPnlResult {
 }
 
 export function useUnifiedWeeklyPnl(): UnifiedWeeklyPnlResult {
+  const { tradeMode } = useTradeMode();
   const { data: connectionStatus, isLoading: connectionLoading } = useBinanceConnectionStatus();
   const isConnected = connectionStatus?.isConnected ?? false;
   
@@ -82,6 +84,11 @@ export function useUnifiedWeeklyPnl(): UnifiedWeeklyPnlResult {
     trades.forEach(trade => {
       if (trade.status !== 'closed') return;
       
+      // Mode filter
+      const matchesMode = trade.trade_mode 
+        ? trade.trade_mode === tradeMode
+        : (tradeMode === 'live' ? trade.source === 'binance' : trade.source !== 'binance');
+      if (!matchesMode) return;
       const tradeDate = trade.trade_date ? new Date(trade.trade_date) : null;
       if (!tradeDate) return;
       
@@ -140,12 +147,13 @@ export function useUnifiedWeeklyPnl(): UnifiedWeeklyPnlResult {
       worstTrade,
       hasData: totalTrades > 0,
     };
-  }, [trades]);
+  }, [trades, tradeMode]);
   
   // Return best available data
   return useMemo((): UnifiedWeeklyPnlResult => {
-    // Priority 1: Binance connected with data
-    if (isConnected && binanceWeekly.dailyData.length > 0 && binanceWeekly.totalTrades > 0) {
+    // Paper mode → always use internal data (never Binance)
+    // Live mode → prefer Binance if connected
+    if (tradeMode === 'live' && isConnected && binanceWeekly.dailyData.length > 0 && binanceWeekly.totalTrades > 0) {
       const totalWins = binanceWeekly.dailyData.reduce((sum, d) => sum + (d.wins || 0), 0);
       const totalLosses = binanceWeekly.dailyData.reduce((sum, d) => sum + (d.losses || 0), 0);
       const winRate = binanceWeekly.totalTrades > 0 
@@ -208,5 +216,5 @@ export function useUnifiedWeeklyPnl(): UnifiedWeeklyPnlResult {
       isLoading: connectionLoading || tradesLoading,
       hasData: false,
     };
-  }, [isConnected, binanceWeekly, internalWeekly, tradesLoading, connectionLoading]);
+  }, [tradeMode, isConnected, binanceWeekly, internalWeekly, tradesLoading, connectionLoading]);
 }

@@ -10,6 +10,7 @@ import { useMemo } from 'react';
 import { useBinanceDailyPnl } from '@/hooks/use-binance-daily-pnl';
 import { useBinanceConnectionStatus } from '@/features/binance';
 import { useTradeEntries } from '@/hooks/use-trade-entries';
+import { useTradeMode } from '@/hooks/use-trade-mode';
 import type { AccountSourceType } from '@/hooks/use-combined-balance';
 
 export interface UnifiedDailyPnlResult {
@@ -40,10 +41,13 @@ export interface UnifiedDailyPnlResult {
  * Paper: Calculates from trade_entries table for today
  */
 export function useUnifiedDailyPnl(): UnifiedDailyPnlResult {
-  // Determine source directly from connection status (avoid nested useBestAvailableBalance call)
+  const { tradeMode } = useTradeMode();
+  
+  // Determine source based on trade_mode (not just connection status)
   const { data: connectionStatus, isLoading: connectionLoading } = useBinanceConnectionStatus();
   const isConnected = connectionStatus?.isConnected ?? false;
-  const source: AccountSourceType = isConnected ? 'binance' : 'paper';
+  // Paper mode → always 'paper'. Live mode → 'binance' if connected.
+  const source: AccountSourceType = (tradeMode === 'live' && isConnected) ? 'binance' : 'paper';
   
   // Binance P&L data
   const binancePnl = useBinanceDailyPnl();
@@ -59,10 +63,15 @@ export function useUnifiedDailyPnl(): UnifiedDailyPnlResult {
     
     const today = new Date().toISOString().split('T')[0];
     
-    // Filter trades for today that are closed
+    // Filter trades for today that are closed AND match current mode
     const todayTrades = trades.filter(trade => {
       const tradeDate = trade.trade_date?.split('T')[0];
-      return tradeDate === today && trade.status === 'closed';
+      if (tradeDate !== today || trade.status !== 'closed') return false;
+      // Mode filter
+      if (trade.trade_mode) return trade.trade_mode === tradeMode;
+      // Legacy: binance = live, others = paper
+      if (tradeMode === 'live') return trade.source === 'binance';
+      return trade.source !== 'binance';
     });
     
     // Calculate stats
@@ -95,7 +104,7 @@ export function useUnifiedDailyPnl(): UnifiedDailyPnlResult {
       totalFunding: 0,
       totalRebates: 0,
     };
-  }, [trades, source]);
+  }, [trades, source, tradeMode]);
   
   // Return appropriate P&L based on source
   return useMemo((): UnifiedDailyPnlResult => {

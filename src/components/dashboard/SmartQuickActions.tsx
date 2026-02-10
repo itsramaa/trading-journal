@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useTradingGate } from "@/hooks/use-trading-gate";
 import { useRiskEvents } from "@/hooks/use-risk-events";
+import { useModeVisibility } from "@/hooks/use-mode-visibility";
 import { cn } from "@/lib/utils";
 
 interface SmartAction {
@@ -34,6 +35,7 @@ interface SmartAction {
 export function SmartQuickActions() {
   const { canTrade, reason, status } = useTradingGate();
   const { events: riskEvents = [] } = useRiskEvents();
+  const { canCreateManualTrade } = useModeVisibility();
   
   
   // Check for recent risk warnings (last 24h)
@@ -47,16 +49,22 @@ export function SmartQuickActions() {
   }, [riskEvents]);
 
   const actions = useMemo((): SmartAction[] => {
+    // C-06: Hide "Add Trade" in Live mode
+    const tradeDisabled = !canCreateManualTrade || !canTrade;
+    const tradeReason = !canCreateManualTrade 
+      ? 'Live mode — trades are executed on Binance'
+      : (!canTrade ? (reason || 'Trading is currently disabled') : undefined);
+    
     return [
       {
         id: 'add-trade',
         label: 'Add Trade',
         href: '/trading',
         icon: BookOpen,
-        disabled: !canTrade,
-        disabledReason: !canTrade ? (reason || 'Trading is currently disabled') : undefined,
-        priority: !canTrade ? 'warning' : 'normal',
-        badge: !canTrade ? 'Locked' : undefined,
+        disabled: tradeDisabled,
+        disabledReason: tradeReason,
+        priority: tradeDisabled ? 'warning' : 'normal',
+        badge: tradeDisabled ? (canCreateManualTrade ? 'Locked' : 'Live Mode') : undefined,
       },
       {
         id: 'add-account',
@@ -84,7 +92,7 @@ export function SmartQuickActions() {
         badge: hasRecentWarning ? 'Action Needed' : status === 'warning' ? 'Warning' : undefined,
       },
     ];
-  }, [canTrade, reason, status, hasRecentWarning]);
+  }, [canTrade, canCreateManualTrade, reason, status, hasRecentWarning]);
 
   const getButtonVariant = (action: SmartAction) => {
     if (action.disabled) return 'outline';

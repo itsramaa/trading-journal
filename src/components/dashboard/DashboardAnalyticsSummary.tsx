@@ -20,7 +20,7 @@ import {
   ChevronRight,
   BarChart3
 } from "lucide-react";
-import { useTradeEntries } from "@/hooks/use-trade-entries";
+import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { subDays, isWithinInterval, format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -32,7 +32,7 @@ interface SparklineData {
 }
 
 export function DashboardAnalyticsSummary() {
-  const { data: trades = [] } = useTradeEntries();
+  const { data: trades = [] } = useModeFilteredTrades();
   const { formatPnl } = useCurrencyConversion();
   const analyticsData = useMemo(() => {
     const closedTrades = trades.filter(t => t.status === 'closed');

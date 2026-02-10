@@ -43,7 +43,7 @@ import {
   Bar, 
   Cell,
 } from "recharts";
-import { useTradeEntries } from "@/hooks/use-trade-entries";
+import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { useBinanceDailyPnl } from "@/hooks/use-binance-daily-pnl";
 import { useBinanceWeeklyPnl } from "@/hooks/use-binance-weekly-pnl";
@@ -86,7 +86,7 @@ export default function Performance() {
   const { formatCompact } = useCurrencyConversion();
 
   // Data hooks
-  const { data: trades, isLoading: tradesLoading } = useTradeEntries();
+  const { data: trades, isLoading: tradesLoading } = useModeFilteredTrades();
   const { data: strategies = [] } = useTradingStrategies();
   const binanceStats = useBinanceDailyPnl();
   const weeklyStats = useBinanceWeeklyPnl();

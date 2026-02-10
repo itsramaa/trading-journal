@@ -1320,35 +1320,66 @@ export type Database = {
           weight_used: number
         }[]
       }
-      get_trade_stats: {
-        Args: {
-          p_directions?: string[]
-          p_end_date?: string
-          p_pairs?: string[]
-          p_sessions?: string[]
-          p_source?: string
-          p_start_date?: string
-          p_status?: string
-          p_strategy_ids?: string[]
-          p_user_id: string
-        }
-        Returns: {
-          avg_loss: number
-          avg_pnl_per_trade: number
-          avg_win: number
-          breakeven_count: number
-          loss_count: number
-          profit_factor: number
-          total_commission: number
-          total_fees: number
-          total_funding_fees: number
-          total_pnl_gross: number
-          total_pnl_net: number
-          total_trades: number
-          win_count: number
-          win_rate: number
-        }[]
-      }
+      get_trade_stats:
+        | {
+            Args: {
+              p_directions?: string[]
+              p_end_date?: string
+              p_pairs?: string[]
+              p_sessions?: string[]
+              p_source?: string
+              p_start_date?: string
+              p_status?: string
+              p_strategy_ids?: string[]
+              p_user_id: string
+            }
+            Returns: {
+              avg_loss: number
+              avg_pnl_per_trade: number
+              avg_win: number
+              breakeven_count: number
+              loss_count: number
+              profit_factor: number
+              total_commission: number
+              total_fees: number
+              total_funding_fees: number
+              total_pnl_gross: number
+              total_pnl_net: number
+              total_trades: number
+              win_count: number
+              win_rate: number
+            }[]
+          }
+        | {
+            Args: {
+              p_directions?: string[]
+              p_end_date?: string
+              p_pairs?: string[]
+              p_sessions?: string[]
+              p_source?: string
+              p_start_date?: string
+              p_status?: string
+              p_strategy_ids?: string[]
+              p_trade_mode?: string
+              p_user_id: string
+            }
+            Returns: {
+              avg_loss: number
+              avg_pnl_per_trade: number
+              avg_win: number
+              breakeven_count: number
+              loss_count: number
+              profit_factor: number
+              total_commission: number
+              total_fees: number
+              total_funding_fees: number
+              total_pnl_gross: number
+              total_pnl_net: number
+              total_trades: number
+              win_count: number
+              win_rate: number
+            }[]
+          }
       get_trading_session: { Args: { trade_time: string }; Returns: string }
       get_user_subscription: {
         Args: { _user_id: string }

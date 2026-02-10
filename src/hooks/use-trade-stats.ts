@@ -13,6 +13,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useTradeMode } from "@/hooks/use-trade-mode";
 import type { TradeFilters } from "./use-trade-entries-paginated";
 
 export interface TradeStats {
@@ -35,14 +36,22 @@ export interface TradeStats {
 export interface UseTradeStatsOptions {
   filters?: TradeFilters;
   enabled?: boolean;
+  /** Override trade mode filter (uses active mode from useTradeMode if not set) */
+  tradeMode?: 'paper' | 'live' | null;
 }
 
 export function useTradeStats(options: UseTradeStatsOptions = {}) {
   const { user } = useAuth();
-  const { filters, enabled = true } = options;
+  const { tradeMode: globalTradeMode } = useTradeMode();
+  const { filters, enabled = true, tradeMode: overrideMode } = options;
+  
+  // Use override if provided, otherwise use filter's tradeMode, otherwise use global mode
+  const effectiveMode = overrideMode !== undefined 
+    ? overrideMode 
+    : (filters?.tradeMode ?? globalTradeMode);
 
   return useQuery({
-    queryKey: ["trade-stats", user?.id, filters],
+    queryKey: ["trade-stats", user?.id, filters, effectiveMode],
     queryFn: async (): Promise<TradeStats> => {
       if (!user?.id) {
         return getEmptyStats();
@@ -68,6 +77,7 @@ export function useTradeStats(options: UseTradeStatsOptions = {}) {
         p_directions: filters?.direction ? [filters.direction] : null,
         p_strategy_ids: filters?.strategyIds?.length ? filters.strategyIds : null,
         p_sessions: filters?.session && filters.session !== 'all' ? [filters.session] : null,
+        p_trade_mode: effectiveMode || null,
       });
 
       if (error) {

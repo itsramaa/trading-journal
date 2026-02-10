@@ -23,6 +23,7 @@ export interface TradeFilters {
   strategyId?: string;
   strategyIds?: string[];         // Multi-select strategies
   session?: 'sydney' | 'tokyo' | 'london' | 'new_york' | 'all';  // DB-level session filter
+  tradeMode?: 'paper' | 'live';  // Mode isolation filter
 }
 
 export interface PaginatedTradeEntriesOptions {
@@ -94,6 +95,11 @@ export function useTradeEntriesPaginated(options: PaginatedTradeEntriesOptions =
       // Session filter at DB level (new session column)
       if (filters?.session && filters.session !== 'all') {
         query = query.eq("session", filters.session);
+      }
+      
+      // Trade mode filter for Paper/Live isolation
+      if (filters?.tradeMode) {
+        query = query.eq("trade_mode", filters.tradeMode);
       }
 
       // Apply cursor for pagination

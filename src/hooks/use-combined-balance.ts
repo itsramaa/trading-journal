@@ -1,10 +1,14 @@
 /**
  * Combined Balance Hook
- * Single source for account balance - switches between Binance and Paper Trading
+ * Single source for account balance - switches based on trade_mode
+ * 
+ * C-11 ROOT FIX: useBestAvailableBalance is now mode-aware.
+ * Paper → always paper balance. Live → Binance if connected.
  */
 import { useMemo } from 'react';
 import { useBinanceBalance, useBinanceConnectionStatus } from '@/features/binance';
 import { useAccounts } from '@/hooks/use-accounts';
+import { useTradeMode } from '@/hooks/use-trade-mode';
 
 export type AccountSourceType = 'binance' | 'paper';
 
@@ -102,6 +106,7 @@ export function useCombinedBalance(
  * Get the best available balance (Binance first, then Paper)
  */
 export function useBestAvailableBalance() {
+  const { tradeMode } = useTradeMode();
   const { data: connectionStatus } = useBinanceConnectionStatus();
   const { data: binanceBalance, isLoading: binanceLoading } = useBinanceBalance();
   const { data: accounts, isLoading: accountsLoading } = useAccounts();
@@ -109,8 +114,9 @@ export function useBestAvailableBalance() {
   const isConnected = connectionStatus?.isConnected ?? false;
   
   return useMemo(() => {
-    // Prefer Binance if connected
-    if (isConnected && binanceBalance) {
+    // C-11 FIX: In Paper mode, ALWAYS use paper accounts (never Binance)
+    // In Live mode, prefer Binance if connected
+    if (tradeMode === 'live' && isConnected && binanceBalance) {
       return {
         balance: binanceBalance.totalWalletBalance,
         availableBalance: binanceBalance.availableBalance,
@@ -119,7 +125,7 @@ export function useBestAvailableBalance() {
       };
     }
     
-    // Fallback to paper accounts
+    // Paper mode OR live without Binance → use paper accounts
     if (accounts) {
       const tradingAccounts = accounts.filter(a => 
         a.account_type === 'trading' && a.is_active
@@ -140,5 +146,5 @@ export function useBestAvailableBalance() {
       source: 'paper' as AccountSourceType,
       isLoading: true,
     };
-  }, [isConnected, binanceBalance, accounts, binanceLoading, accountsLoading]);
+  }, [tradeMode, isConnected, binanceBalance, accounts, binanceLoading, accountsLoading]);
 }
