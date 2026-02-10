@@ -108,6 +108,10 @@ export interface AggregatedTrade {
   entry_order_type: string | null;  // LIMIT, MARKET, etc.
   exit_order_type: string | null;   // LIMIT, MARKET, STOP, etc.
   
+  // Auto-calculated metrics
+  r_multiple: number | null;          // Reward / Risk ratio (requires stop_loss)
+  max_adverse_excursion: number | null; // Max drawdown during trade (price units)
+  
   // Result derived from P&L
   result: 'win' | 'loss' | 'breakeven';
   status: 'closed';
