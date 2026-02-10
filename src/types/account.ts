@@ -22,6 +22,7 @@ export interface Account {
   color: string | null;
   is_active: boolean;
   is_system: boolean;
+  exchange: string;
   metadata: {
     broker?: string;
     account_number?: string;
