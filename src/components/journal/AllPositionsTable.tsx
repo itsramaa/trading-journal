@@ -1,7 +1,10 @@
 /**
  * AllPositionsTable - Unified view for Binance + Paper positions
  * Shows source badge, allows enrichment via drawer
+ * M-01: Added fees/funding and time-in-trade columns
+ * M-33: Read-only enforcement for live/Binance trades
  */
+import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TradeStateBadge } from "@/components/ui/trade-state-badge";
@@ -16,6 +19,7 @@ import {
 } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { 
   Wifi, 
   FileText, 
@@ -25,11 +29,13 @@ import {
   X,
   Trash2,
   BookOpen,
+  Lock,
+  Clock,
 } from "lucide-react";
 import type { TradeEntry } from "@/hooks/use-trade-entries";
 import type { BinancePosition } from "@/features/binance/types";
 
-interface UnifiedPosition {
+export interface UnifiedPosition {
   id: string;
   source: 'binance' | 'paper';
   symbol: string;
@@ -42,6 +48,12 @@ interface UnifiedPosition {
   leverage?: number;
   tradeState?: string | null;
   tradeRating?: string | null;
+  // M-01: fees & time
+  fees?: number;
+  fundingFees?: number;
+  entryDatetime?: string | null;
+  // M-33: read-only flag
+  isReadOnly: boolean;
   // Original data for actions
   originalData: TradeEntry | BinancePosition;
 }
@@ -58,14 +70,28 @@ interface AllPositionsTableProps {
   formatCurrency: (value: number) => string;
 }
 
+function formatDuration(entryDatetime: string | null | undefined): string {
+  if (!entryDatetime) return '-';
+  const entryMs = new Date(entryDatetime).getTime();
+  if (isNaN(entryMs)) return '-';
+  const diffMs = Date.now() - entryMs;
+  if (diffMs < 0) return '-';
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ${minutes % 60}m`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ${hours % 24}h`;
+}
+
 function mapToUnifiedPositions(
   paperPositions: TradeEntry[],
   binancePositions: BinancePosition[]
 ): UnifiedPosition[] {
   const unified: UnifiedPosition[] = [];
 
-  // Map paper positions
   paperPositions.forEach((pos) => {
+    const isLiveSource = pos.source === 'binance' || pos.trade_mode === 'live';
     unified.push({
       id: pos.id,
       source: 'paper',
@@ -77,11 +103,14 @@ function mapToUnifiedPositions(
       unrealizedPnL: pos.pnl || 0,
       tradeState: pos.trade_state || 'ACTIVE',
       tradeRating: pos.trade_rating || null,
+      fees: (pos.commission || 0) + (pos.fees || 0),
+      fundingFees: (pos as any).funding_fees || 0,
+      entryDatetime: (pos as any).entry_datetime || pos.created_at,
+      isReadOnly: isLiveSource,
       originalData: pos,
     });
   });
 
-  // Map Binance positions (only with non-zero amounts)
   binancePositions
     .filter((p) => p.positionAmt !== 0)
     .forEach((pos) => {
@@ -99,11 +128,25 @@ function mapToUnifiedPositions(
           : 0,
         leverage: pos.leverage,
         tradeState: 'ACTIVE',
+        fees: 0,
+        fundingFees: 0,
+        entryDatetime: null,
+        isReadOnly: true,
         originalData: pos,
       });
     });
 
   return unified;
+}
+
+function TimeInTrade({ entryDatetime }: { entryDatetime: string | null | undefined }) {
+  const [display, setDisplay] = useState(() => formatDuration(entryDatetime));
+  useEffect(() => {
+    if (!entryDatetime) return;
+    const interval = setInterval(() => setDisplay(formatDuration(entryDatetime)), 60000);
+    return () => clearInterval(interval);
+  }, [entryDatetime]);
+  return <span>{display}</span>;
 }
 
 export function AllPositionsTable({
@@ -155,6 +198,13 @@ export function AllPositionsTable({
             <TableHead className="text-right hidden md:table-cell">Entry</TableHead>
             <TableHead className="text-right hidden md:table-cell">Current</TableHead>
             <TableHead className="text-right hidden lg:table-cell">Size</TableHead>
+            <TableHead className="text-right hidden lg:table-cell">Fees</TableHead>
+            <TableHead className="text-right hidden lg:table-cell">
+              <span className="flex items-center justify-end gap-1">
+                <Clock className="h-3 w-3" />
+                Time
+              </span>
+            </TableHead>
             <TableHead className="text-right">P&L</TableHead>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
@@ -163,6 +213,7 @@ export function AllPositionsTable({
           {unifiedPositions.map((position) => {
             const isPaper = position.source === 'paper';
             const pnlColor = position.unrealizedPnL >= 0 ? 'text-profit' : 'text-loss';
+            const totalFees = (position.fees || 0) + (position.fundingFees || 0);
 
             return (
               <TableRow key={position.id}>
@@ -220,6 +271,24 @@ export function AllPositionsTable({
                 <TableCell className="text-right font-mono hidden lg:table-cell">
                   {position.quantity.toFixed(4)}
                 </TableCell>
+                <TableCell className="text-right font-mono text-muted-foreground hidden lg:table-cell">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger>
+                        {totalFees > 0 ? `-${totalFees.toFixed(2)}` : '-'}
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <div className="text-xs space-y-1">
+                          <p>Commission: ${(position.fees || 0).toFixed(4)}</p>
+                          <p>Funding: ${(position.fundingFees || 0).toFixed(4)}</p>
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </TableCell>
+                <TableCell className="text-right font-mono text-muted-foreground hidden lg:table-cell">
+                  <TimeInTrade entryDatetime={position.entryDatetime} />
+                </TableCell>
                 <TableCell className={`text-right font-mono ${pnlColor}`}>
                   {formatCurrency(position.unrealizedPnL)}
                   {position.unrealizedPnLPercent !== undefined && (
@@ -238,7 +307,20 @@ export function AllPositionsTable({
                     >
                       <BookOpen className="h-4 w-4" />
                     </Button>
-                    {isPaper && (
+                    {position.isReadOnly ? (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="inline-flex items-center px-2 text-muted-foreground">
+                              <Lock className="h-3.5 w-3.5" />
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="text-xs">Live trades are read-only</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    ) : (
                       <>
                         {onEdit && (
                           <Button
@@ -283,5 +365,3 @@ export function AllPositionsTable({
     </div>
   );
 }
-
-export type { UnifiedPosition };

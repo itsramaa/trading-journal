@@ -47,6 +47,10 @@ import {
   XCircle,
   AlertTriangle,
   Sparkles,
+  Lock,
+  Target,
+  Timer,
+  ShieldCheck,
 } from "lucide-react";
 import { TradeEntry } from "@/hooks/use-trade-entries";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
@@ -78,6 +82,80 @@ const CHART_TIMEFRAMES = [
   { value: "1d", label: "1 Day" },
   { value: "1w", label: "1 Week" },
 ];
+
+// M-02: Post-Mortem Structured Display
+function PostMortemSection({ analysis }: { analysis: { timestamp?: string; ai_review?: string; what_worked?: string[]; what_to_improve?: string[]; pattern_identified?: string | null; follow_up_actions?: string[]; entry_timing?: string; exit_efficiency?: string; sl_placement?: string; strategy_adherence?: string } }) {
+  if (!analysis) return null;
+  
+  const sections = [
+    { key: 'entry_timing', label: 'Entry Timing', icon: Target, value: analysis.entry_timing || analysis.ai_review },
+    { key: 'exit_efficiency', label: 'Exit Efficiency', icon: TrendingUp, value: analysis.exit_efficiency },
+    { key: 'sl_placement', label: 'SL Placement', icon: ShieldCheck, value: analysis.sl_placement },
+    { key: 'strategy_adherence', label: 'Strategy Adherence', icon: Timer, value: analysis.strategy_adherence },
+  ].filter(s => s.value);
+
+  return (
+    <div className="space-y-3">
+      <Label className="flex items-center gap-2">
+        <Brain className="h-4 w-4 text-chart-4" />
+        Post-Trade Analysis
+      </Label>
+      
+      {sections.length > 0 && (
+        <div className="grid gap-2">
+          {sections.map(({ key, label, icon: Icon, value }) => (
+            <div key={key} className="p-3 rounded-lg bg-muted/50 border text-sm">
+              <p className="font-medium flex items-center gap-2 mb-1">
+                <Icon className="h-3.5 w-3.5 text-primary" />
+                {label}
+              </p>
+              <p className="text-muted-foreground text-xs">{value}</p>
+            </div>
+          ))}
+        </div>
+      )}
+      
+      {analysis.what_worked && analysis.what_worked.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-profit flex items-center gap-1">
+            <CheckCircle className="h-3 w-3" /> What Worked
+          </p>
+          <ul className="space-y-0.5 ml-5">
+            {analysis.what_worked.map((item, i) => (
+              <li key={i} className="text-xs text-muted-foreground list-disc">{item}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      
+      {analysis.what_to_improve && analysis.what_to_improve.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-loss flex items-center gap-1">
+            <AlertTriangle className="h-3 w-3" /> To Improve
+          </p>
+          <ul className="space-y-0.5 ml-5">
+            {analysis.what_to_improve.map((item, i) => (
+              <li key={i} className="text-xs text-muted-foreground list-disc">{item}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {analysis.follow_up_actions && analysis.follow_up_actions.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-xs font-medium flex items-center gap-1">
+            <Lightbulb className="h-3 w-3 text-chart-4" /> Follow-up Actions
+          </p>
+          <ul className="space-y-0.5 ml-5">
+            {analysis.follow_up_actions.map((item, i) => (
+              <li key={i} className="text-xs text-muted-foreground list-disc">{item}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // AI Analysis Display Component
 function AIAnalysisDisplay({ analysis }: { analysis: AITradeAnalysis }) {
@@ -452,6 +530,14 @@ export function TradeEnrichmentDrawer({
               </p>
             </div>
 
+            {/* Post-Trade Analysis (M-02) - Structured Post-Mortem */}
+            {position.source === 'paper' && (position.originalData as any).post_trade_analysis && (
+              <>
+                <Separator />
+                <PostMortemSection analysis={(position.originalData as any).post_trade_analysis} />
+              </>
+            )}
+
             {/* AI Analysis Section */}
             <Separator />
             <div className="space-y-3">
@@ -516,6 +602,17 @@ export function TradeEnrichmentDrawer({
                 </Collapsible>
               )}
             </div>
+
+            {/* M-33: Read-only notice for live trades */}
+            {position.source === 'paper' && ((position.originalData as TradeEntry).source === 'binance' || (position.originalData as TradeEntry).trade_mode === 'live') && (
+              <>
+                <Separator />
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50 border text-sm text-muted-foreground">
+                  <Lock className="h-4 w-4 shrink-0" />
+                  <span>Core trade data (price, quantity, direction) is read-only for live/synced trades. Only journal fields can be edited.</span>
+                </div>
+              </>
+            )}
           </div>
         </ScrollArea>
 
