@@ -5,7 +5,7 @@
 > **Updated:** 2026-02-10 (cross-check pass #3 — deep component scan)  
 > **Reference:** `docs/DETAILED_USER_SCENARIO.md`  
 > **Status:** Active — Phase A pending  
-> **Summary:** 29 mismatches (10 Critical, 5 High, 14 Medium)
+> **Summary:** 37 mismatches (11 Critical, 5 High, 21 Medium)
 
 ---
 
@@ -25,6 +25,7 @@
 | C-08 | TradingHeatmap page zero mode filtering | §12.1 | `useTradeEntries()` unfiltered — heatmap data cross-contaminated. | Filter trades by active `trade_mode`. | `src/pages/TradingHeatmap.tsx` | A |
 | C-09 | DashboardAnalyticsSummary zero mode filtering | §12.1 | 30-day sparkline and win rate use unfiltered `useTradeEntries()`. | Filter by `trade_mode` or consume mode-aware hook. | `src/components/dashboard/DashboardAnalyticsSummary.tsx` | A |
 | C-10 | Performance analytics sub-components zero mode filtering | §12.1 | `EmotionalPatternAnalysis`, `AIPatternInsights`, `CryptoRanking` each independently call unfiltered `useTradeEntries()`. Pattern analysis cross-contaminated. | Filter by `trade_mode` or accept filtered trades as prop. | `src/components/analytics/EmotionalPatternAnalysis.tsx`, `AIPatternInsights.tsx`, `CryptoRanking.tsx` | A |
+| C-11 | `useBestAvailableBalance` ignores trade_mode (ROOT CAUSE) | §3.1/12.1 | Returns Binance balance if connected, regardless of `trade_mode`. Cascades to PositionCalculator, TradingGate, DailyRiskStatus. | Paper: always paper balance. Live: Binance if connected. | `src/hooks/use-combined-balance.ts` | A |
 
 ### High (UX & Audit Gaps)
 
@@ -51,9 +52,16 @@
 | M-09 | RiskSummaryCard shows Binance positions in Paper mode | §3.1 | Uses `usePositions()` + `useBinanceConnectionStatus()` regardless of mode. Shows correlation risk for Binance positions in Paper mode. | Paper: hide Binance position data. Live: show full risk. | `src/components/risk/RiskSummaryCard.tsx` | D |
 | M-10 | CorrelationMatrix zero mode filtering | §12.1 | Uses unfiltered `useTradeEntries()` for correlation analysis. | Filter by `trade_mode`. | `src/components/risk/CorrelationMatrix.tsx` | D |
 | M-11 | JournalExportCard zero mode filtering | §12.1 | Exports all trades regardless of mode. | Respect active mode or add mode selector. | `src/components/settings/JournalExportCard.tsx` | D |
-| M-12 | PositionCalculator uses Binance balance in Paper mode | §3.1 | `useBestAvailableBalance` returns Binance balance even in Paper mode. | Paper: use paper account balance. Live: use Binance balance. | `src/pages/PositionCalculator.tsx` | D |
+| M-12 | PositionCalculator + TradingGate balance source ignores mode | §3.1 | `useBestAvailableBalance` returns Binance balance in Paper mode. Cascaded fix via C-11. | Consumers automatically fixed when C-11 is resolved. | `src/pages/PositionCalculator.tsx`, `src/hooks/use-trading-gate.ts` | A (via C-11) |
 | M-13 | ContextWarnings (risk calculator) zero mode filtering | §12.1 | Uses unfiltered `useTradeEntries()` for correlation context. | Filter by `trade_mode`. | `src/components/risk/calculator/ContextWarnings.tsx` | D |
 | M-14 | use-context-aware-risk hook zero mode filtering | §12.1 | Uses unfiltered `useTradeEntries()` for dynamic risk adjustment. | Filter by `trade_mode` for mode-isolated risk calculations. | `src/hooks/use-context-aware-risk.ts` | D |
+| M-15 | use-monthly-pnl hook zero mode filtering | §12.1 | Uses unfiltered `useTradeEntries()` for monthly comparison. MoM stats cross-contaminated. | Filter by `trade_mode`. | `src/hooks/use-monthly-pnl.ts` | A |
+| M-16 | use-strategy-performance hook zero mode filtering | §12.1 | Uses unfiltered `useTradeEntries()` for per-strategy stats. | Filter by `trade_mode`. | `src/hooks/use-strategy-performance.ts` | A |
+| M-17 | AIChatbot zero mode filtering | §12.1 | Uses unfiltered `useTradeEntries()` for chat context — AI analyzes all trades regardless of mode. | Filter trades by `trade_mode` before passing to AI chat context. | `src/components/chat/AIChatbot.tsx` | D |
+| M-18 | use-trading-gate trades not mode-filtered | §12.1 | `useTradeEntries()` call (line 48) for AI quality scoring uses all trades. Separate from C-11 balance fix. | Filter by `trade_mode` for mode-isolated quality assessment. | `src/hooks/use-trading-gate.ts` | D |
+| M-19 | DrawdownChart zero mode filtering | §12.1 | Uses unfiltered `useTradeEntries()` for drawdown calculation. Equity curve cross-contaminated. | Filter by `trade_mode` or accept filtered trades as prop. | `src/components/analytics/DrawdownChart.tsx` | A |
+| M-20 | TradingHeatmap component fallback fetch unfiltered | §12.1 | Component has internal `useTradeEntries()` fallback when no `externalTrades` prop passed. Fallback is unfiltered. | Filter fallback by `trade_mode`. Page-level fix (C-08) should always pass filtered trades. | `src/components/analytics/TradingHeatmap.tsx` | A |
+| M-21 | SevenDayStatsCard zero mode filtering | §12.1 | Uses unfiltered `useTradeEntries()` for 7-day summary stats. | Filter by `trade_mode`. | `src/components/analytics/SevenDayStatsCard.tsx` | D |
 ---
 
 ## 2. Phase A: Data Isolation (C-01 → C-06)
@@ -76,6 +84,7 @@
 | `use-trade-stats.ts` | Pass `tradeMode` from `useTradeMode()` as `p_trade_mode` |
 | `use-trade-entries-paginated.ts` | Add `trade_mode` to query `.eq()` filter |
 | `use-unified-portfolio-data.ts` | Consume `useTradeMode()`, return mode-relevant data only |
+| `use-combined-balance.ts` | **ROOT FIX (C-11)**: `useBestAvailableBalance` consumes `useTradeMode()`. Paper → always paper. Live → Binance if connected. Cascades fix to PositionCalculator, TradingGate, DailyRiskStatus. |
 
 ### Step A.3: Page & Component Updates
 
@@ -92,16 +101,20 @@
 | `EmotionalPatternAnalysis.tsx` | Accept filtered trades as prop OR import `useTradeMode` and filter internally. |
 | `AIPatternInsights.tsx` | Accept filtered trades as prop OR import `useTradeMode` and filter internally. |
 | `CryptoRanking.tsx` | Accept filtered trades as prop OR import `useTradeMode` and filter internally. |
+| `DrawdownChart.tsx` | Accept filtered trades as prop OR import `useTradeMode` and filter internally. (M-19) |
+| `TradingHeatmap.tsx` (component) | Filter internal `useTradeEntries()` fallback by `trade_mode`. (M-20) |
 
 ### Step A.4: Unified Hook Updates (NEW)
 
 | Hook | Change |
 |------|--------|
-| `use-unified-daily-pnl.ts` | Accept `tradeMode` param, filter data by mode |
-| `use-unified-weekly-pnl.ts` | Accept `tradeMode` param, filter data by mode |
-| `use-unified-week-comparison.ts` | Accept `tradeMode` param, filter data by mode |
-| `use-symbol-breakdown.ts` | Accept `tradeMode` param, filter data by mode |
-| `use-contextual-analytics.ts` | Accept `tradeMode` param for mode-isolated analytics |
+| `use-unified-daily-pnl.ts` | Consume `useTradeMode()`, Paper → force paper path, filter trades by `trade_mode` |
+| `use-unified-weekly-pnl.ts` | Consume `useTradeMode()`, Paper → force paper path, filter trades by `trade_mode` |
+| `use-unified-week-comparison.ts` | Consume `useTradeMode()`, filter data by mode |
+| `use-symbol-breakdown.ts` | Consume `useTradeMode()`, filter data by mode |
+| `use-contextual-analytics.ts` | Consume `useTradeMode()`, filter `useTradeEntries()` by `trade_mode` |
+| `use-monthly-pnl.ts` | Consume `useTradeMode()`, filter `useTradeEntries()` by `trade_mode` (M-15) |
+| `use-strategy-performance.ts` | Consume `useTradeMode()`, filter `useTradeEntries()` by `trade_mode` (M-16) |
 
 ### Verification Checklist — Phase A
 
@@ -253,14 +266,25 @@
 
 - `JournalExportCard.tsx`: Respect active `trade_mode` in export, add mode label to export metadata
 
-### D.13: PositionCalculator Balance Source (M-12)
+### D.13: PositionCalculator + TradingGate (M-12) — Auto-fixed via C-11
 
-- `PositionCalculator.tsx`: `useBestAvailableBalance` should respect mode
-- Paper: paper account balance. Live: Binance balance.
+- No additional code change needed. Once `useBestAvailableBalance` is mode-aware (C-11), these consumers inherit correct behavior.
+- Verify: PositionCalculator shows paper balance in Paper mode.
+- Verify: TradingGate uses paper balance for daily loss calculations in Paper mode.
 
 ### D.14: ContextWarnings Mode Filtering (M-13)
 
 - `ContextWarnings.tsx`: Filter `useTradeEntries()` by `trade_mode` for correlation context
+
+### D.15: AIChatbot Mode Filtering (M-17)
+
+- `AIChatbot.tsx`: Filter `useTradeEntries()` by `trade_mode` before passing to AI chat context
+- Ensures AI assistant analyzes only trades from the active mode
+
+### D.16: TradingGate Trades Filtering (M-18)
+
+- `use-trading-gate.ts`: Filter `useTradeEntries()` by `trade_mode` for AI quality scoring
+- Separate from C-11 balance fix — this is about trade quality assessment data
 
 ### Verification Checklist — Phase D
 
@@ -276,9 +300,11 @@
 - [ ] RiskSummaryCard hides Binance positions in Paper mode
 - [ ] CorrelationMatrix uses only active mode's trades
 - [ ] JournalExportCard exports only active mode's trades
-- [ ] PositionCalculator uses mode-appropriate balance
+- [ ] PositionCalculator uses mode-appropriate balance (via C-11)
 - [ ] ContextWarnings uses only active mode's trades
 - [ ] use-context-aware-risk uses only active mode's trades
+- [ ] AIChatbot provides mode-filtered trade context to AI
+- [ ] TradingGate quality scoring uses mode-filtered trades
 
 ---
 
@@ -297,7 +323,7 @@ Phase A (Data Isolation) ──→ Phase B (UX) ──→ Phase C (Audit) ──
 
 After all phases complete:
 1. Update `docs/DETAILED_USER_SCENARIO.md` Implementation Status tables
-2. Mark all 29 mismatches as ✅ Done in this document
+2. Mark all 37 mismatches as ✅ Done in this document
 3. Run full verification checklist
 
 ---
