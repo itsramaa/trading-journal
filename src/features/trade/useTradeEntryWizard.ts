@@ -4,6 +4,7 @@
 import { create } from "zustand";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { logAuditEvent } from "@/lib/audit-logger";
 import type {
   WizardStep,
   WizardState,
@@ -18,6 +19,7 @@ import { INITIAL_WIZARD_STATE, EXPRESS_STEPS, FULL_STEPS } from "@/types/trade-w
 import type { PositionSizeResult } from "@/types/risk";
 import type { TradingStrategyEnhanced } from "@/types/strategy";
 import type { UnifiedMarketContext } from "@/types/market-context";
+import type { TradeMode, TradingStyle } from "@/hooks/use-trade-mode";
 
 interface WizardStore extends WizardState {
   // Navigation
@@ -40,7 +42,7 @@ interface WizardStore extends WizardState {
   // Actions
   reset: () => void;
   isSubmitting: boolean;
-  submitTrade: (userId: string) => Promise<boolean>;
+  submitTrade: (userId: string, tradeMode: TradeMode, tradingStyle: TradingStyle) => Promise<boolean>;
 }
 
 const getStepsForMode = (mode: WizardMode): WizardStep[] => {
@@ -126,18 +128,32 @@ export const useTradeEntryWizard = create<WizardStore>((set, get) => ({
     set(INITIAL_WIZARD_STATE);
   },
 
-  submitTrade: async (userId) => {
+  submitTrade: async (userId, tradeMode, tradingStyle) => {
     const state = get();
     set({ isSubmitting: true });
 
     try {
-      const { tradeDetails, priceLevels, positionSizing, confluences, finalChecklist, tradingAccountId, marketContext } = state;
+      const { tradeDetails, priceLevels, positionSizing, confluences, finalChecklist, tradingAccountId, marketContext, strategyDetails } = state;
 
       if (!tradeDetails || !priceLevels || !positionSizing) {
         throw new Error("Missing required trade data");
       }
 
-      // Insert trade entry with AI quality score and market context
+      // Build immutable strategy snapshot (JSONB) - preserves strategy state at trade time
+      const strategySnapshot = strategyDetails ? {
+        strategy_id: state.selectedStrategyId,
+        strategy_name: strategyDetails.name,
+        methodology: strategyDetails.methodology || null,
+        min_rr: strategyDetails.min_rr || null,
+        min_confluences: strategyDetails.min_confluences || null,
+        trading_style: strategyDetails.trading_style || null,
+        timeframe: strategyDetails.timeframe || null,
+        entry_rules: strategyDetails.entry_rules || null,
+        exit_rules: strategyDetails.exit_rules || null,
+        snapshot_at: new Date().toISOString(),
+      } : null;
+
+      // Insert trade entry with immutable context (trade_mode, trade_style, strategy_snapshot)
       const { data, error } = await supabase
         .from("trade_entries")
         .insert({
@@ -151,6 +167,12 @@ export const useTradeEntryWizard = create<WizardStore>((set, get) => ({
           quantity: positionSizing.position_size,
           trade_date: new Date().toISOString().split('T')[0],
           status: 'open',
+          trade_state: 'ACTIVE',
+          // Immutable context - locked at creation
+          trade_mode: tradeMode,
+          trade_style: tradingStyle,
+          strategy_snapshot: strategySnapshot as any,
+          // Enrichment data
           confluence_score: confluences?.checkedItems.length || 0,
           confluences_met: confluences?.checkedItems || [],
           emotional_state: finalChecklist?.emotionalState || null,
@@ -158,7 +180,8 @@ export const useTradeEntryWizard = create<WizardStore>((set, get) => ({
           notes: finalChecklist?.tradeComment || null,
           ai_quality_score: finalChecklist?.aiQualityScore || null,
           ai_confidence: finalChecklist?.aiConfidence || confluences?.aiConfidence || null,
-          market_context: marketContext as any, // Store market context at entry time
+          market_context: marketContext as any,
+          source: 'manual',
         })
         .select()
         .single();
@@ -175,6 +198,14 @@ export const useTradeEntryWizard = create<WizardStore>((set, get) => ({
             user_id: userId,
           });
       }
+
+      // Audit log
+      logAuditEvent(userId, {
+        action: 'trade_created',
+        entityType: 'trade_entry',
+        entityId: data?.id,
+        metadata: { pair: tradeDetails.pair, direction: tradeDetails.direction, trade_mode: tradeMode },
+      });
 
       toast.success("Trade executed successfully!");
       set({ isSubmitting: false });

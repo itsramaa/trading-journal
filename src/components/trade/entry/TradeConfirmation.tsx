@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { useTradeEntryWizard } from "@/features/trade/useTradeEntryWizard";
 import { useAuth } from "@/hooks/use-auth";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
+import { useTradeMode } from "@/hooks/use-trade-mode";
 
 interface TradeConfirmationProps {
   onExecute: () => Promise<void>;
@@ -33,6 +34,7 @@ export function TradeConfirmation({ onExecute, onBack, onCancel }: TradeConfirma
   const wizard = useTradeEntryWizard();
   const { user } = useAuth();
   const { format, formatPnl } = useCurrencyConversion();
+  const { tradeMode, tradingStyle } = useTradeMode();
   
   const { 
     tradeDetails, 
@@ -60,7 +62,7 @@ export function TradeConfirmation({ onExecute, onBack, onCancel }: TradeConfirma
 
   const handleExecute = async () => {
     if (!user?.id) return;
-    const success = await wizard.submitTrade(user.id);
+    const success = await wizard.submitTrade(user.id, tradeMode, tradingStyle);
     if (success) {
       onExecute();
     }
