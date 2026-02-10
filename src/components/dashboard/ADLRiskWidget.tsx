@@ -101,6 +101,14 @@ function PositionADLRow({ symbol, side, quantile }: PositionADLProps) {
 export function ADLRiskWidget() {
   const { showExchangeData } = useModeVisibility();
 
+  // All hooks must be called before any early return
+  const { data: connectionStatus, isLoading: statusLoading } = useBinanceConnectionStatus();
+  const { data: positions, isLoading: positionsLoading } = useBinancePositions();
+  const { data: adlData, isLoading: adlLoading } = useBinanceAdlQuantile();
+
+  const isConfigured = connectionStatus?.isConfigured ?? false;
+  const isConnected = connectionStatus?.isConnected ?? false;
+
   // Hide in Paper mode (M-23)
   if (!showExchangeData) {
     return (
@@ -121,15 +129,6 @@ export function ADLRiskWidget() {
       </Card>
     );
   }
-
-  // Check connection status first
-  const { data: connectionStatus, isLoading: statusLoading } = useBinanceConnectionStatus();
-  const isConfigured = connectionStatus?.isConfigured ?? false;
-  const isConnected = connectionStatus?.isConnected ?? false;
-
-  // Only fetch data if configured & connected
-  const { data: positions, isLoading: positionsLoading } = useBinancePositions();
-  const { data: adlData, isLoading: adlLoading } = useBinanceAdlQuantile();
 
   const isLoading = statusLoading || positionsLoading || adlLoading;
 
