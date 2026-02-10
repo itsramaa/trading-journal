@@ -114,7 +114,7 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
   // Trade details state
   const [pair, setPair] = useState<string>("");
   const [direction, setDirection] = useState<'LONG' | 'SHORT'>('LONG');
-  const [timeframe, setTimeframe] = useState<string>("1h");
+  const [timeframe, setTimeframe] = useState<string>("");
   
   // Strategy context for pair recommendations (must be after pair state)
   const strategyContext = useStrategyContext(selectedStrategy || null, pair);
@@ -206,10 +206,11 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
   const isValidationPassed = validationResult?.canProceed ?? false;
   const isStrategySelected = !!selectedStrategyId;
   const isPairSelected = !!pair;
+  const isTimeframeSelected = !!timeframe; // M-36: Mandatory execution timeframe
   
   // AI Pre-flight blocking logic: SKIP verdict blocks proceed unless bypassed
   const isPreflightBlocking = preflightResult?.verdict === 'SKIP' && !bypassSkipWarning;
-  const canProceed = isAccountSelected && isValidationPassed && isStrategySelected && isPairSelected && !isPreflightBlocking;
+  const canProceed = isAccountSelected && isValidationPassed && isStrategySelected && isPairSelected && isTimeframeSelected && !isPreflightBlocking;
 
   const handleNext = async () => {
     // Capture market context before proceeding
@@ -593,11 +594,11 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
                     <Clock className="h-4 w-4" />
-                    Timeframe
+                    Execution Timeframe <span className="text-loss">*</span>
                   </Label>
                   <Select value={timeframe} onValueChange={setTimeframe}>
-                    <SelectTrigger>
-                      <SelectValue />
+                    <SelectTrigger className={cn(!timeframe && "border-[hsl(var(--chart-4))]/50")}>
+                      <SelectValue placeholder="Pilih timeframe (wajib)" />
                     </SelectTrigger>
                     <SelectContent>
                       {TIMEFRAME_OPTIONS.map((tf) => (
@@ -605,6 +606,11 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
                       ))}
                     </SelectContent>
                   </Select>
+                  {!timeframe && (
+                    <p className="text-xs text-[hsl(var(--chart-4))]">
+                      Execution timeframe wajib dipilih sebelum melanjutkan
+                    </p>
+                  )}
                 </div>
 
                 {/* AI Pre-flight */}

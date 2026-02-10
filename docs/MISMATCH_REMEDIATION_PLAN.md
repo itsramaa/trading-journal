@@ -1,10 +1,10 @@
 # Mismatch Remediation Plan
 
-> **Version:** 1.5  
+> **Version:** 1.6  
 > **Created:** 2026-02-10  
-> **Updated:** 2026-02-10 (cross-check pass #8 — full spec §0-§13 systematic audit)  
+> **Updated:** 2026-02-10 (Phase A DONE, Phase B in progress)  
 > **Reference:** `docs/DETAILED_USER_SCENARIO.md`  
-> **Status:** Active — Phase A pending  
+> **Status:** Active — Phase A ✅ DONE | Phase B in progress  
 > **Summary:** 52 mismatches (11 Critical, 5 High, 36 Medium)
 
 ---
@@ -15,17 +15,17 @@
 
 | ID | Title | Spec Section | Current State | Required State | Affected Files | Phase |
 |----|-------|-------------|---------------|----------------|----------------|-------|
-| C-01 | Dashboard tidak enforce mode visibility | §3.1/3.2 | No `useModeVisibility` import. Active Positions shown regardless of mode. | Paper: hide Binance positions/balance. Live: hide paper data. | `src/pages/Dashboard.tsx` | A |
-| C-02 | PortfolioOverviewCard ignores trade_mode | §12.1 | `useUnifiedPortfolioData` mixes paper + live balances. | Return only mode-relevant data. | `src/hooks/use-unified-portfolio-data.ts`, `PortfolioOverviewCard` | A |
-| C-03 | Performance page zero mode filtering | §12.1 | All trades aggregated (paper + live). Equity curve cross-contaminated. | Filter all analytics by `trade_mode`. | `src/pages/Performance.tsx`, analytics hooks | A |
-| C-04 | `get_trade_stats` RPC missing `p_trade_mode` | §12 | RPC has no `p_trade_mode` parameter. | Add `p_trade_mode` filter to RPC function. | `supabase/migrations/`, `src/hooks/use-trade-stats.ts` | A |
-| C-05 | TradeHistory tidak filter by trade_mode | §12 | Separates by `source` tab only, not `trade_mode` field. | Add `trade_mode` to query filter. | `src/pages/TradeHistory.tsx`, `use-trade-entries-paginated.ts` | A |
-| C-06 | SmartQuickActions ignores mode | §3.2 | "Add Trade" uses `useTradingGate` only, not `canCreateManualTrade`. | Hide/disable "Add Trade" in Live mode via `useModeVisibility`. | `src/components/dashboard/SmartQuickActions.tsx` | A |
-| C-07 | AIInsights page zero mode filtering | §12.1 | `useTradeEntries()` unfiltered — all trades (paper+live) mixed in pattern analysis. | Filter trades by active `trade_mode`. | `src/pages/AIInsights.tsx` | A |
-| C-08 | TradingHeatmap page zero mode filtering | §12.1 | `useTradeEntries()` unfiltered — heatmap data cross-contaminated. | Filter trades by active `trade_mode`. | `src/pages/TradingHeatmap.tsx` | A |
-| C-09 | DashboardAnalyticsSummary zero mode filtering | §12.1 | 30-day sparkline and win rate use unfiltered `useTradeEntries()`. | Filter by `trade_mode` or consume mode-aware hook. | `src/components/dashboard/DashboardAnalyticsSummary.tsx` | A |
-| C-10 | Performance analytics sub-components zero mode filtering | §12.1 | `EmotionalPatternAnalysis`, `AIPatternInsights`, `CryptoRanking` each independently call unfiltered `useTradeEntries()`. Pattern analysis cross-contaminated. | Filter by `trade_mode` or accept filtered trades as prop. | `src/components/analytics/EmotionalPatternAnalysis.tsx`, `AIPatternInsights.tsx`, `CryptoRanking.tsx` | A |
-| C-11 | `useBestAvailableBalance` ignores trade_mode (ROOT CAUSE) | §3.1/12.1 | Returns Binance balance if connected, regardless of `trade_mode`. Cascades to PositionCalculator, TradingGate, DailyRiskStatus. | Paper: always paper balance. Live: Binance if connected. | `src/hooks/use-combined-balance.ts` | A |
+| C-01 | Dashboard tidak enforce mode visibility | §3.1/3.2 | ✅ DONE | Paper: hide Binance positions/balance. Live: hide paper data. | `src/pages/Dashboard.tsx` | A ✅ |
+| C-02 | PortfolioOverviewCard ignores trade_mode | §12.1 | ✅ DONE | Return only mode-relevant data. | `src/hooks/use-unified-portfolio-data.ts`, `PortfolioOverviewCard` | A ✅ |
+| C-03 | Performance page zero mode filtering | §12.1 | ✅ DONE | Filter all analytics by `trade_mode`. | `src/pages/Performance.tsx`, analytics hooks | A ✅ |
+| C-04 | `get_trade_stats` RPC missing `p_trade_mode` | §12 | ✅ DONE | Add `p_trade_mode` filter to RPC function. | `supabase/migrations/`, `src/hooks/use-trade-stats.ts` | A ✅ |
+| C-05 | TradeHistory tidak filter by trade_mode | §12 | ✅ DONE | Add `trade_mode` to query filter. | `src/pages/TradeHistory.tsx`, `use-trade-entries-paginated.ts` | A ✅ |
+| C-06 | SmartQuickActions ignores mode | §3.2 | ✅ DONE | Hide/disable "Add Trade" in Live mode via `useModeVisibility`. | `src/components/dashboard/SmartQuickActions.tsx` | A ✅ |
+| C-07 | AIInsights page zero mode filtering | §12.1 | ✅ DONE | Filter trades by active `trade_mode`. | `src/pages/AIInsights.tsx` | A ✅ |
+| C-08 | TradingHeatmap page zero mode filtering | §12.1 | ✅ DONE | Filter trades by active `trade_mode`. | `src/pages/TradingHeatmap.tsx` | A ✅ |
+| C-09 | DashboardAnalyticsSummary zero mode filtering | §12.1 | ✅ DONE | Filter by `trade_mode` or consume mode-aware hook. | `src/components/dashboard/DashboardAnalyticsSummary.tsx` | A ✅ |
+| C-10 | Performance analytics sub-components zero mode filtering | §12.1 | ✅ DONE | Filter by `trade_mode` or accept filtered trades as prop. | `src/components/analytics/EmotionalPatternAnalysis.tsx`, `AIPatternInsights.tsx`, `CryptoRanking.tsx` | A ✅ |
+| C-11 | `useBestAvailableBalance` ignores trade_mode (ROOT CAUSE) | §3.1/12.1 | ✅ DONE | Paper: always paper balance. Live: Binance if connected. | `src/hooks/use-combined-balance.ts` | A ✅ |
 
 ### High (UX & Audit Gaps)
 
@@ -33,9 +33,9 @@
 |----|-------|-------------|---------------|----------------|----------------|-------|
 | H-01 | Audit logger only covers trade creation | §13 | `logAuditEvent` called only in `submitTrade()`. | Cover: trade close, delete, restore, API key save/delete, sync, settings change. | Multiple hooks + components | C |
 | H-02 | RiskManagement no mode awareness | §3.1/3.2 | No mode hook imported. Shows Binance data in Paper mode. | Paper: simulator-based risk. Live: Binance-based risk. | `src/pages/RiskManagement.tsx` | D |
-| H-03 | No SIMULATION banner in Paper mode | §3.1 | Only small "PAPER" badge in `TradeModeSelector`. | Persistent SIMULATION banner with amber styling across all pages. | `src/components/layout/DashboardLayout.tsx` | B |
-| H-04 | No mandatory session context enforcement | §2.2 | Defaults to `live` silently. No explicit selection required. | Modal forces mode + style selection before first use. | `DashboardLayout.tsx`, new `SessionContextModal.tsx` | B |
-| H-05 | DailyPnL page no mode filtering | §12.1 | `useUnifiedDailyPnl` and `useUnifiedWeeklyPnl` mix paper+live data. Source badge shown but data not filtered by `trade_mode`. | Filter all daily/weekly hooks by active `trade_mode`. | `src/pages/DailyPnL.tsx`, `use-unified-daily-pnl.ts`, `use-unified-weekly-pnl.ts` | A |
+| H-03 | No SIMULATION banner in Paper mode | §3.1 | ✅ DONE | Persistent SIMULATION banner with amber styling across all pages. | `src/components/layout/SimulationBanner.tsx`, `DashboardLayout.tsx` | B ✅ |
+| H-04 | No mandatory session context enforcement | §2.2 | ✅ DONE | Modal forces mode + style selection before first use. | `src/components/layout/SessionContextModal.tsx`, `DashboardLayout.tsx` | B ✅ |
+| H-05 | DailyPnL page no mode filtering | §12.1 | ✅ DONE | Filter all daily/weekly hooks by active `trade_mode`. | `src/pages/DailyPnL.tsx`, `use-unified-daily-pnl.ts`, `use-unified-weekly-pnl.ts` | A ✅ |
 
 ### Medium (Feature Polish)
 
@@ -52,22 +52,22 @@
 | M-09 | RiskSummaryCard shows Binance positions in Paper mode | §3.1 | Uses `usePositions()` + `useBinanceConnectionStatus()` regardless of mode. Shows correlation risk for Binance positions in Paper mode. | Paper: hide Binance position data. Live: show full risk. | `src/components/risk/RiskSummaryCard.tsx` | D |
 | M-10 | CorrelationMatrix zero mode filtering | §12.1 | Uses unfiltered `useTradeEntries()` for correlation analysis. | Filter by `trade_mode`. | `src/components/risk/CorrelationMatrix.tsx` | D |
 | M-11 | JournalExportCard zero mode filtering | §12.1 | Exports all trades regardless of mode. | Respect active mode or add mode selector. | `src/components/settings/JournalExportCard.tsx` | D |
-| M-12 | PositionCalculator + TradingGate balance source ignores mode | §3.1 | `useBestAvailableBalance` returns Binance balance in Paper mode. Cascaded fix via C-11. | Consumers automatically fixed when C-11 is resolved. | `src/pages/PositionCalculator.tsx`, `src/hooks/use-trading-gate.ts` | A (via C-11) |
+| M-12 | PositionCalculator + TradingGate balance source ignores mode | §3.1 | ✅ DONE (via C-11) | Consumers automatically fixed when C-11 is resolved. | `src/pages/PositionCalculator.tsx`, `src/hooks/use-trading-gate.ts` | A ✅ |
 | M-13 | ContextWarnings (risk calculator) zero mode filtering | §12.1 | Uses unfiltered `useTradeEntries()` for correlation context. | Filter by `trade_mode`. | `src/components/risk/calculator/ContextWarnings.tsx` | D |
 | M-14 | use-context-aware-risk hook zero mode filtering | §12.1 | Uses unfiltered `useTradeEntries()` for dynamic risk adjustment. | Filter by `trade_mode` for mode-isolated risk calculations. | `src/hooks/use-context-aware-risk.ts` | D |
-| M-15 | use-monthly-pnl hook zero mode filtering | §12.1 | Uses unfiltered `useTradeEntries()` for monthly comparison. MoM stats cross-contaminated. | Filter by `trade_mode`. | `src/hooks/use-monthly-pnl.ts` | A |
-| M-16 | use-strategy-performance hook zero mode filtering | §12.1 | Uses unfiltered `useTradeEntries()` for per-strategy stats. | Filter by `trade_mode`. | `src/hooks/use-strategy-performance.ts` | A |
+| M-15 | use-monthly-pnl hook zero mode filtering | §12.1 | ✅ DONE | Filter by `trade_mode`. | `src/hooks/use-monthly-pnl.ts` | A ✅ |
+| M-16 | use-strategy-performance hook zero mode filtering | §12.1 | ✅ DONE | Filter by `trade_mode`. | `src/hooks/use-strategy-performance.ts` | A ✅ |
 | M-17 | AIChatbot zero mode filtering | §12.1 | Uses unfiltered `useTradeEntries()` for chat context — AI analyzes all trades regardless of mode. | Filter trades by `trade_mode` before passing to AI chat context. | `src/components/chat/AIChatbot.tsx` | D |
 | M-18 | use-trading-gate trades not mode-filtered | §12.1 | `useTradeEntries()` call (line 48) for AI quality scoring uses all trades. Separate from C-11 balance fix. | Filter by `trade_mode` for mode-isolated quality assessment. | `src/hooks/use-trading-gate.ts` | D |
-| M-19 | DrawdownChart zero mode filtering | §12.1 | Uses unfiltered `useTradeEntries()` for drawdown calculation. Equity curve cross-contaminated. | Filter by `trade_mode` or accept filtered trades as prop. | `src/components/analytics/DrawdownChart.tsx` | A |
-| M-20 | TradingHeatmap component fallback fetch unfiltered | §12.1 | Component has internal `useTradeEntries()` fallback when no `externalTrades` prop passed. Fallback is unfiltered. | Filter fallback by `trade_mode`. Page-level fix (C-08) should always pass filtered trades. | `src/components/analytics/TradingHeatmap.tsx` | A |
+| M-19 | DrawdownChart zero mode filtering | §12.1 | ✅ DONE | Filter by `trade_mode` or accept filtered trades as prop. | `src/components/analytics/DrawdownChart.tsx` | A ✅ |
+| M-20 | TradingHeatmap component fallback fetch unfiltered | §12.1 | ✅ DONE | Filter fallback by `trade_mode`. Page-level fix (C-08) should always pass filtered trades. | `src/components/analytics/TradingHeatmap.tsx` | A ✅ |
 | M-21 | SevenDayStatsCard zero mode filtering | §12.1 | Uses unfiltered `useTradeEntries()` for 7-day summary stats. | Filter by `trade_mode`. | `src/components/analytics/SevenDayStatsCard.tsx` | D |
 | M-22 | FinalChecklist (Trade Entry Wizard) zero mode filtering | §12.1 | Uses `useTradeEntries()` for AI quality scoring context. Includes trades from wrong mode in AI analysis. | Filter by `trade_mode` for mode-isolated AI scoring context. | `src/components/trade/entry/FinalChecklist.tsx` | D |
 | M-23 | ADLRiskWidget visible in Paper mode | §3.1 | Uses `useBinancePositions()` directly without mode visibility check. Shows ADL risk for Binance positions in Paper mode. | Hide or show empty state in Paper mode via `useModeVisibility`. | `src/components/dashboard/ADLRiskWidget.tsx` | D |
 | M-24 | MarginHistoryTab visible in Paper mode | §3.1 | Uses `usePositions()` without mode visibility check. Shows Binance margin history in Paper mode. | Hide or show empty state in Paper mode via `useModeVisibility`. | `src/components/risk/MarginHistoryTab.tsx` | D |
 | M-25 | use-daily-pnl hook no mode awareness | §12.1 | Uses `useBinanceDailyPnl()` without mode check. Paper mode should never use Binance P&L data. Consumed by `TodayPerformance.tsx` (M-05). | Consume `useTradeMode()`. Paper → force local-only path. | `src/hooks/use-daily-pnl.ts` | D |
 | M-26 | useDailyRiskStatus uses Binance data without mode check | §3.1/12.1 | `use-risk-profile.ts` → `useDailyRiskStatus` uses `useBinanceTotalBalance()` and `useBinanceDailyPnl()` without mode check. Paper mode risk calculations contaminated by Binance data. Related to C-11 but distinct hook. | Consume `useTradeMode()`. Paper → paper balance only. Live → Binance if connected. | `src/hooks/use-risk-profile.ts` | D |
-| M-27 | TradingJournal trade list not filtered by trade_mode | §12.1 | `useTradeEntries()` returns all trades. Even with `useModeVisibility` hiding Binance UI widgets, the trade list itself shows paper+live trades mixed. | Filter `useTradeEntries()` by active `trade_mode`. | `src/pages/trading-journey/TradingJournal.tsx` | A |
+| M-27 | TradingJournal trade list not filtered by trade_mode | §12.1 | ✅ DONE | Filter `useTradeEntries()` by active `trade_mode`. | `src/pages/trading-journey/TradingJournal.tsx` | A ✅ |
 | M-28 | SetupStep (Trade Entry Wizard) shows Binance balance in Paper mode | §3.1 | Uses `useBinanceBalance()` directly. In Paper mode (where wizard is active), still shows Binance balance instead of paper account balance. | Paper mode → show paper account balance only. Hide Binance balance display. | `src/components/trade/entry/SetupStep.tsx` | D |
 | M-29 | BacktestRunner uses Binance balance without mode check | §3.1 | Uses `useBinanceBalance()` for initial capital quick-fill. In Paper mode, should default to paper balance. | Consume `useTradeMode()`. Paper → paper balance for quick-fill. Live → Binance if connected. | `src/components/strategy/BacktestRunner.tsx` | D |
 | M-30 | useAIPreflight queries trade_entries without trade_mode filter | §12.1 | Fetches 730 days of closed trades without `trade_mode` filter. AI pre-flight check analyzes cross-mode data. | Add `.eq('trade_mode', activeMode)` to query. | `src/features/ai/useAIPreflight.ts` | D |
@@ -75,8 +75,8 @@
 | M-32 | use-ai-strategy-recommendation queries trade_entries without trade_mode filter | §12.1 | AI strategy recommendation analyzes last 100 trades without mode filter. Recommendations based on mixed data. | Add `trade_mode` filter to query. | `src/hooks/use-ai-strategy-recommendation.ts` | D |
 | M-33 | Live trades core data not read-only in UI | §3.2 | Enrichment drawer / edit UI allows editing `entry_price`, `direction`, `quantity`, `stop_loss`, `take_profit` for live/synced trades. Spec requires core data immutable for LIVE source. | Disable editing of core trade fields when `source === 'binance'` or `trade_mode === 'live'`. Only enrichment fields (notes, rating, lesson_learned, screenshots, timeframes) should be editable. | `TradeEnrichmentDrawer`, `useUpdateTradeEntry` | D |
 | M-34 | Market Overview Dashboard not adapted to trade_style | §4.1 | `MarketScoreWidget` shows same data regardless of active `trade_style` (scalping/short/swing). Spec: "Disesuaikan dengan trade_style". | Adapt displayed timeframes, volatility windows, and data granularity based on active `trade_style`. Scalping → 1m-15m data, Short → 1h-4h, Swing → 4h-1D. | `src/components/dashboard/MarketScoreWidget.tsx` | D |
-| M-35 | Strategy selection not enforced as mandatory in wizard | §5.2 | Trade Entry Wizard allows skipping strategy selection step. Spec: "Strategy Selection (WAJIB)". | Block wizard progression if no strategy selected. Show validation error. | `TradeEntryWizard`, strategy step component | B |
-| M-36 | Execution timeframe not enforced as mandatory | §8.2 | `execution_timeframe` field is optional in wizard. Spec: "1 execution TF (mandatory)". | Make `execution_timeframe` a required field. Block submission without it. | `TradeEntryWizard`, timeframe step component | B |
+| M-35 | Strategy selection not enforced as mandatory in wizard | §5.2 | ✅ DONE (already enforced in SetupStep canProceed) | Block wizard progression if no strategy selected. Show validation error. | `SetupStep.tsx` | B ✅ |
+| M-36 | Execution timeframe not enforced as mandatory | §8.2 | ✅ DONE | Make `execution_timeframe` a required field. Block submission without it. | `SetupStep.tsx` | B ✅ |
 ---
 
 ## 2. Phase A: Data Isolation (C-01 → C-06)
@@ -134,18 +134,18 @@
 
 ### Verification Checklist — Phase A
 
-- [ ] Paper mode: Dashboard shows NO Binance positions/balance
-- [ ] Paper mode: Performance shows ONLY paper trade stats
-- [ ] Paper mode: TradeHistory shows ONLY paper trades
-- [ ] Paper mode: AIInsights analyzes ONLY paper trades
-- [ ] Paper mode: TradingHeatmap shows ONLY paper trade heatmap
-- [ ] Paper mode: DashboardAnalyticsSummary sparkline shows ONLY paper data
-- [ ] Paper mode: DailyPnL shows ONLY paper P&L data
-- [ ] Live mode: Dashboard shows Binance data, NO paper trades
-- [ ] Live mode: "Add Trade" button is hidden/disabled
-- [ ] Live mode: Performance shows ONLY live trade stats
-- [ ] Switching mode immediately updates all views
-- [ ] `get_trade_stats` RPC accepts and correctly filters by `p_trade_mode`
+- [x] Paper mode: Dashboard shows NO Binance positions/balance ✅
+- [x] Paper mode: Performance shows ONLY paper trade stats ✅
+- [x] Paper mode: TradeHistory shows ONLY paper trades ✅
+- [x] Paper mode: AIInsights analyzes ONLY paper trades ✅
+- [x] Paper mode: TradingHeatmap shows ONLY paper trade heatmap ✅
+- [x] Paper mode: DashboardAnalyticsSummary sparkline shows ONLY paper data ✅
+- [x] Paper mode: DailyPnL shows ONLY paper P&L data ✅
+- [x] Live mode: Dashboard shows Binance data, NO paper trades ✅
+- [x] Live mode: "Add Trade" button is hidden/disabled ✅
+- [x] Live mode: Performance shows ONLY live trade stats ✅
+- [x] Switching mode immediately updates all views ✅
+- [x] `get_trade_stats` RPC accepts and correctly filters by `p_trade_mode` ✅
 
 ---
 
