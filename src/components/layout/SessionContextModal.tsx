@@ -69,28 +69,22 @@ const STYLE_OPTIONS: { value: TradingStyle; label: string; timeframe: string; ic
 export function SessionContextModal({ open, onComplete }: SessionContextModalProps) {
   const [selectedMode, setSelectedMode] = useState<TradeMode | null>(null);
   const [selectedStyle, setSelectedStyle] = useState<TradingStyle | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  
   const updateSettings = useUpdateUserSettings();
 
   const canSubmit = selectedMode !== null && selectedStyle !== null;
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!selectedMode || !selectedStyle) return;
-    setIsSubmitting(true);
-
-    try {
-      // Single mutation to persist both values at once
-      await updateSettings.mutateAsync({
-        active_trade_mode: selectedMode,
-        active_trading_style: selectedStyle,
-      } as any);
-    } catch (err) {
-      console.error("[SessionContextModal] Failed to save to DB:", err);
-    }
-
-    // Always close modal regardless of success/failure
-    setIsSubmitting(false);
+    
+    // Close modal immediately — don't wait for async
     onComplete();
+    
+    // Fire-and-forget: persist to DB in background
+    updateSettings.mutate({
+      active_trade_mode: selectedMode,
+      active_trading_style: selectedStyle,
+    } as any);
   };
 
   return (
@@ -171,11 +165,11 @@ export function SessionContextModal({ open, onComplete }: SessionContextModalPro
 
         <Button
           onClick={handleSubmit}
-          disabled={!canSubmit || isSubmitting}
+          disabled={!canSubmit}
           className="w-full"
           size="lg"
         >
-          {isSubmitting ? "Menyimpan..." : "Mulai Trading"}
+          Mulai Trading
         </Button>
       </DialogContent>
     </Dialog>
