@@ -9,7 +9,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useRiskProfile } from '@/hooks/use-risk-profile';
 import { useBestAvailableBalance, AccountSourceType } from '@/hooks/use-combined-balance';
 import { useUnifiedDailyPnl } from '@/hooks/use-unified-daily-pnl';
-import { useTradeEntries } from '@/hooks/use-trade-entries';
+import { useModeFilteredTrades } from '@/hooks/use-mode-filtered-trades';
 import { useMemo } from 'react';
 import { 
   DAILY_LOSS_THRESHOLDS, 
@@ -45,7 +45,7 @@ export function useTradingGate() {
   const dailyPnl = useUnifiedDailyPnl();
   
   // Trade entries for AI quality check
-  const { data: trades = [] } = useTradeEntries();
+  const { data: trades = [] } = useModeFilteredTrades();
 
   // Calculate AI quality from recent trades using centralized thresholds
   const aiQualityData = useMemo(() => {

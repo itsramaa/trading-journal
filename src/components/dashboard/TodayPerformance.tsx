@@ -28,11 +28,13 @@ import { useDailyPnl } from "@/hooks/use-daily-pnl";
 import { useBinanceDailyPnl } from "@/hooks/use-binance-daily-pnl";
 import { useBinanceConnectionStatus } from "@/features/binance";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
+import { useTradeMode } from "@/hooks/use-trade-mode";
 import { WinRateTooltip, InfoTooltip } from "@/components/ui/info-tooltip";
 
 function TodayPerformanceContent() {
   const [isFeeBreakdownOpen, setIsFeeBreakdownOpen] = useState(false);
   const { format, formatPnl } = useCurrencyConversion();
+  const { isPaper } = useTradeMode();
   
   const { data: connectionStatus } = useBinanceConnectionStatus();
   const isConnected = connectionStatus?.isConnected;
@@ -96,7 +98,8 @@ function TodayPerformanceContent() {
   }
 
   // Use Binance stats if connected and has trades, otherwise local
-  const useBinance = isConnected && binanceStats.isConnected && binanceStats.totalTrades > 0;
+  // Use Binance stats if connected, has trades, and NOT in Paper mode (M-05)
+  const useBinance = !isPaper && isConnected && binanceStats.isConnected && binanceStats.totalTrades > 0;
   
   const stats = useBinance ? {
     tradesCount: binanceStats.totalTrades,

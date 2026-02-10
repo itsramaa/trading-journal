@@ -59,6 +59,15 @@ export function useAIStrategyRecommendation() {
 
     setIsLoading(true);
     try {
+      // Get active trade mode for mode isolation (M-32)
+      const { data: settings } = await supabase
+        .from('user_settings')
+        .select('active_trade_mode')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      
+      const activeMode = settings?.active_trade_mode || 'live';
+
       // Fetch user's trade history for performance analysis
       const { data: trades } = await supabase
         .from('trade_entries')
@@ -68,6 +77,7 @@ export function useAIStrategyRecommendation() {
         `)
         .eq('user_id', user.id)
         .eq('status', 'closed')
+        .eq('trade_mode', activeMode)
         .order('trade_date', { ascending: false })
         .limit(100);
 

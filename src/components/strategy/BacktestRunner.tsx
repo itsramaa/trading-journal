@@ -31,6 +31,7 @@ import { useRunBacktest } from "@/hooks/use-backtest";
 import { useBaseAssets } from "@/hooks/use-trading-pairs";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useBinanceConnectionStatus, useBinanceBalance } from "@/features/binance";
+import { useTradeMode } from "@/hooks/use-trade-mode";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { BacktestResults } from "./BacktestResults";
 import type { 
@@ -75,13 +76,15 @@ export function BacktestRunner() {
   const { data: accounts } = useAccounts();
   const { data: connectionStatus } = useBinanceConnectionStatus();
   const { data: binanceBalance } = useBinanceBalance();
+  const { isPaper } = useTradeMode();
   
   // Get trading accounts for quick fill
   const tradingAccounts = accounts?.filter(a => 
     a.account_type === 'trading' && a.is_active
   ) || [];
-  const isBinanceConnected = connectionStatus?.isConnected;
-  const binanceAvailableBalance = binanceBalance?.availableBalance || 0;
+  // Hide Binance balance in Paper mode (M-29)
+  const isBinanceConnected = !isPaper && connectionStatus?.isConnected;
+  const binanceAvailableBalance = !isPaper && binanceBalance?.availableBalance ? binanceBalance.availableBalance : 0;
 
   const selectedStrategy = strategies?.find(s => s.id === selectedStrategyId);
 

@@ -27,6 +27,7 @@ import { useAIPreflight, useHistoricalTrades, buildMarketSnapshot } from "@/feat
 import { TradingPairCombobox } from "@/components/ui/trading-pair-combobox";
 import { TIMEFRAME_OPTIONS, type TimeframeType } from "@/types/strategy";
 import { useBinanceBalance, useBinanceConnectionStatus } from "@/features/binance";
+import { useTradeMode } from "@/hooks/use-trade-mode";
 import { useCaptureMarketContext } from "@/hooks/use-capture-market-context";
 import { MarketContextBadge } from "@/components/market/MarketContextBadge";
 import { useStrategyContext, type MarketFit } from "@/hooks/use-strategy-context";
@@ -83,12 +84,13 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
   
   // Currency conversion
   const { format: formatCurrency } = useCurrencyConversion();
+  const { isPaper } = useTradeMode();
   
-  // Binance connection - check isConfigured for proper state handling
+  // Binance connection - hide in Paper mode (M-28)
   const { data: connectionStatus } = useBinanceConnectionStatus();
   const { data: binanceBalance } = useBinanceBalance();
-  const isBinanceConfigured = connectionStatus?.isConfigured ?? false;
-  const isBinanceConnected = connectionStatus?.isConnected ?? false;
+  const isBinanceConfigured = !isPaper && (connectionStatus?.isConfigured ?? false);
+  const isBinanceConnected = !isPaper && (connectionStatus?.isConnected ?? false);
   
   // Paper trading accounts
   const { data: tradingAccounts, isLoading: accountsLoading } = useTradingAccounts();

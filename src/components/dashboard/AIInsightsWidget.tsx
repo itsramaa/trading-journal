@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { useDashboardInsights, type DashboardInsights } from "@/features/ai/useDashboardInsights";
 import { useAISettingsEnforcement } from "@/hooks/use-ai-settings-enforcement";
-import { useTradeEntries } from "@/hooks/use-trade-entries";
+import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { useUnifiedPortfolioData } from "@/hooks/use-unified-portfolio-data";
 import { useBinancePositions, useBinanceConnectionStatus } from "@/features/binance";
@@ -74,7 +74,7 @@ export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
     getConfidenceThreshold,
     isLoading: settingsLoading 
   } = useAISettingsEnforcement();
-  const { data: trades = [] } = useTradeEntries();
+  const { data: trades = [] } = useModeFilteredTrades();
   const { data: strategies = [] } = useTradingStrategies();
   const portfolio = useUnifiedPortfolioData();
   const { data: positions = [] } = useBinancePositions();

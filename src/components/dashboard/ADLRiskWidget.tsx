@@ -4,6 +4,7 @@
  */
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useModeVisibility } from "@/hooks/use-mode-visibility";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
@@ -98,6 +99,29 @@ function PositionADLRow({ symbol, side, quantile }: PositionADLProps) {
 }
 
 export function ADLRiskWidget() {
+  const { showExchangeData } = useModeVisibility();
+
+  // Hide in Paper mode (M-23)
+  if (!showExchangeData) {
+    return (
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Shield className="h-5 w-5 text-muted-foreground" />
+            ADL Risk
+            <Badge variant="outline" className="text-xs">Live Only</Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-4 text-muted-foreground">
+            <Shield className="h-8 w-8 mx-auto mb-2 opacity-30" />
+            <p className="text-sm">ADL risk monitoring is only available in Live mode</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   // Check connection status first
   const { data: connectionStatus, isLoading: statusLoading } = useBinanceConnectionStatus();
   const isConfigured = connectionStatus?.isConfigured ?? false;

@@ -22,7 +22,7 @@ import {
   History,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useTradeEntries } from '@/hooks/use-trade-entries';
+import { useModeFilteredTrades } from '@/hooks/use-mode-filtered-trades';
 import { useTradingStrategies } from '@/hooks/use-trading-strategies';
 import { useAccounts } from '@/hooks/use-accounts';
 import { useAppStore } from '@/store/app-store';
@@ -134,7 +134,7 @@ export function AIChatbot() {
   const { isChatbotOpen, setChatbotOpen, chatbotInitialPrompt, setChatbotInitialPrompt } = useAppStore();
 
   // Trading data
-  const { data: tradeEntries } = useTradeEntries();
+  const { data: tradeEntries } = useModeFilteredTrades();
   const { data: strategies } = useTradingStrategies();
   const { data: accounts } = useAccounts();
 

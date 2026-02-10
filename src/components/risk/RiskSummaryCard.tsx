@@ -13,6 +13,7 @@ import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { useDailyRiskStatus } from "@/hooks/use-risk-profile";
 import { useBinanceConnectionStatus } from "@/features/binance";
 import { usePositions } from "@/hooks/use-positions";
+import { useModeVisibility } from "@/hooks/use-mode-visibility";
 import { checkCorrelationRisk, extractSymbols, type CorrelationWarning } from "@/lib/correlation-utils";
 import { formatPercentUnsigned } from "@/lib/formatters";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
@@ -23,10 +24,11 @@ export function RiskSummaryCard() {
   const { data: riskStatus, riskProfile, isBinanceConnected } = useDailyRiskStatus();
   const { positions } = usePositions();
   const { data: connectionStatus } = useBinanceConnectionStatus();
+  const { showExchangeData } = useModeVisibility();
 
-  // Check correlation risk for open positions (already filtered by usePositions)
+  // Check correlation risk for open positions - only in Live mode (M-09)
   const correlationWarning = useMemo((): CorrelationWarning | null => {
-    if (!connectionStatus?.isConnected || positions.length < 2) return null;
+    if (!showExchangeData || !connectionStatus?.isConnected || positions.length < 2) return null;
     const symbols = extractSymbols(positions);
     return checkCorrelationRisk(symbols);
   }, [positions, connectionStatus]);

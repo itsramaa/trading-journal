@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { logAuditEvent } from "@/lib/audit-logger";
 import { useBinanceDailyPnl, useBinanceTotalBalance } from "@/hooks/use-binance-daily-pnl";
+import { useTradeMode } from "@/hooks/use-trade-mode";
 import type { RiskProfile, DailyRiskSnapshot, DailyRiskStatus } from "@/types/risk";
 import { DEFAULT_RISK_PROFILE, RISK_THRESHOLDS } from "@/types/risk";
 import { 
@@ -192,8 +193,9 @@ export function useUpdateDailyRiskSnapshot() {
 export function useDailyRiskStatus() {
   const { data: riskProfile, isLoading: profileLoading } = useRiskProfile();
   const { data: snapshot, isLoading: snapshotLoading } = useDailyRiskSnapshot();
+  const { isPaper } = useTradeMode();
   
-  // Binance data (optional enrichment)
+  // Binance data (optional enrichment - skip in Paper mode M-26)
   const { totalBalance: binanceBalance, isConnected: isBinanceConnected } = useBinanceTotalBalance();
   const binancePnl = useBinanceDailyPnl();
 
@@ -202,8 +204,8 @@ export function useDailyRiskStatus() {
     
     const maxDailyLossPercent = riskProfile.max_daily_loss_percent || DEFAULT_RISK_PROFILE.max_daily_loss_percent;
     
-    // Priority 1: Use Binance data if connected and has balance
-    if (isBinanceConnected && binanceBalance > 0) {
+    // Priority 1: Use Binance data if connected, has balance, AND NOT in Paper mode (M-26)
+    if (!isPaper && isBinanceConnected && binanceBalance > 0) {
       const startingBalance = binanceBalance;
       const currentPnl = binancePnl.totalPnl;
       const lossLimit = startingBalance * (maxDailyLossPercent / 100);

@@ -10,11 +10,11 @@ import {
   Trophy,
   AlertTriangle,
 } from "lucide-react";
-import { useTradeEntries } from "@/hooks/use-trade-entries";
+import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 
 export function SevenDayStatsCard() {
-  const { data: trades = [] } = useTradeEntries();
+  const { data: trades = [] } = useModeFilteredTrades();
   const { formatPnl } = useCurrencyConversion();
 
   // 7-Day Quick Stats

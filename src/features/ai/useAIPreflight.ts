@@ -102,27 +102,36 @@ export function useHistoricalTrades() {
     queryFn: async (): Promise<RawHistoricalTrade[]> => {
       if (!user?.id) return [];
       
-      // Fetch last 730 days of closed trades (aligned with Binance full history sync window)
+      // Fetch last 730 days of closed trades
       const since = new Date();
       since.setDate(since.getDate() - 730);
+
+      // Get active trade mode for mode isolation (M-30)
+      const { data: settings } = await supabase
+        .from('user_settings')
+        .select('active_trade_mode')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      
+      const activeMode = settings?.active_trade_mode || 'live';
 
       const { data, error } = await supabase
         .from('trade_entries')
         .select('id, pair, direction, entry_price, exit_price, stop_loss, pnl, entry_datetime, trade_date, result, status')
         .eq('user_id', user.id)
         .in('status', ['closed', 'CLOSED'])
+        .eq('trade_mode', activeMode)
         .gte('trade_date', since.toISOString())
         .order('trade_date', { ascending: false });
       
       if (error) throw error;
       
-      // Transform to RawHistoricalTrade format
       return (data || [])
         .map(transformTradeToHistorical)
         .filter((t): t is RawHistoricalTrade => t !== null);
     },
     enabled: !!user?.id,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,
   });
 }
 

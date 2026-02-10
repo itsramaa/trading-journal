@@ -19,7 +19,7 @@ import {
   TrendingUp,
   Loader2
 } from "lucide-react";
-import { useTradeEntries } from "@/hooks/use-trade-entries";
+import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import type { UnifiedMarketContext } from "@/types/market-context";
@@ -34,7 +34,7 @@ interface JournalExportOptions {
 }
 
 export function JournalExportCard() {
-  const { data: trades } = useTradeEntries();
+  const { data: trades } = useModeFilteredTrades();
   const [isExporting, setIsExporting] = useState(false);
   const [options, setOptions] = useState<JournalExportOptions>({
     format: 'csv',

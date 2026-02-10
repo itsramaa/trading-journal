@@ -8,7 +8,7 @@ import { useMemo } from "react";
 import { useRiskProfile } from "@/hooks/use-risk-profile";
 import { useUnifiedMarketScore } from "@/hooks/use-unified-market-score";
 import { useBinanceVolatility } from "@/features/binance/useBinanceAdvancedAnalytics";
-import { useTradeEntries } from "@/hooks/use-trade-entries";
+import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import { DEFAULT_RISK_VALUES } from "@/lib/constants/risk-thresholds";
 import {
   VOLATILITY_MULTIPLIERS,
@@ -94,7 +94,7 @@ export function useContextAwareRisk(
     isLoading: marketLoading,
   } = useUnifiedMarketScore({ symbol, enabled });
   const { data: volatilityData, isLoading: volLoading } = useBinanceVolatility(symbol);
-  const { data: tradeEntries, isLoading: tradesLoading } = useTradeEntries();
+  const { data: tradeEntries, isLoading: tradesLoading } = useModeFilteredTrades();
   // Use centralized default risk value
   const baseRisk = baseRiskPercent ?? riskProfile?.risk_per_trade_percent ?? DEFAULT_RISK_VALUES.RISK_PER_TRADE;
 
