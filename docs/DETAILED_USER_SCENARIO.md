@@ -595,7 +595,11 @@ Core sync engine, trade correlation, enrichment flow, AI analysis, statistics se
 
 ### Phase 3: Trade Lifecycle Enhancement
 
-- State machine integration (journal level)
+- ✅ State machine integration (journal level) — `src/services/binance/trade-state-machine.ts`
+  - 6-state system: OPENING → PARTIALLY_FILLED → ACTIVE → CLOSED / CANCELED / LIQUIDATED
+  - Integrated into `trade-aggregator.ts` and `use-binance-sync.ts`
+  - Liquidation detection via exit order type + loss heuristics
+  - Valid transition matrix enforced
 - R multiple auto-calculation on close
 - MAE tracking during active trade
 - Liquidation detection from Binance Force Orders

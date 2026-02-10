@@ -40,3 +40,15 @@ export {
   validateAggregatedTrade,
   validateAllTrades,
 } from './aggregation-validator';
+
+// Trade State Machine
+export type { TradeState } from './trade-state-machine';
+export {
+  resolveTradeState,
+  resolveStateFromOrder,
+  resolveStateFromTrade,
+  mapLifecycleToTradeState,
+  isValidTransition,
+  isTerminalState,
+  getNextStates,
+} from './trade-state-machine';

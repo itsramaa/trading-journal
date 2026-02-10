@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { invalidateTradeQueries } from "@/lib/query-invalidation";
 import { BinanceTrade } from "@/features/binance/types";
+import { resolveStateFromTrade } from "@/services/binance/trade-state-machine";
 
 export interface SyncTradeInput {
   binanceTrade: BinanceTrade;
@@ -66,6 +67,11 @@ export function useSyncTradeToJournal() {
           fees: binanceTrade.commission,
           trade_date: new Date(binanceTrade.time).toISOString(),
           status: "closed",
+          trade_state: resolveStateFromTrade({
+            status: "closed",
+            hasExitPrice: true,
+            realizedPnl: binanceTrade.realizedPnl,
+          }),
           result,
           notes,
           emotional_state: emotionalState,
@@ -156,6 +162,11 @@ export function useBulkSyncTrades() {
           fees: trade.commission,
           trade_date: new Date(trade.time).toISOString(),
           status: "closed" as const,
+          trade_state: resolveStateFromTrade({
+            status: "closed",
+            hasExitPrice: true,
+            realizedPnl: trade.realizedPnl,
+          }),
           result,
           source: "binance",
           binance_trade_id: String(trade.id),
