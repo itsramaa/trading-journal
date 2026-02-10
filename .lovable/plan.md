@@ -40,7 +40,7 @@ Returns stats grouped by `trading_account_id`, sehingga satu query bisa return s
 
 ---
 
-### Phase 2: Hooks — Multi-Level Data Layer
+### Phase 2: Hooks — Multi-Level Data Layer ✅ DONE
 
 **2a. `use-account-analytics.ts`** (baru)
 - Accepts `accountId` parameter
@@ -59,7 +59,7 @@ Returns stats grouped by `trading_account_id`, sehingga satu query bisa return s
 
 ---
 
-### Phase 3: UI — AccountDetail Page Enhancement
+### Phase 3: UI — AccountDetail Page Enhancement ✅ DONE
 
 **3a. Upgrade `AccountDetail.tsx`**
 Dari stats basic (deposits, win rate) menjadi full analytics dashboard per akun:
@@ -76,7 +76,7 @@ Dari stats basic (deposits, win rate) menjadi full analytics dashboard per akun:
 
 ---
 
-### Phase 4: UI — Performance Page Multi-Level Selector
+### Phase 4: UI — Performance Page Multi-Level Selector ✅ DONE
 
 **4a. Analytics Level Selector di Performance page**
 Dropdown/tabs: `Per Account` | `Per Exchange` | `By Type` | `Overall`
