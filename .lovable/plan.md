@@ -1,119 +1,136 @@
 
+# Multi-Level Analytics Architecture
 
-# Plan: Create `docs/MISMATCH_REMEDIATION_PLAN.md`
+## Analisis Situasi Saat Ini
 
-## Overview
+**Yang sudah ada:**
+- Isolasi Paper vs Live via `trade_mode` filter (Level 3 sudah partial)
+- `trading_account_id` pada `trade_entries` — relasi ke `accounts` sudah ada
+- `AccountDetail` page — sudah tampilkan stats per akun, tapi sangat basic (deposits, withdrawals, win rate)
+- `get_trade_stats` RPC — hanya filter by `trade_mode`, belum support `account_id`
+- `useModeFilteredTrades` — filter global by mode, bukan per akun
 
-Membuat dokumen resmi yang mendokumentasikan **14 mismatch** antara implementasi saat ini dan spesifikasi `DETAILED_USER_SCENARIO.md`, beserta rencana remediasi bertahap (Phase A-D).
+**Yang belum ada:**
+- Per-Account analytics (full metrics: expectancy, drawdown, profit factor, equity curve)
+- Per-Exchange grouping (accounts belum punya field `exchange`)
+- Aggregate dashboard yang strictly live-only
+- UI selector untuk switch analytics level
 
-## File yang Dibuat
+---
+
+## Rencana Implementasi (4 Phase)
+
+### Phase 1: Database — Extend Schema
+
+**1a. Tambah kolom `exchange` di tabel `accounts`**
+```sql
+ALTER TABLE accounts ADD COLUMN exchange text DEFAULT 'manual';
+```
+Values: `'binance'`, `'okx'`, `'manual'` (paper), dll.
+Backfill existing: accounts dengan trades `source='binance'` → set `exchange='binance'`, sisanya `'manual'`.
+
+**1b. Extend `get_trade_stats` RPC — tambah parameter `p_account_id`**
+```sql
+-- Add p_account_id parameter to existing RPC
+-- When provided, filter WHERE trading_account_id = p_account_id
+```
+
+**1c. Buat RPC baru: `get_account_level_stats`**
+Returns stats grouped by `trading_account_id`, sehingga satu query bisa return semua akun sekaligus untuk overview comparison.
+
+---
+
+### Phase 2: Hooks — Multi-Level Data Layer
+
+**2a. `use-account-analytics.ts`** (baru)
+- Accepts `accountId` parameter
+- Calls `get_trade_stats` with `p_account_id`
+- Returns full `TradingStats` (expectancy, drawdown, profit factor, sharpe ratio, equity curve)
+- Reuse `calculateTradingStats()` dari `trading-calculations.ts`
+
+**2b. `use-exchange-analytics.ts`** (baru)
+- Groups accounts by `exchange` field
+- Aggregates stats across accounts of same exchange
+- Returns per-exchange metrics
+
+**2c. Extend `useTradeStats`**
+- Tambah optional `accountId` filter
+- Backward compatible — tanpa accountId behavior sama seperti sekarang
+
+---
+
+### Phase 3: UI — AccountDetail Page Enhancement
+
+**3a. Upgrade `AccountDetail.tsx`**
+Dari stats basic (deposits, win rate) menjadi full analytics dashboard per akun:
+- Equity Curve per akun
+- Full metrics grid (PnL, Win Rate, Expectancy, Profit Factor, Max Drawdown, Sharpe)
+- Trade distribution chart
+- Strategy breakdown per akun
+- Reuse existing components (`DrawdownChart`, `EquityCurveWithEvents`, `SessionPerformanceChart`)
+
+**3b. Account Comparison View** (di `Accounts.tsx`)
+- Tabel/cards perbandingan semua akun side-by-side
+- Metrics: PnL, Win Rate, Expectancy, Trade Count, Drawdown
+- Visual indicator akun mana yang perform/underperform
+
+---
+
+### Phase 4: UI — Performance Page Multi-Level Selector
+
+**4a. Analytics Level Selector di Performance page**
+Dropdown/tabs: `Per Account` | `Per Exchange` | `By Type` | `Overall`
+
+- **Per Account**: Filter Performance metrics ke satu akun tertentu
+- **Per Exchange**: Group by exchange, tampilkan comparative view
+- **By Type**: Paper vs Live (sudah ada via trade_mode, formalize di UI)
+- **Overall**: Aggregate semua live accounts (default saat ini)
+
+**4b. Aggregate Rules**
+- Overall hanya aggregate `trade_mode = 'live'`
+- Paper terpisah, sebagai benchmark/validator strategi
+- Label jelas di setiap level: "Account: Paper A", "Exchange: Binance", "Overall (Live)"
+
+---
+
+## Struktur Data Target
+
+```text
+User
+ +-- Exchange (binance, okx, manual)
+ |    +-- Account
+ |    |     +-- type: paper | live
+ |    |     +-- trades[]
+ |    |     +-- account_analytics (full stats)
+ |    +-- exchange_analytics (aggregated)
+ +-- type_analytics (paper vs live)
+ +-- global_analytics (live only)
+```
+
+---
+
+## Technical Details
+
+### File Changes Summary
 
 | File | Action |
 |------|--------|
-| `docs/MISMATCH_REMEDIATION_PLAN.md` | **CREATE** |
+| `accounts` table | ADD `exchange` column |
+| `get_trade_stats` RPC | ADD `p_account_id` param |
+| `get_account_level_stats` RPC | CREATE (grouped stats) |
+| `src/hooks/use-account-analytics.ts` | CREATE |
+| `src/hooks/use-exchange-analytics.ts` | CREATE |
+| `src/hooks/use-trade-stats.ts` | EXTEND (accountId filter) |
+| `src/types/account.ts` | ADD `exchange` field |
+| `src/pages/AccountDetail.tsx` | MAJOR UPGRADE |
+| `src/pages/Performance.tsx` | ADD level selector |
+| `src/pages/Accounts.tsx` | ADD comparison overview |
+| `docs/` | UPDATE architecture docs |
 
-## Struktur Dokumen
+### Dependencies
+- Phase 1 (DB) harus selesai sebelum Phase 2 (Hooks)
+- Phase 2 harus selesai sebelum Phase 3-4 (UI)
+- Phase 3 dan 4 bisa parallel
 
-### 1. Header & Context
-- Version, date, reference ke `DETAILED_USER_SCENARIO.md`
-- Summary: 14 mismatches (6 Critical, 4 High, 4 Medium)
-
-### 2. Mismatch Registry (Tabel Lengkap)
-
-Setiap mismatch didokumentasikan dengan format:
-
-```text
-ID | Severity | Title | Spec Section | Current State | Required State | Affected Files | Phase
-```
-
-**Critical (C-01 to C-06):**
-- C-01: Dashboard tidak enforce mode visibility (Spec Section 3)
-- C-02: PortfolioOverviewCard ignores trade_mode (Section 12)
-- C-03: Performance page zero mode filtering (Section 12)
-- C-04: `get_trade_stats` RPC missing `p_trade_mode` parameter (Section 12)
-- C-05: TradeHistory page tidak filter by trade_mode (Section 12)
-- C-06: SmartQuickActions ignores mode untuk "Add Trade" (Section 3.2)
-
-**High (H-01 to H-04):**
-- H-01: Audit logger hanya cover trade creation (Section 13)
-- H-02: RiskManagement page no mode awareness (Section 3)
-- H-03: No SIMULATION label/banner in Paper mode (Section 3.1)
-- H-04: No mandatory session context enforcement (Section 2.2)
-
-**Medium (M-01 to M-04):**
-- M-01: Active Trade tab missing fees/funding + time-in-trade columns (Section 8.2)
-- M-02: AI Post-Mortem tidak structured di enrichment drawer (Section 11)
-- M-03: No daily reconciliation cron (Section 13)
-- M-04: No WebSocket fallback documentation (Section 13)
-
-### 3. Phase A: Data Isolation (Fixes C-01 to C-06)
-
-Detail teknis per fix:
-1. **DB Migration**: Add `p_trade_mode` parameter ke `get_trade_stats` RPC function
-2. **Hook Updates**: `useTradeStats`, `useTradeEntriesPaginated`, `useUnifiedPortfolioData` pass `trade_mode`
-3. **Page Updates**: `Dashboard.tsx`, `Performance.tsx`, `SmartQuickActions.tsx` import dan apply `useModeVisibility`
-4. **TradeHistory**: Add `trade_mode` ke `TradeFilters` interface
-
-File yang dimodifikasi:
-- `supabase/migrations/` (new migration for RPC update)
-- `src/hooks/use-trade-stats.ts`
-- `src/hooks/use-trade-entries-paginated.ts`
-- `src/hooks/use-unified-portfolio-data.ts` (atau equivalent)
-- `src/pages/Dashboard.tsx`
-- `src/pages/Performance.tsx`
-- `src/pages/TradeHistory.tsx`
-- `src/components/dashboard/SmartQuickActions.tsx`
-
-### 4. Phase B: UX Enforcement (Fixes H-03, H-04)
-
-1. **SIMULATION Banner**: Persistent banner di `DashboardLayout` saat Paper mode aktif (amber, dismissible=false)
-2. **Session Context Modal**: First-time modal yang memaksa user pilih mode + style sebelum proceed. Triggered jika `active_trade_mode` belum pernah di-set.
-
-File yang dimodifikasi:
-- `src/components/layout/DashboardLayout.tsx`
-- `src/components/layout/SessionContextModal.tsx` (new)
-- `src/hooks/use-trade-mode.ts` (add `hasSelectedContext` flag)
-
-### 5. Phase C: Audit Trail Expansion (Fix H-01)
-
-Integrasikan `logAuditEvent` ke semua flow kritis:
-- Trade close (`useClosePosition` atau equivalent)
-- Trade delete (`useDeleteTradeEntry`)
-- Trade restore
-- API key save/delete (`ApiKeyForm`)
-- Settings change (`useUpdateUserSettings`)
-- Sync start/complete/fail (`use-binance-sync`)
-- Risk profile update
-
-File yang dimodifikasi:
-- `src/hooks/use-close-position.ts` (atau equivalent)
-- `src/hooks/use-trade-entries.ts` (delete/restore)
-- `src/components/settings/ApiKeyForm.tsx`
-- `src/hooks/use-user-settings.ts`
-- `src/hooks/use-binance-sync.ts`
-
-### 6. Phase D: Polish (Fixes H-02, M-01 to M-04)
-
-1. **Risk page mode awareness** (H-02): Filter `DailyLossTracker` by mode
-2. **Active trade columns** (M-01): Add fee/funding + time-in-trade ke `AllPositionsTable`
-3. **AI Post-Mortem UI** (M-02): Structured display di `TradeEnrichmentDrawer`
-4. **Daily reconciliation** (M-03): Document sebagai known gap atau implement edge function cron
-5. **WebSocket gap** (M-04): Document di `ARCHITECTURE.md` sebagai acceptable trade-off (REST polling = current approach)
-
-### 7. Verification Checklist
-
-Setiap phase memiliki acceptance criteria yang harus di-verify sebelum lanjut ke phase berikutnya.
-
-### 8. Update DETAILED_USER_SCENARIO.md
-
-Setelah semua phase selesai, update Implementation Status di `DETAILED_USER_SCENARIO.md` untuk merefleksikan status terbaru.
-
-## Execution Order
-
-```text
-Phase A (Data Isolation) ──→ Phase B (UX) ──→ Phase C (Audit) ──→ Phase D (Polish)
-     [~3 messages]            [~2 messages]     [~2 messages]       [~2 messages]
-```
-
-Estimasi total: **8-10 implementation messages**.
-
+### Estimated Scope
+Ini adalah perubahan arsitektural besar. Direkomendasikan mengerjakan per-phase, validasi tiap phase sebelum lanjut ke berikutnya. Tidak boleh dikerjakan sekaligus.
