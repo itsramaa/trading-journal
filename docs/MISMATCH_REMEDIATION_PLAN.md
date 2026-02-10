@@ -1,10 +1,11 @@
 # Mismatch Remediation Plan
 
-> **Version:** 1.0  
+> **Version:** 1.1  
 > **Created:** 2026-02-10  
+> **Updated:** 2026-02-10 (cross-check pass #2)  
 > **Reference:** `docs/DETAILED_USER_SCENARIO.md`  
 > **Status:** Active — Phase A pending  
-> **Summary:** 14 mismatches (6 Critical, 4 High, 4 Medium)
+> **Summary:** 21 mismatches (9 Critical, 5 High, 7 Medium)
 
 ---
 
@@ -20,6 +21,9 @@
 | C-04 | `get_trade_stats` RPC missing `p_trade_mode` | §12 | RPC has no `p_trade_mode` parameter. | Add `p_trade_mode` filter to RPC function. | `supabase/migrations/`, `src/hooks/use-trade-stats.ts` | A |
 | C-05 | TradeHistory tidak filter by trade_mode | §12 | Separates by `source` tab only, not `trade_mode` field. | Add `trade_mode` to query filter. | `src/pages/TradeHistory.tsx`, `use-trade-entries-paginated.ts` | A |
 | C-06 | SmartQuickActions ignores mode | §3.2 | "Add Trade" uses `useTradingGate` only, not `canCreateManualTrade`. | Hide/disable "Add Trade" in Live mode via `useModeVisibility`. | `src/components/dashboard/SmartQuickActions.tsx` | A |
+| C-07 | AIInsights page zero mode filtering | §12.1 | `useTradeEntries()` unfiltered — all trades (paper+live) mixed in pattern analysis. | Filter trades by active `trade_mode`. | `src/pages/AIInsights.tsx` | A |
+| C-08 | TradingHeatmap page zero mode filtering | §12.1 | `useTradeEntries()` unfiltered — heatmap data cross-contaminated. | Filter trades by active `trade_mode`. | `src/pages/TradingHeatmap.tsx` | A |
+| C-09 | DashboardAnalyticsSummary zero mode filtering | §12.1 | 30-day sparkline and win rate use unfiltered `useTradeEntries()`. | Filter by `trade_mode` or consume mode-aware hook. | `src/components/dashboard/DashboardAnalyticsSummary.tsx` | A |
 
 ### High (UX & Audit Gaps)
 
@@ -29,6 +33,7 @@
 | H-02 | RiskManagement no mode awareness | §3.1/3.2 | No mode hook imported. Shows Binance data in Paper mode. | Paper: simulator-based risk. Live: Binance-based risk. | `src/pages/RiskManagement.tsx` | D |
 | H-03 | No SIMULATION banner in Paper mode | §3.1 | Only small "PAPER" badge in `TradeModeSelector`. | Persistent SIMULATION banner with amber styling across all pages. | `src/components/layout/DashboardLayout.tsx` | B |
 | H-04 | No mandatory session context enforcement | §2.2 | Defaults to `live` silently. No explicit selection required. | Modal forces mode + style selection before first use. | `DashboardLayout.tsx`, new `SessionContextModal.tsx` | B |
+| H-05 | DailyPnL page no mode filtering | §12.1 | `useUnifiedDailyPnl` and `useUnifiedWeeklyPnl` mix paper+live data. Source badge shown but data not filtered by `trade_mode`. | Filter all daily/weekly hooks by active `trade_mode`. | `src/pages/DailyPnL.tsx`, `use-unified-daily-pnl.ts`, `use-unified-weekly-pnl.ts` | A |
 
 ### Medium (Feature Polish)
 
@@ -38,6 +43,9 @@
 | M-02 | AI Post-Mortem not structured in enrichment drawer | §11.1 | `usePostTradeAnalysis` exists but no structured UI. | Display structured sections: Entry timing, Exit efficiency, SL placement, Strategy adherence. | `TradeEnrichmentDrawer` | D |
 | M-03 | No daily reconciliation cron | §13 | `useBalanceReconciliation` exists but not auto-triggered. | Scheduled reconciliation with mismatch alerts. | Edge function (new) | D |
 | M-04 | No WebSocket fallback documentation | §13 | REST polling used. No WebSocket or fallback docs. | Document as acceptable trade-off in architecture docs. | `docs/` | D |
+| M-05 | TodayPerformance widget no mode awareness | §3.1/3.2 | Mixes Binance + local data without checking `trade_mode`. In Paper mode, still tries Binance data. | Paper: show only local journal data. Live: show Binance-enriched data. | `src/components/dashboard/TodayPerformance.tsx` | D |
+| M-06 | BulkExport no mode filtering | §12.1 | Exports all trades regardless of mode. | Export should respect active mode or allow explicit mode selection. | `src/pages/BulkExport.tsx` | D |
+| M-07 | AccountDetail page no mode awareness | §3.1/3.2 | `useTradeEntries()` unfiltered in account detail view. | Filter trades by mode when displaying account-linked trades. | `src/pages/AccountDetail.tsx` | D |
 
 ---
 
@@ -62,7 +70,7 @@
 | `use-trade-entries-paginated.ts` | Add `trade_mode` to query `.eq()` filter |
 | `use-unified-portfolio-data.ts` | Consume `useTradeMode()`, return mode-relevant data only |
 
-### Step A.3: Page Updates
+### Step A.3: Page & Component Updates
 
 | Page/Component | Change |
 |----------------|--------|
@@ -70,12 +78,30 @@
 | `Performance.tsx` | Import `useTradeMode`. Pass `trade_mode` to all analytics hooks. |
 | `TradeHistory.tsx` | Add `trade_mode` to `TradeFilters`. Filter paginated query by active mode. |
 | `SmartQuickActions.tsx` | Import `useModeVisibility`. Hide "Add Trade" when `canCreateManualTrade === false`. |
+| `AIInsights.tsx` | Import `useTradeMode`. Filter `useTradeEntries()` by `trade_mode` before analysis. |
+| `TradingHeatmap.tsx` | Import `useTradeMode`. Filter `useTradeEntries()` by `trade_mode`. |
+| `DashboardAnalyticsSummary.tsx` | Import `useTradeMode`. Filter trades by `trade_mode` in `useMemo`. |
+| `DailyPnL.tsx` | Pass `trade_mode` to unified daily/weekly hooks. |
+
+### Step A.4: Unified Hook Updates (NEW)
+
+| Hook | Change |
+|------|--------|
+| `use-unified-daily-pnl.ts` | Accept `tradeMode` param, filter data by mode |
+| `use-unified-weekly-pnl.ts` | Accept `tradeMode` param, filter data by mode |
+| `use-unified-week-comparison.ts` | Accept `tradeMode` param, filter data by mode |
+| `use-symbol-breakdown.ts` | Accept `tradeMode` param, filter data by mode |
+| `use-contextual-analytics.ts` | Accept `tradeMode` param for mode-isolated analytics |
 
 ### Verification Checklist — Phase A
 
 - [ ] Paper mode: Dashboard shows NO Binance positions/balance
 - [ ] Paper mode: Performance shows ONLY paper trade stats
 - [ ] Paper mode: TradeHistory shows ONLY paper trades
+- [ ] Paper mode: AIInsights analyzes ONLY paper trades
+- [ ] Paper mode: TradingHeatmap shows ONLY paper trade heatmap
+- [ ] Paper mode: DashboardAnalyticsSummary sparkline shows ONLY paper data
+- [ ] Paper mode: DailyPnL shows ONLY paper P&L data
 - [ ] Live mode: Dashboard shows Binance data, NO paper trades
 - [ ] Live mode: "Add Trade" button is hidden/disabled
 - [ ] Live mode: Performance shows ONLY live trade stats
@@ -180,6 +206,24 @@
   - Trade-off: Acceptable latency (5-30s) vs WebSocket complexity
   - Future consideration: WebSocket for sub-second updates
 
+### D.6: TodayPerformance Mode Awareness (M-05)
+
+- `TodayPerformance.tsx`: Import `useModeVisibility`
+- Paper mode: Show only local journal data, skip Binance stats entirely
+- Live mode: Show Binance-enriched data as current
+
+### D.7: BulkExport Mode Filtering (M-06)
+
+- `BulkExport.tsx`: Add mode selector or respect active `trade_mode`
+- Export metadata should include which mode the data belongs to
+- Prevent accidental cross-mode data export
+
+### D.8: AccountDetail Mode Awareness (M-07)
+
+- `AccountDetail.tsx`: Filter trade entries by active `trade_mode`
+- Paper mode: Show only paper-linked trades
+- Live mode: Show only live/Binance-linked trades
+
 ### Verification Checklist — Phase D
 
 - [ ] Risk page shows paper-sourced data in Paper mode
@@ -187,6 +231,9 @@
 - [ ] AI Post-Mortem results displayed in enrichment drawer
 - [ ] Reconciliation gap documented (or implemented)
 - [ ] WebSocket trade-off documented
+- [ ] TodayPerformance shows mode-appropriate data
+- [ ] BulkExport respects active mode
+- [ ] AccountDetail filters trades by mode
 
 ---
 
@@ -194,10 +241,10 @@
 
 ```
 Phase A (Data Isolation) ──→ Phase B (UX) ──→ Phase C (Audit) ──→ Phase D (Polish)
-     [~3 messages]            [~2 messages]     [~2 messages]       [~2 messages]
+     [~4 messages]            [~2 messages]     [~2 messages]       [~3 messages]
 ```
 
-**Total estimated: 8-10 implementation messages.**
+**Total estimated: 10-12 implementation messages.**
 
 ---
 
@@ -205,7 +252,7 @@ Phase A (Data Isolation) ──→ Phase B (UX) ──→ Phase C (Audit) ──
 
 After all phases complete:
 1. Update `docs/DETAILED_USER_SCENARIO.md` Implementation Status tables
-2. Mark all 14 mismatches as ✅ Done in this document
+2. Mark all 21 mismatches as ✅ Done in this document
 3. Run full verification checklist
 
 ---
