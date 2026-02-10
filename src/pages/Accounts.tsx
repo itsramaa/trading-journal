@@ -4,6 +4,7 @@
  * System-First: Aggregates Paper + Binance data in overview cards
  */
 import { useState, useMemo } from "react";
+import { useModeVisibility } from "@/hooks/use-mode-visibility";
 import { Helmet } from "react-helmet";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -91,14 +92,18 @@ export default function Accounts() {
     setTransactionDialogOpen(true);
   };
 
-  const isConfigured = connectionStatus?.isConfigured ?? false;
-  const isConnected = connectionStatus?.isConnected ?? false;
-  const activePositions = positions?.filter(p => p.positionAmt !== 0) || [];
+  const { showExchangeData, showExchangeBalance, showPaperData } = useModeVisibility();
+
+  const isConfigured = showExchangeData && (connectionStatus?.isConfigured ?? false);
+  const isConnected = showExchangeData && (connectionStatus?.isConnected ?? false);
+  const activePositions = showExchangeData ? (positions?.filter(p => p.positionAmt !== 0) || []) : [];
   
   // Paper accounts calculation (System-First)
   const paperAccounts = useMemo(() => 
-    accounts?.filter(a => a.account_type === 'backtest' || a.metadata?.is_backtest) || [],
-    [accounts]
+    showPaperData 
+      ? (accounts?.filter(a => a.account_type === 'backtest' || a.metadata?.is_backtest) || [])
+      : [],
+    [accounts, showPaperData]
   );
   const paperAccountsCount = paperAccounts.length;
   const paperTotalBalance = useMemo(() => 
@@ -106,12 +111,12 @@ export default function Accounts() {
     [paperAccounts]
   );
   
-  // Combined totals (System-First: Paper + Binance)
-  const binanceBalance = isConnected ? (Number(balance?.totalWalletBalance) || 0) : 0;
-  const combinedTotalBalance = binanceBalance + paperTotalBalance;
+  // Combined totals (mode-aware)
+  const binanceBalanceNum = isConnected ? (Number(balance?.totalWalletBalance) || 0) : 0;
+  const combinedTotalBalance = binanceBalanceNum + paperTotalBalance;
   
   const binancePositionsCount = activePositions.length;
-  const totalActivePositions = binancePositionsCount + (paperOpenTradesCount || 0);
+  const totalActivePositions = binancePositionsCount + (showPaperData ? (paperOpenTradesCount || 0) : 0);
   
   const totalAccounts = (isConnected ? 1 : 0) + paperAccountsCount;
 
@@ -191,9 +196,9 @@ export default function Accounts() {
                     {format(combinedTotalBalance)}
                   </div>
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
-                    {isConnected && binanceBalance > 0 && (
+                    {isConnected && binanceBalanceNum > 0 && (
                       <Badge variant="outline" className="text-xs">
-                        Binance: {format(binanceBalance)}
+                        Binance: {format(binanceBalanceNum)}
                       </Badge>
                     )}
                     {paperTotalBalance > 0 && (
@@ -266,20 +271,20 @@ export default function Accounts() {
                   <TabsTrigger 
                     value="transactions" 
                     className="gap-2 w-full" 
-                    disabled={!isConnected}
+                    disabled={!isConnected || !showExchangeData}
                     aria-label="Transaction History"
                   >
                     <ArrowDownUp className="h-4 w-4" aria-hidden="true" />
                     Transactions
-                    {!isConnected && (
+                    {(!isConnected || !showExchangeData) && (
                       <Wifi className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
                     )}
                   </TabsTrigger>
                 </span>
               </TooltipTrigger>
-              {!isConnected && (
+              {(!isConnected || !showExchangeData) && (
                 <TooltipContent>
-                  <p>Requires Binance connection</p>
+                  <p>{!showExchangeData ? 'Switch to Live mode' : 'Requires Binance connection'}</p>
                 </TooltipContent>
               )}
             </Tooltip>
@@ -291,28 +296,29 @@ export default function Accounts() {
                   <TabsTrigger 
                     value="financial" 
                     className="gap-2 w-full" 
-                    disabled={!isConnected}
+                    disabled={!isConnected || !showExchangeData}
                     aria-label="Financial Summary"
                   >
                     <CircleDollarSign className="h-4 w-4" aria-hidden="true" />
                     Financial
-                    {!isConnected && (
+                    {(!isConnected || !showExchangeData) && (
                       <Wifi className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
                     )}
                   </TabsTrigger>
                 </span>
               </TooltipTrigger>
-              {!isConnected && (
+              {(!isConnected || !showExchangeData) && (
                 <TooltipContent>
-                  <p>Requires Binance connection</p>
+                  <p>{!showExchangeData ? 'Switch to Live mode' : 'Requires Binance connection'}</p>
                 </TooltipContent>
               )}
             </Tooltip>
           </TabsList>
 
-          {/* Accounts Tab - Merged Binance + Paper */}
+          {/* Accounts Tab - Mode-aware: Binance (Live) + Paper */}
           <TabsContent value="accounts" className="mt-6 space-y-6">
-            {/* Binance Account Section */}
+            {/* Binance Account Section — Live mode only */}
+            {showExchangeData && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -426,30 +432,33 @@ export default function Accounts() {
                 </div>
               )}
             </div>
+            )}
 
-            {/* Paper Trading Section */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <h2 className="text-xl font-semibold">Paper Trading</h2>
-                  <Badge variant="outline">
-                    <FlaskConical className="h-3 w-3 mr-1" />
-                    Simulated
-                  </Badge>
+            {/* Paper Trading Section — Paper mode only */}
+            {showPaperData && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-xl font-semibold">Paper Trading</h2>
+                    <Badge variant="outline">
+                      <FlaskConical className="h-3 w-3 mr-1" />
+                      Simulated
+                    </Badge>
+                  </div>
+                  <AddAccountForm />
                 </div>
-                <AddAccountForm />
+                <AccountCardList
+                  filterType="trading"
+                  backtestOnly
+                  onSelectAccount={(id) => {
+                    const account = accounts?.find(a => a.id === id);
+                    setSelectedAccount(account);
+                  }}
+                  onTransact={handleTransact}
+                  emptyMessage="No paper trading accounts yet. Create one to test your strategies risk-free."
+                />
               </div>
-              <AccountCardList
-                filterType="trading"
-                backtestOnly
-                onSelectAccount={(id) => {
-                  const account = accounts?.find(a => a.id === id);
-                  setSelectedAccount(account);
-                }}
-                onTransact={handleTransact}
-                emptyMessage="No paper trading accounts yet. Create one to test your strategies risk-free."
-              />
-            </div>
+            )}
           </TabsContent>
 
           {/* Transactions Tab - Always rendered, component handles empty state */}
