@@ -64,6 +64,21 @@ WebSocket would be beneficial for:
 3. **UI**: `useModeVisibility` controls component visibility
 4. **Audit**: All mode switches are implicit via `user_settings.active_trade_mode`
 
+### Page-Level Mode Gating (Resolved)
+| Page | Mode Gate | Details |
+|------|-----------|---------|
+| `Dashboard.tsx` | ✅ | Binance widgets hidden in Paper mode |
+| `TradeHistory.tsx` | ✅ | `BinanceFullSyncPanel`, incremental sync, enrichment, Fees/Funding tabs hidden via `showExchangeData` |
+| `RiskManagement.tsx` | ✅ | `CorrelationMatrix` hidden in Paper mode via `showExchangeData` |
+| `Accounts.tsx` | ✅ | Overview cards isolated per mode; paper accounts filtered by `exchange === 'manual'` |
+| `Performance.tsx` | ✅ | Filtered by `trade_mode` via `useModeFilteredTrades` |
+| `AIInsights.tsx` | ✅ | Filtered by `trade_mode` |
+| `TradingHeatmap.tsx` | ✅ | Filtered by `trade_mode` |
+| `DailyPnL.tsx` | ✅ | Filtered by `trade_mode` |
+
+### Paper Account Identification
+Paper accounts are identified by `exchange === 'manual'` (or `null`/empty), NOT by `account_type === 'backtest'` or `metadata.is_backtest`. This matches the actual database schema where all trading accounts have `account_type: 'trading'`.
+
 ### Known Limitations
 - Legacy trades without `trade_mode` field use heuristic matching (source-based)
 - Backfill migration has populated most records, but edge cases may exist
