@@ -233,6 +233,7 @@ export default function TradeHistory() {
       source: (trade.source as 'binance' | 'paper') || 'paper',
       unrealizedPnL: trade.pnl || 0,
       leverage: 1,
+      isReadOnly: trade.source === 'binance' || trade.trade_mode === 'live',
       originalData: trade,
     };
     setEnrichingPosition(unified);

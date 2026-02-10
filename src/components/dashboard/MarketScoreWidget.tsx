@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUnifiedMarketScore } from "@/hooks/use-unified-market-score";
+import { useTradeMode, TRADING_STYLE_LABELS, type TradingStyle } from "@/hooks/use-trade-mode";
 import { Link } from "react-router-dom";
 
 interface MarketScoreWidgetProps {
@@ -30,7 +31,15 @@ interface MarketScoreWidgetProps {
   compact?: boolean;
 }
 
+// M-34: Style-specific timeframe label
+const STYLE_FOCUS_LABEL: Record<TradingStyle, string> = {
+  scalping: 'Optimized for 1m–15m',
+  short_trade: 'Optimized for 1h–4h',
+  swing: 'Optimized for 4h–1D',
+};
+
 function MarketScoreWidgetContent({ symbol = 'BTCUSDT', compact = false }: MarketScoreWidgetProps) {
+  const { tradingStyle } = useTradeMode();
   const {
     score,
     bias,
@@ -257,7 +266,7 @@ function MarketScoreWidgetContent({ symbol = 'BTCUSDT', compact = false }: Marke
           </div>
         </div>
 
-        {/* Quick Info Row */}
+        {/* Quick Info Row - M-34: Show active trading style */}
         <div className="flex items-center justify-between pt-2 border-t text-xs text-muted-foreground">
           <div className="flex items-center gap-4">
             <span className="flex items-center gap-1">
@@ -265,8 +274,16 @@ function MarketScoreWidgetContent({ symbol = 'BTCUSDT', compact = false }: Marke
               Volatility: <span className="font-medium text-foreground">{volatilityLabel}</span>
             </span>
           </div>
-          <span>Symbol: {symbol}</span>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+              {TRADING_STYLE_LABELS[tradingStyle]}
+            </Badge>
+            <span>{symbol}</span>
+          </div>
         </div>
+        <p className="text-[10px] text-muted-foreground mt-1">
+          {STYLE_FOCUS_LABEL[tradingStyle]}
+        </p>
       </CardContent>
     </Card>
   );

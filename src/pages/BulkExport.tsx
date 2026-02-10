@@ -39,6 +39,7 @@ import {
 } from "@/features/binance/useBinanceBulkExport";
 import { SettingsBackupRestore } from "@/components/settings/SettingsBackupRestore";
 import { JournalExportCard } from "@/components/settings/JournalExportCard";
+import { useTradeMode, TRADE_MODE_LABELS } from "@/hooks/use-trade-mode";
 import { toast } from "sonner";
 
 const exportTypes: { type: BulkExportType; icon: typeof FileText }[] = [
@@ -50,6 +51,7 @@ const exportTypes: { type: BulkExportType; icon: typeof FileText }[] = [
 export default function BulkExport() {
   const { data: connectionStatus } = useBinanceConnectionStatus();
   const isConnected = connectionStatus?.isConnected;
+  const { tradeMode } = useTradeMode();
 
   const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>({
     from: startOfYear(new Date()),
@@ -93,6 +95,9 @@ export default function BulkExport() {
           <div className="flex gap-2 mt-2">
             <Badge variant={isConnected ? "default" : "secondary"}>
               {isConnected ? "🔗 Exchange Connected" : "📝 Paper Mode"}
+            </Badge>
+            <Badge variant="outline">
+              Mode: {TRADE_MODE_LABELS[tradeMode]}
             </Badge>
           </div>
         </div>
