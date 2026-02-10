@@ -5,6 +5,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TradeStateBadge } from "@/components/ui/trade-state-badge";
+import { TradeRatingBadge } from "@/components/ui/trade-rating-badge";
 import {
   Table,
   TableBody,
@@ -40,6 +41,7 @@ interface UnifiedPosition {
   unrealizedPnLPercent?: number;
   leverage?: number;
   tradeState?: string | null;
+  tradeRating?: string | null;
   // Original data for actions
   originalData: TradeEntry | BinancePosition;
 }
@@ -74,6 +76,7 @@ function mapToUnifiedPositions(
       quantity: pos.quantity,
       unrealizedPnL: pos.pnl || 0,
       tradeState: pos.trade_state || 'ACTIVE',
+      tradeRating: pos.trade_rating || null,
       originalData: pos,
     });
   });
@@ -203,7 +206,10 @@ export function AllPositionsTable({
                   </Badge>
                 </TableCell>
                 <TableCell className="hidden sm:table-cell">
-                  <TradeStateBadge state={position.tradeState} />
+                  <div className="flex items-center gap-1">
+                    <TradeStateBadge state={position.tradeState} />
+                    <TradeRatingBadge rating={position.tradeRating} />
+                  </div>
                 </TableCell>
                 <TableCell className="text-right font-mono hidden md:table-cell">
                   {position.entryPrice.toFixed(2)}

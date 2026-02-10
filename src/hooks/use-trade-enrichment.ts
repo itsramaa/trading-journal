@@ -24,6 +24,8 @@ interface EnrichmentData {
   executionTimeframe: string;
   precisionTimeframe: string;
   tradeRating: string;
+  lessonLearned: string;
+  ruleCompliance: Record<string, boolean>;
 }
 
 export function useTradeEnrichment() {
@@ -50,7 +52,7 @@ export function useTradeEnrichment() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      const { notes, emotionalState, chartTimeframe, customTags, screenshots, selectedStrategies, biasTimeframe, executionTimeframe, precisionTimeframe, tradeRating } = enrichmentData;
+      const { notes, emotionalState, chartTimeframe, customTags, screenshots, selectedStrategies, biasTimeframe, executionTimeframe, precisionTimeframe, tradeRating, lessonLearned, ruleCompliance } = enrichmentData;
       const tags = customTags ? customTags.split(",").map((t) => t.trim()).filter(Boolean) : [];
 
       if (position.source === "paper") {
@@ -68,6 +70,8 @@ export function useTradeEnrichment() {
           execution_timeframe: executionTimeframe || null,
           precision_timeframe: precisionTimeframe || null,
           trade_rating: tradeRating || null,
+          lesson_learned: lessonLearned || null,
+          rule_compliance: Object.keys(ruleCompliance).length > 0 ? ruleCompliance : null,
         } as any);
 
         // Update linked strategies
@@ -107,6 +111,8 @@ export function useTradeEnrichment() {
               execution_timeframe: executionTimeframe || null,
               precision_timeframe: precisionTimeframe || null,
               trade_rating: tradeRating || null,
+              lesson_learned: lessonLearned || null,
+              rule_compliance: Object.keys(ruleCompliance).length > 0 ? ruleCompliance : null,
             })
             .eq("id", existingTrade.id);
         } else {
@@ -131,6 +137,8 @@ export function useTradeEnrichment() {
               execution_timeframe: executionTimeframe || null,
               precision_timeframe: precisionTimeframe || null,
               trade_rating: tradeRating || null,
+              lesson_learned: lessonLearned || null,
+              rule_compliance: Object.keys(ruleCompliance).length > 0 ? ruleCompliance : null,
             })
             .select()
             .single();
