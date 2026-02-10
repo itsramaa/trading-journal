@@ -102,7 +102,7 @@ export default function Accounts() {
   // Paper accounts calculation (System-First)
   const paperAccounts = useMemo(() => 
     showPaperData 
-      ? (accounts?.filter(a => a.account_type === 'backtest' || a.metadata?.is_backtest) || [])
+      ? (accounts?.filter(a => a.exchange === 'manual' || a.exchange === null || a.exchange === '') || [])
       : [],
     [accounts, showPaperData]
   );
@@ -114,12 +114,14 @@ export default function Accounts() {
   
   // Combined totals (mode-aware)
   const binanceBalanceNum = isConnected ? (Number(balance?.totalWalletBalance) || 0) : 0;
-  const combinedTotalBalance = binanceBalanceNum + paperTotalBalance;
+  // Mode-isolated balance: show only relevant data per mode
+  const displayTotalBalance = showPaperData ? paperTotalBalance : binanceBalanceNum;
   
   const binancePositionsCount = activePositions.length;
-  const totalActivePositions = binancePositionsCount + (showPaperData ? (paperOpenTradesCount || 0) : 0);
+  // Mode-isolated positions
+  const displayActivePositions = showPaperData ? (paperOpenTradesCount || 0) : binancePositionsCount;
   
-  const totalAccounts = (isConnected ? 1 : 0) + paperAccountsCount;
+  const totalAccounts = showPaperData ? paperAccountsCount : (isConnected ? 1 : 0);
 
   return (
     <DashboardLayout>
@@ -177,7 +179,7 @@ export default function Accounts() {
             <CardContent>
               <div className="text-2xl font-bold">{totalAccounts}</div>
               <p className="text-xs text-muted-foreground mt-1">
-                {isConnected ? '1 Binance' : '0 Binance'} + {paperAccountsCount} Paper
+                {showPaperData ? `${paperAccountsCount} Paper` : (isConnected ? '1 Binance' : 'No accounts')}
               </p>
             </CardContent>
           </Card>
@@ -194,23 +196,11 @@ export default function Accounts() {
               ) : (
                 <>
                   <div className="text-2xl font-bold font-mono-numbers">
-                    {format(combinedTotalBalance)}
+                    {format(displayTotalBalance)}
                   </div>
-                  <div className="flex items-center gap-2 mt-1 flex-wrap">
-                    {isConnected && binanceBalanceNum > 0 && (
-                      <Badge variant="outline" className="text-xs">
-                        Binance: {format(binanceBalanceNum)}
-                      </Badge>
-                    )}
-                    {paperTotalBalance > 0 && (
-                      <Badge variant="secondary" className="text-xs">
-                        Paper: {format(paperTotalBalance)}
-                      </Badge>
-                    )}
-                    {combinedTotalBalance === 0 && (
-                      <span className="text-xs text-muted-foreground">No accounts with balance</span>
-                    )}
-                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {showPaperData ? 'Paper balance' : (isConnected ? 'Binance balance' : 'No accounts with balance')}
+                  </p>
                 </>
               )}
             </CardContent>
@@ -227,24 +217,14 @@ export default function Accounts() {
               )}
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{totalActivePositions}</div>
+              <div className="text-2xl font-bold">{displayActivePositions}</div>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
-                {isConnected && binancePositionsCount > 0 && (
-                  <Badge variant="outline" className="text-xs">
-                    {binancePositionsCount} Binance
-                  </Badge>
-                )}
-                {(paperOpenTradesCount || 0) > 0 && (
-                  <Badge variant="secondary" className="text-xs">
-                    {paperOpenTradesCount} Paper
-                  </Badge>
-                )}
-                {isConnected && binancePositionsCount > 0 && (
+                {!showPaperData && isConnected && binancePositionsCount > 0 && (
                   <span className={`text-xs ${(balance?.totalUnrealizedProfit || 0) >= 0 ? 'text-profit' : 'text-loss'}`}>
                     {formatPnl(balance?.totalUnrealizedProfit || 0)} unrealized
                   </span>
                 )}
-                {totalActivePositions === 0 && (
+                {displayActivePositions === 0 && (
                   <span className="text-xs text-muted-foreground">No open positions</span>
                 )}
               </div>
