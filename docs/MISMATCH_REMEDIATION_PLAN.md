@@ -1,11 +1,11 @@
 # Mismatch Remediation Plan
 
-> **Version:** 1.4  
+> **Version:** 1.5  
 > **Created:** 2026-02-10  
-> **Updated:** 2026-02-10 (cross-check pass #6 — direct DB query + balance consumer audit)  
+> **Updated:** 2026-02-10 (cross-check pass #8 — full spec §0-§13 systematic audit)  
 > **Reference:** `docs/DETAILED_USER_SCENARIO.md`  
 > **Status:** Active — Phase A pending  
-> **Summary:** 48 mismatches (11 Critical, 5 High, 32 Medium)
+> **Summary:** 52 mismatches (11 Critical, 5 High, 36 Medium)
 
 ---
 
@@ -73,6 +73,10 @@
 | M-30 | useAIPreflight queries trade_entries without trade_mode filter | §12.1 | Fetches 730 days of closed trades without `trade_mode` filter. AI pre-flight check analyzes cross-mode data. | Add `.eq('trade_mode', activeMode)` to query. | `src/features/ai/useAIPreflight.ts` | D |
 | M-31 | use-weekly-report-export queries trade_entries without trade_mode filter | §12.1 | Weekly report export fetches all closed trades regardless of mode. Export data cross-contaminated. | Add `trade_mode` filter to query. | `src/hooks/use-weekly-report-export.ts` | D |
 | M-32 | use-ai-strategy-recommendation queries trade_entries without trade_mode filter | §12.1 | AI strategy recommendation analyzes last 100 trades without mode filter. Recommendations based on mixed data. | Add `trade_mode` filter to query. | `src/hooks/use-ai-strategy-recommendation.ts` | D |
+| M-33 | Live trades core data not read-only in UI | §3.2 | Enrichment drawer / edit UI allows editing `entry_price`, `direction`, `quantity`, `stop_loss`, `take_profit` for live/synced trades. Spec requires core data immutable for LIVE source. | Disable editing of core trade fields when `source === 'binance'` or `trade_mode === 'live'`. Only enrichment fields (notes, rating, lesson_learned, screenshots, timeframes) should be editable. | `TradeEnrichmentDrawer`, `useUpdateTradeEntry` | D |
+| M-34 | Market Overview Dashboard not adapted to trade_style | §4.1 | `MarketScoreWidget` shows same data regardless of active `trade_style` (scalping/short/swing). Spec: "Disesuaikan dengan trade_style". | Adapt displayed timeframes, volatility windows, and data granularity based on active `trade_style`. Scalping → 1m-15m data, Short → 1h-4h, Swing → 4h-1D. | `src/components/dashboard/MarketScoreWidget.tsx` | D |
+| M-35 | Strategy selection not enforced as mandatory in wizard | §5.2 | Trade Entry Wizard allows skipping strategy selection step. Spec: "Strategy Selection (WAJIB)". | Block wizard progression if no strategy selected. Show validation error. | `TradeEntryWizard`, strategy step component | B |
+| M-36 | Execution timeframe not enforced as mandatory | §8.2 | `execution_timeframe` field is optional in wizard. Spec: "1 execution TF (mandatory)". | Make `execution_timeframe` a required field. Block submission without it. | `TradeEntryWizard`, timeframe step component | B |
 ---
 
 ## 2. Phase A: Data Isolation (C-01 → C-06)
@@ -163,6 +167,17 @@
 - Behavior: Blocks navigation until submitted. Saves to `user_settings`.
 - Hook change: `use-trade-mode.ts` adds `hasSelectedContext` flag
 
+### Step B.3: Mandatory Strategy Selection (M-35)
+
+- Trade Entry Wizard must require strategy selection before proceeding.
+- If no strategy selected, show validation error and block "Next" button.
+- Edge case: If user has zero strategies, prompt to create one first.
+
+### Step B.4: Mandatory Execution Timeframe (M-36)
+
+- `execution_timeframe` field must be required in Trade Entry Wizard.
+- Block submission if not set. Show inline validation error.
+
 ### Verification Checklist — Phase B
 
 - [ ] Paper mode shows persistent amber SIMULATION banner on ALL pages
@@ -170,6 +185,8 @@
 - [ ] New user sees mandatory session context modal on first visit
 - [ ] Modal cannot be dismissed without selecting mode + style
 - [ ] After selection, modal does not reappear on subsequent logins
+- [ ] Trade Entry Wizard blocks if no strategy selected
+- [ ] Trade Entry Wizard blocks if no execution timeframe set
 
 ---
 
@@ -338,6 +355,22 @@
 
 - `use-ai-strategy-recommendation.ts`: Add `trade_mode` filter to `trade_entries` query. Recommendations should be based on active mode's data only.
 
+### D.27: Live Trades Core Data Read-Only (M-33)
+
+- `TradeEnrichmentDrawer` / trade edit UI: When `source === 'binance'` or `trade_mode === 'live'`, disable editing of core fields:
+  - `entry_price`, `exit_price`, `direction`, `quantity`, `stop_loss`, `take_profit`, `leverage`
+- Only enrichment fields remain editable: `notes`, `trade_rating`, `lesson_learned`, `screenshots`, `timeframes`, `emotional_state`, `rule_compliance`
+- `useUpdateTradeEntry`: Add server-side validation — reject core field changes for `source='binance'` trades.
+
+### D.28: Market Overview Adapted to Trade Style (M-34)
+
+- `MarketScoreWidget.tsx`: Consume `useTradeMode()` for `tradingStyle`.
+- Adapt displayed data:
+  - Scalping → focus on 1m-15m volatility, spread, orderbook depth
+  - Short Trade → focus on 1h-4h structure, momentum
+  - Swing → focus on 4h-1D trend strength, macro context
+- Show relevant timeframe label in widget header.
+
 ### Verification Checklist — Phase D
 
 - [ ] Risk page shows paper-sourced data in Paper mode
@@ -367,6 +400,8 @@
 - [ ] AI Preflight analyzes only active mode's trades
 - [ ] Weekly report exports only active mode's trades
 - [ ] AI Strategy Recommendation uses only active mode's trades
+- [ ] Live/synced trades: core data fields are read-only in UI
+- [ ] Market Overview adapts displayed data to active trade_style
 
 ---
 
@@ -374,10 +409,10 @@
 
 ```
 Phase A (Data Isolation) ──→ Phase B (UX) ──→ Phase C (Audit) ──→ Phase D (Polish)
-     [~4 messages]            [~2 messages]     [~2 messages]       [~5 messages]
+     [~4 messages]            [~3 messages]     [~2 messages]       [~6 messages]
 ```
 
-**Total estimated: 13-15 implementation messages.**
+**Total estimated: 15-17 implementation messages.**
 
 ---
 
@@ -385,7 +420,7 @@ Phase A (Data Isolation) ──→ Phase B (UX) ──→ Phase C (Audit) ──
 
 After all phases complete:
 1. Update `docs/DETAILED_USER_SCENARIO.md` Implementation Status tables
-2. Mark all 48 mismatches as ✅ Done in this document
+2. Mark all 52 mismatches as ✅ Done in this document
 3. Run full verification checklist
 
 ---
