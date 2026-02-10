@@ -38,6 +38,7 @@ import { useUnifiedWeekComparison } from "@/hooks/use-unified-week-comparison";
 import { useSymbolBreakdown } from "@/hooks/use-symbol-breakdown";
 import { usePerformanceExport } from "@/hooks/use-performance-export";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
+import { useModeVisibility } from "@/hooks/use-mode-visibility";
 import { format } from "date-fns";
 
 export default function DailyPnL() {
@@ -47,6 +48,7 @@ export default function DailyPnL() {
   const { weeklyBreakdown: symbolBreakdown } = useSymbolBreakdown();
   const { exportToCSV, exportToPDF } = usePerformanceExport();
   const { formatCompact, format: formatCurrency } = useCurrencyConversion();
+  const { showExchangeData } = useModeVisibility();
 
   const ChangeIndicator = ({ value, suffix = '' }: { value: number; suffix?: string }) => {
     if (value > 0) return <span className="text-profit flex items-center gap-1"><ArrowUp className="h-3 w-3" />+{value.toFixed(1)}{suffix}</span>;
@@ -146,15 +148,14 @@ export default function DailyPnL() {
                   {formatCompact(dailyStats.grossPnl)}
                 </p>
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Commission</p>
-                <p className="text-2xl font-bold text-muted-foreground">
-                  {dailyStats.source === 'binance' 
-                    ? `-${formatCurrency(dailyStats.totalCommission)}`
-                    : 'N/A'
-                  }
-                </p>
-              </div>
+              {showExchangeData && (
+                <div>
+                  <p className="text-sm text-muted-foreground">Commission</p>
+                  <p className="text-2xl font-bold text-muted-foreground">
+                    -{formatCurrency(dailyStats.totalCommission)}
+                  </p>
+                </div>
+              )}
               <div>
                 <p className="text-sm text-muted-foreground">Trades Today</p>
                 <p className="text-2xl font-bold">{dailyStats.totalTrades}</p>
@@ -312,8 +313,8 @@ export default function DailyPnL() {
           </CardContent>
         </Card>
 
-        {/* Symbol Breakdown - Only shown when data available (Binance) */}
-        {symbolBreakdown.length > 0 && (
+        {/* Symbol Breakdown - Only shown in Live mode with data */}
+        {showExchangeData && symbolBreakdown.length > 0 && (
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Symbol Breakdown</CardTitle>
