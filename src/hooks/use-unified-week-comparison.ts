@@ -6,6 +6,7 @@ import { useMemo } from 'react';
 import { useBinanceConnectionStatus } from '@/features/binance';
 import { useBinanceWeekComparison } from '@/hooks/use-binance-week-comparison';
 import { useTradeEntries } from '@/hooks/use-trade-entries';
+import { useTradeMode } from '@/hooks/use-trade-mode';
 import { startOfWeek, endOfWeek, subWeeks, isWithinInterval, startOfDay } from 'date-fns';
 
 export type WeekComparisonSource = 'binance' | 'paper';
@@ -44,6 +45,7 @@ const emptyStats: WeekStats = {
 };
 
 export function useUnifiedWeekComparison(): UnifiedWeekComparisonResult {
+  const { tradeMode } = useTradeMode();
   // Check connection
   const { data: connectionStatus, isLoading: connectionLoading } = useBinanceConnectionStatus();
   const isConnected = connectionStatus?.isConnected ?? false;
@@ -70,6 +72,12 @@ export function useUnifiedWeekComparison(): UnifiedWeekComparisonResult {
     trades.forEach(trade => {
       if (trade.status !== 'closed') return;
       
+      // Mode filter
+      const matchesMode = trade.trade_mode
+        ? trade.trade_mode === tradeMode
+        : (tradeMode === 'live' ? trade.source === 'binance' : trade.source !== 'binance');
+      if (!matchesMode) return;
+
       const tradeDate = trade.trade_date ? new Date(trade.trade_date) : null;
       if (!tradeDate) return;
       
@@ -131,12 +139,12 @@ export function useUnifiedWeekComparison(): UnifiedWeekComparisonResult {
       },
       hasData,
     };
-  }, [trades]);
+  }, [trades, tradeMode]);
   
   // Return best available data
   return useMemo((): UnifiedWeekComparisonResult => {
-    // Priority 1: Binance connected with data
-    if (isConnected && binanceComparison.currentWeek.trades > 0) {
+    // Priority 1: Live mode + Binance connected with data
+    if (tradeMode === 'live' && isConnected && binanceComparison.currentWeek.trades > 0) {
       return {
         currentWeek: binanceComparison.currentWeek,
         previousWeek: binanceComparison.previousWeek,
@@ -171,5 +179,5 @@ export function useUnifiedWeekComparison(): UnifiedWeekComparisonResult {
       isLoading: connectionLoading || tradesLoading,
       hasData: false,
     };
-  }, [isConnected, binanceComparison, internalComparison, tradesLoading, connectionLoading]);
+  }, [tradeMode, isConnected, binanceComparison, internalComparison, tradesLoading, connectionLoading]);
 }
