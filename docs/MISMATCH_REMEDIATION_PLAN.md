@@ -1,11 +1,11 @@
 # Mismatch Remediation Plan
 
-> **Version:** 1.2  
+> **Version:** 1.3  
 > **Created:** 2026-02-10  
-> **Updated:** 2026-02-10 (cross-check pass #3 — deep component scan)  
+> **Updated:** 2026-02-10 (cross-check pass #5 — exhaustive consumer audit)  
 > **Reference:** `docs/DETAILED_USER_SCENARIO.md`  
 > **Status:** Active — Phase A pending  
-> **Summary:** 37 mismatches (11 Critical, 5 High, 21 Medium)
+> **Summary:** 43 mismatches (11 Critical, 5 High, 27 Medium)
 
 ---
 
@@ -62,6 +62,12 @@
 | M-19 | DrawdownChart zero mode filtering | §12.1 | Uses unfiltered `useTradeEntries()` for drawdown calculation. Equity curve cross-contaminated. | Filter by `trade_mode` or accept filtered trades as prop. | `src/components/analytics/DrawdownChart.tsx` | A |
 | M-20 | TradingHeatmap component fallback fetch unfiltered | §12.1 | Component has internal `useTradeEntries()` fallback when no `externalTrades` prop passed. Fallback is unfiltered. | Filter fallback by `trade_mode`. Page-level fix (C-08) should always pass filtered trades. | `src/components/analytics/TradingHeatmap.tsx` | A |
 | M-21 | SevenDayStatsCard zero mode filtering | §12.1 | Uses unfiltered `useTradeEntries()` for 7-day summary stats. | Filter by `trade_mode`. | `src/components/analytics/SevenDayStatsCard.tsx` | D |
+| M-22 | FinalChecklist (Trade Entry Wizard) zero mode filtering | §12.1 | Uses `useTradeEntries()` for AI quality scoring context. Includes trades from wrong mode in AI analysis. | Filter by `trade_mode` for mode-isolated AI scoring context. | `src/components/trade/entry/FinalChecklist.tsx` | D |
+| M-23 | ADLRiskWidget visible in Paper mode | §3.1 | Uses `useBinancePositions()` directly without mode visibility check. Shows ADL risk for Binance positions in Paper mode. | Hide or show empty state in Paper mode via `useModeVisibility`. | `src/components/dashboard/ADLRiskWidget.tsx` | D |
+| M-24 | MarginHistoryTab visible in Paper mode | §3.1 | Uses `usePositions()` without mode visibility check. Shows Binance margin history in Paper mode. | Hide or show empty state in Paper mode via `useModeVisibility`. | `src/components/risk/MarginHistoryTab.tsx` | D |
+| M-25 | use-daily-pnl hook no mode awareness | §12.1 | Uses `useBinanceDailyPnl()` without mode check. Paper mode should never use Binance P&L data. Consumed by `TodayPerformance.tsx` (M-05). | Consume `useTradeMode()`. Paper → force local-only path. | `src/hooks/use-daily-pnl.ts` | D |
+| M-26 | useDailyRiskStatus uses Binance data without mode check | §3.1/12.1 | `use-risk-profile.ts` → `useDailyRiskStatus` uses `useBinanceTotalBalance()` and `useBinanceDailyPnl()` without mode check. Paper mode risk calculations contaminated by Binance data. Related to C-11 but distinct hook. | Consume `useTradeMode()`. Paper → paper balance only. Live → Binance if connected. | `src/hooks/use-risk-profile.ts` | D |
+| M-27 | TradingJournal trade list not filtered by trade_mode | §12.1 | `useTradeEntries()` returns all trades. Even with `useModeVisibility` hiding Binance UI widgets, the trade list itself shows paper+live trades mixed. | Filter `useTradeEntries()` by active `trade_mode`. | `src/pages/trading-journey/TradingJournal.tsx` | A |
 ---
 
 ## 2. Phase A: Data Isolation (C-01 → C-06)
@@ -103,6 +109,7 @@
 | `CryptoRanking.tsx` | Accept filtered trades as prop OR import `useTradeMode` and filter internally. |
 | `DrawdownChart.tsx` | Accept filtered trades as prop OR import `useTradeMode` and filter internally. (M-19) |
 | `TradingHeatmap.tsx` (component) | Filter internal `useTradeEntries()` fallback by `trade_mode`. (M-20) |
+| `TradingJournal.tsx` | Filter `useTradeEntries()` by active `trade_mode`. (M-27) |
 
 ### Step A.4: Unified Hook Updates (NEW)
 
@@ -286,6 +293,26 @@
 - `use-trading-gate.ts`: Filter `useTradeEntries()` by `trade_mode` for AI quality scoring
 - Separate from C-11 balance fix — this is about trade quality assessment data
 
+### D.17: FinalChecklist Mode Filtering (M-22)
+
+- `FinalChecklist.tsx`: Filter `useTradeEntries()` by `trade_mode` for AI quality scoring context
+
+### D.18: ADLRiskWidget Mode Visibility (M-23)
+
+- `ADLRiskWidget.tsx`: Import `useModeVisibility`. Paper mode → hide widget or show "Live mode only" state.
+
+### D.19: MarginHistoryTab Mode Visibility (M-24)
+
+- `MarginHistoryTab.tsx`: Import `useModeVisibility`. Paper mode → hide tab or show empty state.
+
+### D.20: use-daily-pnl Mode Awareness (M-25)
+
+- `use-daily-pnl.ts`: Consume `useTradeMode()`. Paper → skip Binance data, use local trades only.
+
+### D.21: useDailyRiskStatus Mode Awareness (M-26)
+
+- `use-risk-profile.ts`: `useDailyRiskStatus` must consume `useTradeMode()`. Paper → use paper balance/PnL. Live → Binance if connected.
+
 ### Verification Checklist — Phase D
 
 - [ ] Risk page shows paper-sourced data in Paper mode
@@ -305,6 +332,11 @@
 - [ ] use-context-aware-risk uses only active mode's trades
 - [ ] AIChatbot provides mode-filtered trade context to AI
 - [ ] TradingGate quality scoring uses mode-filtered trades
+- [ ] FinalChecklist AI quality uses mode-filtered trades
+- [ ] ADLRiskWidget hidden in Paper mode
+- [ ] MarginHistoryTab hidden in Paper mode
+- [ ] use-daily-pnl uses mode-appropriate data source
+- [ ] useDailyRiskStatus uses mode-appropriate balance/PnL
 
 ---
 
@@ -323,7 +355,7 @@ Phase A (Data Isolation) ──→ Phase B (UX) ──→ Phase C (Audit) ──
 
 After all phases complete:
 1. Update `docs/DETAILED_USER_SCENARIO.md` Implementation Status tables
-2. Mark all 37 mismatches as ✅ Done in this document
+2. Mark all 43 mismatches as ✅ Done in this document
 3. Run full verification checklist
 
 ---
