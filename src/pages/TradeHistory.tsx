@@ -28,6 +28,7 @@ import { useTradeEntriesPaginated, type TradeFilters } from "@/hooks/use-trade-e
 import { useTradeStats } from "@/hooks/use-trade-stats";
 import { useTradeMode } from "@/hooks/use-trade-mode";
 import type { TradeEntry } from "@/hooks/use-trade-entries";
+import { useSoftDeleteTradeEntry } from "@/hooks/use-trade-entries-paginated";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { useBinanceConnectionStatus } from "@/features/binance";
 import { useBinanceIncrementalSync } from "@/hooks/use-binance-incremental-sync";
@@ -209,18 +210,12 @@ export default function TradeHistory() {
   // Use centralized R:R calculation
   const calculateRR = calculateRiskReward;
 
+  const softDelete = useSoftDeleteTradeEntry();
+  
   const handleDeleteTrade = async () => {
     if (!deletingTrade) return;
     try {
-      // Soft delete: set deleted_at timestamp (recoverable from Settings > Deleted Trades)
-      const { error } = await import("@/integrations/supabase/client").then(m => 
-        m.supabase.from("trade_entries")
-          .update({ deleted_at: new Date().toISOString() })
-          .eq("id", deletingTrade.id)
-      );
-      if (error) throw error;
-      queryClient.invalidateQueries({ queryKey: ["trade-entries"] });
-      queryClient.invalidateQueries({ queryKey: ["trade-entries-paginated"] });
+      await softDelete.mutateAsync(deletingTrade.id);
       setDeletingTrade(null);
     } catch (err) {
       console.error("Delete failed:", err);
