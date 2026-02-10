@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { invalidateTradeQueries } from "@/lib/query-invalidation";
+import { logAuditEvent } from "@/lib/audit-logger";
 
 export interface TradeScreenshot {
   url: string;
@@ -299,6 +300,7 @@ export function useUpdateTradeEntry() {
 
 // Delete trade entry
 export function useDeleteTradeEntry() {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -309,10 +311,14 @@ export function useDeleteTradeEntry() {
         .eq("id", id);
 
       if (error) throw error;
+      return id;
     },
-    onSuccess: () => {
+    onSuccess: (id) => {
       invalidateTradeQueries(queryClient);
       toast.success("Trade entry deleted successfully");
+      if (user?.id) {
+        logAuditEvent(user.id, { action: 'trade_deleted', entityType: 'trade_entry', entityId: id });
+      }
     },
     onError: (error) => {
       toast.error(`Failed to delete trade: ${error.message}`);
@@ -330,6 +336,7 @@ export interface ClosePositionInput {
 }
 
 export function useClosePosition() {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -362,9 +369,17 @@ export function useClosePosition() {
       
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       invalidateTradeQueries(queryClient);
       toast.success("Position closed successfully");
+      if (user?.id && data) {
+        logAuditEvent(user.id, {
+          action: 'trade_closed',
+          entityType: 'trade_entry',
+          entityId: data.id,
+          metadata: { pair: data.pair, pnl: data.pnl, result: data.result },
+        });
+      }
     },
     onError: (error) => {
       toast.error(`Failed to close position: ${error.message}`);

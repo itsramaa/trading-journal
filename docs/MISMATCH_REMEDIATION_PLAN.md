@@ -2,9 +2,9 @@
 
 > **Version:** 1.6  
 > **Created:** 2026-02-10  
-> **Updated:** 2026-02-10 (Phase A DONE, Phase B in progress)  
+> **Updated:** 2026-02-10 (Phase A ✅ DONE, Phase B ✅ DONE, Phase C ✅ DONE)  
 > **Reference:** `docs/DETAILED_USER_SCENARIO.md`  
-> **Status:** Active — Phase A ✅ DONE | Phase B in progress  
+> **Status:** Active — Phase A ✅ | Phase B ✅ | Phase C ✅ | Phase D in progress  
 > **Summary:** 52 mismatches (11 Critical, 5 High, 36 Medium)
 
 ---
@@ -31,7 +31,7 @@
 
 | ID | Title | Spec Section | Current State | Required State | Affected Files | Phase |
 |----|-------|-------------|---------------|----------------|----------------|-------|
-| H-01 | Audit logger only covers trade creation | §13 | `logAuditEvent` called only in `submitTrade()`. | Cover: trade close, delete, restore, API key save/delete, sync, settings change. | Multiple hooks + components | C |
+| H-01 | Audit logger only covers trade creation | §13 | ✅ DONE | Cover: trade close, delete, restore, API key save/delete, sync, settings change. | Multiple hooks + components | C ✅ |
 | H-02 | RiskManagement no mode awareness | §3.1/3.2 | No mode hook imported. Shows Binance data in Paper mode. | Paper: simulator-based risk. Live: Binance-based risk. | `src/pages/RiskManagement.tsx` | D |
 | H-03 | No SIMULATION banner in Paper mode | §3.1 | ✅ DONE | Persistent SIMULATION banner with amber styling across all pages. | `src/components/layout/SimulationBanner.tsx`, `DashboardLayout.tsx` | B ✅ |
 | H-04 | No mandatory session context enforcement | §2.2 | ✅ DONE | Modal forces mode + style selection before first use. | `src/components/layout/SessionContextModal.tsx`, `DashboardLayout.tsx` | B ✅ |
@@ -211,12 +211,14 @@
 
 ### Verification Checklist — Phase C
 
-- [ ] Closing a trade creates an audit log entry
-- [ ] Deleting a trade creates an audit log entry
-- [ ] Saving API key creates an audit log entry
-- [ ] Changing settings creates an audit log entry
-- [ ] Sync operations create audit log entries
-- [ ] All audit entries have correct `entity_type`, `entity_id`, `action`, `metadata`
+- [x] Closing a trade creates an audit log entry ✅
+- [x] Deleting a trade creates an audit log entry ✅
+- [x] Saving API key creates an audit log entry ✅
+- [x] Changing settings creates an audit log entry ✅
+- [x] Sync operations create audit log entries ✅
+- [x] All audit entries have correct `entity_type`, `entity_id`, `action`, `metadata` ✅
+- [x] Risk profile update creates an audit log entry ✅
+- [x] Restoring a deleted trade creates an audit log entry ✅
 
 ---
 
