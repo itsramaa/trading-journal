@@ -651,6 +651,7 @@ export type Database = {
           ai_confidence: number | null
           ai_model_version: string | null
           ai_quality_score: number | null
+          bias_timeframe: string | null
           binance_order_id: number | null
           binance_trade_id: string | null
           chart_timeframe: string | null
@@ -666,6 +667,7 @@ export type Database = {
           entry_order_type: string | null
           entry_price: number
           entry_signal: string | null
+          execution_timeframe: string | null
           exit_datetime: string | null
           exit_order_type: string | null
           exit_price: number | null
@@ -674,26 +676,36 @@ export type Database = {
           hold_time_minutes: number | null
           id: string
           is_maker: boolean | null
+          lesson_learned: string | null
           leverage: number | null
           margin_type: string | null
           market_condition: string | null
           market_context: Json | null
+          max_adverse_excursion: number | null
           notes: string | null
           pair: string
           pnl: number | null
           post_trade_analysis: Json | null
           pre_trade_validation: Json | null
+          precision_timeframe: string | null
           quantity: number
+          r_multiple: number | null
           realized_pnl: number | null
           result: string | null
+          rule_compliance: Json | null
           screenshots: Json | null
           session: string | null
           source: string | null
           status: string
           stop_loss: number | null
+          strategy_snapshot: Json | null
           tags: string[] | null
           take_profit: number | null
           trade_date: string
+          trade_mode: string | null
+          trade_rating: string | null
+          trade_state: string
+          trade_style: string | null
           trading_account_id: string | null
           updated_at: string
           user_id: string
@@ -703,6 +715,7 @@ export type Database = {
           ai_confidence?: number | null
           ai_model_version?: string | null
           ai_quality_score?: number | null
+          bias_timeframe?: string | null
           binance_order_id?: number | null
           binance_trade_id?: string | null
           chart_timeframe?: string | null
@@ -718,6 +731,7 @@ export type Database = {
           entry_order_type?: string | null
           entry_price: number
           entry_signal?: string | null
+          execution_timeframe?: string | null
           exit_datetime?: string | null
           exit_order_type?: string | null
           exit_price?: number | null
@@ -726,26 +740,36 @@ export type Database = {
           hold_time_minutes?: number | null
           id?: string
           is_maker?: boolean | null
+          lesson_learned?: string | null
           leverage?: number | null
           margin_type?: string | null
           market_condition?: string | null
           market_context?: Json | null
+          max_adverse_excursion?: number | null
           notes?: string | null
           pair: string
           pnl?: number | null
           post_trade_analysis?: Json | null
           pre_trade_validation?: Json | null
+          precision_timeframe?: string | null
           quantity?: number
+          r_multiple?: number | null
           realized_pnl?: number | null
           result?: string | null
+          rule_compliance?: Json | null
           screenshots?: Json | null
           session?: string | null
           source?: string | null
           status?: string
           stop_loss?: number | null
+          strategy_snapshot?: Json | null
           tags?: string[] | null
           take_profit?: number | null
           trade_date?: string
+          trade_mode?: string | null
+          trade_rating?: string | null
+          trade_state?: string
+          trade_style?: string | null
           trading_account_id?: string | null
           updated_at?: string
           user_id: string
@@ -755,6 +779,7 @@ export type Database = {
           ai_confidence?: number | null
           ai_model_version?: string | null
           ai_quality_score?: number | null
+          bias_timeframe?: string | null
           binance_order_id?: number | null
           binance_trade_id?: string | null
           chart_timeframe?: string | null
@@ -770,6 +795,7 @@ export type Database = {
           entry_order_type?: string | null
           entry_price?: number
           entry_signal?: string | null
+          execution_timeframe?: string | null
           exit_datetime?: string | null
           exit_order_type?: string | null
           exit_price?: number | null
@@ -778,26 +804,36 @@ export type Database = {
           hold_time_minutes?: number | null
           id?: string
           is_maker?: boolean | null
+          lesson_learned?: string | null
           leverage?: number | null
           margin_type?: string | null
           market_condition?: string | null
           market_context?: Json | null
+          max_adverse_excursion?: number | null
           notes?: string | null
           pair?: string
           pnl?: number | null
           post_trade_analysis?: Json | null
           pre_trade_validation?: Json | null
+          precision_timeframe?: string | null
           quantity?: number
+          r_multiple?: number | null
           realized_pnl?: number | null
           result?: string | null
+          rule_compliance?: Json | null
           screenshots?: Json | null
           session?: string | null
           source?: string | null
           status?: string
           stop_loss?: number | null
+          strategy_snapshot?: Json | null
           tags?: string[] | null
           take_profit?: number | null
           trade_date?: string
+          trade_mode?: string | null
+          trade_rating?: string | null
+          trade_state?: string
+          trade_style?: string | null
           trading_account_id?: string | null
           updated_at?: string
           user_id?: string
@@ -1018,6 +1054,8 @@ export type Database = {
       }
       user_settings: {
         Row: {
+          active_trade_mode: string
+          active_trading_style: string
           ai_settings: Json | null
           binance_daily_sync_quota: number | null
           created_at: string
@@ -1044,6 +1082,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          active_trade_mode?: string
+          active_trading_style?: string
           ai_settings?: Json | null
           binance_daily_sync_quota?: number | null
           created_at?: string
@@ -1070,6 +1110,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          active_trade_mode?: string
+          active_trading_style?: string
           ai_settings?: Json | null
           binance_daily_sync_quota?: number | null
           created_at?: string
