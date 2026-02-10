@@ -6,6 +6,7 @@
  * - Portfolio Performance cards (Win Rate, PF, Expectancy)
  */
 import { useState, useMemo } from "react";
+import { useModeVisibility } from "@/hooks/use-mode-visibility";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -67,13 +68,14 @@ export default function TradingJournal() {
   const queryClient = useQueryClient();
   const { format: formatCurrency } = useCurrencyConversion();
   const { data: trades, isLoading: tradesLoading } = useTradeEntries();
+  const { showExchangeData, showExchangeOrders, showExchangeBalance, canCreateManualTrade, showPaperData } = useModeVisibility();
   
-  // Binance data
+  // Binance data — only fetch when in Live mode
   const { data: connectionStatus } = useBinanceConnectionStatus();
   const { data: binancePositions = [], isLoading: binancePositionsLoading } = useBinancePositions();
   const { data: binanceOpenOrders = [], isLoading: binanceOrdersLoading } = useBinanceOpenOrders();
   const { data: binanceBalance } = useBinanceBalance();
-  const isBinanceConnected = connectionStatus?.isConnected ?? false;
+  const isBinanceConnected = showExchangeData && (connectionStatus?.isConnected ?? false);
   
   const deleteTrade = useDeleteTradeEntry();
   const closePosition = useClosePosition();
@@ -191,31 +193,39 @@ export default function TradingJournal() {
               Focus on quality setups and review your patterns to improve your trading edge.
             </QuickTip>
           </div>
-          <Button variant="default" onClick={() => setIsWizardOpen(true)} aria-label="Open trade entry wizard">
-            <Wand2 className="mr-2 h-4 w-4" aria-hidden="true" />
-            New Trade
-          </Button>
+          {canCreateManualTrade ? (
+            <Button variant="default" onClick={() => setIsWizardOpen(true)} aria-label="Open trade entry wizard">
+              <Wand2 className="mr-2 h-4 w-4" aria-hidden="true" />
+              New Trade
+            </Button>
+          ) : (
+            <Badge variant="outline" className="text-xs text-muted-foreground">
+              Live Mode — trades via exchange
+            </Badge>
+          )}
         </div>
         
-        {/* Trade Entry Wizard Dialog */}
-        <Dialog open={isWizardOpen} onOpenChange={setIsWizardOpen}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden p-0">
-            <TradeEntryWizard
-              onClose={() => setIsWizardOpen(false)}
-              onComplete={() => {
-                setIsWizardOpen(false);
-                queryClient.invalidateQueries({ queryKey: ["trade-entries"] });
-              }}
-            />
-          </DialogContent>
-        </Dialog>
+        {/* Trade Entry Wizard Dialog — Paper mode only */}
+        {canCreateManualTrade && (
+          <Dialog open={isWizardOpen} onOpenChange={setIsWizardOpen}>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden p-0">
+              <TradeEntryWizard
+                onClose={() => setIsWizardOpen(false)}
+                onComplete={() => {
+                  setIsWizardOpen(false);
+                  queryClient.invalidateQueries({ queryKey: ["trade-entries"] });
+                }}
+              />
+            </DialogContent>
+          </Dialog>
+        )}
 
         {/* P&L Summary Cards (Operational context - NOT analytics metrics) */}
         <TradeSummaryStats
-          openPositionsCount={openPositions.length}
-          binancePositionsCount={binancePositions.filter(p => p.positionAmt !== 0).length}
-          unrealizedPnL={totalUnrealizedPnL}
-          binanceUnrealizedPnL={binanceBalance?.totalUnrealizedProfit}
+          openPositionsCount={showPaperData ? openPositions.length : 0}
+          binancePositionsCount={showExchangeData ? binancePositions.filter(p => p.positionAmt !== 0).length : 0}
+          unrealizedPnL={showPaperData ? totalUnrealizedPnL : 0}
+          binanceUnrealizedPnL={showExchangeBalance ? binanceBalance?.totalUnrealizedProfit : undefined}
           closedTradesCount={closedTrades.length}
           realizedPnL={totalRealizedPnL}
           isBinanceConnected={isBinanceConnected}
@@ -241,27 +251,29 @@ export default function TradingJournal() {
                 <TabsTrigger value="pending" className="gap-2">
                   <Clock className="h-4 w-4" aria-hidden="true" />
                   <span className="hidden sm:inline">Pending</span>
-                  {(openPositions.filter(p => !p.entry_price || p.entry_price === 0).length + binanceOpenOrders.length) > 0 && (
-                    <Badge variant="secondary" className="ml-1 h-5 px-1.5">
-                      {openPositions.filter(p => !p.entry_price || p.entry_price === 0).length + binanceOpenOrders.length}
-                    </Badge>
-                  )}
+                  {(() => {
+                    const paperPending = showPaperData ? openPositions.filter(p => !p.entry_price || p.entry_price === 0).length : 0;
+                    const exchangePending = showExchangeOrders ? binanceOpenOrders.length : 0;
+                    const total = paperPending + exchangePending;
+                    return total > 0 ? <Badge variant="secondary" className="ml-1 h-5 px-1.5">{total}</Badge> : null;
+                  })()}
                 </TabsTrigger>
                 <TabsTrigger value="active" className="gap-2">
                   <Circle className="h-4 w-4" aria-hidden="true" />
                   <span className="hidden sm:inline">Active</span>
-                  {(openPositions.filter(p => p.entry_price && p.entry_price > 0).length + binancePositions.filter(p => p.positionAmt !== 0).length) > 0 && (
-                    <Badge variant="secondary" className="ml-1 h-5 px-1.5">
-                      {openPositions.filter(p => p.entry_price && p.entry_price > 0).length + binancePositions.filter(p => p.positionAmt !== 0).length}
-                    </Badge>
-                  )}
+                  {(() => {
+                    const paperActive = showPaperData ? openPositions.filter(p => p.entry_price && p.entry_price > 0).length : 0;
+                    const exchangeActive = showExchangeData ? binancePositions.filter(p => p.positionAmt !== 0).length : 0;
+                    const total = paperActive + exchangeActive;
+                    return total > 0 ? <Badge variant="secondary" className="ml-1 h-5 px-1.5">{total}</Badge> : null;
+                  })()}
                 </TabsTrigger>
               </TabsList>
               
               {/* Pending Orders Tab */}
               <TabsContent value="pending" className="mt-4 space-y-6">
-                {/* Binance Open Orders Section */}
-                {isBinanceConnected && (
+                {/* Binance Open Orders — Live mode only */}
+                {showExchangeOrders && isBinanceConnected && (
                   <BinanceOpenOrdersTable
                     orders={binanceOpenOrders}
                     isLoading={binanceOrdersLoading}
@@ -269,36 +281,38 @@ export default function TradingJournal() {
                   />
                 )}
 
-                {/* Paper Pending Trades Section */}
-                <div className="space-y-3">
-                  {isBinanceConnected && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Circle className="h-4 w-4" />
-                      <span>Paper Pending Trades</span>
-                    </div>
-                  )}
-                  <AllPositionsTable
-                    paperPositions={openPositions.filter(p => !p.entry_price || p.entry_price === 0)}
-                    binancePositions={[]}
-                    isLoading={tradesLoading}
-                    isBinanceConnected={false}
-                    onEnrich={setEnrichingPosition}
-                    onEdit={handleOpenEditDialog}
-                    onClose={(pos) => {
-                      setClosingPosition(pos);
-                      closeForm.reset();
-                    }}
-                    onDelete={setDeletingTrade}
-                    formatCurrency={formatCurrency}
-                  />
-                </div>
+                {/* Paper Pending Trades — Paper mode only */}
+                {showPaperData && (
+                  <div className="space-y-3">
+                    {isBinanceConnected && showExchangeOrders && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Circle className="h-4 w-4" />
+                        <span>Paper Pending Trades</span>
+                      </div>
+                    )}
+                    <AllPositionsTable
+                      paperPositions={openPositions.filter(p => !p.entry_price || p.entry_price === 0)}
+                      binancePositions={[]}
+                      isLoading={tradesLoading}
+                      isBinanceConnected={false}
+                      onEnrich={setEnrichingPosition}
+                      onEdit={handleOpenEditDialog}
+                      onClose={(pos) => {
+                        setClosingPosition(pos);
+                        closeForm.reset();
+                      }}
+                      onDelete={setDeletingTrade}
+                      formatCurrency={formatCurrency}
+                    />
+                  </div>
+                )}
               </TabsContent>
               
               {/* Active Positions Tab */}
               <TabsContent value="active" className="mt-4">
                 <AllPositionsTable
-                  paperPositions={openPositions.filter(p => p.entry_price && p.entry_price > 0)}
-                  binancePositions={binancePositions}
+                  paperPositions={showPaperData ? openPositions.filter(p => p.entry_price && p.entry_price > 0) : []}
+                  binancePositions={showExchangeData ? binancePositions : []}
                   isLoading={tradesLoading || binancePositionsLoading}
                   isBinanceConnected={isBinanceConnected}
                   onEnrich={setEnrichingPosition}
