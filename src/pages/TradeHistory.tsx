@@ -31,6 +31,7 @@ import type { TradeEntry } from "@/hooks/use-trade-entries";
 import { useSoftDeleteTradeEntry } from "@/hooks/use-trade-entries-paginated";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { useBinanceConnectionStatus } from "@/features/binance";
+import { useModeVisibility } from "@/hooks/use-mode-visibility";
 import { useBinanceIncrementalSync } from "@/hooks/use-binance-incremental-sync";
 import { BinanceFullSyncPanel } from "@/components/trading/BinanceFullSyncPanel";
 import { useSyncStore, selectIsFullSyncRunning, selectFullSyncProgress } from "@/store/sync-store";
@@ -98,9 +99,12 @@ export default function TradeHistory() {
   const { tradeMode } = useTradeMode();
   const { data: strategies = [] } = useTradingStrategies();
   
-  // Binance connection
+  // Mode visibility
+  const { showExchangeData } = useModeVisibility();
+  
+  // Binance connection — only relevant in Live mode
   const { data: connectionStatus } = useBinanceConnectionStatus();
-  const isBinanceConnected = connectionStatus?.isConnected ?? false;
+  const isBinanceConnected = showExchangeData && (connectionStatus?.isConnected ?? false);
   
   // Global sync state from store (persists across navigation)
   const isFullSyncing = useSyncStore(selectIsFullSyncRunning);

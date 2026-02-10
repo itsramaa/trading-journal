@@ -17,12 +17,14 @@ import {
 } from "@/components/risk";
 import { useRiskProfile } from "@/hooks/use-risk-profile";
 import { useRiskEvents } from "@/hooks/use-risk-events";
+import { useModeVisibility } from "@/hooks/use-mode-visibility";
 import { useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 
 export default function RiskManagement() {
   const { data: riskProfile } = useRiskProfile();
   const { events: riskEvents } = useRiskEvents();
+  const { showExchangeData } = useModeVisibility();
 
   const navigateToSettings = () => {
     window.location.href = '/settings?tab=trading';
@@ -127,7 +129,7 @@ export default function RiskManagement() {
               </Card>
             </div>
 
-            <CorrelationMatrix />
+            {showExchangeData && <CorrelationMatrix />}
           </TabsContent>
 
 

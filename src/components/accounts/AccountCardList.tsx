@@ -47,11 +47,11 @@ export function AccountCardList({
     // Type filter
     if (filterType && a.account_type !== filterType) return false;
     
-    // Backtest filter for trading accounts
+    // Paper/Live filter for trading accounts
     if (filterType === 'trading') {
-      const isBacktest = a.metadata?.is_backtest === true;
-      if (excludeBacktest && isBacktest) return false;
-      if (backtestOnly && !isBacktest) return false;
+      const isPaper = !a.exchange || a.exchange === 'manual';
+      if (excludeBacktest && isPaper) return false;
+      if (backtestOnly && !isPaper) return false;
     }
     
     return true;
@@ -109,7 +109,7 @@ export function AccountCardList({
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {accounts.map((account) => {
-        const isBacktest = account.metadata?.is_backtest === true;
+        const isBacktest = !account.exchange || account.exchange === 'manual';
         const Icon = isBacktest ? FlaskConical : ACCOUNT_TYPE_ICONS[account.account_type] || CandlestickChart;
         const balance = Number(account.balance);
         const broker = account.metadata?.broker;
