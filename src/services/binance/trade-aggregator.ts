@@ -13,6 +13,7 @@
 
 import type { PositionLifecycle, AggregatedTrade, ValidationResult } from './types';
 import { validateAggregatedTrade } from './aggregation-validator';
+import { resolveTradeState } from './trade-state-machine';
 
 /**
  * Aggregate a position lifecycle into a trade entry
@@ -108,9 +109,10 @@ export function aggregateLifecycle(lifecycle: PositionLifecycle): AggregatedTrad
     entry_order_type: entryOrderType,
     exit_order_type: exitOrderType,
     
-    // Result
+    // Result & State
     result,
     status: 'closed',
+    trade_state: resolveTradeState(lifecycle),
     source: 'binance',
     
     // Validation (to be filled)

@@ -6,6 +6,7 @@
  */
 
 import type { BinanceTrade, BinanceOrder, BinanceIncome } from '@/features/binance/types';
+import type { TradeState } from './trade-state-machine';
 
 // =============================================================================
 // Position Lifecycle Types
@@ -110,6 +111,7 @@ export interface AggregatedTrade {
   // Result derived from P&L
   result: 'win' | 'loss' | 'breakeven';
   status: 'closed';
+  trade_state: TradeState;
   source: 'binance';
   
   // Validation metadata
