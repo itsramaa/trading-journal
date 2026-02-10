@@ -1,11 +1,11 @@
 # Mismatch Remediation Plan
 
-> **Version:** 1.3  
+> **Version:** 1.4  
 > **Created:** 2026-02-10  
-> **Updated:** 2026-02-10 (cross-check pass #5 — exhaustive consumer audit)  
+> **Updated:** 2026-02-10 (cross-check pass #6 — direct DB query + balance consumer audit)  
 > **Reference:** `docs/DETAILED_USER_SCENARIO.md`  
 > **Status:** Active — Phase A pending  
-> **Summary:** 43 mismatches (11 Critical, 5 High, 27 Medium)
+> **Summary:** 48 mismatches (11 Critical, 5 High, 32 Medium)
 
 ---
 
@@ -68,6 +68,11 @@
 | M-25 | use-daily-pnl hook no mode awareness | §12.1 | Uses `useBinanceDailyPnl()` without mode check. Paper mode should never use Binance P&L data. Consumed by `TodayPerformance.tsx` (M-05). | Consume `useTradeMode()`. Paper → force local-only path. | `src/hooks/use-daily-pnl.ts` | D |
 | M-26 | useDailyRiskStatus uses Binance data without mode check | §3.1/12.1 | `use-risk-profile.ts` → `useDailyRiskStatus` uses `useBinanceTotalBalance()` and `useBinanceDailyPnl()` without mode check. Paper mode risk calculations contaminated by Binance data. Related to C-11 but distinct hook. | Consume `useTradeMode()`. Paper → paper balance only. Live → Binance if connected. | `src/hooks/use-risk-profile.ts` | D |
 | M-27 | TradingJournal trade list not filtered by trade_mode | §12.1 | `useTradeEntries()` returns all trades. Even with `useModeVisibility` hiding Binance UI widgets, the trade list itself shows paper+live trades mixed. | Filter `useTradeEntries()` by active `trade_mode`. | `src/pages/trading-journey/TradingJournal.tsx` | A |
+| M-28 | SetupStep (Trade Entry Wizard) shows Binance balance in Paper mode | §3.1 | Uses `useBinanceBalance()` directly. In Paper mode (where wizard is active), still shows Binance balance instead of paper account balance. | Paper mode → show paper account balance only. Hide Binance balance display. | `src/components/trade/entry/SetupStep.tsx` | D |
+| M-29 | BacktestRunner uses Binance balance without mode check | §3.1 | Uses `useBinanceBalance()` for initial capital quick-fill. In Paper mode, should default to paper balance. | Consume `useTradeMode()`. Paper → paper balance for quick-fill. Live → Binance if connected. | `src/components/strategy/BacktestRunner.tsx` | D |
+| M-30 | useAIPreflight queries trade_entries without trade_mode filter | §12.1 | Fetches 730 days of closed trades without `trade_mode` filter. AI pre-flight check analyzes cross-mode data. | Add `.eq('trade_mode', activeMode)` to query. | `src/features/ai/useAIPreflight.ts` | D |
+| M-31 | use-weekly-report-export queries trade_entries without trade_mode filter | §12.1 | Weekly report export fetches all closed trades regardless of mode. Export data cross-contaminated. | Add `trade_mode` filter to query. | `src/hooks/use-weekly-report-export.ts` | D |
+| M-32 | use-ai-strategy-recommendation queries trade_entries without trade_mode filter | §12.1 | AI strategy recommendation analyzes last 100 trades without mode filter. Recommendations based on mixed data. | Add `trade_mode` filter to query. | `src/hooks/use-ai-strategy-recommendation.ts` | D |
 ---
 
 ## 2. Phase A: Data Isolation (C-01 → C-06)
@@ -313,6 +318,26 @@
 
 - `use-risk-profile.ts`: `useDailyRiskStatus` must consume `useTradeMode()`. Paper → use paper balance/PnL. Live → Binance if connected.
 
+### D.22: SetupStep Balance Source (M-28)
+
+- `SetupStep.tsx`: In Paper mode, hide Binance balance display. Show paper trading account balance only.
+
+### D.23: BacktestRunner Balance Source (M-29)
+
+- `BacktestRunner.tsx`: Consume `useTradeMode()`. Paper → use paper balance for initial capital quick-fill. Live → Binance if connected.
+
+### D.24: useAIPreflight Mode Filter (M-30)
+
+- `useAIPreflight.ts`: Add `.eq('trade_mode', activeMode)` to `trade_entries` query. Ensures AI pre-flight only analyzes same-mode historical trades.
+
+### D.25: Weekly Report Export Mode Filter (M-31)
+
+- `use-weekly-report-export.ts`: Add `trade_mode` filter to `trade_entries` query. Export should only include trades from active mode.
+
+### D.26: AI Strategy Recommendation Mode Filter (M-32)
+
+- `use-ai-strategy-recommendation.ts`: Add `trade_mode` filter to `trade_entries` query. Recommendations should be based on active mode's data only.
+
 ### Verification Checklist — Phase D
 
 - [ ] Risk page shows paper-sourced data in Paper mode
@@ -337,6 +362,11 @@
 - [ ] MarginHistoryTab hidden in Paper mode
 - [ ] use-daily-pnl uses mode-appropriate data source
 - [ ] useDailyRiskStatus uses mode-appropriate balance/PnL
+- [ ] SetupStep shows paper balance in Paper mode (not Binance)
+- [ ] BacktestRunner uses mode-appropriate balance for quick-fill
+- [ ] AI Preflight analyzes only active mode's trades
+- [ ] Weekly report exports only active mode's trades
+- [ ] AI Strategy Recommendation uses only active mode's trades
 
 ---
 
@@ -344,10 +374,10 @@
 
 ```
 Phase A (Data Isolation) ──→ Phase B (UX) ──→ Phase C (Audit) ──→ Phase D (Polish)
-     [~4 messages]            [~2 messages]     [~2 messages]       [~4 messages]
+     [~4 messages]            [~2 messages]     [~2 messages]       [~5 messages]
 ```
 
-**Total estimated: 12-14 implementation messages.**
+**Total estimated: 13-15 implementation messages.**
 
 ---
 
@@ -355,7 +385,7 @@ Phase A (Data Isolation) ──→ Phase B (UX) ──→ Phase C (Audit) ──
 
 After all phases complete:
 1. Update `docs/DETAILED_USER_SCENARIO.md` Implementation Status tables
-2. Mark all 43 mismatches as ✅ Done in this document
+2. Mark all 48 mismatches as ✅ Done in this document
 3. Run full verification checklist
 
 ---
