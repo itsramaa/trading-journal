@@ -86,6 +86,7 @@ export function isTradeLoss(pnl: number | null | undefined): boolean {
 /**
  * Calculate Risk:Reward ratio for a trade
  * Returns 0 if required data is missing
+ * Note: For auto-calculation on close, use calculateRMultiple from trade-metrics
  */
 export function calculateRiskReward(trade: TradeEntry): number {
   if (!trade.stop_loss || !trade.entry_price || !trade.exit_price) return 0;

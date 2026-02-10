@@ -325,12 +325,12 @@ State ini **tidak bisa dimanipulasi user**.
 | Partial fill handling | ✅ Done | `calculateWeightedAverage()` |
 | Scale in/out | ✅ Done | Lifecycle grouping |
 | `trade_mode` field per trade | 🔴 Missing | Tidak ada di `trade_entries` |
-| State: OPENING | 🔴 Missing | Exchange layer ada, journal tidak |
-| State: PARTIALLY_FILLED | 🔴 Missing | Exchange layer ada, journal tidak |
-| State: ACTIVE | ✅ Done | `status: 'open'` (naming berbeda) |
-| State: CLOSED | ✅ Done | `status: 'closed'` |
-| State: CANCELED | 🔴 Missing | |
-| State: LIQUIDATED | 🔴 Missing | |
+| State: OPENING | ✅ Done | `trade-state-machine.ts` → `resolveStateFromOrder()` |
+| State: PARTIALLY_FILLED | ✅ Done | `trade-state-machine.ts` → `resolveStateFromOrder()` |
+| State: ACTIVE | ✅ Done | `resolveTradeState()` |
+| State: CLOSED | ✅ Done | `resolveTradeState()` |
+| State: CANCELED | ✅ Done | `resolveStateFromOrder()` |
+| State: LIQUIDATED | ✅ Done | `isLiquidation()` heuristics |
 | State immutable by user | 🟡 Partial | User bisa close manual via UI |
 
 ---
@@ -420,10 +420,10 @@ Semua enrichment melekat ke trade yang sama.
 | Item | Status | Evidence |
 |------|--------|----------|
 | Close via TP/SL/Manual | ✅ Done | Close dialog + Binance sync |
-| Close via Liquidation | 🔴 Missing | Liquidation events not detected |
+| Close via Liquidation | ✅ Done | `isLiquidation()` in `trade-state-machine.ts` |
 | Realized PnL | ✅ Done | Calculated + stored |
-| R multiple | 🔴 Missing | Not calculated or stored |
-| Max adverse excursion (MAE) | 🔴 Missing | Not tracked |
+| R multiple | ✅ Done | `calculateRMultiple()` in `trade-metrics.ts`, auto-calculated on close |
+| Max adverse excursion (MAE) | ✅ Done | `calculateMAEFromLifecycle()` in `trade-metrics.ts`, approximated from fill prices |
 | Duration | ✅ Done | `hold_time_minutes` |
 | Fees total | ✅ Done | `fees` + `commission` + `funding_fees` |
 | State → CLOSED | ✅ Done | `status: 'closed'` |

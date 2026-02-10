@@ -52,3 +52,10 @@ export {
   isTerminalState,
   getNextStates,
 } from './trade-state-machine';
+
+// Trade Metrics
+export {
+  calculateRMultiple,
+  calculateMAE,
+  calculateMAEFromLifecycle,
+} from './trade-metrics';

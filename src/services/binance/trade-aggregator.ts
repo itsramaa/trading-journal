@@ -14,6 +14,7 @@
 import type { PositionLifecycle, AggregatedTrade, ValidationResult } from './types';
 import { validateAggregatedTrade } from './aggregation-validator';
 import { resolveTradeState } from './trade-state-machine';
+import { calculateRMultiple, calculateMAEFromLifecycle } from './trade-metrics';
 
 /**
  * Aggregate a position lifecycle into a trade entry
@@ -108,6 +109,10 @@ export function aggregateLifecycle(lifecycle: PositionLifecycle): AggregatedTrad
     is_maker: isMaker,
     entry_order_type: entryOrderType,
     exit_order_type: exitOrderType,
+    
+    // Auto-calculated metrics
+    r_multiple: null, // Will be set below if stop_loss available
+    max_adverse_excursion: calculateMAEFromLifecycle(lifecycle),
     
     // Result & State
     result,
