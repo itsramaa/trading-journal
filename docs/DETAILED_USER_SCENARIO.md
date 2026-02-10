@@ -153,8 +153,8 @@ User **HARUS** memilih sebelum lanjut:
 | Paper: tidak masuk statistik live | ✅ Done | `p_source` filter di RPC |
 | Paper: simulasi label UI | ✅ Done | `TradeModeSelector` shows PAPER badge (amber) |
 | Live: Binance real-time active | ✅ Done | `useBinancePositions` + background sync |
-| Live: manual create DIBLOKIR | 🔴 Missing | Trade Entry Wizard selalu available |
-| Live: editing core data blocked | 🔴 Missing | Edit dialog tidak membedakan mode |
+| Live: manual create DIBLOKIR | ✅ Done | `useModeVisibility` hook blocks Trade Entry Wizard in live mode |
+| Live: editing core data blocked | ✅ Done | `useModeVisibility` controls edit access per mode |
 | Mode-based color scheme | ✅ Done | Amber (paper) / Emerald (live) in `TradeModeSelector` |
 | Global mode indicator | ✅ Done | `TradeModeSelector` persistent di header semua halaman |
 
@@ -204,9 +204,9 @@ AI memberikan **BIAS**, bukan sinyal.
 | BTC dominance | ✅ Done | `useMarketSentiment` |
 | Volatility metrics | ✅ Done | ATR-based volatility calculation |
 | Funding rate & OI | ✅ Done | Binance endpoints integrated |
-| Style-aware data prioritization | 🔴 Missing | Same data shown regardless of style |
+| Style-aware data prioritization | 🟡 Partial | `useMarketSentiment` accepts `tradingStyle` for bias validity |
 | AI confidence score | ✅ Done | `ai_confidence` field |
-| AI `valid_until` / expiry | 🔴 Missing | Tidak ada expiry mechanism |
+| AI `valid_until` / expiry | ✅ Done | `validUntil` field in `MarketSentiment` + `BiasExpiryIndicator` component |
 | AI reasoning summary | ✅ Done | In analysis response |
 | AI tidak auto-execute | ✅ Done | Read-only by design |
 
@@ -246,7 +246,7 @@ Strategy disimpan sebagai **snapshot** (immutable per trade):
 |------|--------|----------|
 | Strategy sebagai entitas data | ✅ Done | `trading_strategies` table (structured) |
 | Strategy ID, rules, RR | ✅ Done | `min_rr`, `entry_rules`, `exit_rules`, `methodology` |
-| `strategy_snapshot` immutable per trade | 🔴 Missing | Hanya junction table (`trade_entry_strategies`) — ID reference, bukan snapshot. Edit strategy = corrupt historical context |
+| `strategy_snapshot` immutable per trade | ✅ Done | JSONB snapshot saved in `submitTrade()` with full strategy state at creation time |
 | Strategy selection di trade flow | ✅ Done | Wizard Step + Enrichment Drawer |
 
 ---
@@ -324,7 +324,7 @@ State ini **tidak bisa dimanipulasi user**.
 | 1 Trade → N Orders | ✅ Done | `PositionLifecycle` type |
 | Partial fill handling | ✅ Done | `calculateWeightedAverage()` |
 | Scale in/out | ✅ Done | Lifecycle grouping |
-| `trade_mode` field per trade | 🔴 Missing | Tidak ada di `trade_entries` |
+| `trade_mode` field per trade | ✅ Done | `trade_mode` immutably set on creation via `submitTrade()` |
 | State: OPENING | ✅ Done | `trade-state-machine.ts` → `resolveStateFromOrder()` |
 | State: PARTIALLY_FILLED | ✅ Done | `trade-state-machine.ts` → `resolveStateFromOrder()` |
 | State: ACTIVE | ✅ Done | `resolveTradeState()` |
@@ -380,8 +380,8 @@ User boleh:
 | Active: Fees & funding | ✅ Done | Tracked |
 | Active: Time in trade | ✅ Done | `hold_time_minutes` |
 | Active: Screenshot upload | ✅ Done | `ScreenshotUploader` |
-| Active: 1 mandatory execution TF | 🔴 Missing | Only 1 optional `chart_timeframe` |
-| Active: N optional TF | 🔴 Missing | No multi-timeframe support |
+| Active: 1 mandatory execution TF | ✅ Done | `TradeTimeframeSection` with `execution_timeframe` (required) |
+| Active: N optional TF | ✅ Done | `bias_timeframe` + `precision_timeframe` in `TradeEnrichmentDrawer` |
 | Active: Notes | ✅ Done | `notes` field |
 | Enrichment doesn't modify trade | ✅ Done | Update only enrichment fields |
 
@@ -428,9 +428,9 @@ Semua enrichment melekat ke trade yang sama.
 | Fees total | ✅ Done | `fees` + `commission` + `funding_fees` |
 | State → CLOSED | ✅ Done | `status: 'closed'` |
 | History: Enrichment | ✅ Done | `TradeEnrichmentDrawer` di `TradeHistory.tsx` |
-| History: Trade rating | 🔴 Missing | No field |
-| History: Rule compliance checklist | 🔴 Missing | Only pre-trade version exists |
-| History: Lesson learned (structured) | 🔴 Missing | Only free-text `notes` |
+| History: Trade rating | ✅ Done | `TradeRatingSection` + `TradeRatingBadge` in `TradeHistoryCard` |
+| History: Rule compliance checklist | ✅ Done | `TradeReviewSection` with 6-item checklist in `TradeEnrichmentDrawer` |
+| History: Lesson learned (structured) | ✅ Done | `lesson_learned` textarea in `TradeReviewSection` |
 
 ---
 
@@ -521,7 +521,7 @@ AI menganalisis:
 |------|--------|----------|
 | API key read-only | ✅ Done | Scope validation + UI guidance |
 | API key encrypted | ✅ Done | Supabase Vault |
-| Audit log | 🔴 Missing | No `audit_logs` table |
+| Audit log | ✅ Done | `audit_logs` table + `logAuditEvent()` utility in `src/lib/audit-logger.ts` |
 | Daily reconciliation | ✅ Done | P&L reconciliation engine |
 | Sync fallback (REST) | ✅ Done | Polling-based sync as fallback |
 | Mismatch detection & alert | ✅ Done | Reconciliation alerts + email notifications |
@@ -533,29 +533,29 @@ AI menganalisis:
 
 ### 🔴 Critical Gaps (Must-Fix Before Production)
 
-| # | Gap | Section | Effort |
+| # | Gap | Section | Status |
 |---|-----|---------|--------|
-| 1 | **Global Mode Selector** (`trade_mode: PAPER\|LIVE`) persistent di `user_settings` | §2, §3 | Medium |
-| 2 | **Trading Style Selector** (`trade_style: SCALPING\|SHORT\|SWING`) persistent | §2, §4 | Medium |
-| 3 | **Mode-Based Visibility** (Paper hides exchange, Live blocks manual create) | §3 | Large |
-| 4 | **Trade State Machine** (`OPENING`, `PARTIALLY_FILLED`, `CANCELED`, `LIQUIDATED`) di journal level | §7 | Medium |
-| 5 | **Strategy Snapshot** (JSONB immutable per trade, bukan ID reference saja) | §5 | Small |
-| 6 | **3-Timeframe Enrichment** (1 execution mandatory + N optional) | §8 | Small |
-| 7 | **Trade Rating** (A/B/C/D/F post-trade) | §9 | Small |
-| 8 | **R Multiple** calculation & storage | §9 | Small |
-| 9 | **Max Adverse Excursion** (MAE) tracking | §9 | Medium |
-| 10 | **AI Bias Expiry** (`valid_until` field) | §4 | Small |
-| 11 | **Audit Logs** table | §13 | Small |
+| 1 | **Global Mode Selector** | §2, §3 | ✅ Done |
+| 2 | **Trading Style Selector** | §2, §4 | ✅ Done |
+| 3 | **Mode-Based Visibility** | §3 | ✅ Done |
+| 4 | **Trade State Machine** | §7 | ✅ Done |
+| 5 | **Strategy Snapshot** (JSONB immutable per trade) | §5 | ✅ Done |
+| 6 | **3-Timeframe Enrichment** | §8 | ✅ Done |
+| 7 | **Trade Rating** (A/B/C/D/F post-trade) | §9 | ✅ Done |
+| 8 | **R Multiple** calculation & storage | §9 | ✅ Done |
+| 9 | **Max Adverse Excursion** (MAE) tracking | §9 | ✅ Done |
+| 10 | **AI Bias Expiry** (`valid_until` field) | §4 | ✅ Done |
+| 11 | **Audit Logs** table | §13 | ✅ Done |
 
 ### 🟡 Medium Gaps (Enhancement)
 
-| # | Gap | Section |
-|---|-----|---------|
-| 12 | Style-aware Market Insight prioritization | §4 |
-| 13 | Post-trade rule compliance checklist | §9 |
-| 14 | Structured lesson learned field | §9 |
-| 15 | Liquidation event detection from Binance | §9 |
-| 16 | Paper order book simulator | §10 |
+| # | Gap | Section | Status |
+|---|-----|---------|--------|
+| 12 | Style-aware Market Insight prioritization | §4 | 🟡 Partial (validity duration per style) |
+| 13 | Post-trade rule compliance checklist | §9 | ✅ Done |
+| 14 | Structured lesson learned field | §9 | ✅ Done |
+| 15 | Liquidation event detection from Binance | §9 | ✅ Done |
+| 16 | Paper order book simulator | §10 | 🔴 Missing |
 
 ### ✅ Already Implemented (~40+ items)
 

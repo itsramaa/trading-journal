@@ -32,6 +32,8 @@ export interface MarketSentiment {
   onChainScore: number;
   macroScore: number;
   lastUpdated: string;
+  /** ISO timestamp - bias expires after this time, requiring refresh */
+  validUntil?: string;
 }
 
 export interface VolatilityData {

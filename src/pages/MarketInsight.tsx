@@ -19,16 +19,19 @@ import {
 } from "@/features/market-insight";
 import { 
   CombinedAnalysisCard,
-  AIAnalysisTab
+  AIAnalysisTab,
+  BiasExpiryIndicator
 } from "@/components/market-insight";
+import { useTradeMode } from "@/hooks/use-trade-mode";
 
 const MarketInsight = () => {
+  const { tradingStyle } = useTradeMode();
   const { 
     data: sentimentData, 
     isLoading: sentimentLoading, 
     error: sentimentError,
     refetch: refetchSentiment 
-  } = useMarketSentiment();
+  } = useMarketSentiment(tradingStyle);
   
   const { 
     data: macroData, 
@@ -71,6 +74,13 @@ const MarketInsight = () => {
             <p className="text-muted-foreground">
               AI-powered market analysis and trading opportunities
             </p>
+            {sentimentData?.sentiment?.validUntil && (
+              <BiasExpiryIndicator 
+                validUntil={sentimentData.sentiment.validUntil} 
+                onExpired={handleRefresh}
+                className="mt-1 w-fit"
+              />
+            )}
           </div>
           <Button 
             variant="outline" 
