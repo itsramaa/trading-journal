@@ -34,6 +34,7 @@ import { AccountCardList } from "@/components/accounts/AccountCardList";
 import { AccountTransactionDialog } from "@/components/accounts/AccountTransactionDialog";
 import { BinanceTransactionHistoryTab } from "@/components/trading/BinanceTransactionHistory";
 import { FinancialSummaryCard } from "@/components/accounts/FinancialSummaryCard";
+import { AccountComparisonTable } from "@/components/accounts/AccountComparisonTable";
 import { BinanceNotConfiguredState } from "@/components/binance/BinanceNotConfiguredState";
 
 import { useAccounts } from "@/hooks/use-accounts";
@@ -433,6 +434,9 @@ export default function Accounts() {
               )}
             </div>
             )}
+
+            {/* Account Comparison Table */}
+            <AccountComparisonTable />
 
             {/* Paper Trading Section — Paper mode only */}
             {showPaperData && (
