@@ -88,11 +88,9 @@ export function SessionContextModal({ open, onComplete }: SessionContextModalPro
   };
 
   return (
-    <Dialog open={open} onOpenChange={() => { /* prevent dismiss */ }}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onComplete(); }}>
       <DialogContent
-        className="sm:max-w-lg [&>button]:hidden"
-        onPointerDownOutside={(e) => e.preventDefault()}
-        onEscapeKeyDown={(e) => e.preventDefault()}
+        className="sm:max-w-lg"
       >
         <DialogHeader>
           <DialogTitle className="text-xl">Welcome to Trading Journey</DialogTitle>
