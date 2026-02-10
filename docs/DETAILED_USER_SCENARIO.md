@@ -101,10 +101,10 @@ User **HARUS** memilih sebelum lanjut:
 | Profile load | ✅ Done | `useAuth` + `users_profile` |
 | Strategy library load | ✅ Done | `useTradingStrategies` |
 | Statistik global load | ✅ Done | `useTradeEntries` + RPC |
-| `trade_mode` persistent field | 🔴 Missing | Tidak ada di `user_settings` |
-| `trade_style` persistent field | 🔴 Missing | Hanya ada di strategy level, bukan session context |
-| Mode selector UI (wajib) | 🔴 Missing | Tidak ada forced selection sebelum navigasi |
-| Last session context restore | 🔴 Missing | Tidak ada persistence |
+| `trade_mode` persistent field | ✅ Done | `active_trade_mode` in `user_settings` + `useTradeMode` hook |
+| `trade_style` persistent field | ✅ Done | `active_trading_style` in `user_settings` + `useTradeMode` hook |
+| Mode selector UI (wajib) | ✅ Done | `TradeModeSelector` in header (Paper/Live toggle + Style dropdown) |
+| Last session context restore | ✅ Done | Persisted via `user_settings` DB, restored on login |
 
 ---
 
@@ -151,12 +151,12 @@ User **HARUS** memilih sebelum lanjut:
 | Paper: public market data only | 🔴 Missing | Binance private API always-on jika connected |
 | Paper: `source=PAPER` enforced | ✅ Done | `source: 'manual'` pada paper trades |
 | Paper: tidak masuk statistik live | ✅ Done | `p_source` filter di RPC |
-| Paper: simulasi label UI | 🔴 Missing | Tidak ada mode indicator |
+| Paper: simulasi label UI | ✅ Done | `TradeModeSelector` shows PAPER badge (amber) |
 | Live: Binance real-time active | ✅ Done | `useBinancePositions` + background sync |
 | Live: manual create DIBLOKIR | 🔴 Missing | Trade Entry Wizard selalu available |
 | Live: editing core data blocked | 🔴 Missing | Edit dialog tidak membedakan mode |
-| Mode-based color scheme | 🔴 Missing | Tidak ada visual differentiation |
-| Global mode indicator | 🔴 Missing | Tidak ada persistent badge/label |
+| Mode-based color scheme | ✅ Done | Amber (paper) / Emerald (live) in `TradeModeSelector` |
+| Global mode indicator | ✅ Done | `TradeModeSelector` persistent di header semua halaman |
 
 ---
 

@@ -15,6 +15,7 @@ import {
   NotificationToggle,
 } from "./HeaderControls";
 import { CurrencyDisplay } from "./CurrencyDisplay";
+import { TradeModeSelector } from "./TradeModeSelector";
 import { RiskAlertBanner } from "@/components/risk/RiskAlertBanner";
 import { useNavigationShortcuts, Kbd } from "@/components/ui/keyboard-shortcut";
 import { CommandPalette, useCommandPalette } from "./CommandPalette";
@@ -149,6 +150,11 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
           {/* Right side: Global Sync Indicator + Command Palette trigger + Controls */}
           <div className="flex items-center gap-2 pr-4">
+            {/* Global Trading Mode Selector */}
+            <TradeModeSelector />
+            
+            <div className="hidden sm:block h-4 w-px bg-border" />
+            
             {/* Global Sync Progress Indicator */}
             <GlobalSyncIndicator />
             
