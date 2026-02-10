@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { AnalyticsLevelSelector, type AnalyticsSelection } from "@/components/analytics/AnalyticsLevelSelector";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { DateRangeFilter, DateRange } from "@/components/trading/DateRangeFilter";
@@ -44,6 +45,8 @@ import {
   Cell,
 } from "recharts";
 import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
+import { useTradeEntries } from "@/hooks/use-trade-entries";
+import { useAccounts } from "@/hooks/use-accounts";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { useBinanceDailyPnl } from "@/hooks/use-binance-daily-pnl";
 import { useBinanceWeeklyPnl } from "@/hooks/use-binance-weekly-pnl";
@@ -81,12 +84,16 @@ export default function Performance() {
   const [selectedStrategyIds, setSelectedStrategyIds] = useState<string[]>([]);
   const [eventDaysOnly, setEventDaysOnly] = useState(false);
   const [strategyDropdownOpen, setStrategyDropdownOpen] = useState(false);
+  const [analyticsSelection, setAnalyticsSelection] = useState<AnalyticsSelection>({ level: 'overall' });
 
   // Currency conversion hook
   const { formatCompact } = useCurrencyConversion();
 
   // Data hooks
-  const { data: trades, isLoading: tradesLoading } = useModeFilteredTrades();
+  // For 'type' level, we need all trades (not mode-filtered) then filter ourselves
+  const { data: modeFilteredTrades, isLoading: modeTradesLoading } = useModeFilteredTrades();
+  const { data: allTrades, isLoading: allTradesLoading } = useTradeEntries();
+  const { data: accounts = [] } = useAccounts();
   const { data: strategies = [] } = useTradingStrategies();
   const binanceStats = useBinanceDailyPnl();
   const weeklyStats = useBinanceWeeklyPnl();
@@ -95,13 +102,46 @@ export default function Performance() {
   const { data: contextualData } = useContextualAnalytics();
   const monthlyStats = useMonthlyPnl();
 
+  // Derive base trades based on analytics level
+  const trades = useMemo(() => {
+    const level = analyticsSelection.level;
+    
+    if (level === 'type') {
+      // Use all trades, filter by type
+      if (!allTrades) return [];
+      return allTrades.filter(t => {
+        const isLive = t.trade_mode === 'live' || (!t.trade_mode && t.source === 'binance');
+        return analyticsSelection.tradeType === 'live' ? isLive : !isLive;
+      });
+    }
+    
+    if (level === 'account') {
+      // Filter mode-filtered trades to specific account
+      if (!modeFilteredTrades) return [];
+      return modeFilteredTrades.filter(t => t.trading_account_id === analyticsSelection.accountId);
+    }
+    
+    if (level === 'exchange') {
+      // Filter to accounts belonging to the selected exchange
+      if (!modeFilteredTrades) return [];
+      const exchangeAccountIds = new Set(
+        accounts.filter(a => a.exchange === analyticsSelection.exchange).map(a => a.id)
+      );
+      return modeFilteredTrades.filter(t => t.trading_account_id && exchangeAccountIds.has(t.trading_account_id));
+    }
+    
+    // 'overall' — use mode-filtered (respects global Paper/Live toggle)
+    return modeFilteredTrades || [];
+  }, [analyticsSelection, modeFilteredTrades, allTrades, accounts]);
+
+  const tradesLoading = analyticsSelection.level === 'type' ? allTradesLoading : modeTradesLoading;
+
   // Filter trades (including event day filter)
   const filteredTrades = useMemo(() => {
     if (!trades) return [];
     let filtered = filterTradesByDateRange(trades, dateRange.from, dateRange.to);
     filtered = filterTradesByStrategies(filtered, selectedStrategyIds);
     
-    // Filter for event days only
     if (eventDaysOnly) {
       filtered = filtered.filter(trade => {
         const context = trade.market_context as unknown as UnifiedMarketContext;
@@ -233,7 +273,16 @@ export default function Performance() {
               <BarChart3 className="h-6 w-6 text-primary" />
               Performance Analytics
             </h1>
-            <p className="text-muted-foreground">Deep dive into your trading performance metrics</p>
+            <div className="flex items-center gap-2">
+              <p className="text-muted-foreground">Deep dive into your trading performance metrics</p>
+              {analyticsSelection.level !== 'overall' && (
+                <Badge variant="secondary" className="text-xs">
+                  {analyticsSelection.level === 'account' && `Account`}
+                  {analyticsSelection.level === 'exchange' && `Exchange: ${analyticsSelection.exchange}`}
+                  {analyticsSelection.level === 'type' && `${analyticsSelection.tradeType === 'paper' ? 'Paper' : 'Live'}`}
+                </Badge>
+              )}
+            </div>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={handleExportCSV}>
@@ -252,6 +301,7 @@ export default function Performance() {
           <CardContent className="pt-4">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div className="flex flex-col gap-4 md:flex-row md:items-center">
+                <AnalyticsLevelSelector value={analyticsSelection} onChange={setAnalyticsSelection} />
                 <DateRangeFilter value={dateRange} onChange={setDateRange} />
                 {strategies.length > 0 && (
                   <Popover open={strategyDropdownOpen} onOpenChange={setStrategyDropdownOpen}>
