@@ -1,11 +1,11 @@
 # Mismatch Remediation Plan
 
-> **Version:** 1.1  
+> **Version:** 1.2  
 > **Created:** 2026-02-10  
-> **Updated:** 2026-02-10 (cross-check pass #2)  
+> **Updated:** 2026-02-10 (cross-check pass #3 — deep component scan)  
 > **Reference:** `docs/DETAILED_USER_SCENARIO.md`  
 > **Status:** Active — Phase A pending  
-> **Summary:** 21 mismatches (9 Critical, 5 High, 7 Medium)
+> **Summary:** 29 mismatches (10 Critical, 5 High, 14 Medium)
 
 ---
 
@@ -24,6 +24,7 @@
 | C-07 | AIInsights page zero mode filtering | §12.1 | `useTradeEntries()` unfiltered — all trades (paper+live) mixed in pattern analysis. | Filter trades by active `trade_mode`. | `src/pages/AIInsights.tsx` | A |
 | C-08 | TradingHeatmap page zero mode filtering | §12.1 | `useTradeEntries()` unfiltered — heatmap data cross-contaminated. | Filter trades by active `trade_mode`. | `src/pages/TradingHeatmap.tsx` | A |
 | C-09 | DashboardAnalyticsSummary zero mode filtering | §12.1 | 30-day sparkline and win rate use unfiltered `useTradeEntries()`. | Filter by `trade_mode` or consume mode-aware hook. | `src/components/dashboard/DashboardAnalyticsSummary.tsx` | A |
+| C-10 | Performance analytics sub-components zero mode filtering | §12.1 | `EmotionalPatternAnalysis`, `AIPatternInsights`, `CryptoRanking` each independently call unfiltered `useTradeEntries()`. Pattern analysis cross-contaminated. | Filter by `trade_mode` or accept filtered trades as prop. | `src/components/analytics/EmotionalPatternAnalysis.tsx`, `AIPatternInsights.tsx`, `CryptoRanking.tsx` | A |
 
 ### High (UX & Audit Gaps)
 
@@ -46,7 +47,13 @@
 | M-05 | TodayPerformance widget no mode awareness | §3.1/3.2 | Mixes Binance + local data without checking `trade_mode`. In Paper mode, still tries Binance data. | Paper: show only local journal data. Live: show Binance-enriched data. | `src/components/dashboard/TodayPerformance.tsx` | D |
 | M-06 | BulkExport no mode filtering | §12.1 | Exports all trades regardless of mode. | Export should respect active mode or allow explicit mode selection. | `src/pages/BulkExport.tsx` | D |
 | M-07 | AccountDetail page no mode awareness | §3.1/3.2 | `useTradeEntries()` unfiltered in account detail view. | Filter trades by mode when displaying account-linked trades. | `src/pages/AccountDetail.tsx` | D |
-
+| M-08 | AIInsightsWidget (dashboard) zero mode filtering | §12.1 | Independently calls unfiltered `useTradeEntries()` for AI analysis. | Filter trades by `trade_mode` before passing to AI. | `src/components/dashboard/AIInsightsWidget.tsx` | D |
+| M-09 | RiskSummaryCard shows Binance positions in Paper mode | §3.1 | Uses `usePositions()` + `useBinanceConnectionStatus()` regardless of mode. Shows correlation risk for Binance positions in Paper mode. | Paper: hide Binance position data. Live: show full risk. | `src/components/risk/RiskSummaryCard.tsx` | D |
+| M-10 | CorrelationMatrix zero mode filtering | §12.1 | Uses unfiltered `useTradeEntries()` for correlation analysis. | Filter by `trade_mode`. | `src/components/risk/CorrelationMatrix.tsx` | D |
+| M-11 | JournalExportCard zero mode filtering | §12.1 | Exports all trades regardless of mode. | Respect active mode or add mode selector. | `src/components/settings/JournalExportCard.tsx` | D |
+| M-12 | PositionCalculator uses Binance balance in Paper mode | §3.1 | `useBestAvailableBalance` returns Binance balance even in Paper mode. | Paper: use paper account balance. Live: use Binance balance. | `src/pages/PositionCalculator.tsx` | D |
+| M-13 | ContextWarnings (risk calculator) zero mode filtering | §12.1 | Uses unfiltered `useTradeEntries()` for correlation context. | Filter by `trade_mode`. | `src/components/risk/calculator/ContextWarnings.tsx` | D |
+| M-14 | use-context-aware-risk hook zero mode filtering | §12.1 | Uses unfiltered `useTradeEntries()` for dynamic risk adjustment. | Filter by `trade_mode` for mode-isolated risk calculations. | `src/hooks/use-context-aware-risk.ts` | D |
 ---
 
 ## 2. Phase A: Data Isolation (C-01 → C-06)
@@ -82,6 +89,9 @@
 | `TradingHeatmap.tsx` | Import `useTradeMode`. Filter `useTradeEntries()` by `trade_mode`. |
 | `DashboardAnalyticsSummary.tsx` | Import `useTradeMode`. Filter trades by `trade_mode` in `useMemo`. |
 | `DailyPnL.tsx` | Pass `trade_mode` to unified daily/weekly hooks. |
+| `EmotionalPatternAnalysis.tsx` | Accept filtered trades as prop OR import `useTradeMode` and filter internally. |
+| `AIPatternInsights.tsx` | Accept filtered trades as prop OR import `useTradeMode` and filter internally. |
+| `CryptoRanking.tsx` | Accept filtered trades as prop OR import `useTradeMode` and filter internally. |
 
 ### Step A.4: Unified Hook Updates (NEW)
 
@@ -224,6 +234,34 @@
 - Paper mode: Show only paper-linked trades
 - Live mode: Show only live/Binance-linked trades
 
+### D.9: AIInsightsWidget Mode Filtering (M-08)
+
+- `AIInsightsWidget.tsx`: Filter `useTradeEntries()` by `trade_mode` before AI analysis
+- Ensures dashboard AI insights reflect only active mode's data
+
+### D.10: RiskSummaryCard Mode Awareness (M-09)
+
+- `RiskSummaryCard.tsx`: Import `useModeVisibility`
+- Paper mode: Hide Binance position data, skip correlation risk for Binance positions
+- Live mode: Full Binance risk display
+
+### D.11: CorrelationMatrix Mode Filtering (M-10)
+
+- `CorrelationMatrix.tsx`: Filter `useTradeEntries()` by `trade_mode`
+
+### D.12: JournalExportCard Mode Filtering (M-11)
+
+- `JournalExportCard.tsx`: Respect active `trade_mode` in export, add mode label to export metadata
+
+### D.13: PositionCalculator Balance Source (M-12)
+
+- `PositionCalculator.tsx`: `useBestAvailableBalance` should respect mode
+- Paper: paper account balance. Live: Binance balance.
+
+### D.14: ContextWarnings Mode Filtering (M-13)
+
+- `ContextWarnings.tsx`: Filter `useTradeEntries()` by `trade_mode` for correlation context
+
 ### Verification Checklist — Phase D
 
 - [ ] Risk page shows paper-sourced data in Paper mode
@@ -234,6 +272,13 @@
 - [ ] TodayPerformance shows mode-appropriate data
 - [ ] BulkExport respects active mode
 - [ ] AccountDetail filters trades by mode
+- [ ] AIInsightsWidget analyzes only active mode's trades
+- [ ] RiskSummaryCard hides Binance positions in Paper mode
+- [ ] CorrelationMatrix uses only active mode's trades
+- [ ] JournalExportCard exports only active mode's trades
+- [ ] PositionCalculator uses mode-appropriate balance
+- [ ] ContextWarnings uses only active mode's trades
+- [ ] use-context-aware-risk uses only active mode's trades
 
 ---
 
@@ -241,10 +286,10 @@
 
 ```
 Phase A (Data Isolation) ──→ Phase B (UX) ──→ Phase C (Audit) ──→ Phase D (Polish)
-     [~4 messages]            [~2 messages]     [~2 messages]       [~3 messages]
+     [~4 messages]            [~2 messages]     [~2 messages]       [~4 messages]
 ```
 
-**Total estimated: 10-12 implementation messages.**
+**Total estimated: 12-14 implementation messages.**
 
 ---
 
@@ -252,7 +297,7 @@ Phase A (Data Isolation) ──→ Phase B (UX) ──→ Phase C (Audit) ──
 
 After all phases complete:
 1. Update `docs/DETAILED_USER_SCENARIO.md` Implementation Status tables
-2. Mark all 21 mismatches as ✅ Done in this document
+2. Mark all 29 mismatches as ✅ Done in this document
 3. Run full verification checklist
 
 ---
