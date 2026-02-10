@@ -1,136 +1,112 @@
 
-# Multi-Level Analytics Architecture
+# Paper Mode — Full Analysis & Fix Plan
 
-## Analisis Situasi Saat Ini
+## Temuan Masalah
 
-**Yang sudah ada:**
-- Isolasi Paper vs Live via `trade_mode` filter (Level 3 sudah partial)
-- `trading_account_id` pada `trade_entries` — relasi ke `accounts` sudah ada
-- `AccountDetail` page — sudah tampilkan stats per akun, tapi sangat basic (deposits, withdrawals, win rate)
-- `get_trade_stats` RPC — hanya filter by `trade_mode`, belum support `account_id`
-- `useModeFilteredTrades` — filter global by mode, bukan per akun
-
-**Yang belum ada:**
-- Per-Account analytics (full metrics: expectancy, drawdown, profit factor, equity curve)
-- Per-Exchange grouping (accounts belum punya field `exchange`)
-- Aggregate dashboard yang strictly live-only
-- UI selector untuk switch analytics level
+Setelah audit menyeluruh terhadap seluruh halaman dan komponen, ditemukan **6 masalah kritis** yang menyebabkan Paper Mode tidak berfungsi dengan benar:
 
 ---
 
-## Rencana Implementasi (4 Phase)
+### BUG 1: Accounts Page — Paper Accounts Tidak Muncul (CRITICAL)
 
-### Phase 1: Database — Extend Schema ✅ DONE
+**Root Cause:** Filter paper accounts menggunakan `account_type === 'backtest' || metadata?.is_backtest` (baris 103-105), tetapi data di database menunjukkan SEMUA akun memiliki `account_type: 'trading'` dan `is_backtest: null`.
 
-**Status:** Completed. Migration applied successfully.
-```sql
-ALTER TABLE accounts ADD COLUMN exchange text DEFAULT 'manual';
-```
-Values: `'binance'`, `'okx'`, `'manual'` (paper), dll.
-Backfill existing: accounts dengan trades `source='binance'` → set `exchange='binance'`, sisanya `'manual'`.
+**Dampak:** Saat Paper mode aktif, section "Paper Trading" tidak menampilkan akun apapun meskipun akun ada di database.
 
-**1b. Extend `get_trade_stats` RPC — tambah parameter `p_account_id`**
-```sql
--- Add p_account_id parameter to existing RPC
--- When provided, filter WHERE trading_account_id = p_account_id
-```
-
-**1c. Buat RPC baru: `get_account_level_stats`**
-Returns stats grouped by `trading_account_id`, sehingga satu query bisa return semua akun sekaligus untuk overview comparison.
+**Fix:** Ubah logika filter paper accounts. Akun Paper seharusnya diidentifikasi berdasarkan `exchange === 'manual'` atau field lain yang sudah di-backfill di Phase 1. Alternatif: tampilkan semua akun `account_type: 'trading'` yang bukan Binance di Paper mode.
 
 ---
 
-### Phase 2: Hooks — Multi-Level Data Layer ✅ DONE
+### BUG 2: TradeHistory — Full Sync Visible di Paper Mode (CRITICAL)
 
-**2a. `use-account-analytics.ts`** (baru)
-- Accepts `accountId` parameter
-- Calls `get_trade_stats` with `p_account_id`
-- Returns full `TradingStats` (expectancy, drawdown, profit factor, sharpe ratio, equity curve)
-- Reuse `calculateTradingStats()` dari `trading-calculations.ts`
+**Root Cause:** `TradeHistory.tsx` TIDAK menggunakan `useModeVisibility`. `BinanceFullSyncPanel` hanya di-gate oleh `isBinanceConnected` (baris 452), bukan oleh mode. Jika Binance terkoneksi, Full Sync tetap tampil meskipun user di Paper mode.
 
-**2b. `use-exchange-analytics.ts`** (baru)
-- Groups accounts by `exchange` field
-- Aggregates stats across accounts of same exchange
-- Returns per-exchange metrics
+Komponen yang terpengaruh:
+- `BinanceFullSyncPanel` — tampil di Paper mode
+- Incremental sync button — tampil di Paper mode
+- Fee History & Funding History tabs — tampil di Paper mode
 
-**2c. Extend `useTradeStats`**
-- Tambah optional `accountId` filter
-- Backward compatible — tanpa accountId behavior sama seperti sekarang
+**Fix:** Tambahkan `useModeVisibility` ke `TradeHistory.tsx`. Gate semua komponen Binance-specific dengan `showExchangeData`.
 
 ---
 
-### Phase 3: UI — AccountDetail Page Enhancement ✅ DONE
+### BUG 3: TradeHistory — Fee & Funding Tabs Tidak Di-gate (MEDIUM)
 
-**3a. Upgrade `AccountDetail.tsx`**
-Dari stats basic (deposits, win rate) menjadi full analytics dashboard per akun:
-- Equity Curve per akun
-- Full metrics grid (PnL, Win Rate, Expectancy, Profit Factor, Max Drawdown, Sharpe)
-- Trade distribution chart
-- Strategy breakdown per akun
-- Reuse existing components (`DrawdownChart`, `EquityCurveWithEvents`, `SessionPerformanceChart`)
+**Root Cause:** Tab "Fees" dan "Funding" adalah data Binance-only, tetapi tidak di-hide saat Paper mode. Tab ini tetap muncul dan mungkin menampilkan data Live.
 
-**3b. Account Comparison View** (di `Accounts.tsx`)
-- Tabel/cards perbandingan semua akun side-by-side
-- Metrics: PnL, Win Rate, Expectancy, Trade Count, Drawdown
-- Visual indicator akun mana yang perform/underperform
+**Fix:** Disable/hide tab Fees dan Funding saat `showExchangeData === false`.
 
 ---
 
-### Phase 4: UI — Performance Page Multi-Level Selector ✅ DONE
+### BUG 4: RiskManagement — Tidak Ada Mode Awareness (MEDIUM)
 
-**4a. Analytics Level Selector di Performance page**
-Dropdown/tabs: `Per Account` | `Per Exchange` | `By Type` | `Overall`
+**Root Cause:** `RiskManagement.tsx` tidak menggunakan `useModeVisibility` sama sekali. `DailyLossTracker` dan `CorrelationMatrix` bisa berfungsi di Paper mode (karena hooks internal sudah mode-aware), tetapi `CorrelationMatrix` di memory disebut harus hidden di Paper mode.
 
-- **Per Account**: Filter Performance metrics ke satu akun tertentu
-- **Per Exchange**: Group by exchange, tampilkan comparative view
-- **By Type**: Paper vs Live (sudah ada via trade_mode, formalize di UI)
-- **Overall**: Aggregate semua live accounts (default saat ini)
-
-**4b. Aggregate Rules**
-- Overall hanya aggregate `trade_mode = 'live'`
-- Paper terpisah, sebagai benchmark/validator strategi
-- Label jelas di setiap level: "Account: Paper A", "Exchange: Binance", "Overall (Live)"
+**Fix:** Tambahkan `useModeVisibility` dan sembunyikan komponen yang seharusnya Paper-restricted (sesuai `use-mode-visibility.ts` spec).
 
 ---
 
-## Struktur Data Target
+### BUG 5: Accounts Page — Overview Cards Mencampur Data (LOW-MEDIUM)
 
-```text
-User
- +-- Exchange (binance, okx, manual)
- |    +-- Account
- |    |     +-- type: paper | live
- |    |     +-- trades[]
- |    |     +-- account_analytics (full stats)
- |    +-- exchange_analytics (aggregated)
- +-- type_analytics (paper vs live)
- +-- global_analytics (live only)
-```
+**Root Cause:** Overview cards (Total Balance, Active Positions) menampilkan combined Binance + Paper data. Di Paper mode, seharusnya HANYA menampilkan Paper data, bukan aggregasi keduanya.
+
+**Fix:** Di Paper mode, summary cards hanya tampilkan `paperTotalBalance` dan paper positions. Di Live mode, tampilkan Binance data. Jangan campur keduanya.
+
+---
+
+### BUG 6: Accounts Page — showPaperData Gate Terlalu Ketat (LOW)
+
+**Root Cause:** Section "Paper Trading" (baris 442) hanya ditampilkan saat `showPaperData === true` (Paper mode). Ini benar, tapi saat Live mode, user tidak bisa melihat paper accounts sama sekali — yang mungkin diinginkan, tapi perlu dipastikan konsisten dengan spec.
+
+---
+
+## Rencana Fix
+
+### Step 1: Fix Account Filter Logic (BUG 1)
+- **File:** `src/pages/Accounts.tsx` (baris 103-108)
+- Ubah filter dari `account_type === 'backtest' || metadata?.is_backtest` menjadi filter berdasarkan `exchange === 'manual'` atau tampilkan semua non-binance accounts
+- Juga fix `AccountCardList.tsx` prop `backtestOnly` yang tidak match data real
+
+### Step 2: Add Mode Gate ke TradeHistory (BUG 2 & 3)
+- **File:** `src/pages/TradeHistory.tsx`
+- Import dan gunakan `useModeVisibility`
+- Wrap `BinanceFullSyncPanel` dengan `showExchangeData` check
+- Wrap incremental sync button dengan `showExchangeData`
+- Disable/hide Fee & Funding tabs saat `!showExchangeData`
+
+### Step 3: Add Mode Gate ke RiskManagement (BUG 4)
+- **File:** `src/pages/RiskManagement.tsx`
+- Import `useModeVisibility`
+- Hide `CorrelationMatrix` (Binance-dependent) saat Paper mode jika sesuai spec
+- `DailyLossTracker` bisa tetap tampil (sudah mode-aware via hooks)
+
+### Step 4: Fix Overview Cards di Accounts (BUG 5)
+- **File:** `src/pages/Accounts.tsx`
+- Di Paper mode: summary cards hanya tampilkan paper data
+- Di Live mode: summary cards tampilkan Binance data
+- Jangan aggregasi keduanya
+
+### Step 5: Update Docs
+- Update `docs/` untuk mencerminkan aturan mode visibility yang diperbaiki
 
 ---
 
 ## Technical Details
 
-### File Changes Summary
+| File | Perubahan |
+|------|-----------|
+| `src/pages/Accounts.tsx` | Fix paper account filter, fix overview cards mode isolation |
+| `src/pages/TradeHistory.tsx` | Add `useModeVisibility`, gate Binance UI components |
+| `src/pages/RiskManagement.tsx` | Add `useModeVisibility`, gate exchange-only components |
+| `src/components/accounts/AccountCardList.tsx` | Fix `backtestOnly` filter to match actual DB schema |
+| `src/hooks/use-mode-visibility.ts` | Possibly extend with new flags if needed |
+| `docs/` | Update mode visibility documentation |
 
-| File | Action |
-|------|--------|
-| `accounts` table | ADD `exchange` column |
-| `get_trade_stats` RPC | ADD `p_account_id` param |
-| `get_account_level_stats` RPC | CREATE (grouped stats) |
-| `src/hooks/use-account-analytics.ts` | CREATE |
-| `src/hooks/use-exchange-analytics.ts` | CREATE |
-| `src/hooks/use-trade-stats.ts` | EXTEND (accountId filter) |
-| `src/types/account.ts` | ADD `exchange` field |
-| `src/pages/AccountDetail.tsx` | MAJOR UPGRADE |
-| `src/pages/Performance.tsx` | ADD level selector |
-| `src/pages/Accounts.tsx` | ADD comparison overview |
-| `docs/` | UPDATE architecture docs |
+### Urutan Eksekusi
+Step 1 dan Step 2 adalah prioritas tertinggi (Critical bugs). Step 3-5 bisa dikerjakan setelahnya.
 
-### Dependencies
-- Phase 1 (DB) harus selesai sebelum Phase 2 (Hooks)
-- Phase 2 harus selesai sebelum Phase 3-4 (UI)
-- Phase 3 dan 4 bisa parallel
-
-### Estimated Scope
-Ini adalah perubahan arsitektural besar. Direkomendasikan mengerjakan per-phase, validasi tiap phase sebelum lanjut ke berikutnya. Tidak boleh dikerjakan sekaligus.
+### Dampak
+- Tidak ada perubahan database
+- Tidak ada perubahan RPC
+- Murni frontend logic fixes
+- Backward compatible — Live mode behavior tidak berubah
