@@ -24,6 +24,8 @@ interface FilterActiveIndicatorProps {
   dateRange?: DateRange;
   /** Number of non-date filters active */
   filterCount?: number;
+  /** Custom scope label (overrides auto-generated text) */
+  scopeLabel?: string;
   /** Callback to clear all filters */
   onClear?: () => void;
   /** Additional class names */
@@ -34,6 +36,7 @@ export function FilterActiveIndicator({
   isActive,
   dateRange,
   filterCount = 0,
+  scopeLabel,
   onClear,
   className,
 }: FilterActiveIndicatorProps) {
@@ -56,9 +59,9 @@ export function FilterActiveIndicator({
     parts.push(`+${filterCount} filter${filterCount > 1 ? 's' : ''}`);
   }
 
-  const displayText = parts.length > 0 
-    ? parts.join(' • ')
-    : 'Filters active';
+  const displayText = scopeLabel 
+    ? (parts.length > 0 ? `${scopeLabel} • ${parts.join(' • ')}` : scopeLabel)
+    : (parts.length > 0 ? parts.join(' • ') : 'Filters active');
 
   return (
     <div 
