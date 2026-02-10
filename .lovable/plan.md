@@ -1,249 +1,98 @@
 
-# Plan: YouTube Import & Backtest Alignment with Enhanced Strategy Schema
+# Plan: Create `docs/USER_SCENARIOS.md`
 
-## Status: ✅ COMPLETED
+## Overview
 
-All 5 phases have been implemented successfully.
-| `description` | ✓ Extracted | `description` | ✓ Aligned |
-| `methodology` | ✓ Extracted | `methodology` | ✓ Aligned |
-| `timeframeContext.primary` | ✓ Extracted | `timeframe` | ✓ Aligned |
-| `timeframeContext.higherTF` | ✓ Extracted | `higher_timeframe` | ✓ Aligned |
-| `timeframeContext.lowerTF` | ✓ Extracted | `lower_timeframe` | ✓ Aligned |
-| `trading_style` | ✗ Not extracted (inferred) | `trading_style` | ⚠ Inferred only |
-| `sessionPreference` | ✓ Extracted (Gemini) | `session_preference` | ⚠ Mapping exists but edge function doesn't return it |
-| `difficultyLevel` | ✓ Extracted | `difficulty_level` | ✓ Aligned |
-| `suitablePairs` | ✓ Extracted | `valid_pairs` | ✓ Aligned |
-| `conceptsUsed` | ✓ Extracted | Stored in `tags` | ✓ Partial |
-| `indicatorsUsed` | ✓ Extracted | Stored in `tags` | ✓ Partial |
+Membuat file dokumentasi resmi yang berisi seluruh user scenario untuk **Trading Journal** dan **Trade History**, berdasarkan analisis mendalam dari kode aktual di codebase.
 
-### B. Issues Found
+## File yang Dibuat
 
-**Issue 1: `sessionPreference` Not Returned from Edge Function**
-- Gemini unified extraction defines `sessionPreference` in schema (line 334)
-- But the edge function response builder (lines 382-434) doesn't include it
-- The `use-youtube-strategy-import.ts` has `mapSessionPreference()` but receives `undefined`
+| File | Action |
+|------|--------|
+| `docs/USER_SCENARIOS.md` | **CREATE** |
 
-**Issue 2: `trading_style` Only Inferred, Not Extracted**
-- YouTube import infers trading style from timeframe (scalping/day/swing/position)
-- AI extraction schema in `gemini-unified-extract.ts` has `tradingStyle` field (line 293)
-- But it's not mapped to the response
+## Struktur Dokumen
 
-**Issue 3: Edge Function Missing Session Preference Passthrough**
-- The unified extraction result has `strategy.sessionPreference` but it's not passed through to the final response
-
-### C. Backtest ↔ Strategy Alignment Analysis
-
-| Strategy Field | Backtest Uses | Status |
-|----------------|---------------|--------|
-| `timeframe` | ✓ For interval selection | ✓ Working |
-| `higher_timeframe` | ✗ Not used | ⚠ Should use for bias |
-| `lower_timeframe` | ✗ Not used | ⚠ Should use for entry |
-| `session_preference` | ✗ Not used (has filter UI) | ⚠ Should auto-apply |
-| `methodology` | ✗ Not used | Info only |
-| `trading_style` | ✗ Not used | ⚠ Could affect holding |
-| `exit_rules` | ✓ Used for TP/SL | ✓ Working |
-| `entry_rules` | ✗ Simplified simulation | ⚠ Not rule-based |
-
-**Key Backtest Gaps:**
-1. Session filter in UI is manual, but strategy already has `session_preference` - should auto-populate
-2. Multi-timeframe (HTF/LTF) not utilized in simulation
-3. Trading style could influence position holding logic
-
----
-
-## Implementation Plan
-
-### Phase 1: Fix YouTube Import → Strategy Field Mapping
-
-**File: `supabase/functions/youtube-strategy-import/index.ts`**
-
-1. Add `sessionPreference` to the unified extraction response (line ~389-420):
-```typescript
-// In the unified extraction response builder
-strategy: {
-  // ... existing fields
-  sessionPreference: unifiedStrategy.sessionPreference || null, // ADD THIS
-  tradingStyle: unifiedStrategy.tradingStyle || null, // ADD THIS
-}
-```
-
-2. Add `sessionPreference` to the fallback extraction response (line ~680-710):
-```typescript
-strategy: {
-  // ... existing fields  
-  sessionPreference: normalizedStrategy.metadata?.sessionPreference || null,
-}
-```
-
-**File: `src/hooks/use-youtube-strategy-import.ts`**
-
-3. Update `saveToLibrary` to use extracted `tradingStyle` if available:
-```typescript
-// Line 205 - enhance trading style mapping
-trading_style: strategy.tradingStyle || inferTradingStyle(strategy.timeframeContext.primary),
-```
-
----
-
-### Phase 2: Backtest Auto-Apply Strategy Settings
-
-**File: `src/components/strategy/BacktestRunner.tsx`**
-
-1. Auto-populate session filter from selected strategy's `session_preference`:
-```typescript
-// After selectedStrategy is resolved (line ~122)
-useEffect(() => {
-  if (selectedStrategy?.session_preference?.length > 0 && 
-      !selectedStrategy.session_preference.includes('all')) {
-    setSessionFilter(selectedStrategy.session_preference[0] as BacktestSessionFilter);
-  }
-}, [selectedStrategy]);
-```
-
-2. Display strategy's Multi-Timeframe info in the Strategy Info alert (line ~408):
-```typescript
-<li>Timeframe: {selectedStrategy.higher_timeframe && `${selectedStrategy.higher_timeframe} → `}
-  {selectedStrategy.timeframe || 'Not set'}
-  {selectedStrategy.lower_timeframe && ` → ${selectedStrategy.lower_timeframe}`}
-</li>
-{selectedStrategy.session_preference && !selectedStrategy.session_preference.includes('all') && (
-  <li>Sessions: {selectedStrategy.session_preference.join(', ')}</li>
-)}
-{selectedStrategy.methodology && (
-  <li>Methodology: {selectedStrategy.methodology.toUpperCase()}</li>
-)}
-```
-
----
-
-### Phase 3: Edge Function Backtest Enhancement
-
-**File: `supabase/functions/backtest-strategy/index.ts`**
-
-1. Pass session filter from strategy if available (line ~90-95):
-```typescript
-// After fetching strategy, use its session_preference
-const strategySession = strategy.session_preference?.[0];
-if (strategySession && strategySession !== 'all' && !config.sessionFilter) {
-  config.sessionFilter = strategySession;
-}
-```
-
-2. Log Multi-Timeframe context for transparency (add to assumptions):
-```typescript
-const assumptions = {
-  // ... existing
-  multiTimeframe: {
-    higherTF: strategy.higher_timeframe || null,
-    primaryTF: strategy.timeframe,
-    lowerTF: strategy.lower_timeframe || null,
-  },
-  methodology: strategy.methodology || 'unknown',
-  tradingStyle: strategy.trading_style || 'day_trading',
-};
-```
-
-3. Add methodology info to backtest result response (line ~152-168):
-```typescript
-return new Response(
-  JSON.stringify({
-    // ... existing
-    strategyMethodology: strategy.methodology,
-    strategyTradingStyle: strategy.trading_style,
-    strategySessionPreference: strategy.session_preference,
-  }),
-  // ...
-);
-```
-
----
-
-### Phase 4: Update Backtest Types
-
-**File: `src/types/backtest.ts`**
-
-1. Extend `BacktestResult` interface to include strategy metadata:
-```typescript
-export interface BacktestResult {
-  // ... existing fields
-  
-  // NEW: Strategy metadata for context
-  strategyMethodology?: string;
-  strategyTradingStyle?: string;
-  strategySessionPreference?: string[];
-}
-```
-
-2. Extend `BacktestAssumptions` to include MTFA:
-```typescript
-export interface BacktestAssumptions {
-  // ... existing
-  multiTimeframe?: {
-    higherTF: string | null;
-    primaryTF: string | null;
-    lowerTF: string | null;
-  };
-  methodology?: string;
-  tradingStyle?: string;
-}
-```
-
----
-
-### Phase 5: Update BacktestResults UI
-
-**File: `src/components/strategy/BacktestResults.tsx`**
-
-Display strategy context in results:
-```typescript
-{result.strategyMethodology && (
-  <Badge variant="outline">{result.strategyMethodology.toUpperCase()}</Badge>
-)}
-{result.assumptions?.multiTimeframe && (
-  <span className="text-xs text-muted-foreground">
-    MTFA: {result.assumptions.multiTimeframe.higherTF || '-'} → 
-    {result.assumptions.multiTimeframe.primaryTF} → 
-    {result.assumptions.multiTimeframe.lowerTF || '-'}
-  </span>
-)}
-```
-
----
-
-## Files to Modify
-
-| File | Changes |
-|------|---------|
-| `supabase/functions/youtube-strategy-import/index.ts` | Add sessionPreference + tradingStyle to response |
-| `src/hooks/use-youtube-strategy-import.ts` | Use extracted tradingStyle if available |
-| `src/components/strategy/BacktestRunner.tsx` | Auto-populate session filter, show MTFA info |
-| `supabase/functions/backtest-strategy/index.ts` | Apply strategy session, add MTFA to assumptions |
-| `src/types/backtest.ts` | Extend BacktestResult + BacktestAssumptions |
-| `src/components/strategy/BacktestResults.tsx` | Display strategy context |
-
----
-
-## Implementation Order
+Dokumen akan mencakup **22+ user scenarios** yang dikelompokkan menjadi dua modul utama, dengan format standar per scenario:
 
 ```text
-Step 1: Fix YouTube Import edge function (sessionPreference + tradingStyle)
-        ↓
-Step 2: Update frontend YouTube import hook
-        ↓
-Step 3: Extend backtest types
-        ↓
-Step 4: Update backtest edge function (MTFA, session, methodology)
-        ↓
-Step 5: Update BacktestRunner (auto-apply, display)
-        ↓
-Step 6: Update BacktestResults (display context)
+Scenario ID > Judul > Precondition > Steps > Expected Result > Components Involved > Hooks Involved
 ```
 
----
+### Bagian 1: Trading Journal Scenarios (12 scenarios)
 
-## Benefits
+| ID | Scenario | Deskripsi Singkat |
+|----|----------|-------------------|
+| TJ-01 | Create Trade (Full Mode) | 5-step wizard: Setup, Confluence, Position Sizing, Checklist, Confirmation |
+| TJ-02 | Create Trade (Express Mode) | 2-step simplified entry for quick logging |
+| TJ-03 | AI Pre-Flight Gate (SKIP) | Trading gate blocks entry when AI verdict = SKIP |
+| TJ-04 | AI Pre-Flight Gate (PROCEED) | Trading gate allows entry with warnings |
+| TJ-05 | View Active Positions | Tab "Active" menampilkan Paper + Binance positions unified |
+| TJ-06 | View Pending Orders | Tab "Pending" menampilkan Binance open orders + Paper drafts |
+| TJ-07 | Close Position (Manual) | Dialog close dengan exit price, fee, P&L auto-calculated |
+| TJ-08 | Edit Position (SL/TP/Notes) | Edit dialog untuk modify stop loss, take profit, notes |
+| TJ-09 | Delete Trade Entry | Confirm dialog, soft delete (recoverable dari Settings) |
+| TJ-10 | Enrich Trade (Drawer) | Side panel: strategy, emotions, screenshots, tags, AI analysis |
+| TJ-11 | Post-Trade AI Analysis | Auto-triggered setelah close position, async background |
+| TJ-12 | Cancel Binance Open Order | Cancel order langsung dari Pending tab |
 
-1. **Full Field Alignment**: YouTube import saves all professional fields correctly
-2. **Context-Aware Backtesting**: Session preference auto-applied from strategy
-3. **Transparency**: MTFA and methodology visible in backtest results
-4. **Professional UX**: Strategy context displayed throughout backtest workflow
+### Bagian 2: Trade History Scenarios (12 scenarios)
+
+| ID | Scenario | Deskripsi Singkat |
+|----|----------|-------------------|
+| TH-01 | Browse Closed Trades | Infinite scroll, List/Gallery toggle, paginated 50/page |
+| TH-02 | Filter by Date Range | Date picker filter dengan 1-year default lookback |
+| TH-03 | Filter by Result/Direction/Session | Multi-filter combination (win/loss, long/short, session) |
+| TH-04 | Filter by Strategy | Badge-based strategy filter dari trading_strategies |
+| TH-05 | Sort by AI Score | Toggle sort ascending/descending by ai_quality_score |
+| TH-06 | Switch Tabs (All/Binance/Paper/Fees/Funding) | 5 tab categories dengan masing-masing data source |
+| TH-07 | Incremental Sync | Auto-triggered on mount, fetches recent Binance trades |
+| TH-08 | Full History Sync | 2-year Binance history via chunked fetching + progress bar |
+| TH-09 | Batch Re-Enrichment | Re-enrich incomplete trades (entry_price = 0) in bulk |
+| TH-10 | Export to CSV | Download filtered trades sebagai CSV file |
+| TH-11 | Enrich from History | Open TradeEnrichmentDrawer dari trade card |
+| TH-12 | Soft Delete & Recovery | Delete trade (soft), recover dari Settings > Deleted Trades |
+
+### Bagian 3: Cross-Module Scenarios (3 scenarios)
+
+| ID | Scenario | Deskripsi Singkat |
+|----|----------|-------------------|
+| CM-01 | Journal to History Flow | Trade created in Journal, closed, appears in History |
+| CM-02 | Binance Toggle Visibility | Toggle `use_binance_history` hides/shows Binance data across both modules |
+| CM-03 | Sync Quota Enforcement | Daily sync limit (10/day) blocks further syncs with 429 error |
+
+### Detail Per Scenario (Contoh Format)
+
+Setiap scenario akan ditulis dengan format berikut:
+
+```markdown
+### TJ-01: Create Trade via Full Wizard
+
+**Precondition:** User logged in, trading gate status != 'disabled'
+
+**Steps:**
+1. Click "New Trade" button di Trading Journal header
+2. Dialog opens dengan TradeEntryWizard
+3. Step 1 (Setup): Select pair, direction, entry price, quantity
+4. Step 2 (Confluence): Validate confluence checklist items
+5. Step 3 (Position Sizing): Calculate position size, set SL/TP
+6. Step 4 (Final Checklist): Review all parameters
+7. Step 5 (Confirmation): Confirm and submit
+
+**Expected Result:**
+- Trade entry created in `trade_entries` table with status='open'
+- Query `trade-entries` invalidated
+- Wizard dialog closes
+- New position appears in Active tab
+
+**Components:** TradeEntryWizard, SetupStep, ConfluenceValidator, 
+PositionSizingStep, FinalChecklist, TradeConfirmation
+
+**Hooks:** useTradeEntryWizard, useTradingGate, useTradeEntries
+```
+
+## Konten Tambahan
+
+- **Glossary**: Definisi istilah (Enrichment, Full Sync, Incremental Sync, Soft Delete, Trading Gate, dll.)
+- **Component Map**: Tabel mapping scenario ke komponen dan hooks yang terlibat
+- **Data Flow Indicators**: Arah aliran data untuk setiap scenario (DB read/write, API call, cache invalidation)
