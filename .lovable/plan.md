@@ -1,98 +1,119 @@
 
-# Plan: Create `docs/USER_SCENARIOS.md`
+
+# Plan: Create `docs/MISMATCH_REMEDIATION_PLAN.md`
 
 ## Overview
 
-Membuat file dokumentasi resmi yang berisi seluruh user scenario untuk **Trading Journal** dan **Trade History**, berdasarkan analisis mendalam dari kode aktual di codebase.
+Membuat dokumen resmi yang mendokumentasikan **14 mismatch** antara implementasi saat ini dan spesifikasi `DETAILED_USER_SCENARIO.md`, beserta rencana remediasi bertahap (Phase A-D).
 
 ## File yang Dibuat
 
 | File | Action |
 |------|--------|
-| `docs/USER_SCENARIOS.md` | **CREATE** |
+| `docs/MISMATCH_REMEDIATION_PLAN.md` | **CREATE** |
 
 ## Struktur Dokumen
 
-Dokumen akan mencakup **22+ user scenarios** yang dikelompokkan menjadi dua modul utama, dengan format standar per scenario:
+### 1. Header & Context
+- Version, date, reference ke `DETAILED_USER_SCENARIO.md`
+- Summary: 14 mismatches (6 Critical, 4 High, 4 Medium)
+
+### 2. Mismatch Registry (Tabel Lengkap)
+
+Setiap mismatch didokumentasikan dengan format:
 
 ```text
-Scenario ID > Judul > Precondition > Steps > Expected Result > Components Involved > Hooks Involved
+ID | Severity | Title | Spec Section | Current State | Required State | Affected Files | Phase
 ```
 
-### Bagian 1: Trading Journal Scenarios (12 scenarios)
+**Critical (C-01 to C-06):**
+- C-01: Dashboard tidak enforce mode visibility (Spec Section 3)
+- C-02: PortfolioOverviewCard ignores trade_mode (Section 12)
+- C-03: Performance page zero mode filtering (Section 12)
+- C-04: `get_trade_stats` RPC missing `p_trade_mode` parameter (Section 12)
+- C-05: TradeHistory page tidak filter by trade_mode (Section 12)
+- C-06: SmartQuickActions ignores mode untuk "Add Trade" (Section 3.2)
 
-| ID | Scenario | Deskripsi Singkat |
-|----|----------|-------------------|
-| TJ-01 | Create Trade (Full Mode) | 5-step wizard: Setup, Confluence, Position Sizing, Checklist, Confirmation |
-| TJ-02 | Create Trade (Express Mode) | 2-step simplified entry for quick logging |
-| TJ-03 | AI Pre-Flight Gate (SKIP) | Trading gate blocks entry when AI verdict = SKIP |
-| TJ-04 | AI Pre-Flight Gate (PROCEED) | Trading gate allows entry with warnings |
-| TJ-05 | View Active Positions | Tab "Active" menampilkan Paper + Binance positions unified |
-| TJ-06 | View Pending Orders | Tab "Pending" menampilkan Binance open orders + Paper drafts |
-| TJ-07 | Close Position (Manual) | Dialog close dengan exit price, fee, P&L auto-calculated |
-| TJ-08 | Edit Position (SL/TP/Notes) | Edit dialog untuk modify stop loss, take profit, notes |
-| TJ-09 | Delete Trade Entry | Confirm dialog, soft delete (recoverable dari Settings) |
-| TJ-10 | Enrich Trade (Drawer) | Side panel: strategy, emotions, screenshots, tags, AI analysis |
-| TJ-11 | Post-Trade AI Analysis | Auto-triggered setelah close position, async background |
-| TJ-12 | Cancel Binance Open Order | Cancel order langsung dari Pending tab |
+**High (H-01 to H-04):**
+- H-01: Audit logger hanya cover trade creation (Section 13)
+- H-02: RiskManagement page no mode awareness (Section 3)
+- H-03: No SIMULATION label/banner in Paper mode (Section 3.1)
+- H-04: No mandatory session context enforcement (Section 2.2)
 
-### Bagian 2: Trade History Scenarios (12 scenarios)
+**Medium (M-01 to M-04):**
+- M-01: Active Trade tab missing fees/funding + time-in-trade columns (Section 8.2)
+- M-02: AI Post-Mortem tidak structured di enrichment drawer (Section 11)
+- M-03: No daily reconciliation cron (Section 13)
+- M-04: No WebSocket fallback documentation (Section 13)
 
-| ID | Scenario | Deskripsi Singkat |
-|----|----------|-------------------|
-| TH-01 | Browse Closed Trades | Infinite scroll, List/Gallery toggle, paginated 50/page |
-| TH-02 | Filter by Date Range | Date picker filter dengan 1-year default lookback |
-| TH-03 | Filter by Result/Direction/Session | Multi-filter combination (win/loss, long/short, session) |
-| TH-04 | Filter by Strategy | Badge-based strategy filter dari trading_strategies |
-| TH-05 | Sort by AI Score | Toggle sort ascending/descending by ai_quality_score |
-| TH-06 | Switch Tabs (All/Binance/Paper/Fees/Funding) | 5 tab categories dengan masing-masing data source |
-| TH-07 | Incremental Sync | Auto-triggered on mount, fetches recent Binance trades |
-| TH-08 | Full History Sync | 2-year Binance history via chunked fetching + progress bar |
-| TH-09 | Batch Re-Enrichment | Re-enrich incomplete trades (entry_price = 0) in bulk |
-| TH-10 | Export to CSV | Download filtered trades sebagai CSV file |
-| TH-11 | Enrich from History | Open TradeEnrichmentDrawer dari trade card |
-| TH-12 | Soft Delete & Recovery | Delete trade (soft), recover dari Settings > Deleted Trades |
+### 3. Phase A: Data Isolation (Fixes C-01 to C-06)
 
-### Bagian 3: Cross-Module Scenarios (3 scenarios)
+Detail teknis per fix:
+1. **DB Migration**: Add `p_trade_mode` parameter ke `get_trade_stats` RPC function
+2. **Hook Updates**: `useTradeStats`, `useTradeEntriesPaginated`, `useUnifiedPortfolioData` pass `trade_mode`
+3. **Page Updates**: `Dashboard.tsx`, `Performance.tsx`, `SmartQuickActions.tsx` import dan apply `useModeVisibility`
+4. **TradeHistory**: Add `trade_mode` ke `TradeFilters` interface
 
-| ID | Scenario | Deskripsi Singkat |
-|----|----------|-------------------|
-| CM-01 | Journal to History Flow | Trade created in Journal, closed, appears in History |
-| CM-02 | Binance Toggle Visibility | Toggle `use_binance_history` hides/shows Binance data across both modules |
-| CM-03 | Sync Quota Enforcement | Daily sync limit (10/day) blocks further syncs with 429 error |
+File yang dimodifikasi:
+- `supabase/migrations/` (new migration for RPC update)
+- `src/hooks/use-trade-stats.ts`
+- `src/hooks/use-trade-entries-paginated.ts`
+- `src/hooks/use-unified-portfolio-data.ts` (atau equivalent)
+- `src/pages/Dashboard.tsx`
+- `src/pages/Performance.tsx`
+- `src/pages/TradeHistory.tsx`
+- `src/components/dashboard/SmartQuickActions.tsx`
 
-### Detail Per Scenario (Contoh Format)
+### 4. Phase B: UX Enforcement (Fixes H-03, H-04)
 
-Setiap scenario akan ditulis dengan format berikut:
+1. **SIMULATION Banner**: Persistent banner di `DashboardLayout` saat Paper mode aktif (amber, dismissible=false)
+2. **Session Context Modal**: First-time modal yang memaksa user pilih mode + style sebelum proceed. Triggered jika `active_trade_mode` belum pernah di-set.
 
-```markdown
-### TJ-01: Create Trade via Full Wizard
+File yang dimodifikasi:
+- `src/components/layout/DashboardLayout.tsx`
+- `src/components/layout/SessionContextModal.tsx` (new)
+- `src/hooks/use-trade-mode.ts` (add `hasSelectedContext` flag)
 
-**Precondition:** User logged in, trading gate status != 'disabled'
+### 5. Phase C: Audit Trail Expansion (Fix H-01)
 
-**Steps:**
-1. Click "New Trade" button di Trading Journal header
-2. Dialog opens dengan TradeEntryWizard
-3. Step 1 (Setup): Select pair, direction, entry price, quantity
-4. Step 2 (Confluence): Validate confluence checklist items
-5. Step 3 (Position Sizing): Calculate position size, set SL/TP
-6. Step 4 (Final Checklist): Review all parameters
-7. Step 5 (Confirmation): Confirm and submit
+Integrasikan `logAuditEvent` ke semua flow kritis:
+- Trade close (`useClosePosition` atau equivalent)
+- Trade delete (`useDeleteTradeEntry`)
+- Trade restore
+- API key save/delete (`ApiKeyForm`)
+- Settings change (`useUpdateUserSettings`)
+- Sync start/complete/fail (`use-binance-sync`)
+- Risk profile update
 
-**Expected Result:**
-- Trade entry created in `trade_entries` table with status='open'
-- Query `trade-entries` invalidated
-- Wizard dialog closes
-- New position appears in Active tab
+File yang dimodifikasi:
+- `src/hooks/use-close-position.ts` (atau equivalent)
+- `src/hooks/use-trade-entries.ts` (delete/restore)
+- `src/components/settings/ApiKeyForm.tsx`
+- `src/hooks/use-user-settings.ts`
+- `src/hooks/use-binance-sync.ts`
 
-**Components:** TradeEntryWizard, SetupStep, ConfluenceValidator, 
-PositionSizingStep, FinalChecklist, TradeConfirmation
+### 6. Phase D: Polish (Fixes H-02, M-01 to M-04)
 
-**Hooks:** useTradeEntryWizard, useTradingGate, useTradeEntries
+1. **Risk page mode awareness** (H-02): Filter `DailyLossTracker` by mode
+2. **Active trade columns** (M-01): Add fee/funding + time-in-trade ke `AllPositionsTable`
+3. **AI Post-Mortem UI** (M-02): Structured display di `TradeEnrichmentDrawer`
+4. **Daily reconciliation** (M-03): Document sebagai known gap atau implement edge function cron
+5. **WebSocket gap** (M-04): Document di `ARCHITECTURE.md` sebagai acceptable trade-off (REST polling = current approach)
+
+### 7. Verification Checklist
+
+Setiap phase memiliki acceptance criteria yang harus di-verify sebelum lanjut ke phase berikutnya.
+
+### 8. Update DETAILED_USER_SCENARIO.md
+
+Setelah semua phase selesai, update Implementation Status di `DETAILED_USER_SCENARIO.md` untuk merefleksikan status terbaru.
+
+## Execution Order
+
+```text
+Phase A (Data Isolation) ──→ Phase B (UX) ──→ Phase C (Audit) ──→ Phase D (Polish)
+     [~3 messages]            [~2 messages]     [~2 messages]       [~2 messages]
 ```
 
-## Konten Tambahan
+Estimasi total: **8-10 implementation messages**.
 
-- **Glossary**: Definisi istilah (Enrichment, Full Sync, Incremental Sync, Soft Delete, Trading Gate, dll.)
-- **Component Map**: Tabel mapping scenario ke komponen dan hooks yang terlibat
-- **Data Flow Indicators**: Arah aliran data untuk setiap scenario (DB read/write, API call, cache invalidation)
