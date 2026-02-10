@@ -1,8 +1,8 @@
 # User Scenarios — Trading Journal & Trade History
 
-> **Version:** 1.0  
+> **Version:** 1.1  
 > **Last Updated:** 2026-02-10  
-> **Status:** Official Documentation  
+> **Status:** Official Documentation — Audited ✅  
 > **Scope:** Trading Journal (`/trading-journey/journal`) & Trade History (`/trade-history`)
 
 ---
@@ -750,6 +750,34 @@
 | **Unified Position** | Representasi gabungan dari Paper trade dan Binance position dalam satu tabel yang seragam |
 | **Pre-flight Check** | Analisis AI 5 lapis (Data Sufficiency, Edge Validation, Context Similarity, Stability, Bias Detection) sebelum entry trade |
 | **Post-Trade Analysis** | Analisis AI otomatis setelah trade di-close, menghasilkan win/loss factors, lessons, dan pattern recognition |
+
+---
+
+## 6. UX Audit Log
+
+> **Audit Date:** 2026-02-10  
+> **Auditor:** AI Code Audit  
+
+### Issues Found & Fixed
+
+| # | Scenario | Issue | Severity | Status |
+|---|----------|-------|----------|--------|
+| 1 | TH-12 | `TradeHistory.tsx` menggunakan **hard delete** (`.delete()`) bukan soft delete (`update deleted_at`). Trade tidak bisa di-recover. | 🔴 Critical | ✅ Fixed |
+| 2 | TJ-09 / TH-12 | Delete dialog copy: "This action cannot be undone" — misleading karena soft delete seharusnya recoverable. | 🟡 Medium | ✅ Fixed |
+
+### Issues Noted (Acceptable / Low Priority)
+
+| # | Scenario | Issue | Notes |
+|---|----------|-------|-------|
+| 3 | TJ-05 | Paper trade `currentPrice` = `entryPrice` — unrealized P&L selalu 0. | Acceptable: paper trades tidak punya live price feed. Bisa ditambahkan price API di masa depan. |
+| 4 | TJ-06 | Pending tab filter (`entry_price === 0`) — Paper Pending section umumnya kosong karena wizard selalu mengisi entry_price. | Low priority: section tetap ada sebagai fallback untuk edge case data corrupt. |
+| 5 | All | Semua scenario flow lainnya (TJ-01~TJ-12, TH-01~TH-11, CM-01~CM-03) berjalan sesuai dokumentasi tanpa dead-end atau state membingungkan. | ✅ Passed |
+
+### Changes Made
+
+1. **`src/pages/TradeHistory.tsx`**: Changed `.delete()` → `.update({ deleted_at: new Date().toISOString() })` for soft delete consistency.
+2. **`src/pages/TradeHistory.tsx`**: Updated delete dialog description to mention recovery option.
+3. **`src/pages/trading-journey/TradingJournal.tsx`**: Updated delete dialog description to mention recovery option.
 
 ---
 
