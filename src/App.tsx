@@ -24,6 +24,7 @@ import PositionCalculator from "./pages/PositionCalculator";
 import MarketInsight from "./pages/MarketInsight";
 import EconomicCalendar from "./pages/EconomicCalendar";
 import MarketData from "./pages/MarketData";
+import ImportTrades from "./pages/ImportTrades";
 import TopMovers from "./pages/TopMovers";
 import BulkExport from "./pages/BulkExport";
 import Settings from "./pages/Settings";
@@ -132,6 +133,11 @@ const App = () => (
             <Route path="/history" element={
               <ProtectedRoute>
                 <TradeHistory />
+              </ProtectedRoute>
+            } />
+            <Route path="/import" element={
+              <ProtectedRoute>
+                <ImportTrades />
               </ProtectedRoute>
             } />
             
