@@ -25,6 +25,7 @@ import {
   Flame,
   Download,
 } from "lucide-react";
+import { WalletConnectButton } from "@/components/wallet/WalletConnectButton";
 import { Link, useLocation } from "react-router-dom";
 import { NavUser } from "./NavUser";
 import { NavGroup, ROUTE_SHORTCUTS } from "./NavGroup";
@@ -208,6 +209,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarContent>
 
       <SidebarFooter>
+        <div className="px-2 pb-2">
+          <WalletConnectButton className="w-full justify-start" />
+        </div>
         <NavUser />
       </SidebarFooter>
 

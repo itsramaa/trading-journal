@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { QuickTip, OnboardingTooltip } from "@/components/ui/onboarding-tooltip";
 import { EmptyState } from "@/components/ui/empty-state";
 import { RiskSummaryCard } from "@/components/risk/RiskSummaryCard";
+import { RiskMetricsCards } from "@/components/dashboard/RiskMetricsCards";
 import { AIInsightsWidget } from "@/components/dashboard/AIInsightsWidget";
 import { SystemStatusIndicator } from "@/components/dashboard/SystemStatusIndicator";
 import { ADLRiskWidget } from "@/components/dashboard/ADLRiskWidget";
@@ -171,7 +172,10 @@ const Dashboard = () => {
           </Card>
         )}
 
-        {/* 4. Market Score Widget */}
+        {/* 4. Advanced Risk Metrics */}
+        <RiskMetricsCards />
+
+        {/* 5. Market Score Widget */}
         <MarketScoreWidget symbol="BTCUSDT" />
 
         {/* 5. Risk Summary + ADL Risk */}

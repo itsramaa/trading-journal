@@ -9,7 +9,24 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, TrendingUp, ArrowLeft, Mail, CheckCircle } from 'lucide-react';
+import { Loader2, TrendingUp, ArrowLeft, Mail, CheckCircle, Wallet } from 'lucide-react';
+import { WalletConnectButton } from '@/components/wallet/WalletConnectButton';
+
+function WalletConnectCard() {
+  return (
+    <Card className="border-border/50 bg-card/50 backdrop-blur-sm mb-4">
+      <CardContent className="py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Wallet className="h-4 w-4 text-primary" />
+            <span className="text-sm font-medium">Solana Wallet</span>
+          </div>
+          <WalletConnectButton />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 const signInSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -342,6 +359,9 @@ export default function Auth() {
           <h1 className="text-2xl font-bold text-foreground">Deriverse</h1>
           <p className="text-muted-foreground mt-2">Comprehensive trading analytics & journal</p>
         </div>
+
+        {/* Solana Wallet Connect */}
+        <WalletConnectCard />
 
         <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
           <CardHeader className="space-y-1 pb-4">
