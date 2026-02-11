@@ -285,7 +285,7 @@ export function usePerformanceExport() {
       doc.setFontSize(8);
       doc.setTextColor(150, 150, 150);
       doc.text(
-        `Trading Journey Performance Report | Page ${i} of ${pageCount}`,
+        `Deriverse Performance Report | Page ${i} of ${pageCount}`,
         105,
         doc.internal.pageSize.height - 10,
         { align: 'center' }

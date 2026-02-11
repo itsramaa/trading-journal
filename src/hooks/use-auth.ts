@@ -87,8 +87,8 @@ export function useAuth() {
     await supabase.from('notifications').upsert({
       user_id: user.id,
       type: 'system',
-      title: 'Welcome to Portfolio Manager!',
-      message: 'Your account is set up. Start by adding your first asset or account.',
+      title: 'Welcome to Deriverse!',
+      message: 'Your account is set up. Start by logging your first trade or connecting your exchange.',
       read: false,
     }, { 
       onConflict: 'user_id,type,title',
@@ -170,20 +170,18 @@ export function useAuth() {
   }, [toast]);
 
   const signInWithGoogle = useCallback(async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/`,
-      },
+    const { lovable } = await import('@/integrations/lovable/index');
+    const result = await lovable.auth.signInWithOAuth('google', {
+      redirect_uri: window.location.origin,
     });
 
-    if (error) {
+    if (result.error) {
       toast({
         title: 'Google sign in failed',
-        description: error.message,
+        description: result.error.message,
         variant: 'destructive',
       });
-      return { error };
+      return { error: result.error };
     }
 
     return { error: null };

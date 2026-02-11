@@ -239,17 +239,17 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
   // AI Pre-flight handler (using new advanced 5-layer system)
   const handleAIPreflight = async () => {
     if (!pair) {
-      toast.warning('Pilih trading pair terlebih dahulu');
+      toast.warning('Please select a trading pair first');
       return;
     }
 
     if (historicalTradesLoading) {
-      toast.info('Sedang memuat riwayat trade...');
+      toast.info('Loading trade history...');
       return;
     }
 
     if (!historicalTrades || historicalTrades.length === 0) {
-      toast.warning('Riwayat trade terdeteksi di jurnal, tapi tidak ada record yang bisa dipakai untuk pre-flight (butuh trade closed + hasil).');
+      toast.warning('Trade history detected in journal, but no records available for pre-flight (requires closed trades with results).');
       return;
     }
     
@@ -287,7 +287,7 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
       }
     } catch (error) {
       console.error('[SetupStep] AI Pre-flight error:', error);
-      toast.error('Gagal menjalankan AI Pre-flight');
+      toast.error('Failed to run AI Pre-flight');
     }
   };
 
@@ -600,7 +600,7 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
                   </Label>
                   <Select value={timeframe} onValueChange={setTimeframe}>
                     <SelectTrigger className={cn(!timeframe && "border-[hsl(var(--chart-4))]/50")}>
-                      <SelectValue placeholder="Pilih timeframe (wajib)" />
+                      <SelectValue placeholder="Select timeframe (required)" />
                     </SelectTrigger>
                     <SelectContent>
                       {TIMEFRAME_OPTIONS.map((tf) => (
@@ -610,7 +610,7 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
                   </Select>
                   {!timeframe && (
                     <p className="text-xs text-[hsl(var(--chart-4))]">
-                      Execution timeframe wajib dipilih sebelum melanjutkan
+                      Execution timeframe must be selected before proceeding
                     </p>
                   )}
                 </div>
@@ -652,7 +652,7 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
                           </Button>
                         </div>
                         <p className="text-xs text-muted-foreground mt-2">
-                          Analisis edge berdasarkan {historicalTrades?.length || 0} trade historis Anda
+                          Edge analysis based on {historicalTrades?.length || 0} of your historical trades
                         </p>
                       </div>
                     )}

@@ -43,12 +43,12 @@ const METHODOLOGY_LABELS: Record<string, string> = {
 };
 
 const METHODOLOGY_TOOLTIPS: Record<string, string> = {
-  indicator_based: 'Strategy menggunakan indikator teknikal seperti RSI, MACD, Moving Averages, Bollinger Bands. Skor tinggi = banyak referensi indikator terdeteksi.',
-  price_action: 'Strategy berbasis pola candlestick, support/resistance, trendlines tanpa indikator. Skor tinggi = fokus pada naked chart analysis.',
-  smc: 'Smart Money Concepts: Order Blocks, Fair Value Gaps, Break of Structure, Liquidity sweeps. Skor tinggi = terminologi SMC dominan.',
-  ict: 'Inner Circle Trader: Killzones, OTE, PD Arrays, session-based entries. Skor tinggi = konsep ICT spesifik terdeteksi.',
-  wyckoff: 'Wyckoff Method: Accumulation/Distribution phases, Spring, Volume analysis. Skor tinggi = fase Wyckoff disebutkan.',
-  elliott_wave: 'Elliott Wave Theory: Wave counts (1-5), ABC corrections, Fibonacci extensions. Skor tinggi = wave analysis terdeteksi.',
+  indicator_based: 'Strategy uses technical indicators like RSI, MACD, Moving Averages, Bollinger Bands. High score = many indicator references detected.',
+  price_action: 'Strategy based on candlestick patterns, support/resistance, trendlines without indicators. High score = focus on naked chart analysis.',
+  smc: 'Smart Money Concepts: Order Blocks, Fair Value Gaps, Break of Structure, Liquidity sweeps. High score = SMC terminology dominant.',
+  ict: 'Inner Circle Trader: Killzones, OTE, PD Arrays, session-based entries. High score = specific ICT concepts detected.',
+  wyckoff: 'Wyckoff Method: Accumulation/Distribution phases, Spring, Volume analysis. High score = Wyckoff phases mentioned.',
+  elliott_wave: 'Elliott Wave Theory: Wave counts (1-5), ABC corrections, Fibonacci extensions. High score = wave analysis detected.',
 };
 
 export function YouTubeImportDebugInfo({ debugInfo }: YouTubeImportDebugInfoProps) {

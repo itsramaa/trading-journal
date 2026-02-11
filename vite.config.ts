@@ -19,6 +19,7 @@ export default defineConfig(({ mode }) => ({
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MiB limit
+        navigateFallbackDenylist: [/^\/~oauth/],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/api\.binance\.com\/.*/i,
@@ -34,9 +35,9 @@ export default defineConfig(({ mode }) => ({
         ],
       },
       manifest: {
-        name: "Trading Journal Pro",
-        short_name: "TradeJournal",
-        description: "Professional Trading Journal with Binance Integration",
+        name: "Deriverse Trading Analytics",
+        short_name: "Deriverse",
+        description: "Comprehensive trading analytics dashboard with AI-powered insights",
         theme_color: "#0f172a",
         background_color: "#0f172a",
         display: "standalone",

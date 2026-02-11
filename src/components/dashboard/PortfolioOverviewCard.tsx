@@ -73,7 +73,7 @@ export function PortfolioOverviewCard({ className }: PortfolioOverviewCardProps)
             <div className="w-12 h-12 rounded-full bg-muted/50 flex items-center justify-center mb-4">
               <Wallet className="h-6 w-6 text-muted-foreground" />
             </div>
-            <h3 className="font-medium mb-1">Start Your Trading Journey</h3>
+            <h3 className="font-medium mb-1">Start Your Trading Analytics</h3>
             <p className="text-sm text-muted-foreground mb-4 max-w-xs">
               Create a paper trading account to track your performance, or connect Binance for live data.
             </p>
