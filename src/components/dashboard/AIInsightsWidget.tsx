@@ -428,7 +428,7 @@ export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
               size="sm" 
               className="w-full"
               onClick={() => {
-                setChatbotInitialPrompt("Jelaskan detail insight trading saya berdasarkan data performa terkini");
+                setChatbotInitialPrompt("Explain my trading insights in detail based on recent performance data");
                 setChatbotOpen(true);
               }}
             >

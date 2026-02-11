@@ -37,6 +37,7 @@ import NotFound from "./pages/NotFound";
 import { AIChatbot } from "./components/chat/AIChatbot";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { MarketContextProvider } from "./contexts/MarketContext";
+import { SolanaWalletProvider } from "./components/wallet/SolanaWalletProvider";
 
 const queryClient = new QueryClient();
 
@@ -80,6 +81,7 @@ function SessionTracker() {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
+      <SolanaWalletProvider>
       <TooltipProvider>
         <Toaster />
         <Sonner />
@@ -228,6 +230,7 @@ const App = () => (
           </MarketContextProvider>
         </BrowserRouter>
       </TooltipProvider>
+      </SolanaWalletProvider>
     </ThemeProvider>
   </QueryClientProvider>
 );
