@@ -349,72 +349,102 @@ export default function Auth() {
 
   return (
     <div className="min-h-screen bg-background flex">
-      {/* Left Panel - Branding & Features */}
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-card">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-primary/10" />
-        <div className="relative z-10 flex flex-col justify-center px-12 xl:px-16">
-          <div className="flex items-center gap-3 mb-8">
-            <div className="p-3 rounded-2xl bg-primary/10 glow-primary">
-              <TrendingUp className="h-10 w-10 text-primary" />
+      {/* Left Panel - Premium Branding */}
+      <div className="hidden lg:flex lg:w-[55%] relative overflow-hidden">
+        {/* Layered gradient background */}
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/15 via-background to-primary/5" />
+        <div className="absolute top-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-[120px]" />
+        <div className="absolute bottom-0 left-0 w-80 h-80 bg-primary/8 rounded-full blur-[100px]" />
+        
+        {/* Grid pattern overlay */}
+        <div className="absolute inset-0 opacity-[0.03]" style={{
+          backgroundImage: `linear-gradient(hsl(var(--foreground)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--foreground)) 1px, transparent 1px)`,
+          backgroundSize: '60px 60px'
+        }} />
+
+        <div className="relative z-10 flex flex-col justify-between px-12 xl:px-16 py-12 w-full">
+          {/* Logo */}
+          <div className="flex items-center gap-3">
+            <div className="p-3 rounded-2xl bg-primary/10 border border-primary/20 glow-primary">
+              <TrendingUp className="h-8 w-8 text-primary" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-foreground">Deriverse</h1>
-              <p className="text-sm text-muted-foreground">Analytics Platform</p>
+              <h1 className="text-2xl font-bold text-foreground tracking-tight">Deriverse</h1>
+              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Analytics Platform</p>
             </div>
           </div>
-          
-          <h2 className="text-2xl font-semibold text-foreground mb-4">
-            Professional Trading Analytics for Active Traders
-          </h2>
-          <p className="text-muted-foreground mb-10 leading-relaxed">
-            Track P&L, analyze patterns, manage risk, and improve your edge with AI-powered insights — all on-chain.
-          </p>
 
-          <div className="space-y-5">
-            {[
-              { icon: '📊', title: 'Complete P&L Tracking', desc: 'Real-time performance with drawdown visualization' },
-              { icon: '🔗', title: 'On-Chain Import', desc: 'Auto-import trades from Deriverse & Solana DEXs' },
-              { icon: '🧠', title: 'AI-Powered Insights', desc: 'Pattern recognition & trade quality scoring' },
-              { icon: '🛡️', title: 'Advanced Risk Metrics', desc: 'Sharpe, Sortino, VaR, Kelly Criterion & more' },
-            ].map((feature) => (
-              <div key={feature.title} className="flex items-start gap-4">
-                <div className="text-2xl mt-0.5">{feature.icon}</div>
-                <div>
-                  <p className="font-medium text-foreground">{feature.title}</p>
-                  <p className="text-sm text-muted-foreground">{feature.desc}</p>
+          {/* Hero content */}
+          <div className="space-y-8">
+            <div>
+              <h2 className="text-4xl xl:text-5xl font-bold text-foreground leading-tight tracking-tight">
+                Trade Smarter.
+                <br />
+                <span className="text-primary">Grow Faster.</span>
+              </h2>
+              <p className="text-muted-foreground mt-5 text-lg leading-relaxed max-w-md">
+                Your all-in-one trading journal with AI insights, risk analytics, and on-chain data import.
+              </p>
+            </div>
+
+            {/* Feature cards */}
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { icon: '📊', title: 'P&L Tracking', desc: 'Real-time performance & drawdown' },
+                { icon: '🧠', title: 'AI Insights', desc: 'Pattern recognition & scoring' },
+                { icon: '🔗', title: 'On-Chain Import', desc: 'Deriverse & Solana DEXs' },
+                { icon: '🛡️', title: 'Risk Metrics', desc: 'Sharpe, VaR, Kelly & more' },
+              ].map((feature) => (
+                <div key={feature.title} className="p-4 rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm hover:bg-card/50 transition-colors">
+                  <div className="text-xl mb-2">{feature.icon}</div>
+                  <p className="font-semibold text-sm text-foreground">{feature.title}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{feature.desc}</p>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
+
+            {/* Stats bar */}
+            <div className="flex items-center gap-8">
+              {[
+                { value: '50+', label: 'Metrics' },
+                { value: '6', label: 'DEXs' },
+                { value: '5', label: 'Risk Models' },
+              ].map((stat) => (
+                <div key={stat.label}>
+                  <p className="text-2xl font-bold text-primary">{stat.value}</p>
+                  <p className="text-xs text-muted-foreground">{stat.label}</p>
+                </div>
+              ))}
+            </div>
           </div>
 
-          <div className="mt-12 pt-8 border-t border-border/50">
-            <p className="text-xs text-muted-foreground">
-              Built on Solana • Trusted by traders worldwide
-            </p>
-          </div>
+          {/* Footer */}
+          <p className="text-xs text-muted-foreground">
+            Built on Solana • Open Source • Trusted by traders
+          </p>
         </div>
       </div>
 
       {/* Right Panel - Auth Forms */}
-      <div className="flex-1 flex items-center justify-center p-6 lg:p-12">
+      <div className="flex-1 flex items-center justify-center p-6 lg:p-12 bg-background">
         <div className="w-full max-w-md">
           {/* Mobile logo */}
           <div className="text-center mb-8 lg:hidden">
             <div className="flex items-center justify-center gap-2 mb-4">
-              <div className="p-3 rounded-2xl bg-primary/10 glow-primary">
+              <div className="p-3 rounded-2xl bg-primary/10 border border-primary/20 glow-primary">
                 <TrendingUp className="h-8 w-8 text-primary" />
               </div>
             </div>
             <h1 className="text-2xl font-bold text-foreground">Deriverse</h1>
-            <p className="text-muted-foreground mt-2">Professional Trading Analytics</p>
+            <p className="text-muted-foreground mt-1 text-sm">Professional Trading Analytics</p>
           </div>
 
           {/* Solana Wallet Connect */}
           <WalletConnectCard />
 
-          <Card className="border-border/50 bg-card/50 backdrop-blur-sm shadow-lg">
+          <Card className="border-border/50 bg-card/80 backdrop-blur-sm shadow-xl">
             <CardHeader className="space-y-1 pb-4">
-              <CardTitle className="text-xl">Welcome</CardTitle>
+              <CardTitle className="text-2xl font-bold">Welcome</CardTitle>
               <CardDescription>Sign in to your account or create a new one</CardDescription>
             </CardHeader>
             <CardContent>
@@ -429,7 +459,7 @@ export default function Auth() {
                     <Button
                       type="button"
                       variant="outline"
-                      className="w-full"
+                      className="w-full h-11"
                       onClick={handleGoogleSignIn}
                       disabled={isLoading}
                     >
@@ -444,10 +474,10 @@ export default function Auth() {
 
                     <div className="relative">
                       <div className="absolute inset-0 flex items-center">
-                        <span className="w-full border-t border-border" />
+                        <span className="w-full border-t border-border/50" />
                       </div>
                       <div className="relative flex justify-center text-xs uppercase">
-                        <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
+                        <span className="bg-card px-3 text-muted-foreground">Or continue with</span>
                       </div>
                     </div>
 
@@ -460,7 +490,7 @@ export default function Auth() {
                             <FormItem>
                               <FormLabel>Email</FormLabel>
                               <FormControl>
-                                <Input type="email" placeholder="you@example.com" {...field} disabled={isLoading} />
+                                <Input type="email" placeholder="you@example.com" className="h-11" {...field} disabled={isLoading} />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -473,18 +503,18 @@ export default function Auth() {
                             <FormItem>
                               <div className="flex items-center justify-between">
                                 <FormLabel>Password</FormLabel>
-                                <Button type="button" variant="link" className="px-0 h-auto text-xs" onClick={() => setShowForgotPassword(true)}>
+                                <Button type="button" variant="link" className="px-0 h-auto text-xs text-primary" onClick={() => setShowForgotPassword(true)}>
                                   Forgot password?
                                 </Button>
                               </div>
                               <FormControl>
-                                <Input type="password" placeholder="••••••••" {...field} disabled={isLoading} />
+                                <Input type="password" placeholder="••••••••" className="h-11" {...field} disabled={isLoading} />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
                           )}
                         />
-                        <Button type="submit" className="w-full" disabled={isLoading}>
+                        <Button type="submit" className="w-full h-11 text-sm font-semibold" disabled={isLoading}>
                           {isLoading ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Signing in...</>) : 'Sign In'}
                         </Button>
                       </form>
@@ -494,7 +524,7 @@ export default function Auth() {
 
                 <TabsContent value="signup">
                   <div className="space-y-4">
-                    <Button type="button" variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={isLoading}>
+                    <Button type="button" variant="outline" className="w-full h-11" onClick={handleGoogleSignIn} disabled={isLoading}>
                       <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
                         <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
                         <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
@@ -506,28 +536,28 @@ export default function Auth() {
 
                     <div className="relative">
                       <div className="absolute inset-0 flex items-center">
-                        <span className="w-full border-t border-border" />
+                        <span className="w-full border-t border-border/50" />
                       </div>
                       <div className="relative flex justify-center text-xs uppercase">
-                        <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
+                        <span className="bg-card px-3 text-muted-foreground">Or continue with</span>
                       </div>
                     </div>
 
                     <Form {...signUpForm}>
                       <form onSubmit={signUpForm.handleSubmit(handleSignUp)} className="space-y-4">
                         <FormField control={signUpForm.control} name="fullName" render={({ field }) => (
-                          <FormItem><FormLabel>Full Name</FormLabel><FormControl><Input placeholder="John Doe" {...field} disabled={isLoading} /></FormControl><FormMessage /></FormItem>
+                          <FormItem><FormLabel>Full Name</FormLabel><FormControl><Input placeholder="John Doe" className="h-11" {...field} disabled={isLoading} /></FormControl><FormMessage /></FormItem>
                         )} />
                         <FormField control={signUpForm.control} name="email" render={({ field }) => (
-                          <FormItem><FormLabel>Email</FormLabel><FormControl><Input type="email" placeholder="you@example.com" {...field} disabled={isLoading} /></FormControl><FormMessage /></FormItem>
+                          <FormItem><FormLabel>Email</FormLabel><FormControl><Input type="email" placeholder="you@example.com" className="h-11" {...field} disabled={isLoading} /></FormControl><FormMessage /></FormItem>
                         )} />
                         <FormField control={signUpForm.control} name="password" render={({ field }) => (
-                          <FormItem><FormLabel>Password</FormLabel><FormControl><Input type="password" placeholder="••••••••" {...field} disabled={isLoading} /></FormControl><FormMessage /></FormItem>
+                          <FormItem><FormLabel>Password</FormLabel><FormControl><Input type="password" placeholder="••••••••" className="h-11" {...field} disabled={isLoading} /></FormControl><FormMessage /></FormItem>
                         )} />
                         <FormField control={signUpForm.control} name="confirmPassword" render={({ field }) => (
-                          <FormItem><FormLabel>Confirm Password</FormLabel><FormControl><Input type="password" placeholder="••••••••" {...field} disabled={isLoading} /></FormControl><FormMessage /></FormItem>
+                          <FormItem><FormLabel>Confirm Password</FormLabel><FormControl><Input type="password" placeholder="••••••••" className="h-11" {...field} disabled={isLoading} /></FormControl><FormMessage /></FormItem>
                         )} />
-                        <Button type="submit" className="w-full" disabled={isLoading}>
+                        <Button type="submit" className="w-full h-11 text-sm font-semibold" disabled={isLoading}>
                           {isLoading ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Creating account...</>) : 'Create Account'}
                         </Button>
                       </form>
