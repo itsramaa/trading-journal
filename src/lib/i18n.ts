@@ -48,7 +48,7 @@ const enTranslations = {
     riskManagement: 'Risk Management',
     aiAssistant: 'AI Assistant',
     marketCalendar: 'Market Calendar',
-    tradingJourney: 'Trading Journey',
+    tradingJourney: 'Deriverse',
   },
 
   // Dashboard
@@ -78,7 +78,7 @@ const enTranslations = {
 
   // Trading
   trading: {
-    title: 'Trading Journey',
+    title: 'Trading Analytics',
     subtitle: 'Track and analyze your trading performance',
     totalTrades: 'Total Trades',
     winRate: 'Win Rate',
@@ -210,7 +210,7 @@ const idTranslations = {
     riskManagement: 'Manajemen Risiko',
     aiAssistant: 'Asisten AI',
     marketCalendar: 'Kalender Pasar',
-    tradingJourney: 'Perjalanan Trading',
+    tradingJourney: 'Deriverse',
   },
 
   // Dashboard
@@ -240,8 +240,8 @@ const idTranslations = {
 
   // Trading
   trading: {
-    title: 'Perjalanan Trading',
-    subtitle: 'Lacak dan analisis performa trading Anda',
+    title: 'Trading Analytics',
+    subtitle: 'Track and analyze your trading performance',
     totalTrades: 'Total Trade',
     winRate: 'Win Rate',
     totalPnl: 'Total P&L',

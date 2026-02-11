@@ -152,7 +152,7 @@ export default function Auth() {
                 <TrendingUp className="h-8 w-8 text-primary" />
               </div>
             </div>
-            <h1 className="text-2xl font-bold text-foreground">Portfolio Manager</h1>
+            <h1 className="text-2xl font-bold text-foreground">Deriverse</h1>
           </div>
 
           <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
@@ -242,7 +242,7 @@ export default function Auth() {
                 <TrendingUp className="h-8 w-8 text-primary" />
               </div>
             </div>
-            <h1 className="text-2xl font-bold text-foreground">Portfolio Manager</h1>
+            <h1 className="text-2xl font-bold text-foreground">Deriverse</h1>
           </div>
 
           <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
@@ -339,8 +339,8 @@ export default function Auth() {
               <TrendingUp className="h-8 w-8 text-primary" />
             </div>
           </div>
-          <h1 className="text-2xl font-bold text-foreground">Portfolio Manager</h1>
-          <p className="text-muted-foreground mt-2">Track your investments with precision</p>
+          <h1 className="text-2xl font-bold text-foreground">Deriverse</h1>
+          <p className="text-muted-foreground mt-2">Comprehensive trading analytics & journal</p>
         </div>
 
         <Card className="border-border/50 bg-card/50 backdrop-blur-sm">

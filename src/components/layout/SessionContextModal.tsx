@@ -34,13 +34,13 @@ const MODE_OPTIONS: { value: TradeMode; label: string; description: string; icon
   {
     value: "paper",
     label: "Paper Trading",
-    description: "Simulasi tanpa risiko. Data terpisah dari Live.",
+    description: "Risk-free simulation. Data is separate from Live.",
     icon: FileText,
   },
   {
     value: "live",
     label: "Live Trading",
-    description: "Data real dari Binance. Read-only, tidak bisa buat trade manual.",
+    description: "Real data from Binance. Read-only, no manual trade creation.",
     icon: Wifi,
   },
 ];
@@ -93,9 +93,9 @@ export function SessionContextModal({ open, onComplete }: SessionContextModalPro
         className="sm:max-w-lg"
       >
         <DialogHeader>
-          <DialogTitle className="text-xl">Welcome to Trading Journey</DialogTitle>
+          <DialogTitle className="text-xl">Welcome to Deriverse</DialogTitle>
           <DialogDescription>
-            Pilih mode dan gaya trading Anda sebelum melanjutkan. Ini bisa diubah kapan saja dari header.
+            Choose your trading mode and style before continuing. You can change this anytime from the header.
           </DialogDescription>
         </DialogHeader>
 
@@ -167,7 +167,7 @@ export function SessionContextModal({ open, onComplete }: SessionContextModalPro
           className="w-full"
           size="lg"
         >
-          Mulai Trading
+          Start Trading
         </Button>
       </DialogContent>
     </Dialog>

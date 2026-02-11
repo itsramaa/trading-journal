@@ -1,73 +1,127 @@
-# Welcome to your Lovable project
+# Deriverse — Trading Analytics Dashboard
 
-## Project info
+A comprehensive trading analytics solution for [Deriverse](https://deriverse.io), featuring a professional trading journal, portfolio analysis, and AI-powered insights for active crypto futures traders.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+![License](https://img.shields.io/badge/license-MIT-blue)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue)
+![React](https://img.shields.io/badge/React-18-61dafb)
 
-## How can I edit this code?
+## 🎯 About
 
-There are several ways of editing your application.
+Deriverse is a next-gen, fully on-chain, and decentralized Solana trading ecosystem. This dashboard provides comprehensive analytics and journaling capabilities for traders on the platform — covering spot, perpetual, and options markets.
 
-**Use Lovable**
+## ✨ Features
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+### A. Profit & Performance Analytics
+- **Total PnL Tracking** — Cumulative profit/loss with visual indicators and percentage change
+- **Historical PnL Charts + Drawdown** — Equity curve visualization with peak drawdown tracking
+- **Largest Gain / Loss** — Highlights best and worst trades for risk awareness
+- **Average Win / Loss** — Per-trade averages used for risk:reward ratio analysis
 
-Changes made via Lovable will be committed automatically to this repo.
+### B. Trading Behavior Analytics
+- **Win Rate & Trade Count** — Overall win rate with total trade statistics
+- **Average Trade Duration** — Mean/median hold time (scalper to swing)
+- **Long / Short Ratio** — Directional bias analysis with win rate per direction
+- **Order Type Performance** — P&L breakdown by market, limit, and stop orders
 
-**Use your preferred IDE**
+### C. Volume & Fee Analysis
+- **Trading Volume Analysis** — Volume per asset and per timeframe
+- **Fee Breakdown** — Total fees, per-asset fees, and cumulative fee tracking
+- **Fee Composition** — Commission, funding fees, and slippage breakdown
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### D. Filtering & UX
+- **Symbol Filtering** — Filter by BTC, ETH, SOL, and any traded pair
+- **Date Range Selection** — Today, Last 7 days, This Month, Custom range
+- **Trade Mode Toggle** — Switch between Paper and Live trading views
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+### E. Time-Based Analytics
+- **Time of Day Performance** — Heatmap showing profitable hours/sessions
+- **Daily / Session Analysis** — Breakdown by day of week and trading session (Sydney, Tokyo, London, NY)
 
-Follow these steps:
+### F. Trading Journal
+- **Trade History Table** — Complete trade log with entry/exit prices, size, P&L, fees, timestamps
+- **Annotation Capability** — Add notes, lessons learned, and emotional state per trade
+- **AI Trade Analysis** — Automated post-trade analysis with pattern recognition
+- **Strategy Tagging** — Link trades to strategies for performance attribution
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
+### G. Innovation Features ⭐
+- **AI Pre-flight Analysis** — 5-layer edge analysis before entering trades (historical win rate, market context, correlation, expectancy)
+- **AI-Powered Trade Insights** — Gemini 2.5 Flash powered analysis for patterns, mistakes, and improvement suggestions
+- **Strategy Builder** — Visual entry/exit rules builder with confluence scoring
+- **YouTube Strategy Import** — Extract trading strategies from YouTube videos using AI
+- **Multi-Timeframe Analysis (MTFA)** — Higher/lower timeframe correlation in strategy definition
+- **Backtesting Engine** — Historical simulation with session-based performance breakdown
+- **Risk Management Dashboard** — Daily loss limits, position sizing calculator, drawdown tracking
+- **Context-Aware Position Sizing** — Volatility-adjusted sizing with market score integration
+- **Emotion Tracking** — Log emotional state per trade for behavioral pattern analysis
+- **Market Sentiment Integration** — Fear & Greed Index and technical sentiment scoring
+
+## 🛠 Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| **Frontend** | React 18 + Vite + TypeScript |
+| **Styling** | Tailwind CSS + shadcn/ui |
+| **State** | Zustand (client) + TanStack React Query (server) |
+| **Backend** | Supabase (PostgreSQL + Auth + Edge Functions) |
+| **AI** | Gemini 2.5 Flash (via Edge Functions) |
+| **Auth** | Email/Password + Google OAuth |
+| **External APIs** | Binance Futures API, Fear & Greed Index |
+
+## 📊 Analytics Accuracy
+
+All metrics are calculated with precision:
+- **PnL** = `realized_pnl - commission - fees - funding_fees`
+- **Win Rate** = `wins / (wins + losses)` (excludes breakeven)
+- **Profit Factor** = `gross_profit / gross_loss`
+- **R-Multiple** = `pnl / risk_amount` (based on stop loss distance)
+- **Drawdown** = Peak-to-trough decline from equity high watermark
+
+## 🚀 Getting Started
+
+```bash
+# Clone the repository
 git clone <YOUR_GIT_URL>
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+# Navigate to the project
+cd deriverse-analytics
 
-# Step 3: Install the necessary dependencies.
-npm i
+# Install dependencies
+npm install
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Start dev server
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+## 📁 Project Structure
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+```
+src/
+├── components/
+│   ├── analytics/      # Chart & metric components
+│   ├── chat/           # AI chatbot
+│   ├── dashboard/      # Dashboard widgets
+│   ├── layout/         # Sidebar, header, navigation
+│   ├── risk/           # Risk management components
+│   ├── strategy/       # Strategy builder & importer
+│   ├── trade/          # Trade entry wizard
+│   └── ui/             # shadcn/ui primitives
+├── hooks/              # Custom React hooks
+├── lib/                # Utilities, calculations, formatters
+├── pages/              # Route-level page components
+├── contexts/           # React Context providers
+├── types/              # TypeScript type definitions
+└── integrations/       # Supabase client & types
+```
 
-**Use GitHub Codespaces**
+## 🔒 Security
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+- Row-Level Security (RLS) on all database tables
+- JWT-based authentication with secure session management
+- Encrypted API key storage for exchange credentials
+- No raw SQL execution — all queries use typed Supabase client
+- CORS-protected Edge Functions with auth validation
 
-## What technologies are used for this project?
+## 📄 License
 
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+MIT

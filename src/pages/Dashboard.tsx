@@ -50,7 +50,7 @@ import { useTranslation } from "react-i18next";
 const DASHBOARD_ONBOARDING_STEPS = [
   {
     id: "welcome",
-    title: "Welcome to Trading Journey",
+    title: "Welcome to Deriverse",
     description: "Track your trades, analyze patterns, and improve your trading with AI insights.",
   },
   {
@@ -222,7 +222,7 @@ const Dashboard = () => {
               <CardContent className="py-8">
                 <EmptyState
                   icon={Activity}
-                  title="Start Your Trading Journey"
+                  title="Start Your Trading Analytics"
                   description="Log your first trade to begin tracking your performance and receiving AI-powered insights."
                   action={{
                     label: "Log First Trade",

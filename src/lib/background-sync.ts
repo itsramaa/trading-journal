@@ -126,7 +126,7 @@ export async function subscribeToPush(vapidPublicKey: string): Promise<PushSubsc
     const registration = await navigator.serviceWorker.ready;
     
     // Check existing subscription
-    let subscription = await registration.pushManager.getSubscription();
+    let subscription = await (registration as any).pushManager.getSubscription();
     
     if (subscription) {
       console.log('[Push] Already subscribed');
@@ -134,7 +134,7 @@ export async function subscribeToPush(vapidPublicKey: string): Promise<PushSubsc
     }
 
     // Subscribe with VAPID key
-    subscription = await registration.pushManager.subscribe({
+    subscription = await (registration as any).pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(vapidPublicKey) as BufferSource,
     });
@@ -155,7 +155,7 @@ export async function unsubscribeFromPush(): Promise<boolean> {
 
   try {
     const registration = await navigator.serviceWorker.ready;
-    const subscription = await registration.pushManager.getSubscription();
+    const subscription = await (registration as any).pushManager.getSubscription();
     
     if (subscription) {
       await subscription.unsubscribe();
@@ -177,7 +177,7 @@ export async function getPushSubscription(): Promise<PushSubscription | null> {
 
   try {
     const registration = await navigator.serviceWorker.ready;
-    return await registration.pushManager.getSubscription();
+    return await (registration as any).pushManager.getSubscription();
   } catch (error) {
     console.error('[Push] Get subscription failed:', error);
     return null;
