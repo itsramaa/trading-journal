@@ -1,11 +1,12 @@
 /**
  * Solana Wallet Provider - Wraps app with wallet adapter context
  * Supports Phantom, Solflare, and other Solana wallets
+ * Note: No explicit wallet adapters needed — modern wallets
+ * register themselves via the Wallet Standard automatically.
  */
 import { useMemo, type ReactNode } from 'react';
 import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react';
 import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
-import { PhantomWalletAdapter, SolflareWalletAdapter } from '@solana/wallet-adapter-wallets';
 import { clusterApiUrl } from '@solana/web3.js';
 
 // Import wallet adapter styles
@@ -18,13 +19,8 @@ interface SolanaWalletProviderProps {
 export function SolanaWalletProvider({ children }: SolanaWalletProviderProps) {
   const endpoint = useMemo(() => clusterApiUrl('mainnet-beta'), []);
 
-  const wallets = useMemo(
-    () => [
-      new PhantomWalletAdapter(),
-      new SolflareWalletAdapter(),
-    ],
-    []
-  );
+  // Empty array — Phantom, Solflare, etc. auto-register via Wallet Standard
+  const wallets = useMemo(() => [], []);
 
   return (
     <ConnectionProvider endpoint={endpoint}>
