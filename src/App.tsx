@@ -31,6 +31,7 @@ import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
 import Notifications from "./pages/Notifications";
 import Auth from "./pages/Auth";
+import Landing from "./pages/Landing";
 import SharedStrategy from "./pages/SharedStrategy";
 import NotFound from "./pages/NotFound";
 
@@ -92,6 +93,7 @@ const App = () => (
           <SessionTracker />
           <Routes>
             {/* Public routes */}
+            <Route path="/landing" element={<Landing />} />
             <Route path="/auth" element={<Auth />} />
             
             {/* Protected routes */}
