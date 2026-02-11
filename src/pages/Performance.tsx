@@ -55,6 +55,7 @@ import { usePerformanceExport } from "@/hooks/use-performance-export";
 import { useMonthlyPnl } from "@/hooks/use-monthly-pnl";
 import { useContextualAnalytics } from "@/hooks/use-contextual-analytics";
 import { DrawdownChart } from "@/components/analytics/DrawdownChart";
+import { TradingBehaviorAnalytics } from "@/components/analytics/TradingBehaviorAnalytics";
 import { EquityCurveWithEvents } from "@/components/analytics/EquityCurveWithEvents";
 import { EventDayComparison } from "@/components/analytics/EventDayComparison";
 import { FearGreedZoneChart } from "@/components/analytics/FearGreedZoneChart";
@@ -548,6 +549,9 @@ export default function Performance() {
                   </CardContent>
                 </Card>
               </div>
+
+              {/* Section: Trading Behavior */}
+              <TradingBehaviorAnalytics trades={filteredTrades} />
 
               {/* Section: Equity Performance */}
               <div className="space-y-4">
