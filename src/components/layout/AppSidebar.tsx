@@ -58,6 +58,7 @@ const navigationGroups = [
     items: [
       { title: "Trading Journal", url: "/trading", icon: Notebook },
       { title: "Trade History", url: "/history", icon: History },
+      { title: "Import Trades", url: "/import", icon: Download },
     ],
   },
   {
