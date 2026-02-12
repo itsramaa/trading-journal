@@ -4,6 +4,7 @@
  */
 import { useMemo } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -334,15 +335,11 @@ export default function AIInsights() {
     return (
       <DashboardLayout>
         <div className="space-y-6">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-              <Brain className="h-6 w-6 text-primary" />
-              AI Insights
-            </h1>
-            <p className="text-muted-foreground">
-              AI-powered analysis of your trading patterns
-            </p>
-          </div>
+          <PageHeader
+            icon={Brain}
+            title="AI Insights"
+            description="AI-powered analysis of your trading patterns"
+          />
           <Card>
             <CardContent className="py-12 text-center">
               <Brain className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
@@ -360,17 +357,11 @@ export default function AIInsights() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Page Header */}
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-              <Brain className="h-6 w-6 text-primary" />
-              AI Insights
-            </h1>
-            <p className="text-muted-foreground">
-              AI-powered analysis of your trading patterns and recommendations
-            </p>
-          </div>
+        <PageHeader
+          icon={Brain}
+          title="AI Insights"
+          description="AI-powered analysis of your trading patterns and recommendations"
+        >
           {contextualData && (
             <Button 
               variant="outline" 
@@ -381,7 +372,7 @@ export default function AIInsights() {
               Export Contextual PDF
             </Button>
           )}
-        </div>
+        </PageHeader>
 
         {/* Tabs */}
         <Tabs defaultValue="patterns" className="space-y-6">

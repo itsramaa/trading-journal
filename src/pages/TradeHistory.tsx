@@ -8,6 +8,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useInView } from "react-intersection-observer";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -326,14 +327,11 @@ export default function TradeHistory() {
     <DashboardLayout>
       <div className="space-y-6">
         {/* Page Header */}
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-              <History className="h-6 w-6 text-primary" aria-hidden="true" />
-              Trade History
-            </h1>
-            <p className="text-muted-foreground">Review and enrich your closed trades for journaling</p>
-          </div>
+        <PageHeader
+          icon={History}
+          title="Trade History"
+          description="Review and enrich your closed trades for journaling"
+        >
           
           {/* Stats Summary + Export */}
           <div className="flex items-center gap-6">
@@ -411,7 +409,7 @@ export default function TradeHistory() {
               Export CSV
             </Button>
           </div>
-        </div>
+        </PageHeader>
 
         {/* Filter Active Indicator */}
         {hasActiveFilters && (

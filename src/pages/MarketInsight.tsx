@@ -3,6 +3,7 @@
  * Single page view: AI Market Sentiment, AI Macro Analysis, Combined Analysis
  */
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { 
@@ -64,24 +65,11 @@ const MarketInsight = () => {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Page Header */}
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-              <TrendingUp className="h-6 w-6 text-primary" />
-              Market Insight
-            </h1>
-            <p className="text-muted-foreground">
-              AI-powered market analysis and trading opportunities
-            </p>
-            {sentimentData?.sentiment?.validUntil && (
-              <BiasExpiryIndicator 
-                validUntil={sentimentData.sentiment.validUntil} 
-                onExpired={handleRefresh}
-                className="mt-1 w-fit"
-              />
-            )}
-          </div>
+        <PageHeader
+          icon={TrendingUp}
+          title="Market Insight"
+          description="AI-powered market analysis and trading opportunities"
+        >
           <Button 
             variant="outline" 
             size="sm" 
@@ -93,7 +81,15 @@ const MarketInsight = () => {
             <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} aria-hidden="true" />
             Refresh Data
           </Button>
-        </div>
+        </PageHeader>
+        
+        {sentimentData?.sentiment?.validUntil && (
+          <BiasExpiryIndicator 
+            validUntil={sentimentData.sentiment.validUntil} 
+            onExpired={handleRefresh}
+            className="w-fit"
+          />
+        )}
 
         {/* Error State */}
         {hasError && (

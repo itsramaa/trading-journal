@@ -4,6 +4,7 @@
  */
 import { useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -83,24 +84,18 @@ export default function BulkExport() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Download className="h-6 w-6 text-primary" />
-            Bulk Export & Backup
-          </h1>
-          <p className="text-muted-foreground">
-            Download trading history, export journal, and backup settings
-          </p>
-          <div className="flex gap-2 mt-2">
-            <Badge variant={isConnected ? "default" : "secondary"}>
-              {isConnected ? "🔗 Exchange Connected" : "📝 Paper Mode"}
-            </Badge>
-            <Badge variant="outline">
-              Mode: {TRADE_MODE_LABELS[tradeMode]}
-            </Badge>
-          </div>
-        </div>
+        <PageHeader
+          icon={Download}
+          title="Bulk Export & Backup"
+          description="Download trading history, export journal, and backup settings"
+        >
+          <Badge variant={isConnected ? "default" : "secondary"}>
+            {isConnected ? "🔗 Exchange Connected" : "📝 Paper Mode"}
+          </Badge>
+          <Badge variant="outline">
+            Mode: {TRADE_MODE_LABELS[tradeMode]}
+          </Badge>
+        </PageHeader>
 
         <Tabs defaultValue={isConnected ? "binance" : "journal"} className="space-y-6">
           <TabsList className="grid w-full grid-cols-3 lg:w-[450px]">

@@ -4,6 +4,7 @@
  */
 import { useState, useMemo } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -222,13 +223,11 @@ export default function TradingHeatmapPage() {
     return (
       <DashboardLayout>
         <div className="space-y-6">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-              <Grid3X3 className="h-6 w-6 text-primary" />
-              Trading Heatmap
-            </h1>
-            <p className="text-muted-foreground">Loading...</p>
-          </div>
+          <PageHeader
+            icon={Grid3X3}
+            title="Trading Heatmap"
+            description="Loading..."
+          />
         </div>
       </DashboardLayout>
     );
@@ -240,55 +239,47 @@ export default function TradingHeatmapPage() {
     <DashboardLayout>
       <div className="space-y-6">
         {/* Page Header with Filters */}
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-              <Grid3X3 className="h-6 w-6 text-primary" />
-              Trading Heatmap
-            </h1>
-            <p className="text-muted-foreground">
-              Analyze your trading performance by time of day and day of week
-            </p>
-          </div>
+        <PageHeader
+          icon={Grid3X3}
+          title="Trading Heatmap"
+          description="Analyze your trading performance by time of day and day of week"
+        >
+          <Select value={dateRange} onValueChange={(v) => setDateRange(v as DateRangeOption)}>
+            <SelectTrigger className="w-[120px]">
+              <SelectValue placeholder="Date Range" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7d">Last 7 Days</SelectItem>
+              <SelectItem value="30d">Last 30 Days</SelectItem>
+              <SelectItem value="90d">Last 90 Days</SelectItem>
+              <SelectItem value="all">All Time</SelectItem>
+            </SelectContent>
+          </Select>
           
-          <div className="flex flex-wrap items-center gap-2">
-            <Select value={dateRange} onValueChange={(v) => setDateRange(v as DateRangeOption)}>
-              <SelectTrigger className="w-[120px]">
-                <SelectValue placeholder="Date Range" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="7d">Last 7 Days</SelectItem>
-                <SelectItem value="30d">Last 30 Days</SelectItem>
-                <SelectItem value="90d">Last 90 Days</SelectItem>
-                <SelectItem value="all">All Time</SelectItem>
-              </SelectContent>
-            </Select>
-            
-            <Select value={selectedPair} onValueChange={setSelectedPair}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="Pair" />
-              </SelectTrigger>
-              <SelectContent>
-                {availablePairs.map(pair => (
-                  <SelectItem key={pair} value={pair}>
-                    {pair === 'all' ? 'All Pairs' : pair}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="gap-2"
-              onClick={exportToCSV}
-              disabled={filteredTrades.length === 0}
-            >
-              <Download className="h-4 w-4" />
-              Export CSV
-            </Button>
-          </div>
-        </div>
+          <Select value={selectedPair} onValueChange={setSelectedPair}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="Pair" />
+            </SelectTrigger>
+            <SelectContent>
+              {availablePairs.map(pair => (
+                <SelectItem key={pair} value={pair}>
+                  {pair === 'all' ? 'All Pairs' : pair}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="gap-2"
+            onClick={exportToCSV}
+            disabled={filteredTrades.length === 0}
+          >
+            <Download className="h-4 w-4" />
+            Export CSV
+          </Button>
+        </PageHeader>
 
         {closedTrades.length === 0 ? (
           <EmptyState

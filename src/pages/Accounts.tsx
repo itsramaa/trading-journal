@@ -29,6 +29,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { PageHeader } from "@/components/ui/page-header";
 import { AddAccountForm } from "@/components/accounts/AddAccountForm";
 import { AccountCardList } from "@/components/accounts/AccountCardList";
 import { AccountTransactionDialog } from "@/components/accounts/AccountTransactionDialog";
@@ -132,42 +133,35 @@ export default function Accounts() {
 
       <div className="flex flex-col gap-6">
         {/* Page Header */}
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-              <CandlestickChart className="h-6 w-6 text-primary" />
-              Trading Accounts
-            </h1>
-            <p className="text-muted-foreground">
-              View your Binance Futures account and manage paper trading
-            </p>
-          </div>
-          <div className="flex gap-2">
-            {isConnected && (
-              <Button 
-                variant="outline" 
-                onClick={() => refreshBinance.mutate()}
-                disabled={refreshBinance.isPending}
-                aria-label="Refresh Binance data"
-              >
-                <RefreshCw className={`h-4 w-4 mr-2 ${refreshBinance.isPending ? 'animate-spin' : ''}`} aria-hidden="true" />
-                Refresh
-              </Button>
-            )}
-            <Button variant="outline" asChild>
-              <Link to="/settings?tab=exchange" aria-label="Open API settings">
-                <Settings className="h-4 w-4 mr-2" aria-hidden="true" />
-                API Settings
-              </Link>
+        <PageHeader
+          icon={CandlestickChart}
+          title="Trading Accounts"
+          description="View your Binance Futures account and manage paper trading"
+        >
+          {isConnected && (
+            <Button 
+              variant="outline" 
+              onClick={() => refreshBinance.mutate()}
+              disabled={refreshBinance.isPending}
+              aria-label="Refresh Binance data"
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${refreshBinance.isPending ? 'animate-spin' : ''}`} aria-hidden="true" />
+              Refresh
             </Button>
-            <Button variant="outline" asChild>
-              <Link to="/risk?tab=settings" aria-label="Open risk settings">
-                <Shield className="h-4 w-4 mr-2" aria-hidden="true" />
-                Risk Settings
-              </Link>
-            </Button>
-          </div>
-        </div>
+          )}
+          <Button variant="outline" asChild>
+            <Link to="/settings?tab=exchange" aria-label="Open API settings">
+              <Settings className="h-4 w-4 mr-2" aria-hidden="true" />
+              API Settings
+            </Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link to="/risk?tab=settings" aria-label="Open risk settings">
+              <Shield className="h-4 w-4 mr-2" aria-hidden="true" />
+              Risk Settings
+            </Link>
+          </Button>
+        </PageHeader>
 
         {/* Accounts Overview Cards - System-First: Aggregated Data */}
         <div className="grid gap-4 md:grid-cols-3">

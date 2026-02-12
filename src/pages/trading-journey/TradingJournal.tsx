@@ -11,6 +11,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -181,20 +182,11 @@ export default function TradingJournal() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Page Header */}
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-              <BookOpen className="h-6 w-6 text-primary" aria-hidden="true" />
-              Trading Journal
-            </h1>
-            <p className="text-muted-foreground">Document every trade for continuous improvement</p>
-            {/* Pro Tip - below header description */}
-            <QuickTip storageKey="trading_journal_tip" className="mt-2">
-              <strong>Pro tip:</strong> Document every trade with detailed notes and tag your strategies. 
-              Focus on quality setups and review your patterns to improve your trading edge.
-            </QuickTip>
-          </div>
+        <PageHeader
+          icon={BookOpen}
+          title="Trading Journal"
+          description="Document every trade for continuous improvement"
+        >
           {canCreateManualTrade ? (
             <Button variant="default" onClick={() => setIsWizardOpen(true)} aria-label="Open trade entry wizard">
               <Wand2 className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -205,7 +197,13 @@ export default function TradingJournal() {
               Live Mode — trades via exchange
             </Badge>
           )}
-        </div>
+        </PageHeader>
+        
+        {/* Pro Tip - below header */}
+        <QuickTip storageKey="trading_journal_tip">
+          <strong>Pro tip:</strong> Document every trade with detailed notes and tag your strategies. 
+          Focus on quality setups and review your patterns to improve your trading edge.
+        </QuickTip>
         
         {/* Trade Entry Wizard Dialog — Paper mode only */}
         {canCreateManualTrade && (

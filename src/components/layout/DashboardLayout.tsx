@@ -210,7 +210,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             <ThemeToggle />
           </div>
         </header>
-        <main id="main-content" className="flex flex-1 flex-col gap-4 p-4 pt-4">
+        <main id="main-content" className="flex flex-1 flex-col gap-6 p-4 md:p-6">
           {children}
         </main>
       </SidebarInset>
