@@ -4,6 +4,7 @@
  */
 import { useState } from "react";
 import { Check, ChevronsUpDown, RefreshCw } from "lucide-react";
+import { CryptoIcon } from "@/components/ui/crypto-icon";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -112,6 +113,7 @@ export function TradingPairCombobox({
                       value === pair.symbol ? "opacity-100" : "opacity-0"
                     )}
                   />
+                  <CryptoIcon symbol={pair.symbol} size={16} className="mr-1.5" />
                   {pair.symbol}
                 </CommandItem>
               ))}

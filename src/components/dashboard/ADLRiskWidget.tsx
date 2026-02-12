@@ -4,6 +4,7 @@
  */
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { CryptoIcon } from "@/components/ui/crypto-icon";
 import { useModeVisibility } from "@/hooks/use-mode-visibility";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -76,6 +77,7 @@ function PositionADLRow({ symbol, side, quantile }: PositionADLProps) {
             <TrendingDown className="h-4 w-4" />
           )}
         </div>
+        <CryptoIcon symbol={symbol} size={18} />
         <div className="min-w-0">
           <p className="text-sm font-medium truncate">{symbol}</p>
           <p className="text-xs text-muted-foreground">{side}</p>

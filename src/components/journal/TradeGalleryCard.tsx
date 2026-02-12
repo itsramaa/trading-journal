@@ -5,6 +5,7 @@
  */
 import { format } from "date-fns";
 import { ImageOff, AlertCircle } from "lucide-react";
+import { CryptoIcon } from "@/components/ui/crypto-icon";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { LazyImage } from "@/components/ui/lazy-image";
@@ -100,7 +101,10 @@ export function TradeGalleryCard({
       {/* Info Section */}
       <CardContent className="p-3">
         <div className="flex justify-between items-center">
-          <span className="font-semibold text-sm">{trade.pair}</span>
+          <div className="flex items-center gap-1.5">
+            <CryptoIcon symbol={trade.pair} size={16} />
+            <span className="font-semibold text-sm">{trade.pair}</span>
+          </div>
           <span className="text-xs text-muted-foreground">
             {format(new Date(trade.trade_date), "MMM d")}
           </span>

@@ -3,6 +3,7 @@
  * Shows LIMIT, STOP, TAKE_PROFIT orders awaiting fill with cancel functionality
  */
 import { useState } from "react";
+import { CryptoIcon } from "@/components/ui/crypto-icon";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -144,6 +145,7 @@ export function BinanceOpenOrdersTable({
                 <TableRow key={order.orderId}>
                   <TableCell className="font-medium">
                     <div className="flex items-center gap-2">
+                      <CryptoIcon symbol={order.symbol} size={18} />
                       <span>{order.symbol.replace("USDT", "")}</span>
                       <Badge 
                         variant={direction === "LONG" ? "long" : "short"}
