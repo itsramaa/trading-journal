@@ -5,6 +5,7 @@
 import { useEffect, useRef, useCallback } from "react";
 import { useInView } from "react-intersection-observer";
 import { Loader2 } from "lucide-react";
+import { CryptoIcon } from "@/components/ui/crypto-icon";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -153,6 +154,7 @@ function TradeRow({ trade, onClick }: TradeRowProps) {
         <div className="flex items-center justify-between gap-4">
           {/* Left: Pair & Direction */}
           <div className="flex items-center gap-3 min-w-0">
+            <CryptoIcon symbol={trade.pair} size={24} />
             <div>
               <div className="font-medium">{trade.pair}</div>
               <div className="text-xs text-muted-foreground">

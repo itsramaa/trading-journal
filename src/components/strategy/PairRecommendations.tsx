@@ -4,6 +4,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { TrendingUp, TrendingDown, Target, AlertTriangle, Trophy, XCircle } from "lucide-react";
+import { CryptoIcon } from "@/components/ui/crypto-icon";
 import type { PairRecommendation } from "@/hooks/use-strategy-context";
 
 interface PairRecommendationsProps {
@@ -71,6 +72,7 @@ export function PairRecommendations({
                     >
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-bold text-profit">#{index + 1}</span>
+                        <CryptoIcon symbol={pair.pair} size={16} />
                         <span className="text-sm font-medium">{pair.pair}</span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -103,6 +105,7 @@ export function PairRecommendations({
                     >
                       <div className="flex items-center gap-2">
                         <XCircle className="h-3 w-3 text-loss" />
+                        <CryptoIcon symbol={pair.pair} size={16} />
                         <span className="text-sm font-medium">{pair.pair}</span>
                       </div>
                       <div className="flex items-center gap-2">

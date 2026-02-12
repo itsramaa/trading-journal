@@ -4,6 +4,7 @@
  */
 
 import { Badge } from "@/components/ui/badge";
+import { CryptoIcon } from "@/components/ui/crypto-icon";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { RefreshCw, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -74,7 +75,12 @@ export function PositionsTable({
       <TableBody>
         {positions.map((position) => (
           <TableRow key={`${position.source}-${position.symbol}`}>
-            <TableCell className="font-medium">{position.symbol}</TableCell>
+            <TableCell className="font-medium">
+              <div className="flex items-center gap-2">
+                <CryptoIcon symbol={position.symbol} size={18} />
+                {position.symbol}
+              </div>
+            </TableCell>
             <TableCell>
               <Badge variant={position.side === 'LONG' ? "default" : "secondary"}>
                 {position.side}

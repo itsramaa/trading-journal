@@ -10,6 +10,7 @@ import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { Activity, TrendingUp, AlertTriangle, Flame, Snowflake } from "lucide-react";
 import { useMultiSymbolVolatility, type VolatilityRisk } from "@/features/binance";
 import { cn } from "@/lib/utils";
+import { CryptoIcon } from "@/components/ui/crypto-icon";
 import { DEFAULT_WATCHLIST_SYMBOLS, DISPLAY_LIMITS } from "@/lib/constants/market-config";
 import { 
   getMarketCondition, 
@@ -151,7 +152,7 @@ function VolatilityMeterContent({
                 className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors"
               >
                 {/* Icon */}
-                <Icon className={cn("h-4 w-4 shrink-0", getVolatilityColor(data.risk.level))} />
+                <CryptoIcon symbol={symbolName} size={20} />
                 
                 {/* Symbol & Level */}
                 <div className="flex-1 min-w-0">

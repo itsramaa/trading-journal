@@ -5,6 +5,7 @@
  * M-33: Read-only enforcement for live/Binance trades
  */
 import { useState, useEffect } from "react";
+import { CryptoIcon } from "@/components/ui/crypto-icon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TradeStateBadge } from "@/components/ui/trade-state-badge";
@@ -236,7 +237,10 @@ export function AllPositionsTable({
                   </Badge>
                 </TableCell>
                 <TableCell className="font-medium">
-                  {position.symbol}
+                  <div className="flex items-center gap-2">
+                    <CryptoIcon symbol={position.symbol} size={18} />
+                    {position.symbol}
+                  </div>
                   {position.leverage && (
                     <Badge variant="outline" className="ml-2 text-xs">
                       {position.leverage}x
