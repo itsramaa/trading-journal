@@ -82,7 +82,7 @@ export function TradeSummaryStats({
           <CardTitle className="text-sm font-medium flex items-center gap-1">
             Unrealized P&L
             <InfoTooltip 
-              content="Potensi profit/loss dari posisi yang masih terbuka. Nilai ini berubah sesuai harga pasar."
+              content="Potential profit/loss from open positions. This value changes with market price."
             />
           </CardTitle>
           {displayUnrealizedPnL >= 0 ? (

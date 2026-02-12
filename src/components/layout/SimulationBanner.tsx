@@ -19,7 +19,7 @@ export function SimulationBanner() {
     >
       <AlertTriangle className="h-4 w-4 text-[hsl(var(--chart-4))]" aria-hidden="true" />
       <span className="text-sm font-medium text-[hsl(var(--chart-4))]">
-        ⚠ SIMULATION MODE — Data tidak mempengaruhi statistik Live
+        ⚠ SIMULATION MODE — Data does not affect Live statistics
       </span>
     </div>
   );

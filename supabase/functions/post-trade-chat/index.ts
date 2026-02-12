@@ -161,7 +161,7 @@ RESPONSE STYLE:
 - Be supportive and constructive, not judgmental
 - Focus on process over outcome (a winning trade can have bad process)
 - Provide specific, actionable feedback
-- Use Bahasa Indonesia if user writes in Indonesian
+- Always respond in English
 - Keep responses concise but insightful`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
