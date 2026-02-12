@@ -20,6 +20,7 @@ import { TradeModeSelector } from "./TradeModeSelector";
 import { SimulationBanner } from "./SimulationBanner";
 import { SessionContextModal } from "./SessionContextModal";
 import { RiskAlertBanner } from "@/components/risk/RiskAlertBanner";
+import { LivePriceTicker } from "./LivePriceTicker";
 import { useNavigationShortcuts, Kbd } from "@/components/ui/keyboard-shortcut";
 import { CommandPalette, useCommandPalette } from "./CommandPalette";
 import { useSidebarPersistence } from "@/hooks/use-sidebar-persistence";
@@ -139,6 +140,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       </a>
       <AppSidebar />
       <SidebarInset>
+        {/* Live Price Ticker */}
+        <LivePriceTicker />
         {/* H-03: SIMULATION Banner (Paper mode only) */}
         <SimulationBanner />
         {/* Global Risk Alert Banner */}

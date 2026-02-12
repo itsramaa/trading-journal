@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AnimatedNumber } from "@/components/ui/animated-number";
 import { 
   Wallet, 
   TrendingUp, 
@@ -17,6 +18,8 @@ import {
   Target,
   Plus,
   Zap,
+  ArrowUpRight,
+  ArrowDownRight,
 } from "lucide-react";
 import { useUnifiedPortfolioData } from "@/hooks/use-unified-portfolio-data";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
@@ -124,11 +127,13 @@ export function PortfolioOverviewCard({ className }: PortfolioOverviewCardProps)
   };
 
   return (
-    <Card className={cn("border-primary/20", className)}>
+    <Card className={cn("border-primary/20 bg-card/80 backdrop-blur-sm", className)}>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg flex items-center gap-2">
-            <Wallet className="h-5 w-5 text-primary" />
+            <div className="p-1.5 rounded-lg bg-primary/10">
+              <Wallet className="h-4 w-4 text-primary" />
+            </div>
             Portfolio Overview
           </CardTitle>
           {getSourceBadge()}
@@ -137,64 +142,73 @@ export function PortfolioOverviewCard({ className }: PortfolioOverviewCardProps)
       <CardContent>
         <div className="grid gap-6 md:grid-cols-4">
           {/* Total Capital */}
-          <div>
-            <p className="text-sm text-muted-foreground mb-1">Total Capital</p>
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Total Capital</p>
             {portfolio.totalCapital > 0 ? (
-              <p className="text-2xl font-bold">
-                {format(portfolio.totalCapital)}
+              <p className="text-2xl font-bold tracking-tight">
+                <AnimatedNumber 
+                  value={portfolio.totalCapital} 
+                  format={(v) => format(v)} 
+                />
               </p>
             ) : (
-              <p className="text-lg text-muted-foreground">
-                —
-              </p>
+              <p className="text-lg text-muted-foreground">—</p>
             )}
           </div>
 
           {/* Today's Net P&L */}
-          <div>
-            <p className="text-sm text-muted-foreground mb-1">Today's Net P&L</p>
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Today's Net P&L</p>
             <div className="flex items-center gap-2">
               <p className={cn(
-                "text-2xl font-bold",
+                "text-2xl font-bold tracking-tight",
                 portfolio.todayNetPnl >= 0 ? 'text-profit' : 'text-loss'
               )}>
-                {formatPnl(portfolio.todayNetPnl)}
+                <AnimatedNumber
+                  value={portfolio.todayNetPnl}
+                  format={(v) => formatPnl(v)}
+                  colorize
+                />
               </p>
               {portfolio.todayNetPnl !== 0 && portfolio.totalCapital > 0 && (
                 <Badge 
                   variant="outline" 
                   className={cn(
-                    "text-xs",
+                    "text-xs font-semibold",
                     portfolio.todayNetPnl >= 0 
                       ? "border-profit/30 text-profit bg-profit/10" 
                       : "border-loss/30 text-loss bg-loss/10"
                   )}
                 >
-                  {portfolio.todayNetPnl > 0 ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
+                  {portfolio.todayNetPnl > 0 ? <ArrowUpRight className="h-3 w-3 mr-0.5" /> : <ArrowDownRight className="h-3 w-3 mr-0.5" />}
                   {formatPercent(todayReturnPercent)}
                 </Badge>
               )}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-xs text-muted-foreground">
               {portfolio.todayTrades} trade{portfolio.todayTrades !== 1 ? 's' : ''} today
             </p>
           </div>
 
           {/* Weekly P&L */}
-          <div>
-            <p className="text-sm text-muted-foreground mb-1">Weekly Net P&L</p>
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Weekly Net P&L</p>
             <div className="flex items-center gap-2">
               <p className={cn(
-                "text-2xl font-bold",
+                "text-2xl font-bold tracking-tight",
                 portfolio.weeklyNetPnl >= 0 ? 'text-profit' : 'text-loss'
               )}>
-                {formatPnl(portfolio.weeklyNetPnl)}
+                <AnimatedNumber
+                  value={portfolio.weeklyNetPnl}
+                  format={(v) => formatPnl(v)}
+                  colorize
+                />
               </p>
               {portfolio.weeklyNetPnl !== 0 && portfolio.totalCapital > 0 && (
                 <Badge 
                   variant="outline" 
                   className={cn(
-                    "text-xs",
+                    "text-xs font-semibold",
                     portfolio.weeklyNetPnl >= 0 
                       ? "border-profit/30 text-profit bg-profit/10" 
                       : "border-loss/30 text-loss bg-loss/10"
@@ -204,26 +218,29 @@ export function PortfolioOverviewCard({ className }: PortfolioOverviewCardProps)
                 </Badge>
               )}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Last 7 days
-            </p>
+            <p className="text-xs text-muted-foreground">Last 7 days</p>
           </div>
 
           {/* Win Rate */}
-          <div>
-            <p className="text-sm text-muted-foreground mb-1">Today's Win Rate</p>
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Today's Win Rate</p>
             <div className="flex items-center gap-2">
-              <p className="text-2xl font-bold">
+              <p className="text-2xl font-bold tracking-tight">
                 {formatWinRate(portfolio.todayWinRate)}
               </p>
-              <Target className={cn(
-                "h-5 w-5",
-                portfolio.todayWinRate >= 50 ? "text-profit" : portfolio.todayTrades > 0 ? "text-loss" : "text-muted-foreground"
-              )} />
+              <div className={cn(
+                "p-1 rounded-full",
+                portfolio.todayWinRate >= 50 ? "bg-profit/10" : portfolio.todayTrades > 0 ? "bg-loss/10" : "bg-muted"
+              )}>
+                <Target className={cn(
+                  "h-4 w-4",
+                  portfolio.todayWinRate >= 50 ? "text-profit" : portfolio.todayTrades > 0 ? "text-loss" : "text-muted-foreground"
+                )} />
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-xs text-muted-foreground">
               {portfolio.todayTrades > 0 
-                ? `${portfolio.todayWins} wins, ${portfolio.todayLosses} losses` 
+                ? `${portfolio.todayWins}W / ${portfolio.todayLosses}L` 
                 : 'No trades yet'}
             </p>
           </div>
@@ -231,7 +248,7 @@ export function PortfolioOverviewCard({ className }: PortfolioOverviewCardProps)
 
         {/* Enhancement CTA for non-Binance users */}
         {portfolio.source !== 'binance' && portfolio.hasData && (
-          <div className="mt-4 pt-4 border-t">
+          <div className="mt-4 pt-4 border-t border-border/50">
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">
                 Want real-time data?
