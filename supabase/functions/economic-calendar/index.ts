@@ -12,14 +12,14 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-interface TradingEconomicsEvent {
-  Date: string;
-  Event: string;
-  Country: string;
-  Importance: number;
-  Forecast: string | null;
-  Previous: string | null;
-  Actual: string | null;
+interface ForexFactoryEvent {
+  title: string;
+  country: string;
+  date: string;
+  impact: string; // "High", "Medium", "Low", "Holiday", "Non-Economic"
+  forecast: string;
+  previous: string;
+  actual?: string;
 }
 
 interface ProcessedEvent {
@@ -33,6 +33,15 @@ interface ProcessedEvent {
   actual: string | null;
   aiPrediction: string | null;
   cryptoImpact: 'bullish' | 'bearish' | 'neutral' | null;
+}
+
+function mapFFImpact(impact: string): number {
+  switch (impact) {
+    case 'High': return 3;
+    case 'Medium': return 2;
+    case 'Low': return 1;
+    default: return 0;
+  }
 }
 
 function isThisWeek(dateString: string): boolean {
@@ -62,7 +71,6 @@ async function generateAIPredictions(events: ProcessedEvent[]): Promise<Processe
     return events;
   }
 
-  // Only generate predictions for high-impact events to save API calls
   const highImpactEvents = events
     .filter(e => e.importance === 'high')
     .slice(0, DISPLAY_LIMITS.MAX_AI_PREDICTIONS);
@@ -137,7 +145,6 @@ async function generateAIPredictions(events: ProcessedEvent[]): Promise<Processe
       const parsed = JSON.parse(toolCall.function.arguments);
       const analyses = parsed.analyses || [];
       
-      // Map AI predictions back to events
       return events.map(event => {
         const analysis = analyses.find((a: any) => 
           event.event.toLowerCase().includes(a.event.toLowerCase()) ||
@@ -167,38 +174,55 @@ serve(async (req) => {
   }
 
   try {
-    // Fetch from Trading Economics API (free, no key required)
-    const teResponse = await fetch('https://api.tradingeconomics.com/calendar?c=ALL', {
+    // Fetch from Forex Factory free JSON endpoint (no API key required)
+    const ffResponse = await fetch('https://nfs.faireconomy.media/ff_calendar_thisweek.json', {
       headers: {
         'Accept': 'application/json',
-        'User-Agent': 'TradingJourney/1.0'
+        'User-Agent': 'TradingJournal/1.0'
       }
     });
 
-    if (!teResponse.ok) {
-      throw new Error(`Trading Economics API error: ${teResponse.status}`);
+    if (!ffResponse.ok) {
+      throw new Error(`Forex Factory API error: ${ffResponse.status}`);
     }
 
-    const rawEvents: TradingEconomicsEvent[] = await teResponse.json();
+    const rawEvents: ForexFactoryEvent[] = await ffResponse.json();
     
-    // Filter for relevant events using centralized function
-    const relevantEvents = rawEvents.filter(e => 
-      isRelevantEvent(e.Country, e.Event, e.Importance)
-    );
+    console.log(`Fetched ${rawEvents.length} raw events from Forex Factory`);
 
-    // Filter for this week only
-    const weekEvents = relevantEvents.filter(e => isThisWeek(e.Date));
+    // Map Forex Factory country codes to full names for filtering
+    const countryCodeMap: Record<string, string> = {
+      'USD': 'United States',
+      'EUR': 'Euro Zone',
+      'GBP': 'United Kingdom',
+      'JPY': 'Japan',
+      'CAD': 'Canada',
+      'AUD': 'Australia',
+      'NZD': 'New Zealand',
+      'CHF': 'Switzerland',
+      'CNY': 'China',
+    };
+
+    // Filter out holidays and non-economic events, and check relevance
+    const relevantEvents = rawEvents.filter(e => {
+      if (e.impact === 'Holiday' || e.impact === 'Non-Economic') return false;
+      const importanceNum = mapFFImpact(e.impact);
+      const fullCountry = countryCodeMap[e.country] || e.country;
+      return isRelevantEvent(fullCountry, e.title, importanceNum);
+    });
+
+    console.log(`Filtered to ${relevantEvents.length} relevant events`);
 
     // Process and format events
-    let processedEvents: ProcessedEvent[] = weekEvents.map((e, idx) => ({
-      id: `te-${idx}-${Date.now()}`,
-      date: e.Date,
-      event: e.Event,
-      country: e.Country,
-      importance: mapImportance(e.Importance),
-      forecast: e.Forecast,
-      previous: e.Previous,
-      actual: e.Actual,
+    let processedEvents: ProcessedEvent[] = relevantEvents.map((e, idx) => ({
+      id: `ff-${idx}-${Date.now()}`,
+      date: e.date,
+      event: e.title,
+      country: countryCodeMap[e.country] || e.country,
+      importance: mapImportance(mapFFImpact(e.impact)),
+      forecast: e.forecast || null,
+      previous: e.previous || null,
+      actual: e.actual || null,
       aiPrediction: null,
       cryptoImpact: null
     }));
@@ -248,7 +272,6 @@ serve(async (req) => {
   } catch (error) {
     console.error("Economic calendar error:", error);
     
-    // Return fallback response with empty data
     return new Response(JSON.stringify({
       events: [],
       todayHighlight: { event: null, hasEvent: false, timeUntil: null },
@@ -261,7 +284,7 @@ serve(async (req) => {
       lastUpdated: new Date().toISOString(),
       error: error instanceof Error ? error.message : 'Failed to fetch calendar data'
     }), {
-      status: 200, // Return 200 with error message for graceful handling
+      status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
