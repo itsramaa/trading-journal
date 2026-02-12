@@ -399,7 +399,7 @@ export function AIChatbot() {
       console.error('Chat error:', error);
       setMessages(prev => [
         ...prev.filter(m => m.content !== ''),
-        { role: 'assistant', content: 'Maaf, terjadi kesalahan. Silakan coba lagi.' }
+        { role: 'assistant', content: 'Sorry, an error occurred. Please try again.' }
       ]);
     } finally {
       setIsLoading(false);
@@ -741,30 +741,30 @@ export function AIChatbot() {
                     <ul className="text-xs text-muted-foreground space-y-1">
                       {aiMode === 'trading' && (
                         <>
-                          <li>• Tanyakan tentang win rate dan metrics</li>
-                          <li>• Analisis strategi yang paling profitable</li>
-                          <li>• Identifikasi kelemahan trading</li>
+                          <li>• Ask about your win rate and metrics</li>
+                          <li>• Analyze your most profitable strategies</li>
+                          <li>• Identify trading weaknesses</li>
                         </>
                       )}
                       {aiMode === 'market' && (
                         <>
-                          <li>• Cek Fear & Greed Index</li>
-                          <li>• Lihat whale activity</li>
-                          <li>• Analisis trend BTC/ETH</li>
+                          <li>• Check Fear & Greed Index</li>
+                          <li>• View whale activity</li>
+                          <li>• Analyze BTC/ETH trends</li>
                         </>
                       )}
                       {aiMode === 'setup' && (
                         <>
                           <li>• Format: "BTCUSDT long entry 95000, SL 94000, TP 98000"</li>
-                          <li>• AI akan menghitung R:R ratio</li>
-                          <li>• Dapatkan quality score + calendar warning</li>
+                          <li>• AI will calculate R:R ratio</li>
+                          <li>• Get quality score + calendar warning</li>
                         </>
                       )}
                       {aiMode === 'posttrade' && (
                         <>
-                          <li>• Analisis trade terakhir Anda</li>
-                          <li>• Identifikasi pattern dari losses</li>
-                          <li>• Pelajari apa yang bisa diperbaiki</li>
+                          <li>• Analyze your recent trades</li>
+                          <li>• Identify patterns from losses</li>
+                          <li>• Learn what can be improved</li>
                         </>
                       )}
                     </ul>

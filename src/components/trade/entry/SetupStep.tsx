@@ -675,8 +675,8 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
                           <div className="flex-1">
                             <p className="text-sm font-medium text-destructive">Trade Not Recommended</p>
                             <p className="text-xs text-muted-foreground mt-1">
-                              Pre-flight analysis menunjukkan tidak ada edge yang stabil untuk setup ini.
-                              Anda bisa melanjutkan jika memahami risikonya.
+                              Pre-flight analysis indicates no stable edge for this setup.
+                              You may proceed if you understand the risks.
                             </p>
                             <div className="flex items-center gap-2 mt-3">
                               <Checkbox 

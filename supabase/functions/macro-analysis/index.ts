@@ -73,7 +73,7 @@ async function generateAISummary(
   }
 
   try {
-    const prompt = `You are a crypto market analyst. Based on the following data, provide a concise 2-3 sentence market analysis in Indonesian:
+    const prompt = `You are a crypto market analyst. Based on the following data, provide a concise 2-3 sentence market analysis in English:
 
 BTC Dominance: ${macroData.btcDominance.toFixed(1)}%
 Market Cap Change 24h: ${macroData.marketCapChange > 0 ? '+' : ''}${macroData.marketCapChange.toFixed(2)}%
@@ -121,32 +121,32 @@ function generateRuleBasedSummary(macroData: {
 
   // Market cap trend
   if (macroData.marketCapChange > 3) {
-    parts.push('Market cap naik signifikan, menunjukkan aliran modal masuk ke crypto.');
+    parts.push('Market cap rising significantly, indicating capital inflow into crypto.');
   } else if (macroData.marketCapChange < -3) {
-    parts.push('Market cap turun, investor menarik dana dari crypto.');
+    parts.push('Market cap declining, investors pulling capital from crypto.');
   } else {
-    parts.push('Market dalam fase konsolidasi dengan pergerakan sideways.');
+    parts.push('Market in consolidation phase with sideways movement.');
   }
 
   // BTC Dominance
   if (macroData.btcDominance > 55) {
-    parts.push('BTC dominance tinggi, altcoin mungkin underperform.');
+    parts.push('BTC dominance high, altcoins may underperform.');
   } else if (macroData.btcDominance < 45) {
-    parts.push('BTC dominance rendah, potensi altseason.');
+    parts.push('BTC dominance low, potential altseason ahead.');
   }
 
   // Fear & Greed
   if (macroData.fearGreed > 75) {
-    parts.push('Extreme greed - pertimbangkan untuk take profit.');
+    parts.push('Extreme greed — consider taking profits.');
   } else if (macroData.fearGreed < 25) {
-    parts.push('Extreme fear - peluang akumulasi untuk jangka panjang.');
+    parts.push('Extreme fear — potential accumulation opportunity for long-term.');
   }
 
   // Funding rates
   if (macroData.fundingRates.btc > 0.03) {
-    parts.push('Funding rate tinggi, long positions crowded - hati-hati pullback.');
+    parts.push('Funding rate high, long positions crowded — watch for pullback.');
   } else if (macroData.fundingRates.btc < -0.01) {
-    parts.push('Funding rate negatif, shorts dominan - potensi short squeeze.');
+    parts.push('Funding rate negative, shorts dominant — potential short squeeze.');
   }
 
   return parts.join(' ');

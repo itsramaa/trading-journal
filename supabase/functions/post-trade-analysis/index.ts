@@ -52,26 +52,14 @@ serve(async (req) => {
     }
 
     const body: PostTradeRequest = await req.json();
-    const { trade, strategy, similarTrades, language } = body;
-
-    const isIndonesian = language === 'id';
+    const { trade, strategy, similarTrades } = body;
 
     // Calculate similar trades stats
     const similarWins = similarTrades?.filter(t => t.result === 'win').length || 0;
     const similarTotal = similarTrades?.length || 0;
     const similarWinRate = similarTotal > 0 ? (similarWins / similarTotal * 100) : 0;
 
-    const systemPrompt = isIndonesian
-      ? `Kamu adalah coach trading AI yang menganalisis trade yang sudah selesai untuk membantu trader belajar dan berkembang.
-
-Analisis trade ini dan berikan:
-1. Faktor-faktor yang berkontribusi pada hasil (win/loss)
-2. Pelajaran yang bisa dipetik
-3. Rekomendasi untuk trade serupa di masa depan
-4. Update pattern recognition berdasarkan similar trades
-
-Bersikaplah konstruktif dan supportif. Fokus pada improvement, bukan kritik.`
-      : `You are an AI trading coach analyzing completed trades to help traders learn and improve.
+    const systemPrompt = `You are an AI trading coach analyzing completed trades to help traders learn and improve.
 
 Analyze this trade and provide:
 1. Factors that contributed to the outcome (win/loss)
@@ -101,7 +89,7 @@ SIMILAR TRADES (${similarTotal} total):
 - Win Rate on ${trade.pair}: ${similarWinRate.toFixed(1)}%
 ${similarTrades?.slice(0, 3).map(t => `- ${t.direction} ${t.pair}: ${t.result} ($${t.pnl.toFixed(2)})`).join('\n') || 'No similar trades'}
 
-Provide analysis in ${isIndonesian ? 'Indonesian' : 'English'}.`;
+Provide analysis in English.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",

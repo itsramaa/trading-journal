@@ -57,7 +57,7 @@ When providing analysis, relate it to the user's open positions and strategies w
     }
 
     // Build rich context for LLM
-    const systemPrompt = `You are an expert crypto market analyst providing real-time market insights. You speak Indonesian when the user writes in Indonesian.
+    const systemPrompt = `You are an expert crypto market analyst providing real-time market insights. Always respond in English.
 
 CURRENT MARKET DATA:
 - Fear & Greed Index: ${sentimentData.sentiment?.fearGreed?.value || 'N/A'} (${sentimentData.sentiment?.fearGreed?.label || 'Unknown'})
@@ -106,7 +106,7 @@ GUIDELINES:
 - For trading recommendations, always mention risk management
 - If user has open positions, relate the analysis to those positions
 - Be concise but thorough
-- Use Bahasa Indonesia if the user writes in Indonesian`;
+- Always respond in English`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",

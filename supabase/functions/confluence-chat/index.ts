@@ -230,7 +230,7 @@ RESPONSE FORMAT:
 
 If setup details are missing, ask for them specifically.
 If user has defined strategies, validate the setup against their strategy rules.
-Use Bahasa Indonesia if the user writes in Indonesian.`;
+Always respond in English.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",

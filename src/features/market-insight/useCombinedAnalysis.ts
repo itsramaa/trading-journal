@@ -58,20 +58,20 @@ function calculateRecommendation(
     if (bothBullish) {
       return {
         recommendation: 'STRONG_BUY',
-        text: 'Crypto dan Macro selaras bullish. Peluang entry dengan size normal atau sedikit lebih besar.',
+        text: 'Crypto and Macro are aligned bullish. Entry opportunity with normal or slightly larger size.',
         positionAdj: 1.0
       };
     }
     if (bothBearish) {
       return {
         recommendation: 'STRONG_SELL',
-        text: 'Crypto dan Macro selaras bearish. Hindari long, pertimbangkan short atau cash.',
+        text: 'Crypto and Macro are aligned bearish. Avoid longs, consider short or cash.',
         positionAdj: 0.5
       };
     }
     return {
       recommendation: 'WAIT',
-      text: 'Market netral dan selaras. Tunggu momentum yang lebih jelas.',
+      text: 'Market is neutral and aligned. Wait for clearer momentum.',
       positionAdj: 0.75
     };
   }
@@ -79,7 +79,7 @@ function calculateRecommendation(
   if (alignmentStatus === 'conflict') {
     return {
       recommendation: 'CAUTIOUS',
-      text: 'Konflik antara crypto dan macro sentiment. Kurangi position size 50%, gunakan stop ketat.',
+      text: 'Conflict between crypto and macro sentiment. Reduce position size 50%, use tight stops.',
       positionAdj: 0.5
     };
   }
@@ -87,7 +87,7 @@ function calculateRecommendation(
   // neutral
   return {
     recommendation: 'WAIT',
-    text: 'Market dalam transisi. Tunggu konfirmasi arah yang lebih jelas.',
+    text: 'Market in transition. Wait for clearer directional confirmation.',
     positionAdj: 0.75
   };
 }

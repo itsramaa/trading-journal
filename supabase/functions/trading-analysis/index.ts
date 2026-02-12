@@ -173,7 +173,7 @@ GUIDELINES:
 - Suggest improvements based on the data
 - Highlight any concerning patterns or habits
 - Be constructive and encouraging
-- Use Bahasa Indonesia if the user writes in Indonesian
+- Always respond in English
 - Format responses clearly with sections when appropriate
 - Be specific with numbers and percentages`;
 
