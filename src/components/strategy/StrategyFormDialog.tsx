@@ -547,6 +547,18 @@ export function StrategyFormDialog({
             </TabsContent>
           </Tabs>
 
+          {/* Form-level error feedback */}
+          {Object.keys(form.formState.errors).length > 0 && (
+            <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-lg">
+              Please fix the following errors:
+              <ul className="list-disc list-inside mt-1">
+                {Object.entries(form.formState.errors).map(([key, error]) => (
+                  <li key={key}>{error?.message || `Invalid ${key}`}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <div className="flex gap-2 pt-4">
             <Button
               type="button"
