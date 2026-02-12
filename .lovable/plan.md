@@ -1,23 +1,28 @@
 
-# Paper Mode — Full Analysis & Fix Plan
+# UI/UX Overhaul — Modern Dashboard
 
-**Status:** ✅ ALL STEPS COMPLETE
+**Status:** 🔄 In Progress
 
-## Summary
+## Phase 1: Sidebar Navigation Restructure ✅
 
-6 bugs identified and fixed across Accounts, TradeHistory, and RiskManagement pages to ensure proper Paper/Live mode isolation.
+Consolidated sidebar from 6 groups → 4 groups + standalone items:
 
-| Step | Bug | Status |
-|------|-----|--------|
-| Step 1 | Account filter logic — paper accounts not appearing | ✅ Done |
-| Step 2 | TradeHistory — Binance UI visible in Paper mode | ✅ Done |
-| Step 3 | RiskManagement — no mode awareness | ✅ Done |
-| Step 4 | Overview cards mixing Live+Paper data | ✅ Done |
-| Step 5 | Update documentation | ✅ Done |
+| Before | After |
+|--------|-------|
+| Market (4 items) | Market (4 items) — unchanged |
+| Journal (3 items) | Journal (3 items) — unchanged |
+| Risk (2 items) | → merged into **Tools** |
+| Strategy (2 items) | → merged into **Tools** |
+| Analytics (5 items) | Analytics (5 items) — unchanged |
+| Settings (1 item) | → standalone at bottom |
+| **New: Tools** | Risk Overview, Calculator, Strategies, Backtest |
 
-### Key Changes
-- Paper accounts identified via `exchange === 'manual'` (not `account_type === 'backtest'`)
-- `TradeHistory` gates all Binance UI (FullSync, incremental sync, enrichment, Fees/Funding tabs) via `showExchangeData`
-- `RiskManagement` hides `CorrelationMatrix` in Paper mode
-- Accounts overview cards show mode-isolated data (Paper balance only in Paper mode, Binance only in Live mode)
-- Documentation updated in `docs/ARCHITECTURE_GAPS.md`
+## Phase 2: Dashboard Layout Cleanup (Pending)
+- Improve visual hierarchy, card layout, whitespace
+- Reduce information density on first load
+
+## Phase 3: Journal + History Page Merge (Pending)
+- Combine Trading Journal + Trade History into tabbed single view
+
+## Phase 4: Analytics Consolidation (Pending)
+- Combine Performance, Daily P&L, Heatmap into tabbed analytics dashboard

@@ -62,23 +62,9 @@ const navigationGroups = [
     ],
   },
   {
-    title: "Risk",
-    items: [
-      { title: "Risk Overview", url: "/risk", icon: Shield },
-      { title: "Risk Calculator", url: "/calculator", icon: Calculator },
-    ],
-  },
-  {
-    title: "Strategy",
-    items: [
-      { title: "My Strategies", url: "/strategies", icon: Lightbulb },
-      { title: "Backtest", url: "/backtest", icon: Play },
-    ],
-  },
-  {
     title: "Analytics",
     items: [
-      { title: "Performance Overview", url: "/performance", icon: LineChart },
+      { title: "Performance", url: "/performance", icon: LineChart },
       { title: "Daily P&L", url: "/daily-pnl", icon: DollarSign },
       { title: "Heatmap", url: "/heatmap", icon: Grid3X3 },
       { title: "AI Insights", url: "/ai-insights", icon: Brain },
@@ -86,9 +72,12 @@ const navigationGroups = [
     ],
   },
   {
-    title: "Settings",
+    title: "Tools",
     items: [
-      { title: "Settings", url: "/settings", icon: Settings },
+      { title: "Risk Overview", url: "/risk", icon: Shield },
+      { title: "Risk Calculator", url: "/calculator", icon: Calculator },
+      { title: "My Strategies", url: "/strategies", icon: Lightbulb },
+      { title: "Backtest", url: "/backtest", icon: Play },
     ],
   },
 ];
@@ -207,6 +196,36 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             defaultOpen={true}
           />
         ))}
+
+        {/* Settings - Standalone at bottom */}
+        <SidebarMenu className="px-2">
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              isActive={location.pathname === "/settings"}
+              tooltip={isCollapsed ? { children: (
+                <div className="flex items-center gap-2">
+                  <span>Settings</span>
+                  <Kbd keys={["G", ","]} className="ml-1" />
+                </div>
+              ) } : undefined}
+              size="default"
+              className="group/nav-item"
+            >
+              <Link to="/settings" onClick={handleNavClick} className="flex items-center justify-between w-full">
+                <div className="flex items-center gap-2">
+                  <Settings className="h-4 w-4" />
+                  <span>Settings</span>
+                </div>
+                {!isCollapsed && (
+                  <span className="ml-auto text-[10px] font-mono text-muted-foreground opacity-0 group-hover/nav-item:opacity-100 transition-opacity">
+                    G ,
+                  </span>
+                )}
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarContent>
 
       <SidebarFooter>
