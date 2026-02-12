@@ -1,5 +1,6 @@
 import { useSearchParams } from "react-router-dom";
 import { Bell, Palette, Bot, Link, Settings as SettingsIcon, TrendingUp } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
 import { AISettingsTab } from "@/components/settings/AISettingsTab";
 import { BinanceApiSettings } from "@/components/settings/BinanceApiSettings";
 import { ComingSoonExchangeCard } from "@/components/settings/ComingSoonExchangeCard";
@@ -51,13 +52,11 @@ const Settings = () => {
     return (
       <DashboardLayout>
         <div className="space-y-6">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-              <SettingsIcon className="h-6 w-6 text-primary" />
-              Settings
-            </h1>
-            <p className="text-muted-foreground">Manage your app preferences.</p>
-          </div>
+          <PageHeader
+            icon={SettingsIcon}
+            title="Settings"
+            description="Manage your app preferences."
+          />
           <div className="space-y-4">
             <Skeleton className="h-[400px] w-full" />
           </div>
@@ -69,13 +68,11 @@ const Settings = () => {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <SettingsIcon className="h-6 w-6 text-primary" />
-            Settings
-          </h1>
-          <p className="text-muted-foreground">Manage your app preferences.</p>
-        </div>
+        <PageHeader
+          icon={SettingsIcon}
+          title="Settings"
+          description="Manage your app preferences."
+        />
 
         <Tabs defaultValue={defaultTab} className="space-y-4">
           <TabsList className="grid w-full grid-cols-5 lg:w-[500px]">

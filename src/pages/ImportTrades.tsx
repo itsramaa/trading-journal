@@ -3,6 +3,7 @@
  * Allows users to scan their wallet and import DEX trades
  */
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { PageHeader } from "@/components/ui/page-header";
 import { SolanaTradeImport } from "@/components/wallet/SolanaTradeImport";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -20,16 +21,11 @@ export default function ImportTrades() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Download className="h-6 w-6 text-primary" />
-            Import On-Chain Trades
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Scan your Solana wallet and auto-import trades from supported DEXs
-          </p>
-        </div>
+        <PageHeader
+          icon={Download}
+          title="Import On-Chain Trades"
+          description="Scan your Solana wallet and auto-import trades from supported DEXs"
+        />
 
         {/* Feature cards */}
         <div className="grid gap-4 sm:grid-cols-3">

@@ -5,6 +5,7 @@
 import { useState, useMemo } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -193,50 +194,43 @@ export default function TopMovers() {
     <DashboardLayout>
       <div className="space-y-6">
         {/* Page Header */}
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-              <BarChart3 className="h-6 w-6 text-primary" />
-              Top Movers
-              {isFetching && <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />}
-            </h1>
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <span>Top gainers, losers, and volume leaders in the last 24 hours</span>
-              {lastUpdated && (
-                <span className="text-xs">• Updated: {lastUpdated}</span>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortBy)}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="Sort by..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="percentage">% Change</SelectItem>
-                <SelectItem value="priceChange">Price Change</SelectItem>
-                <SelectItem value="volume">Volume</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => setLimit(limit === 10 ? 20 : 10)}
-            >
-              Show {limit === 10 ? '20' : '10'}
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="gap-2" 
-              onClick={() => refetch()}
-              disabled={isFetching}
-            >
-              <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
-              Refresh
-            </Button>
-          </div>
-        </div>
+        <PageHeader
+          icon={BarChart3}
+          title="Top Movers"
+          description="Top gainers, losers, and volume leaders in the last 24 hours"
+        >
+          {isFetching && <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />}
+          {lastUpdated && (
+            <span className="text-xs text-muted-foreground">Updated: {lastUpdated}</span>
+          )}
+          <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortBy)}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="Sort by..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="percentage">% Change</SelectItem>
+              <SelectItem value="priceChange">Price Change</SelectItem>
+              <SelectItem value="volume">Volume</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => setLimit(limit === 10 ? 20 : 10)}
+          >
+            Show {limit === 10 ? '20' : '10'}
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="gap-2" 
+            onClick={() => refetch()}
+            disabled={isFetching}
+          >
+            <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
+            Refresh
+          </Button>
+        </PageHeader>
 
         {/* Summary Cards */}
         <div className="grid gap-4 md:grid-cols-3">

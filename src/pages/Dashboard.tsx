@@ -12,6 +12,7 @@
  * Row 8: AI Insights (full width)
  */
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -83,10 +84,11 @@ const Dashboard = () => {
     <DashboardLayout>
       <div className="space-y-6">
         {/* Page Header */}
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground">Your trading overview at a glance</p>
-        </div>
+        <PageHeader
+          icon={Activity}
+          title="Dashboard"
+          description="Your trading overview at a glance"
+        />
 
         {/* Row 1: Portfolio Overview */}
         <PortfolioOverviewCard />

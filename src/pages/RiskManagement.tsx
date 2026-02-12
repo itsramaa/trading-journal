@@ -4,6 +4,7 @@
  */
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -34,15 +35,11 @@ export default function RiskManagement() {
     <DashboardLayout>
       <div className="space-y-6">
         {/* Page Header */}
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Shield className="h-6 w-6 text-primary" />
-            Risk Management
-          </h1>
-          <p className="text-muted-foreground">
-            Configure and monitor your trading risk parameters
-          </p>
-        </div>
+        <PageHeader
+          icon={Shield}
+          title="Risk Management"
+          description="Configure and monitor your trading risk parameters"
+        />
 
         {/* Tabs */}
         <Tabs defaultValue="overview" className="space-y-6">

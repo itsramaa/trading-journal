@@ -6,6 +6,7 @@
  */
 import { useState, useMemo } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { PageHeader } from "@/components/ui/page-header";
 import { MarketSentimentWidget, WhaleTrackingWidget, TradingOpportunitiesWidget } from "@/components/market";
 import { VolatilityMeterWidget } from "@/components/dashboard/VolatilityMeterWidget";
 import { BarChart3, RefreshCw } from "lucide-react";
@@ -63,16 +64,11 @@ export default function MarketData() {
     <DashboardLayout>
       <div className="space-y-6">
         {/* Page Header */}
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-              <BarChart3 className="h-6 w-6 text-primary" />
-              Market Data
-            </h1>
-            <p className="text-muted-foreground">
-              Volatility analysis, trading opportunities, and whale tracking
-            </p>
-          </div>
+        <PageHeader
+          icon={BarChart3}
+          title="Market Data"
+          description="Volatility analysis, trading opportunities, and whale tracking"
+        >
           <Button 
             variant="outline" 
             size="sm" 
@@ -83,7 +79,7 @@ export default function MarketData() {
             <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
             Refresh
           </Button>
-        </div>
+        </PageHeader>
 
         {/* 1. Market Sentiment - Full Width at Top */}
         <MarketSentimentWidget 

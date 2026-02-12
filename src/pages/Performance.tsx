@@ -3,6 +3,7 @@
  */
 import { useState, useMemo } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -253,13 +254,11 @@ export default function Performance() {
     return (
       <DashboardLayout>
         <div className="space-y-6">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-              <BarChart3 className="h-6 w-6 text-primary" />
-              Performance Analytics
-            </h1>
-            <p className="text-muted-foreground">Deep dive into your trading performance metrics</p>
-          </div>
+          <PageHeader
+            icon={BarChart3}
+            title="Performance Analytics"
+            description="Deep dive into your trading performance metrics"
+          />
           <MetricsGridSkeleton />
         </div>
       </DashboardLayout>
@@ -269,34 +268,27 @@ export default function Performance() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-              <BarChart3 className="h-6 w-6 text-primary" />
-              Performance Analytics
-            </h1>
-            <div className="flex items-center gap-2">
-              <p className="text-muted-foreground">Deep dive into your trading performance metrics</p>
-              {analyticsSelection.level !== 'overall' && (
-                <Badge variant="secondary" className="text-xs">
-                  {analyticsSelection.level === 'account' && `Account`}
-                  {analyticsSelection.level === 'exchange' && `Exchange: ${analyticsSelection.exchange}`}
-                  {analyticsSelection.level === 'type' && `${analyticsSelection.tradeType === 'paper' ? 'Paper' : 'Live'}`}
-                </Badge>
-              )}
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={handleExportCSV}>
-              <FileSpreadsheet className="h-4 w-4 mr-2" />
-              Export CSV
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleExportPDF}>
-              <Download className="h-4 w-4 mr-2" />
-              Export PDF
-            </Button>
-          </div>
-        </div>
+        <PageHeader
+          icon={BarChart3}
+          title="Performance Analytics"
+          description="Deep dive into your trading performance metrics"
+        >
+          {analyticsSelection.level !== 'overall' && (
+            <Badge variant="secondary" className="text-xs">
+              {analyticsSelection.level === 'account' && `Account`}
+              {analyticsSelection.level === 'exchange' && `Exchange: ${analyticsSelection.exchange}`}
+              {analyticsSelection.level === 'type' && `${analyticsSelection.tradeType === 'paper' ? 'Paper' : 'Live'}`}
+            </Badge>
+          )}
+          <Button variant="outline" size="sm" onClick={handleExportCSV}>
+            <FileSpreadsheet className="h-4 w-4 mr-2" />
+            Export CSV
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleExportPDF}>
+            <Download className="h-4 w-4 mr-2" />
+            Export PDF
+          </Button>
+        </PageHeader>
 
         {/* Filters */}
         <Card>

@@ -7,6 +7,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -162,26 +163,18 @@ export default function StrategyManagement() {
   return (
     <DashboardLayout>
       <div className="space-y-8">
-        {/* Page Header */}
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div className="space-y-1">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Target className="h-6 w-6 text-primary" aria-hidden="true" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight">Strategy & Rules</h1>
-                <p className="text-muted-foreground text-sm">Create, import, and backtest your trading strategies</p>
-              </div>
-            </div>
-          </div>
+        <PageHeader
+          icon={Target}
+          title="Strategy & Rules"
+          description="Create, import, and backtest your trading strategies"
+        >
           {activeTab === 'library' && (
             <Button onClick={handleOpenAdd} className="shrink-0" aria-label="Create new trading strategy">
               <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
               New Strategy
             </Button>
           )}
-        </div>
+        </PageHeader>
 
         {/* Main Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>

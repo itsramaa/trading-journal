@@ -2,6 +2,7 @@
  * Backtest Page - Standalone page for backtest runner
  */
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { PageHeader } from "@/components/ui/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Play, BarChart3 } from "lucide-react";
 import { BacktestRunner, BacktestComparison } from "@/components/strategy";
@@ -10,16 +11,11 @@ export default function Backtest() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Page Header */}
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Play className="h-6 w-6 text-primary" />
-            Backtest
-          </h1>
-          <p className="text-muted-foreground">
-            Test your strategies against historical data
-          </p>
-        </div>
+        <PageHeader
+          icon={Play}
+          title="Backtest"
+          description="Test your strategies against historical data"
+        />
 
         {/* Backtest Content */}
         <Tabs defaultValue="run" className="w-full">

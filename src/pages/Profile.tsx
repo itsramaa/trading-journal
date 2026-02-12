@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { User, Shield, LogOut, Loader2, Upload, Camera } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -115,13 +116,11 @@ const Profile = () => {
     return (
       <DashboardLayout>
         <div className="space-y-6">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-              <User className="h-6 w-6 text-primary" />
-              Profile
-            </h1>
-            <p className="text-muted-foreground">Manage your profile and security settings.</p>
-          </div>
+          <PageHeader
+            icon={User}
+            title="Profile"
+            description="Manage your profile and security settings."
+          />
           <div className="space-y-4">
             <Skeleton className="h-[400px] w-full" />
           </div>
@@ -133,13 +132,11 @@ const Profile = () => {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <User className="h-6 w-6 text-primary" />
-            Profile
-          </h1>
-          <p className="text-muted-foreground">Manage your profile and security settings.</p>
-        </div>
+        <PageHeader
+          icon={User}
+          title="Profile"
+          description="Manage your profile and security settings."
+        />
 
         <Tabs defaultValue="profile" className="space-y-4">
           <TabsList className="grid w-full grid-cols-2 lg:w-[300px]">

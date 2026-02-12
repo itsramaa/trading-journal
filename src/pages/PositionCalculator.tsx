@@ -5,6 +5,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
@@ -122,13 +123,11 @@ export default function PositionCalculator() {
     return (
       <DashboardLayout>
         <div className="space-y-6">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-              <Calculator className="h-6 w-6 text-primary" />
-              Risk Calculator
-            </h1>
-            <p className="text-muted-foreground">Loading your risk settings...</p>
-          </div>
+          <PageHeader
+            icon={Calculator}
+            title="Risk Calculator"
+            description="Loading your risk settings..."
+          />
           <Skeleton className="h-[400px]" />
         </div>
       </DashboardLayout>
@@ -138,16 +137,11 @@ export default function PositionCalculator() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Page Header */}
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Calculator className="h-6 w-6 text-primary" />
-            Risk Calculator
-          </h1>
-          <p className="text-muted-foreground">
-            Calculate position sizes and manage risk before entering trades
-          </p>
-        </div>
+        <PageHeader
+          icon={Calculator}
+          title="Risk Calculator"
+          description="Calculate position sizes and manage risk before entering trades"
+        />
 
         {/* Symbol Selector */}
         <div className="space-y-2">

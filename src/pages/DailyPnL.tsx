@@ -4,6 +4,7 @@
  * Uses centralized currency conversion for user's preferred currency
  */
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -103,34 +104,23 @@ export default function DailyPnL() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Page Header with Export Buttons */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-                <DollarSign className="h-6 w-6 text-primary" />
-                Daily P&L
-              </h1>
-              <p className="text-muted-foreground">
-                Analyze your daily profit and loss breakdown
-              </p>
-            </div>
-            {/* Source Badge */}
-            <Badge variant="outline" className="text-xs h-6">
-              {dailyStats.source === 'binance' ? '🔗 Live' : '📝 Paper'}
-            </Badge>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={handleExportCSV}>
-              <Download className="h-4 w-4 mr-2" />
-              CSV
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleExportPDF}>
-              <FileText className="h-4 w-4 mr-2" />
-              PDF
-            </Button>
-          </div>
-        </div>
+        <PageHeader
+          icon={DollarSign}
+          title="Daily P&L"
+          description="Analyze your daily profit and loss breakdown"
+        >
+          <Badge variant="outline" className="text-xs h-6">
+            {dailyStats.source === 'binance' ? '🔗 Live' : '📝 Paper'}
+          </Badge>
+          <Button variant="outline" size="sm" onClick={handleExportCSV}>
+            <Download className="h-4 w-4 mr-2" />
+            CSV
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleExportPDF}>
+            <FileText className="h-4 w-4 mr-2" />
+            PDF
+          </Button>
+        </PageHeader>
 
         {/* Today's P&L Summary */}
         <Card className="border-primary/20">
