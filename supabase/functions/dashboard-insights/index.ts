@@ -91,22 +91,10 @@ serve(async (req) => {
         winRate: safeNumber(s.winRate),
       }));
 
-    const language = body.language === 'id' ? 'id' : 'en';
     // === END VALIDATION ===
 
-    const isIndonesian = language === 'id';
-
-    const systemPrompt = isIndonesian 
-      ? `Kamu adalah asisten trading AI yang membantu trader menganalisis portofolio mereka. Berikan insight yang ringkas, actionable, dan konstruktif dalam Bahasa Indonesia.
-
-Fokus pada:
-1. Status portofolio saat ini
-2. Peringatan risiko jika ada
-3. Rekomendasi berdasarkan pola trading
-4. Setup terbaik berdasarkan kinerja historis
-
-Gunakan fungsi yang disediakan untuk mengembalikan analisis terstruktur.`
-      : `You are an AI trading assistant helping traders analyze their portfolio. Provide concise, actionable, and constructive insights.
+    // Always output in English per project language standard
+    const systemPrompt = `You are an AI trading assistant helping traders analyze their portfolio. Provide concise, actionable, and constructive insights in English.
 
 Focus on:
 1. Current portfolio status and deployment
@@ -151,7 +139,7 @@ ${strategies.length > 0
 
 Best performing strategy: ${bestStrategy ? `${bestStrategy.name} (${bestStrategy.winRate.toFixed(1)}%)` : 'N/A'}
 
-Provide dashboard insights in ${isIndonesian ? 'Indonesian' : 'English'}.`;
+Provide dashboard insights in English.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
