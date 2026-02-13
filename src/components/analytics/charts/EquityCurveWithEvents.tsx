@@ -191,7 +191,7 @@ export function EquityCurveWithEvents({ equityData, formatCurrency }: EquityCurv
   }
 
   return (
-    <Card>
+    <Card role="region" aria-label="Equity curve with economic event annotations">
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
@@ -211,7 +211,7 @@ export function EquityCurveWithEvents({ equityData, formatCurrency }: EquityCurv
         </div>
       </CardHeader>
       <CardContent>
-        <div className="h-[300px]">
+        <div className="h-[300px]" role="img" aria-label="Equity curve chart showing cumulative profit and loss over time with economic event markers">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={enrichedData}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />

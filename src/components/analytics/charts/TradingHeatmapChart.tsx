@@ -279,7 +279,7 @@ export function TradingHeatmapChart({ trades }: TradingHeatmapChartProps) {
   };
 
   return (
-    <Card>
+    <Card role="region" aria-label="Time-based trading win rate heatmap">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-base">

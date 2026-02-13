@@ -4,7 +4,7 @@
  */
 import { useMemo } from "react";
 import { useRiskProfile, useDailyRiskStatus } from "@/hooks/use-risk-profile";
-import { useTradeEntries } from "@/hooks/use-trade-entries";
+import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import type { ValidationResult, PreValidationResult } from "@/types/trade-wizard";
 
 interface UsePreTradeValidationParams {
@@ -15,7 +15,7 @@ interface UsePreTradeValidationParams {
 export function usePreTradeValidation({ accountBalance, newPair }: UsePreTradeValidationParams) {
   const { data: riskProfile } = useRiskProfile();
   const { data: dailyStatus, riskProfile: riskProfileFromStatus } = useDailyRiskStatus();
-  const { data: trades } = useTradeEntries();
+  const { data: trades } = useModeFilteredTrades();
 
   // Use riskProfile from either source
   const effectiveRiskProfile = riskProfile || riskProfileFromStatus;

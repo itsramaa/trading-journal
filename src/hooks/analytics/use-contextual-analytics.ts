@@ -3,7 +3,7 @@
  * Analyzes trades based on Fear/Greed zones, volatility levels, event days, and trading sessions
  */
 import { useMemo } from "react";
-import { useTradeEntries } from "@/hooks/use-trade-entries";
+import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import type { UnifiedMarketContext } from "@/types/market-context";
 import { getTradeSession, TradingSession } from "@/lib/session-utils";
 import { 
@@ -254,7 +254,7 @@ export function useContextualAnalytics(): {
   data: ContextualAnalyticsResult | null;
   isLoading: boolean;
 } {
-  const { data: trades, isLoading } = useTradeEntries();
+  const { data: trades, isLoading } = useModeFilteredTrades();
   
   const data = useMemo(() => {
     if (!trades || trades.length === 0) return null;
