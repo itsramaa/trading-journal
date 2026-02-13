@@ -64,6 +64,7 @@ const navigationGroups = [
   {
     title: "Analytics",
     items: [
+      { title: "Risk Overview", url: "/risk", icon: Shield },
       { title: "Performance", url: "/performance", icon: LineChart },
       { title: "Daily P&L", url: "/daily-pnl", icon: DollarSign },
       { title: "Heatmap", url: "/heatmap", icon: Grid3X3 },
@@ -74,7 +75,6 @@ const navigationGroups = [
   {
     title: "Tools",
     items: [
-      { title: "Risk Overview", url: "/risk", icon: Shield },
       { title: "Risk Calculator", url: "/calculator", icon: Calculator },
       { title: "My Strategies", url: "/strategies", icon: Lightbulb },
       { title: "Backtest", url: "/backtest", icon: Play },
