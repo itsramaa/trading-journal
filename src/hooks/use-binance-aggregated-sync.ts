@@ -49,7 +49,7 @@ const MAX_INCOME_INTERVAL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 const RECORDS_PER_PAGE = 1000;
 const DEFAULT_HISTORY_DAYS = 90; // Optimized default
 const MAX_PARALLEL_SYMBOLS = 4; // Increased for faster sync (was 2)
-const BATCH_INSERT_SIZE = 50; // Trades per DB insert batch
+const BATCH_INSERT_SIZE = 30; // Trades per DB insert batch (optimized for atomic RPC)
 const MAX_INSERT_RETRIES = 3; // Retries per batch
 
 // Rate limit state (shared across calls)
@@ -403,29 +403,45 @@ export function useBinanceAggregatedSync() {
         message: `Saving batch ${batchIndex}/${totalBatches}...`,
       });
       
-      // Retry logic per batch
+      // Retry logic per batch — uses atomic RPC for all-or-nothing insert
       let retries = MAX_INSERT_RETRIES;
       let success = false;
       
       while (retries > 0 && !success) {
-        const { error } = await supabase
-          .from('trade_entries')
-          .insert(dbRows);
+        const { data: rpcResult, error: rpcError } = await supabase
+          .rpc('batch_insert_trades', { p_trades: JSON.stringify(dbRows) });
         
-        if (!error) {
-          success = true;
-          insertedCount += batch.length;
-          console.log(`[FullSync] Batch ${batchIndex}/${totalBatches} inserted successfully (${batch.length} trades)`);
-        } else {
+        // Check for RPC-level error
+        if (rpcError) {
           retries--;
           if (retries > 0) {
-            console.warn(`[FullSync] Batch ${batchIndex} failed, retrying (${retries} left)...`, error.message);
+            console.warn(`[FullSync] Batch ${batchIndex} RPC error, retrying (${retries} left)...`, rpcError.message);
             await new Promise(r => setTimeout(r, 1000 * (MAX_INSERT_RETRIES - retries)));
           } else {
-            console.error(`[FullSync] Batch ${batchIndex} failed after all retries:`, error.message);
-            failedBatches.push({ batch: batchIndex, error: error.message });
+            console.error(`[FullSync] Batch ${batchIndex} failed after all retries:`, rpcError.message);
+            failedBatches.push({ batch: batchIndex, error: rpcError.message });
           }
+          continue;
         }
+        
+        // Check for DB-level error returned in result
+        const resultData = rpcResult as { inserted?: number; error?: string } | null;
+        if (resultData?.error) {
+          retries--;
+          if (retries > 0) {
+            console.warn(`[FullSync] Batch ${batchIndex} DB error, retrying (${retries} left)...`, resultData.error);
+            await new Promise(r => setTimeout(r, 1000 * (MAX_INSERT_RETRIES - retries)));
+          } else {
+            console.error(`[FullSync] Batch ${batchIndex} failed after all retries:`, resultData.error);
+            failedBatches.push({ batch: batchIndex, error: resultData.error });
+          }
+          continue;
+        }
+        
+        success = true;
+        const insertedInBatch = resultData?.inserted ?? batch.length;
+        insertedCount += insertedInBatch;
+        console.log(`[FullSync] Batch ${batchIndex}/${totalBatches} inserted atomically (${insertedInBatch} trades)`);
       }
     }
     
@@ -644,25 +660,8 @@ export function useBinanceAggregatedSync() {
       
       console.log(`[FullSync] Processing ${remainingSymbols.length} symbols in ${totalBatches} batches (${alreadyProcessed.length} already done)`);
       
-      for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
-        const batchSymbols = remainingSymbols.slice(
-          batchIdx * MAX_PARALLEL_SYMBOLS, 
-          (batchIdx + 1) * MAX_PARALLEL_SYMBOLS
-        );
-        
-        const batchLabel = `batch ${batchIdx + 1}/${totalBatches}`;
-        
-        // --- Step A: Fetch trades + orders for batch symbols ---
-        updateProgress({
-          phase: 'fetching-trades',
-          current: processedSymbolsList.length,
-          total: symbols.length,
-          message: `Fetching ${batchSymbols.join(', ')} (${batchLabel})... ${accumulator.totalInserted} trades saved`,
-        });
-        
-        const batchTrades: BinanceTrade[] = [];
-        const batchOrders: BinanceOrder[] = [];
-        
+      // Helper to fetch trades+orders for a batch of symbols
+      const fetchSymbolBatch = async (batchSymbols: string[]): Promise<SymbolFetchResult[]> => {
         const fetchResults = await Promise.allSettled(
           batchSymbols.map(async (symbol): Promise<SymbolFetchResult> => {
             try {
@@ -679,22 +678,66 @@ export function useBinanceAggregatedSync() {
           })
         );
         
-        for (const settledResult of fetchResults) {
-          if (settledResult.status === 'fulfilled') {
-            const fetchResult = settledResult.value;
-            if (fetchResult.success) {
-              batchTrades.push(...fetchResult.trades);
-              batchOrders.push(...fetchResult.orders);
-              processedSymbolsList.push(fetchResult.symbol);
-            } else {
-              accumulator.failedSymbols.push({ 
-                symbol: fetchResult.symbol, 
-                error: fetchResult.error || 'Unknown error' 
-              });
-            }
+        return fetchResults.map((r, idx) => 
+          r.status === 'fulfilled' 
+            ? r.value 
+            : { symbol: batchSymbols[idx], trades: [], orders: [], success: false, error: r.reason?.message || 'Promise rejected' }
+        );
+      };
+      
+      // Prefetch first batch
+      let prefetchPromise: Promise<SymbolFetchResult[]> | null = null;
+      const firstBatchSymbols = remainingSymbols.slice(0, MAX_PARALLEL_SYMBOLS);
+      if (firstBatchSymbols.length > 0) {
+        prefetchPromise = fetchSymbolBatch(firstBatchSymbols);
+      }
+      
+      for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+        const batchSymbols = remainingSymbols.slice(
+          batchIdx * MAX_PARALLEL_SYMBOLS, 
+          (batchIdx + 1) * MAX_PARALLEL_SYMBOLS
+        );
+        
+        const batchLabel = `batch ${batchIdx + 1}/${totalBatches}`;
+        
+        // --- Step A: Await prefetched results (already in-flight) ---
+        updateProgress({
+          phase: 'fetching-trades',
+          current: processedSymbolsList.length,
+          total: symbols.length,
+          message: `Fetching ${batchSymbols.join(', ')} (${batchLabel})... ${accumulator.totalInserted} trades saved`,
+        });
+        
+        const batchTrades: BinanceTrade[] = [];
+        const batchOrders: BinanceOrder[] = [];
+        
+        // Await the prefetched promise (first batch was prefetched before loop)
+        const fetchResultsList = prefetchPromise 
+          ? await prefetchPromise 
+          : await fetchSymbolBatch(batchSymbols);
+        
+        // Immediately start prefetching NEXT batch (overlap IO with processing)
+        const nextBatchIdx = batchIdx + 1;
+        if (nextBatchIdx < totalBatches) {
+          const nextBatchSymbols = remainingSymbols.slice(
+            nextBatchIdx * MAX_PARALLEL_SYMBOLS,
+            (nextBatchIdx + 1) * MAX_PARALLEL_SYMBOLS
+          );
+          prefetchPromise = fetchSymbolBatch(nextBatchSymbols);
+        } else {
+          prefetchPromise = null;
+        }
+        
+        for (const fetchResult of fetchResultsList) {
+          if (fetchResult.success) {
+            batchTrades.push(...fetchResult.trades);
+            batchOrders.push(...fetchResult.orders);
+            processedSymbolsList.push(fetchResult.symbol);
           } else {
-            const symbol = batchSymbols[fetchResults.indexOf(settledResult)];
-            accumulator.failedSymbols.push({ symbol, error: settledResult.reason?.message || 'Promise rejected' });
+            accumulator.failedSymbols.push({ 
+              symbol: fetchResult.symbol, 
+              error: fetchResult.error || 'Unknown error' 
+            });
           }
         }
         
@@ -770,6 +813,27 @@ export function useBinanceAggregatedSync() {
         accumulator.validationStats.invalid += batchValidation.invalid.length;
         accumulator.validationStats.warnings += batchValidation.withWarnings.length;
         accumulator.allAggregatedTrades.push(...batchValidation.valid);
+        
+        // Log invalid trades to audit_logs for review (fire-and-forget)
+        if (batchValidation.invalid.length > 0 && user?.id) {
+          supabase.from('audit_logs').insert(
+            batchValidation.invalid.map(t => ({
+              user_id: user.id,
+              action: 'trade_validation_failed',
+              entity_type: 'trade_entry',
+              entity_id: t.binance_trade_id,
+              metadata: {
+                pair: t.pair,
+                direction: t.direction,
+                errors: t._validation?.errors?.map((e: { message: string }) => e.message) || [],
+                entry_price: t.entry_price,
+                exit_price: t.exit_price,
+              } as any,
+            }))
+          ).then(({ error }) => {
+            if (error) console.warn('[FullSync] Failed to log invalid trades:', error.message);
+          });
+        }
         
         // --- Step F: Dedup check + Insert ---
         if (batchValidation.valid.length > 0) {

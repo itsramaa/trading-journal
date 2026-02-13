@@ -1224,6 +1224,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      batch_insert_trades: { Args: { p_trades: Json }; Returns: Json }
       check_rate_limit: {
         Args: {
           p_category: string
