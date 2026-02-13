@@ -1,102 +1,98 @@
 
-# Update docs/FEATURE-MATRIX.md — 100% Component Coverage
+# Create docs/CLASS-DIAGRAM.md — Full Mermaid Class Diagram
 
-## Problem
-Current matrix has 87 features but still misses granular sub-features from deep component audit. After reading every line of every component file, **30+ additional features** are not documented.
+## Overview
+Create a comprehensive Mermaid class diagram document covering **all entities, types, hooks, services, and their relationships** across the Trading Journal, Trade History, and Import Trade modules. The diagram will be split into logical sections to remain readable while maintaining 100% coverage.
 
-## Gap Analysis (Grouped by Page)
+## File to Create
+`docs/CLASS-DIAGRAM.md`
 
-### Trading Journal — Missing Features
+## Diagram Architecture
 
-**Enrichment Drawer Sub-Features (currently lumped under #12):**
-1. Link Multiple Strategies (toggle strategy badges on/off)
-2. Isi 3-Timeframe System (Bias HTF / Execution / Precision LTF — separate from wizard timeframe)
-3. View Post-Mortem Analysis (structured display: Entry Timing, Exit Efficiency, SL Placement, Strategy Adherence, What Worked, To Improve, Follow-up Actions)
-4. View AI Analysis Results (collapsible: Overall Assessment, Win Factors, Loss Factors, Lessons, Pattern Recognition)
-5. Isi Notes (dedicated textarea section in drawer)
-6. Isi Emotional State (badge-based selector in drawer)
+The document will contain **5 interconnected Mermaid class diagrams** (split for readability, since a single diagram with 60+ classes becomes unreadable):
 
-**AllPositionsTable Sub-Features:**
-7. View Leverage Badge (Nx leverage indicator per position)
-8. View CryptoIcon (per-symbol icon in table)
-9. View P&L Percentage (unrealized PnL %)
+### Diagram 1: Core Domain Entities
+All primary data models used across the system:
 
-**System:**
-10. Currency Conversion Display (useCurrencyConversion hook applied globally)
-11. Unified Position Mapping (mapToUnifiedPositions merges paper + binance into single table)
+- **TradeEntry** — Central entity (40+ fields: id, pair, direction, entry_price, exit_price, stop_loss, take_profit, quantity, pnl, fees, status, trade_state, trade_mode, source, binance_trade_id, screenshots, market_context, strategy_snapshot, trade_rating, lesson_learned, rule_compliance, bias/execution/precision_timeframe, etc.)
+- **TradingStrategy** (name, description, timeframe, higher_timeframe, lower_timeframe, methodology, trading_style, entry_rules, exit_rules, valid_pairs, min_confluences, min_rr, status, session_preference, difficulty_level)
+- **Account** (name, account_type, currency, balance, exchange, metadata)
+- **AccountTransaction** (transaction_type, amount, currency, description)
+- **RiskProfile** (risk_per_trade_percent, max_daily_loss_percent, max_weekly_drawdown_percent, max_position_size_percent, max_concurrent_positions)
+- **EntryRule** / **ExitRule** (type, condition, is_mandatory, value, unit)
+- **TradeEntryStrategy** (junction table: trade_entry_id, strategy_id)
+- Relationships: TradeEntry --o TradingStrategy (many-to-many via TradeEntryStrategy), TradeEntry --> Account, Account --> AccountTransaction
 
-### Trade History — Missing Features
+### Diagram 2: Trade Wizard & AI System
+All wizard-related types and AI analysis entities:
 
-**Sync Engine Sub-Features:**
-12. View Sync Reconciliation Report (click SyncStatusBadge → full dialog with P&L reconciliation, lifecycle stats, validation warnings, failed lifecycles, trade details)
-13. View Sync Quality Score (Excellent/Good/Fair/Poor badge based on match rate)
-14. View Sync ETA (estimated time remaining during sync)
-15. View Sync Progress Phases (fetching-income → fetching-trades → grouping → aggregating → validating → inserting)
-16. View Data Quality Summary Widget (health metrics: Valid Trades, P&L Accuracy, Lifecycle Completion, Sync Failures)
-17. Sync Monitoring Panel (comprehensive dashboard: failure alerts, retry actions, reconciliation warnings, quick stats)
-18. Retry Failed Sync (from error state or monitoring panel)
+- **WizardState** (currentStep, completedSteps, mode, preValidation, strategyDetails, tradeDetails, marketContext, confluences, priceLevels, positionSizing, finalChecklist, tradingAccountId, accountBalance)
+- **TradeDetailsData** (pair, direction, timeframe)
+- **TradePriceLevels** (entryPrice, stopLoss, takeProfit)
+- **ConfluenceData** (checkedItems, totalRequired, passed, aiConfidence)
+- **FinalChecklistData** (emotionalState, confidenceLevel, followingRules, tradeComment, aiQualityScore)
+- **PreValidationResult** (dailyLossCheck, positionLimitCheck, correlationCheck, canProceed, overallStatus)
+- **PositionSizeResult** (position_size, position_value, risk_amount, capital_deployment_percent, warnings, potential_profit_1r/2r/3r)
+- **UnifiedMarketContext** (sentiment, fearGreed, volatility, events, momentum, session, compositeScore, tradingBias)
+- Sub-contexts: **MarketSentimentContext**, **FearGreedContext**, **VolatilityContext**, **EventContext**, **MomentumContext**, **SessionContext**
+- **PreflightInput/Response** (verdict, confidence, expectancy, edgeStrength, layers with DataSufficiency, EdgeValidation, ContextSimilarity, Stability, BiasDetection)
+- AI Types: **AIConfluenceResult**, **AITradeQualityScore**, **AIPatternInsight**, **PostTradeAnalysis**, **PreTradeValidation**
+- **TradingGateState** (canTrade, status, lossUsedPercent, remainingBudget, aiQualityWarning, aiQualityBlocked)
+- Relationships: WizardState --> PreValidationResult, WizardState --> TradingStrategy, WizardState --> TradeDetailsData, WizardState --> TradePriceLevels, WizardState --> ConfluenceData, WizardState --> FinalChecklistData, WizardState --> PositionSizeResult, WizardState --> UnifiedMarketContext
 
-**Trade Card Sub-Features:**
-19. View R:R Ratio with Tooltip
-20. View Confluence Score with Tooltip
-21. View Fee per Trade (inline, Binance only)
-22. View Tags Display (tag badges on cards)
-23. View Strategy Badges on Cards
-24. View Screenshot Count Indicator
-25. View Notes Indicator Badge
-26. View "Recently Updated" Note Badge
-27. View Needs Enrichment Badge (gallery card, AlertCircle indicator)
-28. View AI Quality Score Badge (color-coded: green 80+, yellow 60-79, red <60)
+### Diagram 3: Binance Integration & Sync Engine
+All Binance-specific types and the aggregation pipeline:
 
-**UI/UX Features:**
-29. Filter Count Display (filtered count vs total: "3/47 Filtered")
-30. Error State Display (failed to load trades with error message)
-31. Empty State per Sub-Tab (different messages for Binance/Paper/All)
-32. View "All trades loaded" / "x of y loaded" indicator
-33. View "All trades enriched" badge (when no trades need enrichment)
+- **BinanceTrade** (id, symbol, orderId, side, price, qty, realizedPnl, commission, positionSide, maker, buyer)
+- **BinanceOrder** (orderId, symbol, status, type, side, positionSide, price, avgPrice, origQty, executedQty, stopPrice)
+- **BinancePosition** (symbol, positionAmt, entryPrice, markPrice, unrealizedProfit, leverage, marginType, liquidationPrice)
+- **BinanceBalance** / **BinanceAccountSummary**
+- **BinanceIncome** (symbol, incomeType, income, asset, tranId, tradeId)
+- **BinanceCredentials** / **BinanceConnectionStatus**
+- **PositionLifecycle** (symbol, direction, positionSide, entryFills, exitFills, entryOrders, exitOrders, incomeRecords, entryTime, exitTime, isComplete, lifecycleId)
+- **AggregatedTrade** (binance_trade_id, pair, direction, entry_price, exit_price, quantity, realized_pnl, commission, funding_fees, fees, pnl, r_multiple, result, trade_state, _validation)
+- **ValidationResult** (isValid, errors, warnings, crossValidation)
+- **AggregationResult** (trades, stats, failures, reconciliation, partialSuccess)
+- **SyncCheckpoint** (currentPhase, incomeData, tradesBySymbol, processedSymbols, failedSymbols, timeRange)
+- **SyncQuotaInfo** (currentCount, maxQuota, remaining, usagePercent, isExhausted)
+- **TradeStateMachine** (TradeState enum: OPENING, PARTIALLY_FILLED, ACTIVE, CLOSED, CANCELED, LIQUIDATED + transition rules)
+- Binance extended: **CommissionRate**, **LeverageBracket**, **ForceOrder**, **PositionMode**, **AccountConfig**, **AdlQuantile**
+- Relationships: PositionLifecycle --> BinanceTrade, PositionLifecycle --> BinanceOrder, PositionLifecycle --> BinanceIncome, AggregatedTrade --> PositionLifecycle, AggregatedTrade --> ValidationResult, AggregationResult --> AggregatedTrade
 
-### Import Trades — Missing Features
+### Diagram 4: Exchange Abstraction Layer
+Generic exchange types for multi-exchange readiness:
 
-34. Error State with Retry (scan failed → "Failed to scan. Please try again.")
-35. Scan More Transactions (if no results found, button to scan 200)
-36. View Wallet Address Badge (truncated public key display)
-37. View Trade Details per Row (pair, direction, program, timestamp, quantity, fees, PnL)
-38. Importing Progress State (dedicated loading with progress bar)
+- **ExchangePosition** (symbol, side, size, entryPrice, markPrice, unrealizedPnl, leverage, marginType, source)
+- **ExchangeBalance** (asset, total, available, unrealizedPnl, marginBalance, source)
+- **ExchangeAccountSummary** (totalBalance, availableBalance, totalUnrealizedPnl, assets)
+- **ExchangeTrade** (id, symbol, side, price, quantity, realizedPnl, commission, timestamp, isMaker, positionSide, source)
+- **ExchangeOrder** (orderId, symbol, side, type, status, originalQuantity, executedQuantity, price, stopPrice, source)
+- **ExchangeIncome** (id, symbol, incomeType, category, amount, asset, timestamp, source)
+- **ExchangeCredentialStatus** (id, exchange, label, apiKeyMasked, isValid, permissions)
+- **ExchangeRateLimitStatus** (category, weightUsed, maxWeight, usagePercent)
+- **ExchangeMeta** (type, name, icon, status, color)
+- Relationships: BinancePosition ..|> ExchangePosition (implements), BinanceTrade ..|> ExchangeTrade, etc.
 
-## Changes to docs/FEATURE-MATRIX.md
+### Diagram 5: Solana Import & Trade History Hooks
+Import pipeline and history/filter system:
 
-### Section 1: Trading Journal
-- Split enrichment #12 into 6 granular sub-features (#23-#28)
-- Add 3 new position table features (#29-#31)
-- Add 2 new system features (#12-#13)
-- **Trader features: 22 → 31 (+9)**
-- **System features: 11 → 13 (+2)**
-
-### Section 2: Trade History
-- Add 7 sync monitoring features (#29-#35)
-- Add 10 trade card display features (#36-#45)
-- Add 5 UI/UX features (#46-#50)
-- Add 4 new system features (#12-#15)
-- **Trader features: 28 → 50 (+22)**
-- **System features: 11 → 15 (+4)**
-
-### Section 3: Import Trades
-- Add 5 new features (#11-#15)
-- **Trader features: 10 → 15 (+5)**
-- **System features: 5 → 5 (unchanged)**
-
-### Component Coverage Map Update
-- Add: `SyncStatusBadge`, `SyncReconciliationReport`, `SyncQualityIndicator`, `DataQualitySummary`, `SyncMonitoringPanel`, `SyncETADisplay`, `SyncRangeSelector`, `SyncQuotaDisplay`, `ReSyncTimeWindow`, `PostMortemSection`, `AIAnalysisDisplay`, `TradeTimeframeSection`, `WalletConnectButton`, `FearGreedBadge`, `EventDayBadge`, `RiskRewardTooltip`, `ConfluenceScoreTooltip`, `FilterActiveIndicator`, `CryptoIcon`, `LazyImage`
-
-## Result Summary
-- Trading Journal: 33 → 44 features
-- Trade History: 39 → 65 features
-- Import Trades: 15 → 20 features
-- **Total: 87 → 129 features (+48% increase)**
-- Component Coverage Map: 18 → 38 components
+- **ParsedSolanaTrade** (signature, blockTime, program, programName, direction, pair, entryPrice, exitPrice, quantity, pnl, fees, status)
+- **SolanaParserResult** (trades, totalTransactions, parsedCount, errors)
+- **SolanaTradeImportState** (status: ImportStatus, result, selectedTrades, importedCount)
+- ImportStatus enum: idle, fetching, parsed, importing, done, error
+- **TradeHistoryFiltersState** (dateRange, resultFilter, directionFilter, sessionFilter, selectedStrategyIds, selectedPairs, sortByAI, showFullHistory)
+- **TradeStats** (totalTrades, totalPnlGross, totalPnlNet, totalFees, winCount, lossCount, winRate, avgWin, avgLoss, profitFactor)
+- **EnrichmentData** (notes, emotionalState, chartTimeframe, customTags, screenshots, selectedStrategies, biasTimeframe, executionTimeframe, precisionTimeframe, tradeRating, lessonLearned, ruleCompliance)
+- **TradeModeState** (tradeMode, tradingStyle, isPaper, isLive)
+- **DailyRiskSnapshot** / **DailyRiskStatus**
+- **ClosePositionInput** (id, exit_price, pnl, fees, notes)
+- Relationships: SolanaParserResult --> ParsedSolanaTrade, TradeHistoryFiltersState --> TradeStats, EnrichmentData --> TradeEntry
 
 ## Technical Notes
-- Revision history updated
-- All features traced to actual source components
-- No assumed/planned features — only what exists in code
-- Cross-references maintained
+
+- Each diagram section will have a brief intro explaining the domain
+- Mermaid `classDiagram` syntax with proper visibility markers (+public, -private, #protected)
+- Methods included where hooks/services expose them (e.g., `+submitTrade()`, `+fetchTrades()`, `+saveEnrichment()`)
+- Enums rendered as Mermaid `class` with `<<enumeration>>` stereotype
+- Relationships use standard UML notation: `-->` association, `--o` aggregation, `--|>` inheritance, `..|>` implementation, `--` dependency
+- Total: ~60 classes/interfaces across 5 diagrams
