@@ -1,147 +1,160 @@
 
-# Deep Dive Audit — JUDGING_CRITERIA_EVALUATION.md Coverage Gaps
 
-## Audit Methodology
+# Deep Dive Audit — Gaps & 10 Perbaikan Signifikan
 
-Systematically verified every directory, page, component, hook, service, feature, edge function, and utility against the eval doc. Cross-referenced data isolation patterns, ARIA consistency, test coverage, and documentation claims.
+## Hasil Audit Menyeluruh
 
-## Gaps Identified
-
-| # | Gap | Category | Severity | Impact |
-|---|-----|----------|----------|--------|
-| 1 | `useContextualAnalytics` uses `useTradeEntries()` — analyzes ALL trades without mode filter | **Accuracy** | Critical | Contextual analytics (Fear/Greed, Volatility zones) mix Paper/Live data |
-| 2 | `usePreTradeValidation` uses `useTradeEntries()` — counts open positions from all modes | **Accuracy** | High | Pre-trade risk checks (max positions, correlation) see cross-mode positions |
-| 3 | 26 edge functions exist but only ~7 referenced in eval doc | **Comprehensiveness** | Medium | Major backend capability undocumented |
-| 4 | 15 pages not referenced in eval doc (DailyPnL, TopMovers, MarketData, Profile, Notifications, etc.) | **Comprehensiveness** | Medium | Page coverage gap |
-| 5 | `src/components/risk/` (10 components), `src/components/strategy/` (20 components), `src/components/journal/` (16 components) not referenced | **Comprehensiveness** | Medium | Component domain gap |
-| 6 | `src/features/binance/` (11 files), `src/features/calendar/`, `src/features/market-insight/` not referenced | **Comprehensiveness** | Medium | Feature module gap |
-| 7 | No ARIA on `EquityCurveWithEvents.tsx`, `TradingHeatmapChart.tsx` | **Clarity** | Low | 2 chart components missing accessibility |
-| 8 | No unit tests for `correlation-utils.ts`, `market-scoring.ts`, `symbol-utils.ts` | **Code Quality** | Low | Utility test gap |
-| 9 | Eval doc claims "7 analytics/dashboard components" migrated but `useContextualAnalytics` (feeds Performance Contextual tab) still leaks | **Documentation** | High | False claim about complete data isolation |
-| 10 | `MarketContext` (global symbol context), `Zustand stores` (`app-store.ts`, `sync-store.ts`), `src/contexts/` not documented | **Code Quality** | Low | Architecture gap |
+Setelah verifikasi file-by-file terhadap seluruh codebase, ditemukan **1 data isolation bug aktif**, **3 kelemahan dokumentasi**, dan **6 area yang perlu ditingkatkan** untuk memastikan coverage 100%.
 
 ---
 
-## Remediation Plan — 10 Tasks
+## Gap yang Ditemukan
 
-### Task 1: Fix `useContextualAnalytics` Data Isolation (CRITICAL)
+| # | Gap | Severity | Kriteria Terdampak |
+|---|-----|----------|-------------------|
+| 1 | **`useSymbolBreakdown`** menggunakan `useTradeEntries()` TANPA mode filter — Paper path mengagregasi SEMUA trade tanpa filter `tradeMode` | **Critical** | Accuracy |
+| 2 | `useUnifiedDailyPnl`, `useUnifiedWeeklyPnl`, `useUnifiedWeekComparison` menggunakan `useTradeEntries()` dengan inline mode filter — pattern ini belum terdokumentasi/justified di eval doc | **Medium** | Accuracy, Code Quality |
+| 3 | `Performance.tsx` menggunakan `useTradeEntries()` untuk multi-level analytics level "type" — belum terdokumentasi justified | **Medium** | Accuracy |
+| 4 | `TradingJournal.tsx` import `useTradeEntries` tapi hanya untuk type/mutation re-exports — bukan untuk data query. Belum terdokumentasi. | **Low** | Code Quality |
+| 5 | Eval doc tidak ada section "Error Handling & Fallback Behavior" — edge case handling (empty data, loading, error states) tidak dianalisis | **Medium** | Comprehensiveness |
+| 6 | Eval doc tidak dokumentasikan `WidgetErrorBoundary` pattern per-widget | **Low** | Code Quality |
+| 7 | Tidak ada unit test untuk `symbol-utils.ts` dan `trade-utils.ts` | **Low** | Code Quality |
+| 8 | `useSymbolBreakdown` tidak menggunakan `useTradeMode()` sama sekali — tidak ada awareness terhadap mode aktif | **Critical** | Accuracy |
+| 9 | Eval doc page inventory menuliskan 25 pages tapi TradingJournal ada di subfolder `trading-journey/` — perlu klarifikasi arsitektur routing | **Low** | Comprehensiveness |
+| 10 | Eval doc edge function count "25" tapi listing menunjukkan 25 function dirs + `_shared/` — perlu klarifikasi bahwa `_shared/` bukan edge function | **Low** | Accuracy |
 
-**File:** `src/hooks/analytics/use-contextual-analytics.ts` line 6, 257
+---
 
-Replace `useTradeEntries` with `useModeFilteredTrades`. This hook calculates Fear/Greed zone performance, volatility-level performance, event-day comparisons, and session breakdowns — all of which MUST be mode-isolated.
+## 10 Perbaikan Signifikan
+
+### Task 1: Fix `useSymbolBreakdown` Data Isolation (CRITICAL BUG)
+
+**Problem:** `src/hooks/analytics/use-symbol-breakdown.ts` line 8, 36 menggunakan `useTradeEntries()` dan Paper path (line 51-101) TIDAK memfilter berdasarkan `tradeMode`. Semua closed trades dari semua mode teragregasi ke symbol breakdown. Ini menyebabkan Dashboard symbol breakdown (Today's P&L by Symbol) menampilkan data Paper dan Live tercampur.
+
+**Fix:**
+- Import `useTradeMode` 
+- Tambahkan inline mode filter di `trades.forEach()` block (identik dengan pattern di `useUnifiedWeeklyPnl` line 88-91)
 
 ```typescript
-// BEFORE (line 6):
-import { useTradeEntries } from "@/hooks/use-trade-entries";
-// AFTER:
-import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
+// Add import
+import { useTradeMode } from '@/hooks/use-trade-mode';
 
-// BEFORE (line 257):
-const { data: trades, isLoading } = useTradeEntries();
-// AFTER:
-const { data: trades, isLoading } = useModeFilteredTrades();
+// Inside hook, add:
+const { tradeMode } = useTradeMode();
+
+// In trades.forEach callback, after status check:
+const matchesMode = trade.trade_mode 
+  ? trade.trade_mode === tradeMode
+  : (tradeMode === 'live' ? trade.source === 'binance' : trade.source !== 'binance');
+if (!matchesMode) return;
 ```
 
-### Task 2: Fix `usePreTradeValidation` Data Isolation (HIGH)
+**Dampak:** Accuracy +++ (menghilangkan data contamination di symbol breakdown)
 
-**File:** `src/features/trade/usePreTradeValidation.ts` line 7, 18
+### Task 2: Dokumentasikan "Inline Mode Filter" Pattern
 
-Replace `useTradeEntries` with `useModeFilteredTrades`. Pre-trade validation checks (max open positions, correlation, daily loss) must only count positions in the active mode. Otherwise Paper positions could wrongly block Live trade entries or vice versa.
+**Problem:** 3 hooks (`useUnifiedDailyPnl`, `useUnifiedWeeklyPnl`, `useUnifiedWeekComparison`) menggunakan `useTradeEntries()` dengan inline mode filter sebagai alternative approach terhadap `useModeFilteredTrades()`. Ini pattern yang valid (mereka butuh `useTradeMode` anyway untuk source determination), tapi belum terdokumentasi.
 
-```typescript
-// BEFORE:
-import { useTradeEntries } from "@/hooks/use-trade-entries";
-const { data: trades } = useTradeEntries();
-// AFTER:
-import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
-const { data: trades } = useModeFilteredTrades();
-```
+**Fix:** Tambahkan section di eval doc yang menjelaskan dua pattern data isolation yang digunakan:
+- Pattern A: `useModeFilteredTrades()` — untuk komponen yang hanya butuh filtered trades
+- Pattern B: `useTradeEntries()` + inline mode filter — untuk hooks yang sudah import `useTradeMode` untuk source routing logic (menghindari double hook overhead)
 
-### Task 3: ARIA on `EquityCurveWithEvents.tsx`
+**Dampak:** Accuracy, Code Quality (transparansi arsitektur)
 
-**File:** `src/components/analytics/charts/EquityCurveWithEvents.tsx`
+### Task 3: Dokumentasikan `Performance.tsx` Multi-Level Analytics Justification
 
-Add `role="region"` and `aria-label` to Card wrapper for consistency with all other chart components.
+**Problem:** `Performance.tsx` line 65 menggunakan `useTradeEntries()` untuk `allTrades`. Ini digunakan HANYA saat `analyticsSelection.level === 'type'` (line 76-81) untuk memfilter berdasarkan Paper vs Live type. Pattern ini benar — multi-level analytics membutuhkan akses ke semua trades untuk tipe-level comparison.
 
-### Task 4: ARIA on `TradingHeatmapChart.tsx`
+**Fix:** Tambahkan justifikasi di Accuracy section eval doc.
 
-**File:** `src/components/analytics/charts/TradingHeatmapChart.tsx`
+**Dampak:** Accuracy (eliminasi false positive)
 
-Add `role="img"` and `aria-label` to chart wrapper for screen reader support.
+### Task 4: Dokumentasikan `TradingJournal.tsx` Import Pattern
 
-### Task 5: Unit Tests for `correlation-utils.ts`
+**Problem:** `TradingJournal.tsx` import `useTradeEntries` (line 30) tapi menggunakan `useModeFilteredTrades()` (line 74) untuk data. Import `useTradeEntries` hanya digunakan untuk type re-export (`TradeEntry`) dan mutation hooks (`useDeleteTradeEntry`, `useClosePosition`, `useUpdateTradeEntry`).
 
-**File:** Create `src/lib/__tests__/correlation-utils.test.ts`
+**Fix:** Dokumentasikan di eval doc bahwa import ini hanya untuk types/mutations, bukan data query.
 
-Test `calculateCorrelationMatrix`, correlation coefficient edge cases, and pair validation.
+**Dampak:** Code Quality (transparansi)
 
-### Task 6: Unit Tests for `market-scoring.ts`
+### Task 5: Tambahkan Section "Error Handling & Fallback Behavior"
 
-**File:** Create `src/lib/__tests__/market-scoring.test.ts`
+**Problem:** Eval doc tidak memiliki analisis terhadap edge case handling. Aplikasi memiliki banyak error handling patterns yang belum didokumentasikan.
 
-Test market score calculation, threshold classification, and edge cases.
+**Fix:** Tambahkan section baru yang mencakup:
+- `WidgetErrorBoundary` untuk isolasi failure per-widget
+- Global `ErrorBoundary` untuk app-level crash recovery
+- Loading skeletons di setiap section
+- Empty state patterns (`EmptyState` component)
+- React Query retry logic (exponential backoff)
+- Edge function error sanitization (`sanitizeError`)
+- Graceful degradation saat Binance disconnected
 
-### Task 7: Comprehensive Edge Function Coverage in Eval Doc
+**Dampak:** Comprehensiveness, Code Quality
 
-Document all 26 edge functions with their purposes in the eval doc under Comprehensiveness and Security sections. Group by domain:
-- **AI:** ai-preflight, confluence-detection, confluence-chat, trade-quality, dashboard-insights, post-trade-analysis, post-trade-chat, trading-analysis, market-analysis
-- **Market:** market-insight, macro-analysis, economic-calendar, public-ticker, binance-market-data, binance-futures
-- **Sync:** binance-background-sync, sync-trading-pairs, reconcile-balances
-- **Export:** weekly-report, youtube-strategy-import, backtest-strategy
-- **Notifications:** send-push-notification, send-sync-failure-email, send-cleanup-notification, strategy-clone-notify
+### Task 6: Unit Test untuk `symbol-utils.ts`
 
-### Task 8: Comprehensive Page and Component Coverage
+**Problem:** `symbol-utils.ts` digunakan di 10+ components tapi belum punya test coverage.
 
-Add complete page inventory (25 pages) and component domain summary (7 domains, 100+ components) to the eval doc. Reference key architectural patterns (lazy loading, ProtectedDashboardLayout, MarketContext).
+**Fix:** Buat `src/lib/__tests__/symbol-utils.test.ts` dengan test cases untuk:
+- Symbol validation
+- Symbol formatting/normalization
+- Edge cases (empty, invalid, special characters)
 
-### Task 9: Feature Module and Service Layer Documentation
+**Dampak:** Code Quality
 
-Document `src/features/` (5 domains: ai, binance, calendar, market-insight, trade), `src/services/` (Binance enricher, Solana parser), `src/store/` (Zustand stores), and `src/contexts/` (MarketContext) in the eval doc.
+### Task 7: Unit Test untuk `trade-utils.ts`
 
-### Task 10: Final Eval Doc Update
+**Problem:** `trade-utils.ts` berisi utility functions untuk trade processing tapi belum punya test coverage.
 
-- Fix data isolation count: 9 components total (adding `useContextualAnalytics` and `usePreTradeValidation`)
-- Correct previous claim of "complete data isolation" by documenting the 2 newly fixed hooks
-- Add edge function, page, component, and feature module inventories
-- Add new test files to Code Quality section
-- Verify all claims are now factually correct
-- Confirm: **system fully optimized**
+**Fix:** Buat `src/lib/__tests__/trade-utils.test.ts` dengan test cases untuk key functions.
+
+**Dampak:** Code Quality
+
+### Task 8: Update Data Isolation Count dan Inventory
+
+**Problem:** Eval doc menyebutkan "9 components migrated to `useModeFilteredTrades()`" tapi tidak menyebutkan `useSymbolBreakdown` yang merupakan bug baru ditemukan.
+
+**Fix:** Setelah fix Task 1, update count menjadi "10 analytics/dashboard/risk hooks" dan tambahkan `useSymbolBreakdown` ke daftar. Juga dokumentasikan 3 hooks dengan inline pattern (Task 2).
+
+**Dampak:** Accuracy, Comprehensiveness
+
+### Task 9: Klarifikasi Page Routing Architecture
+
+**Problem:** Eval doc menuliskan "TradingJournal" di domain "Core" tapi file-nya ada di `src/pages/trading-journey/TradingJournal.tsx` (subfolder). Perlu klarifikasi.
+
+**Fix:** Update page inventory untuk menunjukkan path lengkap dan routing structure.
+
+**Dampak:** Comprehensiveness
+
+### Task 10: Final Verification & Confirmation
+
+**Fix:** 
+- Verifikasi semua claims di eval doc terhadap kode aktual
+- Update `_shared/` klarifikasi (bukan edge function, melainkan shared utility module)
+- Update total test file count (13 files setelah Task 6-7)
+- Update total migrated/justified count
+- Konfirmasi: **sistem fully optimized**
+
+**Dampak:** Semua kriteria
 
 ---
 
 ## Execution Order
 
-1. Task 1 (contextual analytics data isolation — critical)
-2. Task 2 (pre-trade validation data isolation — high)
-3. Tasks 3-4 (ARIA fixes — 2 files, parallel)
-4. Tasks 5-6 (unit tests — 2 new files, parallel)
-5. Tasks 7-10 (eval doc comprehensive update — single file)
+1. **Task 1** (Critical bug fix — `useSymbolBreakdown` mode filter)
+2. **Tasks 6-7** (New test files — parallel, 2 files)
+3. **Task 5** (Error handling section — new doc content)
+4. **Tasks 2-4, 8-10** (Documentation updates — single eval doc edit)
 
-## Technical Details
+## Ringkasan Dampak per Kriteria
 
-### Tasks 1-2: Identical Pattern
+| Kriteria | Dampak |
+|----------|--------|
+| **Accuracy** | Fix data isolation bug di `useSymbolBreakdown` + dokumentasikan inline pattern + justify Performance.tsx |
+| **Comprehensiveness** | Error Handling section + routing klarifikasi |
+| **Code Quality** | 2 test files baru + pattern documentation |
+| **Clarity** | Transparansi arsitektur |
+| **Innovation** | Tidak berubah (sudah optimal) |
+| **Security** | Tidak berubah (sudah optimal) |
 
-```typescript
-// Replace useTradeEntries → useModeFilteredTrades
-import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
-const { data: trades, isLoading } = useModeFilteredTrades();
-```
-
-### Tasks 3-4: ARIA Pattern
-
-```tsx
-<Card role="region" aria-label="Equity curve with economic event annotations">
-```
-
-### Tasks 5-6: New Test Files
-
-- `src/lib/__tests__/correlation-utils.test.ts` (~8 tests)
-- `src/lib/__tests__/market-scoring.test.ts` (~8 tests)
-
-### Tasks 7-10: Doc Additions
-
-- Edge function inventory table (26 functions)
-- Page inventory (25 pages across 6 domains)
-- Component domain summary (risk, strategy, journal, dashboard, analytics, market, settings)
-- Feature module summary (ai, binance, calendar, market-insight, trade)
-- Updated migration count: 9 hooks/components → `useModeFilteredTrades()`
