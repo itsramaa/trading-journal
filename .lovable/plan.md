@@ -1,68 +1,62 @@
 
+# Enhance SyncRangeSelector — Tiered Warnings & Visual Polish
 
-# Reposition Full Sync as Advanced/Recovery Tool
-
-## Problem
-Currently on `/import`, the Full Sync panel renders **first** (above Quick Actions), giving it primary visual prominence. Per the feature matrix note, Full Sync is rarely used — incremental sync + re-sync range covers daily use. Full Sync should be positioned as an **advanced/recovery** option.
-
-## Solution
-Swap the rendering order and wrap Full Sync in a `Collapsible` component so it's collapsed by default. Daily-use tools (Incremental Sync, Enrichment) become the primary visible section.
+## Overview
+Improve the Sync Range Selector with tiered warnings based on selected range size, rate limit awareness, and better visual hierarchy. Currently only "All Time" shows a warning — larger ranges like 1 year and 2 years also deserve caution notices.
 
 ## Changes
 
-### File: `src/pages/ImportTrades.tsx`
+### File: `src/components/trading/SyncRangeSelector.tsx`
 
-Reorder the Binance tab content:
+**1. Add tiered warning system**
+- Small ranges (30, 90 days): No warning
+- Medium ranges (180 days): Info-level hint — "May hit rate limits if you have many active symbols"
+- Large ranges (365, 730 days): Warning-level alert — "Large range. Binance API rate limits may cause pauses. Checkpoint resume will handle interruptions automatically."
+- All Time (`max`): Destructive alert (existing) — keep current warning text
 
-1. **Move "Quick Actions" card ABOVE Full Sync** — Incremental Sync and Enrichment are the daily drivers, they should be first.
+**2. Add `recommended` flag to options**
+- Mark 90 days with a subtle "Recommended" badge next to the label
+- Remove "(Recommended)" from the description string — use a proper `Badge` component instead
 
-2. **Wrap `BinanceFullSyncPanel` in a Collapsible** — collapsed by default with a trigger like:
-   ```
-   [Shield icon] Advanced: Full Sync (Recovery)  [chevron]
-   ```
-   - Auto-expands when Full Sync is actively running (`isFullSyncing === true`) or has a checkpoint to resume
-   - Collapsed by default in idle state
+**3. Add rate limit context to large-range warnings**
+- Mention that Binance imposes 1200 weight/min rate limits
+- Mention checkpoint resume handles interruptions automatically
+- Mention that the process continues in background
 
-3. **Add a subtle description** below the collapsible trigger:
-   ```
-   "Complete re-download of all trade history. Use when incremental sync misses data or for initial setup."
-   ```
+**4. Visual improvement — card-style radio items**
+- Wrap each option in a bordered container with `rounded-md border p-2` styling
+- Highlight selected option with `border-primary bg-primary/5`
+- Makes the selector more tactile and visually clear
 
-### File: `src/components/trading/BinanceFullSyncPanel.tsx`
+### Updated Option Config
 
-- Update `CardTitle` text from "Full Sync (Aggregated)" to "Full Sync — Recovery / Initial Setup"
-- Add a small `Badge` with "Advanced" label next to the title
-- No logic changes — all sync mechanics remain identical
-
-### Visual Layout (After)
-
-```text
-Binance Sync Tab:
-+--------------------------------------------+
-| Quick Actions (always visible)             |
-|   [Incremental Sync]  [Enrich N Trades]    |
-+--------------------------------------------+
-
-v Advanced: Full Sync (Recovery)    [collapsed]
-+--------------------------------------------+
-| Full Sync — Recovery / Initial Setup       |
-| [SyncQuotaDisplay]                         |
-| [SyncRangeSelector]                        |
-| [Force Re-fetch]                           |
-| [Start Full Sync]                         |
-+--------------------------------------------+
+```typescript
+const SYNC_OPTIONS = [
+  { value: 30,    label: "30 days",   est: "~1-2 min",   tier: 'safe' },
+  { value: 90,    label: "90 days",   est: "~3-5 min",   tier: 'safe',    recommended: true },
+  { value: 180,   label: "6 months",  est: "~5-10 min",  tier: 'caution' },
+  { value: 365,   label: "1 year",    est: "~10-20 min", tier: 'warning' },
+  { value: 730,   label: "2 years",   est: "~20-40 min", tier: 'warning' },
+  { value: 'max', label: "All Time",  est: "1+ hours",   tier: 'danger' },
+];
 ```
 
-When sync is running or checkpoint exists, the collapsible auto-opens.
+### Warning Messages by Tier
+
+| Tier | Variant | Message |
+|------|---------|---------|
+| `safe` | None | No warning |
+| `caution` | Default (muted) | "May take longer if you have many active trading pairs." |
+| `warning` | Warning | "Large sync range. Binance rate limits (1200 weight/min) may cause automatic pauses. Checkpoint resume handles interruptions." |
+| `danger` | Destructive | Current "All Time" warning (keep as-is, already good) |
 
 ## Files Modified
 
 | File | Change |
 |------|--------|
-| `src/pages/ImportTrades.tsx` | Swap order: Quick Actions first, Full Sync in Collapsible |
-| `src/components/trading/BinanceFullSyncPanel.tsx` | Update title + add "Advanced" badge |
+| `src/components/trading/SyncRangeSelector.tsx` | Tiered warnings, card-style radio items, recommended badge |
 
 ## Technical Notes
-- Uses `@radix-ui/react-collapsible` (already installed)
-- `isFullSyncing` or `canResume` from sync store controls auto-expand
-- Zero logic changes to sync engine, hooks, or store
+- No store or logic changes — purely UI enhancement
+- Warning tier is derived from the selected option's `tier` field, not from the `SyncRangeDays` value directly
+- Card-style items use conditional `border-primary` based on `selectedRange === option.value`
