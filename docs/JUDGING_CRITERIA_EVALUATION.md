@@ -486,6 +486,7 @@ _Semua kelemahan signifikan sudah teratasi atau ter-justified._
 | 54 | Accuracy + Security (MAJOR) | `useSymbolBreakdown` source routing guard fix — lines 42 & 122 used raw `isConnected` instead of `tradeMode === 'live' && isConnected`, causing Live Binance data to leak into Paper mode symbol breakdown. Now aligned with `useUnifiedDailyPnl`/`useUnifiedWeeklyPnl` pattern | 10.0 (critical fix) |
 | 55 | Accuracy (Minor) | Fixed win rate denominator inconsistency in `useUnifiedDailyPnl` — breakeven trades were excluded from `totalTrades`, creating different win rates between daily (Trading Gate) and weekly/portfolio views. Now uses `todayTrades.length` consistent with all other hooks | 10.0 (consistency fix) |
 | 56 | Code Quality (Minor) | Removed 457 lines of dead code: `TodayPerformance.tsx` (329L) + `use-daily-pnl.ts` (128L) + barrel re-export. Never imported, contained unfixed data isolation issue | 10.0 (cleanup) |
+| 57 | Accuracy (Moderate) | Fixed PnL fallback chain in `useContextualAnalytics` — lines 306 & 323 used `realized_pnl || 0` (missing `pnl` fallback), causing trades with null `realized_pnl` to be zeroed in session/fear-greed/volatility analytics. Standardized to `realized_pnl ?? trade.pnl ?? 0` matching all unified hooks | 10.0 (consistency fix) |
 
 ---
 

@@ -303,7 +303,7 @@ export function useContextualAnalytics(): {
     
     // Process each closed trade (session works for all trades, not just those with context)
     closedTrades.forEach(trade => {
-      const pnl = trade.realized_pnl || 0;
+      const pnl = trade.realized_pnl ?? trade.pnl ?? 0;
       const result = trade.result || 'unknown';
       const tradeData = { pnl, result };
       
@@ -320,7 +320,7 @@ export function useContextualAnalytics(): {
     // Process each trade with context for market condition segmentation
     tradesWithContext.forEach(trade => {
       const context = trade.market_context as unknown as UnifiedMarketContext;
-      const pnl = trade.realized_pnl || 0;
+      const pnl = trade.realized_pnl ?? trade.pnl ?? 0;
       const result = trade.result || 'unknown';
       const tradeData = { pnl, result };
       const isWin = pnl > 0 ? 1 : 0;
