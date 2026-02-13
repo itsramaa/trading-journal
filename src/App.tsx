@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { lazy, Suspense, useEffect, useRef } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -6,42 +6,67 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { trackEvent, ANALYTICS_EVENTS } from "@/lib/analytics";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { Loader2 } from "lucide-react";
 
-// Pages
-import Dashboard from "./pages/Dashboard";
-import Accounts from "./pages/Accounts";
-import AccountDetail from "./pages/AccountDetail";
-import TradingJournal from "./pages/trading-journey/TradingJournal";
-import TradeHistory from "./pages/TradeHistory";
-import StrategyManagement from "./pages/trading-journey/StrategyManagement";
-import Backtest from "./pages/Backtest";
-import Performance from "./pages/Performance";
-import DailyPnL from "./pages/DailyPnL";
-import TradingHeatmap from "./pages/TradingHeatmap";
-import AIInsights from "./pages/AIInsights";
-import RiskManagement from "./pages/RiskManagement";
-import PositionCalculator from "./pages/PositionCalculator";
-import MarketInsight from "./pages/MarketInsight";
-import EconomicCalendar from "./pages/EconomicCalendar";
-import MarketData from "./pages/MarketData";
-import ImportTrades from "./pages/ImportTrades";
-import TopMovers from "./pages/TopMovers";
-import BulkExport from "./pages/BulkExport";
-import Settings from "./pages/Settings";
-import Profile from "./pages/Profile";
-import Notifications from "./pages/Notifications";
-import Auth from "./pages/Auth";
-import Landing from "./pages/Landing";
-import SharedStrategy from "./pages/SharedStrategy";
-import NotFound from "./pages/NotFound";
-
-// Components
-import { AIChatbot } from "./components/chat/AIChatbot";
+// Eagerly loaded (always needed)
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { MarketContextProvider } from "./contexts/MarketContext";
 import { SolanaWalletProvider } from "./components/wallet/SolanaWalletProvider";
+import { AIChatbot } from "./components/chat/AIChatbot";
 
-const queryClient = new QueryClient();
+// Lazy-loaded pages
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Accounts = lazy(() => import("./pages/Accounts"));
+const AccountDetail = lazy(() => import("./pages/AccountDetail"));
+const TradingJournal = lazy(() => import("./pages/trading-journey/TradingJournal"));
+const TradeHistory = lazy(() => import("./pages/TradeHistory"));
+const StrategyManagement = lazy(() => import("./pages/trading-journey/StrategyManagement"));
+const Backtest = lazy(() => import("./pages/Backtest"));
+const Performance = lazy(() => import("./pages/Performance"));
+const DailyPnL = lazy(() => import("./pages/DailyPnL"));
+const TradingHeatmap = lazy(() => import("./pages/TradingHeatmap"));
+const AIInsights = lazy(() => import("./pages/AIInsights"));
+const RiskManagement = lazy(() => import("./pages/RiskManagement"));
+const PositionCalculator = lazy(() => import("./pages/PositionCalculator"));
+const MarketInsight = lazy(() => import("./pages/MarketInsight"));
+const EconomicCalendar = lazy(() => import("./pages/EconomicCalendar"));
+const MarketData = lazy(() => import("./pages/MarketData"));
+const ImportTrades = lazy(() => import("./pages/ImportTrades"));
+const TopMovers = lazy(() => import("./pages/TopMovers"));
+const BulkExport = lazy(() => import("./pages/BulkExport"));
+const Settings = lazy(() => import("./pages/Settings"));
+const Profile = lazy(() => import("./pages/Profile"));
+const Notifications = lazy(() => import("./pages/Notifications"));
+const Auth = lazy(() => import("./pages/Auth"));
+const Landing = lazy(() => import("./pages/Landing"));
+const SharedStrategy = lazy(() => import("./pages/SharedStrategy"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+
+// Production-grade QueryClient with optimized defaults
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 2, // 2 min — reduce unnecessary refetches
+      gcTime: 1000 * 60 * 10,   // 10 min garbage collection
+      retry: 2,
+      retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000),
+      refetchOnWindowFocus: false, // prevent excessive refetch on tab switch
+    },
+    mutations: {
+      retry: 1,
+    },
+  },
+});
+
+// Full-page loading spinner for Suspense
+function PageLoader() {
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+    </div>
+  );
+}
 
 // Analytics: Page View Tracker
 function PageViewTracker() {
@@ -81,166 +106,76 @@ function SessionTracker() {
 }
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
-      <SolanaWalletProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <MarketContextProvider>
-          <PageViewTracker />
-          <SessionTracker />
-          <Routes>
-            {/* Public routes */}
-            <Route path="/landing" element={<Landing />} />
-            <Route path="/auth" element={<Auth />} />
-            
-            {/* Protected routes */}
-            <Route path="/" element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            } />
-            
-            {/* Market Domain */}
-            <Route path="/market" element={
-              <ProtectedRoute>
-                <MarketInsight />
-              </ProtectedRoute>
-            } />
-            <Route path="/calendar" element={
-              <ProtectedRoute>
-                <EconomicCalendar />
-              </ProtectedRoute>
-            } />
-            <Route path="/market-data" element={
-              <ProtectedRoute>
-                <MarketData />
-              </ProtectedRoute>
-            } />
-            <Route path="/top-movers" element={
-              <ProtectedRoute>
-                <TopMovers />
-              </ProtectedRoute>
-            } />
-            
-            {/* Journal Domain */}
-            <Route path="/trading" element={
-              <ProtectedRoute>
-                <TradingJournal />
-              </ProtectedRoute>
-            } />
-            {/* History Page - Standalone */}
-            <Route path="/history" element={
-              <ProtectedRoute>
-                <TradeHistory />
-              </ProtectedRoute>
-            } />
-            <Route path="/import" element={
-              <ProtectedRoute>
-                <ImportTrades />
-              </ProtectedRoute>
-            } />
-            
-            {/* Risk Domain */}
-            <Route path="/risk" element={
-              <ProtectedRoute>
-                <RiskManagement />
-              </ProtectedRoute>
-            } />
-            <Route path="/calculator" element={
-              <ProtectedRoute>
-                <PositionCalculator />
-              </ProtectedRoute>
-            } />
-            
-            {/* Strategy Domain */}
-            <Route path="/strategies" element={
-              <ProtectedRoute>
-                <StrategyManagement />
-              </ProtectedRoute>
-            } />
-            <Route path="/backtest" element={
-              <ProtectedRoute>
-                <Backtest />
-              </ProtectedRoute>
-            } />
-            {/* Shared Strategy - requires auth but accessed via share link */}
-            <Route path="/shared/strategy/:token" element={
-              <ProtectedRoute>
-                <SharedStrategy />
-              </ProtectedRoute>
-            } />
-            
-            {/* Analytics Domain */}
-            <Route path="/performance" element={
-              <ProtectedRoute>
-                <Performance />
-              </ProtectedRoute>
-            } />
-            <Route path="/daily-pnl" element={
-              <ProtectedRoute>
-                <DailyPnL />
-              </ProtectedRoute>
-            } />
-            <Route path="/heatmap" element={
-              <ProtectedRoute>
-                <TradingHeatmap />
-              </ProtectedRoute>
-            } />
-            <Route path="/ai-insights" element={
-              <ProtectedRoute>
-                <AIInsights />
-              </ProtectedRoute>
-            } />
-            
-            {/* Accounts Domain */}
-            <Route path="/accounts" element={
-              <ProtectedRoute>
-                <Accounts />
-              </ProtectedRoute>
-            } />
-            <Route path="/accounts/:accountId" element={
-              <ProtectedRoute>
-                <AccountDetail />
-              </ProtectedRoute>
-            } />
-            <Route path="/export" element={
-              <ProtectedRoute>
-                <BulkExport />
-              </ProtectedRoute>
-            } />
-            
-            {/* Settings Domain */}
-            <Route path="/settings" element={
-              <ProtectedRoute>
-                <Settings />
-              </ProtectedRoute>
-            } />
-            <Route path="/profile" element={
-              <ProtectedRoute>
-                <Profile />
-              </ProtectedRoute>
-            } />
-            <Route path="/notifications" element={
-              <ProtectedRoute>
-                <Notifications />
-              </ProtectedRoute>
-            } />
-            
-            {/* Legacy Redirects */}
-            <Route path="/ai" element={<Navigate to="/trading" replace />} />
-            
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-          <AIChatbot />
-          </MarketContextProvider>
-        </BrowserRouter>
-      </TooltipProvider>
-      </SolanaWalletProvider>
-    </ThemeProvider>
-  </QueryClientProvider>
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
+        <SolanaWalletProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <MarketContextProvider>
+            <PageViewTracker />
+            <SessionTracker />
+            <Suspense fallback={<PageLoader />}>
+              <Routes>
+                {/* Public routes */}
+                <Route path="/landing" element={<Landing />} />
+                <Route path="/auth" element={<Auth />} />
+                
+                {/* Protected routes */}
+                <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                
+                {/* Market Domain */}
+                <Route path="/market" element={<ProtectedRoute><MarketInsight /></ProtectedRoute>} />
+                <Route path="/calendar" element={<ProtectedRoute><EconomicCalendar /></ProtectedRoute>} />
+                <Route path="/market-data" element={<ProtectedRoute><MarketData /></ProtectedRoute>} />
+                <Route path="/top-movers" element={<ProtectedRoute><TopMovers /></ProtectedRoute>} />
+                
+                {/* Journal Domain */}
+                <Route path="/trading" element={<ProtectedRoute><TradingJournal /></ProtectedRoute>} />
+                <Route path="/history" element={<ProtectedRoute><TradeHistory /></ProtectedRoute>} />
+                <Route path="/import" element={<ProtectedRoute><ImportTrades /></ProtectedRoute>} />
+                
+                {/* Risk Domain */}
+                <Route path="/risk" element={<ProtectedRoute><RiskManagement /></ProtectedRoute>} />
+                <Route path="/calculator" element={<ProtectedRoute><PositionCalculator /></ProtectedRoute>} />
+                
+                {/* Strategy Domain */}
+                <Route path="/strategies" element={<ProtectedRoute><StrategyManagement /></ProtectedRoute>} />
+                <Route path="/backtest" element={<ProtectedRoute><Backtest /></ProtectedRoute>} />
+                <Route path="/shared/strategy/:token" element={<ProtectedRoute><SharedStrategy /></ProtectedRoute>} />
+                
+                {/* Analytics Domain */}
+                <Route path="/performance" element={<ProtectedRoute><Performance /></ProtectedRoute>} />
+                <Route path="/daily-pnl" element={<ProtectedRoute><DailyPnL /></ProtectedRoute>} />
+                <Route path="/heatmap" element={<ProtectedRoute><TradingHeatmap /></ProtectedRoute>} />
+                <Route path="/ai-insights" element={<ProtectedRoute><AIInsights /></ProtectedRoute>} />
+                
+                {/* Accounts Domain */}
+                <Route path="/accounts" element={<ProtectedRoute><Accounts /></ProtectedRoute>} />
+                <Route path="/accounts/:accountId" element={<ProtectedRoute><AccountDetail /></ProtectedRoute>} />
+                <Route path="/export" element={<ProtectedRoute><BulkExport /></ProtectedRoute>} />
+                
+                {/* Settings Domain */}
+                <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+                <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+                <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+                
+                {/* Legacy Redirects */}
+                <Route path="/ai" element={<Navigate to="/trading" replace />} />
+                
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </Suspense>
+            <AIChatbot />
+            </MarketContextProvider>
+          </BrowserRouter>
+        </TooltipProvider>
+        </SolanaWalletProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;
