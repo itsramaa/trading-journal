@@ -117,57 +117,55 @@ const App = () => (
             <MarketContextProvider>
             <PageViewTracker />
             <SessionTracker />
-            <Suspense fallback={<PageLoader />}>
-              <Routes>
-                {/* Public routes */}
-                <Route path="/landing" element={<Landing />} />
-                <Route path="/auth" element={<Auth />} />
-                
-                {/* Protected routes */}
-                <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-                
-                {/* Market Domain */}
-                <Route path="/market" element={<ProtectedRoute><MarketInsight /></ProtectedRoute>} />
-                <Route path="/calendar" element={<ProtectedRoute><EconomicCalendar /></ProtectedRoute>} />
-                <Route path="/market-data" element={<ProtectedRoute><MarketData /></ProtectedRoute>} />
-                <Route path="/top-movers" element={<ProtectedRoute><TopMovers /></ProtectedRoute>} />
-                
-                {/* Journal Domain */}
-                <Route path="/trading" element={<ProtectedRoute><TradingJournal /></ProtectedRoute>} />
-                <Route path="/history" element={<ProtectedRoute><TradeHistory /></ProtectedRoute>} />
-                <Route path="/import" element={<ProtectedRoute><ImportTrades /></ProtectedRoute>} />
-                
-                {/* Risk Domain */}
-                <Route path="/risk" element={<ProtectedRoute><RiskManagement /></ProtectedRoute>} />
-                <Route path="/calculator" element={<ProtectedRoute><PositionCalculator /></ProtectedRoute>} />
-                
-                {/* Strategy Domain */}
-                <Route path="/strategies" element={<ProtectedRoute><StrategyManagement /></ProtectedRoute>} />
-                <Route path="/backtest" element={<ProtectedRoute><Backtest /></ProtectedRoute>} />
-                <Route path="/shared/strategy/:token" element={<ProtectedRoute><SharedStrategy /></ProtectedRoute>} />
-                
-                {/* Analytics Domain */}
-                <Route path="/performance" element={<ProtectedRoute><Performance /></ProtectedRoute>} />
-                <Route path="/daily-pnl" element={<ProtectedRoute><DailyPnL /></ProtectedRoute>} />
-                <Route path="/heatmap" element={<ProtectedRoute><TradingHeatmap /></ProtectedRoute>} />
-                <Route path="/ai-insights" element={<ProtectedRoute><AIInsights /></ProtectedRoute>} />
-                
-                {/* Accounts Domain */}
-                <Route path="/accounts" element={<ProtectedRoute><Accounts /></ProtectedRoute>} />
-                <Route path="/accounts/:accountId" element={<ProtectedRoute><AccountDetail /></ProtectedRoute>} />
-                <Route path="/export" element={<ProtectedRoute><BulkExport /></ProtectedRoute>} />
-                
-                {/* Settings Domain */}
-                <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-                <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-                <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
-                
-                {/* Legacy Redirects */}
-                <Route path="/ai" element={<Navigate to="/trading" replace />} />
-                
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </Suspense>
+            <Routes>
+              {/* Public routes - need their own Suspense */}
+              <Route path="/landing" element={<Suspense fallback={<PageLoader />}><Landing /></Suspense>} />
+              <Route path="/auth" element={<Suspense fallback={<PageLoader />}><Auth /></Suspense>} />
+              
+              {/* Protected routes - DashboardLayout handles Suspense internally */}
+              <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              
+              {/* Market Domain */}
+              <Route path="/market" element={<ProtectedRoute><MarketInsight /></ProtectedRoute>} />
+              <Route path="/calendar" element={<ProtectedRoute><EconomicCalendar /></ProtectedRoute>} />
+              <Route path="/market-data" element={<ProtectedRoute><MarketData /></ProtectedRoute>} />
+              <Route path="/top-movers" element={<ProtectedRoute><TopMovers /></ProtectedRoute>} />
+              
+              {/* Journal Domain */}
+              <Route path="/trading" element={<ProtectedRoute><TradingJournal /></ProtectedRoute>} />
+              <Route path="/history" element={<ProtectedRoute><TradeHistory /></ProtectedRoute>} />
+              <Route path="/import" element={<ProtectedRoute><ImportTrades /></ProtectedRoute>} />
+              
+              {/* Risk Domain */}
+              <Route path="/risk" element={<ProtectedRoute><RiskManagement /></ProtectedRoute>} />
+              <Route path="/calculator" element={<ProtectedRoute><PositionCalculator /></ProtectedRoute>} />
+              
+              {/* Strategy Domain */}
+              <Route path="/strategies" element={<ProtectedRoute><StrategyManagement /></ProtectedRoute>} />
+              <Route path="/backtest" element={<ProtectedRoute><Backtest /></ProtectedRoute>} />
+              <Route path="/shared/strategy/:token" element={<ProtectedRoute><SharedStrategy /></ProtectedRoute>} />
+              
+              {/* Analytics Domain */}
+              <Route path="/performance" element={<ProtectedRoute><Performance /></ProtectedRoute>} />
+              <Route path="/daily-pnl" element={<ProtectedRoute><DailyPnL /></ProtectedRoute>} />
+              <Route path="/heatmap" element={<ProtectedRoute><TradingHeatmap /></ProtectedRoute>} />
+              <Route path="/ai-insights" element={<ProtectedRoute><AIInsights /></ProtectedRoute>} />
+              
+              {/* Accounts Domain */}
+              <Route path="/accounts" element={<ProtectedRoute><Accounts /></ProtectedRoute>} />
+              <Route path="/accounts/:accountId" element={<ProtectedRoute><AccountDetail /></ProtectedRoute>} />
+              <Route path="/export" element={<ProtectedRoute><BulkExport /></ProtectedRoute>} />
+              
+              {/* Settings Domain */}
+              <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+              <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+              <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+              
+              {/* Legacy Redirects */}
+              <Route path="/ai" element={<Navigate to="/trading" replace />} />
+              
+              <Route path="*" element={<NotFound />} />
+            </Routes>
             <AIChatbot />
             </MarketContextProvider>
           </BrowserRouter>
