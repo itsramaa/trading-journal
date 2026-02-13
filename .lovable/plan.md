@@ -1,98 +1,114 @@
 
-# Create docs/CLASS-DIAGRAM.md — Full Mermaid Class Diagram
+# Restructure Import Trades as Unified Data Import Hub
 
-## Overview
-Create a comprehensive Mermaid class diagram document covering **all entities, types, hooks, services, and their relationships** across the Trading Journal, Trade History, and Import Trade modules. The diagram will be split into logical sections to remain readable while maintaining 100% coverage.
+## Problem
+Currently, sync/import functionality is scattered:
+- **Trade History** (`/history`) contains: `BinanceFullSyncPanel`, Incremental Sync button, Enrichment controls, Sync Quota display
+- **Import Trades** (`/import`) only contains: Solana on-chain import
 
-## File to Create
-`docs/CLASS-DIAGRAM.md`
+This creates UX confusion -- users must navigate to Trade History to sync Binance data, which is conceptually an "import" operation, not a "history review" activity.
 
-## Diagram Architecture
+## Solution: Hybrid Import Hub
+Transform `/import` into a **tabbed Import Hub** following the hybrid approach:
+1. **Auto incremental fetch** when switching to Live mode (background, lightweight)
+2. **Manual Full Sync / Re-sync** available in the Import page
+3. **Solana import** remains as a separate tab
 
-The document will contain **5 interconnected Mermaid class diagrams** (split for readability, since a single diagram with 60+ classes becomes unreadable):
+## Architecture
 
-### Diagram 1: Core Domain Entities
-All primary data models used across the system:
+```text
+/import (Import Trades Page)
++--------------------------------------------------+
+| PageHeader: "Import & Sync Trades"                |
+| Description: "Import trades from exchanges,       |
+|  wallets, or sync your trading history"            |
++--------------------------------------------------+
+| [Binance Sync] [Solana Import]                    |
++--------------------------------------------------+
+| Tab: Binance Sync                                 |
+|   - Connection status banner                      |
+|   - Full Sync Panel (moved from TradeHistory)     |
+|   - Incremental Sync status + trigger             |
+|   - Enrichment controls                           |
+|   - Sync Quota display                            |
+|   - Sync Monitoring (Reconciliation, Quality)     |
++--------------------------------------------------+
+| Tab: Solana Import                                |
+|   - Existing SolanaTradeImport (unchanged)        |
+|   - Supported Protocols card                      |
++--------------------------------------------------+
+```
 
-- **TradeEntry** — Central entity (40+ fields: id, pair, direction, entry_price, exit_price, stop_loss, take_profit, quantity, pnl, fees, status, trade_state, trade_mode, source, binance_trade_id, screenshots, market_context, strategy_snapshot, trade_rating, lesson_learned, rule_compliance, bias/execution/precision_timeframe, etc.)
-- **TradingStrategy** (name, description, timeframe, higher_timeframe, lower_timeframe, methodology, trading_style, entry_rules, exit_rules, valid_pairs, min_confluences, min_rr, status, session_preference, difficulty_level)
-- **Account** (name, account_type, currency, balance, exchange, metadata)
-- **AccountTransaction** (transaction_type, amount, currency, description)
-- **RiskProfile** (risk_per_trade_percent, max_daily_loss_percent, max_weekly_drawdown_percent, max_position_size_percent, max_concurrent_positions)
-- **EntryRule** / **ExitRule** (type, condition, is_mandatory, value, unit)
-- **TradeEntryStrategy** (junction table: trade_entry_id, strategy_id)
-- Relationships: TradeEntry --o TradingStrategy (many-to-many via TradeEntryStrategy), TradeEntry --> Account, Account --> AccountTransaction
+## Changes Required
 
-### Diagram 2: Trade Wizard & AI System
-All wizard-related types and AI analysis entities:
+### 1. Restructure `src/pages/ImportTrades.tsx`
+- Rename page title: "Import & Sync Trades"
+- Add Tabs component: `binance` | `solana`
+- **Binance Tab**: Move all sync-related UI here:
+  - `BinanceFullSyncPanel` (full, non-compact mode)
+  - Incremental Sync status/button
+  - Enrichment controls (Enrich Trades button + progress)
+  - `SyncQuotaDisplay` (full version)
+  - Binance connection status indicator
+  - Mode visibility guard (hide tab content in Paper mode)
+- **Solana Tab**: Keep existing `SolanaTradeImport` + Supported Protocols card
+- Feature info cards updated to cover both sources
+- Default tab based on mode: Live mode defaults to Binance, Paper mode defaults to Solana
 
-- **WizardState** (currentStep, completedSteps, mode, preValidation, strategyDetails, tradeDetails, marketContext, confluences, priceLevels, positionSizing, finalChecklist, tradingAccountId, accountBalance)
-- **TradeDetailsData** (pair, direction, timeframe)
-- **TradePriceLevels** (entryPrice, stopLoss, takeProfit)
-- **ConfluenceData** (checkedItems, totalRequired, passed, aiConfidence)
-- **FinalChecklistData** (emotionalState, confidenceLevel, followingRules, tradeComment, aiQualityScore)
-- **PreValidationResult** (dailyLossCheck, positionLimitCheck, correlationCheck, canProceed, overallStatus)
-- **PositionSizeResult** (position_size, position_value, risk_amount, capital_deployment_percent, warnings, potential_profit_1r/2r/3r)
-- **UnifiedMarketContext** (sentiment, fearGreed, volatility, events, momentum, session, compositeScore, tradingBias)
-- Sub-contexts: **MarketSentimentContext**, **FearGreedContext**, **VolatilityContext**, **EventContext**, **MomentumContext**, **SessionContext**
-- **PreflightInput/Response** (verdict, confidence, expectancy, edgeStrength, layers with DataSufficiency, EdgeValidation, ContextSimilarity, Stability, BiasDetection)
-- AI Types: **AIConfluenceResult**, **AITradeQualityScore**, **AIPatternInsight**, **PostTradeAnalysis**, **PreTradeValidation**
-- **TradingGateState** (canTrade, status, lossUsedPercent, remainingBudget, aiQualityWarning, aiQualityBlocked)
-- Relationships: WizardState --> PreValidationResult, WizardState --> TradingStrategy, WizardState --> TradeDetailsData, WizardState --> TradePriceLevels, WizardState --> ConfluenceData, WizardState --> FinalChecklistData, WizardState --> PositionSizeResult, WizardState --> UnifiedMarketContext
+### 2. Clean up `src/pages/TradeHistory.tsx`
+Remove from Trade History:
+- `BinanceFullSyncPanel` import and usage (line 38, 453)
+- Incremental sync button/status UI (lines 455-486)
+- Enrichment controls (Enrich Trades button + progress, lines 488-537)
+- Related imports: `useBinanceIncrementalSync`, `useBinanceAggregatedSync`, `useSyncStore` selectors for sync progress, `useTradeEnrichmentBinance`, `useTradesNeedingEnrichmentCount`
+- Keep: `isFullSyncing` check for loading awareness (read-only from global store)
+- Keep: Fee/Funding tabs (they display data, not import it)
+- Add: Small "Go to Import" link/button in the filter area pointing to `/import` for users who need to sync
 
-### Diagram 3: Binance Integration & Sync Engine
-All Binance-specific types and the aggregation pipeline:
+### 3. Auto Incremental Sync (Background)
+- Move `useBinanceIncrementalSync({ autoSyncOnMount: true })` to `DashboardLayout` level or a dedicated provider
+- This ensures incremental sync runs once on app load (Live mode), not tied to any specific page
+- `GlobalSyncIndicator` already exists in the header -- no changes needed there
 
-- **BinanceTrade** (id, symbol, orderId, side, price, qty, realizedPnl, commission, positionSide, maker, buyer)
-- **BinanceOrder** (orderId, symbol, status, type, side, positionSide, price, avgPrice, origQty, executedQty, stopPrice)
-- **BinancePosition** (symbol, positionAmt, entryPrice, markPrice, unrealizedProfit, leverage, marginType, liquidationPrice)
-- **BinanceBalance** / **BinanceAccountSummary**
-- **BinanceIncome** (symbol, incomeType, income, asset, tranId, tradeId)
-- **BinanceCredentials** / **BinanceConnectionStatus**
-- **PositionLifecycle** (symbol, direction, positionSide, entryFills, exitFills, entryOrders, exitOrders, incomeRecords, entryTime, exitTime, isComplete, lifecycleId)
-- **AggregatedTrade** (binance_trade_id, pair, direction, entry_price, exit_price, quantity, realized_pnl, commission, funding_fees, fees, pnl, r_multiple, result, trade_state, _validation)
-- **ValidationResult** (isValid, errors, warnings, crossValidation)
-- **AggregationResult** (trades, stats, failures, reconciliation, partialSuccess)
-- **SyncCheckpoint** (currentPhase, incomeData, tradesBySymbol, processedSymbols, failedSymbols, timeRange)
-- **SyncQuotaInfo** (currentCount, maxQuota, remaining, usagePercent, isExhausted)
-- **TradeStateMachine** (TradeState enum: OPENING, PARTIALLY_FILLED, ACTIVE, CLOSED, CANCELED, LIQUIDATED + transition rules)
-- Binance extended: **CommissionRate**, **LeverageBracket**, **ForceOrder**, **PositionMode**, **AccountConfig**, **AdlQuantile**
-- Relationships: PositionLifecycle --> BinanceTrade, PositionLifecycle --> BinanceOrder, PositionLifecycle --> BinanceIncome, AggregatedTrade --> PositionLifecycle, AggregatedTrade --> ValidationResult, AggregationResult --> AggregatedTrade
+### 4. Update Sidebar Label
+- In `AppSidebar.tsx`: Change label from "Import Trades" to "Import & Sync" for clarity
 
-### Diagram 4: Exchange Abstraction Layer
-Generic exchange types for multi-exchange readiness:
+### 5. Update Documentation
+- Update `docs/FEATURE-MATRIX.md`: Move sync features from Trade History section to Import section
+- Update `docs/CLASS-DIAGRAM.md` if component relationships change
 
-- **ExchangePosition** (symbol, side, size, entryPrice, markPrice, unrealizedPnl, leverage, marginType, source)
-- **ExchangeBalance** (asset, total, available, unrealizedPnl, marginBalance, source)
-- **ExchangeAccountSummary** (totalBalance, availableBalance, totalUnrealizedPnl, assets)
-- **ExchangeTrade** (id, symbol, side, price, quantity, realizedPnl, commission, timestamp, isMaker, positionSide, source)
-- **ExchangeOrder** (orderId, symbol, side, type, status, originalQuantity, executedQuantity, price, stopPrice, source)
-- **ExchangeIncome** (id, symbol, incomeType, category, amount, asset, timestamp, source)
-- **ExchangeCredentialStatus** (id, exchange, label, apiKeyMasked, isValid, permissions)
-- **ExchangeRateLimitStatus** (category, weightUsed, maxWeight, usagePercent)
-- **ExchangeMeta** (type, name, icon, status, color)
-- Relationships: BinancePosition ..|> ExchangePosition (implements), BinanceTrade ..|> ExchangeTrade, etc.
+## Files Modified
 
-### Diagram 5: Solana Import & Trade History Hooks
-Import pipeline and history/filter system:
+| File | Action |
+|------|--------|
+| `src/pages/ImportTrades.tsx` | Major rewrite -- tabbed layout with Binance sync + Solana import |
+| `src/pages/TradeHistory.tsx` | Remove sync/enrichment UI, add "Go to Import" link |
+| `src/components/layout/AppSidebar.tsx` | Rename menu item |
+| `src/components/layout/DashboardLayout.tsx` | Add auto incremental sync hook at layout level |
+| `docs/FEATURE-MATRIX.md` | Update feature locations |
+| `docs/CLASS-DIAGRAM.md` | Update component mapping |
 
-- **ParsedSolanaTrade** (signature, blockTime, program, programName, direction, pair, entryPrice, exitPrice, quantity, pnl, fees, status)
-- **SolanaParserResult** (trades, totalTransactions, parsedCount, errors)
-- **SolanaTradeImportState** (status: ImportStatus, result, selectedTrades, importedCount)
-- ImportStatus enum: idle, fetching, parsed, importing, done, error
-- **TradeHistoryFiltersState** (dateRange, resultFilter, directionFilter, sessionFilter, selectedStrategyIds, selectedPairs, sortByAI, showFullHistory)
-- **TradeStats** (totalTrades, totalPnlGross, totalPnlNet, totalFees, winCount, lossCount, winRate, avgWin, avgLoss, profitFactor)
-- **EnrichmentData** (notes, emotionalState, chartTimeframe, customTags, screenshots, selectedStrategies, biasTimeframe, executionTimeframe, precisionTimeframe, tradeRating, lessonLearned, ruleCompliance)
-- **TradeModeState** (tradeMode, tradingStyle, isPaper, isLive)
-- **DailyRiskSnapshot** / **DailyRiskStatus**
-- **ClosePositionInput** (id, exit_price, pnl, fees, notes)
-- Relationships: SolanaParserResult --> ParsedSolanaTrade, TradeHistoryFiltersState --> TradeStats, EnrichmentData --> TradeEntry
+## What Stays in Trade History
+- Filter controls (date, result, direction, session, strategy, pairs)
+- View mode toggle (List/Gallery)
+- Trade list with sub-tabs (All/Binance/Paper)
+- Fee History tab (displays data from local DB)
+- Funding History tab (displays data from local DB)
+- Export CSV button
+- Trade enrichment drawer (for individual trade enrichment on click)
+- Infinite scroll pagination
+- Server-side stats (P&L, win rate)
+
+## What Moves to Import
+- `BinanceFullSyncPanel` (Full Sync trigger + monitoring)
+- Incremental Sync button + status
+- Bulk Enrichment controls (Enrich N Trades button)
+- Sync Quota display
+- Sync progress indicators
+- Resume/Retry/Discard checkpoint controls
 
 ## Technical Notes
-
-- Each diagram section will have a brief intro explaining the domain
-- Mermaid `classDiagram` syntax with proper visibility markers (+public, -private, #protected)
-- Methods included where hooks/services expose them (e.g., `+submitTrade()`, `+fetchTrades()`, `+saveEnrichment()`)
-- Enums rendered as Mermaid `class` with `<<enumeration>>` stereotype
-- Relationships use standard UML notation: `-->` association, `--o` aggregation, `--|>` inheritance, `..|>` implementation, `--` dependency
-- Total: ~60 classes/interfaces across 5 diagrams
+- `GlobalSyncIndicator` in header remains unchanged -- sync progress visible globally regardless of current page
+- Zustand sync store (`sync-store`) remains unchanged -- state persists across navigation
+- Auto incremental sync at layout level ensures data freshness without requiring user to visit Import page
+- Fee/Funding tabs in Trade History stay because they display already-synced data, not trigger sync operations
