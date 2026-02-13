@@ -20,7 +20,9 @@ import { useModeVisibility } from "@/hooks/use-mode-visibility";
 import { useBinanceConnectionStatus } from "@/features/binance";
 import { useBinanceIncrementalSync } from "@/hooks/use-binance-incremental-sync";
 import { BinanceFullSyncPanel } from "@/components/trading/BinanceFullSyncPanel";
-import { useSyncStore, selectIsFullSyncRunning } from "@/store/sync-store";
+import { useSyncStore, selectIsFullSyncRunning, selectFullSyncStatus, selectCheckpoint } from "@/store/sync-store";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ChevronDown } from "lucide-react";
 import { useTradeEnrichmentBinance, useTradesNeedingEnrichmentCount, type EnrichmentProgress } from "@/hooks/use-trade-enrichment-binance";
 import { Link } from "react-router-dom";
 
@@ -44,6 +46,10 @@ export default function ImportTrades() {
 
   // Full sync state
   const isFullSyncing = useSyncStore(selectIsFullSyncRunning);
+  const fullSyncStatus = useSyncStore(selectFullSyncStatus);
+  const checkpoint = useSyncStore(selectCheckpoint);
+  const canResume = !!checkpoint;
+  const fullSyncAutoOpen = isFullSyncing || canResume;
 
   // Enrichment
   const [enrichmentProgress, setEnrichmentProgress] = useState<EnrichmentProgress | null>(null);
@@ -150,9 +156,6 @@ export default function ImportTrades() {
             </Card>
           ) : (
             <>
-              {/* Full Sync Panel */}
-              <BinanceFullSyncPanel isBinanceConnected={isBinanceConnected} />
-
               {/* Incremental Sync & Enrichment Controls */}
               <Card>
                 <CardHeader className="pb-3">
@@ -251,6 +254,21 @@ export default function ImportTrades() {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Advanced: Full Sync (collapsible) */}
+              <Collapsible open={fullSyncAutoOpen || undefined} defaultOpen={fullSyncAutoOpen}>
+                <CollapsibleTrigger className="flex items-center gap-2 w-full py-2 px-1 text-sm text-muted-foreground hover:text-foreground transition-colors group">
+                  <Shield className="h-4 w-4" />
+                  <span className="font-medium">Advanced: Full Sync (Recovery)</span>
+                  <ChevronDown className="h-4 w-4 ml-auto transition-transform group-data-[state=open]:rotate-180" />
+                </CollapsibleTrigger>
+                <p className="text-xs text-muted-foreground px-1 -mt-1 mb-2">
+                  Complete re-download of all trade history. Use when incremental sync misses data or for initial setup.
+                </p>
+                <CollapsibleContent>
+                  <BinanceFullSyncPanel isBinanceConnected={isBinanceConnected} />
+                </CollapsibleContent>
+              </Collapsible>
             </>
           )}
         </TabsContent>
