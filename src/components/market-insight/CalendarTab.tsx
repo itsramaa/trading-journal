@@ -70,7 +70,7 @@ export function CalendarTab({ hideTitle = false }: CalendarTabProps) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full min-w-0 overflow-x-hidden">
       {/* Header with Refresh - conditionally show title */}
       {!hideTitle && (
         <div className="flex items-center justify-between">
