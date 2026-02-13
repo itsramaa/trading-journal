@@ -394,6 +394,10 @@ export default function AIInsights() {
               <Lightbulb className="h-4 w-4" />
               Pattern Analysis
             </TabsTrigger>
+            <TabsTrigger value="emotional" className="gap-2">
+              <Brain className="h-4 w-4" />
+              Emotional
+            </TabsTrigger>
             <TabsTrigger value="predictions" className="gap-2">
               <Zap className="h-4 w-4" />
               Predictions
@@ -504,9 +508,6 @@ export default function AIInsights() {
           </Card>
         </div>
 
-        {/* Emotional Pattern Analysis */}
-        <EmotionalPatternAnalysis />
-
         {/* Session Insights */}
         {contextualData?.bySession && (
           <SessionInsights bySession={contextualData.bySession} />
@@ -564,6 +565,11 @@ export default function AIInsights() {
             </div>
           </CardContent>
         </Card>
+          </TabsContent>
+
+          {/* Emotional Tab */}
+          <TabsContent value="emotional" className="mt-0">
+            <EmotionalPatternAnalysis />
           </TabsContent>
 
           {/* Predictions Tab */}

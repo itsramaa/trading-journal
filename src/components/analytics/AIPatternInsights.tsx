@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { TrendingUp, TrendingDown, Lightbulb, AlertTriangle, Trophy } from "lucide-react";
-import { useTradeEntries } from "@/hooks/use-trade-entries";
+import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 
@@ -19,7 +19,7 @@ interface PatternData {
 }
 
 export function AIPatternInsights() {
-  const { data: trades } = useTradeEntries();
+  const { data: trades } = useModeFilteredTrades();
   const { data: strategies } = useTradingStrategies();
   const { formatPnl } = useCurrencyConversion();
 

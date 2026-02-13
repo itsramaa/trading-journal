@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { TrendingUp, TrendingDown, Trophy, Medal, Award } from "lucide-react";
-import { useTradeEntries } from "@/hooks/use-trade-entries";
+import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import { cn } from "@/lib/utils";
 import { formatWinRate } from "@/lib/formatters";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
@@ -23,7 +23,7 @@ interface PairStats {
 }
 
 export function CryptoRanking() {
-  const { data: trades } = useTradeEntries();
+  const { data: trades } = useModeFilteredTrades();
   const { formatPnl } = useCurrencyConversion();
 
   const pairStats = useMemo((): PairStats[] => {
