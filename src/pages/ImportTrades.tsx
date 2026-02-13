@@ -26,7 +26,6 @@ import { Link } from "react-router-dom";
 
 const SUPPORTED_DEXS = [
   { name: 'Deriverse', status: 'Primary' },
-  { name: 'Deriverse Perps', status: 'Primary' },
   { name: 'Drift', status: 'Supported' },
   { name: 'Zeta Markets', status: 'Supported' },
   { name: 'Mango Markets', status: 'Supported' },

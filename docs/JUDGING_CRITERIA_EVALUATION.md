@@ -258,4 +258,13 @@ src/
 
 ---
 
+## Catatan Integrasi Deriverse
+
+- **Official Program ID:** `CDESjex4EDBKLwx9ZPzVbjiHEHatasb5fhSJZMzNfvw2`
+- **Version:** 6
+- Parser menggunakan pendekatan generic (token balance diff) yang kompatibel dengan program ID resmi
+- File implementasi: `src/services/solana-trade-parser.ts`
+
+---
+
 *Dokumen ini di-generate berdasarkan analisis kode, security scan, dan dokumentasi existing. Lihat `docs/scope-coverage-map.md` untuk detail mapping scope → implementasi.*
