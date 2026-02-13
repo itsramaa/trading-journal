@@ -2,7 +2,7 @@
  * Paginated Trade Entries Hook
  * Implements cursor-based pagination for large trade histories
  */
-import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
@@ -197,6 +197,7 @@ export function useTradeEntriesPaginated(options: PaginatedTradeEntriesOptions =
     getNextPageParam: (lastPage) => lastPage.nextCursor,
     initialPageParam: null as { cursorDate: string; cursorId: string } | null,
     enabled: !!user?.id,
+    placeholderData: keepPreviousData,
   });
 }
 
