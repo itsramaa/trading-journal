@@ -1,8 +1,12 @@
 /**
  * Backtest Page - Standalone page for backtest runner
+ * 
+ * Scope: Basic Mode — single strategy backtesting suitable for trading journal.
+ * Walk-forward optimization is out of scope (advanced quant tool, not journal feature).
  */
 import { PageHeader } from "@/components/ui/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import { Play, BarChart3 } from "lucide-react";
 import { BacktestRunner, BacktestComparison } from "@/components/strategy";
 
@@ -13,7 +17,9 @@ export default function Backtest() {
         icon={Play}
         title="Backtest"
         description="Test your strategies against historical data"
-      />
+      >
+        <Badge variant="outline" className="text-xs font-normal">Basic Mode</Badge>
+      </PageHeader>
 
       <Tabs defaultValue="run" className="w-full">
         <TabsList className="mb-6 h-9 bg-muted/50">

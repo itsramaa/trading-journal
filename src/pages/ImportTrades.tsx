@@ -121,6 +121,7 @@ export default function ImportTrades() {
           <TabsTrigger value="solana" className="gap-2">
             <Globe className="h-4 w-4" />
             Solana Import
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-normal">Experimental</Badge>
           </TabsTrigger>
         </TabsList>
 
