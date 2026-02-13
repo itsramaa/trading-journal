@@ -4,6 +4,8 @@
  * Enhanced: Heuristic Evaluation + Accessibility fixes + Analytics tracking
  */
 import { useCallback, useEffect, useRef } from "react";
+import { useAuth } from "@/hooks/use-auth";
+import { logAuditEvent } from "@/lib/audit-logger";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -102,16 +104,25 @@ function TradingBlockedState({ reason, status, onClose }: { reason: string; stat
 export function TradeEntryWizard({ onClose, onComplete }: TradeEntryWizardProps) {
   const { currentStep, completedSteps, goToStep, nextStep, prevStep, reset, mode, setMode } = useTradeEntryWizard();
   const { canTrade, reason, status } = useTradingGate();
+  const { user } = useAuth();
   const startTimeRef = useRef(Date.now());
   const hasTrackedStartRef = useRef(false);
+  const prevStepRef = useRef(currentStep);
 
   const isExpressMode = mode === 'express';
   const activeSteps = isExpressMode ? EXPRESS_STEPS : FULL_STEPS;
 
-  // Track wizard start
+  // Track wizard start + audit log
   useEffect(() => {
     if (!hasTrackedStartRef.current) {
       trackEvent(ANALYTICS_EVENTS.TRADE_ENTRY_WIZARD_START, { step: currentStep, mode });
+      if (user?.id) {
+        logAuditEvent(user.id, {
+          action: 'trade_created',
+          entityType: 'trade_entry',
+          metadata: { wizard_event: 'started', mode },
+        });
+      }
       hasTrackedStartRef.current = true;
     }
     
@@ -123,14 +134,28 @@ export function TradeEntryWizard({ onClose, onComplete }: TradeEntryWizardProps)
           duration: Date.now() - startTimeRef.current,
           mode,
         });
+        if (user?.id) {
+          logAuditEvent(user.id, {
+            action: 'trade_created',
+            entityType: 'trade_entry',
+            metadata: { wizard_event: 'abandoned', lastStep: currentStep, mode },
+          });
+        }
       }
     };
   }, []);
 
-  // Check if trading is blocked
-  if (!canTrade && status === 'disabled') {
-    return <TradingBlockedState reason={reason} status={status} onClose={onClose} />;
-  }
+  // Track step changes via audit log
+  useEffect(() => {
+    if (prevStepRef.current !== currentStep && user?.id) {
+      logAuditEvent(user.id, {
+        action: 'trade_created',
+        entityType: 'trade_entry',
+        metadata: { wizard_event: 'step_changed', from: prevStepRef.current, to: currentStep, mode },
+      });
+      prevStepRef.current = currentStep;
+    }
+  }, [currentStep, user?.id, mode]);
 
   const handleModeToggle = (checked: boolean) => {
     setMode(checked ? 'express' : 'full');
@@ -167,6 +192,11 @@ export function TradeEntryWizard({ onClose, onComplete }: TradeEntryWizardProps)
       goToStep(step);
     }
   }, [completedSteps, goToStep]);
+
+  // Check if trading is blocked (moved after all hooks)
+  if (!canTrade && status === 'disabled') {
+    return <TradingBlockedState reason={reason} status={status} onClose={onClose} />;
+  }
 
   const renderStep = () => {
     switch (currentStep) {
