@@ -12,6 +12,7 @@ import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { 
   CloudDownload, 
@@ -24,9 +25,12 @@ import {
   RefreshCw,
   Zap,
   Info,
+  Trash2,
 } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
 import { useBinanceAggregatedSync } from "@/hooks/use-binance-aggregated-sync";
 import { useSyncStore, selectFullSyncStatus, selectFullSyncProgress, selectFullSyncResult, selectSyncRange, selectCheckpoint } from "@/store/sync-store";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { SyncStatusBadge } from "./SyncStatusBadge";
 import { SyncQuotaDisplay } from "./SyncQuotaDisplay";
 import { ReSyncTimeWindow } from "./ReSyncTimeWindow";
@@ -36,12 +40,23 @@ import { useSyncQuota } from "@/hooks/use-sync-quota";
 import type { AggregationProgress } from "@/services/binance/types";
 import { toast } from "sonner";
 
+const PHASE_LABELS: Record<string, string> = {
+  'fetching-income': 'Fetching Income',
+  'fetching-trades': 'Fetching Trades',
+  'grouping': 'Grouping Lifecycles',
+  'aggregating': 'Aggregating',
+  'validating': 'Validating',
+  'inserting': 'Saving to DB',
+};
+
 interface BinanceFullSyncPanelProps {
   isBinanceConnected: boolean;
 }
 
 export function BinanceFullSyncPanel({ isBinanceConnected }: BinanceFullSyncPanelProps) {
   const [forceRefetch, setForceRefetch] = useState(false);
+  const [showForceConfirm, setShowForceConfirm] = useState(false);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   
   const { sync, resumeSync, canResume, clearCheckpoint } = useBinanceAggregatedSync();
   const { data: quotaInfo } = useSyncQuota();
@@ -67,6 +82,15 @@ export function BinanceFullSyncPanel({ isBinanceConnected }: BinanceFullSyncPane
       toast.info('Sync already in progress');
       return;
     }
+    // If force re-fetch is enabled, show confirmation dialog first
+    if (forceRefetch) {
+      setShowForceConfirm(true);
+      return;
+    }
+    executeSync();
+  };
+
+  const executeSync = () => {
     console.log('[FullSyncPanel] Starting sync with forceRefetch:', forceRefetch);
     sync({ daysToSync: selectedRange, forceRefetch });
     setForceRefetch(false);
@@ -82,6 +106,7 @@ export function BinanceFullSyncPanel({ isBinanceConnected }: BinanceFullSyncPane
 
   const handleDiscardCheckpoint = () => {
     clearCheckpoint();
+    setShowDiscardConfirm(false);
     toast.info('Checkpoint discarded');
   };
 
@@ -109,35 +134,13 @@ export function BinanceFullSyncPanel({ isBinanceConnected }: BinanceFullSyncPane
 
         {/* === CHECKPOINT STATE === */}
         {canResume && status === 'idle' && (
-          <div className="space-y-4">
-            <Badge variant="outline" className="gap-1.5 bg-warning/10 border-warning/30 text-warning-foreground">
-              <Clock className="h-3 w-3" />
-              <span className="text-xs">
-                Incomplete sync ({checkpoint?.processedSymbols.length || 0}/{checkpoint?.allSymbols.length || 0} symbols)
-                — Phase: {checkpoint?.currentPhase}
-              </span>
-            </Badge>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <Button variant="default" size="sm" onClick={handleResume} className="gap-1.5">
-                <PlayCircle className="h-3.5 w-3.5" />
-                Resume from Checkpoint
-              </Button>
-              <Button variant="ghost" size="sm" onClick={handleDiscardCheckpoint} className="gap-1.5 text-muted-foreground">
-                <X className="h-3.5 w-3.5" />
-                Discard
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleSync} disabled={isQuotaExhausted} className="gap-1.5">
-                <Database className="h-3.5 w-3.5" />
-                Fresh Sync
-              </Button>
-            </div>
-
-            {/* Still show range selector for fresh sync option */}
-            <div className="border-t pt-3">
-              <SyncRangeSelector />
-            </div>
-          </div>
+          <CheckpointResumeSection
+            checkpoint={checkpoint}
+            onResume={handleResume}
+            onDiscard={() => setShowDiscardConfirm(true)}
+            onFreshSync={handleSync}
+            isQuotaExhausted={isQuotaExhausted}
+          />
         )}
 
         {/* === RUNNING STATE === */}
@@ -238,6 +241,16 @@ export function BinanceFullSyncPanel({ isBinanceConnected }: BinanceFullSyncPane
               </div>
             </div>
 
+            {/* Destructive warning when force re-fetch is checked */}
+            {forceRefetch && (
+              <Alert variant="destructive" className="border-destructive/30">
+                <Trash2 className="h-4 w-4" />
+                <AlertDescription className="text-xs">
+                  <span className="font-semibold">DESTRUCTIVE:</span> All locally synced Binance trades will be permanently deleted before re-downloading from Binance for the selected range. Only use if data is inconsistent or corrupted.
+                </AlertDescription>
+              </Alert>
+            )}
+
             {/* Info bullets */}
             <div className="space-y-1 text-xs text-muted-foreground border-t pt-3">
               <div className="flex items-start gap-1.5">
@@ -266,8 +279,102 @@ export function BinanceFullSyncPanel({ isBinanceConnected }: BinanceFullSyncPane
           </div>
         )}
 
+        {/* === CONFIRMATION DIALOGS === */}
+        <ConfirmDialog
+          open={showForceConfirm}
+          onOpenChange={setShowForceConfirm}
+          title="Force Re-fetch — Delete & Re-download"
+          description="All locally synced Binance trades will be permanently deleted before re-downloading. This cannot be undone. Continue?"
+          confirmLabel="Delete & Re-sync"
+          onConfirm={() => {
+            setShowForceConfirm(false);
+            executeSync();
+          }}
+          variant="destructive"
+        />
+
+        <ConfirmDialog
+          open={showDiscardConfirm}
+          onOpenChange={setShowDiscardConfirm}
+          title="Discard Sync Checkpoint"
+          description={`This will discard all sync progress (${checkpoint?.processedSymbols.length || 0}/${checkpoint?.allSymbols.length || 0} symbols processed). You will need to start a fresh sync. Continue?`}
+          confirmLabel="Discard Progress"
+          onConfirm={handleDiscardCheckpoint}
+          variant="warning"
+        />
+
       </CardContent>
     </Card>
+  );
+}
+
+/** Enriched checkpoint resume section */
+function CheckpointResumeSection({
+  checkpoint,
+  onResume,
+  onDiscard,
+  onFreshSync,
+  isQuotaExhausted,
+}: {
+  checkpoint: ReturnType<typeof selectCheckpoint> extends (state: any) => infer R ? R : any;
+  onResume: () => void;
+  onDiscard: () => void;
+  onFreshSync: () => void;
+  isQuotaExhausted: boolean;
+}) {
+  const phaseLabel = checkpoint?.currentPhase 
+    ? (PHASE_LABELS[checkpoint.currentPhase] || checkpoint.currentPhase)
+    : 'Unknown';
+
+  const checkpointAge = checkpoint?.lastCheckpointTime
+    ? formatDistanceToNow(new Date(checkpoint.lastCheckpointTime), { addSuffix: true })
+    : null;
+
+  const syncRangeLabel = checkpoint?.syncRangeDays
+    ? (checkpoint.syncRangeDays === 9999 ? 'All Time' : `${checkpoint.syncRangeDays} days`)
+    : null;
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Badge variant="outline" className="gap-1.5 bg-warning/10 border-warning/30 text-warning-foreground">
+          <Clock className="h-3 w-3" />
+          <span className="text-xs">
+            Incomplete sync ({checkpoint?.processedSymbols.length || 0}/{checkpoint?.allSymbols.length || 0} symbols)
+          </span>
+        </Badge>
+
+        <div className="pl-1 space-y-0.5 text-xs text-muted-foreground">
+          <div>Phase: <span className="text-foreground font-medium">{phaseLabel}</span></div>
+          <div className="flex items-center gap-2">
+            {syncRangeLabel && <span>Range: {syncRangeLabel}</span>}
+            {syncRangeLabel && checkpointAge && <span>•</span>}
+            {checkpointAge && <span>Saved {checkpointAge}</span>}
+          </div>
+          <div className="text-muted-foreground/70 italic">Resume will continue from where it left off</div>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="default" size="sm" onClick={onResume} className="gap-1.5">
+          <PlayCircle className="h-3.5 w-3.5" />
+          Resume from Checkpoint
+        </Button>
+        <Button variant="ghost" size="sm" onClick={onDiscard} className="gap-1.5 text-muted-foreground">
+          <X className="h-3.5 w-3.5" />
+          Discard
+        </Button>
+        <Button variant="outline" size="sm" onClick={onFreshSync} disabled={isQuotaExhausted} className="gap-1.5">
+          <Database className="h-3.5 w-3.5" />
+          Fresh Sync
+        </Button>
+      </div>
+
+      {/* Still show range selector for fresh sync option */}
+      <div className="border-t pt-3">
+        <SyncRangeSelector />
+      </div>
+    </div>
   );
 }
 
@@ -276,14 +383,7 @@ function SyncProgressIndicator({ progress }: { progress: AggregationProgress }) 
     ? Math.round((progress.current / progress.total) * 100) 
     : 0;
 
-  const phaseLabel = {
-    'fetching-income': 'Fetching Income',
-    'fetching-trades': 'Fetching Trades',
-    'grouping': 'Grouping Lifecycles',
-    'aggregating': 'Aggregating',
-    'validating': 'Validating',
-    'inserting': 'Saving to DB',
-  }[progress.phase] || progress.phase;
+  const phaseLabel = PHASE_LABELS[progress.phase] || progress.phase;
 
   const isRateLimited = progress.message?.toLowerCase().includes('rate limit') || 
                          progress.message?.toLowerCase().includes('429');
