@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar, Tag, Target, MoreVertical, Trash2, Brain, Wifi, Edit3, ImageIcon, MessageSquarePlus, MessageSquare, Loader2 } from "lucide-react";
+import { Calendar, Tag, Target, MoreVertical, Trash2, Brain, Wifi, Edit3, ImageIcon, MessageSquarePlus, MessageSquare, Loader2, ExternalLink } from "lucide-react";
 import { TradeStateBadge } from "@/components/ui/trade-state-badge";
 import { TradeRatingBadge } from "@/components/ui/trade-rating-badge";
 import { format } from "date-fns";
@@ -27,6 +27,7 @@ interface TradeHistoryCardProps {
   onDelete: (entry: TradeEntry) => void;
   onEnrich?: (entry: TradeEntry) => void;
   onQuickNote?: (tradeId: string, note: string) => Promise<void>;
+  onTagClick?: (tag: string) => void;
   calculateRR: (trade: TradeEntry) => number;
   formatCurrency: (value: number, currency?: string) => string;
   isBinance?: boolean;
@@ -38,6 +39,7 @@ export function TradeHistoryCard({
   onDelete,
   onEnrich,
   onQuickNote,
+  onTagClick,
   calculateRR, 
   formatCurrency,
   isBinance = false,
@@ -107,6 +109,20 @@ export function TradeHistoryCard({
                   <Wifi className="h-3 w-3" />
                   Binance
                 </Badge>
+              )}
+              {/* Solscan Badge for Solana trades */}
+              {(entry.source as string) === 'solana' && entry.binance_trade_id && (
+                <a
+                  href={`https://solscan.io/tx/${entry.binance_trade_id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Badge variant="outline" className="gap-1 text-xs border-purple-500 text-purple-500 cursor-pointer hover:bg-purple-500/10">
+                    <ExternalLink className="h-3 w-3" />
+                    Solscan
+                  </Badge>
+                </a>
               )}
               {/* Trade State Badge */}
               <TradeStateBadge state={entry.trade_state} />
@@ -277,7 +293,12 @@ export function TradeHistoryCard({
           {entry.tags && entry.tags.length > 0 && (
             <div className="flex gap-2 flex-wrap">
               {entry.tags.map((tag) => (
-                <Badge key={tag} variant="outline" className="text-xs">
+                <Badge 
+                  key={tag} 
+                  variant="outline" 
+                  className={cn("text-xs", onTagClick && "cursor-pointer hover:bg-accent")}
+                  onClick={onTagClick ? (e) => { e.stopPropagation(); onTagClick(tag); } : undefined}
+                >
                   <Tag className="h-3 w-3 mr-1" />{tag}
                 </Badge>
               ))}

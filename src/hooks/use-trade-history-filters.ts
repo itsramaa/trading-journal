@@ -25,6 +25,7 @@ export interface TradeHistoryFiltersState {
   sessionFilter: SessionFilter;
   selectedStrategyIds: string[];
   selectedPairs: string[];
+  selectedTags: string[];
   sortByAI: SortByAI;
   showFullHistory: boolean;
 }
@@ -49,6 +50,7 @@ const DEFAULT_FILTERS: TradeHistoryFiltersState = {
   sessionFilter: 'all',
   selectedStrategyIds: [],
   selectedPairs: [],
+  selectedTags: [],
   sortByAI: 'none',
   showFullHistory: false,
 };
@@ -79,6 +81,9 @@ export function useTradeHistoryFilters(options: UseTradeHistoryFiltersOptions = 
   const [selectedPairs, setSelectedPairs] = useState<string[]>(
     initialFilters.selectedPairs ?? DEFAULT_FILTERS.selectedPairs
   );
+  const [selectedTags, setSelectedTags] = useState<string[]>(
+    initialFilters.selectedTags ?? DEFAULT_FILTERS.selectedTags
+  );
   const [sortByAI, setSortByAI] = useState<SortByAI>(
     initialFilters.sortByAI ?? DEFAULT_FILTERS.sortByAI
   );
@@ -98,8 +103,9 @@ export function useTradeHistoryFilters(options: UseTradeHistoryFiltersOptions = 
     directionFilter !== 'all' ||
     sessionFilter !== 'all' ||
     selectedStrategyIds.length > 0 ||
-    selectedPairs.length > 0,
-    [dateRange, resultFilter, directionFilter, sessionFilter, selectedStrategyIds, selectedPairs]
+    selectedPairs.length > 0 ||
+    selectedTags.length > 0,
+    [dateRange, resultFilter, directionFilter, sessionFilter, selectedStrategyIds, selectedPairs, selectedTags]
   );
 
   /** Count of active filter categories */
@@ -111,8 +117,9 @@ export function useTradeHistoryFilters(options: UseTradeHistoryFiltersOptions = 
       sessionFilter !== 'all',
       selectedStrategyIds.length > 0,
       selectedPairs.length > 0,
+      selectedTags.length > 0,
     ].filter(Boolean).length,
-    [dateRange, resultFilter, directionFilter, sessionFilter, selectedStrategyIds, selectedPairs]
+    [dateRange, resultFilter, directionFilter, sessionFilter, selectedStrategyIds, selectedPairs, selectedTags]
   );
 
   /** Start date for queries (with fallback to default if no filter set) */
@@ -140,6 +147,7 @@ export function useTradeHistoryFilters(options: UseTradeHistoryFiltersOptions = 
     setSessionFilter('all');
     setSelectedStrategyIds([]);
     setSelectedPairs([]);
+    setSelectedTags([]);
     setSortByAI('none');
     setShowFullHistory(false);
   }, []);
@@ -162,6 +170,7 @@ export function useTradeHistoryFilters(options: UseTradeHistoryFiltersOptions = 
       sessionFilter,
       selectedStrategyIds,
       selectedPairs,
+      selectedTags,
       sortByAI,
       showFullHistory,
     },
@@ -174,6 +183,7 @@ export function useTradeHistoryFilters(options: UseTradeHistoryFiltersOptions = 
       setSessionFilter,
       setSelectedStrategyIds,
       setSelectedPairs,
+      setSelectedTags,
       setSortByAI,
       setShowFullHistory,
     },
