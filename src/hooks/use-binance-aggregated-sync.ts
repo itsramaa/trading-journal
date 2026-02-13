@@ -87,10 +87,18 @@ async function callBinanceApi<T>(
     
     const result: ApiResponse<T> = await response.json();
     
+    // Log usedWeight to sync panel for real-time rate limit visibility
+    if (result.usedWeight) {
+      const addLog = useSyncStore.getState().addSyncLog;
+      const level = result.usedWeight > 900 ? 'warn' : 'info';
+      addLog(`Rate limit: ${result.usedWeight}/1200 weight used`, level);
+    }
+    
     // Handle rate limit - wait and retry
     if (response.status === 429 || result.code === 'RATE_LIMITED') {
       const retryAfter = result.retryAfter || 10;
-      // Rate limited - wait and retry
+      const addLog = useSyncStore.getState().addSyncLog;
+      addLog(`⚠️ Rate limited — waiting ${retryAfter}s before retry`, 'warn');
       
       // Increase delay for future requests
       currentRateLimitDelay = Math.min(currentRateLimitDelay * 1.5, 2000);
