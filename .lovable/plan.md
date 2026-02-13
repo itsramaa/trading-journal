@@ -1,114 +1,154 @@
 
-# Consolidate All Exports to Bulk Export Page + UI Fixes
 
-## Overview
+# Incremental Batch Insert for Binance Sync Engine
 
-Three changes:
-1. **Remove export buttons** from Performance, DailyPnL, TradeHistory, TradingHeatmap, AIInsights — consolidate into the Bulk Export page
-2. **Remove Collapsible** wrapper from Full Sync in ImportTrades
-3. **Move Bulk Export** from Analytics sidebar group to Tools group (below Backtest)
-4. **Add Reconciliation Report export** (CSV/PDF) to `SyncReconciliationReportInline`
+## Problem
 
-## Inventory of Exports to Consolidate
+The current sync pipeline is strictly sequential:
 
-| Page | Current Export | Action |
-|------|---------------|--------|
-| Performance | CSV + PDF (usePerformanceExport) | Remove buttons, add "Performance Report" tab/card in BulkExport |
-| DailyPnL | CSV + PDF (usePerformanceExport) | Remove buttons (covered by Performance tab in BulkExport) |
-| TradeHistory | CSV (exportTradesCsv) | Remove button (covered by Journal tab in BulkExport) |
-| TradingHeatmap | CSV (inline) | Remove button, add "Heatmap" card in BulkExport |
-| AIInsights | Contextual PDF (useContextualExport) | Remove button, add "Contextual Analytics" card in BulkExport |
-| BulkExport | Binance / Journal / Backup tabs | Expand with new export types |
-
-## Changes
-
-### 1. Remove Collapsible from Full Sync (`src/pages/ImportTrades.tsx`)
-
-- Remove `Collapsible`, `CollapsibleContent`, `CollapsibleTrigger` wrappers
-- Render `BinanceFullSyncPanel` directly (always visible)
-- Keep the description text and Shield icon as a simple heading
-- Remove `ChevronDown` import
-
-### 2. Move Bulk Export to Tools Group (`src/components/layout/AppSidebar.tsx`)
-
-Move `{ title: "Bulk Export", url: "/export", icon: Download }` from `Analytics` group to `Tools` group, after Backtest:
-
-```
-Tools:
-  - Risk Calculator
-  - My Strategies
-  - Backtest
-  - Bulk Export    <-- moved here
+```text
+fetch ALL symbols → group ALL → aggregate ALL → validate ALL → insert ALL at end
 ```
 
-### 3. Expand Bulk Export Page (`src/pages/BulkExport.tsx`)
+This means:
+- If sync is interrupted at phase 6 (inserting), ALL processing work is lost
+- UI shows no new trades until the entire pipeline completes
+- For large accounts (200+ trades, 30+ symbols), this can take 5-10 minutes with zero visible progress in the journal
 
-Restructure tabs from 3 to 5:
+## Solution: Per-Symbol-Batch Pipeline
 
+Process symbols in batches of 4 (matching existing `MAX_PARALLEL_SYMBOLS`), and for each batch run the complete pipeline through to DB insert before moving to the next batch.
+
+```text
+BEFORE (monolithic):
+  fetch(sym1..sym30) → group(all) → aggregate(all) → validate(all) → insert(all)
+
+AFTER (incremental):
+  fetch(sym1..4) → group → aggregate → validate → insert → checkpoint
+  fetch(sym5..8) → group → aggregate → validate → insert → checkpoint
+  ...
+  fetch(sym29..30) → group → aggregate → validate → insert → checkpoint
+  → final reconciliation
 ```
-Tabs: [Binance] [Journal] [Analytics] [Reports] [Backup]
+
+## Architecture Changes
+
+### File: `src/hooks/use-binance-aggregated-sync.ts`
+
+**Core refactor of `syncMutation.mutationFn`:**
+
+Replace the current linear phases 2-6 with a loop that processes symbol batches end-to-end:
+
+1. **Phase 1** (unchanged): Fetch all income records, extract unique symbols
+2. **Phase 2** (NEW loop): For each batch of symbols (4 at a time):
+   a. Fetch trades + orders for batch symbols (existing `fetchTradesWithTolerance` logic, scoped to batch)
+   b. Build `RawBinanceData` for this batch only (trades + orders + relevant income)
+   c. `groupIntoLifecycles()` for this batch
+   d. `aggregateAllLifecycles()` for this batch's complete lifecycles
+   e. `validateAllTrades()` for this batch
+   f. Dedup check against DB (`binance_trade_id IN (...)`)
+   g. `batchInsertTrades()` for this batch's valid trades
+   h. Save checkpoint with accumulated results
+   i. `invalidateTradeQueries()` so UI updates immediately
+3. **Phase 3** (adjusted): Final reconciliation across ALL accumulated trades
+
+**New accumulator pattern:**
+
+```typescript
+interface BatchAccumulator {
+  allAggregatedTrades: AggregatedTrade[];
+  totalInserted: number;
+  totalSkippedDupes: number;
+  allFailures: AggregationFailure[];
+  allLifecycles: PositionLifecycle[];
+  failedBatches: Array<{ batch: number; error: string }>;
+  validationStats: { valid: number; invalid: number; warnings: number };
+}
 ```
 
-- **Binance tab**: Keep as-is (Binance bulk export for tax)
-- **Journal tab**: Keep `JournalExportCard` as-is (already handles CSV/JSON with market context)
-- **Analytics tab** (NEW): Consolidate:
-  - Performance Report export (CSV + PDF) — reuse `usePerformanceExport`
-  - Heatmap export (CSV) — extract heatmap CSV logic into a reusable function
-  - Contextual Analytics PDF — reuse `useContextualExport`
-- **Reports tab** (NEW): 
-  - Sync Reconciliation Report export (CSV + PDF) — new hook
-  - Weekly Report export (already exists via `useWeeklyReportExport`)
-- **Backup tab**: Keep `SettingsBackupRestore` as-is
+Each symbol batch appends to this accumulator. Final reconciliation uses `allAggregatedTrades` + full income array.
 
-### 4. Remove Export Buttons from Source Pages
+**Checkpoint enhancement:**
 
-| File | Remove |
-|------|--------|
-| `src/pages/Performance.tsx` | Remove CSV + PDF buttons, `usePerformanceExport` import, `handleExportCSV`/`handleExportPDF` functions |
-| `src/pages/DailyPnL.tsx` | Remove CSV + PDF buttons, `usePerformanceExport` import, `handleExportCSV`/`handleExportPDF` functions |
-| `src/pages/TradeHistory.tsx` | Remove Export CSV button, `exportTradesCsv` import |
-| `src/pages/TradingHeatmap.tsx` | Remove Export CSV button, `exportToCSV` function |
-| `src/pages/AIInsights.tsx` | Remove Export Contextual PDF button, `useContextualExport` import |
+Add `insertedTradeIds: string[]` to checkpoint so resume knows which trades are already in DB (idempotent — dedup check uses this + DB query).
 
-Each page gets a subtle link/hint: a small "Export" icon-button in the header that navigates to `/export` with appropriate query param (e.g., `/export?tab=analytics`) so users can still discover the export feature.
+**UI invalidation per batch:**
 
-### 5. Add Reconciliation Report Export
+After each successful batch insert, call `invalidateTradeQueries(queryClient)` so the Trade History page shows new trades appearing incrementally.
 
-**New file: `src/hooks/use-reconciliation-export.ts`**
+### File: `src/store/sync-store.ts`
 
-Creates CSV and PDF exports from `AggregationResult`:
-- **CSV**: Summary stats, reconciliation data, trade details table
-- **PDF**: jsPDF with autoTable — same structure as `SyncReconciliationReportInline` (summary cards, reconciliation section, lifecycle stats, warnings, trade details)
+**Progress update for new flow:**
 
-**Update: `src/components/trading/SyncReconciliationReport.tsx`**
+Update `AggregationProgress` phase type to include a new composite message format:
 
-Add export buttons (CSV + PDF) to `SyncReconciliationReportInline` header area, using `useReconciliationExport`.
+```text
+"Processing BTCUSDT, ETHUSDT... (batch 3/8) — 45 trades inserted so far"
+```
 
-### 6. Extract Heatmap Export Logic
+The existing phase names (`fetching-trades`, `grouping`, `aggregating`, `validating`, `inserting`) remain valid — they just cycle per batch instead of running once globally.
 
-**New file: `src/lib/export/heatmap-export.ts`**
+**Checkpoint schema addition:**
 
-Extract heatmap CSV generation logic from `TradingHeatmap.tsx` into a reusable function so it can be called from BulkExport page.
+Add `insertedTradeIds: string[]` to `SyncCheckpoint` type so resume can skip already-inserted trades without querying DB for all of them.
+
+### File: `src/services/binance/types.ts`
+
+Add `insertedTradeIds` field to `SyncCheckpoint` interface:
+
+```typescript
+interface SyncCheckpoint {
+  // ... existing fields
+  insertedTradeIds: string[]; // NEW: tracks which trades are already in DB
+}
+```
+
+## Idempotency Guarantee
+
+Each batch insert is idempotent because:
+1. Dedup check queries DB for `binance_trade_id IN (batch_ids)` before insert
+2. Checkpoint tracks `insertedTradeIds` for resume scenarios
+3. `binance_trade_id` is unique per trade — no duplicates possible even if same batch runs twice
+
+## ETA Calculation Adjustment
+
+Current ETA uses fixed phase weights (fetching-trades: 55%, inserting: 15%). With incremental inserts, the weight distribution shifts:
+
+```typescript
+// NEW: Single "processing" super-phase that encompasses fetch+group+aggregate+validate+insert per batch
+// ETA = (elapsed / batchesCompleted) * batchesRemaining
+```
+
+Simpler and more accurate since each batch takes roughly the same time.
+
+## Resume Behavior
+
+When resuming from checkpoint:
+- `processedSymbols` tells us which symbols are fully done (fetched + inserted)
+- `insertedTradeIds` confirms what's in DB
+- Resume starts from next unprocessed symbol batch
+- No risk of duplicate inserts
 
 ## Files Modified
 
 | File | Change |
 |------|--------|
-| `src/pages/ImportTrades.tsx` | Remove Collapsible wrapper from Full Sync |
-| `src/components/layout/AppSidebar.tsx` | Move Bulk Export from Analytics to Tools |
-| `src/pages/BulkExport.tsx` | Add Analytics + Reports tabs with consolidated exports |
-| `src/pages/Performance.tsx` | Remove export buttons, add nav link to /export |
-| `src/pages/DailyPnL.tsx` | Remove export buttons, add nav link to /export |
-| `src/pages/TradeHistory.tsx` | Remove export button, add nav link to /export |
-| `src/pages/TradingHeatmap.tsx` | Remove export button + inline logic, add nav link to /export |
-| `src/pages/AIInsights.tsx` | Remove export button, add nav link to /export |
-| `src/hooks/use-reconciliation-export.ts` | NEW — CSV/PDF export for reconciliation report |
-| `src/lib/export/heatmap-export.ts` | NEW — extracted heatmap CSV logic |
-| `src/components/trading/SyncReconciliationReport.tsx` | Add export buttons to inline report |
+| `src/hooks/use-binance-aggregated-sync.ts` | Refactor phases 2-6 into per-batch loop with incremental insert + UI refresh |
+| `src/store/sync-store.ts` | Update `createEmptyCheckpoint` to include `insertedTradeIds` |
+| `src/services/binance/types.ts` | Add `insertedTradeIds` to `SyncCheckpoint` interface |
 
-## Technical Notes
+## What Does NOT Change
 
-- All existing export hooks (`usePerformanceExport`, `useContextualExport`, `exportTradesCsv`) remain intact — they're just called from BulkExport instead of individual pages
-- Source pages get a minimal "Export" link button pointing to `/export?tab=<relevant-tab>` for discoverability
-- `BulkExport` reads `?tab=` query param to auto-select the right tab on navigation
-- No breaking changes to underlying data or hooks
+- `groupIntoLifecycles`, `aggregateAllLifecycles`, `validateAllTrades` — called per batch, same API
+- `mapToDbRow` — unchanged
+- `fetchTradesForSymbol`, `fetchOrdersForSymbol` — unchanged
+- `BinanceFullSyncPanel` UI — unchanged (progress phases still cycle the same way)
+- `SyncReconciliationReport` — unchanged (receives final accumulated result)
+- `useBinanceFullSync` (legacy hook) — not touched
+
+## Risk Mitigation
+
+- Lifecycle grouping per batch may miss cross-symbol correlations — but Binance positions are per-symbol, so this is safe
+- Income records for a symbol may span multiple batches — filter income by symbol before passing to `groupIntoLifecycles`
+- Final reconciliation still uses ALL income vs ALL aggregated trades for accuracy
+
