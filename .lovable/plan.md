@@ -1,190 +1,163 @@
 
 
-# Cross-Check: 13 Potensi Bug/Gap — Hasil & Remediation
+# Hybrid Incremental Sync — Blueprint Optimization Plan
 
-## Hasil Cross-Check
+## Gap Analysis: Current vs Blueprint
 
-### 1. Mode Isolation — Legacy trades tanpa trade_mode
-**Status: SAFE (sudah diperbaiki)**
+Setelah cross-check menyeluruh terhadap codebase, berikut status setiap layer:
 
-DB migration sebelumnya (`20260213140212`) sudah backfill `trade_mode = 'live'` untuk semua `source = 'binance'` yang null. Column default sudah diset `'live'`. Hook `useModeFilteredTrades` (line 22-27) sudah memiliki fallback logic untuk legacy trades: `source='binance'` -> live, lainnya -> paper. Dengan backfill + default, gap ini sudah tertutup.
+| # | Blueprint Item | Current Status | Action |
+|---|---------------|---------------|--------|
+| 1a | Batch Size 30 | BATCH_INSERT_SIZE=50, MAX_PARALLEL_SYMBOLS=4 | Adjust to 30 insert + keep parallel fetch at 4 |
+| 1b | Cursor-based pagination | Already uses cursor (tranId for income, fromId for trades) | DONE |
+| 1c | Prefetch next batch | Not implemented — sequential batch loop | NEEDS IMPL |
+| 2a | Mandatory fields check | Already validated (price, qty, direction, datetime, binance_trade_id) | DONE |
+| 2b | SL/TP consistency | Not applicable at sync level (SL/TP set by user post-sync) | SKIP |
+| 2c | Source consistency | Hardcoded `source: 'binance'` in mapToDbRow | DONE |
+| 2d | Market context validation | Market context captured separately, not during sync | SKIP |
+| 2e | Invalid trade audit log | Invalid trades filtered but not persisted for audit | NEEDS IMPL |
+| 3a | Atomic bulk insert | Uses Supabase `.insert()` — no DB transaction rollback | NEEDS IMPL (RPC) |
+| 3b | Index-aware batch insert | Supabase handles this at DB level | DONE |
+| 4a | Virtualized rendering | Trade table already paginated (cursor-based) | DONE |
+| 4b | Incremental stats update | `invalidateTradeQueries()` called per batch | DONE |
+| 4c | Progress indicator | Already shows "batch X/Y, N trades saved" | DONE |
+| 4d | Badges update per batch | Badges re-render via React Query invalidation | DONE |
+| 5a | Checkpoint per batch | Already implemented with `saveCheckpoint()` | DONE |
+| 5b | Resume logic | Already skips processedSymbols + insertedTradeIds | DONE |
+| 5c | Corruption safety | Checkpoint only saved on success, preserved on failure | DONE |
+| 6a | Batch-level error | Already has retry (MAX_INSERT_RETRIES=3) + skip on failure | DONE |
+| 6b | Invalid trade review | Not persisted — only counted | NEEDS IMPL |
+| 6c | Alerting on batch fail | failedBatches tracked, shown in toast | DONE |
+| 7a | Parallel prefetch | Not implemented | NEEDS IMPL (same as 1c) |
+| 7b | Rate limit handling | Adaptive delay + 429 retry with backoff | DONE |
+| 7c | Memory efficient | Batch-by-batch, no full dataset in memory | DONE |
+| 7d | Worker thread | Over-engineering for this use case | SKIP |
 
-### 2. Trading Gate — Race condition P&L saat wizard terbuka
-**Status: SAFE**
+## Items to Implement (4 changes)
 
-`useTradingGate` menggunakan `useUnifiedDailyPnl` yang re-evaluates via `useMemo` setiap kali dependency berubah. React Query akan invalidate trade queries saat trade baru di-create (`invalidateTradeQueries`), sehingga `dailyPnl.totalPnl` akan update otomatis. `gateState` dihitung ulang setiap render. Wizard tidak cache gate state — ia membaca live dari hook. Tidak ada race condition.
+### 1. Prefetch Next Batch (Overlap IO)
 
-### 3. AI Pre-flight — Fallback saat AI service down + bypass audit
-**Status: NEEDS FIX (2 gap)**
+**File: `src/hooks/use-binance-aggregated-sync.ts`**
 
-**Gap A**: `useAIPreflight` (line 241-243) throws error saat edge function fails. Caller di `SetupStep.tsx` harus menangani error ini. Perlu dicek apakah error handling memberikan fallback yang aman (tidak block wizard jika AI down).
+Saat batch N sedang di-process (group, aggregate, validate, insert), mulai fetch trades+orders untuk batch N+1 secara paralel.
 
-**Gap B**: Bypass SKIP verdict (line 681-693) **tidak di-audit**. Tidak ada `logAuditEvent` call saat user checks bypass checkbox. Untuk compliance dan tracing, bypass decision harus tercatat.
-
-**Fix A**: Wrap preflight call di SetupStep dengan try-catch; jika error, set preflight state to null (already done implicitly since `preflightResult` stays null on error, dan `isPreflightBlocking` = false when null). **Actually SAFE** — if preflight fails, `preflightResult` remains null, `isPreflightBlocking` = false. User can proceed. This is safe-fail behavior.
-
-**Fix B**: Add `logAuditEvent` saat `bypassSkipWarning` diaktifkan + trade submitted.
-
-### 4. Post-Trade AI Analysis — Retry queue jika gagal
-**Status: SAFE (acceptable risk)**
-
-`usePostTradeAnalysis` (line 97-99) catches error and shows toast. Analysis result is not saved if edge function fails. This is acceptable because:
-- Analysis is user-triggered (not automatic fire-and-forget)
-- User can re-trigger manually
-- No queue needed because it's an on-demand action, not a background job
-- DB update failure is handled independently (line 91-93)
-
-### 5. Real-time Binance Data Fetch — Rate limit + invalid credentials
-**Status: SAFE**
-
-`showExchangeData` (from `useModeVisibility`) prevents fetch in Paper mode. Binance hooks use `enabled: isConnected`, so invalid credentials won't trigger fetches. Rate limiting is handled by `RATE_LIMIT_DELAY` in sync hooks and React Query's `staleTime` prevents excessive refetching.
-
-### 6. P&L Calculation — Rounding + missing fees
-**Status: SAFE**
-
-`useUnifiedDailyPnl` line 84: `trade.realized_pnl ?? trade.pnl ?? 0` — defaults to 0. Fees: `trade.fees ?? 0` (line 86). JavaScript floating point is used consistently. No precision mismatch risk for display purposes. Reconciliation has 0.1% threshold for tolerance.
-
-### 7. Market Context Capture — API fail blocking wizard
-**Status: SAFE**
-
-`useCaptureMarketContext` has documented fallback patterns (all builders default to safe values, e.g., Fear&Greed defaults to 50). Market context capture is non-blocking — wizard can proceed even if API fails. Context is stored as best-effort JSONB.
-
-### 8. Trade State Machine Display — Realtime refresh
-**Status: SAFE**
-
-`TradeStateBadge` renders from current trade data. When trades are synced/updated, `invalidateTradeQueries` cascades to refresh `trade-entries` query, which re-renders the badge. No stale state risk because data flows through React Query.
-
-### 9. Live Time-in-Trade — Timer performance
-**Status: MINOR GAP**
-
-`TimeInTrade` component (AllPositionsTable line 143-151) creates one `setInterval(60000)` **per row**. For 50+ active positions, this creates 50+ intervals. While 60s intervals are lightweight, this doesn't scale well.
-
-**Impact**: Low — unlikely to have 50+ active positions in practice. Acceptable for now.
-
-**Future improvement**: Single shared timer at table level that triggers re-render for all rows.
-
-### 10. Read-Only Enforcement — Server-side validation
-**Status: MINOR GAP**
-
-Client-side enforcement (line 95, 110, 233): `isReadOnly` based on `source === 'binance' || trade_mode === 'live'`. However, no corresponding RLS policy or trigger prevents UPDATE on core fields (entry_price, direction, quantity) for live trades server-side. A malicious API call could bypass this.
-
-**Impact**: Low — requires authenticated user + intentional API manipulation. No external attack vector.
-
-**Fix**: Add DB trigger to prevent updates on core fields when `source = 'binance'`.
-
-### 11. Wizard Analytics Tracking
-**Status: NEEDS FIX**
-
-No wizard analytics tracking exists. Search for `wizard.*track`, `step.*abandon`, `trackWizard` returned zero results. Plan says "Track step progression, abandon, complete" but no implementation found.
-
-**Fix**: Add lightweight analytics events via `logAuditEvent` for wizard lifecycle: `wizard_started`, `wizard_step_changed`, `wizard_abandoned`, `wizard_completed`.
-
-### 12. Currency Conversion — Cache invalidation + fallback
-**Status: SAFE**
-
-`useExchangeRate` line 70-71: `staleTime: 60 * 60 * 1000` (1 hour cache). Fallback: `DEFAULT_USD_IDR_RATE = 16000` (line 10). Two API endpoints tried sequentially (line 13-18). If both fail, fallback rate is used. `useCurrencyConversion` line 70: triple fallback `rate || storedRate || 16000`. Robust.
-
-### 13. Unified Position Mapping — Duplicate handling
-**Status: SAFE**
-
-`mapToUnifiedPositions` (AllPositionsTable line 88-140) receives `paperPositions` (from trade_entries) and `binancePositions` (from Binance API) as **separate arrays**. Paper positions have UUID IDs; Binance positions get `binance-${symbol}` IDs (line 119). No overlap possible because:
-- Paper positions come from DB (filtered by mode)
-- Binance positions come from live API (active positions only)
-- A synced trade in DB is already closed and won't appear in Binance active positions
-
----
-
-## Summary
-
-| # | Area | Status | Action |
-|---|------|--------|--------|
-| 1 | Mode Isolation | SAFE | Already fixed in previous migration |
-| 2 | Trading Gate Race | SAFE | Live recalculation via hooks |
-| 3 | AI Pre-flight Fallback | SAFE | Fails-open by design |
-| 3B | AI Pre-flight Bypass Audit | **NEEDS FIX** | Add audit log for bypass |
-| 4 | Post-Trade Analysis | SAFE | User-triggered, not fire-and-forget |
-| 5 | Binance Rate Limit | SAFE | Guarded by mode visibility + staleTime |
-| 6 | P&L Rounding | SAFE | Consistent defaults |
-| 7 | Market Context Fallback | SAFE | Non-blocking with defaults |
-| 8 | Trade State Refresh | SAFE | React Query invalidation |
-| 9 | Time-in-Trade Timers | MINOR | Acceptable, future improvement |
-| 10 | Read-Only Server-Side | **NEEDS FIX** | Add DB trigger for immutability |
-| 11 | Wizard Analytics | **NEEDS FIX** | Implement tracking events |
-| 12 | Currency Fallback | SAFE | Triple fallback chain |
-| 13 | Position Dedup | SAFE | Separate data sources, unique IDs |
-
----
-
-## Implementation Plan (3 Fixes)
-
-### Fix 1: AI Pre-flight Bypass Audit Log
-
-**File: `src/components/trade/entry/SetupStep.tsx`**
-
-When `bypassSkipWarning` is toggled to `true`, log an audit event:
-
-```typescript
-onCheckedChange={(checked) => {
-  setBypassSkipWarning(checked === true);
-  if (checked) {
-    logAuditEvent(user.id, {
-      action: 'trade_created', // reuse existing action
-      entityType: 'trade_entry',
-      metadata: { 
-        bypass_preflight_skip: true, 
-        pair, 
-        direction,
-        preflight_confidence: preflightResult?.confidence,
-      },
-    });
-  }
-}}
+```text
+Current:  [Fetch B1] → [Process B1] → [Fetch B2] → [Process B2]
+Improved: [Fetch B1] → [Process B1 + Fetch B2] → [Process B2 + Fetch B3]
 ```
 
-### Fix 2: Server-Side Immutability Trigger
+Implementasi: sebelum loop batch, prefetch batch pertama. Di dalam loop, setelah fetch selesai, langsung trigger prefetch batch berikutnya sebagai Promise, lalu lanjut processing batch current. Await prefetch di iterasi berikutnya.
 
-**DB Migration**: Create a trigger that prevents updates on core fields for live/binance trades:
+Estimated speedup: 20-30% untuk sync besar (IO overlap menghilangkan serial wait).
+
+### 2. Atomic Batch Insert via RPC
+
+**New DB Function + Migration**
+
+Buat RPC `batch_insert_trades` yang wraps insert dalam transaction:
 
 ```sql
-CREATE OR REPLACE FUNCTION prevent_live_trade_core_update()
-RETURNS TRIGGER AS $$
+CREATE OR REPLACE FUNCTION batch_insert_trades(p_trades jsonb)
+RETURNS jsonb AS $$
+DECLARE
+  inserted_count integer;
 BEGIN
-  IF OLD.source = 'binance' OR OLD.trade_mode = 'live' THEN
-    IF NEW.entry_price IS DISTINCT FROM OLD.entry_price
-       OR NEW.direction IS DISTINCT FROM OLD.direction
-       OR NEW.quantity IS DISTINCT FROM OLD.quantity
-       OR NEW.stop_loss IS DISTINCT FROM OLD.stop_loss
-    THEN
-      RAISE EXCEPTION 'Cannot modify core fields of live/binance trades';
-    END IF;
-  END IF;
-  RETURN NEW;
+  INSERT INTO trade_entries (
+    user_id, pair, direction, entry_price, exit_price, 
+    quantity, realized_pnl, pnl, fees, commission,
+    commission_asset, funding_fees, entry_datetime, exit_datetime,
+    trade_date, hold_time_minutes, leverage, margin_type,
+    is_maker, entry_order_type, exit_order_type, result,
+    status, source, binance_trade_id, binance_order_id
+  )
+  SELECT 
+    (t->>'user_id')::uuid,
+    t->>'pair', t->>'direction',
+    (t->>'entry_price')::numeric, (t->>'exit_price')::numeric,
+    (t->>'quantity')::numeric, (t->>'realized_pnl')::numeric,
+    (t->>'pnl')::numeric, (t->>'fees')::numeric,
+    (t->>'commission')::numeric, t->>'commission_asset',
+    (t->>'funding_fees')::numeric,
+    (t->>'entry_datetime')::timestamptz, (t->>'exit_datetime')::timestamptz,
+    (t->>'trade_date')::timestamptz, (t->>'hold_time_minutes')::integer,
+    (t->>'leverage')::integer, t->>'margin_type',
+    (t->>'is_maker')::boolean, t->>'entry_order_type',
+    t->>'exit_order_type', t->>'result',
+    t->>'status', t->>'source',
+    t->>'binance_trade_id', (t->>'binance_order_id')::bigint
+  FROM jsonb_array_elements(p_trades) AS t;
+  
+  GET DIAGNOSTICS inserted_count = ROW_COUNT;
+  
+  RETURN jsonb_build_object('inserted', inserted_count);
+EXCEPTION WHEN OTHERS THEN
+  -- Full rollback happens automatically
+  RETURN jsonb_build_object('error', SQLERRM, 'inserted', 0);
 END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_prevent_live_trade_core_update
-  BEFORE UPDATE ON trade_entries
-  FOR EACH ROW
-  EXECUTE FUNCTION prevent_live_trade_core_update();
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 ```
 
-### Fix 3: Wizard Analytics Tracking
+Keuntungan: jika satu row gagal, seluruh batch rollback (bukan partial insert). Client-side retry logic tetap dipertahankan.
 
-**File: `src/features/trade/useTradeEntryWizard.ts`**
+Update `batchInsertTrades` di hook untuk call `supabase.rpc('batch_insert_trades', { p_trades: JSON.stringify(dbRows) })` instead of `.insert()`.
 
-Add audit events in wizard navigation:
+### 3. Invalid Trade Audit Logging
 
-- `nextStep()`: Log step transition
-- `submitTrade()`: Already logs `trade_created`
-- `reset()`: Log if wizard was partially completed (abandon tracking)
+**File: `src/hooks/use-binance-aggregated-sync.ts`**
 
-Since `logAuditEvent` requires `userId` but Zustand store doesn't have it, the audit calls will be added at the component level (`TradeEntryWizard.tsx`) where `useAuth` is available, using `useEffect` to track step changes.
+Setelah `validateAllTrades()`, log invalid trades ke `audit_logs` untuk review:
 
-### Files Modified
+```typescript
+// After validation
+if (batchValidation.invalid.length > 0) {
+  await supabase.from('audit_logs').insert(
+    batchValidation.invalid.map(t => ({
+      user_id: userId,
+      action: 'trade_validation_failed',
+      entity_type: 'trade_entry',
+      entity_id: t.binance_trade_id,
+      metadata: {
+        pair: t.pair,
+        direction: t.direction,
+        errors: t._validation.errors.map(e => e.message),
+        entry_price: t.entry_price,
+        exit_price: t.exit_price,
+      },
+    }))
+  );
+}
+```
+
+Ini memungkinkan user/admin melihat trade apa saja yang ditolak oleh validator dan alasannya.
+
+Perlu tambahkan `'trade_validation_failed'` ke `AuditAction` type di `src/lib/audit-logger.ts`.
+
+### 4. Adjust BATCH_INSERT_SIZE
+
+**File: `src/hooks/use-binance-aggregated-sync.ts`**
+
+Ubah `BATCH_INSERT_SIZE` dari 50 ke 30 untuk konsistensi dengan blueprint dan optimal balance antara network overhead dan transaction size.
+
+## Files Modified
 
 | File | Change |
 |------|--------|
-| `src/components/trade/entry/SetupStep.tsx` | Add bypass audit log |
-| DB Migration | Add immutability trigger for live trades |
-| `src/components/trade/entry/TradeEntryWizard.tsx` | Add wizard lifecycle tracking |
+| DB Migration | Create `batch_insert_trades` RPC function |
+| `src/hooks/use-binance-aggregated-sync.ts` | Prefetch logic, atomic RPC insert, invalid trade logging, batch size 30 |
+| `src/lib/audit-logger.ts` | Add `trade_validation_failed` to AuditAction type |
+
+## Implementation Order
+
+1. DB Migration (RPC function) — foundation
+2. Audit logger type update — small, no deps
+3. Hook updates — prefetch + atomic insert + invalid logging + batch size
+
+## Items Deliberately Skipped
+
+| Item | Reason |
+|------|--------|
+| Worker thread separation | Overkill. Sync runs async in mutation, UI stays responsive via batch invalidation. JS main thread not blocked because each batch `await`s IO (network/DB), yielding to event loop. |
+| SL/TP consistency check | SL/TP tidak di-set saat sync — user menambahkan post-sync via wizard. Tidak ada data untuk validate. |
+| Market context validation | Market context di-capture terpisah oleh `useCaptureMarketContext`, bukan bagian dari sync pipeline. |
+| Batch size reduce to 30 for fetch | `MAX_PARALLEL_SYMBOLS=4` sudah optimal untuk API rate limits. Yang di-adjust adalah insert batch size. |
 
