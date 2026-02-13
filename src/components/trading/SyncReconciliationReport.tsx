@@ -1,6 +1,10 @@
 /**
  * Sync Reconciliation Report - Displays detailed sync results
  * Shows: Stats, Validation errors/warnings, P&L reconciliation, Failed lifecycles
+ * 
+ * Exports:
+ * - SyncReconciliationReport: Dialog-wrapped version (for SyncStatusBadge click)
+ * - SyncReconciliationReportInline: Inline version (for Import page)
  */
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,6 +50,84 @@ import { formatCurrency, formatPercent } from "@/lib/formatters";
 import type { AggregationResult, AggregatedTrade, ValidationError, ValidationWarning } from "@/services/binance/types";
 import { format } from "date-fns";
 
+// =============================================================================
+// Shared report content (used by both Dialog and Inline versions)
+// =============================================================================
+
+interface ReportContentProps {
+  result: AggregationResult;
+}
+
+function ReportContent({ result }: ReportContentProps) {
+  const { stats, reconciliation, failures, trades } = result;
+  
+  const totalPnL = trades.reduce((sum, t) => sum + t.realized_pnl, 0);
+  const totalFees = trades.reduce((sum, t) => sum + t.fees, 0);
+  const winCount = trades.filter(t => t.result === 'win').length;
+  const lossCount = trades.filter(t => t.result === 'loss').length;
+  const winRate = trades.length > 0 ? (winCount / trades.length) * 100 : 0;
+
+  const allWarnings: Array<{ trade: AggregatedTrade; warning: ValidationWarning }> = [];
+  trades.forEach(trade => {
+    trade._validation.warnings.forEach(warning => {
+      allWarnings.push({ trade, warning });
+    });
+  });
+
+  return (
+    <div className="space-y-6">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <SummaryCard
+          icon={Activity}
+          label="Total Trades"
+          value={stats.validTrades.toString()}
+          subtitle={`${stats.invalidTrades} invalid`}
+          variant={stats.invalidTrades > 0 ? 'warning' : 'default'}
+        />
+        <SummaryCard
+          icon={TrendingUp}
+          label="Win Rate"
+          value={`${winRate.toFixed(1)}%`}
+          subtitle={`${winCount}W / ${lossCount}L`}
+          variant={winRate >= 50 ? 'success' : 'default'}
+        />
+        <SummaryCard
+          icon={totalPnL >= 0 ? TrendingUp : TrendingDown}
+          label="Total P&L"
+          value={formatCurrency(totalPnL)}
+          subtitle={`Fees: ${formatCurrency(totalFees)}`}
+          variant={totalPnL >= 0 ? 'success' : 'danger'}
+        />
+        <SummaryCard
+          icon={Scale}
+          label="Reconciliation"
+          value={reconciliation.isReconciled ? 'Matched' : 'Mismatch'}
+          subtitle={`${reconciliation.differencePercent.toFixed(3)}% diff`}
+          variant={reconciliation.isReconciled ? 'success' : 'warning'}
+        />
+      </div>
+
+      <ReconciliationSection reconciliation={reconciliation} />
+      <LifecycleStatsSection stats={stats} />
+
+      {allWarnings.length > 0 && (
+        <ValidationWarningsSection warnings={allWarnings} />
+      )}
+
+      {failures.length > 0 && (
+        <FailedLifecyclesSection failures={failures} />
+      )}
+
+      <TradeDetailsSection trades={trades.slice(0, 20)} totalCount={trades.length} />
+    </div>
+  );
+}
+
+// =============================================================================
+// Dialog version (backward compatible)
+// =============================================================================
+
 interface SyncReconciliationReportProps {
   result: AggregationResult | null;
   open: boolean;
@@ -58,24 +140,6 @@ export function SyncReconciliationReport({
   onOpenChange 
 }: SyncReconciliationReportProps) {
   if (!result) return null;
-
-  const { stats, reconciliation, failures, trades } = result;
-  
-  // Calculate additional metrics from trades
-  const totalPnL = trades.reduce((sum, t) => sum + t.realized_pnl, 0);
-  const totalFees = trades.reduce((sum, t) => sum + t.fees, 0);
-  const totalFunding = trades.reduce((sum, t) => sum + t.funding_fees, 0);
-  const winCount = trades.filter(t => t.result === 'win').length;
-  const lossCount = trades.filter(t => t.result === 'loss').length;
-  const winRate = trades.length > 0 ? (winCount / trades.length) * 100 : 0;
-  
-  // Collect all warnings from trades
-  const allWarnings: Array<{ trade: AggregatedTrade; warning: ValidationWarning }> = [];
-  trades.forEach(trade => {
-    trade._validation.warnings.forEach(warning => {
-      allWarnings.push({ trade, warning });
-    });
-  });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -91,61 +155,29 @@ export function SyncReconciliationReport({
         </DialogHeader>
 
         <ScrollArea className="flex-1 pr-4">
-          <div className="space-y-6 pb-4">
-            {/* Summary Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <SummaryCard
-                icon={Activity}
-                label="Total Trades"
-                value={stats.validTrades.toString()}
-                subtitle={`${stats.invalidTrades} invalid`}
-                variant={stats.invalidTrades > 0 ? 'warning' : 'default'}
-              />
-              <SummaryCard
-                icon={TrendingUp}
-                label="Win Rate"
-                value={`${winRate.toFixed(1)}%`}
-                subtitle={`${winCount}W / ${lossCount}L`}
-                variant={winRate >= 50 ? 'success' : 'default'}
-              />
-              <SummaryCard
-                icon={totalPnL >= 0 ? TrendingUp : TrendingDown}
-                label="Total P&L"
-                value={formatCurrency(totalPnL)}
-                subtitle={`Fees: ${formatCurrency(totalFees)}`}
-                variant={totalPnL >= 0 ? 'success' : 'danger'}
-              />
-              <SummaryCard
-                icon={Scale}
-                label="Reconciliation"
-                value={reconciliation.isReconciled ? 'Matched' : 'Mismatch'}
-                subtitle={`${reconciliation.differencePercent.toFixed(3)}% diff`}
-                variant={reconciliation.isReconciled ? 'success' : 'warning'}
-              />
-            </div>
-
-            {/* Reconciliation Details */}
-            <ReconciliationSection reconciliation={reconciliation} />
-
-            {/* Lifecycle Stats */}
-            <LifecycleStatsSection stats={stats} />
-
-            {/* Validation Warnings */}
-            {allWarnings.length > 0 && (
-              <ValidationWarningsSection warnings={allWarnings} />
-            )}
-
-            {/* Failed Lifecycles */}
-            {failures.length > 0 && (
-              <FailedLifecyclesSection failures={failures} />
-            )}
-
-            {/* Trade Details Accordion */}
-            <TradeDetailsSection trades={trades.slice(0, 20)} totalCount={trades.length} />
+          <div className="pb-4">
+            <ReportContent result={result} />
           </div>
         </ScrollArea>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// =============================================================================
+// Inline version (no Dialog wrapper)
+// =============================================================================
+
+interface SyncReconciliationReportInlineProps {
+  result: AggregationResult;
+  className?: string;
+}
+
+export function SyncReconciliationReportInline({ result, className = '' }: SyncReconciliationReportInlineProps) {
+  return (
+    <div className={className}>
+      <ReportContent result={result} />
+    </div>
   );
 }
 
@@ -192,9 +224,8 @@ function SummaryCard({ icon: Icon, label, value, subtitle, variant = 'default' }
 
 function ReconciliationSection({ reconciliation }: { reconciliation: AggregationResult['reconciliation'] }) {
   const diffPercent = Math.abs(reconciliation.differencePercent);
-  const progressValue = Math.max(0, 100 - (diffPercent * 100)); // 0.1% diff = 90%
+  const progressValue = Math.max(0, 100 - (diffPercent * 100));
   
-  // Use new fields directly since they're now part of the type
   const matchedPnl = reconciliation.matchedIncomePnl;
   const unmatchedPnl = reconciliation.unmatchedIncomePnl;
   const incompleteNote = reconciliation.incompletePositionsNote;
@@ -219,7 +250,6 @@ function ReconciliationSection({ reconciliation }: { reconciliation: Aggregation
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Main comparison: Aggregated vs Matched Income */}
         <div className="grid grid-cols-3 gap-4 text-sm">
           <div>
             <div className="text-muted-foreground text-xs">Aggregated P&L</div>
@@ -244,7 +274,6 @@ function ReconciliationSection({ reconciliation }: { reconciliation: Aggregation
           </div>
         </div>
         
-        {/* Unmatched income info */}
         {unmatchedPnl !== 0 && (
           <div className="rounded-lg bg-muted/50 p-3 space-y-1">
             <div className="flex items-center gap-2 text-sm">

@@ -32,6 +32,7 @@ import { useBinanceAggregatedSync } from "@/hooks/use-binance-aggregated-sync";
 import { useSyncStore, selectFullSyncStatus, selectFullSyncProgress, selectFullSyncResult, selectSyncRange, selectCheckpoint } from "@/store/sync-store";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { SyncStatusBadge } from "./SyncStatusBadge";
+import { SyncReconciliationReportInline } from "./SyncReconciliationReport";
 import { SyncQuotaDisplay } from "./SyncQuotaDisplay";
 import { ReSyncTimeWindow } from "./ReSyncTimeWindow";
 import { SyncRangeSelector } from "./SyncRangeSelector";
@@ -150,7 +151,7 @@ export function BinanceFullSyncPanel({ isBinanceConnected }: BinanceFullSyncPane
 
         {/* === SUCCESS STATE === */}
         {status === 'success' && result && (
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div className="flex items-center gap-2 flex-wrap">
               <SyncStatusBadge result={result} />
 
@@ -181,12 +182,15 @@ export function BinanceFullSyncPanel({ isBinanceConnected }: BinanceFullSyncPane
               {hasReconciliationIssue && (
                 <ReSyncTimeWindow hasReconciliationIssue={true} />
               )}
+
+              <Button variant="outline" size="sm" onClick={handleSyncAgain} className="gap-1.5 ml-auto">
+                <RefreshCw className="h-3.5 w-3.5" />
+                Sync Again
+              </Button>
             </div>
 
-            <Button variant="outline" size="sm" onClick={handleSyncAgain} className="gap-1.5">
-              <RefreshCw className="h-3.5 w-3.5" />
-              Sync Again
-            </Button>
+            {/* Inline Reconciliation Report */}
+            <SyncReconciliationReportInline result={result} />
           </div>
         )}
 

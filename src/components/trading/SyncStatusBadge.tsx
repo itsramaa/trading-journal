@@ -10,6 +10,7 @@ import { CheckCircle, AlertTriangle, ExternalLink, Star, TrendingUp, TrendingDow
 import { SyncReconciliationReport } from "./SyncReconciliationReport";
 import type { AggregationResult } from "@/services/binance/types";
 import { formatCurrency } from "@/lib/formatters";
+import { formatDistanceToNow } from "date-fns";
 import { useSyncStore, selectLastSyncInfo, type SyncQualityScore } from "@/store/sync-store";
 
 interface SyncStatusBadgeProps {
@@ -149,11 +150,17 @@ export function SyncStatusBadge({ result, className = '' }: SyncStatusBadgeProps
 export function SyncQualityIndicator({ 
   quality, 
   matchRate,
+  validTrades,
+  invalidTrades,
+  warningTrades,
   showLabel = true,
   className = '' 
 }: { 
   quality: SyncQualityScore; 
   matchRate?: number;
+  validTrades?: number;
+  invalidTrades?: number;
+  warningTrades?: number;
   showLabel?: boolean;
   className?: string;
 }) {
@@ -161,6 +168,10 @@ export function SyncQualityIndicator({
 
   const config = qualityConfig[quality];
   const Icon = config.icon;
+  const lastSyncInfo = useSyncStore(selectLastSyncInfo);
+  const lastSyncTime = lastSyncInfo?.timestamp
+    ? formatDistanceToNow(new Date(lastSyncInfo.timestamp), { addSuffix: true })
+    : null;
 
   return (
     <TooltipProvider>
@@ -172,11 +183,25 @@ export function SyncQualityIndicator({
           </div>
         </TooltipTrigger>
         <TooltipContent>
-          <p className="text-xs">
-            Sync Quality: {quality}
-            {matchRate !== undefined && ` (${matchRate.toFixed(1)}% match rate)`}
-          </p>
-          <p className="text-xs text-muted-foreground">{config.label}</p>
+          <div className="space-y-1">
+            <p className="text-xs font-medium">
+              Sync Quality: {quality}
+              {matchRate !== undefined && ` (${matchRate.toFixed(1)}% match)`}
+            </p>
+            <p className="text-xs text-muted-foreground">{config.label}</p>
+            {(validTrades !== undefined || invalidTrades !== undefined || warningTrades !== undefined) && (
+              <div className="text-xs text-muted-foreground pt-1 border-t border-border/50 space-y-0.5">
+                {validTrades !== undefined && <p>✓ {validTrades} matched</p>}
+                {(invalidTrades ?? 0) > 0 && <p className="text-destructive">✗ {invalidTrades} failed</p>}
+                {(warningTrades ?? 0) > 0 && <p className="text-warning">⚠ {warningTrades} warnings</p>}
+              </div>
+            )}
+            {lastSyncTime && (
+              <p className="text-xs text-muted-foreground pt-1 border-t border-border/50">
+                Last sync: {lastSyncTime}
+              </p>
+            )}
+          </div>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
