@@ -1,127 +1,107 @@
 
-# Mengurangi Kelemahan & Memaksimalkan Skor — 5 Tasks
+# Perbaikan Kelemahan Nyata — 5 Tasks
 
-## Analisis Kelemahan yang Ditemukan
+## Kelemahan yang Ditemukan (Verified via Code Audit)
 
-Setelah audit mendalam, ditemukan **kelemahan nyata** yang belum terdokumentasi:
-
-| # | Kelemahan | Kategori | Severity |
-|---|-----------|----------|----------|
-| 1 | 5 analytics components pakai `useTradeEntries()` bukan `useModeFilteredTrades()` — data Paper/Live bocor | **Accuracy + Comprehensiveness** | Critical |
-| 2 | EmotionalPatternAnalysis hanya inline di tab "patterns" — kurang prominent | **Clarity** | Medium |
-| 3 | EmotionalPatternAnalysis tidak punya ARIA attributes (tidak konsisten dengan PredictiveInsights) | **Clarity** | Medium |
-| 4 | Tidak ada unit tests untuk `emotional-states.ts` utility | **Code Quality** | Low |
-| 5 | Eval doc belum mencerminkan data isolation fix | **Documentation** | Medium |
+| # | Kelemahan | File | Severity |
+|---|-----------|------|----------|
+| 1 | `EquityCurveChart` masih pakai `useTradeEntries()` — **doc klaim sudah fix tapi BELUM** | `src/components/analytics/charts/EquityCurveChart.tsx` line 18, 29 | **Critical (Bug)** |
+| 2 | `TradingHeatmap` pakai `useTradeEntries()` — data Paper/Live bocor | `src/components/analytics/charts/TradingHeatmap.tsx` line 11, 49 | **Critical** |
+| 3 | `GoalTrackingWidget` pakai `useTradeEntries()` — goals dihitung dari semua trade tanpa mode filter | `src/components/dashboard/GoalTrackingWidget.tsx` line 17, 50 | **High** |
+| 4 | `TradingHeatmap` tidak punya ARIA attributes — inkonsisten dengan chart lain | `TradingHeatmap.tsx` | **Medium** |
+| 5 | Eval doc mengklaim 5 komponen sudah di-fix tapi EquityCurveChart + 2 komponen lain masih bocor | `JUDGING_CRITERIA_EVALUATION.md` | **Medium** |
 
 ---
 
-## Task 1: Fix Data Isolation — Analytics Components
+## Task 1: Fix EquityCurveChart Data Isolation (CRITICAL BUG)
 
-**Problem:** `EmotionalPatternAnalysis`, `EquityCurveChart`, `DrawdownChart`, `CryptoRanking`, `AIPatternInsights` menggunakan `useTradeEntries()` langsung, sehingga menampilkan **semua trade tanpa filter Paper/Live mode**. Ini melanggar prinsip data isolation yang sudah diimplementasikan di tempat lain.
+**Problem:** Line 18 masih `import { useTradeEntries }` dan line 29 masih `const { data: trades = [] } = useTradeEntries()`. Dokumen evaluasi mengklaim komponen ini sudah di-fix — ini **false claim**.
 
-**Aksi:** Ganti `useTradeEntries()` menjadi `useModeFilteredTrades()` di 5 file:
-- `src/components/analytics/EmotionalPatternAnalysis.tsx`
-- `src/components/analytics/charts/EquityCurveChart.tsx`
-- `src/components/analytics/charts/DrawdownChart.tsx`
-- `src/components/analytics/CryptoRanking.tsx`
-- `src/components/analytics/AIPatternInsights.tsx`
-
-**Impact:** Accuracy + Comprehensiveness fix. Semua analytics kini konsisten dengan mode aktif.
+**Aksi:**
+- Ganti `useTradeEntries` menjadi `useModeFilteredTrades` di import dan usage
+- File: `src/components/analytics/charts/EquityCurveChart.tsx`
 
 ---
 
-## Task 2: Tambah Tab "Emotional" di AIInsights
+## Task 2: Fix TradingHeatmap Data Isolation
 
-**Problem:** EmotionalPatternAnalysis hanya inline di bawah pattern analysis, mudah terlewat oleh user.
+**Problem:** `TradingHeatmap` fetch semua trade via `useTradeEntries()` sebagai fallback saat `externalTrades` prop tidak diberikan. Ini berarti saat digunakan tanpa prop (e.g. di heatmap page), data Paper dan Live tercampur.
 
-**Aksi:** Tambahkan tab baru `emotional` di `AIInsights.tsx` `TabsList`:
-- Pindahkan `<EmotionalPatternAnalysis />` dari inline di `patterns` tab ke tab dedicated `emotional`
-- Icon: `Brain`
-- Label: "Emotional"
-
-**Impact:** Clarity improvement — fitur lebih mudah ditemukan.
+**Aksi:**
+- Ganti fallback `useTradeEntries()` menjadi `useModeFilteredTrades()` di line 11 dan 49
+- File: `src/components/analytics/charts/TradingHeatmap.tsx`
 
 ---
 
-## Task 3: ARIA Accessibility untuk EmotionalPatternAnalysis
+## Task 3: Fix GoalTrackingWidget Data Isolation
 
-**Problem:** `PredictiveInsights.tsx` sudah punya `role="region"` dan `aria-label`, tapi `EmotionalPatternAnalysis` belum.
+**Problem:** Dashboard goals (win rate target, P&L target, risk management) dihitung dari **semua trade** tanpa filter mode. User di Paper mode bisa melihat goals yang terhitung dari Live trades — menyesatkan.
 
-**Aksi:** Tambahkan:
-- `role="region"` dan `aria-label` pada Card wrapper
-- `role="group"` dan `aria-label` pada stats list dan insights section
-
-**Impact:** Clarity (Accessibility) — konsistensi ARIA di seluruh analytics.
+**Aksi:**
+- Ganti `useTradeEntries` menjadi `useModeFilteredTrades` di import dan usage
+- File: `src/components/dashboard/GoalTrackingWidget.tsx`
 
 ---
 
-## Task 4: Unit Tests untuk Emotional States Utility
+## Task 4: Add ARIA Accessibility ke TradingHeatmap
 
-**Problem:** `src/lib/constants/emotional-states.ts` punya beberapa utility functions (`getEmotionalStateConfig`, `getEmotionalStateIcon`, `getEmotionalStateColor`, `getEmotionalStateIds`) yang belum di-test.
+**Problem:** `EquityCurveChart`, `RiskMetricsCards`, `PredictiveInsights`, dan `EmotionalPatternAnalysis` sudah punya ARIA attributes, tapi `TradingHeatmap` (komponen chart utama) belum.
 
-**Aksi:** Buat `src/lib/__tests__/emotional-states.test.ts` dengan ~10 test cases:
-- `getEmotionalStateConfig` returns correct config
-- `getEmotionalStateConfig` handles unknown/uppercase input
-- `getEmotionalStateIcon` returns fallback for unknown
-- `getEmotionalStateColor` returns fallback for unknown
-- `getEmotionalStateIds` returns all 6 IDs
-- EMOTIONAL_STATES has correct count
-- Each state has required fields
-
-**Impact:** Code Quality — meningkatkan test coverage untuk business logic.
+**Aksi:**
+- Tambahkan `role="region"` dan `aria-label="Trading performance heatmap by day and hour"` pada Card wrapper
+- File: `src/components/analytics/charts/TradingHeatmap.tsx`
 
 ---
 
 ## Task 5: Update JUDGING_CRITERIA_EVALUATION.md
 
 **Aksi:**
-- Dokumentasikan fix data isolation (Task 1) di Accuracy + Comprehensiveness
-- Dokumentasikan tab Emotional (Task 2) di Clarity
-- Dokumentasikan ARIA fix (Task 3) di Clarity
-- Dokumentasikan unit tests (Task 4) di Code Quality
+- Koreksi false claim tentang EquityCurveChart yang "sudah di-fix"
+- Update daftar komponen yang telah di-migrate: tambahkan `TradingHeatmap` dan `GoalTrackingWidget`
+- Dokumentasikan ARIA fix untuk TradingHeatmap
 - Tambahkan entries baru di tabel "Perbaikan yang Sudah Dilakukan"
-- Update file referensi
+- Total komponen yang di-migrate: 7 (bukan 5)
 
 ---
 
 ## Urutan Pengerjaan
 
-1. Task 1 (Data Isolation Fix) — paling kritikal, 5 file edits
-2. Task 2 (Emotional Tab) — UI restructure
-3. Task 3 (ARIA) — accessibility
-4. Task 4 (Tests) — quality assurance
-5. Task 5 (Doc Update) — finalisasi
+1. Task 1 — Fix EquityCurveChart (critical bug, doc discrepancy)
+2. Task 2 — Fix TradingHeatmap
+3. Task 3 — Fix GoalTrackingWidget
+4. Task 4 — ARIA on TradingHeatmap
+5. Task 5 — Doc update (koreksi + dokumentasi baru)
 
 ## Detail Teknis
 
-### Task 1 — Pattern Edit (5 files)
-```typescript
-// BEFORE (in each file):
+### Task 1-3 — Pattern Edit (3 files, identical pattern)
+
+```text
+// BEFORE (EquityCurveChart line 18):
 import { useTradeEntries } from "@/hooks/use-trade-entries";
-const { data: trades = [] } = useTradeEntries();
 
 // AFTER:
 import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
+```
+
+```text
+// BEFORE (usage):
+const { data: trades = [] } = useTradeEntries();
+
+// AFTER:
 const { data: trades = [] } = useModeFilteredTrades();
 ```
 
-### Task 2 — TabsList addition
-```tsx
-<TabsTrigger value="emotional" className="gap-2">
-  <Brain className="h-4 w-4" />
-  Emotional
-</TabsTrigger>
-// ...
-<TabsContent value="emotional" className="mt-0">
-  <EmotionalPatternAnalysis />
-</TabsContent>
+Untuk `TradingHeatmap`, variable name berubah dari `fetchedTrades` ke tetap `fetchedTrades` — hanya hook source yang berubah.
+
+### Task 4 — ARIA attribute
+
+```text
+<Card role="region" aria-label="Trading performance heatmap by day and hour">
 ```
 
-### Task 3 — ARIA attributes
-```tsx
-<Card role="region" aria-label="Emotional pattern analysis showing win rate by emotional state">
-```
+### Task 5 — Doc corrections
 
-### Task 4 — New test file
-- File: `src/lib/__tests__/emotional-states.test.ts`
-- ~10 test cases covering all exported functions
+- Ubah "5 analytics components" menjadi "7 analytics/dashboard components"
+- Tambahkan `TradingHeatmap` dan `GoalTrackingWidget` ke daftar komponen
+- Koreksi EquityCurveChart dari "claimed fixed" menjadi "actually fixed"
