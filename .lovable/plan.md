@@ -1,145 +1,78 @@
 
-# UI/UX Anti-Blink & Loading Consistency — Full Implementation
+# Fix: Closed Trades Menampilkan "..." — Tabs Content Hilang
 
-## Status: ✅ Implemented
-Cross-check codebase mengkonfirmasi bahwa **seluruh fix dari plan sebelumnya belum diterapkan**:
-- `keepPreviousData` tidak ditemukan di seluruh `src/` (0 matches)
-- Stats header di TradeHistory tidak memiliki skeleton guard
-- `loadMoreRef` masih di luar conditional block (line 644)
-- BinanceFullSyncPanel tidak memiliki stale sync detection
+## Root Cause
 
-## Perubahan yang Akan Dilakukan
+Line 541-543 di `src/pages/TradeHistory.tsx` berisi literal `...` sebagai konten `<Tabs>`:
 
-### 1. Hook: `src/hooks/use-trade-entries-paginated.ts`
-
-Tambahkan `placeholderData: keepPreviousData` ke `useInfiniteQuery` (line 43). Ini menghilangkan skeleton flash saat filter berubah — data lama tetap tampil selama fetch baru berlangsung.
-
-```typescript
-import { useInfiniteQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
-
-// Di useInfiniteQuery options:
-placeholderData: keepPreviousData,
+```tsx
+<Tabs defaultValue="all" className="w-full">
+...
+</Tabs>
 ```
 
-### 2. Hook: `src/hooks/use-trade-stats.ts`
+Ini terjadi karena pada edit sebelumnya, Tabs content (TabsList + 3 TabsContent) **terhapus** dan diganti literal `...`. Akibatnya, user melihat "..." di bawah "Closed Trades" header, tanpa trade list yang sebenarnya ter-render.
 
-Tambahkan `placeholderData: keepPreviousData` ke `useQuery` (line 55). Stats (P&L, Win Rate, Total Trades) tidak akan blink ke 0 saat filter berubah.
+## Fix
 
-```typescript
-import { useQuery, keepPreviousData } from "@tanstack/react-query";
+Ganti `...` di dalam `<Tabs>` dengan konten lengkap:
 
-// Di useQuery options:
-placeholderData: keepPreviousData,
+### File: `src/pages/TradeHistory.tsx` (line 541-543)
+
+Replace:
+```tsx
+<Tabs defaultValue="all" className="w-full">
+...
+</Tabs>
 ```
 
-### 3. Hook: `src/hooks/use-trade-enrichment-binance.ts`
+With:
+```tsx
+<Tabs defaultValue="all" className="w-full">
+  <TabsList className="mb-4">
+    <TabsTrigger value="all">
+      All ({sortedTrades.length})
+    </TabsTrigger>
+    <TabsTrigger value="binance">
+      Binance ({binanceTrades.length})
+    </TabsTrigger>
+    <TabsTrigger value="paper">
+      Paper ({paperTrades.length})
+    </TabsTrigger>
+  </TabsList>
 
-Tambahkan `placeholderData: keepPreviousData` ke `useTradesNeedingEnrichmentCount` query (line 187). Badge "Incomplete" tidak flash 0 -> N.
+  <TabsContent value="all">
+    <div className={cn(
+      "transition-opacity duration-200",
+      isFetching && !isLoading && "opacity-60"
+    )}>
+      {renderTradeList(sortedTrades)}
+    </div>
+  </TabsContent>
 
-```typescript
-import { useState, useCallback } from "react";
-import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
+  <TabsContent value="binance">
+    <div className={cn(
+      "transition-opacity duration-200",
+      isFetching && !isLoading && "opacity-60"
+    )}>
+      {renderTradeList(binanceTrades)}
+    </div>
+  </TabsContent>
 
-// Di useQuery options:
-placeholderData: keepPreviousData,
+  <TabsContent value="paper">
+    <div className={cn(
+      "transition-opacity duration-200",
+      isFetching && !isLoading && "opacity-60"
+    )}>
+      {renderTradeList(paperTrades)}
+    </div>
+  </TabsContent>
+</Tabs>
 ```
-
-### 4. Page: `src/pages/TradeHistory.tsx` — 3 perubahan
-
-**A. Destructure `isFetching`** dari `useTradeEntriesPaginated` (line 153-161):
-```typescript
-const {
-  data,
-  fetchNextPage,
-  hasNextPage,
-  isFetchingNextPage,
-  isFetching,  // NEW
-  isLoading,
-  isError,
-  error,
-} = useTradeEntriesPaginated({ limit: PAGE_SIZE, filters: paginatedFilters });
-```
-
-**B. Stats Header Skeleton** (line 332-394): Wrap stats section dengan `isStatsLoading && !tradeStats` check. Saat initial load, tampilkan skeleton. Saat refetch (filter change), `keepPreviousData` sudah meng-handle — data lama tetap tampil.
-
-```typescript
-<div className="flex gap-4 text-sm">
-  {isStatsLoading && !tradeStats ? (
-    <>
-      <Skeleton className="h-12 w-20" />
-      <Skeleton className="h-12 w-24" />
-      <Skeleton className="h-12 w-16" />
-    </>
-  ) : (
-    // existing stats render (Trades count, Gross P&L, Win Rate)
-  )}
-</div>
-```
-
-**C. Refetching Opacity + Move loadMoreRef**: 
-- Wrap trade list render (`renderTradeList`) dengan opacity transition saat `isFetching && !isLoading`
-- Pindahkan `loadMoreRef` div (line 644) ke dalam conditional block setelah trade list, bukan di luar `isLoading/isError`
-
-```typescript
-// Di TabsContent:
-<div className={cn(
-  "transition-opacity duration-200",
-  isFetching && !isLoading && "opacity-60"
-)}>
-  {renderTradeList(sortedTrades)}
-</div>
-
-// loadMoreRef dipindahkan ke dalam block ini (setelah renderTradeList)
-```
-
-### 5. Component: `src/components/trading/BinanceFullSyncPanel.tsx` — Stale Sync Detection
-
-Tambahkan timer-based stale detection di `SyncProgressIndicator` component (line 385-434). Jika progress tidak berubah selama 2 menit, tampilkan warning.
-
-```typescript
-// Di SyncProgressIndicator:
-const [lastProgressTime, setLastProgressTime] = useState(Date.now());
-const [isStale, setIsStale] = useState(false);
-
-useEffect(() => {
-  setLastProgressTime(Date.now());
-  setIsStale(false);
-}, [progress.current, progress.phase]);
-
-useEffect(() => {
-  const interval = setInterval(() => {
-    if (Date.now() - lastProgressTime > 120_000) {
-      setIsStale(true);
-    }
-  }, 30_000);
-  return () => clearInterval(interval);
-}, [lastProgressTime]);
-
-// Render warning if stale:
-{isStale && (
-  <Alert variant="destructive" className="mt-2">
-    <AlertTriangle className="h-4 w-4" />
-    <AlertDescription className="text-xs">
-      Sync appears stuck (no progress for 2 minutes). Consider canceling and retrying.
-    </AlertDescription>
-  </Alert>
-)}
-```
-
-## Files Modified
-
-| File | Perubahan |
-|------|-----------|
-| `src/hooks/use-trade-entries-paginated.ts` | Import `keepPreviousData`, add to `useInfiniteQuery` |
-| `src/hooks/use-trade-stats.ts` | Import `keepPreviousData`, add to `useQuery` |
-| `src/hooks/use-trade-enrichment-binance.ts` | Import `keepPreviousData`, add to enrichment count query |
-| `src/pages/TradeHistory.tsx` | Stats skeleton, `isFetching` opacity, move `loadMoreRef` |
-| `src/components/trading/BinanceFullSyncPanel.tsx` | Stale sync detection timer + warning alert |
 
 ## Impact
 
-- **Blink elimination**: `keepPreviousData` di 3 hooks menghilangkan semua flash saat filter/refetch
-- **Stats stability**: Skeleton hanya saat initial load, bukan setiap filter change
-- **Subtle refresh feedback**: Opacity 60% menunjukkan "data sedang refresh" tanpa menghilangkan konten
-- **Infinite scroll fix**: `loadMoreRef` tidak trigger fetch saat error/loading state
-- **Sync safety**: User mendapat warning jika sync stuck > 2 menit
+- 114 trades akan tampil kembali di Closed Trades section
+- Tabs All/Binance/Paper berfungsi dengan counter per tab
+- Anti-blink opacity transition tetap diterapkan pada setiap tab content
+- Hanya 1 file yang diubah, 1 lokasi (line 541-543)
