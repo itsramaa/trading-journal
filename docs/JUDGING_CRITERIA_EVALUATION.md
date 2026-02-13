@@ -487,6 +487,47 @@ _Semua kelemahan signifikan sudah teratasi atau ter-justified._
 | 55 | Accuracy (Minor) | Fixed win rate denominator inconsistency in `useUnifiedDailyPnl` — breakeven trades were excluded from `totalTrades`, creating different win rates between daily (Trading Gate) and weekly/portfolio views. Now uses `todayTrades.length` consistent with all other hooks | 10.0 (consistency fix) |
 | 56 | Code Quality (Minor) | Removed 457 lines of dead code: `TodayPerformance.tsx` (329L) + `use-daily-pnl.ts` (128L) + barrel re-export. Never imported, contained unfixed data isolation issue | 10.0 (cleanup) |
 | 57 | Accuracy (Moderate) | Fixed PnL fallback chain in `useContextualAnalytics` — lines 306 & 323 used `realized_pnl || 0` (missing `pnl` fallback), causing trades with null `realized_pnl` to be zeroed in session/fear-greed/volatility analytics. Standardized to `realized_pnl ?? trade.pnl ?? 0` matching all unified hooks | 10.0 (consistency fix) |
+| 58 | Accuracy (MAJOR) | Fixed PnL fallback in `trading-calculations.ts` — central client-side calculator (`calculateTradingStats`, `calculateStrategyPerformance`, `generateEquityCurve`) used `t.pnl \|\| 0` exclusively, missing `realized_pnl` from Binance trades. Introduced `getTradeNetPnl()` helper using standardized `realized_pnl ?? pnl ?? 0`. Affects Performance page, BulkExport, AI FinalChecklist | 10.0 (critical fix) |
+| 59 | Accuracy (Moderate) | Fixed PnL fallback in `use-strategy-performance.ts` — AI Quality Score calculations used `t.pnl \|\| 0` instead of `realized_pnl ?? pnl ?? 0`, causing incorrect strategy performance scoring for Binance trades | 10.0 (consistency fix) |
+| 60 | Accuracy (Moderate) | Fixed PnL fallback in `TradingBehaviorAnalytics.tsx` — Long/Short distribution and Order Type Performance P&L used `t.pnl \|\| 0` instead of standardized fallback chain | 10.0 (consistency fix) |
+| 61 | Code Quality (Minor) | Fixed direct Tailwind colors in `CommandPalette.tsx` — replaced `text-green-500`/`text-red-500` with semantic `text-profit`/`text-loss` design tokens | 10.0 (design system compliance) |
+
+---
+
+## CROSS-CHECK TRACKING LIST
+
+### Batch 4 Full-System Audit (2026-02-13)
+
+| File/Module | Status | Finding |
+|-------------|--------|---------|
+| `src/lib/trading-calculations.ts` | **Fixed** | PnL used `t.pnl \|\| 0` instead of `realized_pnl ?? pnl ?? 0` — all 3 export functions patched |
+| `src/hooks/analytics/use-strategy-performance.ts` | **Fixed** | PnL fallback chain missing for strategy AI quality scoring |
+| `src/components/analytics/TradingBehaviorAnalytics.tsx` | **Fixed** | PnL fallback chain missing in direction/order-type P&L |
+| `src/components/layout/CommandPalette.tsx` | **Fixed** | Direct colors replaced with design tokens |
+| `src/hooks/analytics/use-contextual-analytics.ts` | **Fixed (Batch 3)** | PnL fallback chain standardized |
+| `src/hooks/analytics/use-unified-daily-pnl.ts` | **Fixed (Batch 2)** | Win rate denominator corrected |
+| `src/hooks/analytics/use-unified-weekly-pnl.ts` | Checked | OK — correct PnL fallback, mode filter, source routing |
+| `src/hooks/analytics/use-unified-portfolio-data.ts` | Checked | OK — 5-tier priority, correct PnL fallback |
+| `src/hooks/analytics/use-symbol-breakdown.ts` | **Fixed (Batch 1)** | Source routing guard corrected |
+| `src/hooks/analytics/use-monthly-pnl.ts` | Checked | OK — correct PnL fallback chain throughout |
+| `src/hooks/analytics/use-exchange-analytics.ts` | Checked | OK — RPC-based, server-side |
+| `src/hooks/analytics/use-account-analytics.ts` | Checked | OK — RPC-based, server-side |
+| `src/hooks/trading/use-trading-gate.ts` | Checked | OK — unified balance + daily PnL |
+| `src/hooks/trading/use-mode-filtered-trades.ts` | Checked | OK — correct mode filter logic |
+| `src/hooks/exchange/use-combined-balance.ts` | Checked | OK — mode-aware source selection |
+| `src/hooks/use-context-aware-risk.ts` | Checked | OK — 6-factor pipeline, centralized multipliers |
+| `src/lib/advanced-risk-metrics.ts` | Checked | OK — uses `realized_pnl ?? pnl ?? 0` |
+| `src/lib/trading-health-score.ts` | Checked | OK — weights sum 1.00, consistency formula correct |
+| `src/lib/market-scoring.ts` | Checked | OK — weights sum 1.00, partial data handled |
+| `src/lib/predictive-analytics.ts` | Checked | OK — uses `realized_pnl ?? pnl ?? 0` |
+| `src/lib/formatters.ts` | Checked | OK — smart decimals, NaN-safe |
+| `src/lib/sanitize.ts` | Checked | OK — 7 utilities, type guards |
+| `src/lib/correlation-utils.ts` | Checked | OK — bidirectional lookup |
+| `src/lib/session-utils.ts` | Checked | OK — UTC-based detection |
+| `src/lib/equity-annotations.ts` | Checked | OK — streak zones |
+| `src/lib/query-invalidation.ts` | Checked | OK — complete cascade matrix |
+| `src/store/app-store.ts` | Checked | OK — Zustand persist |
+| `src/store/sync-store.ts` | Checked | OK — checkpoint management |
 
 ---
 

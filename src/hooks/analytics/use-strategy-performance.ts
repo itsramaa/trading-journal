@@ -80,14 +80,14 @@ export function useStrategyPerformance(): Map<string, StrategyPerformance> {
       const totalTrades = strategyTradeList.length;
       const winRate = totalTrades > 0 ? wins / totalTrades : 0;
 
-      // Calculate profit factor
+      // Calculate profit factor using standardized PnL fallback
       const totalWinPnl = strategyTradeList
-        .filter((t) => (t.pnl || 0) > 0)
-        .reduce((sum, t) => sum + (t.pnl || 0), 0);
+        .filter((t) => (t.realized_pnl ?? t.pnl ?? 0) > 0)
+        .reduce((sum, t) => sum + (t.realized_pnl ?? t.pnl ?? 0), 0);
       const totalLossPnl = Math.abs(
         strategyTradeList
-          .filter((t) => (t.pnl || 0) < 0)
-          .reduce((sum, t) => sum + (t.pnl || 0), 0)
+          .filter((t) => (t.realized_pnl ?? t.pnl ?? 0) < 0)
+          .reduce((sum, t) => sum + (t.realized_pnl ?? t.pnl ?? 0), 0)
       );
       const profitFactor = totalLossPnl > 0 
         ? totalWinPnl / totalLossPnl 
@@ -98,7 +98,7 @@ export function useStrategyPerformance(): Map<string, StrategyPerformance> {
       // Calculate avg PnL
       const avgPnl =
         totalTrades > 0
-          ? strategyTradeList.reduce((sum, t) => sum + (t.pnl || 0), 0) / totalTrades
+          ? strategyTradeList.reduce((sum, t) => sum + (t.realized_pnl ?? t.pnl ?? 0), 0) / totalTrades
           : 0;
 
       // Calculate AI Quality Score

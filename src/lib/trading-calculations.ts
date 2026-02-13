@@ -108,6 +108,11 @@ export function filterTradesByStrategies(
  * 
  * All calculations are deterministic and based on actual trade data.
  */
+// Helper: standardized PnL extraction matching unified hooks
+function getTradeNetPnl(t: TradeEntry): number {
+  return t.realized_pnl ?? t.pnl ?? 0;
+}
+
 export function calculateTradingStats(trades: TradeEntry[]): TradingStats {
   const emptyStats: TradingStats = {
     totalTrades: 0,
@@ -150,12 +155,12 @@ export function calculateTradingStats(trades: TradeEntry[]): TradingStats {
   const winRate = totalTrades > 0 ? (wins / totalTrades) * 100 : 0;
 
   // P&L calculations
-  const totalPnl = trades.reduce((sum, t) => sum + (t.pnl || 0), 0);
+  const totalPnl = trades.reduce((sum, t) => sum + getTradeNetPnl(t), 0);
   const avgPnl = totalTrades > 0 ? totalPnl / totalTrades : 0;
 
   // Gross profit and loss
-  const grossProfit = winningTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
-  const grossLoss = Math.abs(losingTrades.reduce((sum, t) => sum + (t.pnl || 0), 0));
+  const grossProfit = winningTrades.reduce((sum, t) => sum + getTradeNetPnl(t), 0);
+  const grossLoss = Math.abs(losingTrades.reduce((sum, t) => sum + getTradeNetPnl(t), 0));
 
   // Profit factor
   const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? Infinity : 0;
@@ -169,10 +174,10 @@ export function calculateTradingStats(trades: TradeEntry[]): TradingStats {
 
   // Largest win/loss
   const largestWin = winningTrades.length > 0 
-    ? Math.max(...winningTrades.map(t => t.pnl || 0))
+    ? Math.max(...winningTrades.map(t => getTradeNetPnl(t)))
     : 0;
   const largestLoss = losingTrades.length > 0
-    ? Math.abs(Math.min(...losingTrades.map(t => t.pnl || 0)))
+    ? Math.abs(Math.min(...losingTrades.map(t => getTradeNetPnl(t))))
     : 0;
 
   // R:R calculation
@@ -191,7 +196,7 @@ export function calculateTradingStats(trades: TradeEntry[]): TradingStats {
   let cumulative = 0;
   
   for (const trade of sortedTrades) {
-    cumulative += trade.pnl || 0;
+    cumulative += getTradeNetPnl(trade);
     if (cumulative > peak) peak = cumulative;
     const drawdown = peak - cumulative;
     if (drawdown > maxDrawdown) maxDrawdown = drawdown;
@@ -202,7 +207,7 @@ export function calculateTradingStats(trades: TradeEntry[]): TradingStats {
   // Sharpe Ratio (simplified: using daily returns)
   // Sharpe = (Mean Return - Risk Free Rate) / Std Dev of Returns
   // Using 0% risk-free rate for simplicity
-  const pnlValues = trades.map(t => t.pnl || 0);
+  const pnlValues = trades.map(t => getTradeNetPnl(t));
   const meanReturn = avgPnl;
   const variance = pnlValues.reduce((sum, pnl) => sum + Math.pow(pnl - meanReturn, 2), 0) / pnlValues.length;
   const stdDev = Math.sqrt(variance);
@@ -258,7 +263,7 @@ export function calculateStrategyPerformance(
   trades: TradeEntry[],
   strategies: TradingStrategy[]
 ): StrategyPerformance[] {
-  const totalPnl = trades.reduce((sum, t) => sum + (t.pnl || 0), 0);
+  const totalPnl = trades.reduce((sum, t) => sum + getTradeNetPnl(t), 0);
 
   return strategies.map(strategy => {
     // Find trades that use this strategy
@@ -282,7 +287,7 @@ export function calculateStrategyPerformance(
 
     const wins = strategyTrades.filter(t => t.result === 'win').length;
     const losses = strategyTrades.filter(t => t.result === 'loss').length;
-    const strategyPnl = strategyTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
+    const strategyPnl = strategyTrades.reduce((sum, t) => sum + getTradeNetPnl(t), 0);
     
     const rrValues = strategyTrades.map(t => calculateRR(t)).filter(rr => rr !== 0);
     const avgRR = rrValues.length > 0
@@ -313,14 +318,15 @@ export function generateEquityCurve(trades: TradeEntry[]) {
 
   let cumulative = 0;
   return sortedTrades.map(trade => {
-    cumulative += trade.pnl || 0;
+    const pnl = getTradeNetPnl(trade);
+    cumulative += pnl;
     return {
       date: new Date(trade.trade_date).toLocaleDateString('en-US', { 
         month: 'short', 
         day: 'numeric' 
       }),
       fullDate: trade.trade_date,
-      pnl: trade.pnl || 0,
+      pnl,
       cumulative,
       pair: trade.pair,
       direction: trade.direction,

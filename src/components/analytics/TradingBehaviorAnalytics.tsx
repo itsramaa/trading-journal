@@ -110,7 +110,7 @@ export function TradingBehaviorAnalytics({ trades }: Props) {
     const calcStats = (arr: TradeEntry[]): DirectionStats => ({
       count: arr.length,
       wins: arr.filter(t => t.result === 'win').length,
-      pnl: arr.reduce((s, t) => s + (t.pnl || 0), 0),
+      pnl: arr.reduce((s, t) => s + (t.realized_pnl ?? t.pnl ?? 0), 0),
       winRate: arr.length > 0 ? (arr.filter(t => t.result === 'win').length / arr.length) * 100 : 0,
       percent: (arr.length / total) * 100,
     });
@@ -139,7 +139,7 @@ export function TradingBehaviorAnalytics({ trades }: Props) {
         count: entries.length,
         wins,
         winRate: (wins / entries.length) * 100,
-        pnl: entries.reduce((s, t) => s + (t.pnl || 0), 0),
+        pnl: entries.reduce((s, t) => s + (t.realized_pnl ?? t.pnl ?? 0), 0),
       });
     });
 

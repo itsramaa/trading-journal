@@ -235,7 +235,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <span
                         className={
-                          (trade.pnl || 0) >= 0 ? "text-green-500" : "text-red-500"
+                          (trade.pnl || 0) >= 0 ? "text-profit" : "text-loss"
                         }
                       >
                         {(trade.pnl || 0) >= 0 ? "+" : ""}
