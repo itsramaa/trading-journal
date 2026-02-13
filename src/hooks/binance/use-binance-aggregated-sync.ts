@@ -88,18 +88,15 @@ async function callBinanceApi<T>(
     
     const result: ApiResponse<T> = await response.json();
     
-    // Log usedWeight only when it changes significantly or has data
+    // Track rate limit weight silently; only log when data is fetched or weight is critical
     if (result.usedWeight) {
+      lastLoggedWeight = result.usedWeight;
       const dataCount = Array.isArray(result.data) ? result.data.length : 0;
-      const weightChanged = !lastLoggedWeight || Math.abs(result.usedWeight - lastLoggedWeight) >= 20;
-      const hasData = dataCount > 0;
       
-      if (weightChanged || hasData || result.usedWeight > 900) {
+      if (dataCount > 0 || result.usedWeight > 900) {
         const addLog = useSyncStore.getState().addSyncLog;
         const level = result.usedWeight > 900 ? 'warn' : 'info';
-        const dataInfo = hasData ? ` | ${dataCount} records fetched` : '';
-        addLog(`Rate limit: ${result.usedWeight}/1200 weight (per 30s window)${dataInfo}`, level);
-        lastLoggedWeight = result.usedWeight;
+        addLog(`${dataCount} records fetched (weight: ${result.usedWeight}/1200)`, level);
       }
     }
     
