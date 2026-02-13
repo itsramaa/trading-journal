@@ -118,7 +118,7 @@ export function CryptoRanking() {
   };
 
   return (
-    <Card>
+    <Card role="region" aria-label="Cryptocurrency pair performance ranking with AI recommendations">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Trophy className="h-5 w-5 text-primary" />
