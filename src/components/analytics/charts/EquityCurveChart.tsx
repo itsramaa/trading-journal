@@ -15,7 +15,7 @@ import {
   ReferenceDot,
 } from "recharts";
 import { format, parseISO } from "date-fns";
-import { useTradeEntries } from "@/hooks/use-trade-entries";
+import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { BarChart3, Sparkles } from "lucide-react";
 import { detectStreakZones, detectMilestones, type CurveDataPoint } from "@/lib/equity-annotations";
@@ -26,7 +26,7 @@ interface EquityCurveChartProps {
 }
 
 export function EquityCurveChart({ initialBalance = 0, className }: EquityCurveChartProps) {
-  const { data: trades = [] } = useTradeEntries();
+  const { data: trades = [] } = useModeFilteredTrades();
   const { format: formatCurrency } = useCurrencyConversion();
   const [showAnnotations, setShowAnnotations] = useState(true);
 

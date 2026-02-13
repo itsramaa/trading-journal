@@ -14,7 +14,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Target, TrendingUp, Shield, Pencil, Trophy, AlertTriangle } from "lucide-react";
-import { useTradeEntries } from "@/hooks/use-trade-entries";
+import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
 
@@ -47,7 +47,7 @@ export function GoalTrackingWidget({ className }: { className?: string }) {
   const [goals, setGoals] = useState<Goals>(loadGoals);
   const [editGoals, setEditGoals] = useState<Goals>(goals);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const { data: trades = [] } = useTradeEntries();
+  const { data: trades = [] } = useModeFilteredTrades();
   const { format: formatCurrency } = useCurrencyConversion();
 
   const stats = useMemo(() => {

@@ -8,7 +8,7 @@ import { useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
-import { useTradeEntries } from "@/hooks/use-trade-entries";
+import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import { useHighImpactEventDates, isHighImpactEventDay, getEventLabel } from "@/hooks/use-economic-events";
 import { cn } from "@/lib/utils";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
@@ -46,7 +46,7 @@ const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const HOURS = [0, 4, 8, 12, 16, 20];
 
 export function TradingHeatmap({ trades: externalTrades, className, showEventOverlay = true }: TradingHeatmapProps) {
-  const { data: fetchedTrades } = useTradeEntries();
+  const { data: fetchedTrades } = useModeFilteredTrades();
   const { format: formatCurrency, formatPnl, formatCompact } = useCurrencyConversion();
   const { eventDateMap, isLoading: eventsLoading } = useHighImpactEventDates({
     startDate: subDays(new Date(), 90),
@@ -176,7 +176,7 @@ export function TradingHeatmap({ trades: externalTrades, className, showEventOve
   }
 
   return (
-    <Card className={className}>
+    <Card className={className} role="region" aria-label="Trading performance heatmap by day and hour">
       <CardHeader>
         <CardTitle>Trading Heatmap</CardTitle>
         <CardDescription>Total P&L by time of day and day of week</CardDescription>
