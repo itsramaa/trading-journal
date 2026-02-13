@@ -1,84 +1,99 @@
 
 
-# Full-System Batch Audit — Findings & Remediation Plan
+# Full-System Batch Audit — Findings & Remediation Plan (Batch 2)
 
 ## Audit Methodology
 
-Audited all core calculation libs, 80+ hooks, state management, edge functions, error handling, data isolation patterns, and cross-referenced every claim in `JUDGING_CRITERIA_EVALUATION.md` against actual source code.
+Deep-dived into 15+ core calculation files, all analytics hooks, data flow pipelines (source -> processing -> visualization), and cross-referenced every uncovered area. Focused on mathematical consistency, dead code, and data isolation completeness.
 
 ---
 
-## Batch 1: All Findings
+## Batch 2: All Findings
 
-### Finding 1: Data Isolation Bug in `useSymbolBreakdown` (MAJOR)
+### Finding 1: Win Rate Calculation Inconsistency in `useUnifiedDailyPnl` (Minor)
 
-**File:** `src/hooks/analytics/use-symbol-breakdown.ts`
-**Severity:** Major
-**Criteria Impacted:** Accuracy, Security (data contamination)
+**File:** `src/hooks/analytics/use-unified-daily-pnl.ts`, line 92
+**Severity:** Minor (Accuracy)
+**Criteria Impacted:** Accuracy, Code Quality
 
 **Problem:**
-The hook uses raw `isConnected` instead of `tradeMode === 'live' && isConnected` for source routing. When a user is in **Paper mode** but has Binance connected, this hook returns **Live Binance data** instead of Paper data — a direct violation of the data isolation policy.
 
-**Two affected lines:**
-- Line 42: `if (isConnected) return { daily: [], weekly: [] };`
-  - Skips paper calculation even in Paper mode if Binance is connected
-- Line 122: `if (isConnected && binancePnl.bySymbol)`
-  - Returns Binance data even in Paper mode
+Line 92: `const totalTrades = wins + losses;`
 
-**Correct pattern** (already used by `useUnifiedWeeklyPnl` at line 156 and `useUnifiedDailyPnl` at line 50):
+This **excludes breakeven trades** from the denominator. A trader with 5 wins, 3 losses, 2 breakeven would see:
+- Daily: winRate = 5/8 = **62.5%** (breakeven excluded)
+- Weekly: winRate = 5/10 = **50%** (breakeven included)
+
+Every other hook in the system uses `closedTrades.length` as denominator:
+- `useUnifiedWeeklyPnl` (line 136): `totalWins / totalTrades` where totalTrades counts ALL closed
+- `useUnifiedPortfolioData` (line 187): `todayWins / todayTrades` where todayTrades counts ALL closed
+- `calculateTradingStats` (line 150): `wins / totalTrades` where totalTrades = `trades.length`
+- `useDailyPnl` (line 91): `wins / closedTrades.length`
+
+`useUnifiedDailyPnl` is consumed by **Trading Gate** (`use-trading-gate.ts` line 45), so this inconsistency affects risk control decisions.
+
+**Fix:** Change line 88-93 to count ALL closed trades:
+
 ```typescript
-const useLiveSource = tradeMode === 'live' && isConnected;
+// Before:
+if (pnl > 0) wins++;
+if (pnl < 0) losses++;
+});
+const totalTrades = wins + losses;
+
+// After:
+if (pnl > 0) wins++;
+if (pnl < 0) losses++;
+});
+const totalTrades = todayTrades.length;
 ```
 
-**Fix:**
-- Line 42: Change to `if (tradeMode === 'live' && isConnected) return { daily: [], weekly: [] };`
-- Line 122: Change to `if (tradeMode === 'live' && isConnected && binancePnl.bySymbol)`
+---
 
-This was supposedly fixed previously (Finding #40 in the eval doc says "inline mode filter added to Paper path"), but the **source routing guard** at lines 42 and 122 was never updated — only the inner `trades.forEach` filter was fixed. The outer guard short-circuits before the mode filter even runs.
+### Finding 2: Dead Code — `TodayPerformance.tsx` + `useDailyPnl` (Minor)
+
+**Files:**
+- `src/components/dashboard/TodayPerformance.tsx` (329 lines)
+- `src/hooks/analytics/use-daily-pnl.ts` (128 lines)
+- `src/hooks/use-daily-pnl.ts` (re-export barrel)
+
+**Severity:** Minor (Code Quality)
+**Criteria Impacted:** Code Quality
+
+**Problem:**
+
+`TodayPerformance` is **never imported** by any component. Verified via `import.*TodayPerformance` search: 0 results outside its own file.
+
+`useDailyPnl` is **only** used by `TodayPerformance`. No other consumer.
+
+Additionally, `useDailyPnl` has a data isolation flaw (SQL query doesn't filter by `trade_mode`), but since it's dead code, the correct action is removal.
+
+These 457 lines of dead code add maintenance burden and potential confusion for future developers.
+
+**Fix:** Remove these 3 files:
+- `src/components/dashboard/TodayPerformance.tsx`
+- `src/hooks/analytics/use-daily-pnl.ts`
+- `src/hooks/use-daily-pnl.ts`
 
 ---
 
-### Finding 2: Documentation Claim Mismatch — `useSymbolBreakdown` Fix Incomplete (MINOR)
+### Verified as Correct (No Issues Found)
 
-**File:** `docs/JUDGING_CRITERIA_EVALUATION.md`, Line 40 and 156
-**Severity:** Minor
-**Criteria Impacted:** Accuracy
-
-The doc claims `useSymbolBreakdown` is fully fixed (Finding #40), but as shown above, the source routing guard is still wrong. The doc entry needs to be updated to reflect the additional fix.
-
----
-
-### Finding 3: Health Score Weights in Doc vs Code (VERIFIED OK)
-
-Doc claims weights sum to 1.0: `0.20+0.20+0.15+0.15+0.15+0.15`. Code confirmed: exactly these values. No issue.
-
-### Finding 4: Infinity Handling (VERIFIED OK)
-
-`profitFactor` can be `Infinity` from `calculateTradingStats`. When passed to `calculateTradingHealthScore`, `mapRange(Infinity, 0.5, 3, 0, 100)` returns `Infinity`, but `clamp(Infinity, 0, 100)` returns `100`. All UI components handle `Infinity` display with `profitFactor === Infinity ? 'infinity' : ...` pattern. No issue.
-
-### Finding 5: Session Overlap Priority (VERIFIED OK)
-
-`getSessionForTime` uses if/else priority ordering (Sydney > Tokyo > London > NY). The separate `getActiveOverlaps` function correctly identifies overlap zones. By design, not a bug.
-
-### Finding 6: Advanced Risk Metrics Math (VERIFIED OK)
-
-Sharpe, Sortino, Calmar, VaR, Kelly — all formulas verified mathematically correct. Downside deviation correctly uses `returns.length` as denominator (not just `downsideReturns.length`), which is the standard Sortino formula.
-
-### Finding 7: Error Boundary Architecture (VERIFIED OK)
-
-Two-tier architecture confirmed: global `ErrorBoundary` (lines 16-81) + `WidgetErrorBoundary` (lines 87-122) with retry capability.
-
-### Finding 8: Zustand Store Architecture (VERIFIED OK)
-
-`app-store.ts` uses `persist` middleware with `partialize` (only persists currency/notifications, not transient UI state). `sync-store.ts` uses raw Zustand (no middleware) but manually persists checkpoint/lastSync to localStorage. Both clean.
-
-### Finding 9: Binance FSM (VERIFIED OK)
-
-6-state machine with valid transition matrix, liquidation detection with 90% loss heuristic. Enterprise-grade.
-
-### Finding 10: All 25 Edge Functions (VERIFIED OK)
-
-Counted: 25 directories in `supabase/functions/` (excluding `_shared/`). Matches doc.
+| Area | Status | Evidence |
+|------|--------|----------|
+| `useUnifiedWeeklyPnl` mode filter + source routing | OK | Lines 88-91 + line 156 |
+| `useUnifiedPortfolioData` mode isolation | OK | Line 63 `useBinance = tradeMode === 'live' && isConnected` |
+| `calculateTradingStats` math (expectancy, Sharpe, drawdown, streaks) | OK | All formulas verified |
+| `calculateAdvancedRiskMetrics` (Sharpe, Sortino, Calmar, VaR, Kelly) | OK | Correct mathematical implementations |
+| `useContextAwareRisk` 6-factor adjustment pipeline | OK | Centralized multipliers, proper mode-filtered trades |
+| `useTradingGate` unified balance + daily PnL sources | OK | Uses `useBestAvailableBalance` + `useUnifiedDailyPnl` |
+| `useSymbolBreakdown` source routing (post-fix) | OK | Lines 42 + 122 use `tradeMode === 'live' && isConnected` |
+| `predictive-analytics.ts` (streak, day-of-week, pair momentum, session) | OK | Statistical calculations correct |
+| `trading-health-score.ts` (consistency formula post-fix) | OK | `(streakRatio * 100 + recoveryScore) / 2` |
+| Query invalidation cascading | OK | All 4 functions cover complete query key matrix |
+| Performance.tsx multi-level analytics | OK | Proper level-based filtering with justified `allTrades` usage |
+| Dashboard.tsx empty-state check | OK | Justified global `useTradeEntries()` for CTA |
+| Health Score weights sum | OK | 0.20+0.20+0.15+0.15+0.15+0.15 = 1.00 |
 
 ---
 
@@ -86,39 +101,42 @@ Counted: 25 directories in `supabase/functions/` (excluding `_shared/`). Matches
 
 | # | Finding | Severity | Status |
 |---|---------|----------|--------|
-| 1 | `useSymbolBreakdown` source routing ignores `tradeMode` | Major | Needs fix |
-| 2 | Doc claims Fix #40 is complete but guard was missed | Minor | Needs doc update |
-| 3-10 | Health Score weights, Infinity, Sessions, Risk Metrics, Error Boundaries, Stores, FSM, Edge Functions | - | Verified OK |
+| 1 | `useUnifiedDailyPnl` excludes breakeven from totalTrades (inconsistent with all other hooks) | Minor | Needs fix |
+| 2 | `TodayPerformance.tsx` + `useDailyPnl` are dead code (457 lines, never imported) | Minor | Remove |
+| 3-15 | All core calculation, data isolation, risk, analytics, FSM verified | - | OK |
 
 ---
 
 ## Implementation Plan
 
-### Step 1: Fix `useSymbolBreakdown` Source Routing
+### Step 1: Fix `useUnifiedDailyPnl` Win Rate Denominator
 
-**File:** `src/hooks/analytics/use-symbol-breakdown.ts`
+**File:** `src/hooks/analytics/use-unified-daily-pnl.ts`
 
-**Change 1 (line 42):**
+Change line 92 from:
 ```typescript
-// Before:
-if (isConnected) return { daily: [], weekly: [] };
-// After:
-if (tradeMode === 'live' && isConnected) return { daily: [], weekly: [] };
+const totalTrades = wins + losses;
+```
+To:
+```typescript
+const totalTrades = todayTrades.length;
 ```
 
-**Change 2 (line 122):**
-```typescript
-// Before:
-if (isConnected && binancePnl.bySymbol) {
-// After:
-if (tradeMode === 'live' && isConnected && binancePnl.bySymbol) {
+### Step 2: Remove Dead Code
+
+Delete:
+- `src/components/dashboard/TodayPerformance.tsx`
+- `src/hooks/analytics/use-daily-pnl.ts`
+- `src/hooks/use-daily-pnl.ts`
+
+### Step 3: Update `JUDGING_CRITERIA_EVALUATION.md`
+
+Add findings #55 and #56 to the improvements table:
+
 ```
-
-### Step 2: Update `JUDGING_CRITERIA_EVALUATION.md`
-
-- Update Finding #40 description to note the additional source routing fix
-- Add Finding #54: Source routing guard fix in `useSymbolBreakdown`
-- Verify "Data Isolation Patterns" section accurately reflects this fix
+| 55 | Accuracy (Minor) | Fixed win rate denominator inconsistency in `useUnifiedDailyPnl` — breakeven trades were excluded from `totalTrades`, creating different win rates between daily (Trading Gate) and weekly/portfolio views. Now uses `todayTrades.length` consistent with all other hooks | 10.0 (consistency fix) |
+| 56 | Code Quality (Minor) | Removed 457 lines of dead code: `TodayPerformance.tsx` (329L) + `use-daily-pnl.ts` (128L) + barrel re-export. Never imported, contained unfixed data isolation issue | 10.0 (cleanup) |
+```
 
 ---
 
@@ -126,9 +144,9 @@ if (tradeMode === 'live' && isConnected && binancePnl.bySymbol) {
 
 | Criteria | Impact |
 |----------|--------|
-| **Accuracy** | Fixes data contamination — Paper mode symbol breakdown now correctly isolated from Binance data |
-| **Security** | Eliminates data leakage vector where Live exchange data bleeds into Paper analytics |
-| **Code Quality** | Aligns `useSymbolBreakdown` with the same `tradeMode === 'live' && isConnected` pattern used by `useUnifiedDailyPnl` and `useUnifiedWeeklyPnl` |
+| **Accuracy** | Win rate now consistent across all time horizons (daily, weekly, portfolio, performance). Trading Gate risk calculations use same denominator as all other analytics |
+| **Code Quality** | 457 lines of dead code removed. Reduces maintenance surface and eliminates confusion between `useDailyPnl` (dead) and `useUnifiedDailyPnl` (active) |
+| **Security** | Dead `useDailyPnl` had unfixed SQL query without `trade_mode` filter — removal eliminates this latent data isolation risk |
 | **Comprehensiveness** | No change |
 | **Clarity** | No change |
 | **Innovation** | No change |
