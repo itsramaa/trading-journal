@@ -218,7 +218,7 @@ _Tidak ada kelemahan tersisa._
 
 | Pattern | File |
 |---------|------|
-| Performance orchestrator | `src/pages/Performance.tsx` (~170 lines) |
+| Performance orchestrator | `src/pages/Performance.tsx` (~255 lines) |
 | Performance sub-components | `src/components/performance/` (5 files) |
 | Analytics: contextual | `src/components/analytics/contextual/` (6 files) |
 | Analytics: session | `src/components/analytics/session/` (2 files) |
@@ -290,8 +290,8 @@ _Tidak ada kelemahan tersisa._
 - **State management**: Zustand (global) + React Query (server) — clean separation
 - **24 dokumentasi** di `docs/` folder
 - Centralized: `formatters.ts`, `constants/trade-history.ts`, shared utils
-- ✅ **FIXED:** `Performance.tsx` direfaktor dari 856 → ~170 lines (orchestrator + 5 sub-components)
-- ✅ **FIXED:** `TradeHistory.tsx` direfaktor dari 617 → ~220 lines (orchestrator + 3 sub-components)
+- ✅ **FIXED:** `Performance.tsx` direfaktor dari 856 → ~255 lines (orchestrator + 5 sub-components)
+- ✅ **FIXED:** `TradeHistory.tsx` direfaktor dari 617 → ~263 lines (orchestrator + 3 sub-components)
 - ✅ **FIXED:** `components/analytics/` diorganisasi ke sub-folders yang jelas
 - ✅ **NEW:** Automated unit tests untuk core business logic:
   - `src/lib/__tests__/trading-calculations.test.ts` (~15 test cases)
