@@ -11,7 +11,7 @@ import {
   Meh,
   Sparkles
 } from "lucide-react";
-import { useTradeEntries } from "@/hooks/use-trade-entries";
+import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import { cn } from "@/lib/utils";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { 
@@ -42,7 +42,7 @@ interface EmotionalInsight {
 }
 
 export function EmotionalPatternAnalysis() {
-  const { data: trades = [] } = useTradeEntries();
+  const { data: trades = [] } = useModeFilteredTrades();
   const { format: formatCurrency } = useCurrencyConversion();
 
   const { emotionalStats, insights, hasEnoughData } = useMemo(() => {
@@ -151,17 +151,17 @@ export function EmotionalPatternAnalysis() {
 
   if (!hasEnoughData) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Brain className="h-5 w-5 text-primary" />
-            Emotional Pattern Analysis
-          </CardTitle>
-          <CardDescription>
-            Track emotional states to discover their impact on performance
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="py-8 text-center">
+    <Card role="region" aria-label="Emotional pattern analysis showing win rate by emotional state">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Brain className="h-5 w-5 text-primary" />
+          Emotional Pattern Analysis
+        </CardTitle>
+        <CardDescription>
+          Track emotional states to discover their impact on performance
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="py-8 text-center">
           <Brain className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
           <h3 className="font-semibold mb-2">Not Enough Data</h3>
           <p className="text-sm text-muted-foreground">
@@ -174,7 +174,7 @@ export function EmotionalPatternAnalysis() {
   }
 
   return (
-    <Card>
+    <Card role="region" aria-label="Emotional pattern analysis showing win rate by emotional state">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Brain className="h-5 w-5 text-primary" />
@@ -186,7 +186,7 @@ export function EmotionalPatternAnalysis() {
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Stats by Emotion */}
-        <div className="space-y-4">
+        <div className="space-y-4" role="group" aria-label="Win rate statistics by emotional state">
           {emotionalStats.map((stats) => {
             const emotionConfig = getEmotionalStateConfig(stats.state);
             const EmotionIcon = emotionConfig?.icon || Meh;
@@ -228,7 +228,7 @@ export function EmotionalPatternAnalysis() {
         {/* AI Insights */}
         {insights.length > 0 && (
           <div className="space-y-3 pt-4 border-t">
-            <div className="flex items-center gap-2 text-sm font-medium">
+            <div className="flex items-center gap-2 text-sm font-medium" role="group" aria-label="AI-generated emotional trading insights">
               <Sparkles className="h-4 w-4 text-primary" />
               Insights
             </div>

@@ -4,12 +4,12 @@
 import { useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
-import { useTradeEntries } from "@/hooks/use-trade-entries";
+import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import { format } from "date-fns";
 import { formatPercentUnsigned } from "@/lib/formatters";
 
 export function DrawdownChart() {
-  const { data: trades } = useTradeEntries();
+  const { data: trades } = useModeFilteredTrades();
 
   const drawdownData = useMemo(() => {
     if (!trades || trades.length === 0) return [];
