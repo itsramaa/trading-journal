@@ -3,7 +3,7 @@
  * Phase 5: Download history exports for tax and accounting, backup/restore settings
  */
 import { useState } from "react";
-import { DashboardLayout } from "@/components/layout/DashboardLayout";
+
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -82,9 +82,8 @@ export default function BulkExport() {
   ];
 
   return (
-    <DashboardLayout>
-      <div className="space-y-6">
-        <PageHeader
+    <div className="space-y-6">
+      <PageHeader
           icon={Download}
           title="Bulk Export & Backup"
           description="Download trading history, export journal, and backup settings"
@@ -368,7 +367,6 @@ export default function BulkExport() {
             <SettingsBackupRestore />
           </TabsContent>
         </Tabs>
-      </div>
-    </DashboardLayout>
+    </div>
   );
 }

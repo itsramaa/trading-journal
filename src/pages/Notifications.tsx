@@ -1,5 +1,5 @@
 import { Bell, BellOff, Check, Trash2, FileDown, CalendarDays, Loader2 } from "lucide-react";
-import { DashboardLayout } from "@/components/layout/DashboardLayout";
+
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -78,29 +78,26 @@ export default function Notifications() {
 
   if (isLoading) {
     return (
-      <DashboardLayout>
-        <div className="space-y-6">
-          <div className="flex items-center gap-3">
-            <Skeleton className="h-12 w-12 rounded-xl" />
-            <div>
-              <Skeleton className="h-6 w-40 mb-2" />
-              <Skeleton className="h-4 w-60" />
-            </div>
-          </div>
-          <div className="space-y-4">
-            {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-24 w-full" />
-            ))}
+      <div className="space-y-6">
+        <div className="flex items-center gap-3">
+          <Skeleton className="h-12 w-12 rounded-xl" />
+          <div>
+            <Skeleton className="h-6 w-40 mb-2" />
+            <Skeleton className="h-4 w-60" />
           </div>
         </div>
-      </DashboardLayout>
+        <div className="space-y-4">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-24 w-full" />
+          ))}
+        </div>
+      </div>
     );
   }
 
   return (
-    <DashboardLayout>
-      <div className="space-y-6">
-        <PageHeader
+    <div className="space-y-6">
+      <PageHeader
           icon={Bell}
           title="Notifications"
           description={unreadCount > 0
@@ -218,7 +215,6 @@ export default function Notifications() {
             )}
           </TabsContent>
         </Tabs>
-      </div>
-    </DashboardLayout>
+    </div>
   );
 }

@@ -3,7 +3,7 @@
  * Uses Phase 3 useBinanceTopMovers hook
  */
 import { useState, useMemo } from "react";
-import { DashboardLayout } from "@/components/layout/DashboardLayout";
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -193,9 +193,8 @@ export default function TopMovers() {
   }, [allTickers, topLosers, sortBy, limit]);
   
   return (
-    <DashboardLayout>
-      <div className="space-y-6">
-        {/* Page Header */}
+    <div className="space-y-6">
+      {/* Page Header */}
         <PageHeader
           icon={BarChart3}
           title="Top Movers"
@@ -395,7 +394,6 @@ export default function TopMovers() {
             </Card>
           </TabsContent>
         </Tabs>
-      </div>
-    </DashboardLayout>
+    </div>
   );
 }

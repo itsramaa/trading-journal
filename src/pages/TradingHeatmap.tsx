@@ -3,7 +3,7 @@
  * Features: Filters, Session Breakdown, Streak Analysis, Export
  */
 import { useState, useMemo } from "react";
-import { DashboardLayout } from "@/components/layout/DashboardLayout";
+
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -221,24 +221,21 @@ export default function TradingHeatmapPage() {
 
   if (isLoading) {
     return (
-      <DashboardLayout>
-        <div className="space-y-6">
-          <PageHeader
-            icon={Grid3X3}
-            title="Trading Heatmap"
-            description="Loading..."
-          />
-        </div>
-      </DashboardLayout>
+      <div className="space-y-6">
+        <PageHeader
+          icon={Grid3X3}
+          title="Trading Heatmap"
+          description="Loading..."
+        />
+      </div>
     );
   }
 
   const closedTrades = trades?.filter(t => t.status === 'closed') || [];
 
   return (
-    <DashboardLayout>
-      <div className="space-y-6">
-        {/* Page Header with Filters */}
+    <div className="space-y-6">
+      {/* Page Header with Filters */}
         <PageHeader
           icon={Grid3X3}
           title="Trading Heatmap"
@@ -461,7 +458,6 @@ export default function TradingHeatmapPage() {
             </div>
           </>
         )}
-      </div>
-    </DashboardLayout>
+    </div>
   );
 }

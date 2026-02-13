@@ -4,7 +4,7 @@
  */
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { DashboardLayout } from "@/components/layout/DashboardLayout";
+
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -121,23 +121,20 @@ export default function PositionCalculator() {
 
   if (isLoading) {
     return (
-      <DashboardLayout>
-        <div className="space-y-6">
-          <PageHeader
-            icon={Calculator}
-            title="Risk Calculator"
-            description="Loading your risk settings..."
-          />
-          <Skeleton className="h-[400px]" />
-        </div>
-      </DashboardLayout>
+      <div className="space-y-6">
+        <PageHeader
+          icon={Calculator}
+          title="Risk Calculator"
+          description="Loading your risk settings..."
+        />
+        <Skeleton className="h-[400px]" />
+      </div>
     );
   }
 
   return (
-    <DashboardLayout>
-      <div className="space-y-6">
-        <PageHeader
+    <div className="space-y-6">
+      <PageHeader
           icon={Calculator}
           title="Risk Calculator"
           description="Calculate position sizes and manage risk before entering trades"
@@ -280,7 +277,6 @@ export default function PositionCalculator() {
             />
           </TabsContent>
         </Tabs>
-      </div>
-    </DashboardLayout>
+    </div>
   );
 }

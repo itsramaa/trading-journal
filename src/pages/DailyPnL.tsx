@@ -3,7 +3,7 @@
  * Works with both Binance (enriched) and Paper Trading data
  * Uses centralized currency conversion for user's preferred currency
  */
-import { DashboardLayout } from "@/components/layout/DashboardLayout";
+
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -102,9 +102,8 @@ export default function DailyPnL() {
   // System-First: No EmptyState gate - page always renders
 
   return (
-    <DashboardLayout>
-      <div className="space-y-6">
-        <PageHeader
+    <div className="space-y-6">
+      <PageHeader
           icon={DollarSign}
           title="Daily P&L"
           description="Analyze your daily profit and loss breakdown"
@@ -336,7 +335,6 @@ export default function DailyPnL() {
             </CardContent>
           </Card>
         )}
-      </div>
-    </DashboardLayout>
+    </div>
   );
 }
