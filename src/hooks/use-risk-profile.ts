@@ -2,7 +2,7 @@
  * Risk Profile Hook - Manages user's risk management settings
  * Now uses Binance data as primary source when connected
  */
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
@@ -36,6 +36,7 @@ export function useRiskProfile() {
       return data as RiskProfile | null;
     },
     enabled: !!user?.id,
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -127,6 +128,7 @@ export function useDailyRiskSnapshot() {
       return data as DailyRiskSnapshot | null;
     },
     enabled: !!user?.id,
+    placeholderData: keepPreviousData,
   });
 }
 

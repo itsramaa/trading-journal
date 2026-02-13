@@ -17,17 +17,31 @@ import {
 import { useRiskProfile } from "@/hooks/use-risk-profile";
 import { useRiskEvents } from "@/hooks/use-risk-events";
 import { useModeVisibility } from "@/hooks/use-mode-visibility";
+import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
 import { useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 
 export default function RiskManagement() {
-  const { data: riskProfile } = useRiskProfile();
+  const { data: riskProfile, isLoading: profileLoading } = useRiskProfile();
   const { events: riskEvents } = useRiskEvents();
   const { showExchangeData } = useModeVisibility();
 
   const navigateToSettings = () => {
     window.location.href = '/settings?tab=trading';
   };
+
+  if (profileLoading) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          icon={Shield}
+          title="Risk Management"
+          description="Configure and monitor your trading risk parameters"
+        />
+        <MetricsGridSkeleton />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
