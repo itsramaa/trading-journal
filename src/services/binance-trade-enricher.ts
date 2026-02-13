@@ -75,24 +75,57 @@ interface TradeFillGroup {
 }
 
 /**
- * Call Binance edge function
+ * Call Binance edge function with retry logic
+ * Handles 429 (rate limit), 5xx (server errors), and network failures
  */
 async function callBinanceApi<T>(
   action: string,
-  params: Record<string, unknown> = {}
-): Promise<{ success: boolean; data?: T; error?: string }> {
+  params: Record<string, unknown> = {},
+  maxRetries = 3
+): Promise<{ success: boolean; data?: T; error?: string; usedWeight?: number }> {
   const { data: { session } } = await supabase.auth.getSession();
   
-  const response = await fetch(BINANCE_FUNCTION_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': session?.access_token ? `Bearer ${session.access_token}` : '',
-    },
-    body: JSON.stringify({ action, ...params }),
-  });
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(BINANCE_FUNCTION_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': session?.access_token ? `Bearer ${session.access_token}` : '',
+        },
+        body: JSON.stringify({ action, ...params }),
+      });
+      
+      // Handle 429 rate limit
+      if (response.status === 429) {
+        const retryAfter = parseInt(response.headers.get('Retry-After') || '5', 10);
+        const delay = retryAfter * 1000 + Math.random() * 1000;
+        if (attempt < maxRetries) {
+          await new Promise(r => setTimeout(r, delay));
+          continue;
+        }
+      }
+      
+      // Handle 5xx server errors
+      if (response.status >= 500 && attempt < maxRetries) {
+        const delay = Math.pow(2, attempt) * 1000 + Math.random() * 500;
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+      
+      return response.json();
+    } catch (error) {
+      // Network errors (timeout, DNS, etc.)
+      if (attempt < maxRetries) {
+        const delay = Math.pow(2, attempt) * 1000 + Math.random() * 500;
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+      return { success: false, error: error instanceof Error ? error.message : 'Network error' };
+    }
+  }
   
-  return response.json();
+  return { success: false, error: 'Max retries exceeded' };
 }
 
 /**
@@ -102,7 +135,8 @@ async function callBinanceApi<T>(
 async function fetchUserTradesChunk(
   symbol: string,
   startTime: number,
-  endTime: number
+  endTime: number,
+  logFn?: (msg: string, level?: 'info' | 'warn' | 'error') => void
 ): Promise<BinanceTrade[]> {
   const allTrades: BinanceTrade[] = [];
   let fromId: number | undefined = undefined;
@@ -122,7 +156,7 @@ async function fetchUserTradesChunk(
     if (!result.success || !result.data?.length) {
       if (result.success && fromId !== undefined && emptyRetryCount < EMPTY_RETRY_LIMIT) {
         emptyRetryCount++;
-        console.log(`[Enricher] ${symbol}: Empty response, retry ${emptyRetryCount}/${EMPTY_RETRY_LIMIT}`);
+        logFn?.(`${symbol}: Empty response, retry ${emptyRetryCount}/${EMPTY_RETRY_LIMIT}`, 'warn');
         await new Promise(r => setTimeout(r, EMPTY_RETRY_DELAY));
         continue;
       }
@@ -148,7 +182,8 @@ async function fetchUserTradesChunk(
 async function fetchUserTradesForSymbol(
   symbol: string,
   startTime: number,
-  endTime: number
+  endTime: number,
+  logFn?: (msg: string, level?: 'info' | 'warn' | 'error') => void
 ): Promise<BinanceTrade[]> {
   const allTrades: BinanceTrade[] = [];
   
@@ -156,14 +191,13 @@ async function fetchUserTradesForSymbol(
   const totalDuration = endTime - startTime;
   const numChunks = Math.ceil(totalDuration / MAX_TRADES_INTERVAL_MS);
   
-  // Debug logging for performance monitoring
-  console.log(`[Enricher] ${symbol}: Fetching ${numChunks} chunks for ${Math.round(totalDuration / (24*60*60*1000))} days`);
+  logFn?.(`${symbol}: Fetching ${numChunks} chunks for ${Math.round(totalDuration / (24*60*60*1000))} days`);
   
   for (let i = 0; i < numChunks; i++) {
     const chunkStart = startTime + (i * MAX_TRADES_INTERVAL_MS);
     const chunkEnd = Math.min(chunkStart + MAX_TRADES_INTERVAL_MS, endTime);
     
-    const chunkTrades = await fetchUserTradesChunk(symbol, chunkStart, chunkEnd);
+    const chunkTrades = await fetchUserTradesChunk(symbol, chunkStart, chunkEnd, logFn);
     allTrades.push(...chunkTrades);
     
     // Rate limit between chunks
@@ -387,7 +421,8 @@ export async function fetchEnrichedTradesForSymbols(
   startTime: number,
   endTime: number,
   incomeRecords: BinanceIncome[],
-  onProgress?: (current: number, total: number) => void
+  onProgress?: (current: number, total: number) => void,
+  logFn?: (msg: string, level?: 'info' | 'warn' | 'error') => void
 ): Promise<EnrichedTradeData[]> {
   const allTradeGroups: TradeFillGroup[] = [];
   
@@ -396,7 +431,8 @@ export async function fetchEnrichedTradesForSymbols(
     
     onProgress?.(i + 1, symbols.length);
     
-    const trades = await fetchUserTradesForSymbol(symbol, startTime, endTime);
+    const trades = await fetchUserTradesForSymbol(symbol, startTime, endTime, logFn);
+    logFn?.(`${symbol}: ${trades.length} trades fetched, ${groupTradesIntoPositions(trades).length} positions`);
     const groups = groupTradesIntoPositions(trades);
     allTradeGroups.push(...groups);
     

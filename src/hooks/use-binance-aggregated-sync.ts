@@ -65,6 +65,7 @@ interface ApiResponse<T> {
   error?: string;
   code?: string;
   retryAfter?: number;
+  usedWeight?: number;
 }
 
 async function callBinanceApi<T>(
@@ -98,9 +99,18 @@ async function callBinanceApi<T>(
       continue;
     }
     
-    // Success - gradually reduce delay
+    // Success - adjust delay based on actual Binance weight
     if (result.success) {
-      currentRateLimitDelay = Math.max(currentRateLimitDelay * 0.95, BASE_RATE_LIMIT_DELAY);
+      if (result.usedWeight && result.usedWeight > 900) {
+        // Approaching 1200 limit — increase delay significantly
+        currentRateLimitDelay = Math.min(currentRateLimitDelay * 2, 3000);
+      } else if (result.usedWeight && result.usedWeight > 600) {
+        // Moderate usage — slight increase
+        currentRateLimitDelay = Math.min(currentRateLimitDelay * 1.3, 2000);
+      } else {
+        // Low usage — gradually reduce delay
+        currentRateLimitDelay = Math.max(currentRateLimitDelay * 0.95, BASE_RATE_LIMIT_DELAY);
+      }
     }
     
     return result;

@@ -246,6 +246,9 @@ async function createSignature(queryString: string, secret: string): Promise<str
     .join('');
 }
 
+// Module-level: captures Binance's actual rate limit weight from response headers
+let lastUsedWeight: number | null = null;
+
 /**
  * Make authenticated request to Binance Futures API
  */
@@ -283,6 +286,12 @@ async function binanceRequest(
       'Content-Type': 'application/json',
     },
   });
+  
+  // Capture Binance's actual rate limit weight from response header
+  const weightHeader = response.headers.get('X-MBX-USED-WEIGHT-1M');
+  if (weightHeader) {
+    lastUsedWeight = parseInt(weightHeader, 10);
+  }
   
   return response;
 }
@@ -1370,8 +1379,16 @@ Deno.serve(async (req) => {
         };
     }
     
+    // Include Binance's actual rate limit weight in response
+    const responsePayload = lastUsedWeight !== null 
+      ? { ...result, usedWeight: lastUsedWeight }
+      : result;
+    
+    // Reset for next request
+    lastUsedWeight = null;
+    
     return new Response(
-      JSON.stringify(result),
+      JSON.stringify(responsePayload),
       { 
         status: result.success ? 200 : 400, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 

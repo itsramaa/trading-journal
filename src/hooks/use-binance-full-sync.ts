@@ -62,24 +62,57 @@ export interface FullSyncResult {
 }
 
 /**
- * Call Binance edge function with fromId support for pagination
+ * Call Binance edge function with retry logic
+ * Handles 429 (rate limit), 5xx (server errors), and network failures
  */
 async function callBinanceApi<T>(
   action: string,
-  params: Record<string, unknown> = {}
-): Promise<{ success: boolean; data?: T; error?: string }> {
+  params: Record<string, unknown> = {},
+  maxRetries = 3
+): Promise<{ success: boolean; data?: T; error?: string; usedWeight?: number }> {
   const { data: { session } } = await supabase.auth.getSession();
   
-  const response = await fetch(BINANCE_FUNCTION_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': session?.access_token ? `Bearer ${session.access_token}` : '',
-    },
-    body: JSON.stringify({ action, ...params }),
-  });
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(BINANCE_FUNCTION_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': session?.access_token ? `Bearer ${session.access_token}` : '',
+        },
+        body: JSON.stringify({ action, ...params }),
+      });
+      
+      // Handle 429 rate limit
+      if (response.status === 429) {
+        const retryAfter = parseInt(response.headers.get('Retry-After') || '5', 10);
+        const delay = retryAfter * 1000 + Math.random() * 1000;
+        if (attempt < maxRetries) {
+          await new Promise(r => setTimeout(r, delay));
+          continue;
+        }
+      }
+      
+      // Handle 5xx server errors
+      if (response.status >= 500 && attempt < maxRetries) {
+        const delay = Math.pow(2, attempt) * 1000 + Math.random() * 500;
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+      
+      return response.json();
+    } catch (error) {
+      // Network errors (timeout, DNS, etc.)
+      if (attempt < maxRetries) {
+        const delay = Math.pow(2, attempt) * 1000 + Math.random() * 500;
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+      return { success: false, error: error instanceof Error ? error.message : 'Network error' };
+    }
+  }
   
-  return response.json();
+  return { success: false, error: 'Max retries exceeded' };
 }
 
 // Empty response retry constants for race condition handling
@@ -419,6 +452,11 @@ export function useBinanceFullSync() {
                 recordsFetched: allIncome.length, recordsToInsert: newRecords.length, enrichedCount: current,
                 percent: 55 + (current / total) * 20,
               });
+            },
+            // Route enricher logs to console (full-sync doesn't have sync panel access)
+            (msg, level) => {
+              if (level === 'error') console.error(`[Enricher] ${msg}`);
+              else if (level === 'warn') console.warn(`[Enricher] ${msg}`);
             }
           );
           
