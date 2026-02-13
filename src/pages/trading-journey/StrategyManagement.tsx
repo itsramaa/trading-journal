@@ -6,7 +6,6 @@
  */
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
@@ -148,167 +147,163 @@ export default function StrategyManagement() {
 
   if (isLoading) {
     return (
-      <DashboardLayout>
-        <div className="space-y-6">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Strategy & Rules</h1>
-            <p className="text-muted-foreground">Create and manage your trading strategies</p>
-          </div>
-          <MetricsGridSkeleton />
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Strategy & Rules</h1>
+          <p className="text-muted-foreground">Create and manage your trading strategies</p>
         </div>
-      </DashboardLayout>
+        <MetricsGridSkeleton />
+      </div>
     );
   }
 
   return (
-    <DashboardLayout>
-      <div className="space-y-8">
-        <PageHeader
-          icon={Target}
-          title="Strategy & Rules"
-          description="Create, import, and backtest your trading strategies"
-        >
-          {activeTab === 'library' && (
-            <Button onClick={handleOpenAdd} className="shrink-0" aria-label="Create new trading strategy">
-              <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-              New Strategy
-            </Button>
+    <div className="space-y-8">
+      <PageHeader
+        icon={Target}
+        title="Strategy & Rules"
+        description="Create, import, and backtest your trading strategies"
+      >
+        {activeTab === 'library' && (
+          <Button onClick={handleOpenAdd} className="shrink-0" aria-label="Create new trading strategy">
+            <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+            New Strategy
+          </Button>
+        )}
+      </PageHeader>
+
+      {/* Main Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid w-full grid-cols-3 h-11" aria-label="Strategy management sections">
+          <TabsTrigger value="library" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground" aria-label="Strategy library">
+            <Library className="h-4 w-4" aria-hidden="true" />
+            <span className="hidden sm:inline">Library</span>
+          </TabsTrigger>
+          <TabsTrigger value="leaderboard" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground" aria-label="Strategy leaderboard">
+            <Trophy className="h-4 w-4" aria-hidden="true" />
+            <span className="hidden sm:inline">Leaderboard</span>
+          </TabsTrigger>
+          <TabsTrigger value="import" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground" aria-label="Import strategy from YouTube">
+            <Youtube className="h-4 w-4" aria-hidden="true" />
+            <span className="hidden sm:inline">Import</span>
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Library Tab */}
+        <TabsContent value="library" className="space-y-6 mt-6">
+          {/* Strategy Clone Stats - Moved from Dashboard */}
+          <StrategyCloneStatsWidget />
+
+          {/* Strategy Stats */}
+          <StrategyStats strategies={strategies} />
+
+          {/* Strategies List */}
+          {!strategies || strategies.length === 0 ? (
+            <EmptyState
+              icon={Target}
+              title="No strategies created"
+              description="Create your first trading strategy to track and analyze your setups."
+              action={{
+                label: "Create Strategy",
+                onClick: handleOpenAdd,
+              }}
+            />
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {strategies.map((strategy) => (
+                <div 
+                  key={strategy.id} 
+                  className="cursor-pointer"
+                  onClick={() => setViewingStrategy(strategy)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => e.key === 'Enter' && setViewingStrategy(strategy)}
+                  aria-label={`View details for ${strategy.name} strategy`}
+                >
+                  <StrategyCard
+                    strategy={strategy}
+                    performance={strategyPerformance.get(strategy.id)}
+                    onEdit={(s) => {
+                      // Prevent detail view when clicking edit
+                      setEditingStrategy(s);
+                      setIsFormOpen(true);
+                    }}
+                    onDelete={(s) => {
+                      // Prevent detail view when clicking delete
+                      setDeletingStrategy(s);
+                    }}
+                    onBacktest={(id) => {/* Navigation handled in StrategyCard */}}
+                  />
+                </div>
+              ))}
+            </div>
           )}
-        </PageHeader>
+        </TabsContent>
 
-        {/* Main Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3 h-11" aria-label="Strategy management sections">
-            <TabsTrigger value="library" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground" aria-label="Strategy library">
-              <Library className="h-4 w-4" aria-hidden="true" />
-              <span className="hidden sm:inline">Library</span>
-            </TabsTrigger>
-            <TabsTrigger value="leaderboard" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground" aria-label="Strategy leaderboard">
-              <Trophy className="h-4 w-4" aria-hidden="true" />
-              <span className="hidden sm:inline">Leaderboard</span>
-            </TabsTrigger>
-            <TabsTrigger value="import" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground" aria-label="Import strategy from YouTube">
-              <Youtube className="h-4 w-4" aria-hidden="true" />
-              <span className="hidden sm:inline">Import</span>
-            </TabsTrigger>
-          </TabsList>
+        {/* Leaderboard Tab */}
+        <TabsContent value="leaderboard" className="mt-6">
+          <StrategyLeaderboard />
+        </TabsContent>
 
-          {/* Library Tab */}
-          <TabsContent value="library" className="space-y-6 mt-6">
-            {/* Strategy Clone Stats - Moved from Dashboard */}
-            <StrategyCloneStatsWidget />
+        {/* YouTube Import Tab */}
+        <TabsContent value="import" className="mt-6">
+          <YouTubeStrategyImporter onStrategyImported={() => setActiveTab('library')} />
+        </TabsContent>
+      </Tabs>
 
-            {/* Strategy Stats */}
-            <StrategyStats strategies={strategies} />
+      {/* Strategy Form Dialog */}
+      <StrategyFormDialog
+        open={isFormOpen}
+        onOpenChange={setIsFormOpen}
+        editingStrategy={editingStrategy}
+        availablePairs={baseAssets}
+        onSubmit={handleFormSubmit}
+        isPending={createStrategy.isPending || updateStrategy.isPending}
+      />
 
-            {/* Strategies List */}
-            {!strategies || strategies.length === 0 ? (
-              <EmptyState
-                icon={Target}
-                title="No strategies created"
-                description="Create your first trading strategy to track and analyze your setups."
-                action={{
-                  label: "Create Strategy",
-                  onClick: handleOpenAdd,
-                }}
-              />
-            ) : (
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {strategies.map((strategy) => (
-                  <div 
-                    key={strategy.id} 
-                    className="cursor-pointer"
-                    onClick={() => setViewingStrategy(strategy)}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => e.key === 'Enter' && setViewingStrategy(strategy)}
-                    aria-label={`View details for ${strategy.name} strategy`}
-                  >
-                    <StrategyCard
-                      strategy={strategy}
-                      performance={strategyPerformance.get(strategy.id)}
-                      onEdit={(s) => {
-                        // Prevent detail view when clicking edit
-                        setEditingStrategy(s);
-                        setIsFormOpen(true);
-                      }}
-                      onDelete={(s) => {
-                        // Prevent detail view when clicking delete
-                        setDeletingStrategy(s);
-                      }}
-                      onBacktest={(id) => {/* Navigation handled in StrategyCard */}}
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
-          </TabsContent>
+      {/* Strategy Detail Drawer */}
+      <StrategyDetailDrawer
+        strategy={viewingStrategy}
+        performance={viewingStrategy ? strategyPerformance.get(viewingStrategy.id) : undefined}
+        open={!!viewingStrategy}
+        onOpenChange={(open) => !open && setViewingStrategy(null)}
+        onEdit={() => {
+          if (viewingStrategy) {
+            setEditingStrategy(viewingStrategy);
+            setIsFormOpen(true);
+            setViewingStrategy(null);
+          }
+        }}
+        onBacktest={() => {
+          if (viewingStrategy) {
+            navigate(`/backtest?strategy=${viewingStrategy.id}`);
+            setViewingStrategy(null);
+          }
+        }}
+        onShare={() => {
+          if (viewingStrategy) {
+            setSharingStrategy(viewingStrategy);
+          }
+        }}
+      />
 
-          {/* Leaderboard Tab */}
-          <TabsContent value="leaderboard" className="mt-6">
-            <StrategyLeaderboard />
-          </TabsContent>
+      {/* Strategy Share Dialog */}
+      <StrategyShareDialog
+        strategy={sharingStrategy}
+        open={!!sharingStrategy}
+        onOpenChange={(open) => !open && setSharingStrategy(null)}
+      />
 
-          {/* YouTube Import Tab */}
-          <TabsContent value="import" className="mt-6">
-            <YouTubeStrategyImporter onStrategyImported={() => setActiveTab('library')} />
-          </TabsContent>
-        </Tabs>
-
-        {/* Strategy Form Dialog */}
-        <StrategyFormDialog
-          open={isFormOpen}
-          onOpenChange={setIsFormOpen}
-          editingStrategy={editingStrategy}
-          availablePairs={baseAssets}
-          onSubmit={handleFormSubmit}
-          isPending={createStrategy.isPending || updateStrategy.isPending}
-        />
-
-        {/* Strategy Detail Drawer */}
-        <StrategyDetailDrawer
-          strategy={viewingStrategy}
-          performance={viewingStrategy ? strategyPerformance.get(viewingStrategy.id) : undefined}
-          open={!!viewingStrategy}
-          onOpenChange={(open) => !open && setViewingStrategy(null)}
-          onEdit={() => {
-            if (viewingStrategy) {
-              setEditingStrategy(viewingStrategy);
-              setIsFormOpen(true);
-              setViewingStrategy(null);
-            }
-          }}
-          onBacktest={() => {
-            if (viewingStrategy) {
-              navigate(`/backtest?strategy=${viewingStrategy.id}`);
-              setViewingStrategy(null);
-            }
-          }}
-          onShare={() => {
-            if (viewingStrategy) {
-              setSharingStrategy(viewingStrategy);
-            }
-          }}
-        />
-
-        {/* Strategy Share Dialog */}
-        <StrategyShareDialog
-          strategy={sharingStrategy}
-          open={!!sharingStrategy}
-          onOpenChange={(open) => !open && setSharingStrategy(null)}
-        />
-
-        {/* Delete Confirmation */}
-        <ConfirmDialog
-          open={!!deletingStrategy}
-          onOpenChange={(open) => !open && setDeletingStrategy(null)}
-          title="Delete Strategy"
-          description={`Are you sure you want to delete "${deletingStrategy?.name}"? This will remove the strategy from all trades that use it.`}
-          confirmLabel="Delete"
-          variant="destructive"
-          onConfirm={handleDelete}
-        />
-      </div>
-    </DashboardLayout>
+      {/* Delete Confirmation */}
+      <ConfirmDialog
+        open={!!deletingStrategy}
+        onOpenChange={(open) => !open && setDeletingStrategy(null)}
+        title="Delete Strategy"
+        description={`Are you sure you want to delete "${deletingStrategy?.name}"? This will remove the strategy from all trades that use it.`}
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={handleDelete}
+      />
+    </div>
   );
 }

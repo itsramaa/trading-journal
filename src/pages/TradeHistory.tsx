@@ -1,3 +1,5 @@
+// ============= Full file contents =============
+
 /**
  * Trade History - Standalone page for closed trades with full journaling
  * Features: Paginated data, List/Gallery toggle, Infinite scroll, AI Sorting, Enrichment
@@ -6,7 +8,6 @@
  */
 import { useState, useMemo, useEffect } from "react";
 import { useInView } from "react-intersection-observer";
-import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
@@ -324,427 +325,424 @@ export default function TradeHistory() {
   };
 
   return (
-    <DashboardLayout>
-      <div className="space-y-6">
-        {/* Page Header */}
-        <PageHeader
-          icon={History}
-          title="Trade History"
-          description="Review and enrich your closed trades for journaling"
-        >
-          
-          {/* Stats Summary + Export */}
-          <div className="flex items-center gap-6">
-            <div className="flex gap-4 text-sm">
-              <div className="text-center">
-                <div className="text-2xl font-bold">
-                  {sortedTrades.length}
-                  {serverTotalTrades > sortedTrades.length && (
-                    <span className="text-sm text-muted-foreground font-normal">/{serverTotalTrades}</span>
-                  )}
-                </div>
-                <div className="text-muted-foreground">
-                  {hasActiveFilters ? 'Filtered' : 'Trades'}
-                </div>
+    <div className="space-y-6">
+      <PageHeader
+        icon={History}
+        title="Trade History"
+        description="Review and enrich your closed trades for journaling"
+      >
+        
+        {/* Stats Summary + Export */}
+        <div className="flex items-center gap-6">
+          <div className="flex gap-4 text-sm">
+            <div className="text-center">
+              <div className="text-2xl font-bold">
+                {sortedTrades.length}
+                {serverTotalTrades > sortedTrades.length && (
+                  <span className="text-sm text-muted-foreground font-normal">/{serverTotalTrades}</span>
+                )}
               </div>
-              {/* P&L with clear terminology */}
+              <div className="text-muted-foreground">
+                {hasActiveFilters ? 'Filtered' : 'Trades'}
+              </div>
+            </div>
+            {/* P&L with clear terminology */}
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="text-center cursor-help">
+                    <div className={`text-2xl font-bold ${totalPnLGross >= 0 ? 'text-profit' : 'text-loss'}`}>
+                      {formatCurrency(totalPnLGross)}
+                    </div>
+                    <div className="text-muted-foreground text-xs">
+                      Gross P&L
+                    </div>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <div className="space-y-1">
+                    <p><strong>Gross P&L</strong>: {formatCurrency(totalPnLGross)}</p>
+                    <p className="text-xs text-muted-foreground">Before fees (realized_pnl from Binance)</p>
+                    <div className="border-t pt-1 mt-1">
+                      <p><strong>Net P&L</strong>: {formatCurrency(totalPnLNet)}</p>
+                      <p className="text-xs text-muted-foreground">After commission & funding fees</p>
+                    </div>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <div className="text-center">
+              <div className="text-2xl font-bold">{winRate.toFixed(1)}%</div>
+              <div className="text-muted-foreground">Win Rate</div>
+            </div>
+            {/* Needs Enrichment Indicator */}
+            {tradesNeedingEnrichment > 0 && (
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <div className="text-center cursor-help">
-                      <div className={`text-2xl font-bold ${totalPnLGross >= 0 ? 'text-profit' : 'text-loss'}`}>
-                        {formatCurrency(totalPnLGross)}
+                    <div className="text-center px-3 py-1 rounded-md bg-destructive/10 border border-destructive/20">
+                      <div className="text-lg font-bold text-destructive flex items-center gap-1">
+                        <AlertCircle className="h-4 w-4" />
+                        {tradesNeedingEnrichment}
                       </div>
-                      <div className="text-muted-foreground text-xs">
-                        Gross P&L
-                      </div>
+                      <div className="text-xs text-destructive/80">Incomplete</div>
                     </div>
                   </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    <div className="space-y-1">
-                      <p><strong>Gross P&L</strong>: {formatCurrency(totalPnLGross)}</p>
-                      <p className="text-xs text-muted-foreground">Before fees (realized_pnl from Binance)</p>
-                      <div className="border-t pt-1 mt-1">
-                        <p><strong>Net P&L</strong>: {formatCurrency(totalPnLNet)}</p>
-                        <p className="text-xs text-muted-foreground">After commission & funding fees</p>
-                      </div>
-                    </div>
+                  <TooltipContent>
+                    <p>{tradesNeedingEnrichment} trades are missing entry/exit prices.</p>
+                    <p className="text-xs text-muted-foreground mt-1">Click "Enrich Trades" to fetch accurate data from Binance.</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
-              <div className="text-center">
-                <div className="text-2xl font-bold">{winRate.toFixed(1)}%</div>
-                <div className="text-muted-foreground">Win Rate</div>
+            )}
+          </div>
+          
+          {/* Export Button */}
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => exportTradesCsv(sortedTrades)}
+            disabled={sortedTrades.length === 0}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Export CSV
+          </Button>
+        </div>
+      </PageHeader>
+
+      {/* Filter Active Indicator */}
+      {hasActiveFilters && (
+        <FilterActiveIndicator
+          isActive={hasActiveFilters}
+          dateRange={dateRange}
+          filterCount={activeFilterCount}
+          onClear={clearAllFilters}
+        />
+      )}
+
+      {/* Filters */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex flex-col gap-4">
+            <TradeHistoryFilters
+              dateRange={dateRange}
+              onDateRangeChange={setDateRange}
+              resultFilter={resultFilter}
+              onResultFilterChange={setResultFilter}
+              directionFilter={directionFilter}
+              onDirectionFilterChange={setDirectionFilter}
+              strategies={strategies}
+              selectedStrategyIds={selectedStrategyIds}
+              onStrategyIdsChange={setSelectedStrategyIds}
+              availablePairs={availablePairs}
+              selectedPairs={selectedPairs}
+              onPairsChange={setSelectedPairs}
+              sortByAI={sortByAI}
+              onSortByAIChange={setSortByAI}
+              sessionFilter={sessionFilter}
+              onSessionFilterChange={setSessionFilter}
+              totalCount={totalCount}
+              filteredCount={sortedTrades.length}
+            />
+            
+            {/* View Toggle & Sync Row */}
+            <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t">
+              {/* Sync & Enrich Buttons */}
+              <div className="flex items-center gap-3 flex-wrap">
+                {/* New Aggregated Full Sync Panel */}
+                <BinanceFullSyncPanel isBinanceConnected={isBinanceConnected} compact />
+                
+                {/* Incremental Sync Status */}
+                {isBinanceConnected && lastSyncTime && !isFullSyncing && !isIncrementalSyncing && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={triggerIncrementalSync}
+                          className="gap-2 text-muted-foreground"
+                        >
+                          <RefreshCw className="h-3 w-3" />
+                          <span className="text-xs">
+                            Last sync: {format(lastSyncTime, 'HH:mm')}
+                            {isStale && <span className="text-warning ml-1">(stale)</span>}
+                          </span>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Incremental sync - fetches only new trades since last sync</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+                
+                {/* Incremental Sync Loading */}
+                {isIncrementalSyncing && (
+                  <Badge variant="secondary" className="gap-1">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Syncing new trades...
+                  </Badge>
+                )}
+                
+                {/* Enrichment Progress */}
+                {isEnriching && enrichmentProgress && (
+                  <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20">
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                    <div className="flex flex-col gap-1">
+                      <span className="text-sm font-medium">
+                        {enrichmentProgress.message || 'Enriching trades...'}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <Progress value={enrichmentProgress.percent ?? 0} className="w-32 h-2" />
+                        <span className="text-xs text-muted-foreground">
+                          {(enrichmentProgress.percent ?? 0).toFixed(0)}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Re-Enrich Button - only show if there are trades needing enrichment */}
+                {!isEnriching && isBinanceConnected && tradesNeedingEnrichment > 0 && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => enrichTrades({ 
+                            daysBack: 730, 
+                            onProgress: setEnrichmentProgress 
+                          })}
+                          className="gap-2"
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                          Enrich {tradesNeedingEnrichment} Trades
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Fetch accurate entry/exit prices from Binance for trades with missing data</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+                
+                {/* All enriched badge */}
+                {!isEnriching && isBinanceConnected && tradesNeedingEnrichment === 0 && binanceTrades.length > 0 && (
+                  <Badge variant="outline" className="text-xs gap-1 text-profit">
+                    <CheckCircle className="h-3 w-3" />
+                    All trades enriched
+                  </Badge>
+                )}
               </div>
-              {/* Needs Enrichment Indicator */}
-              {tradesNeedingEnrichment > 0 && (
+              
+              {/* View Mode Toggle */}
+              <ToggleGroup 
+                type="single" 
+                value={viewMode} 
+                onValueChange={(v) => v && setViewMode(v as ViewMode)}
+                className="border rounded-md"
+              >
+                <ToggleGroupItem value="list" aria-label="List view" className="gap-1.5 px-3">
+                  <List className="h-4 w-4" />
+                  <span className="hidden sm:inline text-sm">List</span>
+                </ToggleGroupItem>
+                <ToggleGroupItem value="gallery" aria-label="Gallery view" className="gap-1.5 px-3">
+                  <LayoutGrid className="h-4 w-4" />
+                  <span className="hidden sm:inline text-sm">Gallery</span>
+                </ToggleGroupItem>
+              </ToggleGroup>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Trade History Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" aria-hidden="true" />
+            Closed Trades
+            {isBinanceConnected && (
+              <Badge variant="outline" className="text-xs gap-1 ml-2">
+                <Wifi className="h-3 w-3 text-profit" aria-hidden="true" />
+                Binance
+              </Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            renderLoadingSkeleton()
+          ) : isError ? (
+            <EmptyState
+              icon={History}
+              title="Failed to load trades"
+              description={error?.message || "An error occurred while loading trades."}
+            />
+          ) : (
+            <Tabs defaultValue="all" className="w-full">
+              <TabsList className="mb-4 flex-wrap h-auto gap-1">
+                <TabsTrigger value="all" className="gap-2">
+                  All
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5">{sortedTrades.length}</Badge>
+                </TabsTrigger>
+                <TabsTrigger value="binance" className="gap-2">
+                  <Wifi className="h-4 w-4" aria-hidden="true" />
+                  Binance
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5">{binanceTrades.length}</Badge>
+                </TabsTrigger>
+                <TabsTrigger value="paper" className="gap-2">
+                  <BookOpen className="h-4 w-4" aria-hidden="true" />
+                  Paper
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5">{paperTrades.length}</Badge>
+                </TabsTrigger>
+                
+                {/* Fees Tab - requires Binance */}
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <div className="text-center px-3 py-1 rounded-md bg-destructive/10 border border-destructive/20">
-                        <div className="text-lg font-bold text-destructive flex items-center gap-1">
-                          <AlertCircle className="h-4 w-4" />
-                          {tradesNeedingEnrichment}
-                        </div>
-                        <div className="text-xs text-destructive/80">Incomplete</div>
-                      </div>
+                      <span>
+                        <TabsTrigger 
+                          value="fees" 
+                          className="gap-2"
+                          disabled={!isBinanceConnected}
+                        >
+                          <Percent className="h-4 w-4" aria-hidden="true" />
+                          Fees
+                        </TabsTrigger>
+                      </span>
                     </TooltipTrigger>
-                    <TooltipContent>
-                      <p>{tradesNeedingEnrichment} trades are missing entry/exit prices.</p>
-                      <p className="text-xs text-muted-foreground mt-1">Click "Enrich Trades" to fetch accurate data from Binance.</p>
-                    </TooltipContent>
+                    {!isBinanceConnected && (
+                      <TooltipContent>
+                        <p>Requires Binance connection</p>
+                      </TooltipContent>
+                    )}
                   </Tooltip>
                 </TooltipProvider>
-              )}
-            </div>
-            
-            {/* Export Button */}
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => exportTradesCsv(sortedTrades)}
-              disabled={sortedTrades.length === 0}
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Export CSV
-            </Button>
-          </div>
-        </PageHeader>
+                
+                {/* Funding Tab - requires Binance */}
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span>
+                        <TabsTrigger 
+                          value="funding" 
+                          className="gap-2"
+                          disabled={!isBinanceConnected}
+                        >
+                          <ArrowUpDown className="h-4 w-4" aria-hidden="true" />
+                          Funding
+                        </TabsTrigger>
+                      </span>
+                    </TooltipTrigger>
+                    {!isBinanceConnected && (
+                      <TooltipContent>
+                        <p>Requires Binance connection</p>
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
+                </TooltipProvider>
+              </TabsList>
 
-        {/* Filter Active Indicator */}
-        {hasActiveFilters && (
-          <FilterActiveIndicator
-            isActive={hasActiveFilters}
-            dateRange={dateRange}
-            filterCount={activeFilterCount}
-            onClear={clearAllFilters}
-          />
-        )}
-
-        {/* Filters */}
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex flex-col gap-4">
-              <TradeHistoryFilters
-                dateRange={dateRange}
-                onDateRangeChange={setDateRange}
-                resultFilter={resultFilter}
-                onResultFilterChange={setResultFilter}
-                directionFilter={directionFilter}
-                onDirectionFilterChange={setDirectionFilter}
-                strategies={strategies}
-                selectedStrategyIds={selectedStrategyIds}
-                onStrategyIdsChange={setSelectedStrategyIds}
-                availablePairs={availablePairs}
-                selectedPairs={selectedPairs}
-                onPairsChange={setSelectedPairs}
-                sortByAI={sortByAI}
-                onSortByAIChange={setSortByAI}
-                sessionFilter={sessionFilter}
-                onSessionFilterChange={setSessionFilter}
-                totalCount={totalCount}
-                filteredCount={sortedTrades.length}
-              />
+              {/* All Trades */}
+              <TabsContent value="all">
+                {renderTradeList(sortedTrades)}
+              </TabsContent>
               
-              {/* View Toggle & Sync Row */}
-              <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t">
-                {/* Sync & Enrich Buttons */}
-                <div className="flex items-center gap-3 flex-wrap">
-                  {/* New Aggregated Full Sync Panel */}
-                  <BinanceFullSyncPanel isBinanceConnected={isBinanceConnected} compact />
-                  
-                  {/* Incremental Sync Status */}
-                  {isBinanceConnected && lastSyncTime && !isFullSyncing && !isIncrementalSyncing && (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={triggerIncrementalSync}
-                            className="gap-2 text-muted-foreground"
-                          >
-                            <RefreshCw className="h-3 w-3" />
-                            <span className="text-xs">
-                              Last sync: {format(lastSyncTime, 'HH:mm')}
-                              {isStale && <span className="text-warning ml-1">(stale)</span>}
-                            </span>
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Incremental sync - fetches only new trades since last sync</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
-                  
-                  {/* Incremental Sync Loading */}
-                  {isIncrementalSyncing && (
-                    <Badge variant="secondary" className="gap-1">
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      Syncing new trades...
-                    </Badge>
-                  )}
-                  
-                  {/* Enrichment Progress */}
-                  {isEnriching && enrichmentProgress && (
-                    <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20">
-                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                      <div className="flex flex-col gap-1">
-                        <span className="text-sm font-medium">
-                          {enrichmentProgress.message || 'Enriching trades...'}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <Progress value={enrichmentProgress.percent ?? 0} className="w-32 h-2" />
-                          <span className="text-xs text-muted-foreground">
-                            {(enrichmentProgress.percent ?? 0).toFixed(0)}%
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Re-Enrich Button - only show if there are trades needing enrichment */}
-                  {!isEnriching && isBinanceConnected && tradesNeedingEnrichment > 0 && (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => enrichTrades({ 
-                              daysBack: 730, 
-                              onProgress: setEnrichmentProgress 
-                            })}
-                            className="gap-2"
-                          >
-                            <RefreshCw className="h-4 w-4" />
-                            Enrich {tradesNeedingEnrichment} Trades
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Fetch accurate entry/exit prices from Binance for trades with missing data</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
-                  
-                  {/* All enriched badge */}
-                  {!isEnriching && isBinanceConnected && tradesNeedingEnrichment === 0 && binanceTrades.length > 0 && (
-                    <Badge variant="outline" className="text-xs gap-1 text-profit">
-                      <CheckCircle className="h-3 w-3" />
-                      All trades enriched
-                    </Badge>
-                  )}
-                </div>
-                
-                {/* View Mode Toggle */}
-                <ToggleGroup 
-                  type="single" 
-                  value={viewMode} 
-                  onValueChange={(v) => v && setViewMode(v as ViewMode)}
-                  className="border rounded-md"
-                >
-                  <ToggleGroupItem value="list" aria-label="List view" className="gap-1.5 px-3">
-                    <List className="h-4 w-4" />
-                    <span className="hidden sm:inline text-sm">List</span>
-                  </ToggleGroupItem>
-                  <ToggleGroupItem value="gallery" aria-label="Gallery view" className="gap-1.5 px-3">
-                    <LayoutGrid className="h-4 w-4" />
-                    <span className="hidden sm:inline text-sm">Gallery</span>
-                  </ToggleGroupItem>
-                </ToggleGroup>
+              {/* Binance Trades */}
+              <TabsContent value="binance">
+                {binanceTrades.length === 0 ? (
+                  <EmptyState
+                    icon={Wifi}
+                    title="No Binance trades"
+                    description={isBinanceConnected 
+                      ? "No Binance trades match your filters." 
+                      : "Connect Binance in Settings to import trades."}
+                  />
+                ) : renderTradeList(binanceTrades)}
+              </TabsContent>
+
+              {/* Paper Trades */}
+              <TabsContent value="paper">
+                {paperTrades.length === 0 ? (
+                  <EmptyState
+                    icon={BookOpen}
+                    title="No paper trades"
+                    description="No paper trades match your filters."
+                  />
+                ) : renderTradeList(paperTrades)}
+              </TabsContent>
+              
+              {/* Fees Tab Content */}
+              <TabsContent value="fees">
+                <FeeHistoryTab 
+                  isConnected={isBinanceConnected}
+                  dateRange={dateRange}
+                  selectedPairs={selectedPairs}
+                  showFullHistory={showFullHistory}
+                />
+              </TabsContent>
+              
+              {/* Funding Tab Content */}
+              <TabsContent value="funding">
+                <FundingHistoryTab 
+                  isConnected={isBinanceConnected}
+                  dateRange={dateRange}
+                  selectedPairs={selectedPairs}
+                  showFullHistory={showFullHistory}
+                />
+              </TabsContent>
+            </Tabs>
+          )}
+          
+          {/* Infinite Scroll Trigger */}
+          <div ref={loadMoreRef} className="py-4 flex justify-center">
+            {isFetchingNextPage ? (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="text-sm">Loading more trades...</span>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            ) : hasNextPage ? (
+              <span className="text-sm text-muted-foreground">
+                Scroll for more
+              </span>
+            ) : sortedTrades.length > 0 && totalCount > sortedTrades.length ? (
+              <span className="text-sm text-muted-foreground">
+                {sortedTrades.length} of {totalCount} trades loaded
+              </span>
+            ) : sortedTrades.length > 0 ? (
+              <span className="text-sm text-muted-foreground">
+                All {sortedTrades.length} trades loaded
+              </span>
+            ) : null}
+          </div>
+        </CardContent>
+      </Card>
 
-        {/* Trade History Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" aria-hidden="true" />
-              Closed Trades
-              {isBinanceConnected && (
-                <Badge variant="outline" className="text-xs gap-1 ml-2">
-                  <Wifi className="h-3 w-3 text-profit" aria-hidden="true" />
-                  Binance
-                </Badge>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              renderLoadingSkeleton()
-            ) : isError ? (
-              <EmptyState
-                icon={History}
-                title="Failed to load trades"
-                description={error?.message || "An error occurred while loading trades."}
-              />
-            ) : (
-              <Tabs defaultValue="all" className="w-full">
-                <TabsList className="mb-4 flex-wrap h-auto gap-1">
-                  <TabsTrigger value="all" className="gap-2">
-                    All
-                    <Badge variant="secondary" className="ml-1 h-5 px-1.5">{sortedTrades.length}</Badge>
-                  </TabsTrigger>
-                  <TabsTrigger value="binance" className="gap-2">
-                    <Wifi className="h-4 w-4" aria-hidden="true" />
-                    Binance
-                    <Badge variant="secondary" className="ml-1 h-5 px-1.5">{binanceTrades.length}</Badge>
-                  </TabsTrigger>
-                  <TabsTrigger value="paper" className="gap-2">
-                    <BookOpen className="h-4 w-4" aria-hidden="true" />
-                    Paper
-                    <Badge variant="secondary" className="ml-1 h-5 px-1.5">{paperTrades.length}</Badge>
-                  </TabsTrigger>
-                  
-                  {/* Fees Tab - requires Binance */}
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span>
-                          <TabsTrigger 
-                            value="fees" 
-                            className="gap-2"
-                            disabled={!isBinanceConnected}
-                          >
-                            <Percent className="h-4 w-4" aria-hidden="true" />
-                            Fees
-                          </TabsTrigger>
-                        </span>
-                      </TooltipTrigger>
-                      {!isBinanceConnected && (
-                        <TooltipContent>
-                          <p>Requires Binance connection</p>
-                        </TooltipContent>
-                      )}
-                    </Tooltip>
-                  </TooltipProvider>
-                  
-                  {/* Funding Tab - requires Binance */}
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span>
-                          <TabsTrigger 
-                            value="funding" 
-                            className="gap-2"
-                            disabled={!isBinanceConnected}
-                          >
-                            <ArrowUpDown className="h-4 w-4" aria-hidden="true" />
-                            Funding
-                          </TabsTrigger>
-                        </span>
-                      </TooltipTrigger>
-                      {!isBinanceConnected && (
-                        <TooltipContent>
-                          <p>Requires Binance connection</p>
-                        </TooltipContent>
-                      )}
-                    </Tooltip>
-                  </TooltipProvider>
-                </TabsList>
+      {/* Trade Enrichment Drawer */}
+      <TradeEnrichmentDrawer
+        position={enrichingPosition}
+        open={!!enrichingPosition}
+        onOpenChange={(open) => !open && setEnrichingPosition(null)}
+        onSaved={() => {
+          queryClient.invalidateQueries({ queryKey: ["trade-entries"] });
+          queryClient.invalidateQueries({ queryKey: ["trade-entries-paginated"] });
+        }}
+      />
 
-                {/* All Trades */}
-                <TabsContent value="all">
-                  {renderTradeList(sortedTrades)}
-                </TabsContent>
-                
-                {/* Binance Trades */}
-                <TabsContent value="binance">
-                  {binanceTrades.length === 0 ? (
-                    <EmptyState
-                      icon={Wifi}
-                      title="No Binance trades"
-                      description={isBinanceConnected 
-                        ? "No Binance trades match your filters." 
-                        : "Connect Binance in Settings to import trades."}
-                    />
-                  ) : renderTradeList(binanceTrades)}
-                </TabsContent>
-
-                {/* Paper Trades */}
-                <TabsContent value="paper">
-                  {paperTrades.length === 0 ? (
-                    <EmptyState
-                      icon={BookOpen}
-                      title="No paper trades"
-                      description="No paper trades match your filters."
-                    />
-                  ) : renderTradeList(paperTrades)}
-                </TabsContent>
-                
-                {/* Fees Tab Content */}
-                <TabsContent value="fees">
-                  <FeeHistoryTab 
-                    isConnected={isBinanceConnected}
-                    dateRange={dateRange}
-                    selectedPairs={selectedPairs}
-                    showFullHistory={showFullHistory}
-                  />
-                </TabsContent>
-                
-                {/* Funding Tab Content */}
-                <TabsContent value="funding">
-                  <FundingHistoryTab 
-                    isConnected={isBinanceConnected}
-                    dateRange={dateRange}
-                    selectedPairs={selectedPairs}
-                    showFullHistory={showFullHistory}
-                  />
-                </TabsContent>
-              </Tabs>
-            )}
-            
-            {/* Infinite Scroll Trigger */}
-            <div ref={loadMoreRef} className="py-4 flex justify-center">
-              {isFetchingNextPage ? (
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span className="text-sm">Loading more trades...</span>
-                </div>
-              ) : hasNextPage ? (
-                <span className="text-sm text-muted-foreground">
-                  Scroll for more
-                </span>
-              ) : sortedTrades.length > 0 && totalCount > sortedTrades.length ? (
-                <span className="text-sm text-muted-foreground">
-                  {sortedTrades.length} of {totalCount} trades loaded
-                </span>
-              ) : sortedTrades.length > 0 ? (
-                <span className="text-sm text-muted-foreground">
-                  All {sortedTrades.length} trades loaded
-                </span>
-              ) : null}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Trade Enrichment Drawer */}
-        <TradeEnrichmentDrawer
-          position={enrichingPosition}
-          open={!!enrichingPosition}
-          onOpenChange={(open) => !open && setEnrichingPosition(null)}
-          onSaved={() => {
-            queryClient.invalidateQueries({ queryKey: ["trade-entries"] });
-            queryClient.invalidateQueries({ queryKey: ["trade-entries-paginated"] });
-          }}
-        />
-
-        {/* Delete Confirmation */}
-        <ConfirmDialog
-          open={!!deletingTrade}
-          onOpenChange={(open) => !open && setDeletingTrade(null)}
-          title="Delete Trade Entry"
-          description={`Are you sure you want to delete this ${deletingTrade?.pair} trade? You can recover it later from Settings > Deleted Trades.`}
-          confirmLabel="Delete"
-          variant="destructive"
-          onConfirm={handleDeleteTrade}
-        />
-        
-      </div>
-    </DashboardLayout>
+      {/* Delete Confirmation */}
+      <ConfirmDialog
+        open={!!deletingTrade}
+        onOpenChange={(open) => !open && setDeletingTrade(null)}
+        title="Delete Trade Entry"
+        description={`Are you sure you want to delete this ${deletingTrade?.pair} trade? You can recover it later from Settings > Deleted Trades.`}
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={handleDeleteTrade}
+      />
+      
+    </div>
   );
 }

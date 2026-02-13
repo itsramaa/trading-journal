@@ -2,7 +2,6 @@
  * Market Insight Page - Unified Market Analysis Hub
  * Single page view: AI Market Sentiment, AI Macro Analysis, Combined Analysis
  */
-import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -63,63 +62,61 @@ const MarketInsight = () => {
   const hasError = sentimentError || macroError;
 
   return (
-    <DashboardLayout>
-      <div className="space-y-6">
-        <PageHeader
-          icon={TrendingUp}
-          title="Market Insight"
-          description="AI-powered market analysis and trading opportunities"
+    <div className="space-y-6">
+      <PageHeader
+        icon={TrendingUp}
+        title="Market Insight"
+        description="AI-powered market analysis and trading opportunities"
+      >
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="gap-2" 
+          onClick={handleRefresh}
+          disabled={isLoading}
+          aria-label="Refresh market insight data"
         >
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="gap-2" 
-            onClick={handleRefresh}
-            disabled={isLoading}
-            aria-label="Refresh market insight data"
-          >
-            <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} aria-hidden="true" />
-            Refresh Data
-          </Button>
-        </PageHeader>
-        
-        {sentimentData?.sentiment?.validUntil && (
-          <BiasExpiryIndicator 
-            validUntil={sentimentData.sentiment.validUntil} 
-            onExpired={handleRefresh}
-            className="w-fit"
-          />
-        )}
-
-        {/* Error State */}
-        {hasError && (
-          <Card className="border-destructive/50 bg-destructive/5">
-            <CardContent className="py-4">
-              <div className="flex items-center gap-2 text-destructive">
-                <AlertTriangle className="h-5 w-5" />
-                <p className="text-sm">
-                  Failed to load market data. Please try refreshing.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* AI Analysis Content - No tabs, direct display */}
-        <AIAnalysisTab 
-          sentimentData={sentimentData}
-          macroData={macroData}
-          isLoading={isLoading}
-          onRefresh={handleRefresh}
+          <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} aria-hidden="true" />
+          Refresh Data
+        </Button>
+      </PageHeader>
+      
+      {sentimentData?.sentiment?.validUntil && (
+        <BiasExpiryIndicator 
+          validUntil={sentimentData.sentiment.validUntil} 
+          onExpired={handleRefresh}
+          className="w-fit"
         />
+      )}
 
-        {/* Combined Crypto + Macro Analysis */}
-        <CombinedAnalysisCard 
-          data={combinedData} 
-          isLoading={combinedLoading || sentimentLoading || macroLoading} 
-        />
-      </div>
-    </DashboardLayout>
+      {/* Error State */}
+      {hasError && (
+        <Card className="border-destructive/50 bg-destructive/5">
+          <CardContent className="py-4">
+            <div className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              <p className="text-sm">
+                Failed to load market data. Please try refreshing.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* AI Analysis Content - No tabs, direct display */}
+      <AIAnalysisTab 
+        sentimentData={sentimentData}
+        macroData={macroData}
+        isLoading={isLoading}
+        onRefresh={handleRefresh}
+      />
+
+      {/* Combined Crypto + Macro Analysis */}
+      <CombinedAnalysisCard 
+        data={combinedData} 
+        isLoading={combinedLoading || sentimentLoading || macroLoading} 
+      />
+    </div>
   );
 };
 

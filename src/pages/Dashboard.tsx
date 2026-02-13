@@ -1,17 +1,7 @@
 /**
  * Trading Dashboard - Main overview showing trading performance
  * Layout: Clean 2-column grid with clear visual hierarchy
- * 
- * Row 1: Portfolio Overview (full width)
- * Row 2: Quick Actions (full width, compact)
- * Row 3: Analytics Summary (full width)
- * Row 4: Market Score + System Status (2-col grid)
- * Row 5: Active Positions (conditional, full width)
- * Row 6: Risk Summary + ADL Risk (2-col grid)  
- * Row 7: Advanced Risk Metrics (full width)
- * Row 8: AI Insights (full width)
  */
-import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -84,7 +74,7 @@ const Dashboard = () => {
   const isConnected = showExchangeData && (connectionStatus?.isConnected ?? false);
 
   return (
-    <DashboardLayout>
+    <>
       <div className="space-y-6">
         {/* Page Header */}
         <PageHeader
@@ -224,7 +214,7 @@ const Dashboard = () => {
         steps={DASHBOARD_ONBOARDING_STEPS} 
         storageKey="dashboard" 
       />
-    </DashboardLayout>
+    </>
   );
 };
 
