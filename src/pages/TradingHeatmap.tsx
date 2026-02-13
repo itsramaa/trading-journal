@@ -19,6 +19,7 @@ import { TradingHeatmap } from "@/components/analytics/TradingHeatmap";
 import { formatWinRate } from "@/lib/formatters";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { getTradeSession, formatSessionTimeLocal, SESSION_LABELS, type TradingSession } from "@/lib/session-utils";
+import { Link } from "react-router-dom";
 
 type DateRangeOption = '7d' | '30d' | '90d' | 'all';
 
@@ -270,11 +271,12 @@ export default function TradingHeatmapPage() {
             variant="outline" 
             size="sm" 
             className="gap-2"
-            onClick={exportToCSV}
-            disabled={filteredTrades.length === 0}
+            asChild
           >
-            <Download className="h-4 w-4" />
-            Export CSV
+            <Link to="/export?tab=analytics">
+              <Download className="h-4 w-4" />
+              Export
+            </Link>
           </Button>
         </PageHeader>
 

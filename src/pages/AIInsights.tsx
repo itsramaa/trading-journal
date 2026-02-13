@@ -30,13 +30,13 @@ import {
   Download,
 } from "lucide-react";
 import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
-import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { useContextualAnalytics } from "@/hooks/use-contextual-analytics";
-import { useContextualExport } from "@/hooks/use-contextual-export";
+import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { ContextualPerformance } from "@/components/analytics/ContextualPerformance";
 import { EmotionalPatternAnalysis } from "@/components/analytics/EmotionalPatternAnalysis";
 import { SessionInsights } from "@/components/analytics/SessionInsights";
 import { cn } from "@/lib/utils";
+import { Link } from "react-router-dom";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { format as formatDate, subDays, isWithinInterval } from "date-fns";
 import { 
@@ -74,7 +74,6 @@ export default function AIInsights() {
   const { data: trades = [] } = useModeFilteredTrades();
   const { data: strategies = [] } = useTradingStrategies();
   const { data: contextualData } = useContextualAnalytics();
-  const { exportContextualPDF } = useContextualExport();
   const { formatPnl } = useCurrencyConversion();
 
   const closedTrades = useMemo(() => 
@@ -359,16 +358,16 @@ export default function AIInsights() {
           title="AI Insights"
           description="AI-powered analysis of your trading patterns and recommendations"
         >
-          {contextualData && (
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => exportContextualPDF(contextualData)}
-            >
+          <Button 
+            variant="outline" 
+            size="sm" 
+            asChild
+          >
+            <Link to="/export?tab=analytics">
               <Download className="h-4 w-4 mr-2" />
-              Export Contextual PDF
-            </Button>
-          )}
+              Export
+            </Link>
+          </Button>
         </PageHeader>
 
         {/* Tabs */}
