@@ -266,6 +266,9 @@ export interface SyncCheckpoint {
     startTime: number;
     endTime: number;
   };
+  
+  /** Trade IDs already inserted to DB (for idempotent resume) */
+  insertedTradeIds: string[];
 }
 
 // =============================================================================
