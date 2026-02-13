@@ -1,46 +1,80 @@
 
 
-# Update FEATURE-MATRIX.md Section 2: Trade History — Refined 6-Module Structure
+# Add Solscan Link & Clickable Tag Filters
 
 ## Overview
-Replace the current Trade History section (50 trader features, some duplicated/deprecated) with the user-provided refined structure of **43 features** organized into **6 clear modules**. This reduces noise, removes deprecated entries (#14, #15), and groups features logically.
+Two enhancements to TradeHistoryCard and the Trade History filter system:
+1. **Solscan link** for Solana-sourced trades
+2. **Clickable tags** that auto-filter Trade History
 
 ## Changes
 
-### File: `docs/FEATURE-MATRIX.md`
+### 1. TradeHistoryCard — Solscan Link
 
-**Replace Section 2 (lines 68-143+)** with the new 6-module structure:
+**File**: `src/components/trading/TradeHistoryCard.tsx`
 
-#### Module 1: Trade History / Viewing (12 features)
-Features #1-#12: List/Gallery view, 7 filter types, AI sort, clear filters, infinite scroll, load progress, sub-tabs.
+- Add `ExternalLink` icon import from lucide-react
+- After the existing "Binance" source badge, add a conditional Solana source badge with Solscan link:
+  - Condition: `entry.source === 'solana' && entry.binance_trade_id` (signature stored in `binance_trade_id`)
+  - Render: Badge with external link icon + "Solscan" text, wrapped in `<a>` targeting `https://solscan.io/tx/{signature}`
+  - Style: `border-purple-500 text-purple-500` (Solana brand color)
 
-#### Module 2: Trade Enrichment (4 features)
-Features #13-#16: Enrich drawer, batch enrichment, needs enrichment badge, all enriched badge.
+### 2. Clickable Tags — TradeHistoryCard
 
-#### Module 3: Notes / Tags / Screenshots (6 features)
-Features #17-#22: Quick note, expand/collapse, notes badge, recently updated badge, tags display, screenshot count.
+**File**: `src/components/trading/TradeHistoryCard.tsx`
 
-#### Module 4: Sync & Data Management (13 features)
-Features #23-#35: Incremental sync, full sync, range selection, force re-fetch, resume, discard checkpoint, re-sync range, retry failed, progress phases, ETA, quality score, data quality summary, monitoring panel.
+- Add `onTagClick?: (tag: string) => void` prop to `TradeHistoryCardProps`
+- Make tag badges clickable: wrap each tag `Badge` with an `onClick` that calls `onTagClick?.(tag)`
+- Add `cursor-pointer hover:bg-accent` styling when `onTagClick` is provided
+- Stop propagation so tag click doesn't trigger card-level clicks
 
-#### Module 5: Trade Metrics / Visuals (7 features)
-Features #36-#42: R:R tooltip, confluence tooltip, inline fees, fee history tab, funding history tab, strategy badges, AI quality badge.
+### 3. Tag Filter State — Hook
 
-#### Module 6: External / Miscellaneous (1 feature)
-Feature #43: View transaction on Solscan.
+**File**: `src/hooks/use-trade-history-filters.ts`
 
-### Key Differences from Current Version
-- Removed deprecated strikethrough entries (#14, #15 in current doc)
-- Consolidated duplicate features (e.g., notes-related items grouped together)
-- Added missing precondition/postcondition details from user spec
-- Reorganized from flat list to 6 logical sub-sections with headers
-- Reduced from 50 to 43 trader features (cleaner, no duplication)
-- System features section (2.2) retained and renumbered if needed
-- Export CSV moved out of top-level (implicitly covered in viewing module or kept as-is)
+- Add `selectedTags: string[]` to `TradeHistoryFiltersState`
+- Add `setSelectedTags` setter
+- Include `selectedTags.length > 0` in `hasActiveFilters` and `activeFilterCount`
+- Clear `selectedTags` in `clearAllFilters`
 
-### System Features (2.2)
-Keep existing 15 system features unchanged -- they are orthogonal to the trader feature reorganization. Only update cross-references if any feature numbers shifted.
+### 4. Tag Filter UI — TradeHistoryFilters Component
 
-### Revision History
-Add entry: "v2.3 — Refined Trade History into 6 modules (43 features), removed deprecated/duplicate entries"
+**File**: `src/components/journal/TradeHistoryFilters.tsx`
 
+- Add props: `selectedTags: string[]`, `onTagsChange: (tags: string[]) => void`
+- Add tag filter badge display in the active filters section (with X to remove)
+- No dropdown needed -- tags are added by clicking on trade cards
+
+### 5. Wire Tag Filter — TradeHistory Page
+
+**File**: `src/pages/TradeHistory.tsx`
+
+- Pass `selectedTags` from filter hook to the query filters
+- Pass `onTagClick` callback to `TradeHistoryCard` that adds the tag to `selectedTags`
+- Pass `selectedTags` and `onTagsChange` to `TradeHistoryFilters`
+
+### 6. Query Filter — Apply Tag Filter
+
+**File**: `src/hooks/use-trade-entries-paginated.ts` (or wherever `TradeFilters` is defined)
+
+- Add `selectedTags?: string[]` to `TradeFilters`
+- Apply `.contains('tags', [tag])` for each selected tag in the Supabase query (AND logic: trade must have all selected tags)
+
+## Technical Notes
+
+- Solana signature is stored in `binance_trade_id` field (reused for dedup across sources)
+- `source` field value is `'solana'` for Solana-imported trades (set in `use-solana-trade-import.ts`)
+- Tag filter uses Supabase `.contains()` for array column filtering
+- Tags are additive: clicking multiple tags narrows results (AND behavior)
+- Clicking same tag again removes it from filter (toggle behavior)
+
+## Files Modified
+
+| File | Change |
+|------|--------|
+| `src/components/trading/TradeHistoryCard.tsx` | Add Solscan link badge + `onTagClick` prop |
+| `src/hooks/use-trade-history-filters.ts` | Add `selectedTags` state |
+| `src/components/journal/TradeHistoryFilters.tsx` | Add tag filter badge display |
+| `src/pages/TradeHistory.tsx` | Wire `onTagClick` + pass tag filter props |
+| `src/hooks/use-trade-entries-paginated.ts` | Apply `selectedTags` filter to query |
+| `docs/FEATURE-MATRIX.md` | Mark Feature #21 and #43 as implemented |
