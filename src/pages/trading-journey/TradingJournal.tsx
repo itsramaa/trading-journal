@@ -10,7 +10,7 @@ import { useModeVisibility } from "@/hooks/use-mode-visibility";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { DashboardLayout } from "@/components/layout/DashboardLayout";
+
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -167,20 +167,18 @@ export default function TradingJournal() {
 
   if (tradesLoading) {
     return (
-      <DashboardLayout>
-        <div className="space-y-6">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Trading Journal</h1>
-            <p className="text-muted-foreground">Document every trade for continuous improvement</p>
-          </div>
-          <MetricsGridSkeleton />
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Trading Journal</h1>
+          <p className="text-muted-foreground">Document every trade for continuous improvement</p>
         </div>
-      </DashboardLayout>
+        <MetricsGridSkeleton />
+      </div>
     );
   }
 
   return (
-    <DashboardLayout>
+    <div className="space-y-6">
       <div className="space-y-6">
         <PageHeader
           icon={BookOpen}
@@ -371,6 +369,6 @@ export default function TradingJournal() {
           onConfirm={handleDelete}
         />
       </div>
-    </DashboardLayout>
+    </div>
   );
 }

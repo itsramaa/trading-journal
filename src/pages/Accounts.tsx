@@ -28,7 +28,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { DashboardLayout } from "@/components/layout/DashboardLayout";
+
 import { PageHeader } from "@/components/ui/page-header";
 import { AddAccountForm } from "@/components/accounts/AddAccountForm";
 import { AccountCardList } from "@/components/accounts/AccountCardList";
@@ -125,7 +125,7 @@ export default function Accounts() {
   const totalAccounts = showPaperData ? paperAccountsCount : (isConnected ? 1 : 0);
 
   return (
-    <DashboardLayout>
+    <>
       <Helmet>
         <title>Trading Accounts | Trading Journal</title>
         <meta name="description" content="Manage your Binance Futures account and paper trading accounts" />
@@ -458,6 +458,6 @@ export default function Accounts() {
         defaultAccount={selectedAccount}
         defaultTab={defaultTransactionTab}
       />
-    </DashboardLayout>
+    </>
   );
 }

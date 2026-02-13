@@ -20,7 +20,7 @@ import {
   Flame
 } from "lucide-react";
 import { format } from "date-fns";
-import { DashboardLayout } from "@/components/layout/DashboardLayout";
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -162,34 +162,30 @@ export default function AccountDetail() {
 
   if (accountsLoading) {
     return (
-      <DashboardLayout>
-        <div className="space-y-6">
-          <Skeleton className="h-8 w-48" />
-          <div className="grid gap-4 md:grid-cols-4">
-            {[...Array(4)].map((_, i) => (
-              <Skeleton key={i} className="h-24" />
-            ))}
-          </div>
+      <div className="space-y-6">
+        <Skeleton className="h-8 w-48" />
+        <div className="grid gap-4 md:grid-cols-4">
+          {[...Array(4)].map((_, i) => (
+            <Skeleton key={i} className="h-24" />
+          ))}
         </div>
-      </DashboardLayout>
+      </div>
     );
   }
 
   if (!account) {
     return (
-      <DashboardLayout>
-        <div className="flex flex-col items-center justify-center py-12">
-          <p className="text-muted-foreground">Account not found</p>
-          <Button onClick={() => navigate("/accounts")} className="mt-4">
-            Back to Accounts
-          </Button>
-        </div>
-      </DashboardLayout>
+      <div className="flex flex-col items-center justify-center py-12">
+        <p className="text-muted-foreground">Account not found</p>
+        <Button onClick={() => navigate("/accounts")} className="mt-4">
+          Back to Accounts
+        </Button>
+      </div>
     );
   }
 
   return (
-    <DashboardLayout>
+    <>
       <Helmet>
         <title>{account.name} | Trading Account</title>
         <meta name="description" content={`Analytics and details for ${account.name}`} />
@@ -605,6 +601,6 @@ export default function AccountDetail() {
           </TabsContent>
         </Tabs>
       </div>
-    </DashboardLayout>
+    </>
   );
 }

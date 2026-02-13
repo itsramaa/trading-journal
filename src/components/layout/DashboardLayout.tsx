@@ -11,7 +11,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
-import { useLocation, Link } from "react-router-dom";
+import { useLocation, Link, Outlet } from "react-router-dom";
 import {
   ThemeToggle,
   NotificationToggle,
@@ -32,10 +32,6 @@ import { GlobalSyncIndicator } from "./GlobalSyncIndicator";
 import { useUserSettings } from "@/hooks/use-user-settings";
 import { Button } from "@/components/ui/button";
 import { Search } from "lucide-react";
-
-interface DashboardLayoutProps {
-  children: React.ReactNode;
-}
 
 // Route hierarchy: domain -> pages
 interface RouteInfo {
@@ -77,7 +73,7 @@ const routeHierarchy: Record<string, RouteInfo> = {
   "/settings": { title: "Settings", domain: "Settings", domainPath: "/settings" },
 };
 
-export function DashboardLayout({ children }: DashboardLayoutProps) {
+export function DashboardLayout() {
   const location = useLocation();
   const routeInfo = routeHierarchy[location.pathname] || { title: "Page" };
   
@@ -220,7 +216,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           }>
-            {children}
+            <Outlet />
           </Suspense>
         </main>
       </SidebarInset>
