@@ -1,66 +1,92 @@
 
-
-# UI/UX Polish — Heatmap, AI Insights, Risk Calculator
+# UI/UX Polish — My Strategies, Backtest, Bulk Export
 
 ## Current State
 
-All three pages are functionally complete with proper loading skeletons, empty states, filters, and data display. Previous iterations addressed loading states, DRY refactors, and `keepPreviousData`. The remaining issues are minor polish items.
+All three pages are functionally complete. The remaining issues are loading state consistency and minor UX polish to match the standards already applied to Analytics pages.
 
 ## Issues Found
 
 | # | Page | Issue | Severity |
 |---|------|-------|----------|
-| 1 | Heatmap | Grammar: "1 trades" / "1 wins" / "1 losses" — missing pluralization | LOW |
-| 2 | Heatmap | Grid cells only occupy ~60% of card width — empty space on right side | LOW |
-| 3 | Heatmap | Session card `+$1.47` shows green Tokyo but `-$9.71` Sydney shows 0.0% win rate even with 9 trades (all losses) — display is correct but no tooltip explaining the 0% | MINOR |
-| 4 | Risk Calculator | No sidebar link visible — page is only accessible via `/calculator` route, not in sidebar navigation under ANALYTICS or a TOOLS section | NOTE |
+| 1 | My Strategies | Loading skeleton uses raw `h1`/`p` instead of `PageHeader` component (lines 151-154) | MEDIUM |
+| 2 | Backtest > Compare | Loading state is just "animate-pulse" text — no skeleton cards or structure (lines 112-122) | MEDIUM |
+| 3 | Bulk Export | No loading state — page renders immediately but sub-hooks (`useModeFilteredTrades`, `useBinanceDailyPnl`) may still be loading | LOW |
+
+All other aspects (forms, filters, charts, empty states, tooltips, responsiveness, modals, actions) are already fully implemented and consistent.
 
 ## Fixes
 
-### 1. Pluralization Helper (`src/pages/TradingHeatmap.tsx`)
+### 1. StrategyManagement Loading State (`src/pages/trading-journey/StrategyManagement.tsx`, lines 148-157)
 
-Add inline pluralization for streak cards:
+Replace raw `h1`/`p` with `PageHeader` to match all other pages:
 
+**Before:**
 ```tsx
-// Line 386
-<div className="text-lg font-bold">
-  {streakData.longestWin} {streakData.longestWin === 1 ? 'trade' : 'trades'}
+<div>
+  <h1 className="text-3xl font-bold tracking-tight">Strategy & Rules</h1>
+  <p className="text-muted-foreground">Create and manage your trading strategies</p>
 </div>
-// Line 388
-Current: {streakData.currentStreak > 0
-  ? `${streakData.currentStreak} ${streakData.currentStreak === 1 ? 'win' : 'wins'}`
-  : 'N/A'}
-
-// Line 402 (longestLoss)
-{streakData.longestLoss} {streakData.longestLoss === 1 ? 'trade' : 'trades'}
-// Line 404
-Current: {streakData.currentStreak < 0
-  ? `${Math.abs(streakData.currentStreak)} ${Math.abs(streakData.currentStreak) === 1 ? 'loss' : 'losses'}`
-  : 'N/A'}
+<MetricsGridSkeleton />
 ```
 
-### 2. Heatmap Grid Full-Width (`src/components/analytics/TradingHeatmap.tsx`)
+**After:**
+```tsx
+<PageHeader
+  icon={Target}
+  title="Strategy & Rules"
+  description="Create, import, and backtest your trading strategies"
+/>
+<MetricsGridSkeleton />
+```
 
-The heatmap cells use fixed `w-14` / `w-12` widths, causing the grid to not fill the card. Change to `flex-1` layout so cells stretch evenly across the available width.
+### 2. BacktestComparison Loading State (`src/components/strategy/BacktestComparison.tsx`, lines 112-122)
 
-**Before:** Fixed `w-14` per day column + `w-12` cells
-**After:** `flex-1` per day column with `min-w-[48px]` so cells expand to fill the card
+Replace "Loading backtest history..." text with structured skeleton:
 
-### 3. No Changes Needed
+**Before:**
+```tsx
+<Card>
+  <CardContent className="py-8">
+    <div className="flex items-center justify-center">
+      <div className="animate-pulse text-muted-foreground">Loading backtest history...</div>
+    </div>
+  </CardContent>
+</Card>
+```
 
-- **AI Insights**: Fully implemented — tabs, insights cards, action items, pair rankings, session insights, contextual performance, export button, empty state, loading skeleton. No gaps found.
-- **Risk Calculator**: Fully implemented — trading pair selector, market score widget, context warnings, calculator inputs with tooltips, results, commission rates, leverage info, R-multiple reference, risk adjustment breakdown, volatility stop-loss tab, loading skeleton. No gaps found.
+**After:**
+```tsx
+<div className="space-y-6">
+  <Card>
+    <CardHeader>
+      <Skeleton className="h-6 w-48" />
+      <Skeleton className="h-4 w-72" />
+    </CardHeader>
+    <CardContent>
+      <div className="space-y-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Skeleton key={i} className="h-14 w-full" />
+        ))}
+      </div>
+    </CardContent>
+  </Card>
+</div>
+```
+
+### 3. No Changes Needed for Bulk Export
+
+Bulk Export renders immediately with tab structure visible. Sub-components (`JournalExportCard`, `SettingsBackupRestore`) handle their own loading states internally. The Binance tab already handles disconnected state with an Alert. Adding a top-level loading guard would delay showing the entire tab structure unnecessarily.
 
 ## Files Modified
 
 | File | Change |
 |------|--------|
-| `src/pages/TradingHeatmap.tsx` | Pluralization fix for streak values |
-| `src/components/analytics/TradingHeatmap.tsx` | Grid cells expand to full card width |
+| `src/pages/trading-journey/StrategyManagement.tsx` | Replace raw h1/p with PageHeader in loading state |
+| `src/components/strategy/BacktestComparison.tsx` | Replace text-only loading with Skeleton cards |
 
 ## Impact
 
-- Grammar correctness on all streak card values (1 trade vs 2 trades)
-- Heatmap grid fills the full card width for a more polished, professional look
-- No functional changes — purely visual/text polish
-
+- Strategy page loading state matches all other pages (PageHeader + skeleton)
+- Backtest comparison loading shows structured skeleton instead of plain text
+- Full consistency across the Tools section (Strategies, Backtest, Export)
