@@ -1,220 +1,120 @@
 
-# Update FEATURE-MATRIX.md — Full System Phase Breakdown
 
-## Objective
+# UI/UX Fixes — Full Sync, Heatmap, Ticker
 
-Menambahkan section **"System Development Phases"** di akhir `FEATURE-MATRIX.md` yang memetakan seluruh sistem (9 domain, 26 edge functions, 20+ pages, 133+ features) ke dalam phase-phase development yang logis dan berurutan berdasarkan dependency graph.
+## Overview
 
-## Scope
+5 distinct issues to fix across 4 files.
 
-Dokumen saat ini hanya mencakup 3 halaman (Journal, History, Import). Update ini akan **memperluas coverage** ke seluruh sistem: Dashboard, Accounts, Market (4 pages), Risk (2 pages), Strategy (2 pages), Analytics (4 pages), Settings, Profile, Notifications, Landing, Auth, dan Global Features (Chatbot, Command Palette, i18n).
+---
 
-## Phase Structure (15 Phases)
+## 1. Full Sync — Progress Bar Sizing (BinanceFullSyncPanel.tsx)
 
-```
-Phase 1: Foundation & Infrastructure
-  - Auth system (signup/login/session)
-  - Database schema (core tables: users_profile, user_settings, accounts)
-  - RLS policies
-  - Supabase client setup
-  - Error boundaries (global + widget-level)
-  - Theme system (dark/light)
-  - i18n foundation
+**Problem:** Progress bar `h-2` with `min-w-[200px]` container creates disproportionate layout. The progress section is constrained inside a flex row with padding that doesn't fill the card width.
 
-Phase 2: Platform Shell & Navigation
-  - Sidebar layout with collapsible groups
-  - Header with TradeModeSelector
-  - Command Palette (Cmd+K)
-  - ProtectedRoute wrapper
-  - Lazy loading for all pages
-  - Currency display system
-  - Notification bell icon
+**Fix:** Make `SyncProgressIndicator` use full-width layout instead of inline flex. Progress bar expands to fill card, phase info stacks above.
 
-Phase 3: User & Settings Domain
-  - Profile page (avatar, display name, preferences)
-  - Settings page (5 tabs: Binance API, Trading Config, AI Settings, Export, Backup)
-  - user_settings persistence
-  - Binance API key management (encrypt/store/validate)
-  - AI settings enforcement hook
+**Changes in `SyncProgressIndicator` (lines 413-451):**
+- Remove the horizontal flex layout (`flex items-center gap-3`)
+- Use vertical stack: phase label + percentage on top row, full-width progress bar below, message + ETA below that
+- Progress bar: `h-2.5 w-full` (instead of `h-2` inside a `min-w-[200px]` container)
+- Remove `min-w-[200px]` constraint
 
-Phase 4: Accounts Domain (Foundation)
-  - Accounts page (list, create, edit, delete)
-  - Account detail page (capital flow, fee/rebate breakdown)
-  - Paper account balance tracking
-  - Binance balance integration (/fapi/v2/balance)
-  - Account comparison analytics (side-by-side)
-  - Multi-level analytics architecture (per-account, per-exchange, per-type)
+---
 
-Phase 5: Binance Integration Layer
-  - Edge function: binance-futures (HMAC proxy, 41+ endpoints)
-  - Binance hooks: useBinancePositions, useBinanceBalance, useBinanceOpenOrders
-  - Position mode detection (Hedge/One-way)
-  - Leverage brackets fetching
-  - Commission rate fetching
-  - API key validation flow
+## 2. Full Sync — Sync Log Panel (BinanceFullSyncPanel.tsx)
 
-Phase 6: Market Domain (Context Provider)
-  - Market Insight page (4-tab hub: Data, Calendar, AI, Combined)
-  - Market Data page (Sentiment, Volatility, Whale Tracking)
-  - Economic Calendar page (event timeline, impact filtering, countdown)
-  - Top Movers page (gainers, losers, volume leaders)
-  - Edge functions: binance-market-data, economic-calendar, macro-analysis, market-insight, market-analysis, public-ticker
-  - Unified Market Score hook (4-component weighted scoring)
-  - Market Alert system (Fear/Greed extremes, event proximity)
-  - Fear & Greed Index integration
-  - Market Context Provider (React Context)
+**Problem:** No visible log output during sync. Users can't see what's happening step-by-step.
 
-Phase 7: Risk Domain (Guardian)
-  - Risk Management page (Daily Loss Tracker, Risk Profile, Event Log, Correlation Matrix)
-  - Position Calculator page (risk-based sizing, volatility SL, context warnings)
-  - risk_profiles table & CRUD
-  - daily_risk_snapshots tracking
-  - Trading Gate system (useTradingGate)
-  - Context-aware risk adjustment (5 factors: volatility, events, sentiment, momentum, performance)
-  - Correlation matrix with consolidated coefficient model
-  - Risk event types (warning_70, warning_90, limit_reached, trading_disabled)
+**Fix:** Add a `SyncLogPanel` component that captures and displays log entries in a scrollable terminal-style view. Integrate with the sync store to accumulate log messages.
 
-Phase 8: Strategy Domain (Playbook)
-  - Strategy Management page (CRUD, library, sharing)
-  - trading_strategies schema (MTFA: Higher/Primary/Lower TF)
-  - Entry/Exit rules builder (6 rule types)
-  - Strategy form dialog
-  - YouTube strategy import (AI extraction via Gemini)
-  - Edge function: youtube-strategy-import
-  - Strategy sharing (link + QR code generation)
-  - Strategy cloning from shared/leaderboard
-  - Edge function: strategy-clone-notify
-  - Strategy performance tracking (useStrategyPerformance)
+**Changes:**
+- **sync-store.ts**: Add `syncLogs: string[]` array and `addSyncLog(msg)` / `clearSyncLogs()` actions
+- **use-binance-aggregated-sync.ts**: Call `addSyncLog()` at key points (fetch start, symbol processing, errors, rate limits, batch inserts, completion)
+- **BinanceFullSyncPanel.tsx**: Add a `SyncLogPanel` component below the progress indicator:
+  - Collapsible section with "Show Logs" toggle
+  - Dark background (`bg-muted/50`), monospace font, max-h with overflow-y-auto
+  - Auto-scroll to bottom on new entries
+  - Each log entry timestamped `[HH:mm:ss]`
+  - Error lines highlighted in `text-destructive`, warnings in `text-warning`
+  - Show log panel during `running`, `success`, and `error` states
+  - "Clear Logs" button
 
-Phase 9: Journal Domain — Core (Trade Lifecycle)
-  - Trading Journal page (Pending/Active tabs)
-  - Trade Entry Wizard (Full 5-step + Express 3-step)
-  - Wizard steps: Setup, Confluence, Sizing, Checklist, Confirmation
-  - Trade summary stats (open positions, unrealized/realized PnL)
-  - AllPositionsTable (unified paper + Binance positions)
-  - Close position dialog (direction-aware PnL calculation)
-  - Edit position dialog (SL/TP/Notes)
-  - Trade state machine (6 states: OPENING, PARTIALLY_FILLED, ACTIVE, CLOSED, CANCELED, LIQUIDATED)
-  - Mode isolation (useModeFilteredTrades)
-  - Paper/Live mode toggle & SIMULATION banner
-  - CryptoIcon (multi-source fallback)
-  - Live Time-in-Trade column (auto-update 60s)
-  - Read-only enforcement for Binance/Live trades
-  - Binance open orders table (cancel order support)
-  - Market context capture at entry
-  - Trading Gate integration (block wizard if daily loss limit hit)
+---
 
-Phase 10: Journal Domain — Enrichment & AI
-  - Trade Enrichment Drawer (10+ sub-features)
-  - Multi-strategy linking (junction table + immutable snapshot)
-  - 3-Timeframe system (Bias/Execution/Precision)
-  - Screenshot upload (max 3, client-side compression)
-  - Trade rating A-F
-  - Custom tags
-  - Rule compliance checklist
-  - Notes & emotional state
-  - AI Trade Analysis (on-demand)
-  - AI Post-Trade Analysis (auto on close)
-  - Post-Mortem section (Entry Timing, Exit Efficiency, SL Placement, Strategy Adherence)
-  - Edge functions: ai-preflight, trade-quality, post-trade-analysis, confluence-detection
-  - AI Pre-flight Check (EV/R scoring: Proceed/Caution/Skip)
-  - Wizard analytics tracking (conversion funnel)
-  - Audit log integration
+## 3. Full Sync — Force Sync Deletes First (use-binance-aggregated-sync.ts)
 
-Phase 11: Trade History & Data Management
-  - Trade History page (List/Gallery view toggle)
-  - Cursor-based pagination (infinite scroll, 50/page)
-  - 7 filter dimensions (date, result, direction, strategy, pair, session, AI score)
-  - Sub-tabs: All/Binance/Paper
-  - Server-side stats (RPC: get_trade_stats)
-  - Quick note (inline)
-  - Fee History tab (commission breakdown + trend chart)
-  - Funding History tab (funding rate payments)
-  - Soft delete with 30-day recovery
-  - Batch enrichment for incomplete trades
-  - Gallery view with LazyImage + IntersectionObserver
+**Problem:** Force re-fetch doesn't explicitly delete old data before starting sync. The description says "delete existing trades" but the actual deletion order isn't guaranteed.
 
-Phase 12: Import & Sync Engine
-  - Import Trades page (tabbed: Binance/Solana)
-  - Binance Full Sync panel (range selector, quota, force re-fetch)
-  - Position lifecycle grouper (groupIntoLifecycles)
-  - Trade aggregator (weighted avg prices, fee aggregation)
-  - Aggregation validator (cross-validation: calculated vs reported PnL)
-  - Sync checkpoint system (resumable sync via Zustand)
-  - Sync reconciliation engine (tolerance 0.1%)
-  - Sync quality scoring (Excellent/Good/Fair/Poor)
-  - Sync monitoring panel (ETA, phase indicator, failure retry)
-  - Sync quota management (daily limits)
-  - Sync notification system (in-app + email for 3+ failures)
-  - Edge functions: binance-background-sync, reconcile-balances, send-sync-failure-email
-  - Solana wallet integration (Phantom/Solflare)
-  - Solana trade import (scan, review, select, import)
-  - DEX auto-detection (Deriverse, Drift, Zeta, Mango)
-  - Duplicate protection (signature-based)
+**Fix:** In the sync execution flow, when `forceRefetch` is true, perform the delete operation **first** (before any fetch calls), log it to the sync log, and only then proceed with fetching.
 
-Phase 13: Analytics Domain (Insights)
-  - Performance page (Win Rate, PF, Expectancy, Drawdown, Distribution)
-  - Daily PnL page (breakdown, week-over-week, symbol breakdown, export CSV/PDF)
-  - Trading Heatmap page (Hour x Day grid, session analysis, streaks)
-  - AI Insights page (patterns, contextual, action items, pair rankings)
-  - Contextual analytics (Fear/Greed zone, event day, volatility level charts)
-  - Edge functions: dashboard-insights, trading-analysis
+**Changes in `use-binance-aggregated-sync.ts`:**
+- Move or ensure the delete step runs as the very first operation when `forceRefetch === true`
+- Add a new phase label `'deleting'` with log output: "Deleting existing Binance trades..."
+- Add `'deleting': 'Deleting Old Data'` to `PHASE_LABELS` in `BinanceFullSyncPanel.tsx`
+- Progress shows the delete phase before `fetching-income`
 
-Phase 14: Dashboard Domain (Aggregation Hub)
-  - Dashboard page (widget grid layout)
-  - Portfolio Overview Card (capital, daily/weekly PnL, win rate)
-  - Today Performance widget (7-day stats, streak)
-  - Smart Quick Actions (context-aware buttons)
-  - Market Score Widget (unified score + bias)
-  - System Status Indicator (trading gate: green/yellow/red)
-  - Market Sessions Widget (Asia/London/NY active indicator)
-  - Open Positions Table (live Binance)
-  - Risk Summary Card (daily loss usage + correlation warning)
-  - AI Insights Widget (recommendations + market regime badge)
-  - Volatility Meter Widget
-  - Dashboard Analytics Summary
+---
 
-Phase 15: Global Features & Production Polish
-  - AI Chatbot (floating, 3 modes: Analyst/Validator/Coach, session persistence)
-  - Edge functions: confluence-chat, post-trade-chat
-  - Bulk Export page (Journal CSV/PDF, Settings backup/restore, Binance daily PnL)
-  - Edge function: weekly-report
-  - Notification system (in-app center, push notifications)
-  - Edge functions: send-push-notification, send-cleanup-notification
-  - Global Audit Log system
-  - Currency conversion display (hourly rate caching)
-  - Backtest engine (real Klines, session breakdown, equity curve, comparison mode)
-  - Edge function: backtest-strategy
-  - Strategy Leaderboard (global shared strategies)
-  - Solana Wallet Provider (global wrapper)
-  - Landing page
-  - PWA configuration (vite-plugin-pwa)
-  - Performance optimization (React Query tuning, memoization, lazy loading)
-  - Widget Error Boundary (isolate dashboard widget failures)
-  - Hybrid Trading Mode enforcement (complete data isolation audit)
-  - Trading Health Score (0-100 composite)
-  - Advanced risk metrics (Sharpe/Sortino/VaR)
-  - Edge function: sync-trading-pairs
-```
+## 4. Trading Heatmap — Grid Gap + Session Layout (TradingHeatmap.tsx, TradingHeatmap page)
 
-## Changes to FEATURE-MATRIX.md
+**4a. Heatmap Grid Gap**
 
-### What Will Be Added
+**Problem:** Grid cells have no gap (`mb-1` only on rows, no horizontal gap between day columns).
 
-1. **Section 4: Full System Phase Map** — 15 phases with dependency chain, covering all 9 domains
-2. **Phase Dependency Diagram** — ASCII showing which phases depend on which
-3. **Coverage per Phase** — Features count, edge functions, pages, and key components
-4. **Updated Coverage Summary** — Expand from 3 pages (133 features) to full system count
-5. **Updated Revision History** — New entry for phase map addition
+**Fix in `TradingHeatmap.tsx`:**
+- Add `gap-1.5` (or `gap-2`) between day columns in the flex row (line 200, 215)
+- Apply same gap to header row (line 189)
 
-### What Will NOT Change
+**4b. Time-Based Win Rate Position**
 
-- Sections 1-3 (Journal, History, Import) remain untouched
-- Existing Component Coverage Map stays as-is
-- Cross-references and legend unchanged
+**Problem:** On Performance page, `TradingHeatmapChart` (Time-Based Win Rate) sits side-by-side with `SessionPerformanceChart` in `lg:grid-cols-2`. User wants it **below** the Session Performance card, not beside it.
+
+**Fix in `Performance.tsx` (line 594):**
+- Change from `grid gap-6 lg:grid-cols-2` to stacked layout:
+  ```tsx
+  <div className="space-y-6">
+    <SessionPerformanceChart bySession={contextualData.bySession} />
+    <TradingHeatmapChart trades={filteredTrades} />
+  </div>
+  ```
+
+---
+
+## 5. Loading Skeleton Animation (loading-skeleton.tsx)
+
+**Problem:** Skeleton components use Radix `Skeleton` which has a static pulse. User wants visible animation.
+
+**Fix:** The `Skeleton` component likely already has `animate-pulse`. Verify and if not, add `animate-pulse` class. Also add a subtle shimmer gradient animation for a more professional look.
+
+**Changes in `src/components/ui/skeleton.tsx`:** Add shimmer keyframe animation overlay to make loading visually dynamic instead of static.
+
+---
+
+## 6. Marquee Ticker — Scroll Fix + Grab Cursor (LivePriceTicker.tsx)
+
+**Problem:** Marquee animation not running. On hover, should switch to manual horizontal scroll with grab cursor instead of just pausing.
+
+**Fix:**
+- Debug why animation doesn't run — likely the `overflow-hidden` on parent or CSS specificity issue. Ensure `ticker-scroll` class applies correctly.
+- Replace hover behavior: instead of `animation-play-state: paused`, on hover:
+  - Pause the CSS animation
+  - Show `cursor: grab` (and `cursor: grabbing` on mousedown)
+  - Enable manual horizontal drag-to-scroll using `onMouseDown/Move/Up` handlers
+- Add `useRef` + mouse event handlers for drag scroll
+- Container needs `overflow-x: auto` when dragging (but `overflow: hidden` otherwise to hide scrollbar)
+
+---
 
 ## Files Modified
 
-| File | Change |
-|------|--------|
-| `docs/FEATURE-MATRIX.md` | Add Section 4 (Full System Phase Map) with 15 phases, dependency diagram, and updated summary |
+| File | Changes |
+|------|---------|
+| `src/store/sync-store.ts` | Add `syncLogs`, `addSyncLog()`, `clearSyncLogs()` |
+| `src/hooks/use-binance-aggregated-sync.ts` | Log events to store, ensure force-delete runs first with 'deleting' phase |
+| `src/components/trading/BinanceFullSyncPanel.tsx` | Fix progress layout, add SyncLogPanel, add 'deleting' phase label |
+| `src/components/analytics/TradingHeatmap.tsx` | Add gap between grid cells |
+| `src/pages/Performance.tsx` | Stack Time-Based Win Rate below Session Performance |
+| `src/components/layout/LivePriceTicker.tsx` | Fix marquee animation, add drag-to-scroll on hover with grab cursor |
+| `src/components/ui/skeleton.tsx` | Add shimmer animation for loading skeletons |
+
