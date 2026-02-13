@@ -5,16 +5,14 @@
  */
 import { Connection, PublicKey, ParsedTransactionWithMeta } from '@solana/web3.js';
 
-// Deriverse Program IDs (Devnet + Mainnet)
-const DERIVERSE_PROGRAM_IDS = [
-  'DRVRsJB1VczKWjYL4vBXCNvDWPdDPcFiRPGTQE5tfgfV', // Deriverse v1 main
-  'DeRvCoT3GH5E6UeDWnUKSaQNzTDW3PiGAUPnqL8yVhSm', // Deriverse perps
-];
+// Deriverse Official Program ID (VERSION=6)
+const DERIVERSE_PROGRAM_ID = 'CDESjex4EDBKLwx9ZPzVbjiHEHatasb5fhSJZMzNfvw2';
+const DERIVERSE_VERSION = 6;
+const DERIVERSE_PROGRAM_IDS = [DERIVERSE_PROGRAM_ID];
 
 // Known Solana DEX program IDs for broader support
 const KNOWN_DEX_PROGRAMS: Record<string, string> = {
-  'DRVRsJB1VczKWjYL4vBXCNvDWPdDPcFiRPGTQE5tfgfV': 'Deriverse',
-  'DeRvCoT3GH5E6UeDWnUKSaQNzTDW3PiGAUPnqL8yVhSm': 'Deriverse Perps',
+  [DERIVERSE_PROGRAM_ID]: 'Deriverse',
   'dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH': 'Drift',
   'ZETAxsqBRek56DhiGXrn75S111wGXVHc6JaRkzo6T1M': 'Zeta Markets',
   'FUfpR31LmcP1VSbz5zDaM7nxnH55iBHkpwusgrnhaFjL': 'Mango Markets v4',
