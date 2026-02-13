@@ -1,30 +1,20 @@
-// ============= Full file contents =============
-
 /**
  * Trade History - Standalone page for closed trades with full journaling
- * Features: Paginated data, List/Gallery toggle, Infinite scroll, AI Sorting
- * Architecture: Cursor-based pagination with 1-year default lookback
- * Sync/Import actions moved to /import hub
+ * Architecture: Orchestrator pattern with sub-components
  */
 import { useState, useMemo, useEffect } from "react";
-import { cn } from "@/lib/utils";
 import { useInView } from "react-intersection-observer";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { PageHeader } from "@/components/ui/page-header";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { PageHeader } from "@/components/ui/page-header";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { EmptyState } from "@/components/ui/empty-state";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { TradeHistoryCard } from "@/components/trading/TradeHistoryCard";
-import { TradeGalleryCard, TradeGalleryCardSkeleton } from "@/components/journal/TradeGalleryCard";
-import { FeeHistoryTab } from "@/components/trading/FeeHistoryTab";
-import { FundingHistoryTab } from "@/components/trading/FundingHistoryTab";
-import { History, Wifi, BookOpen, FileText, Loader2, List, LayoutGrid, Download, Percent, ArrowUpDown, AlertCircle } from "lucide-react";
 import { FilterActiveIndicator } from "@/components/ui/filter-active-indicator";
+import { History, Download } from "lucide-react";
+import { TradeHistoryFilters, TradeEnrichmentDrawer } from "@/components/journal";
+import type { UnifiedPosition } from "@/components/journal";
+import { TradeHistoryStats } from "@/components/history/TradeHistoryStats";
+import { TradeHistoryToolbar } from "@/components/history/TradeHistoryToolbar";
+import { TradeHistoryContent } from "@/components/history/TradeHistoryContent";
 import { useTradeEntriesPaginated, type TradeFilters } from "@/hooks/use-trade-entries-paginated";
 import { useTradeStats } from "@/hooks/use-trade-stats";
 import { useTradeMode } from "@/hooks/use-trade-mode";
@@ -36,101 +26,47 @@ import { useModeVisibility } from "@/hooks/use-mode-visibility";
 import { useSyncStore, selectIsFullSyncRunning } from "@/store/sync-store";
 import { useTradeEnrichment } from "@/hooks/use-trade-enrichment";
 import { useTradesNeedingEnrichmentCount } from "@/hooks/use-trade-enrichment-binance";
-import { useUserSettings } from "@/hooks/use-user-settings";
 import { useBinanceDataSource } from "@/hooks/use-binance-data-source";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { useQueryClient } from "@tanstack/react-query";
-import { useTradeHistoryFilters, type ResultFilter, type DirectionFilter, type SessionFilter, type SortByAI } from "@/hooks/use-trade-history-filters";
-import { TradeHistoryFilters, TradeEnrichmentDrawer } from "@/components/journal";
-import type { UnifiedPosition } from "@/components/journal";
-import { TRADE_HISTORY_CONFIG, EMPTY_STATE_MESSAGES, type ViewMode, VIEW_MODE_CONFIG } from "@/lib/constants/trade-history";
+import { useTradeHistoryFilters } from "@/hooks/use-trade-history-filters";
 import { calculateRiskReward } from "@/lib/trade-utils";
+import { TRADE_HISTORY_CONFIG, type ViewMode, VIEW_MODE_CONFIG } from "@/lib/constants/trade-history";
 import { Link } from "react-router-dom";
 
-// Use centralized config
 const PAGE_SIZE = TRADE_HISTORY_CONFIG.pagination.defaultPageSize;
 
 export default function TradeHistory() {
-  // Use the centralized filter hook
   const {
-    filters: {
-      dateRange,
-      resultFilter,
-      directionFilter,
-      sessionFilter,
-      selectedStrategyIds,
-      selectedPairs,
-      selectedTags,
-      sortByAI,
-      showFullHistory,
-    },
-    setters: {
-      setDateRange,
-      setResultFilter,
-      setDirectionFilter,
-      setSessionFilter,
-      setSelectedStrategyIds,
-      setSelectedPairs,
-      setSelectedTags,
-      setSortByAI,
-    },
-    computed: {
-      hasActiveFilters,
-      activeFilterCount,
-      effectiveStartDate,
-      effectiveEndDate,
-    },
-    actions: {
-      clearAllFilters,
-    },
+    filters: { dateRange, resultFilter, directionFilter, sessionFilter, selectedStrategyIds, selectedPairs, selectedTags, sortByAI, showFullHistory },
+    setters: { setDateRange, setResultFilter, setDirectionFilter, setSessionFilter, setSelectedStrategyIds, setSelectedPairs, setSelectedTags, setSortByAI },
+    computed: { hasActiveFilters, activeFilterCount, effectiveStartDate, effectiveEndDate },
+    actions: { clearAllFilters },
   } = useTradeHistoryFilters();
-  
-  // View mode state - default gallery for closed trades
+
   const [viewMode, setViewMode] = useState<ViewMode>(VIEW_MODE_CONFIG.default);
-  
-  // UI states
   const [deletingTrade, setDeletingTrade] = useState<TradeEntry | null>(null);
   const [enrichingPosition, setEnrichingPosition] = useState<UnifiedPosition | null>(null);
 
   const queryClient = useQueryClient();
-  const { data: userSettings } = useUserSettings();
   const { tradeMode } = useTradeMode();
   const { data: strategies = [] } = useTradingStrategies();
-  
-  // Mode visibility
   const { showExchangeData } = useModeVisibility();
-  
-  // Binance connection — only relevant in Live mode
   const { data: connectionStatus } = useBinanceConnectionStatus();
   const isBinanceConnected = showExchangeData && (connectionStatus?.isConnected ?? false);
-  
-  // Global sync state from store (read-only awareness)
   const isFullSyncing = useSyncStore(selectIsFullSyncRunning);
-  
-  // Data source filter based on user settings
-  const { sourceFilter: binanceSourceFilter, useBinanceHistory } = useBinanceDataSource();
-  
-  // Trade enrichment count (display only)
+  const { sourceFilter: binanceSourceFilter } = useBinanceDataSource();
   const { data: tradesNeedingEnrichment = 0 } = useTradesNeedingEnrichmentCount();
-
-  // Quick Note
   const { addQuickNote } = useTradeEnrichment();
-  
-  // Currency conversion hook
-  const { format: formatCurrency, formatPnl, currency: displayCurrency } = useCurrencyConversion();
-  
+  const { format: formatCurrency } = useCurrencyConversion();
+
   const handleQuickNote = async (tradeId: string, note: string) => {
     await addQuickNote(tradeId, note);
     queryClient.invalidateQueries({ queryKey: ['trade-entries'] });
     queryClient.invalidateQueries({ queryKey: ['trade-entries-paginated'] });
   };
 
-  // Currency helper - using the hook version now (displayCurrency and formatCurrency defined above)
-
-  // Build paginated filters - memoized for stability
-  // Session filter is now at DB level
-  // Map 'profit' -> 'win' for DB query (UI uses 'profit', DB uses 'win')
-  // Apply source filter based on use_binance_history setting
+  // Build paginated filters
   const paginatedFilters: TradeFilters = useMemo(() => {
     const mappedResult = resultFilter === 'profit' ? 'win' : resultFilter;
     return {
@@ -143,39 +79,21 @@ export default function TradeHistory() {
       strategyIds: selectedStrategyIds.length > 0 ? selectedStrategyIds : undefined,
       session: sessionFilter !== 'all' ? sessionFilter as TradeFilters['session'] : undefined,
       selectedTags: selectedTags.length > 0 ? selectedTags : undefined,
-      // Apply source filter from user settings
       source: binanceSourceFilter,
-      // C-05: Mode isolation
       tradeMode,
     };
   }, [effectiveStartDate, effectiveEndDate, selectedPairs, resultFilter, directionFilter, selectedStrategyIds, sessionFilter, selectedTags, binanceSourceFilter, tradeMode]);
 
-  // Paginated query for trade list
   const {
-    data,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-    isFetching,
-    isLoading,
-    isError,
-    error,
+    data, fetchNextPage, hasNextPage, isFetchingNextPage, isFetching, isLoading, isError, error,
   } = useTradeEntriesPaginated({ limit: PAGE_SIZE, filters: paginatedFilters });
 
-  // Server-side stats (accurate totals regardless of pagination)
   const { data: tradeStats, isLoading: isStatsLoading } = useTradeStats({ filters: paginatedFilters });
 
-  // Flatten all pages
-  const allTrades = useMemo(() => 
-    data?.pages.flatMap(page => page.trades) ?? [], 
-    [data]
-  );
+  const allTrades = useMemo(() => data?.pages.flatMap(page => page.trades) ?? [], [data]);
   const totalCount = data?.pages[0]?.totalCount ?? 0;
 
-  // Sort by AI score (client-side after fetch)
-  // Session filtering is now at DB level, so no client-side filter needed
   const sortedTrades = useMemo(() => {
-    // Sort by AI
     if (sortByAI === 'none') return allTrades;
     return [...allTrades].sort((a, b) => {
       const scoreA = a.ai_quality_score ?? -1;
@@ -184,33 +102,19 @@ export default function TradeHistory() {
     });
   }, [allTrades, sortByAI]);
 
-  // Separate by source for tabs
   const binanceTrades = useMemo(() => sortedTrades.filter(t => t.source === 'binance'), [sortedTrades]);
   const paperTrades = useMemo(() => sortedTrades.filter(t => t.source !== 'binance'), [sortedTrades]);
+  const availablePairs = useMemo(() => Array.from(new Set(allTrades.map(t => t.pair))).sort(), [allTrades]);
 
-  // Get unique pairs for filter (from loaded trades)
-  const availablePairs = useMemo(() => {
-    const pairs = new Set(allTrades.map(t => t.pair));
-    return Array.from(pairs).sort();
-  }, [allTrades]);
-
-  // Infinite scroll trigger
-  const { ref: loadMoreRef, inView } = useInView({
-    threshold: 0.1,
-    rootMargin: "100px",
-  });
-
+  // Infinite scroll
+  const { ref: loadMoreRef, inView } = useInView({ threshold: 0.1, rootMargin: "100px" });
   useEffect(() => {
-    if (inView && hasNextPage && !isFetchingNextPage) {
-      fetchNextPage();
-    }
+    if (inView && hasNextPage && !isFetchingNextPage) fetchNextPage();
   }, [inView, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  // Use centralized R:R calculation
   const calculateRR = calculateRiskReward;
-
   const softDelete = useSoftDeleteTradeEntry();
-  
+
   const handleDeleteTrade = async () => {
     if (!deletingTrade) return;
     try {
@@ -221,7 +125,6 @@ export default function TradeHistory() {
     }
   };
 
-  // Convert TradeEntry to UnifiedPosition for enrichment drawer
   const handleEnrichTrade = (trade: TradeEntry) => {
     const unified: UnifiedPosition = {
       id: trade.id,
@@ -238,179 +141,27 @@ export default function TradeHistory() {
     setEnrichingPosition(unified);
   };
 
-  // Use server-side stats for accurate totals (not dependent on pagination)
   const totalPnLGross = tradeStats?.totalPnlGross ?? 0;
   const totalPnLNet = tradeStats?.totalPnlNet ?? 0;
   const winRate = tradeStats?.winRate ?? 0;
   const serverTotalTrades = tradeStats?.totalTrades ?? 0;
 
-  // Render trade list based on view mode
-  const renderTradeList = (trades: TradeEntry[]) => {
-    if (trades.length === 0) {
-      return (
-        <EmptyState
-          icon={History}
-          title={EMPTY_STATE_MESSAGES.NO_TRADES.title}
-          description={EMPTY_STATE_MESSAGES.NO_TRADES.description}
-        />
-      );
-    }
-
-    if (viewMode === 'gallery') {
-      return (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {trades.map((entry) => (
-            <TradeGalleryCard 
-              key={entry.id} 
-              trade={entry}
-              onTradeClick={handleEnrichTrade}
-            />
-          ))}
-        </div>
-      );
-    }
-
-    return (
-      <div className="space-y-4">
-        {trades.map((entry) => (
-          <TradeHistoryCard 
-            key={entry.id} 
-            entry={entry} 
-            onDelete={setDeletingTrade}
-            onEnrich={handleEnrichTrade}
-            onQuickNote={handleQuickNote}
-            onTagClick={(tag) => {
-              setSelectedTags(prev => 
-                prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
-              );
-            }}
-            calculateRR={calculateRR}
-            formatCurrency={formatCurrency}
-            isBinance={entry.source === 'binance'}
-            showEnrichButton={true}
-          />
-        ))}
-      </div>
-    );
-  };
-
-  // Loading skeleton based on view mode
-  const renderLoadingSkeleton = () => {
-    if (viewMode === 'gallery') {
-      return (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {Array.from({ length: VIEW_MODE_CONFIG.skeletonCount.gallery }).map((_, i) => (
-            <TradeGalleryCardSkeleton key={i} />
-          ))}
-        </div>
-      );
-    }
-    return (
-      <div className="space-y-4">
-        {Array.from({ length: VIEW_MODE_CONFIG.skeletonCount.list }).map((_, i) => (
-          <Card key={i}>
-            <CardContent className="py-4">
-              <div className="flex items-center justify-between gap-4">
-                <Skeleton className="h-6 w-32" />
-                <Skeleton className="h-6 w-20" />
-                <Skeleton className="h-6 w-24" />
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    );
-  };
-
   return (
     <div className="space-y-6">
-      <PageHeader
-        icon={History}
-        title="Trade History"
-        description="Review and enrich your closed trades for journaling"
-      >
-        
-        {/* Stats Summary + Export */}
+      <PageHeader icon={History} title="Trade History" description="Review and enrich your closed trades for journaling">
         <div className="flex items-center gap-6">
-          <div className="flex gap-4 text-sm">
-            {isStatsLoading && !tradeStats ? (
-              <>
-                <Skeleton className="h-12 w-20" />
-                <Skeleton className="h-12 w-24" />
-                <Skeleton className="h-12 w-16" />
-              </>
-            ) : (
-              <>
-                <div className="text-center">
-                  <div className="text-2xl font-bold">
-                    {sortedTrades.length}
-                    {serverTotalTrades > sortedTrades.length && (
-                      <span className="text-sm text-muted-foreground font-normal">/{serverTotalTrades}</span>
-                    )}
-                  </div>
-                  <div className="text-muted-foreground">
-                    {hasActiveFilters ? 'Filtered' : 'Trades'}
-                  </div>
-                </div>
-                {/* P&L with clear terminology */}
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div className="text-center cursor-help">
-                        <div className={`text-2xl font-bold ${totalPnLGross >= 0 ? 'text-profit' : 'text-loss'}`}>
-                          {formatCurrency(totalPnLGross)}
-                        </div>
-                        <div className="text-muted-foreground text-xs">
-                          Gross P&L
-                        </div>
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-xs">
-                      <div className="space-y-1">
-                        <p><strong>Gross P&L</strong>: {formatCurrency(totalPnLGross)}</p>
-                        <p className="text-xs text-muted-foreground">Before fees (realized_pnl from Binance)</p>
-                        <div className="border-t pt-1 mt-1">
-                          <p><strong>Net P&L</strong>: {formatCurrency(totalPnLNet)}</p>
-                          <p className="text-xs text-muted-foreground">After commission & funding fees</p>
-                        </div>
-                      </div>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-                <div className="text-center">
-                  <div className="text-2xl font-bold">{winRate.toFixed(1)}%</div>
-                  <div className="text-muted-foreground">Win Rate</div>
-                </div>
-                {/* Needs Enrichment Indicator */}
-                {tradesNeedingEnrichment > 0 && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div className="text-center px-3 py-1 rounded-md bg-destructive/10 border border-destructive/20">
-                          <div className="text-lg font-bold text-destructive flex items-center gap-1">
-                            <AlertCircle className="h-4 w-4" />
-                            {tradesNeedingEnrichment}
-                          </div>
-                          <div className="text-xs text-destructive/80">Incomplete</div>
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>{tradesNeedingEnrichment} trades are missing entry/exit prices.</p>
-                        <p className="text-xs text-muted-foreground mt-1">Click "Enrich Trades" to fetch accurate data from Binance.</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
-              </>
-            )}
-          </div>
-          
-          {/* Export Link */}
-          <Button 
-            variant="outline" 
-            size="sm" 
-            asChild
-          >
+          <TradeHistoryStats
+            isLoading={isStatsLoading && !tradeStats}
+            displayedCount={sortedTrades.length}
+            serverTotalTrades={serverTotalTrades}
+            totalPnLGross={totalPnLGross}
+            totalPnLNet={totalPnLNet}
+            winRate={winRate}
+            tradesNeedingEnrichment={tradesNeedingEnrichment}
+            hasActiveFilters={hasActiveFilters}
+            formatCurrency={formatCurrency}
+          />
+          <Button variant="outline" size="sm" asChild>
             <Link to="/export?tab=journal">
               <Download className="h-4 w-4 mr-2" />
               Export
@@ -419,7 +170,6 @@ export default function TradeHistory() {
         </div>
       </PageHeader>
 
-      {/* Filter Active Indicator */}
       {hasActiveFilters && (
         <FilterActiveIndicator
           isActive={hasActiveFilters}
@@ -429,7 +179,6 @@ export default function TradeHistory() {
         />
       )}
 
-      {/* Filters */}
       <Card>
         <CardContent className="pt-6">
           <div className="flex flex-col gap-4">
@@ -455,142 +204,39 @@ export default function TradeHistory() {
               totalCount={totalCount}
               filteredCount={sortedTrades.length}
             />
-            
-            {/* View Toggle & Import Link */}
-            <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t">
-              {/* Go to Import link */}
-              <div className="flex items-center gap-3 flex-wrap">
-                <Button asChild variant="outline" size="sm" className="gap-2">
-                  <Link to="/import">
-                    <Download className="h-3 w-3" />
-                    Import & Sync
-                  </Link>
-                </Button>
-                
-                {isFullSyncing && (
-                  <Badge variant="secondary" className="gap-1">
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    Sync in progress...
-                  </Badge>
-                )}
-
-                {/* Needs Enrichment indicator (compact) */}
-                {isBinanceConnected && tradesNeedingEnrichment > 0 && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Badge variant="outline" className="gap-1 text-destructive border-destructive/30">
-                          <AlertCircle className="h-3 w-3" />
-                          {tradesNeedingEnrichment} need enrichment
-                        </Badge>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Go to Import & Sync to enrich trades with missing data</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
-              </div>
-              
-              {/* View Mode Toggle */}
-              <ToggleGroup 
-                type="single" 
-                value={viewMode} 
-                onValueChange={(v) => v && setViewMode(v as ViewMode)}
-                className="border rounded-md"
-              >
-                <ToggleGroupItem value="list" aria-label="List view" className="gap-1.5 px-3">
-                  <List className="h-4 w-4" />
-                  <span className="hidden sm:inline text-sm">List</span>
-                </ToggleGroupItem>
-                <ToggleGroupItem value="gallery" aria-label="Gallery view" className="gap-1.5 px-3">
-                  <LayoutGrid className="h-4 w-4" />
-                  <span className="hidden sm:inline text-sm">Gallery</span>
-                </ToggleGroupItem>
-              </ToggleGroup>
-            </div>
+            <TradeHistoryToolbar
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+              isFullSyncing={isFullSyncing}
+              isBinanceConnected={isBinanceConnected}
+              tradesNeedingEnrichment={tradesNeedingEnrichment}
+            />
           </div>
         </CardContent>
       </Card>
 
-      {/* Trade History Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" aria-hidden="true" />
-            Closed Trades
-            {isBinanceConnected && (
-              <Badge variant="outline" className="text-xs gap-1 ml-2">
-                <Wifi className="h-3 w-3 text-profit" aria-hidden="true" />
-                Binance
-              </Badge>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            renderLoadingSkeleton()
-          ) : isError ? (
-            <EmptyState
-              icon={History}
-              title="Failed to load trades"
-              description={error?.message || "An error occurred while loading trades."}
-            />
-          ) : (
-            <>
-            <Tabs defaultValue="all" className="w-full">
-              <TabsList className="mb-4">
-                <TabsTrigger value="all">All ({sortedTrades.length})</TabsTrigger>
-                <TabsTrigger value="binance">Binance ({binanceTrades.length})</TabsTrigger>
-                <TabsTrigger value="paper">Paper ({paperTrades.length})</TabsTrigger>
-              </TabsList>
+      <TradeHistoryContent
+        viewMode={viewMode}
+        sortedTrades={sortedTrades}
+        binanceTrades={binanceTrades}
+        paperTrades={paperTrades}
+        totalCount={totalCount}
+        isLoading={isLoading}
+        isError={isError}
+        error={error}
+        isFetching={isFetching}
+        isFetchingNextPage={isFetchingNextPage}
+        hasNextPage={!!hasNextPage}
+        isBinanceConnected={isBinanceConnected}
+        loadMoreRef={loadMoreRef}
+        onDeleteTrade={setDeletingTrade}
+        onEnrichTrade={handleEnrichTrade}
+        onQuickNote={handleQuickNote}
+        onTagClick={(tag) => setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag])}
+        calculateRR={calculateRR}
+        formatCurrency={formatCurrency}
+      />
 
-              <TabsContent value="all">
-                <div className={cn("transition-opacity duration-200", isFetching && !isLoading && "opacity-60")}>
-                  {renderTradeList(sortedTrades)}
-                </div>
-              </TabsContent>
-
-              <TabsContent value="binance">
-                <div className={cn("transition-opacity duration-200", isFetching && !isLoading && "opacity-60")}>
-                  {renderTradeList(binanceTrades)}
-                </div>
-              </TabsContent>
-
-              <TabsContent value="paper">
-                <div className={cn("transition-opacity duration-200", isFetching && !isLoading && "opacity-60")}>
-                  {renderTradeList(paperTrades)}
-                </div>
-              </TabsContent>
-            </Tabs>
-
-            {/* Infinite Scroll Trigger - inside conditional to prevent fetch during loading/error */}
-            <div ref={loadMoreRef} className="py-4 flex justify-center">
-              {isFetchingNextPage ? (
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span className="text-sm">Loading more trades...</span>
-                </div>
-              ) : hasNextPage ? (
-                <span className="text-sm text-muted-foreground">
-                  Scroll for more
-                </span>
-              ) : sortedTrades.length > 0 && totalCount > sortedTrades.length ? (
-                <span className="text-sm text-muted-foreground">
-                  {sortedTrades.length} of {totalCount} trades loaded
-                </span>
-              ) : sortedTrades.length > 0 ? (
-                <span className="text-sm text-muted-foreground">
-                  All {sortedTrades.length} trades loaded
-                </span>
-              ) : null}
-            </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Trade Enrichment Drawer */}
       <TradeEnrichmentDrawer
         position={enrichingPosition}
         open={!!enrichingPosition}
@@ -601,7 +247,6 @@ export default function TradeHistory() {
         }}
       />
 
-      {/* Delete Confirmation */}
       <ConfirmDialog
         open={!!deletingTrade}
         onOpenChange={(open) => !open && setDeletingTrade(null)}
@@ -611,7 +256,6 @@ export default function TradeHistory() {
         variant="destructive"
         onConfirm={handleDeleteTrade}
       />
-      
     </div>
   );
 }
