@@ -43,6 +43,7 @@ import {
   BinanceOpenOrdersTable,
 } from "@/components/journal";
 import type { UnifiedPosition } from "@/components/journal";
+import { TradingOnboardingTour } from "@/components/trading/TradingOnboardingTour";
 
 
 const closePositionSchema = z.object({
@@ -185,6 +186,7 @@ export default function TradingJournal() {
           title="Trading Journal"
           description="Document every trade for continuous improvement"
         >
+          <Badge variant="outline" className="text-xs font-normal">Basic Mode</Badge>
           {canCreateManualTrade ? (
             <Button variant="default" onClick={() => setIsWizardOpen(true)} aria-label="Open trade entry wizard">
               <Wand2 className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -196,6 +198,9 @@ export default function TradingJournal() {
             </Badge>
           )}
         </PageHeader>
+
+        {/* First-time user onboarding tour */}
+        <TradingOnboardingTour onNewTrade={() => setIsWizardOpen(true)} />
         
         {/* Pro Tip - below header */}
         <QuickTip storageKey="trading_journal_tip">
