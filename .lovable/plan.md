@@ -1,97 +1,96 @@
 
-# Fix: Eliminate Full-Screen Loading on Page Navigation
 
-## Problem
-Every protected page internally wraps itself with `<DashboardLayout>`. Since pages are lazy-loaded via `React.lazy`, when navigating between routes, React suspends the **entire component** -- including `DashboardLayout` (sidebar, header, ticker). This causes the full-screen loading spinner, unmounting the navigation shell on every transition.
+# Create docs/FEATURE-MATRIX.md
 
-The React warning "A component suspended while responding to synchronous input. This will cause the UI to be replaced with a loading indicator" confirms this.
+## Overview
+Create a comprehensive feature matrix document covering all features, functions, and business processes for the **Trading Journal**, **Trade History**, and **Import Trade** pages, structured per page and per actor (Trader/User vs System).
 
-## Solution
-Move `DashboardLayout` out of individual pages and into the routing layer as a **persistent layout wrapper**. This way, sidebar and header stay mounted while only the page content area shows a loading spinner via the existing `<Suspense>` inside `DashboardLayout`.
+## File to Create
+`docs/FEATURE-MATRIX.md`
 
-## Changes
+## Content Structure
 
-### 1. Create a Layout Route Wrapper (`src/components/layout/ProtectedDashboardLayout.tsx`)
-A new component combining `ProtectedRoute` + `DashboardLayout` + React Router `<Outlet />`:
+The document will be organized into 3 main sections (one per page), each containing:
+1. **Trader/User Features** - actions initiated by the user
+2. **System Features** - automated processes triggered by the system
 
-```text
-ProtectedRoute
-  -> DashboardLayout (sidebar, header - always mounted)
-       -> <Suspense> (already exists in DashboardLayout)
-            -> <Outlet /> (renders the matched child route - lazy loaded)
-```
+Each feature entry in the table will have columns:
+- Nama Fitur / Fungsi
+- Aktor
+- Tujuan / Outcome
+- Flow / Alur Singkat
+- Precondition
+- Postcondition
+- Catatan / Masalah
 
-### 2. Update `src/App.tsx` - Use nested Route layout
-Convert flat routes to nested routes under the layout wrapper:
+### Section 1: Trading Journal (/trading)
+**Trader/User features (12 items):**
+- Buat Trade Baru (Wizard Full/Express Mode)
+- Lihat Summary Stats (Open Positions, Unrealized/Realized P&L)
+- Lihat Pending Orders (Paper + Binance Open Orders)
+- Lihat Active Positions (Paper + Binance)
+- Close Position Manual (Paper mode)
+- Edit Position (SL/TP/Notes)
+- Enrich Trade (Strategy, Screenshots, Timeframes, Rating, Notes via Drawer)
+- Delete Trade (Soft delete with recovery)
+- Switch Tab Pending/Active
+- Cancel Binance Open Order (from Pending tab)
+- Toggle Trade Mode (Paper/Live via header selector)
+- Dismiss Pro Tip
 
-```text
-Before:
-  <Route path="/trading" element={<ProtectedRoute><TradingJournal /></ProtectedRoute>} />
-  <Route path="/history" element={<ProtectedRoute><TradeHistory /></ProtectedRoute>} />
+**System features (6 items):**
+- Mode Isolation (filter trades by active trade_mode)
+- Trading Gate (block wizard if daily loss limit reached)
+- AI Pre-flight Check (validate edge before entry in Full mode)
+- Post-Trade AI Analysis (auto-trigger on close)
+- Real-time Binance Data Fetch (positions, orders, balance)
+- P&L Calculation (direction-aware on close)
 
-After:
-  <Route element={<ProtectedDashboardLayout />}>
-    <Route path="/" element={<Dashboard />} />
-    <Route path="/trading" element={<TradingJournal />} />
-    <Route path="/history" element={<TradeHistory />} />
-    ... all protected routes
-  </Route>
-```
+### Section 2: Trade History (/history)
+**Trader/User features (14 items):**
+- Lihat Closed Trades (List/Gallery view toggle)
+- Filter by Date Range
+- Filter by Result (Win/Loss/BE)
+- Filter by Direction (Long/Short)
+- Filter by Strategy
+- Filter by Pair
+- Filter by Session (Asia/London/NY)
+- Sort by AI Score
+- Export CSV
+- Enrich Trade (via Drawer)
+- Quick Note (inline)
+- Delete Trade (Soft delete)
+- Trigger Incremental Sync
+- Trigger Full Sync (Binance)
+- Trigger Batch Enrichment (Binance trades needing data)
+- Load More (Infinite scroll)
 
-### 3. Update all 23 page files - Remove DashboardLayout wrapper
-Each page currently does:
-```tsx
-return (
-  <DashboardLayout>
-    <div className="space-y-6">...</div>
-  </DashboardLayout>
-);
-```
+**System features (7 items):**
+- Server-Side Stats (RPC get_trade_stats)
+- Cursor-Based Pagination
+- Mode Isolation (tradeMode filter)
+- Auto Incremental Sync on mount
+- Binance Source Filter (user settings)
+- Stale Sync Detection
+- Trades Needing Enrichment Count
 
-Will become:
-```tsx
-return (
-  <div className="space-y-6">...</div>
-);
-```
+### Section 3: Import Trades (/import)
+**Trader/User features (5 items):**
+- Connect Solana Wallet
+- Scan Wallet for Trades
+- Review Detected Trades (select/deselect)
+- Import Selected Trades
+- Reset/Scan Again
 
-Remove the `import { DashboardLayout }` and the wrapping `<DashboardLayout>` tags from all 23 pages.
-
-**Affected files:**
-- `src/pages/Dashboard.tsx`
-- `src/pages/Accounts.tsx`
-- `src/pages/AccountDetail.tsx`
-- `src/pages/trading-journey/TradingJournal.tsx`
-- `src/pages/TradeHistory.tsx`
-- `src/pages/trading-journey/StrategyManagement.tsx`
-- `src/pages/Backtest.tsx`
-- `src/pages/Performance.tsx`
-- `src/pages/DailyPnL.tsx`
-- `src/pages/TradingHeatmap.tsx`
-- `src/pages/AIInsights.tsx`
-- `src/pages/RiskManagement.tsx`
-- `src/pages/PositionCalculator.tsx`
-- `src/pages/MarketInsight.tsx`
-- `src/pages/EconomicCalendar.tsx`
-- `src/pages/MarketData.tsx`
-- `src/pages/ImportTrades.tsx`
-- `src/pages/TopMovers.tsx`
-- `src/pages/BulkExport.tsx`
-- `src/pages/Settings.tsx`
-- `src/pages/Profile.tsx`
-- `src/pages/Notifications.tsx`
-- `src/pages/SharedStrategy.tsx` (if applicable)
-
-### 4. Update `DashboardLayout.tsx` - Use Outlet instead of children
-Replace `{children}` with `<Outlet />` from react-router-dom inside the `<Suspense>` boundary. The `children` prop is no longer needed.
-
-## Result
-- Sidebar, header, ticker, and banners stay **permanently mounted** during navigation
-- Only the content area shows a small spinner while the lazy page loads
-- The React `startTransition` warning is resolved because the Suspense boundary is scoped to content only
-- No behavioral changes -- all pages render identically once loaded
+**System features (4 items):**
+- DEX Auto-Detection (Deriverse, Drift, Zeta, Mango)
+- Duplicate Protection (signature-based)
+- PnL Calculation (token balance analysis)
+- Direction/Pair/Quantity Extraction
 
 ## Technical Notes
-- Pages with multiple `<DashboardLayout>` returns (e.g., loading states in Profile, Notifications, TradingHeatmap, AIInsights) need all instances removed
-- The `DashboardLayout` Suspense fallback already exists at line 218-224, so no new loading UI is needed
-- Public routes (`/landing`, `/auth`) remain unchanged with their own `<Suspense>` wrappers
+- Format: Markdown tables with 7 columns per feature
+- Language: Mixed (feature names in Indonesian-friendly English, descriptions in Bahasa Indonesia for consistency with user preference)
+- Each section will have a brief intro paragraph describing the page's purpose
+- Cross-references to existing docs (DATABASE.md, USER_SCENARIOS.md) where relevant
+
