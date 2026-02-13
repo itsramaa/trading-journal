@@ -1,6 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Area,
   AreaChart,
@@ -10,11 +11,14 @@ import {
   XAxis,
   YAxis,
   ReferenceLine,
+  ReferenceArea,
+  ReferenceDot,
 } from "recharts";
 import { format, parseISO } from "date-fns";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
-import { TrendingUp, TrendingDown, BarChart3 } from "lucide-react";
+import { BarChart3, Sparkles } from "lucide-react";
+import { detectStreakZones, detectMilestones, type CurveDataPoint } from "@/lib/equity-annotations";
 
 interface EquityCurveChartProps {
   initialBalance?: number;
@@ -24,15 +28,15 @@ interface EquityCurveChartProps {
 export function EquityCurveChart({ initialBalance = 0, className }: EquityCurveChartProps) {
   const { data: trades = [] } = useTradeEntries();
   const { format: formatCurrency } = useCurrencyConversion();
+  const [showAnnotations, setShowAnnotations] = useState(true);
 
   const { curveData, maxDrawdown, maxDrawdownPercent, peakBalance, currentBalance } = useMemo(() => {
-    // Sort by trade_date ascending
     const sorted = [...trades]
       .filter((t) => t.status === "closed")
       .sort((a, b) => new Date(a.trade_date).getTime() - new Date(b.trade_date).getTime());
 
     if (sorted.length === 0) {
-      return { curveData: [], maxDrawdown: 0, maxDrawdownPercent: 0, peakBalance: 0, currentBalance: 0 };
+      return { curveData: [] as CurveDataPoint[], maxDrawdown: 0, maxDrawdownPercent: 0, peakBalance: 0, currentBalance: 0 };
     }
 
     let balance = initialBalance;
@@ -40,7 +44,7 @@ export function EquityCurveChart({ initialBalance = 0, className }: EquityCurveC
     let maxDd = 0;
     let maxDdPercent = 0;
 
-    const data = sorted.map((trade) => {
+    const data: CurveDataPoint[] = sorted.map((trade) => {
       const pnl = trade.realized_pnl ?? trade.pnl ?? 0;
       balance += pnl;
       if (balance > peak) peak = balance;
@@ -50,22 +54,19 @@ export function EquityCurveChart({ initialBalance = 0, className }: EquityCurveC
         maxDd = drawdown;
         maxDdPercent = ddPercent;
       }
-      return {
-        date: trade.trade_date,
-        balance,
-        drawdown: -drawdown,
-        pnl,
-      };
+      return { date: trade.trade_date, balance, drawdown: -drawdown, pnl };
     });
 
-    return {
-      curveData: data,
-      maxDrawdown: maxDd,
-      maxDrawdownPercent: maxDdPercent,
-      peakBalance: peak,
-      currentBalance: balance,
-    };
+    return { curveData: data, maxDrawdown: maxDd, maxDrawdownPercent: maxDdPercent, peakBalance: peak, currentBalance: balance };
   }, [trades, initialBalance]);
+
+  const { streakZones, milestones } = useMemo(() => {
+    if (curveData.length === 0) return { streakZones: [], milestones: [] };
+    return {
+      streakZones: detectStreakZones(curveData),
+      milestones: detectMilestones(curveData, initialBalance),
+    };
+  }, [curveData, initialBalance]);
 
   if (curveData.length === 0) {
     return (
@@ -99,6 +100,15 @@ export function EquityCurveChart({ initialBalance = 0, className }: EquityCurveC
             <CardDescription>{curveData.length} trades</CardDescription>
           </div>
           <div className="flex items-center gap-3">
+            <Button
+              variant={showAnnotations ? "default" : "outline"}
+              size="sm"
+              className="gap-1.5 text-xs h-7"
+              onClick={() => setShowAnnotations(!showAnnotations)}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              AI Annotations
+            </Button>
             <div className="text-right">
               <p className="text-xs text-muted-foreground">Balance</p>
               <p className={`text-sm font-semibold font-mono-numbers ${isProfit ? "text-profit" : "text-loss"}`}>
@@ -161,6 +171,34 @@ export function EquityCurveChart({ initialBalance = 0, className }: EquityCurveC
                 }}
               />
               <ReferenceLine y={initialBalance} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" />
+
+              {/* AI Annotations: Streak Zones */}
+              {showAnnotations && streakZones.map((zone, i) => (
+                <ReferenceArea
+                  key={`zone-${i}`}
+                  x1={curveData[zone.startIndex]?.date}
+                  x2={curveData[zone.endIndex]?.date}
+                  fill={zone.type === 'win' ? 'rgba(34, 197, 94, 0.12)' : 'rgba(239, 68, 68, 0.12)'}
+                  stroke={zone.type === 'win' ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}
+                  strokeDasharray="3 3"
+                  label={{ value: zone.label, position: 'insideTop', fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                />
+              ))}
+
+              {/* AI Annotations: Milestones */}
+              {showAnnotations && milestones.map((m, i) => (
+                <ReferenceDot
+                  key={`ms-${i}`}
+                  x={curveData[m.index]?.date}
+                  y={m.value}
+                  r={5}
+                  fill={m.type === 'ath' ? 'hsl(var(--primary))' : m.type === 'max_dd' ? 'hsl(var(--destructive))' : 'hsl(var(--chart-4))'}
+                  stroke="hsl(var(--background))"
+                  strokeWidth={2}
+                  label={{ value: m.label, position: m.type === 'max_dd' ? 'insideBottomRight' : 'insideTopRight', fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                />
+              ))}
+
               <Area
                 type="monotone"
                 dataKey="balance"
