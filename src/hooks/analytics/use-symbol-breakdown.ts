@@ -6,6 +6,7 @@ import { useMemo } from 'react';
 import { useBinanceDailyPnl } from '@/hooks/use-binance-daily-pnl';
 import { useBinanceConnectionStatus } from '@/features/binance';
 import { useTradeEntries } from '@/hooks/use-trade-entries';
+import { useTradeMode } from '@/hooks/use-trade-mode';
 import { subDays, isWithinInterval, startOfDay } from 'date-fns';
 
 export interface SymbolBreakdownItem {
@@ -28,6 +29,7 @@ export interface SymbolBreakdownResult {
 export function useSymbolBreakdown(): SymbolBreakdownResult {
   const { data: connectionStatus, isLoading: connectionLoading } = useBinanceConnectionStatus();
   const isConnected = connectionStatus?.isConnected ?? false;
+  const { tradeMode } = useTradeMode();
   
   // Binance P&L data (has bySymbol)
   const binancePnl = useBinanceDailyPnl();
@@ -50,6 +52,12 @@ export function useSymbolBreakdown(): SymbolBreakdownResult {
     
     trades.forEach(trade => {
       if (trade.status !== 'closed') return;
+      
+      // Inline mode filter — identical pattern to useUnifiedWeeklyPnl
+      const matchesMode = trade.trade_mode 
+        ? trade.trade_mode === tradeMode
+        : (tradeMode === 'live' ? trade.source === 'binance' : trade.source !== 'binance');
+      if (!matchesMode) return;
       
       const tradeDate = trade.trade_date ? new Date(trade.trade_date) : null;
       if (!tradeDate) return;
@@ -106,7 +114,7 @@ export function useSymbolBreakdown(): SymbolBreakdownResult {
       weekly: Array.from(weeklyBySymbol.values())
         .sort((a, b) => Math.abs(b.net) - Math.abs(a.net)),
     };
-  }, [trades, isConnected]);
+  }, [trades, isConnected, tradeMode]);
   
   // Return Binance or Paper data
   return useMemo((): SymbolBreakdownResult => {

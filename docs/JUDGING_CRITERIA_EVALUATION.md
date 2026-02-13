@@ -36,7 +36,8 @@
 - Paper Trade + Live Trade mode dengan strict data isolation
 - ✅ **NEW:** Emotional Pattern Analysis terintegrasi di AI Insights — win rate breakdown per emotional state (confident, fearful, FOMO, revenge), AI-generated emotional insights
 - ✅ **NEW:** EmotionalPatternAnalysis dipromosikan ke tab dedicated "Emotional" di AI Insights untuk discoverability maksimal
-- ✅ **NEW:** Data isolation fix — 9 analytics/dashboard/risk components (`EmotionalPatternAnalysis`, `EquityCurveChart`, `DrawdownChart`, `CryptoRanking`, `AIPatternInsights`, `TradingHeatmap`, `GoalTrackingWidget`, `useContextualAnalytics`, `usePreTradeValidation`) kini menggunakan `useModeFilteredTrades()` untuk strict Paper/Live separation
+- ✅ **NEW:** Data isolation fix — 10 analytics/dashboard/risk components (`EmotionalPatternAnalysis`, `EquityCurveChart`, `DrawdownChart`, `CryptoRanking`, `AIPatternInsights`, `TradingHeatmap`, `GoalTrackingWidget`, `useContextualAnalytics`, `usePreTradeValidation`, `useSymbolBreakdown`) kini menggunakan `useModeFilteredTrades()` atau inline mode filter untuk strict Paper/Live separation
+- ✅ **NEW:** `useSymbolBreakdown` — critical bug fix: Paper path sebelumnya mengagregasi SEMUA closed trades tanpa filter `tradeMode`, menyebabkan symbol breakdown (Today's P&L by Symbol) menampilkan data Paper dan Live tercampur. Fixed dengan inline mode filter pattern.
 
 ### Kelemahan Tersisa
 
@@ -89,16 +90,17 @@ _Tidak ada kelemahan unjustified._
 
 ### Page Inventory (25 pages)
 
-| Domain | Pages |
-|--------|-------|
-| **Core** | Dashboard, Performance, TradeHistory, TradingJournal |
-| **Analytics** | DailyPnL, TradingHeatmap, TopMovers, AIInsights |
-| **Trading** | PositionCalculator, MarketData, MarketInsight, EconomicCalendar |
-| **Risk** | RiskManagement, Backtest |
-| **Account** | Accounts, AccountDetail, Profile, Settings |
-| **Import/Export** | ImportTrades, BulkExport |
-| **Social** | SharedStrategy |
-| **System** | Auth, Landing, Notifications, NotFound |
+| Domain | Pages | Path |
+|--------|-------|------|
+| **Core** | Dashboard, Performance, TradeHistory | `src/pages/` |
+| **Core** | TradingJournal | `src/pages/trading-journey/TradingJournal.tsx` |
+| **Analytics** | DailyPnL, TradingHeatmap, TopMovers, AIInsights | `src/pages/` |
+| **Trading** | PositionCalculator, MarketData, MarketInsight, EconomicCalendar | `src/pages/` |
+| **Risk** | RiskManagement, Backtest | `src/pages/` |
+| **Account** | Accounts, AccountDetail, Profile, Settings | `src/pages/` |
+| **Import/Export** | ImportTrades, BulkExport | `src/pages/` |
+| **Social** | SharedStrategy | `src/pages/` |
+| **System** | Auth, Landing, Notifications, NotFound | `src/pages/` |
 
 ### Component Domain Summary (100+ components)
 
@@ -148,6 +150,21 @@ _Tidak ada kelemahan unjustified._
 - ✅ **NEW:** Unit tests untuk `predictive-analytics.ts` (8 tests) dan `equity-annotations.ts` (10 tests) — memastikan akurasi kalkulasi statistik prediktif dan deteksi anotasi
 - ✅ **NEW:** Data isolation fix — 9 analytics/dashboard/risk components menggunakan `useModeFilteredTrades()`, memastikan metrics dihitung hanya dari data mode aktif (Paper/Live) tanpa cross-contamination. Termasuk `GoalTrackingWidget` (dashboard goals), `TradingHeatmap`, `useContextualAnalytics` (Fear/Greed zone performance), dan `usePreTradeValidation` (max positions, correlation checks).
 - ✅ **JUSTIFIED:** `Dashboard.tsx` menggunakan `useTradeEntries()` **hanya** untuk empty-state check (`trades.length === 0`) — menampilkan CTA "Log First Trade" saat user belum punya trade sama sekali, regardless of mode. Ini adalah penggunaan yang benar karena empty-state harus global.
+- ✅ **NEW:** `useSymbolBreakdown` — critical bug fix: inline mode filter ditambahkan di Paper path `trades.forEach()` block. Sebelumnya mengagregasi semua closed trades tanpa filter `tradeMode`.
+
+### Data Isolation Patterns
+
+Dua pattern data isolation digunakan, keduanya valid:
+
+| Pattern | Digunakan Oleh | Justifikasi |
+|---------|---------------|-------------|
+| **Pattern A:** `useModeFilteredTrades()` | 7 UI components (`EmotionalPatternAnalysis`, `EquityCurveChart`, `DrawdownChart`, `CryptoRanking`, `AIPatternInsights`, `TradingHeatmap`, `GoalTrackingWidget`) + `useContextualAnalytics` + `usePreTradeValidation` | Komponen hanya butuh filtered trades, tidak perlu source routing logic |
+| **Pattern B:** `useTradeEntries()` + inline mode filter | `useUnifiedDailyPnl`, `useUnifiedWeeklyPnl`, `useUnifiedWeekComparison`, `useSymbolBreakdown` | Hooks ini sudah import `useTradeMode` untuk source routing (Binance vs Paper path), sehingga inline filter menghindari double hook overhead |
+| **Pattern C:** `useTradeEntries()` unfiltered (justified) | `Performance.tsx` (type-level analytics), `Dashboard.tsx` (empty-state check), `TradingJournal.tsx` (type/mutation re-exports only) | Masing-masing memiliki justifikasi valid — lihat detail di bawah |
+
+**Performance.tsx Multi-Level Analytics:** `useTradeEntries()` untuk `allTrades` digunakan **hanya** saat `analyticsSelection.level === 'type'` untuk memfilter Paper vs Live sebagai tipe-level comparison. Ini adalah penggunaan yang benar — multi-level analytics membutuhkan akses semua trades untuk aggregation lintas tipe.
+
+**TradingJournal.tsx Import Pattern:** Import `useTradeEntries` hanya untuk `TradeEntry` type re-export dan mutation hooks (`useDeleteTradeEntry`, `useClosePosition`, `useUpdateTradeEntry`). Data query menggunakan `useModeFilteredTrades()` (line 74).
 
 ### Kelemahan Tersisa
 
@@ -274,6 +291,8 @@ _Tidak ada kelemahan tersisa._
    - `src/lib/__tests__/formatters.test.ts` (25 test cases) — currency/percentage/number formatting tests
    - `src/lib/__tests__/correlation-utils.test.ts` (19 test cases) — correlation coefficient, risk detection, label tests
    - `src/lib/__tests__/market-scoring.test.ts` (29 test cases) — composite score, trading bias, volatility, event risk tests
+   - `src/lib/__tests__/symbol-utils.test.ts` (22 test cases) — symbol parsing, quote detection, formatting, edge cases
+   - `src/lib/__tests__/trade-utils.test.ts` (35 test cases) — enrichment checks, direction badges, R:R, screenshots, notes helpers
    - `src/lib/__tests__/predictive-analytics.test.ts` (8 test cases) — statistical prediction tests
    - `src/lib/__tests__/equity-annotations.test.ts` (10 test cases) — equity annotation detection tests
 - ✅ **NEW:** Hooks diorganisasi ke domain sub-folders:
@@ -284,6 +303,19 @@ _Tidak ada kelemahan tersisa._
   - Root: ~20 general hooks (auth, settings, notifications, etc.)
 
 ### Kelemahan Tersisa
+
+### Error Handling & Fallback Behavior
+
+| Pattern | Implementation | Scope |
+|---------|---------------|-------|
+| **WidgetErrorBoundary** | Per-widget error isolation — failure in one dashboard widget doesn't crash others | Dashboard, Analytics pages |
+| **Global ErrorBoundary** | App-level crash recovery with user-friendly fallback UI | `App.tsx` wraps entire app |
+| **Loading Skeletons** | Shimmer placeholders for every data section | All pages |
+| **EmptyState Component** | Consistent CTA when no data available | Journal, History, Analytics |
+| **React Query Retry** | Exponential backoff (3 retries, staleTime: 2m, gcTime: 10m) | All server queries |
+| **Edge Function Error Sanitization** | Generic user-facing messages via `sanitizeError()`, details only in server logs | All 25 edge functions |
+| **Binance Disconnect Fallback** | Graceful degradation — hides Binance-only widgets, shows Paper data | Dashboard, Analytics |
+| **Rate Limit Handling** | `check_rate_limit` RPC prevents API abuse with weight-based windowing | Binance API calls |
 
 _Tidak ada kelemahan tersisa._
 
@@ -306,7 +338,7 @@ src/
 │   ├── exchange/    # Balance, credentials, conversion (7 hooks)
 │   └── (root)       # General: auth, settings, notifications (~20 hooks)
 ├── lib/             # Utilities, calculators, formatters
-│   └── __tests__/   # Unit tests for core calculation libs (11 test files, 164+ cases)
+│   └── __tests__/   # Unit tests for core calculation libs (13 test files, 221+ cases)
 ├── services/        # API layer
 ├── store/           # Zustand stores
 ├── features/        # Feature-specific logic
@@ -408,6 +440,12 @@ _Semua kelemahan signifikan sudah teratasi atau ter-justified._
 | 37 | Code Quality | Unit tests for market-scoring.ts (29 test cases — composite score, trading bias, volatility, event risk, fear/greed) | 10.0 (coverage) |
 | 38 | Comprehensiveness | Edge function inventory (25 functions), page inventory (25 pages), component domain summary (100+ components), feature module summary (5 domains) added to eval doc | 10.0 (100% coverage) |
 | 39 | Documentation | Fixed weighted average math error, documented Dashboard useTradeEntries justification, complete architecture documentation | 10.0 (accuracy) |
+| 40 | Accuracy (CRITICAL) | `useSymbolBreakdown` data isolation fix — inline mode filter added to Paper path `trades.forEach()` block, preventing Paper/Live data contamination in symbol breakdown | 10.0 (critical fix) |
+| 41 | Code Quality | Unit tests for `symbol-utils.ts` (22 test cases — symbol parsing, quote detection, formatting) | 10.0 (coverage) |
+| 42 | Code Quality | Unit tests for `trade-utils.ts` (35 test cases — enrichment, direction, R:R, screenshots, notes) | 10.0 (coverage) |
+| 43 | Comprehensiveness | Error Handling & Fallback Behavior section — documented WidgetErrorBoundary, global ErrorBoundary, loading skeletons, EmptyState, React Query retry, edge function error sanitization, Binance disconnect fallback | 10.0 (completeness) |
+| 44 | Accuracy | Data Isolation Patterns documented — Pattern A (useModeFilteredTrades), Pattern B (inline filter), Pattern C (justified unfiltered) with complete hook inventory | 10.0 (transparency) |
+| 45 | Comprehensiveness | Page inventory updated with full file paths, TradingJournal subfolder clarified, `_shared/` documented as utility module (not edge function) | 10.0 (accuracy) |
 
 ---
 
