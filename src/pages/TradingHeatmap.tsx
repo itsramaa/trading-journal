@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import { MetricsGridSkeleton, ChartSkeleton } from "@/components/ui/loading-skeleton";
-import { TradingHeatmap } from "@/components/analytics/TradingHeatmap";
+import { TradingHeatmap } from "@/components/analytics/charts/TradingHeatmap";
 import { formatWinRate } from "@/lib/formatters";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { getTradeSession, formatSessionTimeLocal, SESSION_LABELS, type TradingSession } from "@/lib/session-utils";

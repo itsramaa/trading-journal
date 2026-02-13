@@ -89,57 +89,74 @@ export function createErrorResponse(
   statusCode: number = 500,
   code?: ErrorCode
 ): Response {
-  let errorMessage = 'An unexpected error occurred';
+  let internalMessage = 'An unexpected error occurred';
   let errorCode: ErrorCode = code || getErrorCodeFromStatus(statusCode);
   let retryAfter: number | undefined;
-  let details: Record<string, unknown> = {};
   
-  // Extract error information
+  // Extract error information for logging (never expose to client)
   if (error instanceof Error) {
-    errorMessage = error.message;
+    internalMessage = error.message;
     
     // Check for specific error types
     if (error.message.includes('rate limit') || error.message.includes('429')) {
       errorCode = 'RATE_LIMITED';
-      retryAfter = 60; // Default 60 seconds
+      retryAfter = 60;
     } else if (error.message.includes('timeout')) {
       errorCode = 'TIMEOUT';
     } else if (error.message.includes('network') || error.message.includes('fetch failed')) {
       errorCode = 'NETWORK_ERROR';
     }
     
-    // Check for attached properties
-    if ('status' in error) {
-      details.httpStatus = (error as any).status;
-    }
     if ('retryAfter' in error && typeof (error as any).retryAfter === 'number') {
       retryAfter = Math.ceil((error as any).retryAfter / 1000);
     }
-    if ('code' in error) {
-      details.originalCode = (error as any).code;
-    }
   } else if (typeof error === 'string') {
-    errorMessage = error;
+    internalMessage = error;
   } else if (error && typeof error === 'object') {
-    errorMessage = (error as any).message || (error as any).msg || JSON.stringify(error);
-    if ('code' in error) {
-      details.originalCode = (error as any).code;
-    }
+    internalMessage = (error as any).message || (error as any).msg || JSON.stringify(error);
   }
+  
+  // Log full error details server-side only
+  console.error(`[EdgeFunction Error] code=${errorCode} status=${statusCode} msg=${internalMessage}`);
+  
+  // Sanitize: return generic user-facing message, never implementation details
+  const sanitizedMessage = getSanitizedMessage(errorCode);
   
   const responseBody: EdgeFunctionError = {
     success: false,
-    error: errorMessage,
+    error: sanitizedMessage,
     code: errorCode,
     retryable: isErrorRetryable(errorCode),
     ...(retryAfter !== undefined && { retryAfter }),
-    ...(Object.keys(details).length > 0 && { details }),
   };
   
   return new Response(JSON.stringify(responseBody), {
     status: statusCode,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
+}
+
+/**
+ * Return a safe, generic error message based on error code.
+ * Never expose internal implementation details to the client.
+ */
+function getSanitizedMessage(code: ErrorCode): string {
+  switch (code) {
+    case 'RATE_LIMITED': return 'Rate limit exceeded. Please try again later.';
+    case 'AUTH_FAILED': return 'Authentication failed. Please sign in again.';
+    case 'NETWORK_ERROR': return 'A network error occurred. Please try again.';
+    case 'VALIDATION_ERROR': return 'Invalid request. Please check your input.';
+    case 'NOT_FOUND': return 'The requested resource was not found.';
+    case 'PERMISSION_DENIED': return 'You do not have permission to perform this action.';
+    case 'BINANCE_API_ERROR': return 'Exchange API error. Please try again later.';
+    case 'AI_GATEWAY_ERROR': return 'AI service temporarily unavailable. Please try again.';
+    case 'AI_ERROR': return 'AI analysis failed. Please try again.';
+    case 'PAYMENT_REQUIRED': return 'This feature requires an active subscription.';
+    case 'TIMEOUT': return 'Request timed out. Please try again.';
+    case 'INSUFFICIENT_DATA': return 'Not enough data to perform this analysis.';
+    case 'INTERNAL_ERROR':
+    default: return 'An unexpected error occurred. Please try again later.';
+  }
 }
 
 /**
