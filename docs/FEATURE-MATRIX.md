@@ -67,7 +67,7 @@ Halaman utama untuk membuat, memantau, dan mengelola trade aktif. Mendukung Pape
 
 ## 2. Trade History (`/history`)
 
-Halaman untuk melihat, menganalisis, dan mengelola riwayat trade yang sudah ditutup. Mendukung filtering lanjutan, sinkronisasi Binance, dan export data.
+Halaman untuk melihat, menganalisis, dan mengelola riwayat trade yang sudah ditutup. Mendukung filtering lanjutan dan export data. Sync/import telah dipindahkan ke `/import`.
 
 ### 2.1 Trader/User Features
 
@@ -85,9 +85,9 @@ Halaman untuk melihat, menganalisis, dan mengelola riwayat trade yang sudah ditu
 | 10 | Enrich Trade (via Drawer) | Trader | Menambahkan konteks profesional pada closed trade | Klik Enrich → `TradeEnrichmentDrawer` terbuka → Isi enrichment data → Save | Trade tersedia di history | Trade diperkaya; AI Post-Mortem tersedia untuk review | Sama dengan Enrichment di Trading Journal |
 | 11 | Quick Note (inline) | Trader | Menambahkan catatan singkat langsung dari tabel/card | Klik note icon → Input inline → Save | Trade tersedia di history | `notes` field terupdate tanpa membuka drawer | Fast-path untuk catatan ringan |
 | 12 | Delete Trade (Soft Delete) | Trader | Menghapus trade dari history dengan opsi recovery | Klik Delete → Confirm → Soft delete | Trade tersedia di history | `deleted_at` terisi; Recoverable 30 hari via Settings | Konsisten dengan soft-delete architecture |
-| 13 | Trigger Incremental Sync | Trader | Menyinkronkan trade terbaru dari Binance | Klik Sync → Incremental sync berjalan → Trades baru masuk | Mode = Live; Binance connected | Trades baru dari Binance tersimpan di local DB | Hanya fetch trades setelah last sync checkpoint |
-| 14 | Trigger Full Sync (Binance) | Trader | Menyinkronkan seluruh riwayat trade dari Binance | Klik Full Sync → Confirm → Full sync berjalan | Mode = Live; Binance connected; Quota tersedia | Seluruh trade history dari Binance tersinkron | Rate-limited; Quota harian terbatas (`sync_quota_usage`) |
-| 15 | Trigger Batch Enrichment | Trader | Memperkaya batch trade Binance yang data-nya belum lengkap | Klik Enrich All → Batch process berjalan | Trades dengan direction='UNKNOWN' atau entry_price=0 | Trades ter-enrich dengan data lengkap dari Binance API | Badge count "Needs Enrichment" muncul di UI |
+| 13 | Navigate to Import & Sync | Trader | Membuka halaman Import & Sync untuk trigger sync | Klik "Import & Sync" button → Redirect ke `/import` | Halaman History terbuka | User di-redirect ke Import hub | Menggantikan sync controls inline di Trade History |
+| 14 | ~~Trigger Full Sync~~ | — | **Dipindahkan ke `/import` tab Binance** | — | — | — | Lihat Import Trades #14-23 |
+| 15 | ~~Trigger Batch Enrichment~~ | — | **Dipindahkan ke `/import` tab Binance** | — | — | — | Lihat Import Trades #15 |
 | 16 | Load More (Infinite Scroll) | Trader | Memuat lebih banyak trades saat scroll ke bawah | Scroll ke bawah → Intersection observer trigger → Fetch next page | Lebih banyak trades tersedia di server | Page berikutnya ter-append ke list | Cursor-based, bukan offset-based |
 | 17 | Tab: Fees History | Trader | Melihat riwayat commission fee per trade | Klik tab Fees → Tabel fee history ditampilkan dengan total summary & per-pair breakdown | Binance connected; Mode = Live | Riwayat fee ditampilkan; Total fee summary tersedia | Component: `FeeHistoryTab`; Fee trend chart tersedia |
 | 18 | Tab: Funding History | Trader | Melihat riwayat funding rate payments | Klik tab Funding → Tabel funding history ditampilkan dengan earned vs paid breakdown | Binance connected; Mode = Live | Riwayat funding ditampilkan; Net funding P&L tersedia | Component: `FundingHistoryTab`; Per-pair funding breakdown |
@@ -146,9 +146,9 @@ Halaman untuk melihat, menganalisis, dan mengelola riwayat trade yang sudah ditu
 
 ---
 
-## 3. Import Trades (`/import`)
+## 3. Import & Sync Trades (`/import`)
 
-Halaman untuk mengimpor trade on-chain dari wallet Solana. Mendukung auto-detection DEX dan proteksi duplikat berbasis signature.
+Halaman terpusat untuk mengimpor dan menyinkronkan trade dari berbagai sumber. Tab Binance Sync untuk sinkronisasi exchange, tab Solana untuk import on-chain wallet.
 
 ### 3.1 Trader/User Features
 
@@ -167,8 +167,19 @@ Halaman untuk mengimpor trade on-chain dari wallet Solana. Mendukung auto-detect
 | 11 | Error State with Retry | Trader | Melihat pesan error dan mengulang scan | Scan gagal → Error message ditampilkan → Klik "Try Again" → Scan diulang | Scan pernah gagal (network, RPC error) | Error message informatif; Retry button tersedia | "Failed to scan. Please try again." |
 | 12 | Scan More Transactions | Trader | Memperluas pencarian jika hasil awal sedikit | Hasil scan 0 atau sedikit → Klik "Scan More (200)" → Scan ulang dengan limit lebih besar | Scan selesai; Hasil dirasa kurang | Scan ulang dengan limit 200 transactions | Hanya muncul jika initial results < threshold |
 | 13 | View Wallet Address Badge | Trader | Melihat alamat wallet yang terhubung | Badge truncated public key ditampilkan di UI | Wallet connected | User konfirmasi wallet yang benar terhubung | Format: "AbCd...xYz" (truncated) |
-| 14 | View Trade Details per Row | Trader | Melihat detail metadata per detected trade | Setiap row menampilkan: pair, direction, program/DEX, timestamp, quantity, fees, PnL | Trades terdeteksi | Detail lengkap per trade visible sebelum import | Membantu keputusan import per-trade |
-| 15 | View Import Success Summary | Trader | Melihat ringkasan import yang berhasil | Import selesai → Summary: X trades imported successfully → CTA buttons | Import selesai | User informed hasil akhir; Opsi navigate ke Journal atau scan lagi | Toast notification + inline summary |
+| 14 | Trigger Full Sync (Binance) | Trader | Menyinkronkan seluruh riwayat trade dari Binance | Buka tab Binance Sync → Klik Full Sync → Confirm → Full sync berjalan | Mode = Live; Binance connected; Quota tersedia | Seluruh trade history dari Binance tersinkron | **Dipindahkan dari Trade History**; Rate-limited; Quota harian terbatas |
+| 15 | Trigger Batch Enrichment | Trader | Memperkaya batch trade Binance yang data-nya belum lengkap | Buka tab Binance Sync → Klik Enrich → Batch process berjalan | Trades dengan direction='UNKNOWN' atau entry_price=0 | Trades ter-enrich dengan data lengkap dari Binance API | **Dipindahkan dari Trade History** |
+| 16 | Trigger Incremental Sync | Trader | Menyinkronkan trade terbaru dari Binance | Buka tab Binance Sync → Klik Incremental Sync → Fetch trades since last checkpoint | Mode = Live; Binance connected | Trades baru dari Binance tersimpan di local DB | **Dipindahkan dari Trade History** |
+| 17 | View Sync Quota | Trader | Melihat sisa quota sync harian | Buka tab Binance Sync → Quota indicator ditampilkan | Binance connected | User aware sisa quota | **Dipindahkan dari Trade History**; Hook: `useSyncQuota` |
+| 18 | Select Sync Range | Trader | Memilih rentang waktu untuk Full Sync | Pilih range: 30d, 90d, 6mo, 1y, 2y, All Time | Full Sync dialog terbuka | Range terpilih | **Dipindahkan dari Trade History** |
+| 19 | Force Re-fetch Sync | Trader | Menghapus trades existing dan re-download dari Binance | Centang "Force Re-fetch" → Confirm | Full Sync dialog terbuka | Fresh data dari Binance | **Dipindahkan dari Trade History** |
+| 20 | Resume Interrupted Sync | Trader | Melanjutkan sync dari checkpoint terakhir | Klik Resume → Sync lanjut dari last symbol | Checkpoint tersedia | Sync lanjut tanpa mulai ulang | **Dipindahkan dari Trade History** |
+| 21 | Discard Sync Checkpoint | Trader | Membuang checkpoint dan mulai fresh sync | Klik Discard → Confirm → Checkpoint terhapus | Checkpoint tersedia | Next sync mulai dari awal | **Dipindahkan dari Trade History** |
+| 22 | View Sync Reconciliation Report | Trader | Melihat laporan rekonsiliasi P&L setelah sync | Klik `SyncStatusBadge` → Dialog terbuka | Sync selesai | Reconciliation report ditampilkan | **Dipindahkan dari Trade History** |
+| 23 | View Sync Quality Score | Trader | Melihat indikator kualitas sync | Setelah sync → Badge quality ditampilkan | Sync selesai | Quality badge ter-render | **Dipindahkan dari Trade History** |
+| 24 | View Trade Details per Row | Trader | Melihat detail per detected trade | Setiap row: pair, direction, DEX, timestamp, quantity, fees, PnL | Trades terdeteksi | Detail lengkap visible | Membantu keputusan import per-trade |
+| 25 | View Import Success Summary | Trader | Melihat ringkasan import yang berhasil | Import selesai → Summary ditampilkan → CTA buttons | Import selesai | User informed hasil akhir | Toast notification + inline summary |
+| 26 | Mode Guard (Paper Mode Warning) | Trader | Menampilkan warning jika Binance tab dibuka di Paper mode | Buka tab Binance Sync di Paper mode → Empty state warning ditampilkan | Mode = Paper | User informed untuk switch ke Live mode | Prevents confusion |
 
 ### 3.2 System Features
 
@@ -193,9 +204,9 @@ Halaman untuk mengimpor trade on-chain dari wallet Solana. Mendukung auto-detect
 | Page | Trader Features | System Features | Total |
 |------|----------------|-----------------|-------|
 | Trading Journal | 31 | 13 | **44** |
-| Trade History | 50 | 15 | **65** |
-| Import Trades | 15 | 5 | **20** |
-| **Grand Total** | **96** | **33** | **129** |
+| Trade History | 47 | 15 | **62** |
+| Import & Sync | 26 | 5 | **31** |
+| **Grand Total** | **104** | **33** | **137** |
 
 ### Component Coverage Map
 
@@ -219,7 +230,7 @@ Halaman untuk mengimpor trade on-chain dari wallet Solana. Mendukung auto-detect
 | `CryptoIcon` | Journal, History | #30, J-System#12 (Symbol icons) |
 | `FeeHistoryTab` | History | #17 (Fee history) |
 | `FundingHistoryTab` | History | #18 (Funding history) |
-| `BinanceFullSyncPanel` | History | #14, #20-23, #31-32 (Full sync features) |
+| `BinanceFullSyncPanel` | **Import & Sync** | #14, #18-23 (Full sync features) — **Moved from History** |
 | `SyncStatusBadge` | History | #29-30 (Reconciliation report trigger, quality score) |
 | `SyncReconciliationReport` | History | #29 (Full reconciliation dialog) |
 | `SyncQualityIndicator` | History | #30 (Quality level badge) |
@@ -227,8 +238,8 @@ Halaman untuk mengimpor trade on-chain dari wallet Solana. Mendukung auto-detect
 | `DataQualitySummary` | History | #33 (Health metrics widget) |
 | `SyncMonitoringPanel` | History | #34-35 (Monitoring dashboard, retry) |
 | `ReSyncTimeWindow` | History | #28 (Date range re-sync) |
-| `SyncQuotaDisplay` | History | #25 (Quota usage bar) |
-| `SyncRangeSelector` | History | #20 (Range picker for full sync) |
+| `SyncQuotaDisplay` | **Import & Sync** | #17 (Quota usage bar) — **Moved from History** |
+| `SyncRangeSelector` | **Import & Sync** | #18 (Range picker for full sync) — **Moved from History** |
 | `FilterActiveIndicator` | History | #24, #46 (Clear filters, filter count) |
 | `FearGreedBadge` | History | H-System#11 (Market context badge) |
 | `EventDayBadge` | History | H-System#11 (Event day indicator) |
@@ -251,3 +262,4 @@ Halaman untuk mengimpor trade on-chain dari wallet Solana. Mendukung auto-detect
 | 2026-02-13 | Initial creation — 31 Trader features, 17 System features across 3 pages |
 | 2026-02-13 | Expanded coverage — 60 Trader features, 27 System features (87 total, +81%). Added wizard steps, enrichment sub-features, sync engine details, component coverage map |
 | 2026-02-13 | Full coverage — 96 Trader features, 33 System features (129 total, +48%). Added enrichment drawer granular sub-features, sync monitoring/reconciliation, trade card indicators, import error/retry states. Component map expanded to 36 entries |
+| 2026-02-13 | Restructured Import as unified hub — Moved Binance sync/enrichment from Trade History to Import & Sync (`/import`). Added Binance tab features (#14-26). Trade History cleaned to pure data viewing. Total: 137 features |
