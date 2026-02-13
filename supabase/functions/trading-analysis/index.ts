@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
+import { sanitizeString } from '../_shared/sanitize.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -10,11 +11,6 @@ const corsHeaders = {
 const MAX_TRADES = 500;
 const MAX_STRATEGIES = 50;
 const MAX_QUESTION_LENGTH = 2000;
-
-function sanitizeString(str: string, maxLength: number): string {
-  if (typeof str !== 'string') return '';
-  return str.slice(0, maxLength).replace(/[<>]/g, '');
-}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {

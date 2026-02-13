@@ -125,7 +125,7 @@ export function EquityCurveChart({ initialBalance = 0, className }: EquityCurveC
         </div>
       </CardHeader>
       <CardContent>
-        <div className="h-[280px]">
+        <div className="h-[280px]" role="img" aria-label={`Equity curve chart showing balance of ${formatCurrency(currentBalance)} with ${maxDrawdownPercent.toFixed(1)}% max drawdown over ${curveData.length} trades`}>
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={curveData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
               <defs>
@@ -221,7 +221,7 @@ export function EquityCurveChart({ initialBalance = 0, className }: EquityCurveC
           </ResponsiveContainer>
         </div>
         {/* Summary stats row */}
-        <div className="grid grid-cols-3 gap-4 mt-4 pt-3 border-t">
+        <div className="grid grid-cols-3 gap-4 mt-4 pt-3 border-t" role="group" aria-label="Equity curve summary statistics">
           <div>
             <p className="text-xs text-muted-foreground">Peak</p>
             <p className="text-sm font-semibold font-mono-numbers">{formatCurrency(peakBalance)}</p>
