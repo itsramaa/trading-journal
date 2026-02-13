@@ -1,91 +1,66 @@
 
-# UI/UX Consistency & Best Practice Audit — Risk Overview, Performance, Daily P&L
+
+# UI/UX Polish — Heatmap, AI Insights, Risk Calculator
+
+## Current State
+
+All three pages are functionally complete with proper loading skeletons, empty states, filters, and data display. Previous iterations addressed loading states, DRY refactors, and `keepPreviousData`. The remaining issues are minor polish items.
 
 ## Issues Found
 
 | # | Page | Issue | Severity |
 |---|------|-------|----------|
-| 1 | Daily P&L | Best Trade shows `+-Rp 16k` — double sign prefix (`+` hardcoded + `formatCompact` adds sign) | HIGH |
-| 2 | Risk Overview | No loading skeleton — page renders empty cards while data loads | MEDIUM |
-| 3 | Daily P&L | No loading skeleton — all values flash `0`/`Rp 0` on initial load | MEDIUM |
-| 4 | Performance | Loading state only shows minimal `MetricsGridSkeleton` — no page header or filter skeleton | LOW |
-| 5 | Daily P&L | `keepPreviousData` not applied to unified hooks (`useUnifiedDailyPnl`, `useUnifiedWeeklyPnl`, etc.) | MEDIUM |
-| 6 | Risk Overview | `keepPreviousData` not applied to `useRiskProfile` / `useRiskEvents` hooks | LOW |
+| 1 | Heatmap | Grammar: "1 trades" / "1 wins" / "1 losses" — missing pluralization | LOW |
+| 2 | Heatmap | Grid cells only occupy ~60% of card width — empty space on right side | LOW |
+| 3 | Heatmap | Session card `+$1.47` shows green Tokyo but `-$9.71` Sydney shows 0.0% win rate even with 9 trades (all losses) — display is correct but no tooltip explaining the 0% | MINOR |
+| 4 | Risk Calculator | No sidebar link visible — page is only accessible via `/calculator` route, not in sidebar navigation under ANALYTICS or a TOOLS section | NOTE |
 
 ## Fixes
 
-### 1. `src/pages/DailyPnL.tsx` — Fix double sign on Best Trade (line 237)
+### 1. Pluralization Helper (`src/pages/TradingHeatmap.tsx`)
 
-**Before:** `+{formatCompact(weeklyStats.bestTrade.pnl)}`
-**After:** `{formatCompact(weeklyStats.bestTrade.pnl)}`
+Add inline pluralization for streak cards:
 
-The `formatCompact` function already handles sign formatting. Hardcoding `+` creates `+-` for negative values and `++` for positive values.
+```tsx
+// Line 386
+<div className="text-lg font-bold">
+  {streakData.longestWin} {streakData.longestWin === 1 ? 'trade' : 'trades'}
+</div>
+// Line 388
+Current: {streakData.currentStreak > 0
+  ? `${streakData.currentStreak} ${streakData.currentStreak === 1 ? 'win' : 'wins'}`
+  : 'N/A'}
 
-### 2. `src/pages/DailyPnL.tsx` — Add loading skeleton
-
-Add `isLoading` check from unified hooks. Show `PageHeader` + skeleton cards while data loads, preventing flash of zeros.
-
-```typescript
-// Check loading state from hooks
-const isLoading = dailyStats.isLoading || weeklyStats.isLoading;
-
-if (isLoading) {
-  return (
-    <div className="space-y-6">
-      <PageHeader icon={DollarSign} title="Daily P&L" description="..." />
-      <MetricsGridSkeleton />
-    </div>
-  );
-}
+// Line 402 (longestLoss)
+{streakData.longestLoss} {streakData.longestLoss === 1 ? 'trade' : 'trades'}
+// Line 404
+Current: {streakData.currentStreak < 0
+  ? `${Math.abs(streakData.currentStreak)} ${Math.abs(streakData.currentStreak) === 1 ? 'loss' : 'losses'}`
+  : 'N/A'}
 ```
 
-### 3. `src/pages/RiskManagement.tsx` — Add loading skeleton
+### 2. Heatmap Grid Full-Width (`src/components/analytics/TradingHeatmap.tsx`)
 
-Add loading check for `useRiskProfile` and render skeleton during initial load.
+The heatmap cells use fixed `w-14` / `w-12` widths, causing the grid to not fill the card. Change to `flex-1` layout so cells stretch evenly across the available width.
 
-```typescript
-const { data: riskProfile, isLoading: profileLoading } = useRiskProfile();
+**Before:** Fixed `w-14` per day column + `w-12` cells
+**After:** `flex-1` per day column with `min-w-[48px]` so cells expand to fill the card
 
-if (profileLoading) {
-  return (
-    <div className="space-y-6">
-      <PageHeader icon={Shield} title="Risk Management" description="..." />
-      <MetricsGridSkeleton />
-    </div>
-  );
-}
-```
+### 3. No Changes Needed
 
-### 4. `src/pages/Performance.tsx` — Enhance loading skeleton
-
-Add `PageHeader` to loading state so the title doesn't flash in. Already partially implemented — just ensure consistency.
-
-### 5. Unified hooks — Add `keepPreviousData`
-
-Apply `keepPreviousData` to the following hooks to prevent blink on mode/filter changes:
-- `src/hooks/use-unified-daily-pnl.ts`
-- `src/hooks/use-unified-weekly-pnl.ts`  
-- `src/hooks/use-unified-week-comparison.ts`
-- `src/hooks/use-symbol-breakdown.ts`
-- `src/hooks/use-risk-profile.ts` (both queries)
-
-This matches the pattern already applied to Trade History hooks.
+- **AI Insights**: Fully implemented — tabs, insights cards, action items, pair rankings, session insights, contextual performance, export button, empty state, loading skeleton. No gaps found.
+- **Risk Calculator**: Fully implemented — trading pair selector, market score widget, context warnings, calculator inputs with tooltips, results, commission rates, leverage info, R-multiple reference, risk adjustment breakdown, volatility stop-loss tab, loading skeleton. No gaps found.
 
 ## Files Modified
 
 | File | Change |
 |------|--------|
-| `src/pages/DailyPnL.tsx` | Fix `+-` sign bug, add loading skeleton |
-| `src/pages/RiskManagement.tsx` | Add loading skeleton with `isLoading` guard |
-| `src/hooks/use-unified-daily-pnl.ts` | Add `keepPreviousData` |
-| `src/hooks/use-unified-weekly-pnl.ts` | Add `keepPreviousData` |
-| `src/hooks/use-unified-week-comparison.ts` | Add `keepPreviousData` |
-| `src/hooks/use-symbol-breakdown.ts` | Add `keepPreviousData` |
-| `src/hooks/use-risk-profile.ts` | Add `keepPreviousData` |
+| `src/pages/TradingHeatmap.tsx` | Pluralization fix for streak values |
+| `src/components/analytics/TradingHeatmap.tsx` | Grid cells expand to full card width |
 
 ## Impact
 
-- Eliminates `+-` formatting bug on Best Trade card
-- All three analytics pages show proper loading skeletons instead of flashing zeros
-- `keepPreviousData` on 5 additional hooks prevents blink across Risk/DailyP&L pages during mode switches
-- Consistent loading UX across the entire Analytics section
+- Grammar correctness on all streak card values (1 trade vs 2 trades)
+- Heatmap grid fills the full card width for a more polished, professional look
+- No functional changes — purely visual/text polish
+
