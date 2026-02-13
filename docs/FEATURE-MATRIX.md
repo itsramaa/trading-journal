@@ -24,17 +24,26 @@ Halaman utama untuk membuat, memantau, dan mengelola trade aktif. Mendukung Pape
 | 9 | Lihat Active Positions | Trader | Memantau posisi yang sedang berjalan secara real-time | Klik tab "Active" → Lihat tabel unified (paper + Binance positions) | User logged in; Tab Active aktif | Tabel menampilkan posisi aktif dengan live Time-in-Trade & Fees | Default tab saat halaman dibuka |
 | 10 | Close Position Manual | Trader | Menutup posisi paper trade dengan exit price manual | Klik Close pada posisi → Isi exit price & fees → Confirm (`ClosePositionDialog`) | Mode = Paper; Posisi berstatus `open` | Status berubah ke `closed`; P&L dihitung (direction-aware); AI Post-Trade Analysis ter-trigger | Tidak tersedia untuk Binance positions (read-only) |
 | 11 | Edit Position (SL/TP/Notes) | Trader | Mengubah Stop Loss, Take Profit, atau catatan pada posisi aktif | Klik Edit → `EditPositionDialog` terbuka dengan form SL/TP/Notes → Save | Posisi berstatus `open` | Data SL/TP/Notes terupdate di database | Field entry price, direction, quantity tetap read-only untuk source: binance |
-| 12 | Enrich Trade (Drawer) | Trader | Menambahkan konteks profesional: strategy, screenshots, timeframes, rating, notes | Klik ikon Enrich → `TradeEnrichmentDrawer` terbuka → Isi data enrichment → Save | Trade tersedia (open/closed) | Trade diperkaya dengan strategy_snapshot, timeframes (3-tier), trade_rating, lesson_learned | Mencakup AI Post-Mortem section untuk closed trades |
-| 13 | Upload Screenshot (Enrichment) | Trader | Menambahkan bukti visual (chart screenshot) ke trade | Di Enrichment Drawer → Drag & drop atau browse file → Upload → Preview ditampilkan | Enrichment Drawer terbuka; Trade tersedia | Screenshot tersimpan (max 3 per trade); Thumbnail preview tersedia | Client-side compression sebelum upload; Bisa delete individual screenshot |
-| 14 | Request AI Trade Analysis (Enrichment) | Trader | Meminta AI menganalisis kualitas trade secara on-demand | Di Enrichment Drawer → Klik "Analyze" → AI proses → Hasil ditampilkan | Trade memiliki data cukup (pair, direction, entry/exit, P&L) | AI analysis tersimpan di `post_trade_analysis` JSONB | Evaluasi: Entry Timing, Exit Efficiency, SL Placement, Strategy Adherence |
-| 15 | Isi Trade Rating A-F (Enrichment) | Trader | Self-assessment kualitas eksekusi trade | Di Enrichment Drawer → Klik grade A/B/C/D/F → Toggle on/off | Enrichment Drawer terbuka | `trade_rating` tersimpan | Component: `TradeRatingSection` — A=Perfect, B=Good, C=Average, D=Below, F=Poor |
-| 16 | Isi Custom Tags (Enrichment) | Trader | Mengkategorisasi trade dengan label kustom | Di Enrichment Drawer → Input tags (comma-separated) → Save | Enrichment Drawer terbuka | `tags` array tersimpan di trade entry | Contoh: breakout, news-driven, trend-following, reversal |
-| 17 | Isi Rule Compliance Checklist (Enrichment) | Trader | Mengevaluasi kepatuhan terhadap trading rules | Di Enrichment Drawer → Centang checklist rules → Isi lesson learned → Save | Enrichment Drawer terbuka | `rule_compliance` JSONB & `lesson_learned` tersimpan | Component: `TradeReviewSection` — 6 default rules (followed plan, proper SL, correct sizing, waited confirmation, no revenge, managed emotions) |
-| 18 | Delete Trade (Soft Delete) | Trader | Menghapus trade dari tampilan aktif dengan opsi recovery | Klik Delete → `ConfirmDialog` → Soft delete | Trade tersedia; User logged in | `deleted_at` terisi; Trade hilang dari tampilan; Recoverable via Settings > Deleted Trades (30 hari) | Bukan permanent delete |
-| 19 | Switch Tab Pending/Active | Trader | Berpindah antara tampilan pending orders dan active positions | Klik tab "Pending" atau "Active" | Halaman Trading Journal terbuka | Tab aktif berubah; Tabel ter-render sesuai konteks | Badge count dinamis per tab |
-| 20 | Cancel Binance Open Order | Trader | Membatalkan open order di Binance langsung dari journal | Di tab Pending → Klik Cancel pada Binance order → Confirm | Mode = Live; Binance connected; Order masih aktif | Order dibatalkan di Binance; Tabel ter-refresh | Component: `BinanceOpenOrdersTable` |
-| 21 | Toggle Trade Mode (Paper/Live) | Trader | Mengubah konteks trading antara simulasi dan live | Klik `TradeModeSelector` di header → Pilih Paper atau Live | User logged in | `active_trade_mode` tersimpan di user_settings; Seluruh data, stats, visibilitas ter-filter ulang | Persistent across sessions; Amber SIMULATION banner di Paper mode |
-| 22 | Dismiss Pro Tip | Trader | Menyembunyikan tips bantuan secara permanen | Klik dismiss pada `QuickTip` component | Pro tip sedang ditampilkan | State tersimpan di localStorage (`trading_journal_tip`); Tip tidak muncul lagi | One-time dismissal |
+| 12 | Enrich Trade (Drawer — Overview) | Trader | Membuka drawer untuk menambahkan konteks profesional ke trade | Klik ikon Enrich → `TradeEnrichmentDrawer` terbuka → Lihat semua section enrichment | Trade tersedia (open/closed) | Drawer terbuka dengan semua section: strategy, timeframes, screenshots, rating, notes, compliance | Entry point untuk semua enrichment sub-features (#13-#22) |
+| 13 | Link Multiple Strategies (Enrichment) | Trader | Mengaitkan satu atau lebih strategy ke trade | Di Enrichment Drawer → Toggle strategy badges on/off → Save | Enrichment Drawer terbuka; Strategies tersedia | `trade_entry_strategies` junction records tersimpan; `strategy_snapshot` JSONB immutable | Strategy snapshot diambil saat pertama kali di-link |
+| 14 | Isi 3-Timeframe System (Enrichment) | Trader | Mengisi analisis multi-timeframe: Bias HTF, Execution, Precision LTF | Di Enrichment Drawer → Section Timeframes → Pilih Bias TF, Execution TF, Precision TF | Enrichment Drawer terbuka | `bias_timeframe`, `execution_timeframe`, `precision_timeframe` tersimpan | Component: `TradeTimeframeSection`; Terpisah dari wizard execution TF |
+| 15 | View Post-Mortem Analysis (Enrichment) | Trader | Melihat analisis AI terstruktur untuk closed trades | Di Enrichment Drawer → Section Post-Mortem → Lihat: Entry Timing, Exit Efficiency, SL Placement, Strategy Adherence | Trade status = closed; AI analysis sudah ter-generate | User mendapat feedback terstruktur: What Worked, To Improve, Follow-up Actions | Component: `PostMortemSection`; Read-only display |
+| 16 | View AI Analysis Results (Enrichment) | Trader | Melihat hasil analisis AI dalam format collapsible | Di Enrichment Drawer → Section AI Analysis → Expand/collapse sections | AI analysis tersedia di `post_trade_analysis` | Display: Overall Assessment, Win Factors, Loss Factors, Lessons, Pattern Recognition | Component: `AIAnalysisDisplay`; Collapsible accordion |
+| 17 | Upload Screenshot (Enrichment) | Trader | Menambahkan bukti visual (chart screenshot) ke trade | Di Enrichment Drawer → Drag & drop atau browse file → Upload → Preview ditampilkan | Enrichment Drawer terbuka; Trade tersedia | Screenshot tersimpan (max 3 per trade); Thumbnail preview tersedia | Client-side compression sebelum upload; Bisa delete individual screenshot |
+| 18 | Request AI Trade Analysis (Enrichment) | Trader | Meminta AI menganalisis kualitas trade secara on-demand | Di Enrichment Drawer → Klik "Analyze" → AI proses → Hasil ditampilkan | Trade memiliki data cukup (pair, direction, entry/exit, P&L) | AI analysis tersimpan di `post_trade_analysis` JSONB | Evaluasi: Entry Timing, Exit Efficiency, SL Placement, Strategy Adherence |
+| 19 | Isi Trade Rating A-F (Enrichment) | Trader | Self-assessment kualitas eksekusi trade | Di Enrichment Drawer → Klik grade A/B/C/D/F → Toggle on/off | Enrichment Drawer terbuka | `trade_rating` tersimpan | Component: `TradeRatingSection` — A=Perfect, B=Good, C=Average, D=Below, F=Poor |
+| 20 | Isi Custom Tags (Enrichment) | Trader | Mengkategorisasi trade dengan label kustom | Di Enrichment Drawer → Input tags (comma-separated) → Save | Enrichment Drawer terbuka | `tags` array tersimpan di trade entry | Contoh: breakout, news-driven, trend-following, reversal |
+| 21 | Isi Rule Compliance Checklist (Enrichment) | Trader | Mengevaluasi kepatuhan terhadap trading rules | Di Enrichment Drawer → Centang checklist rules → Isi lesson learned → Save | Enrichment Drawer terbuka | `rule_compliance` JSONB & `lesson_learned` tersimpan | Component: `TradeReviewSection` — 6 default rules |
+| 22 | Isi Notes (Enrichment) | Trader | Menulis catatan detail tentang trade | Di Enrichment Drawer → Section Notes → Isi textarea → Save | Enrichment Drawer terbuka | `notes` field tersimpan di trade entry | Dedicated textarea; Terpisah dari Quick Note |
+| 23 | Isi Emotional State (Enrichment) | Trader | Memilih kondisi emosional saat trading | Di Enrichment Drawer → Klik badge emotional state → Save | Enrichment Drawer terbuka | `emotional_state` tersimpan | Badge-based selector: Confident, Fearful, Greedy, Calm, Anxious, etc. |
+| 24 | Delete Trade (Soft Delete) | Trader | Menghapus trade dari tampilan aktif dengan opsi recovery | Klik Delete → `ConfirmDialog` → Soft delete | Trade tersedia; User logged in | `deleted_at` terisi; Trade hilang dari tampilan; Recoverable via Settings > Deleted Trades (30 hari) | Bukan permanent delete |
+| 25 | Switch Tab Pending/Active | Trader | Berpindah antara tampilan pending orders dan active positions | Klik tab "Pending" atau "Active" | Halaman Trading Journal terbuka | Tab aktif berubah; Tabel ter-render sesuai konteks | Badge count dinamis per tab |
+| 26 | Cancel Binance Open Order | Trader | Membatalkan open order di Binance langsung dari journal | Di tab Pending → Klik Cancel pada Binance order → Confirm | Mode = Live; Binance connected; Order masih aktif | Order dibatalkan di Binance; Tabel ter-refresh | Component: `BinanceOpenOrdersTable` |
+| 27 | Toggle Trade Mode (Paper/Live) | Trader | Mengubah konteks trading antara simulasi dan live | Klik `TradeModeSelector` di header → Pilih Paper atau Live | User logged in | `active_trade_mode` tersimpan di user_settings; Seluruh data, stats, visibilitas ter-filter ulang | Persistent across sessions; Amber SIMULATION banner di Paper mode |
+| 28 | Dismiss Pro Tip | Trader | Menyembunyikan tips bantuan secara permanen | Klik dismiss pada `QuickTip` component | Pro tip sedang ditampilkan | State tersimpan di localStorage (`trading_journal_tip`); Tip tidak muncul lagi | One-time dismissal |
+| 29 | View Leverage Badge | Trader | Melihat indikator leverage per posisi di tabel | Lihat kolom leverage di `AllPositionsTable` → Badge Nx ditampilkan | Posisi memiliki data leverage | Leverage level terlihat jelas per posisi | Binance positions auto-populated; Paper trades manual |
+| 30 | View CryptoIcon per Symbol | Trader | Melihat ikon crypto per pair di tabel posisi | Render tabel → CryptoIcon ditampilkan di kolom pair | Trade memiliki pair/symbol | Ikon crypto ter-render dengan multi-source fallback | Component: `CryptoIcon` — CoinCap → CryptoCompare → cryptocurrency-icons CDN → text avatar |
+| 31 | View Unrealized P&L % | Trader | Melihat persentase P&L unrealized per posisi | Lihat kolom P&L di tabel aktif → Persentase ditampilkan di samping nominal | Posisi aktif dengan mark price tersedia | P&L % ter-render real-time | Hanya untuk posisi open; Closed positions menampilkan realized P&L |
 
 ### 1.2 System Features
 
@@ -51,6 +60,8 @@ Halaman utama untuk membuat, memantau, dan mengelola trade aktif. Mendukung Pape
 | 9 | Live Time-in-Trade | System | Kolom duration auto-update menampilkan waktu sejak entry | Timer interval 60s → Hitung selisih `entry_datetime` vs now → Render format (2h 30m, 1d 5h) | Posisi open dengan `entry_datetime` tersedia | Kolom duration selalu aktual tanpa refresh manual | Auto-update setiap 60 detik di `AllPositionsTable` |
 | 10 | Read-Only Enforcement (Live/Binance) | System | Mengunci core trade data untuk trades dari exchange | Render form/tabel → Cek `source` & `trade_mode` → Lock entry price, direction, quantity jika live/binance | Trade source = 'binance' atau trade_mode = 'live' | Core fields read-only; Hanya journal fields (notes, tags, rating) editable | Lock icon + notice ditampilkan; Mencegah manipulasi statistik ("ego-palsu") |
 | 11 | Wizard Analytics Tracking | System | Track conversion funnel wizard untuk optimisasi UX | Wizard start → Track step progression → Track abandon (last step + duration) → Track complete | Wizard dibuka | Event analytics tercatat: wizard_start, wizard_step, wizard_abandon, wizard_complete | Berguna untuk UX improvement: identifikasi step dengan drop-off tertinggi |
+| 12 | Currency Conversion Display | System | Menampilkan nilai dalam mata uang lokal user | Render angka finansial → `useCurrencyConversion` hook convert USD → local currency | User preference currency tersedia; Rate cache valid (1 jam) | Semua angka P&L, balance ditampilkan dalam currency pilihan user | Hook: `useCurrencyConversion`; Hourly rate caching |
+| 13 | Unified Position Mapping | System | Menggabungkan paper + Binance positions ke satu tabel | Fetch paper trades + Binance positions → `mapToUnifiedPositions` → Render single table | Tab Active aktif; Data tersedia | Tabel unified dengan data dari kedua sumber | Mapping: paper `trade_entries` + Binance API response → unified format |
 
 ---
 
@@ -90,6 +101,28 @@ Halaman untuk melihat, menganalisis, dan mengelola riwayat trade yang sudah ditu
 | 26 | Expand/Collapse Notes | Trader | Melihat notes lengkap pada trade card yang multi-line | Klik expand pada notes section → Full text ditampilkan | Trade memiliki notes multi-line | Notes ter-expand; Badge "Recently updated" jika notes baru | Collapsible untuk menjaga layout card tetap rapi |
 | 27 | View Transaction on Solscan | Trader | Melihat detail transaksi on-chain di Solscan | Klik link external → Redirect ke Solscan transaction page | Trade source = 'solana'; Transaction signature tersedia | Browser buka tab baru ke Solscan | Hanya tersedia untuk Solana-imported trades |
 | 28 | Re-Sync Specific Date Range | Trader | Re-sync hanya periode tertentu jika mismatch terdeteksi | Pilih date range spesifik → Trigger re-sync untuk range tersebut | Reconciliation mismatch terdeteksi; Binance connected | Data untuk range terpilih di-refresh dari Binance | Lebih efisien dari Full Sync untuk fix partial issues |
+| 29 | View Sync Reconciliation Report | Trader | Melihat laporan detail rekonsiliasi P&L setelah sync | Klik `SyncStatusBadge` → Dialog `SyncReconciliationReport` terbuka → Review P&L comparison | Sync selesai; Result tersedia | Dialog menampilkan: P&L reconciliation, lifecycle stats, validation warnings, failed lifecycles, trade details | Component: `SyncReconciliationReport` |
+| 30 | View Sync Quality Score | Trader | Melihat indikator kualitas sync (Excellent/Good/Fair/Poor) | Setelah sync → Badge quality ditampilkan di samping status badge | Sync selesai; Match rate terhitung | Badge quality ter-render: Excellent (95%+), Good (80-95%), Fair (60-80%), Poor (<60%) | Component: `SyncQualityIndicator` dalam `SyncStatusBadge` |
+| 31 | View Sync ETA | Trader | Melihat estimasi waktu tersisa saat sync berjalan | Sync aktif → ETA ditampilkan berdasarkan progress dan elapsed time | Full sync sedang berjalan | ETA ter-update secara periodik; Format: "~Xm Ys remaining" | Component: `SyncETADisplay` |
+| 32 | View Sync Progress Phases | Trader | Melihat fase sync yang sedang berjalan secara detail | Sync aktif → Phase indicator: fetching-income → fetching-trades → grouping → aggregating → validating → inserting | Full sync sedang berjalan | Phase aktif ter-highlight; Phase selesai ter-checklist | 6-phase progress indicator |
+| 33 | View Data Quality Summary | Trader | Melihat ringkasan kualitas data sync | Di Sync Monitoring → Widget health metrics ditampilkan | Sync pernah dijalankan; Last result tersedia | Metrics: Valid Trades count, P&L Accuracy %, Lifecycle Completion %, Sync Failures count | Component: `DataQualitySummary` |
+| 34 | View Sync Monitoring Panel | Trader | Melihat dashboard monitoring sync komprehensif | Buka monitoring section → Panel menampilkan failure alerts, retry actions, reconciliation warnings, quick stats | Binance connected; Mode = Live | Dashboard monitoring lengkap ditampilkan | Component: `SyncMonitoringPanel` |
+| 35 | Retry Failed Sync | Trader | Mengulang sync yang gagal dari monitoring panel | Di Sync Monitoring / error state → Klik "Retry Now" → Sync diulang | Sync pernah gagal; Consecutive failures > 0 | Sync diulang; Failure counter direset jika sukses | Tersedia di `SyncMonitoringPanel` dan error state |
+| 36 | View R:R Ratio with Tooltip | Trader | Melihat Risk:Reward ratio per trade dengan detail di tooltip | Hover R:R badge pada trade card → Tooltip menampilkan SL distance, TP distance, actual R:R | Trade memiliki SL & TP data | R:R ratio ditampilkan; Tooltip detail tersedia | Component: `RiskRewardTooltip` |
+| 37 | View Confluence Score with Tooltip | Trader | Melihat confluence score per trade dengan detail di tooltip | Hover confluence badge → Tooltip menampilkan checklist items yang terpenuhi | Trade memiliki confluence data | Score percentage ditampilkan; Tooltip shows matched items | Component: `ConfluenceScoreTooltip` |
+| 38 | View Fee per Trade (inline) | Trader | Melihat biaya per trade langsung di card/tabel | Fee amount ditampilkan inline di trade card | Trade source = 'binance'; Fee data tersedia | Fee amount visible tanpa membuka drawer | Binance-only; Aggregasi commission + funding |
+| 39 | View Tags Display | Trader | Melihat tag badges per trade di card | Tags ditampilkan sebagai badge chips di trade card | Trade memiliki tags array | Tag badges ter-render per trade | Warna badge otomatis; Clickable untuk filter |
+| 40 | View Strategy Badges on Cards | Trader | Melihat strategy yang digunakan per trade | Strategy name badges ditampilkan di trade card | Trade linked ke strategy via junction table | Strategy badges ter-render | Multiple strategies possible per trade |
+| 41 | View Screenshot Count Indicator | Trader | Melihat indikator jumlah screenshot per trade | Ikon kamera + count ditampilkan di trade card | Trade memiliki screenshots | Count indicator visible; Klik untuk lihat di drawer | Fast indicator tanpa membuka drawer |
+| 42 | View Notes Indicator Badge | Trader | Melihat indikator bahwa trade memiliki notes | Ikon notes ditampilkan jika `notes` field tidak kosong | Trade memiliki notes | Badge indicator visible di trade card | Quick visual cue |
+| 43 | View "Recently Updated" Note Badge | Trader | Melihat badge jika notes baru saja diupdate | Badge "Recently updated" muncul di notes section | Notes diupdate dalam periode tertentu | Badge visible sementara | Auto-dismiss setelah threshold waktu |
+| 44 | View Needs Enrichment Badge | Trader | Melihat indikator trade yang butuh enrichment di gallery | AlertCircle icon ditampilkan di gallery card | Trade direction='UNKNOWN' atau entry_price=0 | Badge visible; Mendorong user untuk enrich | Component: gallery card indicator |
+| 45 | View AI Quality Score Badge | Trader | Melihat skor kualitas AI per trade dengan warna | Badge skor ditampilkan: hijau (80+), kuning (60-79), merah (<60) | Trade memiliki `ai_quality_score` | Color-coded badge visible di trade card | Threshold: green ≥80, yellow ≥60, red <60 |
+| 46 | Filter Count Display | Trader | Melihat jumlah trades terfilter vs total | Text "3/47 Filtered" ditampilkan di header area | Filter aktif; Trades tersedia | User aware berapa banyak trades yang terfilter dari total | Format: "{filtered}/{total} Filtered" |
+| 47 | View Error State | Trader | Melihat pesan error jika loading trades gagal | Error boundary → Pesan error + opsi retry ditampilkan | Query gagal (network error, server error) | User informed tentang error; Retry button tersedia | Graceful degradation |
+| 48 | View Empty State per Sub-Tab | Trader | Melihat pesan kosong kontekstual per sub-tab | Sub-tab dipilih → Jika 0 trades → Empty state message ditampilkan | Sub-tab aktif; 0 trades untuk kategori tersebut | Pesan berbeda untuk Binance/Paper/All empty states | Contextual messaging per source |
+| 49 | View Load Progress Indicator | Trader | Melihat indikator "All trades loaded" atau "x of y loaded" | Scroll/load → Indicator update: "Showing x of y trades" atau "All trades loaded" | Pagination aktif | User aware progress loading dan total trades | Bottom-of-list indicator |
+| 50 | View "All Trades Enriched" Badge | Trader | Melihat badge konfirmasi semua trades sudah di-enrich | Cek enrichment status → Jika 0 needs enrichment → Badge "All enriched" muncul | Binance trades tersedia; Semua sudah lengkap | Positive confirmation badge | Disappears jika ada trade baru yang perlu enrichment |
 
 ### 2.2 System Features
 
@@ -106,6 +139,10 @@ Halaman untuk melihat, menganalisis, dan mengelola riwayat trade yang sudah ditu
 | 9 | Sync Checkpoint Persistence | System | Menyimpan progress sync untuk resume jika terganggu | Setiap symbol selesai → Update checkpoint di Zustand store → Persist across navigation | Full sync aktif | Checkpoint tersimpan: processed symbols, current phase, timestamp | Global Zustand store; Survive page navigation |
 | 10 | Partial Failure Handling | System | Melanjutkan sync meskipun beberapa symbols gagal | Sync symbol → Jika error → Log failed symbol → Lanjut ke symbol berikutnya → Tampilkan warning | Full sync aktif; Network/API intermittent | Sync selesai untuk symbols yang berhasil; Failed symbols ditampilkan dengan warning badge | Retry mechanism untuk failed symbols |
 | 11 | Market Context Display | System | Menampilkan kondisi pasar saat trade dibuat di trade cards | Render trade card → Cek `market_context` JSONB → Tampilkan Fear&Greed badge + Event Day badge | Trade memiliki `market_context` data | Badge visual muncul di trade card memberikan konteks historis | Data dari capture saat wizard entry; Immutable setelah disimpan |
+| 12 | Sync Reconciliation Engine | System | Memvalidasi P&L accuracy antara Binance vs local DB | Sync selesai → Bandingkan Binance total P&L vs aggregated local P&L → Hitung difference % | Sync result tersedia; Income data & trade data fetched | `reconciliation` object tersimpan: isReconciled, differencePercent, binanceTotalPnl, aggregatedTotalPnl | Threshold: <0.1% = reconciled; Notification jika mismatch > threshold |
+| 13 | Sync Quality Scoring | System | Menghitung skor kualitas sync berdasarkan match rate | Post-sync → Hitung match rate (valid trades / total attempts) → Map ke quality level | Sync result tersedia | `SyncQualityScore`: Excellent (95%+), Good (80-95%), Fair (60-80%), Poor (<60%) | Stored in `_syncMeta` dan `sync-store` |
+| 14 | Sync Failure Monitoring & Retry | System | Track consecutive failures dan schedule retry dengan backoff | Sync gagal → Increment failure counter → Jika < max → Schedule retry (exponential backoff + jitter) | Sync failed | Retry ter-schedule; Notification jika 3+ failures (termasuk email) | Hook: `useSyncMonitoring`; Base delay 5s × 2^n + random jitter |
+| 15 | Sync Notification System | System | Membuat notifikasi untuk sync failures dan reconciliation issues | Failure/mismatch terdeteksi → Create in-app notification → Optionally send email (3+ failures) | User logged in; Notification service tersedia | Notification tersimpan di `notifications` table; Toast ditampilkan | Uses `notifySyncFailure` dan `notifySyncReconciliationIssue` |
 
 ---
 
@@ -127,6 +164,11 @@ Halaman untuk mengimpor trade on-chain dari wallet Solana. Mendukung auto-detect
 | 8 | Scan Summary Stats | Trader | Melihat ringkasan hasil scan | Setelah scan → Lihat summary: transaksi di-scan, trades ditemukan, trades terpilih | Scan selesai | User informed jumlah trades dan status seleksi | Membantu keputusan sebelum import |
 | 9 | Navigate to Journal | Trader | Langsung ke Trading Journal setelah import selesai | Setelah import sukses → Klik "View Journal" → Redirect ke `/trading` | Import selesai | User di-redirect ke Trading Journal untuk melihat trades yang baru diimpor | CTA button post-import |
 | 10 | Reset / Scan Again | Trader | Membersihkan hasil scan dan memulai ulang proses | Klik Reset → State ter-clear → Kembali ke initial state | Proses scan/review sedang berlangsung | State kembali ke awal; Siap untuk scan ulang | Berguna jika wallet berganti atau perlu refresh |
+| 11 | Error State with Retry | Trader | Melihat pesan error dan mengulang scan | Scan gagal → Error message ditampilkan → Klik "Try Again" → Scan diulang | Scan pernah gagal (network, RPC error) | Error message informatif; Retry button tersedia | "Failed to scan. Please try again." |
+| 12 | Scan More Transactions | Trader | Memperluas pencarian jika hasil awal sedikit | Hasil scan 0 atau sedikit → Klik "Scan More (200)" → Scan ulang dengan limit lebih besar | Scan selesai; Hasil dirasa kurang | Scan ulang dengan limit 200 transactions | Hanya muncul jika initial results < threshold |
+| 13 | View Wallet Address Badge | Trader | Melihat alamat wallet yang terhubung | Badge truncated public key ditampilkan di UI | Wallet connected | User konfirmasi wallet yang benar terhubung | Format: "AbCd...xYz" (truncated) |
+| 14 | View Trade Details per Row | Trader | Melihat detail metadata per detected trade | Setiap row menampilkan: pair, direction, program/DEX, timestamp, quantity, fees, PnL | Trades terdeteksi | Detail lengkap per trade visible sebelum import | Membantu keputusan import per-trade |
+| 15 | View Import Success Summary | Trader | Melihat ringkasan import yang berhasil | Import selesai → Summary: X trades imported successfully → CTA buttons | Import selesai | User informed hasil akhir; Opsi navigate ke Journal atau scan lagi | Toast notification + inline summary |
 
 ### 3.2 System Features
 
@@ -146,35 +188,66 @@ Halaman untuk mengimpor trade on-chain dari wallet Solana. Mendukung auto-detect
 - **Trader** — End user yang menggunakan aplikasi untuk trading journal
 - **System** — Proses otomatis yang berjalan tanpa intervensi user
 
+### Coverage Summary
+
+| Page | Trader Features | System Features | Total |
+|------|----------------|-----------------|-------|
+| Trading Journal | 31 | 13 | **44** |
+| Trade History | 50 | 15 | **65** |
+| Import Trades | 15 | 5 | **20** |
+| **Grand Total** | **96** | **33** | **129** |
+
 ### Component Coverage Map
 
 | Component | Page | Features Covered |
 |-----------|------|-----------------|
 | `TradeEntryWizard` | Journal | #1-6 (Wizard steps) |
 | `TradeSummaryStats` | Journal | #7 (Summary cards) |
-| `AllPositionsTable` | Journal | #8, #9 (Pending/Active tables) |
+| `AllPositionsTable` | Journal | #8, #9, #29-31 (Tables, leverage, crypto icon, PnL%) |
 | `ClosePositionDialog` | Journal | #10 (Close position) |
 | `EditPositionDialog` | Journal | #11 (Edit SL/TP/Notes) |
-| `TradeEnrichmentDrawer` | Journal | #12-17 (Enrichment features) |
-| `TradeRatingSection` | Journal (Drawer) | #15 (A-F rating) |
-| `TradeReviewSection` | Journal (Drawer) | #17 (Rule compliance) |
-| `BinanceOpenOrdersTable` | Journal | #20 (Cancel orders) |
-| `ConfirmDialog` | Journal, History | #18, #12 (Delete confirmation) |
-| `QuickTip` | Journal | #22 (Dismissable tips) |
-| `TradeModeSelector` | Global Header | #21 (Mode toggle) |
+| `TradeEnrichmentDrawer` | Journal | #12-23 (All enrichment sub-features) |
+| `TradeTimeframeSection` | Journal (Drawer) | #14 (3-Timeframe system) |
+| `PostMortemSection` | Journal (Drawer) | #15 (Post-mortem analysis view) |
+| `AIAnalysisDisplay` | Journal (Drawer) | #16 (AI analysis collapsible) |
+| `TradeRatingSection` | Journal (Drawer) | #19 (A-F rating) |
+| `TradeReviewSection` | Journal (Drawer) | #21 (Rule compliance) |
+| `BinanceOpenOrdersTable` | Journal | #26 (Cancel orders) |
+| `ConfirmDialog` | Journal, History | #24, #12 (Delete confirmation) |
+| `QuickTip` | Journal | #28 (Dismissable tips) |
+| `TradeModeSelector` | Global Header | #27 (Mode toggle) |
+| `CryptoIcon` | Journal, History | #30, J-System#12 (Symbol icons) |
 | `FeeHistoryTab` | History | #17 (Fee history) |
 | `FundingHistoryTab` | History | #18 (Funding history) |
-| `BinanceFullSyncPanel` | History | #14, #20-23 (Full sync features) |
-| `SolanaTradeImport` | Import | #1-10 (All import features) |
+| `BinanceFullSyncPanel` | History | #14, #20-23, #31-32 (Full sync features) |
+| `SyncStatusBadge` | History | #29-30 (Reconciliation report trigger, quality score) |
+| `SyncReconciliationReport` | History | #29 (Full reconciliation dialog) |
+| `SyncQualityIndicator` | History | #30 (Quality level badge) |
+| `SyncETADisplay` | History | #31 (ETA during sync) |
+| `DataQualitySummary` | History | #33 (Health metrics widget) |
+| `SyncMonitoringPanel` | History | #34-35 (Monitoring dashboard, retry) |
+| `ReSyncTimeWindow` | History | #28 (Date range re-sync) |
+| `SyncQuotaDisplay` | History | #25 (Quota usage bar) |
+| `SyncRangeSelector` | History | #20 (Range picker for full sync) |
+| `FilterActiveIndicator` | History | #24, #46 (Clear filters, filter count) |
+| `FearGreedBadge` | History | H-System#11 (Market context badge) |
+| `EventDayBadge` | History | H-System#11 (Event day indicator) |
+| `RiskRewardTooltip` | History | #36 (R:R tooltip) |
+| `ConfluenceScoreTooltip` | History | #37 (Confluence tooltip) |
+| `LazyImage` | History | #41 (Screenshot thumbnail lazy load) |
+| `SolanaTradeImport` | Import | #1-15 (All import features) |
+| `WalletConnectButton` | Import | #1, #13 (Wallet connection, address badge) |
 
 ### Cross-References
 - Schema database: [`docs/DATABASE.md`](./DATABASE.md)
 - Skenario pengguna detail: [`docs/USER_SCENARIOS.md`](./USER_SCENARIOS.md)
 - Frontend architecture: [`docs/FRONTEND.md`](./FRONTEND.md)
 - Backend architecture: [`docs/BACKEND.md`](./BACKEND.md)
+- Architecture gaps: [`docs/ARCHITECTURE_GAPS.md`](./ARCHITECTURE_GAPS.md)
 
 ### Revision History
 | Tanggal | Perubahan |
 |---------|-----------|
 | 2026-02-13 | Initial creation — 31 Trader features, 17 System features across 3 pages |
 | 2026-02-13 | Expanded coverage — 60 Trader features, 27 System features (87 total, +81%). Added wizard steps, enrichment sub-features, sync engine details, component coverage map |
+| 2026-02-13 | Full coverage — 96 Trader features, 33 System features (129 total, +48%). Added enrichment drawer granular sub-features, sync monitoring/reconciliation, trade card indicators, import error/retry states. Component map expanded to 36 entries |
