@@ -89,7 +89,7 @@ async function callBinanceApi<T>(
     // Handle rate limit - wait and retry
     if (response.status === 429 || result.code === 'RATE_LIMITED') {
       const retryAfter = result.retryAfter || 10;
-      console.warn(`[BinanceAPI] Rate limited, waiting ${retryAfter}s before retry (attempt ${attempt + 1}/${maxRetries})`);
+      // Rate limited - wait and retry
       
       // Increase delay for future requests
       currentRateLimitDelay = Math.min(currentRateLimitDelay * 1.5, 2000);
@@ -211,14 +211,13 @@ async function fetchAllIncome(
   const numChunks = Math.ceil((endTime - startTime) / MAX_INCOME_INTERVAL_MS);
   const MAX_RECORDS_SAFETY = 20000; // Safety limit to prevent infinite loops
   
-  console.log(`[FullSync] Fetching income from ${new Date(startTime).toISOString()} to ${new Date(endTime).toISOString()}`);
-  console.log(`[FullSync] Time range: ${Math.round((endTime - startTime) / (24 * 60 * 60 * 1000))} days in ${numChunks} chunks`);
+  // Income fetch range logged to sync panel
   
   for (let i = 0; i < numChunks; i++) {
     const chunkStart = startTime + (i * MAX_INCOME_INTERVAL_MS);
     const chunkEnd = Math.min(chunkStart + MAX_INCOME_INTERVAL_MS, endTime);
     
-    console.log(`[FullSync] Chunk ${i + 1}/${numChunks}: ${new Date(chunkStart).toISOString()} - ${new Date(chunkEnd).toISOString()}`);
+    // Chunk progress logged to sync panel
     
     // Cursor-based pagination within chunk using tranId
     let lastTranId: number | undefined = undefined;
@@ -250,14 +249,14 @@ async function fetchAllIncome(
       await new Promise(r => setTimeout(r, getAdaptiveDelay()));
     }
     
-    console.log(`[FullSync] Chunk ${i + 1} fetched ${chunkRecords} records`);
+    // Chunk result logged to sync panel
     
     if (i < numChunks - 1) {
       await new Promise(r => setTimeout(r, getAdaptiveDelay()));
     }
   }
   
-  console.log(`[FullSync] Total income records fetched: ${allRecords.length}`);
+  // Total logged to sync panel
   
   return allRecords;
 }
@@ -303,14 +302,14 @@ function getUniqueSymbols(income: BinanceIncome[]): string[] {
         // Log invalid symbols for debugging
         if (!invalidSymbols.includes(record.symbol)) {
           invalidSymbols.push(record.symbol);
-          console.warn(`[FullSync] Skipping invalid symbol: "${record.symbol}"`);
+          // Invalid symbol logged to sync panel
         }
       }
     }
   }
   
   if (invalidSymbols.length > 0) {
-    console.warn(`[FullSync] Filtered out ${invalidSymbols.length} invalid symbols:`, invalidSymbols);
+    // Invalid symbols filtered - logged to sync panel
   }
   
   return Array.from(symbols);
@@ -415,10 +414,10 @@ export function useBinanceAggregatedSync() {
         if (rpcError) {
           retries--;
           if (retries > 0) {
-            console.warn(`[FullSync] Batch ${batchIndex} RPC error, retrying (${retries} left)...`, rpcError.message);
+            // RPC error retry logged to sync panel
             await new Promise(r => setTimeout(r, 1000 * (MAX_INSERT_RETRIES - retries)));
           } else {
-            console.error(`[FullSync] Batch ${batchIndex} failed after all retries:`, rpcError.message);
+            console.error(`Batch ${batchIndex} failed after all retries:`, rpcError.message);
             failedBatches.push({ batch: batchIndex, error: rpcError.message });
           }
           continue;
@@ -429,10 +428,10 @@ export function useBinanceAggregatedSync() {
         if (resultData?.error) {
           retries--;
           if (retries > 0) {
-            console.warn(`[FullSync] Batch ${batchIndex} DB error, retrying (${retries} left)...`, resultData.error);
+            // DB error retry logged to sync panel
             await new Promise(r => setTimeout(r, 1000 * (MAX_INSERT_RETRIES - retries)));
           } else {
-            console.error(`[FullSync] Batch ${batchIndex} failed after all retries:`, resultData.error);
+            console.error(`Batch ${batchIndex} failed after all retries:`, resultData.error);
             failedBatches.push({ batch: batchIndex, error: resultData.error });
           }
           continue;
@@ -441,7 +440,7 @@ export function useBinanceAggregatedSync() {
         success = true;
         const insertedInBatch = resultData?.inserted ?? batch.length;
         insertedCount += insertedInBatch;
-        console.log(`[FullSync] Batch ${batchIndex}/${totalBatches} inserted atomically (${insertedInBatch} trades)`);
+        // Batch insert logged to sync panel
       }
     }
     
@@ -457,7 +456,7 @@ export function useBinanceAggregatedSync() {
         .rpc('check_sync_quota', { p_user_id: user.id });
       
       if (quotaError) {
-        console.error('[FullSync] Quota check failed:', quotaError);
+        // Quota check failed
       } else if (quotaCheck && quotaCheck.length > 0 && !quotaCheck[0].allowed) {
         throw new Error(`Daily sync quota exhausted (${quotaCheck[0].current_count}/${quotaCheck[0].max_quota}). Resets at UTC midnight.`);
       }
@@ -467,7 +466,7 @@ export function useBinanceAggregatedSync() {
         .rpc('increment_sync_quota', { p_user_id: user.id });
       
       if (incrementError) {
-        console.warn('[FullSync] Failed to increment sync quota:', incrementError);
+        // Quota increment failed - non-blocking
       }
       
       const forceRefetch = options.forceRefetch || false;
@@ -475,11 +474,7 @@ export function useBinanceAggregatedSync() {
       const addLog = useSyncStore.getState().addSyncLog;
       addLog(`Starting sync — range: ${options.daysToSync || DEFAULT_HISTORY_DAYS}, force: ${forceRefetch}`);
       
-      console.log('[FullSync] Starting aggregated sync with options:', {
-        daysToSync: options.daysToSync,
-        resumeFromCheckpoint: options.resumeFromCheckpoint,
-        forceRefetch,
-      });
+      // Sync start logged to sync panel
       
       // Guard: prevent duplicate syncs
       if (fullSyncStatus === 'running') {
@@ -503,11 +498,11 @@ export function useBinanceAggregatedSync() {
         const incrementalStart = useSyncStore.getState().getIncrementalStartTime();
         if (incrementalStart) {
           startTime = incrementalStart;
-          console.log(`[FullSync] Incremental sync from ${new Date(startTime).toISOString()}`);
+          // Incremental sync logged to sync panel
         } else {
           // Fallback to 7 days if no previous sync
           startTime = endTime - (7 * 24 * 60 * 60 * 1000);
-          console.log('[FullSync] No previous sync found, falling back to 7 days');
+          // No previous sync found, falling back to 7 days
         }
       } else {
         const daysToSync = options.daysToSync || DEFAULT_HISTORY_DAYS;
@@ -562,7 +557,7 @@ export function useBinanceAggregatedSync() {
       // Phase 1: Fetch Income Records (or use checkpoint)
       // =======================================================================
       if (isResuming && checkpoint?.incomeData) {
-        console.log('[FullSync] Resuming with cached income data');
+        // Resuming with cached income data
         addLog(`Resuming with ${checkpoint.incomeData.length} cached income records`);
         income = checkpoint.incomeData;
         symbols = checkpoint.allSymbols;
@@ -585,14 +580,13 @@ export function useBinanceAggregatedSync() {
         });
         
         addLog(`Fetched ${income.length} income records`, 'success');
-        console.log(`[FullSync] Fetched ${income.length} income records`);
+        // Income records logged to sync panel
         
         // Log breakdown of income types for debugging
         const incomeTypeBreakdown = income.reduce((acc, r) => {
           acc[r.incomeType] = (acc[r.incomeType] || 0) + 1;
           return acc;
         }, {} as Record<string, number>);
-        console.log('[FullSync] Income breakdown by type:', incomeTypeBreakdown);
         
         // Log breakdown to sync logs
         const breakdownStr = Object.entries(incomeTypeBreakdown)
@@ -604,12 +598,12 @@ export function useBinanceAggregatedSync() {
         const realizedPnlRecords = income.filter(i => i.incomeType === 'REALIZED_PNL');
         const withTradeId = realizedPnlRecords.filter(i => i.tradeId !== null && i.tradeId !== '');
         const nonZeroPnl = realizedPnlRecords.filter(i => i.income !== 0);
-        console.log(`[FullSync] REALIZED_PNL: ${realizedPnlRecords.length} total, ${withTradeId.length} with tradeId, ${nonZeroPnl.length} non-zero`);
+        // PnL breakdown logged to sync panel
         
         // Get unique symbols from income (OPTIMIZED: only symbols with non-zero REALIZED_PNL)
         symbols = getUniqueSymbols(income);
         addLog(`Found ${symbols.length} unique symbols with trades`);
-        console.log(`[FullSync] Found ${symbols.length} unique symbols with trades (filtered from ${new Set(income.map(i => i.symbol)).size} total)`);
+        // Symbol count logged to sync panel
         
         // Save checkpoint after income fetch
         saveCheckpoint({
@@ -705,7 +699,7 @@ export function useBinanceAggregatedSync() {
       const totalBatches = Math.ceil(remainingSymbols.length / MAX_PARALLEL_SYMBOLS);
       const processedSymbolsList: string[] = [...alreadyProcessed];
       
-      console.log(`[FullSync] Processing ${remainingSymbols.length} symbols in ${totalBatches} batches (${alreadyProcessed.length} already done)`);
+      // Processing symbols logged to sync panel
       
       // Helper to fetch trades+orders for a batch of symbols
       const fetchSymbolBatch = async (batchSymbols: string[]): Promise<SymbolFetchResult[]> => {
@@ -719,7 +713,7 @@ export function useBinanceAggregatedSync() {
               return { symbol, trades, orders, success: true };
             } catch (error) {
               const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-              console.error(`[FullSync] Failed to fetch ${symbol}:`, error);
+              console.error(`Failed to fetch ${symbol}:`, error);
               return { symbol, trades: [], orders: [], success: false, error: errorMsg };
             }
           })
@@ -792,7 +786,7 @@ export function useBinanceAggregatedSync() {
         }
         
         if (batchTrades.length === 0) {
-          console.log(`[FullSync] ${batchLabel}: No trades found, skipping`);
+          // No trades for batch, skipping
           // Still save checkpoint for processed symbols
           saveCheckpoint({
             currentPhase: 'fetching-trades',
@@ -881,7 +875,7 @@ export function useBinanceAggregatedSync() {
               } as any,
             }))
           ).then(({ error }) => {
-            if (error) console.warn('[FullSync] Failed to log invalid trades:', error.message);
+            if (error) console.error('Failed to log invalid trades:', error.message);
           });
         }
         
@@ -936,7 +930,7 @@ export function useBinanceAggregatedSync() {
           }
           
           addLog(`${batchLabel}: inserted ${insertResult.insertedCount}, skipped ${existingIds.size} dupes`, insertResult.failedBatches.length > 0 ? 'warn' : 'success');
-          console.log(`[FullSync] ${batchLabel}: inserted ${insertResult.insertedCount}, skipped ${existingIds.size} dupes`);
+          // Batch insert result logged to sync panel
         }
         
         // --- Step G: Save checkpoint ---
@@ -991,18 +985,7 @@ export function useBinanceAggregatedSync() {
         addLog(`Failed symbols: ${accumulator.failedSymbols.map(f => f.symbol).join(', ')}`, 'error');
       }
       
-      console.log('[FullSync] ========== SYNC SUMMARY ==========');
-      console.log(`[FullSync] Total Income Records: ${income.length}`);
-      console.log(`[FullSync]   - REALIZED_PNL: ${realizedPnlRecords.length} (non-zero: ${nonZeroPnl})`);
-      console.log(`[FullSync]   - COMMISSION: ${commissionRecords}`);
-      console.log(`[FullSync]   - FUNDING_FEE: ${fundingRecords}`);
-      console.log(`[FullSync] Symbols Processed: ${processedSymbolsList.length}/${symbols.length}`);
-      console.log(`[FullSync] Lifecycles: ${accumulator.allLifecycleStats.total} (${accumulator.allLifecycleStats.complete} complete, ${accumulator.allLifecycleStats.incomplete} incomplete)`);
-      console.log(`[FullSync] Trades Aggregated: ${accumulator.allAggregatedTrades.length}`);
-      console.log(`[FullSync] Trades Inserted: ${accumulator.totalInserted} (${accumulator.totalSkippedDupes} dupes skipped)`);
-      console.log(`[FullSync] Match Rate: ${matchRate}% (${syncQuality})`);
-      console.log(`[FullSync] P&L Reconciliation: ${reconciliation.isReconciled ? '✓ OK' : '⚠ DIFF'} (${reconciliation.differencePercent.toFixed(3)}%)`);
-      console.log('[FullSync] ====================================');
+      // Full sync summary logged to sync panel UI
       
       // Clear checkpoint on success
       clearCheckpoint();
