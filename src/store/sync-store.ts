@@ -37,6 +37,8 @@ export type SyncQualityScore = 'Excellent' | 'Good' | 'Fair' | 'Poor' | null;
 export interface ETAState {
   estimatedSeconds: number | null;
   startTime: number;
+  /** Timestamp when batch processing started (after income fetch) */
+  batchStartTime: number | null;
   lastPhaseTime: number;
   phaseTimes: Record<string, number>;
 }
@@ -92,50 +94,43 @@ interface SyncStoreState {
 // ETA Calculation Helpers
 // =============================================================================
 
-const PHASE_WEIGHTS: Record<string, number> = {
-  'fetching-income': 0.10,
-  'fetching-trades': 0.55, // Most time-consuming
-  'grouping': 0.05,
-  'aggregating': 0.10,
-  'validating': 0.05,
-  'inserting': 0.15,
-};
-
+/**
+ * Batch-based ETA calculation.
+ * 
+ * During income fetch phase: uses simple elapsed-based heuristic.
+ * During batch processing (fetching-trades through inserting):
+ *   ETA = (elapsed / processedSymbols) * remainingSymbols
+ * 
+ * This is more accurate than fixed phase weights because each batch
+ * takes roughly the same time regardless of sub-phase distribution.
+ */
 function calculateETA(
   currentPhase: string,
   current: number,
   total: number,
   startTime: number,
-  phaseTimes: Record<string, number>
+  phaseTimes: Record<string, number>,
+  batchStartTime: number | null
 ): number | null {
-  const elapsed = Date.now() - startTime;
-  
-  // Calculate phase progress weight
-  const phases = Object.keys(PHASE_WEIGHTS);
-  const currentPhaseIndex = phases.indexOf(currentPhase);
-  if (currentPhaseIndex === -1) return null;
-  
-  // Sum completed phase weights
-  let completedWeight = 0;
-  for (let i = 0; i < currentPhaseIndex; i++) {
-    completedWeight += PHASE_WEIGHTS[phases[i]];
+  // Income fetch phase — rough estimate based on elapsed
+  if (currentPhase === 'fetching-income') {
+    // Not enough info for meaningful ETA during income fetch
+    return null;
   }
   
-  // Add current phase partial weight
-  const phaseProgress = total > 0 ? current / total : 0;
-  const currentPhaseWeight = PHASE_WEIGHTS[currentPhase] || 0;
-  completedWeight += currentPhaseWeight * phaseProgress;
+  // Batch processing phases: use batch completion rate
+  // current = processed symbols, total = all symbols
+  if (total <= 0 || current <= 0) return null;
   
-  // Total progress (0-1)
-  const totalProgress = completedWeight;
+  const batchElapsed = Date.now() - (batchStartTime || startTime);
   
-  if (totalProgress <= 0.01) return null; // Not enough data
+  if (batchElapsed < 2000) return null; // Not enough data yet
   
-  // Estimate total time and remaining
-  const estimatedTotal = elapsed / totalProgress;
-  const remaining = estimatedTotal - elapsed;
+  const remaining = total - current;
+  const perSymbolMs = batchElapsed / current;
+  const remainingMs = perSymbolMs * remaining;
   
-  return Math.max(0, Math.round(remaining / 1000));
+  return Math.max(0, Math.round(remainingMs / 1000));
 }
 
 // =============================================================================
@@ -272,6 +267,7 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
       eta: {
         estimatedSeconds: null,
         startTime: now,
+        batchStartTime: null,
         lastPhaseTime: now,
         phaseTimes: {},
       },
@@ -287,6 +283,12 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
     const startTime = state.fullSyncStartTime || Date.now();
     const phaseTimes = state.eta?.phaseTimes || {};
     
+    // Track batch start time: when we transition from income fetch to batch processing
+    let batchStartTime = state.eta?.batchStartTime || null;
+    if (!batchStartTime && state.fullSyncProgress?.phase === 'fetching-income' && progress.phase !== 'fetching-income') {
+      batchStartTime = Date.now();
+    }
+    
     // Track phase completion time
     if (state.fullSyncProgress?.phase !== progress.phase && state.eta) {
       phaseTimes[state.fullSyncProgress?.phase || ''] = Date.now() - state.eta.lastPhaseTime;
@@ -297,7 +299,8 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
       progress.current,
       progress.total,
       startTime,
-      phaseTimes
+      phaseTimes,
+      batchStartTime
     );
     
     set({ 
@@ -305,6 +308,7 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
       eta: {
         estimatedSeconds,
         startTime,
+        batchStartTime,
         lastPhaseTime: Date.now(),
         phaseTimes,
       },
