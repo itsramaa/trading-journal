@@ -3,7 +3,7 @@
  * Features: Pattern recognition, recommendations, performance predictions
  */
 import { useMemo } from "react";
-import { DashboardLayout } from "@/components/layout/DashboardLayout";
+
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -333,31 +333,28 @@ export default function AIInsights() {
 
   if (!stats) {
     return (
-      <DashboardLayout>
-        <div className="space-y-6">
-          <PageHeader
-            icon={Brain}
-            title="AI Insights"
-            description="AI-powered analysis of your trading patterns"
-          />
-          <Card>
-            <CardContent className="py-12 text-center">
-              <Brain className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-              <h3 className="font-semibold mb-2">Not Enough Data</h3>
-              <p className="text-muted-foreground">
-                Complete at least {DATA_QUALITY.MIN_TRADES_FOR_INSIGHTS} trades to unlock AI insights about your trading patterns.
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-      </DashboardLayout>
+      <div className="space-y-6">
+        <PageHeader
+          icon={Brain}
+          title="AI Insights"
+          description="AI-powered analysis of your trading patterns"
+        />
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Brain className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+            <h3 className="font-semibold mb-2">Not Enough Data</h3>
+            <p className="text-muted-foreground">
+              Complete at least {DATA_QUALITY.MIN_TRADES_FOR_INSIGHTS} trades to unlock AI insights about your trading patterns.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
   return (
-    <DashboardLayout>
-      <div className="space-y-6">
-        <PageHeader
+    <div className="space-y-6">
+      <PageHeader
           icon={Brain}
           title="AI Insights"
           description="AI-powered analysis of your trading patterns and recommendations"
@@ -551,7 +548,6 @@ export default function AIInsights() {
             <ContextualPerformance />
           </TabsContent>
         </Tabs>
-      </div>
-    </DashboardLayout>
+    </div>
   );
 }

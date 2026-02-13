@@ -2,7 +2,7 @@
  * Performance Analytics - Overview and Strategies
  */
 import { useState, useMemo } from "react";
-import { DashboardLayout } from "@/components/layout/DashboardLayout";
+
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -253,23 +253,20 @@ export default function Performance() {
 
   if (tradesLoading) {
     return (
-      <DashboardLayout>
-        <div className="space-y-6">
-          <PageHeader
-            icon={BarChart3}
-            title="Performance Analytics"
-            description="Deep dive into your trading performance metrics"
-          />
-          <MetricsGridSkeleton />
-        </div>
-      </DashboardLayout>
+      <div className="space-y-6">
+        <PageHeader
+          icon={BarChart3}
+          title="Performance Analytics"
+          description="Deep dive into your trading performance metrics"
+        />
+        <MetricsGridSkeleton />
+      </div>
     );
   }
 
   return (
-    <DashboardLayout>
-      <div className="space-y-6">
-        <PageHeader
+    <div className="space-y-6">
+      <PageHeader
           icon={BarChart3}
           title="Performance Analytics"
           description="Deep dive into your trading performance metrics"
@@ -856,7 +853,6 @@ export default function Performance() {
 
           </Tabs>
         )}
-      </div>
-    </DashboardLayout>
+    </div>
   );
 }

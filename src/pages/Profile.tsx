@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { User, Shield, LogOut, Loader2, Upload, Camera } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { DashboardLayout } from "@/components/layout/DashboardLayout";
+
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -114,25 +114,22 @@ const Profile = () => {
 
   if (isLoading) {
     return (
-      <DashboardLayout>
-        <div className="space-y-6">
-          <PageHeader
-            icon={User}
-            title="Profile"
-            description="Manage your profile and security settings."
-          />
-          <div className="space-y-4">
-            <Skeleton className="h-[400px] w-full" />
-          </div>
+      <div className="space-y-6">
+        <PageHeader
+          icon={User}
+          title="Profile"
+          description="Manage your profile and security settings."
+        />
+        <div className="space-y-4">
+          <Skeleton className="h-[400px] w-full" />
         </div>
-      </DashboardLayout>
+      </div>
     );
   }
 
   return (
-    <DashboardLayout>
-      <div className="space-y-6">
-        <PageHeader
+    <div className="space-y-6">
+      <PageHeader
           icon={User}
           title="Profile"
           description="Manage your profile and security settings."
@@ -389,8 +386,7 @@ const Profile = () => {
             </Card>
           </TabsContent>
         </Tabs>
-      </div>
-    </DashboardLayout>
+    </div>
   );
 };
 

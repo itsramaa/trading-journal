@@ -5,7 +5,7 @@ import { AISettingsTab } from "@/components/settings/AISettingsTab";
 import { BinanceApiSettings } from "@/components/settings/BinanceApiSettings";
 import { ComingSoonExchangeCard } from "@/components/settings/ComingSoonExchangeCard";
 import { TradingConfigTab } from "@/components/settings/TradingConfigTab";
-import { DashboardLayout } from "@/components/layout/DashboardLayout";
+
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -50,25 +50,22 @@ const Settings = () => {
 
   if (settingsLoading) {
     return (
-      <DashboardLayout>
-        <div className="space-y-6">
-          <PageHeader
-            icon={SettingsIcon}
-            title="Settings"
-            description="Manage your app preferences."
-          />
-          <div className="space-y-4">
-            <Skeleton className="h-[400px] w-full" />
-          </div>
+      <div className="space-y-6">
+        <PageHeader
+          icon={SettingsIcon}
+          title="Settings"
+          description="Manage your app preferences."
+        />
+        <div className="space-y-4">
+          <Skeleton className="h-[400px] w-full" />
         </div>
-      </DashboardLayout>
+      </div>
     );
   }
 
   return (
-    <DashboardLayout>
-      <div className="space-y-6">
-        <PageHeader
+    <div className="space-y-6">
+      <PageHeader
           icon={SettingsIcon}
           title="Settings"
           description="Manage your app preferences."
@@ -244,8 +241,7 @@ const Settings = () => {
             <AISettingsTab />
           </TabsContent>
         </Tabs>
-      </div>
-    </DashboardLayout>
+    </div>
   );
 };
 
