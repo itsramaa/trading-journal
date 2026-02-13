@@ -2,7 +2,7 @@
 
 **Project:** Web Trading Journal  
 **Date:** 2026-02-13  
-**Weighted Average Score: 8.9/10**
+**Weighted Average Score: 9.0/10**
 
 ---
 
@@ -14,7 +14,7 @@
 | 2 | Accuracy | 9.0 | Tinggi |
 | 3 | Clarity & Readability | 8.5 | Sedang |
 | 4 | Innovation | 9.5 | Sedang |
-| 5 | Code Quality | 8.5 | Sedang |
+| 5 | Code Quality | 9.0 | Sedang |
 | 6 | Security | 8.5 | Tinggi |
 
 ---
@@ -149,7 +149,7 @@
 
 ---
 
-## 5. Code Quality (8.5/10) ↑ dari 8.0
+## 5. Code Quality (9.0/10) ↑ dari 8.0
 
 > Apakah kode terstruktur baik, terdokumentasi, dan mudah dipelihara?
 
@@ -163,13 +163,13 @@
 - **23 dokumentasi** di `docs/` folder
 - Centralized: `formatters.ts`, `constants/trade-history.ts`, shared utils
 - ✅ **FIXED:** `Performance.tsx` direfaktor dari 856 → ~170 lines (orchestrator + 5 sub-components)
+- ✅ **FIXED:** `TradeHistory.tsx` direfaktor dari 617 → ~220 lines (orchestrator + 3 sub-components)
 - ✅ **FIXED:** `components/analytics/` diorganisasi ke sub-folders yang jelas
 
 ### Kelemahan Tersisa
 
 | Issue | Detail |
 |-------|--------|
-| Large files | `TradeHistory.tsx` = 617 lines |
 | Hook proliferation | 80+ hooks — navigasi overhead |
 | Test coverage | Folder `__tests__/` ada tapi coverage tidak terukur |
 
@@ -181,7 +181,8 @@ src/
 ├── components/      # UI + domain components
 │   ├── ui/          # Reusable design system (shadcn)
 │   ├── analytics/   # Analytics widgets (organized: contextual/, session/, charts/)
-│   ├── performance/ # Performance page sub-components
+│   ├── performance/ # Performance page sub-components (5 files)
+│   ├── history/     # Trade History sub-components (3 files)
 │   ├── trade/       # Trade-specific UI
 │   └── ...
 ├── hooks/           # 80+ custom hooks
@@ -237,9 +238,8 @@ src/
 
 | # | Kategori | Aksi | Impact |
 |---|----------|------|--------|
-| 1 | Code Quality | Refactor `TradeHistory.tsx` (617L) | Medium |
-| 3 | Code Quality | Group related hooks ke sub-folders | Low |
-| 4 | Code Quality | Tambahkan automated test suite | Low |
+| 1 | Code Quality | Group related hooks ke sub-folders | Low |
+| 2 | Code Quality | Tambahkan automated test suite | Low |
 
 ---
 
@@ -254,6 +254,7 @@ src/
 | 5 | Security | Sanitized edge function error messages (no implementation details) | 7.5 → 8.0 |
 | 6 | Security | Added `auth.uid()` validation to SECURITY DEFINER functions | 7.5 → 8.0 |
 | 7 | Security | Migrated exchange credentials dari Base64 ke PGP encryption + Supabase Vault | 8.0 → 8.5 |
+| 8 | Code Quality | Refactored `TradeHistory.tsx` (617L → ~220L + 3 sub-components) | 8.5 → 9.0 |
 
 ---
 

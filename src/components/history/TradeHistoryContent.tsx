@@ -1,0 +1,206 @@
+/**
+ * Trade History Content - Trade list with tabs, rendering, and infinite scroll
+ */
+import { cn } from "@/lib/utils";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
+import { TradeHistoryCard } from "@/components/trading/TradeHistoryCard";
+import { TradeGalleryCard, TradeGalleryCardSkeleton } from "@/components/journal/TradeGalleryCard";
+import { History, FileText, Wifi, Loader2 } from "lucide-react";
+import type { TradeEntry } from "@/hooks/use-trade-entries";
+import type { UnifiedPosition } from "@/components/journal";
+import { EMPTY_STATE_MESSAGES, VIEW_MODE_CONFIG, type ViewMode } from "@/lib/constants/trade-history";
+
+interface TradeHistoryContentProps {
+  viewMode: ViewMode;
+  sortedTrades: TradeEntry[];
+  binanceTrades: TradeEntry[];
+  paperTrades: TradeEntry[];
+  totalCount: number;
+  isLoading: boolean;
+  isError: boolean;
+  error: Error | null;
+  isFetching: boolean;
+  isFetchingNextPage: boolean;
+  hasNextPage: boolean;
+  isBinanceConnected: boolean;
+  loadMoreRef: (node?: Element | null) => void;
+  onDeleteTrade: (trade: TradeEntry) => void;
+  onEnrichTrade: (trade: TradeEntry) => void;
+  onQuickNote: (tradeId: string, note: string) => Promise<void>;
+  onTagClick: (tag: string) => void;
+  calculateRR: (trade: TradeEntry) => number;
+  formatCurrency: (value: number) => string;
+}
+
+export function TradeHistoryContent({
+  viewMode,
+  sortedTrades,
+  binanceTrades,
+  paperTrades,
+  totalCount,
+  isLoading,
+  isError,
+  error,
+  isFetching,
+  isFetchingNextPage,
+  hasNextPage,
+  isBinanceConnected,
+  loadMoreRef,
+  onDeleteTrade,
+  onEnrichTrade,
+  onQuickNote,
+  onTagClick,
+  calculateRR,
+  formatCurrency,
+}: TradeHistoryContentProps) {
+  const renderTradeList = (trades: TradeEntry[]) => {
+    if (trades.length === 0) {
+      return (
+        <EmptyState
+          icon={History}
+          title={EMPTY_STATE_MESSAGES.NO_TRADES.title}
+          description={EMPTY_STATE_MESSAGES.NO_TRADES.description}
+        />
+      );
+    }
+
+    if (viewMode === 'gallery') {
+      return (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {trades.map((entry) => (
+            <TradeGalleryCard
+              key={entry.id}
+              trade={entry}
+              onTradeClick={onEnrichTrade}
+            />
+          ))}
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        {trades.map((entry) => (
+          <TradeHistoryCard
+            key={entry.id}
+            entry={entry}
+            onDelete={onDeleteTrade}
+            onEnrich={onEnrichTrade}
+            onQuickNote={onQuickNote}
+            onTagClick={onTagClick}
+            calculateRR={calculateRR}
+            formatCurrency={formatCurrency}
+            isBinance={entry.source === 'binance'}
+            showEnrichButton={true}
+          />
+        ))}
+      </div>
+    );
+  };
+
+  const renderLoadingSkeleton = () => {
+    if (viewMode === 'gallery') {
+      return (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {Array.from({ length: VIEW_MODE_CONFIG.skeletonCount.gallery }).map((_, i) => (
+            <TradeGalleryCardSkeleton key={i} />
+          ))}
+        </div>
+      );
+    }
+    return (
+      <div className="space-y-4">
+        {Array.from({ length: VIEW_MODE_CONFIG.skeletonCount.list }).map((_, i) => (
+          <Card key={i}>
+            <CardContent className="py-4">
+              <div className="flex items-center justify-between gap-4">
+                <Skeleton className="h-6 w-32" />
+                <Skeleton className="h-6 w-20" />
+                <Skeleton className="h-6 w-24" />
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <FileText className="h-5 w-5" aria-hidden="true" />
+          Closed Trades
+          {isBinanceConnected && (
+            <Badge variant="outline" className="text-xs gap-1 ml-2">
+              <Wifi className="h-3 w-3 text-profit" aria-hidden="true" />
+              Binance
+            </Badge>
+          )}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          renderLoadingSkeleton()
+        ) : isError ? (
+          <EmptyState
+            icon={History}
+            title="Failed to load trades"
+            description={error?.message || "An error occurred while loading trades."}
+          />
+        ) : (
+          <>
+            <Tabs defaultValue="all" className="w-full">
+              <TabsList className="mb-4">
+                <TabsTrigger value="all">All ({sortedTrades.length})</TabsTrigger>
+                <TabsTrigger value="binance">Binance ({binanceTrades.length})</TabsTrigger>
+                <TabsTrigger value="paper">Paper ({paperTrades.length})</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="all">
+                <div className={cn("transition-opacity duration-200", isFetching && !isLoading && "opacity-60")}>
+                  {renderTradeList(sortedTrades)}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="binance">
+                <div className={cn("transition-opacity duration-200", isFetching && !isLoading && "opacity-60")}>
+                  {renderTradeList(binanceTrades)}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="paper">
+                <div className={cn("transition-opacity duration-200", isFetching && !isLoading && "opacity-60")}>
+                  {renderTradeList(paperTrades)}
+                </div>
+              </TabsContent>
+            </Tabs>
+
+            <div ref={loadMoreRef} className="py-4 flex justify-center">
+              {isFetchingNextPage ? (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="text-sm">Loading more trades...</span>
+                </div>
+              ) : hasNextPage ? (
+                <span className="text-sm text-muted-foreground">Scroll for more</span>
+              ) : sortedTrades.length > 0 && totalCount > sortedTrades.length ? (
+                <span className="text-sm text-muted-foreground">
+                  {sortedTrades.length} of {totalCount} trades loaded
+                </span>
+              ) : sortedTrades.length > 0 ? (
+                <span className="text-sm text-muted-foreground">
+                  All {sortedTrades.length} trades loaded
+                </span>
+              ) : null}
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
