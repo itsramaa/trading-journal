@@ -148,10 +148,11 @@ export default function StrategyManagement() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Strategy & Rules</h1>
-          <p className="text-muted-foreground">Create and manage your trading strategies</p>
-        </div>
+        <PageHeader
+          icon={Target}
+          title="Strategy & Rules"
+          description="Create, import, and backtest your trading strategies"
+        />
         <MetricsGridSkeleton />
       </div>
     );
