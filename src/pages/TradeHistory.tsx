@@ -43,7 +43,6 @@ import { useTradeHistoryFilters, type ResultFilter, type DirectionFilter, type S
 import { TradeHistoryFilters, TradeEnrichmentDrawer } from "@/components/journal";
 import type { UnifiedPosition } from "@/components/journal";
 import { TRADE_HISTORY_CONFIG, EMPTY_STATE_MESSAGES, type ViewMode, VIEW_MODE_CONFIG } from "@/lib/constants/trade-history";
-import { exportTradesCsv } from "@/lib/export/trade-export";
 import { calculateRiskReward } from "@/lib/trade-utils";
 import { Link } from "react-router-dom";
 
@@ -394,15 +393,16 @@ export default function TradeHistory() {
             )}
           </div>
           
-          {/* Export Button */}
+          {/* Export Link */}
           <Button 
             variant="outline" 
             size="sm" 
-            onClick={() => exportTradesCsv(sortedTrades)}
-            disabled={sortedTrades.length === 0}
+            asChild
           >
-            <Download className="h-4 w-4 mr-2" />
-            Export CSV
+            <Link to="/export?tab=journal">
+              <Download className="h-4 w-4 mr-2" />
+              Export
+            </Link>
           </Button>
         </div>
       </PageHeader>

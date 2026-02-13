@@ -20,7 +20,6 @@ import {
   ArrowDown,
   Minus,
   Download,
-  FileText,
   Activity,
 } from "lucide-react";
 import { 
@@ -38,6 +37,7 @@ import { useUnifiedWeeklyPnl } from "@/hooks/use-unified-weekly-pnl";
 import { useUnifiedWeekComparison } from "@/hooks/use-unified-week-comparison";
 import { useSymbolBreakdown } from "@/hooks/use-symbol-breakdown";
 import { usePerformanceExport } from "@/hooks/use-performance-export";
+import { Link } from "react-router-dom";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { useModeVisibility } from "@/hooks/use-mode-visibility";
 import { format } from "date-fns";
@@ -111,13 +111,11 @@ export default function DailyPnL() {
           <Badge variant="outline" className="text-xs h-6">
             {dailyStats.source === 'binance' ? '🔗 Live' : '📝 Paper'}
           </Badge>
-          <Button variant="outline" size="sm" onClick={handleExportCSV}>
-            <Download className="h-4 w-4 mr-2" />
-            CSV
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleExportPDF}>
-            <FileText className="h-4 w-4 mr-2" />
-            PDF
+          <Button variant="outline" size="sm" asChild>
+            <Link to="/export?tab=analytics">
+              <Download className="h-4 w-4 mr-2" />
+              Export
+            </Link>
           </Button>
         </PageHeader>
 

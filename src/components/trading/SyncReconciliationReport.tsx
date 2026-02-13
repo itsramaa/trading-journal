@@ -45,10 +45,14 @@ import {
   TrendingUp,
   TrendingDown,
   Clock,
+  Download,
+  FileSpreadsheet,
+  FileText,
 } from "lucide-react";
 import { formatCurrency, formatPercent } from "@/lib/formatters";
 import type { AggregationResult, AggregatedTrade, ValidationError, ValidationWarning } from "@/services/binance/types";
 import { format } from "date-fns";
+import { useReconciliationExport } from "@/hooks/use-reconciliation-export";
 
 // =============================================================================
 // Shared report content (used by both Dialog and Inline versions)
@@ -174,8 +178,30 @@ interface SyncReconciliationReportInlineProps {
 }
 
 export function SyncReconciliationReportInline({ result, className = '' }: SyncReconciliationReportInlineProps) {
+  const { exportReconciliationCSV, exportReconciliationPDF } = useReconciliationExport();
+
   return (
     <div className={className}>
+      <div className="flex items-center justify-end gap-2 mb-4">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => exportReconciliationCSV(result)}
+          className="gap-2"
+        >
+          <FileSpreadsheet className="h-4 w-4" />
+          Export CSV
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => exportReconciliationPDF(result)}
+          className="gap-2"
+        >
+          <FileText className="h-4 w-4" />
+          Export PDF
+        </Button>
+      </div>
       <ReportContent result={result} />
     </div>
   );

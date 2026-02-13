@@ -28,7 +28,6 @@ import {
   Trophy, 
   FileText, 
   Download,
-  FileSpreadsheet,
   Calendar,
   ChevronDown,
   Check,
@@ -54,6 +53,7 @@ import { useBinanceDailyPnl } from "@/hooks/use-binance-daily-pnl";
 import { useBinanceWeeklyPnl } from "@/hooks/use-binance-weekly-pnl";
 import { useStrategyPerformance, getQualityScoreLabel } from "@/hooks/use-strategy-performance";
 import { usePerformanceExport } from "@/hooks/use-performance-export";
+import { Link } from "react-router-dom";
 import { useMonthlyPnl } from "@/hooks/use-monthly-pnl";
 import { useContextualAnalytics } from "@/hooks/use-contextual-analytics";
 import { DrawdownChart } from "@/components/analytics/DrawdownChart";
@@ -278,13 +278,11 @@ export default function Performance() {
               {analyticsSelection.level === 'type' && `${analyticsSelection.tradeType === 'paper' ? 'Paper' : 'Live'}`}
             </Badge>
           )}
-          <Button variant="outline" size="sm" onClick={handleExportCSV}>
-            <FileSpreadsheet className="h-4 w-4 mr-2" />
-            Export CSV
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleExportPDF}>
-            <Download className="h-4 w-4 mr-2" />
-            Export PDF
+          <Button variant="outline" size="sm" asChild>
+            <Link to="/export?tab=analytics">
+              <Download className="h-4 w-4 mr-2" />
+              Export
+            </Link>
           </Button>
         </PageHeader>
 

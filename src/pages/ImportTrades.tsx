@@ -21,8 +21,6 @@ import { useBinanceConnectionStatus } from "@/features/binance";
 import { useBinanceIncrementalSync } from "@/hooks/use-binance-incremental-sync";
 import { BinanceFullSyncPanel } from "@/components/trading/BinanceFullSyncPanel";
 import { useSyncStore, selectIsFullSyncRunning, selectFullSyncStatus, selectCheckpoint } from "@/store/sync-store";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown } from "lucide-react";
 import { useTradeEnrichmentBinance, useTradesNeedingEnrichmentCount, type EnrichmentProgress } from "@/hooks/use-trade-enrichment-binance";
 import { Link } from "react-router-dom";
 
@@ -256,19 +254,17 @@ export default function ImportTrades() {
               </Card>
 
               {/* Advanced: Full Sync (collapsible) */}
-              <Collapsible open={fullSyncAutoOpen || undefined} defaultOpen={fullSyncAutoOpen}>
-                <CollapsibleTrigger className="flex items-center gap-2 w-full py-2 px-1 text-sm text-muted-foreground hover:text-foreground transition-colors group">
+              {/* Advanced: Full Sync (always visible) */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 py-2 px-1 text-sm text-muted-foreground">
                   <Shield className="h-4 w-4" />
                   <span className="font-medium">Advanced: Full Sync (Recovery)</span>
-                  <ChevronDown className="h-4 w-4 ml-auto transition-transform group-data-[state=open]:rotate-180" />
-                </CollapsibleTrigger>
+                </div>
                 <p className="text-xs text-muted-foreground px-1 -mt-1 mb-2">
                   Complete re-download of all trade history. Use when incremental sync misses data or for initial setup.
                 </p>
-                <CollapsibleContent>
-                  <BinanceFullSyncPanel isBinanceConnected={isBinanceConnected} />
-                </CollapsibleContent>
-              </Collapsible>
+                <BinanceFullSyncPanel isBinanceConnected={isBinanceConnected} />
+              </div>
             </>
           )}
         </TabsContent>
