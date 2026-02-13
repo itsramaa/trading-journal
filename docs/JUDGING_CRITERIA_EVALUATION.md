@@ -2,7 +2,7 @@
 
 **Project:** Web Trading Journal  
 **Date:** 2026-02-13  
-**Weighted Average Score: 8.8/10**
+**Weighted Average Score: 8.9/10**
 
 ---
 
@@ -15,7 +15,7 @@
 | 3 | Clarity & Readability | 8.5 | Sedang |
 | 4 | Innovation | 9.5 | Sedang |
 | 5 | Code Quality | 8.5 | Sedang |
-| 6 | Security | 8.0 | Tinggi |
+| 6 | Security | 8.5 | Tinggi |
 
 ---
 
@@ -213,7 +213,7 @@ src/
 
 | Severity | Issue | Detail |
 |----------|-------|--------|
-| **CRITICAL** | Credential encoding | Exchange credentials menggunakan Base64, bukan Supabase Vault encryption |
+| ~~**CRITICAL**~~ | ~~Credential encoding~~ | ✅ **FIXED:** Migrated dari Base64 ke PGP symmetric encryption (`pgp_sym_encrypt/decrypt`) dengan encryption key di Supabase Vault |
 | **WARN** | Client-side auth | Role checks di client tanpa konsisten server validation |
 | **INFO** | Password protection | Leaked password protection disabled |
 
@@ -229,8 +229,7 @@ src/
 
 ### Rekomendasi Tersisa
 
-1. Migrate exchange credentials ke Supabase Vault (Base64 → proper encryption)
-2. Implementasi server-side role validation yang konsisten
+1. Implementasi server-side role validation yang konsisten
 
 ---
 
@@ -238,8 +237,7 @@ src/
 
 | # | Kategori | Aksi | Impact |
 |---|----------|------|--------|
-| 1 | Security | Migrate exchange credentials ke Supabase Vault | Critical |
-| 2 | Code Quality | Refactor `TradeHistory.tsx` (617L) | Medium |
+| 1 | Code Quality | Refactor `TradeHistory.tsx` (617L) | Medium |
 | 3 | Code Quality | Group related hooks ke sub-folders | Low |
 | 4 | Code Quality | Tambahkan automated test suite | Low |
 
@@ -255,6 +253,7 @@ src/
 | 4 | Clarity | Added beginner-friendly tooltips ke contextual analytics | 8.0 → 8.5 |
 | 5 | Security | Sanitized edge function error messages (no implementation details) | 7.5 → 8.0 |
 | 6 | Security | Added `auth.uid()` validation to SECURITY DEFINER functions | 7.5 → 8.0 |
+| 7 | Security | Migrated exchange credentials dari Base64 ke PGP encryption + Supabase Vault | 8.0 → 8.5 |
 
 ---
 
