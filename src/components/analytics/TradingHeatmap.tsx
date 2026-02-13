@@ -187,9 +187,9 @@ export function TradingHeatmap({ trades: externalTrades, className, showEventOve
             <div className="inline-block min-w-full">
               {/* Header row */}
               <div className="flex items-center mb-1">
-                <div className="w-20 text-xs text-muted-foreground text-left pr-2">Time</div>
+                <div className="w-20 flex-shrink-0 text-xs text-muted-foreground text-left pr-2">Time</div>
                 {DAYS.map((day) => (
-                  <div key={day} className="w-14 text-xs text-muted-foreground text-center font-medium">
+                  <div key={day} className="flex-1 min-w-[48px] text-xs text-muted-foreground text-center font-medium">
                     {day}
                   </div>
                 ))}
@@ -198,7 +198,7 @@ export function TradingHeatmap({ trades: externalTrades, className, showEventOve
               {/* Data rows */}
               {HOURS.map((hour, hourIdx) => (
                 <div key={hour} className="flex items-center mb-1">
-                  <div className="w-20 text-xs text-muted-foreground pr-2 flex items-center gap-1">
+                  <div className="w-20 flex-shrink-0 text-xs text-muted-foreground pr-2 flex items-center gap-1">
                     <span className="w-10">{hour.toString().padStart(2, '0')}:00</span>
                     {(hourIdx === 0 || hour === 8 || hour === 16) && (
                       <span className="text-[9px] text-muted-foreground/60">
@@ -212,12 +212,12 @@ export function TradingHeatmap({ trades: externalTrades, className, showEventOve
                     const eventLabel = hasEvent && cell?.eventLabels ? getEventLabel(cell.eventLabels) : '';
                     
                     return (
-                      <div key={dayIndex} className="w-14 flex justify-center">
+                      <div key={dayIndex} className="flex-1 min-w-[48px] flex justify-center">
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <div
                               className={cn(
-                                "w-12 h-12 rounded-md flex flex-col items-center justify-center text-xs font-medium cursor-default transition-all hover:scale-105 relative",
+                                "w-full h-12 rounded-md flex flex-col items-center justify-center text-xs font-medium cursor-default transition-all hover:scale-105 relative",
                                 getCellColor(cell),
                                 hasEvent && "ring-2 ring-warning ring-offset-1 ring-offset-background"
                               )}

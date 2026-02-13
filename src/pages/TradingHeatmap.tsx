@@ -383,9 +383,9 @@ export default function TradingHeatmapPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-lg font-bold">{streakData.longestWin} trades</div>
+                  <div className="text-lg font-bold">{streakData.longestWin} {streakData.longestWin === 1 ? 'trade' : 'trades'}</div>
                   <p className="text-sm text-muted-foreground">
-                    Current: {streakData.currentStreak > 0 ? `${streakData.currentStreak} wins` : 'N/A'}
+                    Current: {streakData.currentStreak > 0 ? `${streakData.currentStreak} ${streakData.currentStreak === 1 ? 'win' : 'wins'}` : 'N/A'}
                   </p>
                 </CardContent>
               </Card>
@@ -399,9 +399,9 @@ export default function TradingHeatmapPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-lg font-bold">{streakData.longestLoss} trades</div>
+                  <div className="text-lg font-bold">{streakData.longestLoss} {streakData.longestLoss === 1 ? 'trade' : 'trades'}</div>
                   <p className="text-sm text-muted-foreground">
-                    Current: {streakData.currentStreak < 0 ? `${Math.abs(streakData.currentStreak)} losses` : 'N/A'}
+                    Current: {streakData.currentStreak < 0 ? `${Math.abs(streakData.currentStreak)} ${Math.abs(streakData.currentStreak) === 1 ? 'loss' : 'losses'}` : 'N/A'}
                   </p>
                 </CardContent>
               </Card>
