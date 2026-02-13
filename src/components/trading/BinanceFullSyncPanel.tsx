@@ -1,11 +1,11 @@
 /**
  * Binance Full Sync Panel - Inline Card UI for triggering and monitoring aggregated sync
- * Features: Full Sync config, Progress indicator, Reconciliation status, Re-Sync, Resume
+ * Features: Full Sync config, Progress indicator, Sync Log, Reconciliation status, Re-Sync, Resume
  * 
  * Uses global sync store for persistent state across navigation.
  * Renders everything inline within a Card (no dialogs).
  */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { 
   CloudDownload, 
   Loader2, 
@@ -26,10 +27,12 @@ import {
   Zap,
   Info,
   Trash2,
+  Terminal,
+  ChevronDown,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useBinanceAggregatedSync } from "@/hooks/use-binance-aggregated-sync";
-import { useSyncStore, selectFullSyncStatus, selectFullSyncProgress, selectFullSyncResult, selectSyncRange, selectCheckpoint } from "@/store/sync-store";
+import { useSyncStore, selectFullSyncStatus, selectFullSyncProgress, selectFullSyncResult, selectSyncRange, selectCheckpoint, selectSyncLogs } from "@/store/sync-store";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { SyncStatusBadge } from "./SyncStatusBadge";
 import { SyncReconciliationReportInline } from "./SyncReconciliationReport";
@@ -39,9 +42,12 @@ import { SyncRangeSelector } from "./SyncRangeSelector";
 import { SyncETADisplay } from "./SyncETADisplay";
 import { useSyncQuota } from "@/hooks/use-sync-quota";
 import type { AggregationProgress } from "@/services/binance/types";
+import type { SyncLogEntry } from "@/store/sync-store";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 const PHASE_LABELS: Record<string, string> = {
+  'deleting': 'Deleting Old Data',
   'fetching-income': 'Fetching Income',
   'fetching-trades': 'Fetching Trades',
   'grouping': 'Grouping Lifecycles',
@@ -146,7 +152,10 @@ export function BinanceFullSyncPanel({ isBinanceConnected }: BinanceFullSyncPane
 
         {/* === RUNNING STATE === */}
         {status === 'running' && progress && (
-          <SyncProgressIndicator progress={progress} />
+          <>
+            <SyncProgressIndicator progress={progress} />
+            <SyncLogPanel />
+          </>
         )}
 
         {/* === SUCCESS STATE === */}
@@ -191,6 +200,9 @@ export function BinanceFullSyncPanel({ isBinanceConnected }: BinanceFullSyncPane
 
             {/* Inline Reconciliation Report */}
             <SyncReconciliationReportInline result={result} />
+            
+            {/* Show logs after completion */}
+            <SyncLogPanel />
           </div>
         )}
 
@@ -215,6 +227,9 @@ export function BinanceFullSyncPanel({ isBinanceConnected }: BinanceFullSyncPane
                 Retry Sync
               </Button>
             </div>
+            
+            {/* Show logs after error */}
+            <SyncLogPanel />
           </div>
         )}
 
@@ -411,42 +426,44 @@ function SyncProgressIndicator({ progress }: { progress: AggregationProgress }) 
   }, [lastProgressTime]);
 
   return (
-    <div className="space-y-2">
-      <div className={`flex items-center gap-3 px-3 py-2 rounded-lg border ${
-        isRateLimited 
-          ? 'bg-warning/10 border-warning/30' 
-          : 'bg-primary/10 border-primary/20'
-      }`}>
-        <Loader2 className={`h-4 w-4 animate-spin ${isRateLimited ? 'text-warning' : 'text-primary'}`} />
-        <div className="flex flex-col gap-1 min-w-[200px]">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <span className="text-sm font-medium">{phaseLabel}</span>
-              {isRateLimited && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Badge variant="outline" className="gap-1 bg-warning/10 border-warning/30 text-warning text-[10px] py-0 px-1.5">
-                        <Zap className="h-2.5 w-2.5" />
-                        Rate Limited
-                      </Badge>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p className="text-xs">API rate limit hit. Sync will auto-retry with delay.</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
-            </div>
-            <span className="text-xs text-muted-foreground">{percent}%</span>
+    <div className="space-y-3">
+      <div className={cn(
+        "px-3 py-3 rounded-lg border space-y-2",
+        isRateLimited ? 'bg-warning/10 border-warning/30' : 'bg-primary/10 border-primary/20'
+      )}>
+        {/* Phase label + percentage */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Loader2 className={cn("h-4 w-4 animate-spin", isRateLimited ? 'text-warning' : 'text-primary')} />
+            <span className="text-sm font-medium">{phaseLabel}</span>
+            {isRateLimited && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant="outline" className="gap-1 bg-warning/10 border-warning/30 text-warning text-[10px] py-0 px-1.5">
+                      <Zap className="h-2.5 w-2.5" />
+                      Rate Limited
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="text-xs">API rate limit hit. Sync will auto-retry with delay.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
           </div>
-          <Progress value={percent} className="h-2" />
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground truncate max-w-[180px]">
-              {progress.message}
-            </span>
-            <SyncETADisplay compact />
-          </div>
+          <span className="text-sm font-semibold">{percent}%</span>
+        </div>
+
+        {/* Full-width progress bar */}
+        <Progress value={percent} className="h-2.5 w-full" />
+
+        {/* Message + ETA */}
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground truncate max-w-[70%]">
+            {progress.message}
+          </span>
+          <SyncETADisplay compact />
         </div>
       </div>
 
@@ -459,5 +476,68 @@ function SyncProgressIndicator({ progress }: { progress: AggregationProgress }) 
         </Alert>
       )}
     </div>
+  );
+}
+
+/** Terminal-style sync log panel */
+function SyncLogPanel() {
+  const syncLogs = useSyncStore(selectSyncLogs);
+  const clearSyncLogs = useSyncStore(state => state.clearSyncLogs);
+  const [isOpen, setIsOpen] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom when new logs arrive
+  useEffect(() => {
+    if (isOpen && scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [syncLogs.length, isOpen]);
+
+  if (syncLogs.length === 0) return null;
+
+  const formatTime = (ts: number) => {
+    const d = new Date(ts);
+    return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}:${d.getSeconds().toString().padStart(2, '0')}`;
+  };
+
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <div className="flex items-center justify-between">
+        <CollapsibleTrigger asChild>
+          <Button variant="ghost" size="sm" className="gap-1.5 text-xs text-muted-foreground h-7 px-2">
+            <Terminal className="h-3 w-3" />
+            Sync Logs ({syncLogs.length})
+            <ChevronDown className={cn("h-3 w-3 transition-transform", isOpen && "rotate-180")} />
+          </Button>
+        </CollapsibleTrigger>
+        {isOpen && (
+          <Button variant="ghost" size="sm" onClick={clearSyncLogs} className="text-xs h-7 px-2 text-muted-foreground">
+            Clear
+          </Button>
+        )}
+      </div>
+      <CollapsibleContent>
+        <div
+          ref={scrollRef}
+          className="mt-1 rounded-md bg-muted/50 border p-2 max-h-48 overflow-y-auto font-mono text-[11px] leading-relaxed space-y-0.5"
+        >
+          {syncLogs.map((log, i) => (
+            <div
+              key={i}
+              className={cn(
+                "flex gap-2",
+                log.level === 'error' && "text-destructive",
+                log.level === 'warn' && "text-warning",
+                log.level === 'success' && "text-profit",
+                log.level === 'info' && "text-muted-foreground",
+              )}
+            >
+              <span className="text-muted-foreground/60 shrink-0">[{formatTime(log.timestamp)}]</span>
+              <span className="break-all">{log.message}</span>
+            </div>
+          ))}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }

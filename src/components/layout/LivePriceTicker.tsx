@@ -1,13 +1,13 @@
 /**
  * LivePriceTicker - Horizontal scrolling marquee of top crypto prices
  * Uses Binance 24h ticker data, auto-scrolling animation
+ * Supports drag-to-scroll on hover with grab cursor
  */
-import { useMemo } from "react";
+import { useMemo, useRef, useState, useCallback, useEffect } from "react";
 import { CryptoIcon } from "@/components/ui/crypto-icon";
 import { cn } from "@/lib/utils";
 import { TrendingUp, TrendingDown } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-
 
 const TICKER_SYMBOLS = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "AVAXUSDT", "DOTUSDT", "LINKUSDT"];
 
@@ -34,7 +34,6 @@ function usePublicTicker() {
         lastPrice: string;
         priceChangePercent: string;
       }>;
-      // Filter to only our desired symbols
       return allData.filter(t => TICKER_SYMBOLS.includes(t.symbol));
     },
     staleTime: 15_000,
@@ -45,6 +44,11 @@ function usePublicTicker() {
 
 export function LivePriceTicker() {
   const { data, isLoading } = usePublicTicker();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const dragState = useRef({ startX: 0, scrollLeft: 0 });
 
   const tickerItems = useMemo(() => {
     if (!data) return [];
@@ -54,6 +58,34 @@ export function LivePriceTicker() {
       priceChangePercent: parseFloat(t.priceChangePercent),
     }));
   }, [data]);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (!containerRef.current) return;
+    setIsDragging(true);
+    dragState.current.startX = e.pageX - containerRef.current.offsetLeft;
+    dragState.current.scrollLeft = containerRef.current.scrollLeft;
+  }, []);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isDragging || !containerRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - containerRef.current.offsetLeft;
+    const walk = (x - dragState.current.startX) * 1.5;
+    containerRef.current.scrollLeft = dragState.current.scrollLeft - walk;
+  }, [isDragging]);
+
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  const handleMouseEnter = useCallback(() => {
+    setIsHovered(true);
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    setIsHovered(false);
+    setIsDragging(false);
+  }, []);
 
   if (isLoading || tickerItems.length === 0) {
     return (
@@ -75,10 +107,30 @@ export function LivePriceTicker() {
   const items = [...tickerItems, ...tickerItems];
 
   return (
-    <div className="h-8 bg-muted/20 border-b overflow-hidden relative w-full max-w-full">
-      <div className="absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-background to-transparent z-10" />
-      <div className="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-background to-transparent z-10" />
-      <div className="flex items-center h-full ticker-scroll">
+    <div
+      ref={containerRef}
+      className={cn(
+        "h-8 bg-muted/20 border-b relative w-full max-w-full select-none",
+        isHovered ? "overflow-x-auto scrollbar-none" : "overflow-hidden",
+        isDragging ? "cursor-grabbing" : isHovered ? "cursor-grab" : ""
+      )}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+    >
+      <div className="absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
+      <div className="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
+      <div
+        ref={scrollRef}
+        className={cn(
+          "flex items-center h-full",
+          !isHovered && "ticker-scroll"
+        )}
+        style={{ width: 'max-content' }}
+      >
         {items.map((item, idx) => {
           const isUp = item.priceChangePercent >= 0;
           const base = item.symbol.replace("USDT", "");
@@ -109,14 +161,13 @@ export function LivePriceTicker() {
       <style>{`
         .ticker-scroll {
           animation: ticker-marquee 30s linear infinite;
-          width: max-content;
-        }
-        .ticker-scroll:hover {
-          animation-play-state: paused;
         }
         @keyframes ticker-marquee {
           0% { transform: translateX(0); }
           100% { transform: translateX(-50%); }
+        }
+        .scrollbar-none::-webkit-scrollbar {
+          display: none;
         }
       `}</style>
     </div>

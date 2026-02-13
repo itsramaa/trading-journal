@@ -472,6 +472,9 @@ export function useBinanceAggregatedSync() {
       
       const forceRefetch = options.forceRefetch || false;
       
+      const addLog = useSyncStore.getState().addSyncLog;
+      addLog(`Starting sync — range: ${options.daysToSync || DEFAULT_HISTORY_DAYS}, force: ${forceRefetch}`);
+      
       console.log('[FullSync] Starting aggregated sync with options:', {
         daysToSync: options.daysToSync,
         resumeFromCheckpoint: options.resumeFromCheckpoint,
@@ -522,13 +525,49 @@ export function useBinanceAggregatedSync() {
       let symbols: string[] = [];
       
       // =======================================================================
+      // Phase 0: Force Delete (if forceRefetch)
+      // =======================================================================
+      if (forceRefetch && !isResuming) {
+        addLog('⚠️ Force re-fetch enabled — deleting existing Binance trades...', 'warn');
+        updateProgress({
+          phase: 'deleting' as any,
+          current: 0,
+          total: 1,
+          message: 'Deleting existing Binance trades...',
+        });
+        
+        // Delete all binance-sourced trades for this user
+        const { error: deleteError, count } = await supabase
+          .from('trade_entries')
+          .delete({ count: 'exact' })
+          .eq('user_id', user.id)
+          .eq('source', 'binance');
+        
+        if (deleteError) {
+          addLog(`Delete failed: ${deleteError.message}`, 'error');
+          throw new Error(`Failed to delete existing trades: ${deleteError.message}`);
+        }
+        
+        addLog(`Deleted ${count ?? 0} existing Binance trades`, 'success');
+        
+        updateProgress({
+          phase: 'deleting' as any,
+          current: 1,
+          total: 1,
+          message: `Deleted ${count ?? 0} trades`,
+        });
+      }
+      
+      // =======================================================================
       // Phase 1: Fetch Income Records (or use checkpoint)
       // =======================================================================
       if (isResuming && checkpoint?.incomeData) {
         console.log('[FullSync] Resuming with cached income data');
+        addLog(`Resuming with ${checkpoint.incomeData.length} cached income records`);
         income = checkpoint.incomeData;
         symbols = checkpoint.allSymbols;
       } else {
+        addLog('Fetching income records from Binance...');
         updateProgress({
           phase: 'fetching-income',
           current: 0,
@@ -545,6 +584,7 @@ export function useBinanceAggregatedSync() {
           });
         });
         
+        addLog(`Fetched ${income.length} income records`, 'success');
         console.log(`[FullSync] Fetched ${income.length} income records`);
         
         // Log breakdown of income types for debugging
@@ -554,6 +594,12 @@ export function useBinanceAggregatedSync() {
         }, {} as Record<string, number>);
         console.log('[FullSync] Income breakdown by type:', incomeTypeBreakdown);
         
+        // Log breakdown to sync logs
+        const breakdownStr = Object.entries(incomeTypeBreakdown)
+          .map(([type, count]) => `${type}: ${count}`)
+          .join(', ');
+        addLog(`Income breakdown: ${breakdownStr}`);
+        
         // Count REALIZED_PNL with tradeId for accuracy tracking
         const realizedPnlRecords = income.filter(i => i.incomeType === 'REALIZED_PNL');
         const withTradeId = realizedPnlRecords.filter(i => i.tradeId !== null && i.tradeId !== '');
@@ -562,6 +608,7 @@ export function useBinanceAggregatedSync() {
         
         // Get unique symbols from income (OPTIMIZED: only symbols with non-zero REALIZED_PNL)
         symbols = getUniqueSymbols(income);
+        addLog(`Found ${symbols.length} unique symbols with trades`);
         console.log(`[FullSync] Found ${symbols.length} unique symbols with trades (filtered from ${new Set(income.map(i => i.symbol)).size} total)`);
         
         // Save checkpoint after income fetch
@@ -699,6 +746,7 @@ export function useBinanceAggregatedSync() {
         );
         
         const batchLabel = `batch ${batchIdx + 1}/${totalBatches}`;
+        addLog(`Processing ${batchSymbols.join(', ')} (${batchLabel})`);
         
         // --- Step A: Await prefetched results (already in-flight) ---
         updateProgress({
@@ -733,7 +781,9 @@ export function useBinanceAggregatedSync() {
             batchTrades.push(...fetchResult.trades);
             batchOrders.push(...fetchResult.orders);
             processedSymbolsList.push(fetchResult.symbol);
+            addLog(`${fetchResult.symbol}: ${fetchResult.trades.length} trades, ${fetchResult.orders.length} orders`);
           } else {
+            addLog(`${fetchResult.symbol}: FAILED — ${fetchResult.error}`, 'error');
             accumulator.failedSymbols.push({ 
               symbol: fetchResult.symbol, 
               error: fetchResult.error || 'Unknown error' 
@@ -867,15 +917,7 @@ export function useBinanceAggregatedSync() {
           }
           
           if (forceRefetch && idsToCheck.length > 0) {
-            // Delete existing trades for force re-fetch
-            for (let i = 0; i < idsToCheck.length; i += 500) {
-              const deleteBatch = idsToCheck.slice(i, i + 500);
-              await supabase
-                .from('trade_entries')
-                .delete()
-                .eq('user_id', user.id)
-                .in('binance_trade_id', deleteBatch);
-            }
+            // Already bulk-deleted at Phase 0, just clear existing IDs
             existingIds = new Set<string>();
           }
           
@@ -893,6 +935,7 @@ export function useBinanceAggregatedSync() {
             checkpointInsertedIds.add(id);
           }
           
+          addLog(`${batchLabel}: inserted ${insertResult.insertedCount}, skipped ${existingIds.size} dupes`, insertResult.failedBatches.length > 0 ? 'warn' : 'success');
           console.log(`[FullSync] ${batchLabel}: inserted ${insertResult.insertedCount}, skipped ${existingIds.size} dupes`);
         }
         
@@ -937,6 +980,17 @@ export function useBinanceAggregatedSync() {
         : parseFloat(matchRate) >= 60 ? 'Fair' 
         : 'Poor';
       
+      addLog('========== SYNC COMPLETE ==========', 'success');
+      addLog(`Income: ${income.length} records (PnL: ${nonZeroPnl}, Commission: ${commissionRecords}, Funding: ${fundingRecords})`, 'info');
+      addLog(`Symbols: ${processedSymbolsList.length}/${symbols.length} processed`, 'info');
+      addLog(`Lifecycles: ${accumulator.allLifecycleStats.total} (${accumulator.allLifecycleStats.complete} complete)`, 'info');
+      addLog(`Inserted: ${accumulator.totalInserted} trades (${accumulator.totalSkippedDupes} dupes skipped)`, 'success');
+      addLog(`Match Rate: ${matchRate}% — Quality: ${syncQuality}`, parseFloat(matchRate) >= 80 ? 'success' : 'warn');
+      addLog(`Reconciliation: ${reconciliation.isReconciled ? '✓ OK' : '⚠ DIFF'} (${reconciliation.differencePercent.toFixed(3)}%)`, reconciliation.isReconciled ? 'success' : 'warn');
+      if (accumulator.failedSymbols.length > 0) {
+        addLog(`Failed symbols: ${accumulator.failedSymbols.map(f => f.symbol).join(', ')}`, 'error');
+      }
+      
       console.log('[FullSync] ========== SYNC SUMMARY ==========');
       console.log(`[FullSync] Total Income Records: ${income.length}`);
       console.log(`[FullSync]   - REALIZED_PNL: ${realizedPnlRecords.length} (non-zero: ${nonZeroPnl})`);
@@ -948,9 +1002,6 @@ export function useBinanceAggregatedSync() {
       console.log(`[FullSync] Trades Inserted: ${accumulator.totalInserted} (${accumulator.totalSkippedDupes} dupes skipped)`);
       console.log(`[FullSync] Match Rate: ${matchRate}% (${syncQuality})`);
       console.log(`[FullSync] P&L Reconciliation: ${reconciliation.isReconciled ? '✓ OK' : '⚠ DIFF'} (${reconciliation.differencePercent.toFixed(3)}%)`);
-      console.log(`[FullSync]   - Aggregated: $${reconciliation.aggregatedTotalPnl.toFixed(2)}`);
-      console.log(`[FullSync]   - Binance Total: $${reconciliation.binanceTotalPnl.toFixed(2)}`);
-      console.log(`[FullSync]   - Unmatched (open positions): $${reconciliation.unmatchedIncomePnl.toFixed(2)}`);
       console.log('[FullSync] ====================================');
       
       // Clear checkpoint on success
@@ -1026,6 +1077,9 @@ export function useBinanceAggregatedSync() {
     onError: (error) => {
       // Update global store with error (checkpoint is preserved for resume)
       failFullSync(error.message);
+      
+      // Log error
+      useSyncStore.getState().addSyncLog(`SYNC FAILED: ${error.message}`, 'error');
       
       // Phase 5: Record failure for monitoring
       recordSyncFailure(error);

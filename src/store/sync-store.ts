@@ -51,6 +51,12 @@ export interface LastSyncInfo {
   quality: SyncQualityScore;
 }
 
+export interface SyncLogEntry {
+  timestamp: number;
+  message: string;
+  level: 'info' | 'warn' | 'error' | 'success';
+}
+
 interface SyncStoreState {
   // Full Sync State
   fullSyncStatus: FullSyncStatus;
@@ -71,6 +77,9 @@ interface SyncStoreState {
   // Last successful sync info (for incremental sync)
   lastSyncInfo: LastSyncInfo | null;
   
+  // Sync logs
+  syncLogs: SyncLogEntry[];
+  
   // Actions
   startFullSync: () => void;
   updateProgress: (progress: AggregationProgress) => void;
@@ -78,6 +87,10 @@ interface SyncStoreState {
   failFullSync: (error: string) => void;
   resetFullSync: () => void;
   setSyncRange: (days: SyncRangeDays) => void;
+  
+  // Log actions
+  addSyncLog: (message: string, level?: SyncLogEntry['level']) => void;
+  clearSyncLogs: () => void;
   
   // Checkpoint actions
   saveCheckpoint: (update: Partial<SyncCheckpoint>) => void;
@@ -241,6 +254,7 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
   selectedSyncRange: 90, // Default 90 days (optimized)
   checkpoint: loadCheckpointFromStorage(), // Load on init
   lastSyncInfo: loadLastSyncInfo(), // Load last sync info for incremental sync
+  syncLogs: [],
   
   // Actions
   startFullSync: () => {
@@ -361,11 +375,23 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
       fullSyncStartTime: null,
       eta: null,
       checkpoint: null,
+      syncLogs: [],
     });
   },
   
   setSyncRange: (days: SyncRangeDays) => {
     set({ selectedSyncRange: days });
+  },
+  
+  // Log actions
+  addSyncLog: (message: string, level: SyncLogEntry['level'] = 'info') => {
+    set(state => ({
+      syncLogs: [...state.syncLogs, { timestamp: Date.now(), message, level }],
+    }));
+  },
+  
+  clearSyncLogs: () => {
+    set({ syncLogs: [] });
   },
   
   // Checkpoint Actions
@@ -459,3 +485,6 @@ export const selectCanDoIncrementalSync = (state: SyncStoreState) =>
 
 export const selectSyncQuality = (state: SyncStoreState) =>
   state.lastSyncInfo?.quality ?? null;
+
+export const selectSyncLogs = (state: SyncStoreState) =>
+  state.syncLogs;
