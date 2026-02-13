@@ -1461,6 +1461,7 @@ export type Database = {
       increment_sync_quota: { Args: { p_user_id: string }; Returns: number }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
       permanent_delete_old_trades: { Args: never; Returns: number }
+      private_get_encryption_key: { Args: never; Returns: string }
       restore_trade_entry: { Args: { p_trade_id: string }; Returns: boolean }
       save_exchange_credential: {
         Args: {

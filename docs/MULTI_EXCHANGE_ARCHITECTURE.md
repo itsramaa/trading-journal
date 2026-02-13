@@ -411,25 +411,26 @@ function mapBinanceBalance(bb: BinanceBalance): ExchangeBalance
 
 ### Credential Storage
 
-Current implementation uses **base64 encoding** for API key storage in `exchange_credentials` table:
+Implementation uses **PGP symmetric encryption** (`pgp_sym_encrypt`/`pgp_sym_decrypt` from pgcrypto) with an encryption key stored in **Supabase Vault**:
 
 ```sql
--- Current: Base64 encoding (obfuscation, NOT encryption)
-v_encrypted_key := encode(convert_to(p_api_key, 'UTF8'), 'base64');
+-- Encryption: PGP symmetric with Vault-stored key
+v_encryption_key := private_get_encryption_key(); -- from vault.decrypted_secrets
+encode(pgp_sym_encrypt(p_api_key, v_encryption_key), 'base64')
 ```
 
 | Column | Format | Security Level | Risk |
 |--------|--------|----------------|------|
-| `api_key_encrypted` | Base64 | Obfuscation | Medium - readable if DB leaked |
-| `api_secret_encrypted` | Base64 | Obfuscation | Medium - readable if DB leaked |
+| `api_key_encrypted` | PGP + Base64 | Strong encryption | Low - unreadable without Vault key |
+| `api_secret_encrypted` | PGP + Base64 | Strong encryption | Low - unreadable without Vault key |
 
-**Mitigations in Place:**
+**Security Layers:**
+- PGP symmetric encryption (AES-128 via pgcrypto)
+- Encryption key stored in Supabase Vault (encrypted at rest by pgsodium)
 - Row Level Security (RLS) prevents other users from reading
 - Service role key only used in Edge Functions (server-side)
 - Credentials never sent to frontend
-
-**For Production Multi-Tenant:**
-Consider upgrading to Supabase Vault (`vault.secrets` table) or external KMS.
+- `private_get_encryption_key()` function has `REVOKE ALL FROM PUBLIC`
 
 ### Rate Limit Cleanup
 
