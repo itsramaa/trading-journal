@@ -67,62 +67,82 @@ Halaman utama untuk membuat, memantau, dan mengelola trade aktif. Mendukung Pape
 
 ## 2. Trade History (`/history`)
 
-Halaman untuk melihat, menganalisis, dan mengelola riwayat trade yang sudah ditutup. Mendukung filtering lanjutan dan export data. Sync/import telah dipindahkan ke `/import`.
+Halaman untuk melihat, menganalisis, dan mengelola riwayat trade yang sudah ditutup. Mendukung filtering lanjutan, export data, dan enrichment per-trade. Sync/import telah dipindahkan ke `/import`.
 
 ### 2.1 Trader/User Features
 
-| # | Nama Fitur / Fungsi | Aktor | Tujuan / Outcome | Flow / Alur Singkat | Precondition | Postcondition | Catatan / Masalah |
-|---|----------------------|-------|-------------------|---------------------|--------------|---------------|-------------------|
-| 1 | Lihat Closed Trades (List/Gallery) | Trader | Melihat riwayat trade dalam format list atau gallery | Buka halaman → Toggle view mode (List/Gallery) → Browse trades | User logged in; Minimal 1 closed trade | Trades ditampilkan sesuai format pilihan dengan stats summary | Gallery view menampilkan card-based layout |
-| 2 | Filter by Date Range | Trader | Menyaring trades berdasarkan periode waktu | Pilih start date & end date di date picker → Tabel ter-filter | Halaman History terbuka | Hanya trades dalam range ditampilkan; Stats ter-recalculate server-side | — |
-| 3 | Filter by Result | Trader | Menyaring trades berdasarkan outcome (Win/Loss/BE) | Pilih filter result → Tabel ter-filter | Halaman History terbuka | Hanya trades dengan result terpilih ditampilkan | BE = Breakeven (P&L mendekati 0) |
-| 4 | Filter by Direction | Trader | Menyaring trades berdasarkan arah (Long/Short) | Pilih filter direction → Tabel ter-filter | Halaman History terbuka | Hanya trades dengan direction terpilih ditampilkan | — |
-| 5 | Filter by Strategy | Trader | Menyaring trades berdasarkan strategi yang digunakan | Pilih strategy dari dropdown → Tabel ter-filter | Halaman History terbuka; Minimal 1 strategy tersedia | Hanya trades terkait strategy terpilih ditampilkan | Via `trade_entry_strategies` junction table |
-| 6 | Filter by Pair | Trader | Menyaring trades berdasarkan trading pair | Pilih pair dari dropdown → Tabel ter-filter | Halaman History terbuka | Hanya trades dengan pair terpilih ditampilkan | — |
-| 7 | Filter by Session | Trader | Menyaring trades berdasarkan sesi trading (Asia/London/NY) | Pilih session → Tabel ter-filter | Halaman History terbuka | Hanya trades dari sesi terpilih ditampilkan | Sesi berbasis UTC: Asia 20:00-05:00, London 08:00-17:00, NY 13:00-22:00 |
-| 8 | Sort by AI Score | Trader | Mengurutkan trades berdasarkan skor kualitas AI | Klik sort toggle AI Score → Tabel ter-sort | Halaman History terbuka; Trades memiliki `ai_quality_score` | Trades diurutkan ascending/descending by AI score | Trades tanpa score ditampilkan di akhir |
-| 9 | Export CSV | Trader | Mengekspor data trade history ke file CSV | Klik Export → CSV ter-generate → Download otomatis | Halaman History terbuka; Minimal 1 trade | File CSV terunduh dengan data sesuai filter aktif | Mengikuti filter & mode yang aktif |
-| 10 | Enrich Trade (via Drawer) | Trader | Menambahkan konteks profesional pada closed trade | Klik Enrich → `TradeEnrichmentDrawer` terbuka → Isi enrichment data → Save | Trade tersedia di history | Trade diperkaya; AI Post-Mortem tersedia untuk review | Sama dengan Enrichment di Trading Journal |
-| 11 | Quick Note (inline) | Trader | Menambahkan catatan singkat langsung dari tabel/card | Klik note icon → Input inline → Save | Trade tersedia di history | `notes` field terupdate tanpa membuka drawer | Fast-path untuk catatan ringan |
-| 12 | Delete Trade (Soft Delete) | Trader | Menghapus trade dari history dengan opsi recovery | Klik Delete → Confirm → Soft delete | Trade tersedia di history | `deleted_at` terisi; Recoverable 30 hari via Settings | Konsisten dengan soft-delete architecture |
-| 13 | Navigate to Import & Sync | Trader | Membuka halaman Import & Sync untuk trigger sync | Klik "Import & Sync" button → Redirect ke `/import` | Halaman History terbuka | User di-redirect ke Import hub | Menggantikan sync controls inline di Trade History |
-| 14 | ~~Trigger Full Sync~~ | — | **Dipindahkan ke `/import` tab Binance** | — | — | — | Lihat Import Trades #14-23 |
-| 15 | ~~Trigger Batch Enrichment~~ | — | **Dipindahkan ke `/import` tab Binance** | — | — | — | Lihat Import Trades #15 |
-| 16 | Load More (Infinite Scroll) | Trader | Memuat lebih banyak trades saat scroll ke bawah | Scroll ke bawah → Intersection observer trigger → Fetch next page | Lebih banyak trades tersedia di server | Page berikutnya ter-append ke list | Cursor-based, bukan offset-based |
-| 17 | Tab: Fees History | Trader | Melihat riwayat commission fee per trade | Klik tab Fees → Tabel fee history ditampilkan dengan total summary & per-pair breakdown | Binance connected; Mode = Live | Riwayat fee ditampilkan; Total fee summary tersedia | Component: `FeeHistoryTab`; Fee trend chart tersedia |
-| 18 | Tab: Funding History | Trader | Melihat riwayat funding rate payments | Klik tab Funding → Tabel funding history ditampilkan dengan earned vs paid breakdown | Binance connected; Mode = Live | Riwayat funding ditampilkan; Net funding P&L tersedia | Component: `FundingHistoryTab`; Per-pair funding breakdown |
-| 19 | Sub-Tab: All/Binance/Paper | Trader | Memisahkan closed trades berdasarkan source | Klik sub-tab All/Binance/Paper → Tabel ter-filter by source | Halaman History terbuka | Hanya trades dari source terpilih ditampilkan | Badge count per sub-tab; All = gabungan semua source |
-| 20 | Select Sync Range | Trader | Memilih rentang waktu untuk Full Sync | Pilih range: 30d, 90d, 6mo, 1y, 2y, All Time → Estimasi durasi ditampilkan | Full Sync dialog terbuka | Range terpilih; Estimasi durasi ditampilkan per opsi | Semakin panjang range, semakin lama proses sync |
-| 21 | Force Re-fetch Sync | Trader | Menghapus trades existing dan re-download semua dari Binance | Centang checkbox "Force Re-fetch" di Full Sync dialog → Confirm | Full Sync dialog terbuka | Trades existing dihapus; Fresh data dari Binance | Useful jika data inconsistency terdeteksi |
-| 22 | Resume Interrupted Sync | Trader | Melanjutkan sync yang terganggu dari checkpoint terakhir | Buka sync panel → Jika checkpoint ada → Klik Resume → Sync lanjut dari last symbol | Sync pernah terganggu (close tab, error); Checkpoint tersedia | Sync lanjut tanpa mulai ulang; Progress dari checkpoint | Jumlah symbols sudah diproses ditampilkan |
-| 23 | Discard Sync Checkpoint | Trader | Membuang checkpoint dan mulai fresh sync | Klik Discard Checkpoint → Confirm → Checkpoint terhapus | Checkpoint tersedia di store | Checkpoint terhapus; Next sync mulai dari awal | Berguna jika checkpoint corrupt atau data berubah |
-| 24 | Clear All Filters | Trader | Menghapus semua filter aktif sekaligus | Banner `FilterActiveIndicator` muncul → Klik "Clear All" → Semua filter ter-reset | Minimal 1 filter aktif | Semua filter ter-reset; Full dataset ditampilkan | Banner menampilkan jumlah filter aktif |
-| 25 | View Sync Quota | Trader | Melihat sisa quota sync harian | Lihat quota indicator → Usage bar + remaining count ditampilkan | Binance connected | User aware sisa quota; Warning jika mendekati limit | Hook: `useSyncQuota`; Reset midnight UTC |
-| 26 | Expand/Collapse Notes | Trader | Melihat notes lengkap pada trade card yang multi-line | Klik expand pada notes section → Full text ditampilkan | Trade memiliki notes multi-line | Notes ter-expand; Badge "Recently updated" jika notes baru | Collapsible untuk menjaga layout card tetap rapi |
-| 27 | View Transaction on Solscan | Trader | Melihat detail transaksi on-chain di Solscan | Klik link external → Redirect ke Solscan transaction page | Trade source = 'solana'; Transaction signature tersedia | Browser buka tab baru ke Solscan | Hanya tersedia untuk Solana-imported trades |
-| 28 | Re-Sync Specific Date Range | Trader | Re-sync hanya periode tertentu jika mismatch terdeteksi | Pilih date range spesifik → Trigger re-sync untuk range tersebut | Reconciliation mismatch terdeteksi; Binance connected | Data untuk range terpilih di-refresh dari Binance | Lebih efisien dari Full Sync untuk fix partial issues |
-| 29 | View Sync Reconciliation Report | Trader | Melihat laporan detail rekonsiliasi P&L setelah sync | Klik `SyncStatusBadge` → Dialog `SyncReconciliationReport` terbuka → Review P&L comparison | Sync selesai; Result tersedia | Dialog menampilkan: P&L reconciliation, lifecycle stats, validation warnings, failed lifecycles, trade details | Component: `SyncReconciliationReport` |
-| 30 | View Sync Quality Score | Trader | Melihat indikator kualitas sync (Excellent/Good/Fair/Poor) | Setelah sync → Badge quality ditampilkan di samping status badge | Sync selesai; Match rate terhitung | Badge quality ter-render: Excellent (95%+), Good (80-95%), Fair (60-80%), Poor (<60%) | Component: `SyncQualityIndicator` dalam `SyncStatusBadge` |
-| 31 | View Sync ETA | Trader | Melihat estimasi waktu tersisa saat sync berjalan | Sync aktif → ETA ditampilkan berdasarkan progress dan elapsed time | Full sync sedang berjalan | ETA ter-update secara periodik; Format: "~Xm Ys remaining" | Component: `SyncETADisplay` |
-| 32 | View Sync Progress Phases | Trader | Melihat fase sync yang sedang berjalan secara detail | Sync aktif → Phase indicator: fetching-income → fetching-trades → grouping → aggregating → validating → inserting | Full sync sedang berjalan | Phase aktif ter-highlight; Phase selesai ter-checklist | 6-phase progress indicator |
-| 33 | View Data Quality Summary | Trader | Melihat ringkasan kualitas data sync | Di Sync Monitoring → Widget health metrics ditampilkan | Sync pernah dijalankan; Last result tersedia | Metrics: Valid Trades count, P&L Accuracy %, Lifecycle Completion %, Sync Failures count | Component: `DataQualitySummary` |
-| 34 | View Sync Monitoring Panel | Trader | Melihat dashboard monitoring sync komprehensif | Buka monitoring section → Panel menampilkan failure alerts, retry actions, reconciliation warnings, quick stats | Binance connected; Mode = Live | Dashboard monitoring lengkap ditampilkan | Component: `SyncMonitoringPanel` |
-| 35 | Retry Failed Sync | Trader | Mengulang sync yang gagal dari monitoring panel | Di Sync Monitoring / error state → Klik "Retry Now" → Sync diulang | Sync pernah gagal; Consecutive failures > 0 | Sync diulang; Failure counter direset jika sukses | Tersedia di `SyncMonitoringPanel` dan error state |
-| 36 | View R:R Ratio with Tooltip | Trader | Melihat Risk:Reward ratio per trade dengan detail di tooltip | Hover R:R badge pada trade card → Tooltip menampilkan SL distance, TP distance, actual R:R | Trade memiliki SL & TP data | R:R ratio ditampilkan; Tooltip detail tersedia | Component: `RiskRewardTooltip` |
-| 37 | View Confluence Score with Tooltip | Trader | Melihat confluence score per trade dengan detail di tooltip | Hover confluence badge → Tooltip menampilkan checklist items yang terpenuhi | Trade memiliki confluence data | Score percentage ditampilkan; Tooltip shows matched items | Component: `ConfluenceScoreTooltip` |
-| 38 | View Fee per Trade (inline) | Trader | Melihat biaya per trade langsung di card/tabel | Fee amount ditampilkan inline di trade card | Trade source = 'binance'; Fee data tersedia | Fee amount visible tanpa membuka drawer | Binance-only; Aggregasi commission + funding |
-| 39 | View Tags Display | Trader | Melihat tag badges per trade di card | Tags ditampilkan sebagai badge chips di trade card | Trade memiliki tags array | Tag badges ter-render per trade | Warna badge otomatis; Clickable untuk filter |
-| 40 | View Strategy Badges on Cards | Trader | Melihat strategy yang digunakan per trade | Strategy name badges ditampilkan di trade card | Trade linked ke strategy via junction table | Strategy badges ter-render | Multiple strategies possible per trade |
-| 41 | View Screenshot Count Indicator | Trader | Melihat indikator jumlah screenshot per trade | Ikon kamera + count ditampilkan di trade card | Trade memiliki screenshots | Count indicator visible; Klik untuk lihat di drawer | Fast indicator tanpa membuka drawer |
-| 42 | View Notes Indicator Badge | Trader | Melihat indikator bahwa trade memiliki notes | Ikon notes ditampilkan jika `notes` field tidak kosong | Trade memiliki notes | Badge indicator visible di trade card | Quick visual cue |
-| 43 | View "Recently Updated" Note Badge | Trader | Melihat badge jika notes baru saja diupdate | Badge "Recently updated" muncul di notes section | Notes diupdate dalam periode tertentu | Badge visible sementara | Auto-dismiss setelah threshold waktu |
-| 44 | View Needs Enrichment Badge | Trader | Melihat indikator trade yang butuh enrichment di gallery | AlertCircle icon ditampilkan di gallery card | Trade direction='UNKNOWN' atau entry_price=0 | Badge visible; Mendorong user untuk enrich | Component: gallery card indicator |
-| 45 | View AI Quality Score Badge | Trader | Melihat skor kualitas AI per trade dengan warna | Badge skor ditampilkan: hijau (80+), kuning (60-79), merah (<60) | Trade memiliki `ai_quality_score` | Color-coded badge visible di trade card | Threshold: green ≥80, yellow ≥60, red <60 |
-| 46 | Filter Count Display | Trader | Melihat jumlah trades terfilter vs total | Text "3/47 Filtered" ditampilkan di header area | Filter aktif; Trades tersedia | User aware berapa banyak trades yang terfilter dari total | Format: "{filtered}/{total} Filtered" |
-| 47 | View Error State | Trader | Melihat pesan error jika loading trades gagal | Error boundary → Pesan error + opsi retry ditampilkan | Query gagal (network error, server error) | User informed tentang error; Retry button tersedia | Graceful degradation |
-| 48 | View Empty State per Sub-Tab | Trader | Melihat pesan kosong kontekstual per sub-tab | Sub-tab dipilih → Jika 0 trades → Empty state message ditampilkan | Sub-tab aktif; 0 trades untuk kategori tersebut | Pesan berbeda untuk Binance/Paper/All empty states | Contextual messaging per source |
-| 49 | View Load Progress Indicator | Trader | Melihat indikator "All trades loaded" atau "x of y loaded" | Scroll/load → Indicator update: "Showing x of y trades" atau "All trades loaded" | Pagination aktif | User aware progress loading dan total trades | Bottom-of-list indicator |
-| 50 | View "All Trades Enriched" Badge | Trader | Melihat badge konfirmasi semua trades sudah di-enrich | Cek enrichment status → Jika 0 needs enrichment → Badge "All enriched" muncul | Binance trades tersedia; Semua sudah lengkap | Positive confirmation badge | Disappears jika ada trade baru yang perlu enrichment |
+#### Module 1: Trade History / Viewing (12 features)
+
+| # | Nama Fitur / Fungsi | Aktor | Tujuan / Outcome | Flow / Alur Singkat | Precondition | Postcondition | Catatan |
+|---|----------------------|-------|-------------------|---------------------|--------------|---------------|---------|
+| 1 | Lihat Closed Trades (List/Gallery) | Trader | Melihat riwayat trade | Buka halaman → Toggle view mode (List/Gallery) → Browse trades | User logged in; Minimal 1 closed trade | Trades ditampilkan sesuai format pilihan dengan stats summary | Gallery view card-based |
+| 2 | Filter by Date Range | Trader | Menyaring trades per periode | Pilih start & end date → Tabel ter-filter | Halaman History terbuka | Hanya trades dalam range ditampilkan; Stats ter-recalculate | — |
+| 3 | Filter by Result | Trader | Menyaring trades berdasarkan outcome (Win/Loss/BE) | Pilih filter result → Tabel ter-filter | Halaman History terbuka | Hanya trades dengan result terpilih ditampilkan | BE = Breakeven (P&L ≈ 0) |
+| 4 | Filter by Direction | Trader | Menyaring trades Long/Short | Pilih filter direction → Tabel ter-filter | Halaman History terbuka | Hanya trades dengan direction terpilih | — |
+| 5 | Filter by Strategy | Trader | Menyaring trades berdasarkan strategi | Pilih strategy → Tabel ter-filter | Halaman History terbuka; Minimal 1 strategy tersedia | Hanya trades terkait strategy terpilih | Via trade_entry_strategies junction table |
+| 6 | Filter by Pair | Trader | Menyaring trades berdasarkan trading pair | Pilih pair → Tabel ter-filter | Halaman History terbuka | Hanya trades dengan pair terpilih | — |
+| 7 | Filter by Session | Trader | Menyaring trades berdasarkan sesi trading | Pilih session → Tabel ter-filter | Halaman History terbuka | Hanya trades dari sesi terpilih | Asia 20:00-05:00, London 08:00-17:00, NY 13:00-22:00 UTC |
+| 8 | Sort by AI Score | Trader | Mengurutkan trades per AI quality score | Klik sort toggle AI Score → Tabel ter-sort | Halaman History terbuka; Trades memiliki ai_quality_score | Trades diurutkan ascending/descending; Trades tanpa score di akhir | — |
+| 9 | Clear All Filters | Trader | Menghapus semua filter aktif | Klik "Clear All" → Semua filter ter-reset | Minimal 1 filter aktif | Full dataset ditampilkan | Banner menampilkan jumlah filter aktif |
+| 10 | Load More (Infinite Scroll) | Trader | Memuat lebih banyak trades saat scroll | Scroll → Intersection Observer trigger → Fetch next page | Lebih banyak trades tersedia | Page berikutnya ter-append | Cursor-based pagination |
+| 11 | View Load Progress Indicator | Trader | Menunjukkan progress loading trades | Scroll/load → Indicator update | Pagination aktif | User aware progress loading | Bottom-of-list indicator |
+| 12 | Sub-Tab: All/Binance/Paper | Trader | Memisahkan trades berdasarkan source | Klik sub-tab → Tabel ter-filter by source | Halaman History terbuka | Hanya trades dari source terpilih ditampilkan | Badge count per sub-tab |
+
+#### Module 2: Trade Enrichment (4 features)
+
+| # | Nama Fitur / Fungsi | Aktor | Tujuan / Outcome | Flow / Alur Singkat | Precondition | Postcondition | Catatan |
+|---|----------------------|-------|-------------------|---------------------|--------------|---------------|---------|
+| 13 | Enrich Trade (Drawer) | Trader | Menambahkan konteks profesional | Klik Enrich → Drawer terbuka → Isi data → Save | Trade tersedia | Trade diperkaya; AI Post-Mortem tersedia | — |
+| 14 | Trigger Batch Enrichment | Trader | Memperkaya batch trade yang data-nya belum lengkap | Klik Enrich All → Batch process berjalan | Trades direction='UNKNOWN' atau entry_price=0 | Trades ter-enrich; Badge "Needs Enrichment" muncul | Batch process dari Binance API |
+| 15 | Needs Enrichment Badge | Trader | Indikator trade butuh enrichment | Gallery card menampilkan icon | Trade direction='UNKNOWN' atau entry_price=0 | Badge visible | Dorong user enrich |
+| 16 | All Trades Enriched Badge | Trader | Konfirmasi semua trades sudah lengkap | Cek enrichment status → Jika 0 needs enrichment → Badge muncul | Binance trades tersedia | Badge visible | Positive confirmation badge |
+
+#### Module 3: Notes / Tags / Screenshots (6 features)
+
+| # | Nama Fitur / Fungsi | Aktor | Tujuan / Outcome | Flow / Alur Singkat | Precondition | Postcondition | Catatan |
+|---|----------------------|-------|-------------------|---------------------|--------------|---------------|---------|
+| 17 | Quick Note (inline) | Trader | Menambahkan catatan singkat | Klik note icon → Input inline → Save | Trade tersedia | notes field terupdate | Fast-path untuk catatan ringan |
+| 18 | Expand/Collapse Notes | Trader | Melihat notes multi-line | Klik expand → Full text muncul | Trade memiliki notes multi-line | Notes ter-expand; Badge "Recently Updated" jika baru | Collapsible untuk layout card |
+| 19 | View Notes Indicator Badge | Trader | Menunjukkan trade memiliki notes | Icon notes ditampilkan jika field tidak kosong | Trade memiliki notes | Badge visible di card | Visual cue cepat |
+| 20 | View "Recently Updated" Note Badge | Trader | Badge jika notes baru saja diupdate | Notes diupdate → Badge muncul sementara | Notes diupdate periode tertentu | Badge auto-dismiss | — |
+| 21 | View Tags Display | Trader | Menunjukkan tag badges | Tags ditampilkan di trade card | Trade memiliki tags array | Tag badges ter-render | Clickable untuk filter |
+| 22 | View Screenshot Count Indicator | Trader | Menunjukkan jumlah screenshot | Icon kamera + count ditampilkan | Trade memiliki screenshots | Count visible | Klik untuk drawer detail |
+
+#### Module 4: Sync & Data Management (13 features)
+
+| # | Nama Fitur / Fungsi | Aktor | Tujuan / Outcome | Flow / Alur Singkat | Precondition | Postcondition | Catatan |
+|---|----------------------|-------|-------------------|---------------------|--------------|---------------|---------|
+| 23 | Trigger Incremental Sync | Trader | Sinkronisasi trade terbaru dari Binance | Klik Sync → Incremental sync berjalan | Mode = Live; Binance connected | Trades baru tersimpan | Hanya fetch trades setelah last checkpoint |
+| 24 | Trigger Full Sync (Binance) | Trader | Sinkronisasi seluruh history | Klik Full Sync → Confirm → Sync berjalan | Mode = Live; Binance connected; Quota tersedia | Seluruh trade history tersinkron | Rate-limited; Quota harian |
+| 25 | Select Sync Range | Trader | Pilih range untuk Full Sync | Pilih range → Estimasi durasi ditampilkan | Full Sync dialog terbuka | Range terpilih; Estimasi durasi muncul | 30d/90d/6mo/1y/2y/All Time |
+| 26 | Force Re-fetch Sync | Trader | Hapus trade existing & re-download | Centang "Force Re-fetch" → Confirm | Full Sync dialog terbuka | Trades existing dihapus; Fresh data masuk | Berguna untuk data inconsistent |
+| 27 | Resume Interrupted Sync | Trader | Lanjutkan sync dari checkpoint | Buka sync panel → Klik Resume | Sync terganggu; Checkpoint tersedia | Sync lanjut dari last symbol | Progress visible |
+| 28 | Discard Sync Checkpoint | Trader | Buang checkpoint & mulai fresh sync | Klik Discard → Confirm | Checkpoint tersedia | Checkpoint terhapus; Next sync fresh | Berguna jika checkpoint corrupt |
+| 29 | Re-Sync Specific Date Range | Trader | Re-sync periode tertentu | Pilih range → Trigger re-sync | Reconciliation mismatch; Binance connected | Data range ter-refresh | Lebih efisien dari Full Sync |
+| 30 | Retry Failed Sync | Trader | Mengulang sync yang gagal | Klik "Retry Now" → Sync diulang | Sync gagal; Consecutive failures > 0 | Sync ulang; Failure counter reset | Available di monitoring panel |
+| 31 | View Sync Progress Phases | Trader | Lihat fase sync berjalan | Phase indicator: fetching → grouping → aggregating → validating → inserting | Full sync berjalan | Phase aktif ter-highlight; selesai ter-checklist | 6-phase indicator |
+| 32 | View Sync ETA | Trader | Lihat estimasi waktu tersisa | Sync berjalan → ETA ditampilkan | Full sync berjalan | ETA update periodik | Format: "~Xm Ys remaining" |
+| 33 | View Sync Quality Score | Trader | Indikator kualitas sync | Setelah sync → Badge quality tampil | Sync selesai; Match rate terhitung | Badge ter-render: Excellent/Good/Fair/Poor | — |
+| 34 | View Data Quality Summary | Trader | Ringkasan kualitas data sync | Sync Monitoring → Metrics widget | Sync pernah dijalankan; Last result tersedia | Metrics: Valid Trades, P&L Accuracy, Lifecycle Completion, Failures | — |
+| 35 | View Sync Monitoring Panel | Trader | Dashboard monitoring komprehensif | Buka monitoring section → Panel menampilkan alerts & stats | Binance connected; Mode = Live | Dashboard lengkap ditampilkan | — |
+
+#### Module 5: Trade Metrics / Visuals (7 features)
+
+| # | Nama Fitur / Fungsi | Aktor | Tujuan / Outcome | Flow / Alur Singkat | Precondition | Postcondition | Catatan |
+|---|----------------------|-------|-------------------|---------------------|--------------|---------------|---------|
+| 36 | View R:R Ratio with Tooltip | Trader | Risk:Reward ratio per trade | Hover R:R badge → Tooltip muncul | Trade memiliki SL & TP data | R:R ratio ditampilkan; Tooltip detail | — |
+| 37 | View Confluence Score with Tooltip | Trader | Lihat confluence score per trade | Hover confluence badge → Tooltip checklist items | Trade memiliki confluence data | Score % + matched items | — |
+| 38 | View Fee per Trade (inline) | Trader | Lihat biaya per trade | Fee amount tampil inline | Trade source = Binance; Fee data tersedia | Fee visible tanpa drawer | Aggregasi commission + funding |
+| 39 | Tab: Fees History | Trader | Lihat riwayat commission | Klik tab → Tabel fee history + summary | Binance connected; Mode = Live | Riwayat fee ditampilkan | Per-pair breakdown + trend chart |
+| 40 | Tab: Funding History | Trader | Lihat funding rate payments | Klik tab → Tabel funding history | Binance connected; Mode = Live | Funding history & net P&L tampil | Per-pair breakdown |
+| 41 | View Strategy Badges on Cards | Trader | Menampilkan strategi tiap trade | Strategy badges tampil di card | Trade linked ke strategy via junction table | Strategy badges ter-render | Multiple strategies possible |
+| 42 | View AI Quality Score Badge | Trader | Skor kualitas AI per trade | Badge warna-coded muncul | Trade memiliki ai_quality_score | Badge visible | Threshold: green ≥80, yellow ≥60, red <60 |
+
+#### Module 6: External / Miscellaneous (1 feature)
+
+| # | Nama Fitur / Fungsi | Aktor | Tujuan / Outcome | Flow / Alur Singkat | Precondition | Postcondition | Catatan |
+|---|----------------------|-------|-------------------|---------------------|--------------|---------------|---------|
+| 43 | View Transaction on Solscan | Trader | Lihat transaksi on-chain | Klik link → Buka Solscan | Trade source = Solana; Transaction signature tersedia | Browser buka tab baru | Solana-only |
 
 ### 2.2 System Features
 
@@ -204,9 +224,9 @@ Halaman terpusat untuk mengimpor dan menyinkronkan trade dari berbagai sumber. T
 | Page | Trader Features | System Features | Total |
 |------|----------------|-----------------|-------|
 | Trading Journal | 31 | 13 | **44** |
-| Trade History | 47 | 15 | **62** |
+| Trade History | 43 | 15 | **58** |
 | Import & Sync | 26 | 5 | **31** |
-| **Grand Total** | **104** | **33** | **137** |
+| **Grand Total** | **100** | **33** | **133** |
 
 ### Component Coverage Map
 
@@ -263,3 +283,4 @@ Halaman terpusat untuk mengimpor dan menyinkronkan trade dari berbagai sumber. T
 | 2026-02-13 | Expanded coverage — 60 Trader features, 27 System features (87 total, +81%). Added wizard steps, enrichment sub-features, sync engine details, component coverage map |
 | 2026-02-13 | Full coverage — 96 Trader features, 33 System features (129 total, +48%). Added enrichment drawer granular sub-features, sync monitoring/reconciliation, trade card indicators, import error/retry states. Component map expanded to 36 entries |
 | 2026-02-13 | Restructured Import as unified hub — Moved Binance sync/enrichment from Trade History to Import & Sync (`/import`). Added Binance tab features (#14-26). Trade History cleaned to pure data viewing. Total: 137 features |
+| 2026-02-13 | v2.3 — Refined Trade History into 6 modules (43 features), removed deprecated/duplicate entries. Modules: Viewing (12), Enrichment (4), Notes/Tags/Screenshots (6), Sync & Data Management (13), Metrics/Visuals (7), External (1). Total: 133 features |
