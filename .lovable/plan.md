@@ -1,62 +1,93 @@
 
-# Enhance SyncRangeSelector — Tiered Warnings & Visual Polish
 
-## Overview
-Improve the Sync Range Selector with tiered warnings based on selected range size, rate limit awareness, and better visual hierarchy. Currently only "All Time" shows a warning — larger ranges like 1 year and 2 years also deserve caution notices.
+# Enhance Force Re-fetch, Resume, and Discard Checkpoint UX
+
+## Problem
+Three advanced/recovery features need UX hardening:
+1. **Force Re-fetch** — destructive action (deletes all local trades) but has no confirmation dialog
+2. **Resume Interrupted Sync** — shows minimal checkpoint info, no ETA or progress context
+3. **Discard Checkpoint** — deletes sync progress without any confirmation warning
 
 ## Changes
 
-### File: `src/components/trading/SyncRangeSelector.tsx`
+### File: `src/components/trading/BinanceFullSyncPanel.tsx`
 
-**1. Add tiered warning system**
-- Small ranges (30, 90 days): No warning
-- Medium ranges (180 days): Info-level hint — "May hit rate limits if you have many active symbols"
-- Large ranges (365, 730 days): Warning-level alert — "Large range. Binance API rate limits may cause pauses. Checkpoint resume will handle interruptions automatically."
-- All Time (`max`): Destructive alert (existing) — keep current warning text
+**1. Force Re-fetch — Add destructive warning + confirmation**
 
-**2. Add `recommended` flag to options**
-- Mark 90 days with a subtle "Recommended" badge next to the label
-- Remove "(Recommended)" from the description string — use a proper `Badge` component instead
+When user checks the "Force Re-fetch" checkbox, show an inline destructive `Alert` below it:
 
-**3. Add rate limit context to large-range warnings**
-- Mention that Binance imposes 1200 weight/min rate limits
-- Mention checkpoint resume handles interruptions automatically
-- Mention that the process continues in background
-
-**4. Visual improvement — card-style radio items**
-- Wrap each option in a bordered container with `rounded-md border p-2` styling
-- Highlight selected option with `border-primary bg-primary/5`
-- Makes the selector more tactile and visually clear
-
-### Updated Option Config
-
-```typescript
-const SYNC_OPTIONS = [
-  { value: 30,    label: "30 days",   est: "~1-2 min",   tier: 'safe' },
-  { value: 90,    label: "90 days",   est: "~3-5 min",   tier: 'safe',    recommended: true },
-  { value: 180,   label: "6 months",  est: "~5-10 min",  tier: 'caution' },
-  { value: 365,   label: "1 year",    est: "~10-20 min", tier: 'warning' },
-  { value: 730,   label: "2 years",   est: "~20-40 min", tier: 'warning' },
-  { value: 'max', label: "All Time",  est: "1+ hours",   tier: 'danger' },
-];
+```text
+[!] This will DELETE all existing synced trades from your local database
+    and re-download everything from Binance for the selected range.
+    Use this only if data is inconsistent or corrupted.
 ```
 
-### Warning Messages by Tier
+When user clicks "Start Full Sync" with `forceRefetch === true`, show a `ConfirmDialog` (variant `destructive`) before proceeding:
+- Title: "Force Re-fetch — Delete & Re-download"
+- Description: "All locally synced Binance trades will be permanently deleted before re-downloading. This cannot be undone. Continue?"
+- Confirm label: "Delete & Re-sync"
 
-| Tier | Variant | Message |
-|------|---------|---------|
-| `safe` | None | No warning |
-| `caution` | Default (muted) | "May take longer if you have many active trading pairs." |
-| `warning` | Warning | "Large sync range. Binance rate limits (1200 weight/min) may cause automatic pauses. Checkpoint resume handles interruptions." |
-| `danger` | Destructive | Current "All Time" warning (keep as-is, already good) |
+Add new state: `showForceConfirm` to control the dialog.
+
+**2. Resume Checkpoint — Enrich with details + ETA**
+
+Enhance the checkpoint state section:
+- Show checkpoint age as human-readable text (e.g., "Saved 2 hours ago")
+- Show processed/total symbols count (already exists, keep)
+- Show checkpoint phase label (mapped to human name, not raw key)
+- Show the sync range that was used when the checkpoint was created
+- Include `SyncETADisplay` hint: "Resume will continue from where it left off"
+
+**3. Discard Checkpoint — Add confirmation dialog**
+
+Replace direct `handleDiscardCheckpoint` call with a `ConfirmDialog` (variant `warning`):
+- Title: "Discard Sync Checkpoint"
+- Description: "This will discard all sync progress ({X}/{Y} symbols processed). You will need to start a fresh sync. Continue?"
+- Confirm label: "Discard Progress"
+
+Add new state: `showDiscardConfirm` to control the dialog.
+
+### Updated Layout (Checkpoint State)
+
+```text
++-----------------------------------------------------+
+| [Clock] Incomplete sync (12/45 symbols)              |
+|   Phase: Fetching Trades                             |
+|   Range: 90 days | Saved 2 hours ago                 |
+|                                                      |
+| [Resume from Checkpoint]  [Discard]  [Fresh Sync]    |
++-----------------------------------------------------+
+```
+
+### Updated Layout (Idle State — Force Re-fetch checked)
+
+```text
++-----------------------------------------------------+
+| ...range selector...                                 |
+|                                                      |
+| [x] Force Re-fetch                                   |
+|   Delete existing trades and re-download all data    |
+|                                                      |
+| [!] DESTRUCTIVE: All locally synced trades will be   |
+|     deleted before re-downloading from Binance.      |
+|     Only use if data is inconsistent or corrupted.   |
+|                                                      |
+| [Start Full Sync (90 days)]                          |
++-----------------------------------------------------+
+```
+
+Clicking Start with force re-fetch opens confirmation dialog before executing.
 
 ## Files Modified
 
 | File | Change |
 |------|--------|
-| `src/components/trading/SyncRangeSelector.tsx` | Tiered warnings, card-style radio items, recommended badge |
+| `src/components/trading/BinanceFullSyncPanel.tsx` | Add force-refetch warning + confirm dialog, enrich checkpoint display, add discard confirmation |
 
 ## Technical Notes
-- No store or logic changes — purely UI enhancement
-- Warning tier is derived from the selected option's `tier` field, not from the `SyncRangeDays` value directly
-- Card-style items use conditional `border-primary` based on `selectedRange === option.value`
+- Uses existing `ConfirmDialog` component from `@/components/ui/confirm-dialog`
+- Phase label mapping reuses the same map from `SyncProgressIndicator`
+- Checkpoint age calculated via `Date.now() - checkpoint.lastCheckpointTime` with `date-fns.formatDistanceToNow`
+- No changes to sync logic, store, or hooks — purely UI safety improvements
+- `handleSync` now checks `forceRefetch` flag: if true, opens confirm dialog instead of syncing directly
+
