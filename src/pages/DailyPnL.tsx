@@ -40,6 +40,7 @@ import { usePerformanceExport } from "@/hooks/use-performance-export";
 import { Link } from "react-router-dom";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { useModeVisibility } from "@/hooks/use-mode-visibility";
+import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
 import { format } from "date-fns";
 
 export default function DailyPnL() {
@@ -99,7 +100,20 @@ export default function DailyPnL() {
     });
   };
 
-  // System-First: No EmptyState gate - page always renders
+  const isLoading = dailyStats.isLoading || weeklyStats.isLoading;
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          icon={DollarSign}
+          title="Daily P&L"
+          description="Analyze your daily profit and loss breakdown"
+        />
+        <MetricsGridSkeleton />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -234,7 +248,7 @@ export default function DailyPnL() {
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
                     <Badge variant="outline">{weeklyStats.bestTrade.symbol}</Badge>
-                    <span className="text-profit font-bold">+{formatCompact(weeklyStats.bestTrade.pnl)}</span>
+                    <span className="text-profit font-bold">{formatCompact(weeklyStats.bestTrade.pnl)}</span>
                   </div>
                 </div>
               ) : (
