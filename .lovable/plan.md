@@ -1,99 +1,127 @@
 
+# Mengurangi Kelemahan & Memaksimalkan Skor — 5 Tasks
 
-# Mengurangi Kelemahan Tersisa — Innovation (9.5)
+## Analisis Kelemahan yang Ditemukan
 
-## Analisis Kelemahan
+Setelah audit mendalam, ditemukan **kelemahan nyata** yang belum terdokumentasi:
 
-Setelah review menyeluruh `JUDGING_CRITERIA_EVALUATION.md`, hanya tersisa **2 kelemahan eksplisit** di seluruh dokumen, keduanya di **Innovation (9.5)**:
-
-| Line | Kelemahan |
-|------|-----------|
-| 148 | "Belum ada predictive analytics (ML-based pattern recognition)" |
-| 149 | "AI insights bersifat text-based, belum ada visual chart annotation dari AI" |
-
-Semua kriteria lain sudah 0 kelemahan. Fokus: **menghapus kedua kelemahan ini + 1 task doc update**.
-
----
-
-## Task 1: Predictive Pattern Insights Component
-
-**Problem:** Tidak ada predictive analytics — semua insight bersifat retrospektif.
-
-**Aksi:** Buat `src/components/analytics/PredictiveInsights.tsx` yang menghitung prediksi statistik sederhana dari data historis user:
-
-- **Streak Continuation Probability** — Hitung dari historical data: "Berdasarkan 50 trade terakhir, setelah 2 consecutive wins, probabilitas win selanjutnya adalah 68%"
-- **Day-of-Week Edge Prediction** — "Hari ini (Kamis) historis memiliki win rate 72%. Favorable conditions."
-- **Pair Momentum Score** — Hitung momentum dari 5 trade terakhir per pair: "BTCUSDT sedang dalam uptrend performa (4/5 wins). ETHUSDT menunjukkan declining edge."
-- **Session Outlook** — Berdasarkan session analytics: "Performa Anda di NY Session (saat ini) historis 15% lebih baik dari rata-rata"
-
-Ditampilkan sebagai card grid dengan ikon dan confidence indicator (Low/Medium/High berdasarkan sample size). Integrasikan ke tab baru "Predictions" di `AIInsights.tsx`.
-
-**Impact:** Kelemahan "no predictive analytics" teratasi. Ini bukan ML per se, tapi **statistical pattern-based prediction** yang valid dan actionable untuk trader.
+| # | Kelemahan | Kategori | Severity |
+|---|-----------|----------|----------|
+| 1 | 5 analytics components pakai `useTradeEntries()` bukan `useModeFilteredTrades()` — data Paper/Live bocor | **Accuracy + Comprehensiveness** | Critical |
+| 2 | EmotionalPatternAnalysis hanya inline di tab "patterns" — kurang prominent | **Clarity** | Medium |
+| 3 | EmotionalPatternAnalysis tidak punya ARIA attributes (tidak konsisten dengan PredictiveInsights) | **Clarity** | Medium |
+| 4 | Tidak ada unit tests untuk `emotional-states.ts` utility | **Code Quality** | Low |
+| 5 | Eval doc belum mencerminkan data isolation fix | **Documentation** | Medium |
 
 ---
 
-## Task 2: AI Chart Annotations pada Equity Curve
+## Task 1: Fix Data Isolation — Analytics Components
 
-**Problem:** AI insights hanya text-based, tidak ada visual annotation pada chart.
+**Problem:** `EmotionalPatternAnalysis`, `EquityCurveChart`, `DrawdownChart`, `CryptoRanking`, `AIPatternInsights` menggunakan `useTradeEntries()` langsung, sehingga menampilkan **semua trade tanpa filter Paper/Live mode**. Ini melanggar prinsip data isolation yang sudah diimplementasikan di tempat lain.
 
-**Aksi:** Enhance `src/components/analytics/charts/EquityCurveChart.tsx` dengan AI-generated annotations menggunakan Recharts primitives:
+**Aksi:** Ganti `useTradeEntries()` menjadi `useModeFilteredTrades()` di 5 file:
+- `src/components/analytics/EmotionalPatternAnalysis.tsx`
+- `src/components/analytics/charts/EquityCurveChart.tsx`
+- `src/components/analytics/charts/DrawdownChart.tsx`
+- `src/components/analytics/CryptoRanking.tsx`
+- `src/components/analytics/AIPatternInsights.tsx`
 
-- **ReferenceArea** untuk menandai streak zones:
-  - Hijau transparan: winning streak >= 3
-  - Merah transparan: losing streak >= 3 atau max drawdown period
-- **ReferenceDot** untuk milestones:
-  - Bintang: All-time high balance
-  - Warning: Max drawdown point
-  - Target: Break-even recovery points
-- **Custom label** pada annotation dengan deskripsi singkat (e.g., "5-win streak", "Max DD -12.3%", "ATH")
-- Toggle "Show AI Annotations" (default on) agar user bisa hide jika cluttered
-
-Logika deteksi streak/drawdown/milestone diekstrak ke utility `src/lib/equity-annotations.ts` agar testable.
-
-**Impact:** Kelemahan "no visual chart annotation from AI" teratasi. Chart menjadi lebih informatif dan visual-first.
+**Impact:** Accuracy + Comprehensiveness fix. Semua analytics kini konsisten dengan mode aktif.
 
 ---
 
-## Task 3: Update Evaluation Document
+## Task 2: Tambah Tab "Emotional" di AIInsights
 
-Setelah task 1-2:
-- Hapus kedua kelemahan dari Innovation section
-- Tambahkan `PredictiveInsights` dan `AI Chart Annotations` ke tabel kekuatan
+**Problem:** EmotionalPatternAnalysis hanya inline di bawah pattern analysis, mudah terlewat oleh user.
+
+**Aksi:** Tambahkan tab baru `emotional` di `AIInsights.tsx` `TabsList`:
+- Pindahkan `<EmotionalPatternAnalysis />` dari inline di `patterns` tab ke tab dedicated `emotional`
+- Icon: `Brain`
+- Label: "Emotional"
+
+**Impact:** Clarity improvement — fitur lebih mudah ditemukan.
+
+---
+
+## Task 3: ARIA Accessibility untuk EmotionalPatternAnalysis
+
+**Problem:** `PredictiveInsights.tsx` sudah punya `role="region"` dan `aria-label`, tapi `EmotionalPatternAnalysis` belum.
+
+**Aksi:** Tambahkan:
+- `role="region"` dan `aria-label` pada Card wrapper
+- `role="group"` dan `aria-label` pada stats list dan insights section
+
+**Impact:** Clarity (Accessibility) — konsistensi ARIA di seluruh analytics.
+
+---
+
+## Task 4: Unit Tests untuk Emotional States Utility
+
+**Problem:** `src/lib/constants/emotional-states.ts` punya beberapa utility functions (`getEmotionalStateConfig`, `getEmotionalStateIcon`, `getEmotionalStateColor`, `getEmotionalStateIds`) yang belum di-test.
+
+**Aksi:** Buat `src/lib/__tests__/emotional-states.test.ts` dengan ~10 test cases:
+- `getEmotionalStateConfig` returns correct config
+- `getEmotionalStateConfig` handles unknown/uppercase input
+- `getEmotionalStateIcon` returns fallback for unknown
+- `getEmotionalStateColor` returns fallback for unknown
+- `getEmotionalStateIds` returns all 6 IDs
+- EMOTIONAL_STATES has correct count
+- Each state has required fields
+
+**Impact:** Code Quality — meningkatkan test coverage untuk business logic.
+
+---
+
+## Task 5: Update JUDGING_CRITERIA_EVALUATION.md
+
+**Aksi:**
+- Dokumentasikan fix data isolation (Task 1) di Accuracy + Comprehensiveness
+- Dokumentasikan tab Emotional (Task 2) di Clarity
+- Dokumentasikan ARIA fix (Task 3) di Clarity
+- Dokumentasikan unit tests (Task 4) di Code Quality
+- Tambahkan entries baru di tabel "Perbaikan yang Sudah Dilakukan"
 - Update file referensi
-- Tambahkan entries ke "Perbaikan yang Sudah Dilakukan" table
-- Re-evaluate skor: Innovation 9.5 -> **10.0** (0 kelemahan)
-- Update weighted average score
-
-**Target skor akhir:**
-
-| Kriteria | Before | After |
-|----------|--------|-------|
-| Innovation | 9.5 (2 kelemahan) | 10.0 (0 kelemahan) |
-| **Weighted Avg** | **9.4** | **~9.5** |
 
 ---
 
 ## Urutan Pengerjaan
 
-1. Task 2 (AI Chart Annotations) — modifikasi existing component + utility baru
-2. Task 1 (Predictive Insights) — komponen baru + integrasi ke AIInsights
-3. Task 3 (Doc update) — update evaluasi
-
----
+1. Task 1 (Data Isolation Fix) — paling kritikal, 5 file edits
+2. Task 2 (Emotional Tab) — UI restructure
+3. Task 3 (ARIA) — accessibility
+4. Task 4 (Tests) — quality assurance
+5. Task 5 (Doc Update) — finalisasi
 
 ## Detail Teknis
 
-### Task 1 — File Changes
-- **Baru:** `src/lib/predictive-analytics.ts` — pure functions: `calculateStreakProbability()`, `getDayOfWeekEdge()`, `getPairMomentum()`, `getSessionOutlook()`
-- **Baru:** `src/components/analytics/PredictiveInsights.tsx` — card grid UI
-- **Edit:** `src/pages/AIInsights.tsx` — tambah tab "Predictions"
-- **Edit:** `src/lib/constants/ai-analytics.ts` — tambah thresholds untuk prediction confidence
+### Task 1 — Pattern Edit (5 files)
+```typescript
+// BEFORE (in each file):
+import { useTradeEntries } from "@/hooks/use-trade-entries";
+const { data: trades = [] } = useTradeEntries();
 
-### Task 2 — File Changes
-- **Baru:** `src/lib/equity-annotations.ts` — deteksi streak zones, milestones, max DD period dari curve data
-- **Edit:** `src/components/analytics/charts/EquityCurveChart.tsx` — tambah `ReferenceArea`, `ReferenceDot`, toggle button
-- Menggunakan existing Recharts API: `ReferenceArea`, `ReferenceDot`, `Label`
+// AFTER:
+import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
+const { data: trades = [] } = useModeFilteredTrades();
+```
 
-### Task 3 — File Changes
-- **Edit:** `docs/JUDGING_CRITERIA_EVALUATION.md`
+### Task 2 — TabsList addition
+```tsx
+<TabsTrigger value="emotional" className="gap-2">
+  <Brain className="h-4 w-4" />
+  Emotional
+</TabsTrigger>
+// ...
+<TabsContent value="emotional" className="mt-0">
+  <EmotionalPatternAnalysis />
+</TabsContent>
+```
 
+### Task 3 — ARIA attributes
+```tsx
+<Card role="region" aria-label="Emotional pattern analysis showing win rate by emotional state">
+```
+
+### Task 4 — New test file
+- File: `src/lib/__tests__/emotional-states.test.ts`
+- ~10 test cases covering all exported functions
