@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
+import { sanitizeString, safeNumber } from '../_shared/sanitize.ts';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,16 +9,6 @@ const corsHeaders = {
 
 const MAX_RECENT_TRADES = 50;
 const MAX_STRATEGIES = 20;
-
-function sanitizeString(str: unknown, maxLength: number): string {
-  if (typeof str !== 'string') return '';
-  return str.slice(0, maxLength).replace(/[<>]/g, '');
-}
-
-function safeNumber(val: unknown, fallback = 0): number {
-  const n = Number(val);
-  return isFinite(n) ? n : fallback;
-}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {

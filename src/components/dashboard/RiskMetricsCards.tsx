@@ -120,11 +120,11 @@ export function RiskMetricsCards({ className }: RiskMetricsCardsProps) {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4" role="group" aria-label="Advanced risk metrics">
           {metricsData.map((metric) => {
             const Icon = metric.icon;
             return (
-              <div key={metric.label} className="space-y-1" title={metric.tooltip}>
+              <div key={metric.label} className="space-y-1" title={metric.tooltip} role="group" aria-label={`${metric.label}: ${metric.value}`}>
                 <div className="flex items-center gap-1.5">
                   <Icon className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="text-xs text-muted-foreground">{metric.label}</span>

@@ -58,7 +58,7 @@ export function PredictiveInsights() {
   }
 
   return (
-    <div className="grid gap-4 md:grid-cols-2">
+    <div className="grid gap-4 md:grid-cols-2" role="region" aria-label="Predictive trading insights">
       {/* Streak Continuation */}
       {streak && (
         <PredictionCard
@@ -155,8 +155,8 @@ function PredictionCard({
           </Badge>
         </div>
       </CardHeader>
-      <CardContent>
-        <p className="text-2xl font-bold font-mono-numbers mb-2">{value}</p>
+      <CardContent role="group" aria-label={`${title}: ${value} probability, ${confidenceLabels[confidence]} confidence, based on ${sampleSize} samples`}>
+        <p className="text-2xl font-bold font-mono-numbers mb-2" aria-hidden="true">{value}</p>
         <p className="text-sm text-muted-foreground">{description}</p>
         <p className="text-xs text-muted-foreground mt-2">Based on {sampleSize} historical occurrences</p>
       </CardContent>
