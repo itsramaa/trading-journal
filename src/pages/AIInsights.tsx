@@ -504,7 +504,10 @@ export default function AIInsights() {
           </Card>
         </div>
 
-        {/* Session Insights - NEW */}
+        {/* Emotional Pattern Analysis */}
+        <EmotionalPatternAnalysis />
+
+        {/* Session Insights */}
         {contextualData?.bySession && (
           <SessionInsights bySession={contextualData.bySession} />
         )}
