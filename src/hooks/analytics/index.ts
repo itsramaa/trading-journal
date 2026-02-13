@@ -3,7 +3,7 @@ export * from './use-account-analytics';
 export * from './use-contextual-analytics';
 export * from './use-contextual-export';
 export * from './use-exchange-analytics';
-export * from './use-daily-pnl';
+
 export * from './use-monthly-pnl';
 export * from './use-unified-daily-pnl';
 export * from './use-unified-weekly-pnl';

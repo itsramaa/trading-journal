@@ -484,6 +484,8 @@ _Semua kelemahan signifikan sudah teratasi atau ter-justified._
 | 52 | Accuracy | Pattern D added to Data Isolation Patterns: server-side RPC filtering via `p_trade_mode` in `useTradeEntriesPaginated` | 10.0 (completeness) |
 | 53 | Accuracy (MAJOR) | Fixed Consistency Score math bug in `trading-health-score.ts` — streakRatio contribution was negligible (0-1 vs 0-100 scale). Corrected formula: `(streakRatio * 100 + recoveryScore) / 2` | 10.0 (critical fix) |
 | 54 | Accuracy + Security (MAJOR) | `useSymbolBreakdown` source routing guard fix — lines 42 & 122 used raw `isConnected` instead of `tradeMode === 'live' && isConnected`, causing Live Binance data to leak into Paper mode symbol breakdown. Now aligned with `useUnifiedDailyPnl`/`useUnifiedWeeklyPnl` pattern | 10.0 (critical fix) |
+| 55 | Accuracy (Minor) | Fixed win rate denominator inconsistency in `useUnifiedDailyPnl` — breakeven trades were excluded from `totalTrades`, creating different win rates between daily (Trading Gate) and weekly/portfolio views. Now uses `todayTrades.length` consistent with all other hooks | 10.0 (consistency fix) |
+| 56 | Code Quality (Minor) | Removed 457 lines of dead code: `TodayPerformance.tsx` (329L) + `use-daily-pnl.ts` (128L) + barrel re-export. Never imported, contained unfixed data isolation issue | 10.0 (cleanup) |
 
 ---
 

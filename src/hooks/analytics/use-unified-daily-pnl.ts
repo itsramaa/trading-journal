@@ -89,7 +89,7 @@ export function useUnifiedDailyPnl(): UnifiedDailyPnlResult {
       if (pnl < 0) losses++;
     });
     
-    const totalTrades = wins + losses;
+    const totalTrades = todayTrades.length;
     const winRate = totalTrades > 0 ? (wins / totalTrades) * 100 : 0;
     
     return {
