@@ -539,7 +539,29 @@ export default function TradeHistory() {
           ) : (
             <>
             <Tabs defaultValue="all" className="w-full">
-...
+              <TabsList className="mb-4">
+                <TabsTrigger value="all">All ({sortedTrades.length})</TabsTrigger>
+                <TabsTrigger value="binance">Binance ({binanceTrades.length})</TabsTrigger>
+                <TabsTrigger value="paper">Paper ({paperTrades.length})</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="all">
+                <div className={cn("transition-opacity duration-200", isFetching && !isLoading && "opacity-60")}>
+                  {renderTradeList(sortedTrades)}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="binance">
+                <div className={cn("transition-opacity duration-200", isFetching && !isLoading && "opacity-60")}>
+                  {renderTradeList(binanceTrades)}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="paper">
+                <div className={cn("transition-opacity duration-200", isFetching && !isLoading && "opacity-60")}>
+                  {renderTradeList(paperTrades)}
+                </div>
+              </TabsContent>
             </Tabs>
 
             {/* Infinite Scroll Trigger - inside conditional to prevent fetch during loading/error */}
