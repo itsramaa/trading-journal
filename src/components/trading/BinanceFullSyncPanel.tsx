@@ -101,7 +101,8 @@ export function BinanceFullSyncPanel({ isBinanceConnected }: BinanceFullSyncPane
       <CardHeader className="pb-3">
         <CardTitle className="text-sm font-medium flex items-center gap-2">
           <Database className="h-4 w-4 text-primary" />
-          Full Sync (Aggregated)
+          Full Sync — Recovery / Initial Setup
+          <Badge variant="outline" className="text-[10px] py-0 px-1.5 font-normal">Advanced</Badge>
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-0 space-y-4">
