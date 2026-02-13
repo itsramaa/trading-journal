@@ -227,6 +227,7 @@ function createEmptyCheckpoint(): SyncCheckpoint {
       startTime: 0,
       endTime: 0,
     },
+    insertedTradeIds: [],
   };
 }
 

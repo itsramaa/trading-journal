@@ -369,114 +369,6 @@ export function useBinanceAggregatedSync() {
     consecutiveFailures,
   } = useSyncMonitoring();
   
-  /**
-   * Fetch trades for symbols with error tolerance (Promise.allSettled)
-   */
-  const fetchTradesWithTolerance = useCallback(async (
-    symbols: string[],
-    startTime: number,
-    endTime: number,
-    checkpointData: SyncCheckpoint,
-    onSymbolComplete: (symbol: string, result: SymbolFetchResult) => void
-  ): Promise<{
-    allTrades: BinanceTrade[];
-    allOrders: BinanceOrder[];
-    processedSymbols: string[];
-    failedSymbols: Array<{ symbol: string; error: string }>;
-  }> => {
-    const allTrades: BinanceTrade[] = [];
-    const allOrders: BinanceOrder[] = [];
-    const processedSymbols: string[] = [...checkpointData.processedSymbols];
-    const failedSymbols: Array<{ symbol: string; error: string }> = [...checkpointData.failedSymbols];
-    
-    // Filter out already processed symbols
-    const remainingSymbols = symbols.filter(s => 
-      !processedSymbols.includes(s) && !failedSymbols.some(f => f.symbol === s)
-    );
-    
-    // Add trades from checkpoint
-    for (const [symbol, trades] of Object.entries(checkpointData.tradesBySymbol)) {
-      allTrades.push(...trades);
-    }
-    for (const [symbol, orders] of Object.entries(checkpointData.ordersBySymbol)) {
-      allOrders.push(...orders);
-    }
-    
-    // Process remaining symbols in parallel batches
-    for (let batchStart = 0; batchStart < remainingSymbols.length; batchStart += MAX_PARALLEL_SYMBOLS) {
-      const batch = remainingSymbols.slice(batchStart, batchStart + MAX_PARALLEL_SYMBOLS);
-      
-      updateProgress({
-        phase: 'fetching-trades',
-        current: processedSymbols.length,
-        total: symbols.length,
-        message: `Fetching ${batch.join(', ')} (${processedSymbols.length + 1}/${symbols.length})...`,
-      });
-      
-      // Use Promise.allSettled for error tolerance
-      const batchResults = await Promise.allSettled(
-        batch.map(async (symbol): Promise<SymbolFetchResult> => {
-          try {
-            const [trades, orders] = await Promise.all([
-              fetchTradesForSymbol(symbol, startTime, endTime),
-              fetchOrdersForSymbol(symbol, startTime, endTime),
-            ]);
-            return { symbol, trades, orders, success: true };
-          } catch (error) {
-            const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-            console.error(`[FullSync] Failed to fetch ${symbol}:`, error);
-            return { symbol, trades: [], orders: [], success: false, error: errorMsg };
-          }
-        })
-      );
-      
-      // Process results - continue with successful ones
-      for (const settledResult of batchResults) {
-        if (settledResult.status === 'fulfilled') {
-          const fetchResult = settledResult.value;
-          
-          if (fetchResult.success) {
-            allTrades.push(...fetchResult.trades);
-            allOrders.push(...fetchResult.orders);
-            processedSymbols.push(fetchResult.symbol);
-            
-            // Save checkpoint after each successful symbol
-            saveCheckpoint({
-              currentPhase: 'fetching-trades',
-              tradesBySymbol: {
-                ...checkpointData.tradesBySymbol,
-                [fetchResult.symbol]: fetchResult.trades,
-              },
-              ordersBySymbol: {
-                ...checkpointData.ordersBySymbol,
-                [fetchResult.symbol]: fetchResult.orders,
-              },
-              processedSymbols,
-              failedSymbols,
-            });
-          } else {
-            failedSymbols.push({ 
-              symbol: fetchResult.symbol, 
-              error: fetchResult.error || 'Unknown error' 
-            });
-          }
-          
-          onSymbolComplete(fetchResult.symbol, fetchResult);
-        } else {
-          // Promise rejected (shouldn't happen with our try-catch, but handle it)
-          const symbol = batch[batchResults.indexOf(settledResult)];
-          failedSymbols.push({ symbol, error: settledResult.reason?.message || 'Promise rejected' });
-        }
-      }
-      
-      // Delay between batches
-      if (batchStart + MAX_PARALLEL_SYMBOLS < remainingSymbols.length) {
-        await new Promise(r => setTimeout(r, getAdaptiveDelay() * 3));
-      }
-    }
-    
-    return { allTrades, allOrders, processedSymbols, failedSymbols };
-  }, [updateProgress, saveCheckpoint]);
   
   /**
    * Insert trades in batches with retry logic
@@ -681,172 +573,281 @@ export function useBinanceAggregatedSync() {
       }
       
       // =======================================================================
-      // Phase 2: Fetch Trades for Each Symbol (with error tolerance)
+      // Phase 2: Incremental Per-Batch Pipeline
+      // Process symbols in batches of MAX_PARALLEL_SYMBOLS, each batch goes
+      // through fetch → group → aggregate → validate → insert → checkpoint
       // =======================================================================
-      // Determine syncRangeDays for checkpoint (convert 'incremental' to number)
+      
+      // Accumulator for cross-batch results
+      interface BatchAccumulator {
+        allAggregatedTrades: AggregatedTrade[];
+        totalInserted: number;
+        totalSkippedDupes: number;
+        allFailures: Array<{ lifecycleId: string; reason: string }>;
+        allLifecycleStats: { total: number; complete: number; incomplete: number };
+        failedBatches: Array<{ batch: number; error: string }>;
+        failedSymbols: Array<{ symbol: string; error: string }>;
+        validationStats: { valid: number; invalid: number; warnings: number };
+      }
+      
+      const accumulator: BatchAccumulator = {
+        allAggregatedTrades: [],
+        totalInserted: 0,
+        totalSkippedDupes: 0,
+        allFailures: [],
+        allLifecycleStats: { total: 0, complete: 0, incomplete: 0 },
+        failedBatches: [],
+        failedSymbols: [],
+        validationStats: { valid: 0, invalid: 0, warnings: 0 },
+      };
+      
+      // Get already-inserted trade IDs from checkpoint (for resume)
+      const checkpointInsertedIds = new Set<string>(
+        (isResuming && checkpoint?.insertedTradeIds) ? checkpoint.insertedTradeIds : []
+      );
+      
+      // Filter out already processed symbols (from checkpoint)
+      const alreadyProcessed = isResuming && checkpoint ? checkpoint.processedSymbols : [];
+      const alreadyFailed = isResuming && checkpoint ? checkpoint.failedSymbols : [];
+      const remainingSymbols = symbols.filter(s => 
+        !alreadyProcessed.includes(s) && !alreadyFailed.some(f => f.symbol === s)
+      );
+      
+      accumulator.failedSymbols = [...alreadyFailed];
+      
+      // Determine syncRangeDays for checkpoint
       const syncRangeDaysForCheckpoint: number | 'max' = 
         options.daysToSync === 'incremental' 
           ? 7 
           : (options.daysToSync || DEFAULT_HISTORY_DAYS);
       
-      const checkpointData: SyncCheckpoint = isResuming && checkpoint ? checkpoint : {
-        currentPhase: 'fetching-trades',
-        incomeData: income,
-        tradesBySymbol: {},
-        ordersBySymbol: {},
-        processedSymbols: [],
-        failedSymbols: [],
-        allSymbols: symbols,
-        syncStartTime: Date.now(),
-        syncRangeDays: syncRangeDaysForCheckpoint,
-        lastCheckpointTime: Date.now(),
-        timeRange: { startTime, endTime },
-      };
+      const totalBatches = Math.ceil(remainingSymbols.length / MAX_PARALLEL_SYMBOLS);
+      const processedSymbolsList: string[] = [...alreadyProcessed];
       
-      const { 
-        allTrades, 
-        allOrders, 
-        processedSymbols, 
-        failedSymbols: fetchFailedSymbols 
-      } = await fetchTradesWithTolerance(
-        symbols,
-        startTime,
-        endTime,
-        checkpointData,
-        (symbol, result) => {
-          if (!result.success) {
-            console.warn(`[FullSync] Symbol ${symbol} failed, continuing with others...`);
+      console.log(`[FullSync] Processing ${remainingSymbols.length} symbols in ${totalBatches} batches (${alreadyProcessed.length} already done)`);
+      
+      for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+        const batchSymbols = remainingSymbols.slice(
+          batchIdx * MAX_PARALLEL_SYMBOLS, 
+          (batchIdx + 1) * MAX_PARALLEL_SYMBOLS
+        );
+        
+        const batchLabel = `batch ${batchIdx + 1}/${totalBatches}`;
+        
+        // --- Step A: Fetch trades + orders for batch symbols ---
+        updateProgress({
+          phase: 'fetching-trades',
+          current: processedSymbolsList.length,
+          total: symbols.length,
+          message: `Fetching ${batchSymbols.join(', ')} (${batchLabel})... ${accumulator.totalInserted} trades saved`,
+        });
+        
+        const batchTrades: BinanceTrade[] = [];
+        const batchOrders: BinanceOrder[] = [];
+        
+        const fetchResults = await Promise.allSettled(
+          batchSymbols.map(async (symbol): Promise<SymbolFetchResult> => {
+            try {
+              const [trades, orders] = await Promise.all([
+                fetchTradesForSymbol(symbol, startTime, endTime),
+                fetchOrdersForSymbol(symbol, startTime, endTime),
+              ]);
+              return { symbol, trades, orders, success: true };
+            } catch (error) {
+              const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+              console.error(`[FullSync] Failed to fetch ${symbol}:`, error);
+              return { symbol, trades: [], orders: [], success: false, error: errorMsg };
+            }
+          })
+        );
+        
+        for (const settledResult of fetchResults) {
+          if (settledResult.status === 'fulfilled') {
+            const fetchResult = settledResult.value;
+            if (fetchResult.success) {
+              batchTrades.push(...fetchResult.trades);
+              batchOrders.push(...fetchResult.orders);
+              processedSymbolsList.push(fetchResult.symbol);
+            } else {
+              accumulator.failedSymbols.push({ 
+                symbol: fetchResult.symbol, 
+                error: fetchResult.error || 'Unknown error' 
+              });
+            }
+          } else {
+            const symbol = batchSymbols[fetchResults.indexOf(settledResult)];
+            accumulator.failedSymbols.push({ symbol, error: settledResult.reason?.message || 'Promise rejected' });
           }
         }
-      );
-      
-      failedSymbols = fetchFailedSymbols;
-      
-      console.log(`[FullSync] Fetched ${allTrades.length} trades, ${allOrders.length} orders`);
-      console.log(`[FullSync] Processed ${processedSymbols.length}/${symbols.length} symbols, ${failedSymbols.length} failed`);
-      
-      // =======================================================================
-      // Phase 3: Group into Lifecycles
-      // =======================================================================
-      updateProgress({
-        phase: 'grouping',
-        current: 0,
-        total: 100,
-        message: 'Grouping trades into position lifecycles...',
-      });
-      
-      saveCheckpoint({ currentPhase: 'grouping' });
-      
-      const rawData: RawBinanceData = {
-        trades: allTrades,
-        orders: allOrders,
-        income,
-        fetchedAt: new Date(),
-        periodStart: startTime,
-        periodEnd: endTime,
-        symbols: processedSymbols,
-      };
-      
-      const lifecycles = groupIntoLifecycles(rawData);
-      console.log(`[FullSync] Created ${lifecycles.length} lifecycles`);
-      
-      // =======================================================================
-      // Phase 4: Aggregate Lifecycles
-      // =======================================================================
-      updateProgress({
-        phase: 'aggregating',
-        current: 0,
-        total: lifecycles.length,
-        message: 'Aggregating position data...',
-      });
-      
-      saveCheckpoint({ currentPhase: 'aggregating' });
-      
-      const { trades: aggregatedTrades, failures } = aggregateAllLifecycles(
-        lifecycles,
-        (current, total) => {
-          updateProgress({
-            phase: 'aggregating',
-            current,
-            total,
-            message: `Aggregating trade ${current}/${total}...`,
+        
+        if (batchTrades.length === 0) {
+          console.log(`[FullSync] ${batchLabel}: No trades found, skipping`);
+          // Still save checkpoint for processed symbols
+          saveCheckpoint({
+            currentPhase: 'fetching-trades',
+            processedSymbols: processedSymbolsList,
+            failedSymbols: accumulator.failedSymbols,
+            insertedTradeIds: [...checkpointInsertedIds],
           });
-        }
-      );
-      
-      console.log(`[FullSync] Aggregated ${aggregatedTrades.length} trades, ${failures.length} failures`);
-      
-      // =======================================================================
-      // Phase 5: Validate
-      // =======================================================================
-      updateProgress({
-        phase: 'validating',
-        current: 0,
-        total: aggregatedTrades.length,
-        message: 'Validating trade data...',
-      });
-      
-      const validationResult = validateAllTrades(aggregatedTrades);
-      console.log(`[FullSync] Validation: ${validationResult.valid.length} valid, ${validationResult.invalid.length} invalid`);
-      
-      // =======================================================================
-      // Phase 6: Insert Valid Trades to DB (batched with retry)
-      // =======================================================================
-      const tradesToInsert = validationResult.valid;
-      let insertResult = { insertedCount: 0, failedBatches: [] as Array<{ batch: number; error: string }> };
-      
-      if (tradesToInsert.length > 0) {
-        saveCheckpoint({ currentPhase: 'inserting' });
-        
-        // Check for existing trades to avoid duplicates (or delete if forceRefetch)
-        const binanceTradeIds = tradesToInsert.map(t => t.binance_trade_id);
-        let existingIds = new Set<string>();
-        
-        if (forceRefetch) {
-          console.log('[FullSync] Force re-fetch enabled - deleting existing trades first');
           
-          // Delete existing trades in batches
-          for (let i = 0; i < binanceTradeIds.length; i += 500) {
-            const batch = binanceTradeIds.slice(i, i + 500);
-            await supabase
+          // Delay between batches
+          if (batchIdx < totalBatches - 1) {
+            await new Promise(r => setTimeout(r, getAdaptiveDelay() * 3));
+          }
+          continue;
+        }
+        
+        // --- Step B: Filter income for this batch's symbols ---
+        const batchSymbolSet = new Set(batchSymbols.filter(s => processedSymbolsList.includes(s)));
+        const batchIncome = income.filter(i => batchSymbolSet.has(i.symbol));
+        
+        // --- Step C: Group into lifecycles ---
+        updateProgress({
+          phase: 'grouping',
+          current: processedSymbolsList.length,
+          total: symbols.length,
+          message: `Grouping lifecycles (${batchLabel})... ${accumulator.totalInserted} trades saved`,
+        });
+        
+        const batchRawData: RawBinanceData = {
+          trades: batchTrades,
+          orders: batchOrders,
+          income: batchIncome,
+          fetchedAt: new Date(),
+          periodStart: startTime,
+          periodEnd: endTime,
+          symbols: [...batchSymbolSet],
+        };
+        
+        const batchLifecycles = groupIntoLifecycles(batchRawData);
+        accumulator.allLifecycleStats.total += batchLifecycles.length;
+        accumulator.allLifecycleStats.complete += batchLifecycles.filter(l => l.isComplete).length;
+        accumulator.allLifecycleStats.incomplete += batchLifecycles.filter(l => !l.isComplete).length;
+        
+        // --- Step D: Aggregate lifecycles ---
+        updateProgress({
+          phase: 'aggregating',
+          current: processedSymbolsList.length,
+          total: symbols.length,
+          message: `Aggregating trades (${batchLabel})... ${accumulator.totalInserted} trades saved`,
+        });
+        
+        const { trades: batchAggregated, failures: batchFailures } = aggregateAllLifecycles(
+          batchLifecycles,
+          () => {} // Progress handled at batch level
+        );
+        
+        accumulator.allFailures.push(...batchFailures);
+        
+        // --- Step E: Validate ---
+        updateProgress({
+          phase: 'validating',
+          current: processedSymbolsList.length,
+          total: symbols.length,
+          message: `Validating trades (${batchLabel})... ${accumulator.totalInserted} trades saved`,
+        });
+        
+        const batchValidation = validateAllTrades(batchAggregated);
+        accumulator.validationStats.valid += batchValidation.valid.length;
+        accumulator.validationStats.invalid += batchValidation.invalid.length;
+        accumulator.validationStats.warnings += batchValidation.withWarnings.length;
+        accumulator.allAggregatedTrades.push(...batchValidation.valid);
+        
+        // --- Step F: Dedup check + Insert ---
+        if (batchValidation.valid.length > 0) {
+          updateProgress({
+            phase: 'inserting',
+            current: processedSymbolsList.length,
+            total: symbols.length,
+            message: `Saving trades (${batchLabel})... ${accumulator.totalInserted} trades saved so far`,
+          });
+          
+          const batchTradeIds = batchValidation.valid.map(t => t.binance_trade_id);
+          let existingIds = new Set<string>(
+            batchTradeIds.filter(id => checkpointInsertedIds.has(id))
+          );
+          
+          // Query DB for existing trades not in checkpoint
+          const idsToCheck = batchTradeIds.filter(id => !checkpointInsertedIds.has(id));
+          if (idsToCheck.length > 0 && !forceRefetch) {
+            const { data: existingTrades } = await supabase
               .from('trade_entries')
-              .delete()
+              .select('binance_trade_id')
               .eq('user_id', user.id)
-              .in('binance_trade_id', batch);
+              .eq('source', 'binance')
+              .in('binance_trade_id', idsToCheck);
+            
+            if (existingTrades) {
+              for (const t of existingTrades) {
+                if (t.binance_trade_id) existingIds.add(t.binance_trade_id);
+              }
+            }
           }
           
-          console.log(`[FullSync] Deleted ${binanceTradeIds.length} existing trades for force re-fetch`);
-        } else {
-          const { data: existingTrades } = await supabase
-            .from('trade_entries')
-            .select('binance_trade_id')
-            .eq('user_id', user.id)
-            .eq('source', 'binance')
-            .in('binance_trade_id', binanceTradeIds);
+          if (forceRefetch && idsToCheck.length > 0) {
+            // Delete existing trades for force re-fetch
+            for (let i = 0; i < idsToCheck.length; i += 500) {
+              const deleteBatch = idsToCheck.slice(i, i + 500);
+              await supabase
+                .from('trade_entries')
+                .delete()
+                .eq('user_id', user.id)
+                .in('binance_trade_id', deleteBatch);
+            }
+            existingIds = new Set<string>();
+          }
           
-          existingIds = new Set(existingTrades?.map(t => t.binance_trade_id) || []);
-          console.log(`[FullSync] Found ${existingIds.size} existing trades (will skip)`);
+          const insertResult = await batchInsertTrades(batchValidation.valid, user.id, existingIds);
+          
+          accumulator.totalInserted += insertResult.insertedCount;
+          accumulator.totalSkippedDupes += batchValidation.valid.length - insertResult.insertedCount - insertResult.failedBatches.length;
+          accumulator.failedBatches.push(...insertResult.failedBatches);
+          
+          // Track inserted IDs for checkpoint
+          const newlyInsertedIds = batchValidation.valid
+            .filter(t => !existingIds.has(t.binance_trade_id))
+            .map(t => t.binance_trade_id);
+          for (const id of newlyInsertedIds) {
+            checkpointInsertedIds.add(id);
+          }
+          
+          console.log(`[FullSync] ${batchLabel}: inserted ${insertResult.insertedCount}, skipped ${existingIds.size} dupes`);
         }
         
-        // Batched insert with retry
-        insertResult = await batchInsertTrades(tradesToInsert, user.id, existingIds);
+        // --- Step G: Save checkpoint ---
+        saveCheckpoint({
+          currentPhase: 'fetching-trades',
+          processedSymbols: processedSymbolsList,
+          failedSymbols: accumulator.failedSymbols,
+          insertedTradeIds: [...checkpointInsertedIds],
+          syncRangeDays: syncRangeDaysForCheckpoint,
+          timeRange: { startTime, endTime },
+        });
         
-        console.log(`[FullSync] Inserted ${insertResult.insertedCount} new trades, ${insertResult.failedBatches.length} batches failed`);
+        // --- Step H: Invalidate queries so UI updates incrementally ---
+        if (accumulator.totalInserted > 0) {
+          invalidateTradeQueries(queryClient);
+        }
+        
+        // Delay between batches
+        if (batchIdx < totalBatches - 1) {
+          await new Promise(r => setTimeout(r, getAdaptiveDelay() * 3));
+        }
       }
       
       // =======================================================================
-      // Phase 7: Calculate Reconciliation + Enhanced Summary Logging
+      // Phase 3: Final Reconciliation across ALL accumulated trades
       // =======================================================================
-      const reconciliation = calculateReconciliation(tradesToInsert, income);
+      const reconciliation = calculateReconciliation(accumulator.allAggregatedTrades, income);
       
-      // ENHANCED SYNC SUMMARY (Phase 3 of optimization plan)
+      // ENHANCED SYNC SUMMARY
       const realizedPnlRecords = income.filter(i => i.incomeType === 'REALIZED_PNL');
       const nonZeroPnl = realizedPnlRecords.filter(i => i.income !== 0).length;
       const commissionRecords = income.filter(i => i.incomeType === 'COMMISSION').length;
       const fundingRecords = income.filter(i => i.incomeType === 'FUNDING_FEE').length;
       
       const matchRate = nonZeroPnl > 0 
-        ? ((aggregatedTrades.length / nonZeroPnl) * 100).toFixed(1)
+        ? ((accumulator.allAggregatedTrades.length / nonZeroPnl) * 100).toFixed(1)
         : '100';
       
       const syncQuality = parseFloat(matchRate) >= 95 ? 'Excellent' 
@@ -859,12 +860,10 @@ export function useBinanceAggregatedSync() {
       console.log(`[FullSync]   - REALIZED_PNL: ${realizedPnlRecords.length} (non-zero: ${nonZeroPnl})`);
       console.log(`[FullSync]   - COMMISSION: ${commissionRecords}`);
       console.log(`[FullSync]   - FUNDING_FEE: ${fundingRecords}`);
-      console.log(`[FullSync] Symbols Processed: ${processedSymbols.length}/${symbols.length}`);
-      console.log(`[FullSync] Lifecycles Created: ${lifecycles.length}`);
-      console.log(`[FullSync]   - Complete: ${lifecycles.filter(l => l.isComplete).length}`);
-      console.log(`[FullSync]   - Incomplete: ${lifecycles.filter(l => !l.isComplete).length}`);
-      console.log(`[FullSync] Trades Aggregated: ${aggregatedTrades.length}`);
-      console.log(`[FullSync] Trades Inserted: ${insertResult.insertedCount}`);
+      console.log(`[FullSync] Symbols Processed: ${processedSymbolsList.length}/${symbols.length}`);
+      console.log(`[FullSync] Lifecycles: ${accumulator.allLifecycleStats.total} (${accumulator.allLifecycleStats.complete} complete, ${accumulator.allLifecycleStats.incomplete} incomplete)`);
+      console.log(`[FullSync] Trades Aggregated: ${accumulator.allAggregatedTrades.length}`);
+      console.log(`[FullSync] Trades Inserted: ${accumulator.totalInserted} (${accumulator.totalSkippedDupes} dupes skipped)`);
       console.log(`[FullSync] Match Rate: ${matchRate}% (${syncQuality})`);
       console.log(`[FullSync] P&L Reconciliation: ${reconciliation.isReconciled ? '✓ OK' : '⚠ DIFF'} (${reconciliation.differencePercent.toFixed(3)}%)`);
       console.log(`[FullSync]   - Aggregated: $${reconciliation.aggregatedTotalPnl.toFixed(2)}`);
@@ -875,30 +874,28 @@ export function useBinanceAggregatedSync() {
       // Clear checkpoint on success
       clearCheckpoint();
       
-      // Store sync quality in result for use in onSuccess
       const syncQualityTyped = syncQuality as 'Excellent' | 'Good' | 'Fair' | 'Poor';
       const matchRateNum = parseFloat(matchRate);
       
       return {
         success: true,
-        trades: tradesToInsert,
+        trades: accumulator.allAggregatedTrades,
         stats: {
-          totalLifecycles: lifecycles.length,
-          completeLifecycles: lifecycles.filter(l => l.isComplete).length,
-          incompleteLifecycles: lifecycles.filter(l => !l.isComplete).length,
-          validTrades: validationResult.valid.length,
-          invalidTrades: validationResult.invalid.length,
-          warningTrades: validationResult.withWarnings.length,
+          totalLifecycles: accumulator.allLifecycleStats.total,
+          completeLifecycles: accumulator.allLifecycleStats.complete,
+          incompleteLifecycles: accumulator.allLifecycleStats.incomplete,
+          validTrades: accumulator.validationStats.valid,
+          invalidTrades: accumulator.validationStats.invalid,
+          warningTrades: accumulator.validationStats.warnings,
         },
-        failures,
+        failures: accumulator.allFailures,
         reconciliation,
         partialSuccess: {
-          insertedCount: insertResult.insertedCount,
-          failedBatches: insertResult.failedBatches,
-          failedSymbols,
-          skippedDueToError: failedSymbols.length,
+          insertedCount: accumulator.totalInserted,
+          failedBatches: accumulator.failedBatches,
+          failedSymbols: accumulator.failedSymbols,
+          skippedDueToError: accumulator.failedSymbols.length,
         },
-        // Internal metadata for sync quality (not in type, accessed via _meta)
         _syncMeta: {
           syncQuality: syncQualityTyped,
           matchRate: matchRateNum,
