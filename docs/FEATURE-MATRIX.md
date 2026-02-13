@@ -269,6 +269,494 @@ Halaman terpusat untuk mengimpor dan menyinkronkan trade dari berbagai sumber. T
 | `SolanaTradeImport` | Import | #1-15 (All import features) |
 | `WalletConnectButton` | Import | #1, #13 (Wallet connection, address badge) |
 
+---
+
+## 4. Full System Phase Map
+
+> Memetakan seluruh sistem (9 domain, 26+ edge functions, 20+ pages, 300+ features) ke dalam 15 phase development berurutan berdasarkan dependency graph. Setiap phase membangun fondasi untuk phase berikutnya.
+
+### Phase Dependency Diagram
+
+```
+Phase 1: Foundation ──┬── Phase 2: Shell ──┬── Phase 3: Settings ──── Phase 4: Accounts
+                      │                    │                                    │
+                      │                    │                          Phase 5: Binance Layer
+                      │                    │                                    │
+                      │                    ├── Phase 6: Market ────────────────┤
+                      │                    │                                    │
+                      │                    ├── Phase 7: Risk ─────────────────┤
+                      │                    │                                    │
+                      │                    └── Phase 8: Strategy ─────────────┤
+                      │                                                        │
+                      │                    ┌───────────────────────────────────┘
+                      │                    │
+                      │               Phase 9: Journal Core ── Phase 10: Journal Enrichment
+                      │                    │
+                      │               Phase 11: Trade History
+                      │                    │
+                      │               Phase 12: Import & Sync
+                      │                    │
+                      │               Phase 13: Analytics
+                      │                    │
+                      │               Phase 14: Dashboard
+                      │                    │
+                      └───────────── Phase 15: Global & Polish
+```
+
+### Phase Coverage Summary
+
+| Phase | Domain | Pages | Features | Edge Functions | Key Components |
+|-------|--------|-------|----------|----------------|----------------|
+| 1 | Foundation | 2 (Auth) | 12 | 0 | ErrorBoundary, ThemeProvider, i18n |
+| 2 | Platform Shell | 0 (Layout) | 14 | 0 | Sidebar, Header, CommandPalette, ProtectedRoute |
+| 3 | User & Settings | 2 | 18 | 0 | ProfilePage, SettingsPage (5 tabs) |
+| 4 | Accounts | 2 | 22 | 0 | AccountsList, AccountDetail, AccountComparison |
+| 5 | Binance Integration | 0 (Layer) | 16 | 1 | binance-futures proxy, useBinancePositions |
+| 6 | Market | 4 | 32 | 6 | MarketInsight, EconomicCalendar, TopMovers, MarketContext |
+| 7 | Risk | 2 | 24 | 0 | RiskManagement, PositionCalculator, TradingGate |
+| 8 | Strategy | 2 | 20 | 2 | StrategyManager, RulesBuilder, YouTubeImport |
+| 9 | Journal Core | 1 | 31 | 0 | TradeWizard, AllPositionsTable, CloseDialog |
+| 10 | Journal Enrichment | 0 (Drawer) | 22 | 4 | EnrichmentDrawer, AIAnalysis, PostMortem |
+| 11 | Trade History | 1 | 43 | 0 | HistoryTable, GalleryView, FeeHistory |
+| 12 | Import & Sync | 1 | 26 | 3 | BinanceFullSync, SolanaImport, SyncMonitoring |
+| 13 | Analytics | 4 | 28 | 2 | Performance, DailyPnL, Heatmap, AIInsights |
+| 14 | Dashboard | 1 | 18 | 0 | PortfolioCard, MarketScore, SystemStatus, Widgets |
+| 15 | Global & Polish | 3 | 30 | 8 | AIChatbot, BulkExport, Notifications, Backtest |
+| **Total** | **9 Domains** | **25+ Pages** | **336 Features** | **26 Edge Functions** | — |
+
+---
+
+### Phase 1: Foundation & Infrastructure
+
+**Dependency:** None (root)
+**Goal:** Auth, database, dan infrastruktur dasar yang menjadi fondasi seluruh sistem.
+
+| # | Feature | Type | Detail |
+|---|---------|------|--------|
+| 1 | Auth System (Signup/Login/Session) | Core | Email + password auth via Lovable Cloud Auth; Session management; ProtectedRoute wrapper |
+| 2 | Database Schema — Core Tables | Core | `users_profile`, `user_settings`, `accounts`, `trade_entries`, `trading_strategies` |
+| 3 | Row Level Security (RLS) Policies | Security | Per-user data isolation pada semua tabel; `auth.uid() = user_id` pattern |
+| 4 | Lovable Cloud Client Setup | Core | Auto-generated client (`src/integrations/supabase/client.ts`); Type-safe queries |
+| 5 | Global Error Boundary | Resilience | App-level crash handler; Fallback UI dengan retry action |
+| 6 | Widget Error Boundary | Resilience | Per-widget isolation; Dashboard widgets fail independently |
+| 7 | Theme System (Dark/Light) | UX | `next-themes` provider; CSS variables; Persistent preference |
+| 8 | i18n Foundation | UX | `i18next` + `react-i18next`; Language switcher; Translation files structure |
+| 9 | Environment Configuration | Core | `.env` auto-managed; VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY |
+| 10 | User Role System | Security | `user_roles` table; `app_role` enum (admin/user); `has_role()` RPC |
+| 11 | Subscription Tier System | Business | `subscription_tier` enum (free/pro/business); `feature_permissions` table; `has_permission()` RPC |
+| 12 | Audit Log Foundation | Security | `audit_logs` table; `logAuditEvent()` utility; Entity tracking |
+
+---
+
+### Phase 2: Platform Shell & Navigation
+
+**Dependency:** Phase 1
+**Goal:** Layout persisten, navigasi, dan UX shell yang menjadi kerangka seluruh aplikasi.
+
+| # | Feature | Type | Detail |
+|---|---------|------|--------|
+| 1 | Sidebar Layout | Navigation | Collapsible groups: Portfolio, Journal, Analytics, Tools; Active state highlight; Icons |
+| 2 | Header with TradeModeSelector | Navigation | Persistent header; Paper/Live toggle; SIMULATION banner (amber) di Paper mode |
+| 3 | Command Palette (⌘K) | UX | `cmdk` library; Global search; Quick navigation to any page/action |
+| 4 | ProtectedRoute Wrapper | Auth | Route guard; Redirect to `/auth` if not authenticated; Session check |
+| 5 | Lazy Loading for All Pages | Performance | `React.lazy` + `Suspense`; Per-page code splitting; Loading skeleton |
+| 6 | Currency Display System | UX | `useCurrencyConversion` hook; Hourly rate caching; Format helpers (`format`, `formatPnl`) |
+| 7 | Notification Bell Icon | UX | Header notification icon; Unread count badge; Link to notification center |
+| 8 | Persistent Layout (No Full Reload) | UX | Nested routing via `<Outlet />`; Sidebar/header always mounted during navigation |
+| 9 | Live Price Ticker | UX | Header ticker; Real-time price display; Configurable symbols |
+| 10 | Breadcrumbs | Navigation | Context-aware breadcrumb trail; Auto-generated from route hierarchy |
+| 11 | Mobile Responsive Layout | UX | Collapsible sidebar on mobile; Touch-friendly interactions |
+| 12 | Keyboard Shortcuts System | UX | `Shift+?` for shortcuts list; Global hotkey bindings |
+| 13 | Page Header Component | UX | Standardized `PageHeader` with icon, title, description; Consistent across all pages |
+| 14 | Toast Notification System | Feedback | `sonner` library; Success/error/warning/info variants; Auto-dismiss |
+
+---
+
+### Phase 3: User & Settings Domain
+
+**Dependency:** Phase 1, Phase 2
+**Goal:** Profil pengguna, preferensi, dan konfigurasi sistem.
+
+| # | Feature | Type | Detail |
+|---|---------|------|--------|
+| 1 | Profile Page | Page | Avatar upload, display name, bio, preferred currency |
+| 2 | Settings Page — Binance API Tab | Page | API key input (masked); Encrypt/store via Vault; Validate endpoint; Permission display |
+| 3 | Settings Page — Trading Config Tab | Page | Default leverage, risk per trade, trading style preferences |
+| 4 | Settings Page — AI Settings Tab | Page | AI model preference; Auto-analysis toggle; Confidence threshold |
+| 5 | Settings Page — Export Tab | Page | Journal CSV/PDF export; Data backup/restore |
+| 6 | Settings Page — Backup Tab | Page | Full settings backup (JSON); Restore from backup file |
+| 7 | user_settings Persistence | Data | Auto-create on first login; `active_trade_mode`, `active_trading_style`, `theme`, `language`, `default_currency` |
+| 8 | Binance API Key Management | Security | `exchange_credentials` table; Vault encryption; `save_exchange_credential()` RPC |
+| 9 | API Key Validation Flow | Integration | Edge function call → Test with `/fapi/v2/balance` → Update `is_valid`, `permissions`, `last_validated_at` |
+| 10 | AI Settings Enforcement Hook | Logic | `useAISettings` — enforce model, auto-analysis, confidence thresholds globally |
+| 11 | Notification Preferences | Settings | Email, push, market news, portfolio updates, price alerts, weekly report toggles |
+| 12 | Trade Retention Config | Settings | `trade_retention_days` — configurable soft-delete retention period |
+| 13 | Default Trading Account | Settings | `default_trading_account_id` — auto-select account in wizard |
+| 14 | Sync Quota Config | Settings | `binance_daily_sync_quota` — configurable daily sync limit |
+| 15 | Display Name & Avatar | Profile | Profile avatar (storage upload); Display name for chat/sharing |
+| 16 | Preferred Currency | Profile | `preferred_currency` in `users_profile`; Drives currency conversion display |
+| 17 | Bio / About | Profile | Optional trader bio for shared strategy profiles |
+| 18 | Deleted Trades Recovery | Settings | View soft-deleted trades (30-day window); Restore individual trades via `restore_trade_entry()` |
+
+---
+
+### Phase 4: Accounts Domain (Foundation)
+
+**Dependency:** Phase 1, Phase 3
+**Goal:** Manajemen akun trading (paper & live), tracking capital, dan analytics per-akun.
+
+| # | Feature | Type | Detail |
+|---|---------|------|--------|
+| 1 | Accounts List Page | Page | CRUD accounts; Filter by type (`account_type` enum); Active/inactive toggle |
+| 2 | Create Account | Action | Name, type, currency, initial balance, exchange, color, icon, description |
+| 3 | Edit Account | Action | Update metadata; Cannot change `account_type` after creation |
+| 4 | Delete Account (Soft) | Action | `deleted_at` timestamp; Cascade check for linked trades |
+| 5 | Account Detail Page | Page | Capital flow timeline; Fee/rebate breakdown; Transaction history |
+| 6 | Account Transactions | Data | `account_transactions` table; Types: deposit, withdrawal, transfer, expense, income |
+| 7 | Paper Account Balance Tracking | Logic | Manual balance management; Deduct on trade entry; Credit on trade close |
+| 8 | Binance Balance Integration | Integration | `/fapi/v2/balance` endpoint; Real-time USDT balance; Only in Live mode |
+| 9 | Account Balance Snapshots | Data | `account_balance_snapshots` table; Daily snapshots for equity curve |
+| 10 | Account Balance Discrepancies | Data | `account_balance_discrepancies` table; Detect expected vs actual balance drift |
+| 11 | Account Comparison Analytics | Analytics | Side-by-side account performance comparison; `useAccountLevelStats` hook |
+| 12 | Multi-Level Analytics Architecture | Architecture | Per-account → Per-exchange → Per-type → Aggregate; Prevents cross-contamination |
+| 13 | Account Transaction Categories | Data | `category_id` for transaction categorization |
+| 14 | Inter-Account Transfers | Action | `transfer_in`/`transfer_out` with `counterparty_account_id` |
+| 15 | Portfolio Transaction Linking | Data | `portfolio_transaction_id` for grouped transfers |
+| 16 | Account Color & Icon | UX | Visual differentiation; Color picker; Icon selector |
+| 17 | System Accounts | Logic | `is_system` flag; Auto-created accounts (e.g., default paper account) |
+| 18 | Account Currency | Data | Per-account currency; Supports multi-currency portfolio |
+| 19 | Mode-Isolated Overview | Logic | Summary cards filtered by `trade_mode`; Paper/Live balances never aggregated |
+| 20 | Active Account Filter | UX | `is_active` toggle; Hide inactive accounts from dropdowns |
+| 21 | Account Sub-Type | Data | `sub_type` field for granular categorization within `account_type` |
+| 22 | Target Allocations | Settings | `target_allocations` JSON in user_settings; Portfolio allocation targets |
+
+---
+
+### Phase 5: Binance Integration Layer
+
+**Dependency:** Phase 3 (API Key), Phase 4 (Accounts)
+**Goal:** Proxy layer untuk Binance Futures API dengan HMAC signing dan rate limiting.
+
+| # | Feature | Type | Detail |
+|---|---------|------|--------|
+| 1 | Edge Function: `binance-futures` | Backend | HMAC proxy; JWT auth; 41+ endpoint routing; Error normalization |
+| 2 | `useBinancePositions` Hook | Frontend | Fetch open positions; Auto-refresh; Mode-gated (Live only) |
+| 3 | `useBinanceBalance` Hook | Frontend | USDT futures balance; Real-time update; Currency conversion |
+| 4 | `useBinanceOpenOrders` Hook | Frontend | Open orders list; Cancel order support; Tab badge count |
+| 5 | `useBinanceConnectionStatus` Hook | Frontend | Connection health check; `isConnected` boolean; Error state |
+| 6 | Position Mode Detection | Logic | Hedge vs One-way mode; Affects position display and order logic |
+| 7 | Leverage Brackets Fetching | Data | `/fapi/v1/leverageBracket`; Tier-based leverage limits; Wizard warning |
+| 8 | Commission Rate Fetching | Data | `/fapi/v1/commissionRate`; Maker/taker rates per symbol |
+| 9 | API Key Validation Flow | Logic | Test credentials → Update `is_valid` → Store `permissions` JSON |
+| 10 | Rate Limiting System | Backend | `api_rate_limits` table; `check_rate_limit()` RPC; Per-category weight tracking |
+| 11 | Rate Limit Status Display | UX | `get_rate_limit_status()` RPC; Usage percentage per endpoint category |
+| 12 | Error Normalization | Backend | Binance error codes → Standardized error format; Retry guidance |
+| 13 | Request Signing (HMAC-SHA256) | Security | Server-side signing; Timestamp validation; Secret never exposed to client |
+| 14 | Multi-Endpoint Routing | Backend | Single edge function handles all Binance API paths via `endpoint` parameter |
+| 15 | Credential Decryption | Backend | `get_decrypted_credential()` RPC; Vault integration; Per-user isolation |
+| 16 | Cleanup Old Rate Limits | Maintenance | `cleanup_old_rate_limits()` RPC; Remove expired rate limit windows |
+
+---
+
+### Phase 6: Market Domain (Context Provider)
+
+**Dependency:** Phase 2 (Shell), Phase 5 (Binance for ticker data)
+**Goal:** Data pasar real-time, kalender ekonomi, dan context provider untuk keputusan trading.
+
+| # | Feature | Type | Detail |
+|---|---------|------|--------|
+| 1 | Market Insight Page (4-Tab Hub) | Page | Tabs: Data, Calendar, AI Analysis, Combined View |
+| 2 | Market Data Page | Page | Sentiment gauges, Volatility metrics, Whale tracking indicators |
+| 3 | Economic Calendar Page | Page | Event timeline; Impact filtering (High/Medium/Low); Countdown timer |
+| 4 | Top Movers Page | Page | Gainers, Losers, Volume leaders; Sortable tables; Timeframe selector |
+| 5 | Edge Function: `binance-market-data` | Backend | Public market data proxy; No auth required for public endpoints |
+| 6 | Edge Function: `economic-calendar` | Backend | External calendar API integration; Event parsing and normalization |
+| 7 | Edge Function: `macro-analysis` | Backend | AI-powered macro environment analysis; Gemini integration |
+| 8 | Edge Function: `market-insight` | Backend | Combined market analysis; Multi-source aggregation |
+| 9 | Edge Function: `market-analysis` | Backend | Technical analysis signals; Pattern recognition |
+| 10 | Edge Function: `public-ticker` | Backend | Real-time ticker data; WebSocket-like polling |
+| 11 | Unified Market Score Hook | Logic | 4-component weighted scoring: Sentiment + Volatility + Momentum + Events |
+| 12 | Market Alert System | UX | Fear/Greed extremes alert; Event proximity warnings; Threshold-based triggers |
+| 13 | Fear & Greed Index Integration | Data | External API; Historical tracking; Badge display in trade context |
+| 14 | Market Context Provider (React Context) | Architecture | Global market state; Consumed by Risk, Journal, Dashboard domains |
+| 15 | Sentiment Thresholds Config | Config | `sentiment-thresholds.ts` — Extreme Fear/Greed boundaries |
+| 16 | Volatility Config | Config | `volatility-config.ts` — ATR multipliers, VIX-like thresholds |
+| 17 | Market Session Detection | Logic | Asia/London/NY session identification; Overlap detection |
+| 18 | Watchlist Management | UX | User-configurable symbol watchlist; Max limit from `market-config.ts` |
+| 19 | Fear & Greed Historical Chart | Analytics | 30/90/365 day trend; Zone coloring (Extreme Fear → Extreme Greed) |
+| 20 | Whale Activity Tracking | Data | Large transaction detection; Threshold-based alerts |
+| 21 | Volatility Meter | Widget | Real-time volatility gauge; Color-coded severity |
+| 22 | Market Regime Badge | UX | Current regime: Trending/Ranging/Volatile/Calm; AI-determined |
+| 23 | Event Impact Assessment | Logic | Economic event severity scoring; Trading Gate integration |
+| 24 | Market Data Caching | Performance | React Query staleTime/gcTime optimization; Reduce redundant API calls |
+| 25 | Top Movers Timeframe Selector | UX | 1h, 4h, 24h timeframe options; Dynamic re-sort |
+| 26 | Volume Leaders Ranking | Data | Top symbols by trading volume; Relative volume comparison |
+| 27 | Sentiment Source Aggregation | Logic | Multiple sentiment sources → Weighted average score |
+| 28 | Calendar Event Categories | UX | GDP, CPI, FOMC, Employment, etc.; Category-based filtering |
+| 29 | Event Countdown Timer | UX | Live countdown to next high-impact event; Auto-refresh |
+| 30 | Market Data Export | Action | Export market snapshot as JSON/CSV for external analysis |
+| 31 | Combined Market View | Page | Unified dashboard: Sentiment + Calendar + Movers in single view |
+| 32 | AI Market Commentary | AI | Gemini-powered market narrative; Context for trading decisions |
+
+---
+
+### Phase 7: Risk Domain (Guardian)
+
+**Dependency:** Phase 4 (Accounts), Phase 5 (Binance Balance), Phase 6 (Market Context)
+**Goal:** Risk management, position sizing, dan trading gate system.
+
+| # | Feature | Type | Detail |
+|---|---------|------|--------|
+| 1 | Risk Management Page | Page | Daily Loss Tracker, Risk Profile, Event Log, Correlation Matrix |
+| 2 | Position Calculator Page | Page | Risk-based sizing; Volatility-adjusted SL; Context warnings |
+| 3 | Risk Profiles CRUD | Data | `risk_profiles` table; `max_daily_loss_percent`, `risk_per_trade_percent`, `max_concurrent_positions` |
+| 4 | Daily Risk Snapshots | Data | `daily_risk_snapshots` table; Starting balance, current P&L, positions open, loss limit usage |
+| 5 | Trading Gate System | Logic | `useTradingGate` hook; Block wizard if daily loss limit hit; Visual indicator (green/yellow/red) |
+| 6 | Context-Aware Risk Adjustment | Logic | 5 factors: Volatility, Events, Sentiment, Momentum, Performance → Adjusted risk % |
+| 7 | Correlation Matrix | Analytics | Consolidated coefficient model; Correlated exposure warnings; `max_correlated_exposure` threshold |
+| 8 | Risk Event Types | Data | `risk_events` table; Types: `warning_70`, `warning_90`, `limit_reached`, `trading_disabled` |
+| 9 | Risk Event Log | UX | Chronological event timeline; Severity coloring; Filterable |
+| 10 | Daily Loss Tracker Widget | Widget | Progress bar showing daily loss usage %; Threshold warnings at 70%/90% |
+| 11 | Position Size Calculator | Tool | Input: Account balance, risk %, entry, SL → Output: Position size, $ risk, R:R |
+| 12 | Volatility-Based Stop Loss | Logic | ATR-based SL calculation; `risk-multipliers.ts` configuration |
+| 13 | Max Weekly Drawdown | Config | `max_weekly_drawdown_percent` in risk profile; Weekly aggregation |
+| 14 | Max Position Size | Config | `max_position_size_percent` per risk profile; Prevents over-concentration |
+| 15 | Risk Summary Card | Widget | Dashboard widget; Daily loss usage + correlation warning + gate status |
+| 16 | ADL Risk Widget | Widget | Auto-Deleveraging risk indicator; Binance ADL queue position |
+| 17 | Risk Multipliers Config | Config | `risk-multipliers.ts` — ATR multipliers, volatility adjustments per trading style |
+| 18 | Risk Thresholds Config | Config | `risk-thresholds.ts` — Warning/critical/limit boundaries |
+| 19 | Trading Gate Visual Indicator | UX | System Status: Green (OK), Yellow (Warning 70%+), Red (Blocked 100%) |
+| 20 | Context Warnings in Calculator | UX | "High volatility: consider reducing size", "FOMC in 2h", "Extreme Fear" |
+| 21 | Risk Profile Activation | Logic | `is_active` toggle; Only one active profile per user |
+| 22 | Capital Deployed Percentage | Metric | Currently deployed capital as % of total; Concentration risk indicator |
+| 23 | Trading Health Score | Metric | 0-100 composite: Sharpe (25%), Drawdown (20%), WR (20%), PF (15%), Consistency (15%), Sample (5%) |
+| 24 | Advanced Risk Metrics | Analytics | Sharpe Ratio, Sortino Ratio, Value at Risk (VaR); Historical calculation |
+
+---
+
+### Phase 8: Strategy Domain (Playbook)
+
+**Dependency:** Phase 1 (Auth), Phase 2 (Shell)
+**Goal:** Strategy management, rules builder, sharing, dan performance tracking.
+
+| # | Feature | Type | Detail |
+|---|---------|------|--------|
+| 1 | Strategy Management Page | Page | CRUD strategies; Library view; Active/inactive filter |
+| 2 | Trading Strategies Schema | Data | MTFA: `higher_timeframe`, `timeframe` (primary), `lower_timeframe`; Entry/exit rules JSON |
+| 3 | Entry Rules Builder | Tool | 6 rule types: Price Action, Indicator, Volume, Structure, Pattern, Custom |
+| 4 | Exit Rules Builder | Tool | SL rules, TP rules, Time-based exit, Trailing stop rules |
+| 5 | Strategy Form Dialog | UX | Full strategy creation/edit form; Methodology, tags, difficulty, session preference |
+| 6 | YouTube Strategy Import | AI | Paste YouTube URL → AI extracts strategy → Pre-fill form; Gemini via edge function |
+| 7 | Edge Function: `youtube-strategy-import` | Backend | YouTube transcript extraction → AI strategy parsing → Structured JSON output |
+| 8 | Strategy Sharing (Link + QR) | Social | `share_token` generation; `is_shared` flag; QR code via `qrcode.react` |
+| 9 | Strategy Cloning | Social | Clone from shared link or leaderboard; `increment_clone_count()` RPC |
+| 10 | Edge Function: `strategy-clone-notify` | Backend | Notify strategy creator when cloned; Clone count tracking |
+| 11 | Strategy Performance Tracking | Analytics | `useStrategyPerformance` hook; Win rate, PF, avg R:R per strategy |
+| 12 | Strategy Tags | UX | Tags array; Filterable; Common tags: trend, reversal, breakout, scalp |
+| 13 | Strategy Difficulty Level | UX | Beginner/Intermediate/Advanced; Displayed in library |
+| 14 | Strategy Versioning | Data | `version` integer; Increment on edit; Historical version tracking |
+| 15 | Valid Pairs | Config | `valid_pairs` array; Restrict strategy to specific symbols |
+| 16 | Session Preference | Config | `session_preference` array; Optimal trading sessions for strategy |
+| 17 | Min Confluences | Config | `min_confluences` integer; Required confluences before entry |
+| 18 | Min Risk:Reward | Config | `min_rr` float; Minimum R:R ratio for strategy compliance |
+| 19 | Automation Score | Metric | `automation_score` 0-100; How rule-based/systematic the strategy is |
+| 20 | Strategy Soft Delete | Data | `deleted_at` timestamp; Recoverable; Linked trades preserve snapshot |
+
+---
+
+### Phase 9: Journal Domain — Core (Trade Lifecycle)
+
+**Dependency:** Phase 4, Phase 5, Phase 7 (Trading Gate), Phase 8 (Strategies)
+**Goal:** Trade lifecycle management — entry, monitoring, close.
+
+> **Detail features: See Section 1 (31 Trader + 13 System = 44 features)**
+
+| Aspect | Coverage |
+|--------|----------|
+| Trade Entry | Wizard Full (5-step) + Express (3-step); Mode-aware; Gate-blocked if risk limit hit |
+| Position Monitoring | AllPositionsTable; Live Time-in-Trade (60s); Unified paper + Binance |
+| Trade Close | Direction-aware P&L; Fee deduction; AI Post-Trade auto-trigger |
+| State Machine | 6 states: OPENING → PARTIALLY_FILLED → ACTIVE → CLOSED/CANCELED/LIQUIDATED |
+| Mode Isolation | `useModeFilteredTrades`; `trade_mode` immutable at creation |
+| Read-Only Enforcement | Core fields locked for `source: binance` or `trade_mode: live` |
+| Market Context | Auto-capture Fear/Greed, volatility, events at entry time |
+
+---
+
+### Phase 10: Journal Domain — Enrichment & AI
+
+**Dependency:** Phase 9
+**Goal:** Post-entry enrichment, AI analysis, dan trade quality scoring.
+
+> **Detail features: See Section 1 Enrichment (#12-#23) + System (#3-#4)**
+
+| Aspect | Coverage |
+|--------|----------|
+| Enrichment Drawer | 10+ sub-features: Strategy linking, 3-TF system, screenshots, rating, tags, compliance, notes |
+| AI Pre-flight | EV/R scoring → Proceed/Caution/Skip verdict; Blocks wizard on SKIP |
+| AI Post-Trade | Auto-trigger on close; Entry Timing, Exit Efficiency, SL Placement, Strategy Adherence |
+| Edge Functions | `ai-preflight`, `trade-quality`, `post-trade-analysis`, `confluence-detection` |
+| Trade Rating | A-F self-assessment; Execution quality grading |
+| Rule Compliance | 6-item checklist; `rule_compliance` JSONB; `lesson_learned` field |
+| Wizard Analytics | Conversion funnel tracking: start → step → abandon → complete |
+
+---
+
+### Phase 11: Trade History & Data Management
+
+**Dependency:** Phase 9, Phase 10
+**Goal:** Historical trade browsing, filtering, export, dan data lifecycle.
+
+> **Detail features: See Section 2 (43 Trader + 14 System = 57 features across 6 modules)**
+
+| Module | Features | Key Components |
+|--------|----------|----------------|
+| Viewing | 12 | List/Gallery toggle, 7 filter dimensions, cursor pagination |
+| Enrichment | 4 | Inline enrich, batch enrichment, full drawer access |
+| Notes/Tags/Screenshots | 6 | Quick note, tag edit, screenshot gallery, lazy loading |
+| Sync & Data Management | 13 | Soft delete, recovery, quality scoring, reconciliation |
+| Metrics/Visuals | 7 | Stats cards, P&L coloring, R:R tooltip, AI score badge |
+| External | 1 | Fee history, funding history tabs |
+
+---
+
+### Phase 12: Import & Sync Engine
+
+**Dependency:** Phase 5 (Binance), Phase 9 (Trade Schema)
+**Goal:** Trade data import dari Binance dan Solana; sync engine dengan reconciliation.
+
+> **Detail features: See Section 3 (26 Trader + 6 System = 32 features)**
+
+| Aspect | Coverage |
+|--------|----------|
+| Binance Sync | Full sync panel; Range selector; Quota management; Checkpoint resume |
+| Lifecycle Grouper | `groupIntoLifecycles` — position lifecycle aggregation; Weighted avg prices |
+| Reconciliation | Tolerance 0.1%; Calculated vs reported P&L validation; Quality scoring |
+| Sync Monitoring | ETA display; Phase indicator; Failure retry; Rate limit detection |
+| Solana Import | Phantom/Solflare wallet; DEX auto-detection; Signature-based dedup |
+| Edge Functions | `binance-background-sync`, `reconcile-balances`, `send-sync-failure-email` |
+
+---
+
+### Phase 13: Analytics Domain (Insights)
+
+**Dependency:** Phase 9 (Trade Data), Phase 6 (Market Context)
+**Goal:** Performance analytics, pattern recognition, dan AI-powered insights.
+
+| # | Feature | Type | Detail |
+|---|---------|------|--------|
+| 1 | Performance Page | Page | Win Rate, Profit Factor, Expectancy, Max Drawdown, P&L Distribution chart |
+| 2 | Daily PnL Page | Page | Day-by-day breakdown; Week-over-week comparison; Symbol breakdown; CSV/PDF export |
+| 3 | Trading Heatmap Page | Page | Hour × Day-of-Week grid; Session analysis; Win/Loss streaks |
+| 4 | AI Insights Page | Page | Pattern detection; Contextual recommendations; Action items; Pair rankings |
+| 5 | Contextual Analytics | Charts | Fear/Greed zone performance; Event-day performance; Volatility level charts |
+| 6 | Edge Function: `dashboard-insights` | Backend | AI-powered portfolio analysis; Market regime correlation |
+| 7 | Edge Function: `trading-analysis` | Backend | Pattern recognition; Statistical analysis; Trend detection |
+| 8 | Win Rate by Strategy | Metric | Per-strategy win rate breakdown; Identifies best/worst strategies |
+| 9 | Win Rate by Session | Metric | Asia/London/NY session performance; Optimal trading hours |
+| 10 | Win Rate by Day of Week | Metric | Monday-Friday performance; Day-specific patterns |
+| 11 | Profit Factor Trend | Chart | Rolling profit factor over time; Trend direction indicator |
+| 12 | Expectancy Calculator | Metric | (Win% × AvgWin) - (Loss% × AvgLoss); Per-strategy and overall |
+| 13 | Max Drawdown Tracking | Metric | Peak-to-trough; Duration; Recovery time |
+| 14 | P&L Distribution Histogram | Chart | Normal distribution overlay; Skewness indicator |
+| 15 | Equity Curve | Chart | Cumulative P&L over time; Benchmark comparison |
+| 16 | Goal Tracking Widget | Widget | User-defined targets; Progress tracking; Milestone notifications |
+| 17 | Trade Duration Analysis | Metric | Average hold time; Optimal hold time by strategy |
+| 18 | R-Multiple Distribution | Chart | Risk-adjusted returns; Outlier identification |
+| 19 | Consecutive Win/Loss Streaks | Metric | Current and historical streaks; Impact on psychology tracking |
+| 20 | Session Overlap Performance | Analytics | Performance during Asia-London and London-NY overlaps |
+| 21 | Symbol Performance Ranking | Analytics | Best/worst performing pairs; Volume-weighted |
+| 22 | Monthly/Weekly Summaries | Analytics | Aggregated performance; Period-over-period comparison |
+| 23 | Export Analytics Data | Action | CSV/PDF export for performance reports |
+| 24 | AI Pattern Recognition | AI | Recurring setups; Success/failure patterns; Behavioral insights |
+| 25 | AI Action Items | AI | Specific recommendations: "Avoid EUR pairs on NFP days" |
+| 26 | AI Pair Rankings | AI | AI-scored pair rankings based on personal performance history |
+| 27 | AI Confidence Score | AI | 0-100 confidence on each insight; Expiration timestamps |
+| 28 | AI Analytics Config | Config | `ai-analytics.ts` — Performance benchmarks, minimum sample sizes |
+
+---
+
+### Phase 14: Dashboard Domain (Aggregation Hub)
+
+**Dependency:** Phase 4, Phase 6, Phase 7, Phase 9, Phase 13
+**Goal:** Unified dashboard mengagregasi data dari semua domain.
+
+| # | Feature | Type | Detail |
+|---|---------|------|--------|
+| 1 | Dashboard Page (Widget Grid) | Page | Responsive grid layout; Widget-level error boundaries |
+| 2 | Portfolio Overview Card | Widget | Total capital, daily/weekly P&L, win rate, account count |
+| 3 | Today Performance Widget | Widget | 7-day stats; Current streak; Today's P&L |
+| 4 | Smart Quick Actions | Widget | Context-aware buttons: New Trade, Risk Check, Sync, etc. |
+| 5 | Market Score Widget | Widget | Unified market score (0-100); Market bias indicator |
+| 6 | System Status Indicator | Widget | Trading gate status: Green/Yellow/Red; API health |
+| 7 | Open Positions Table | Widget | Live Binance positions; Mode-gated (Live only) |
+| 8 | Risk Summary Card | Widget | Daily loss usage %; Correlation warning; Gate status |
+| 9 | AI Insights Widget | Widget | Top recommendations; Market regime badge; Action items |
+| 10 | Volatility Meter Widget | Widget | Real-time volatility gauge; Severity coloring |
+| 11 | Dashboard Analytics Summary | Widget | Sparkline charts; Quick stats overview |
+| 12 | Equity Curve Chart | Widget | Cumulative P&L chart; Embedded from Analytics |
+| 13 | Goal Tracking Widget | Widget | Progress toward user-defined trading goals |
+| 14 | ADL Risk Widget | Widget | Auto-Deleveraging risk indicator |
+| 15 | Risk Metrics Cards | Widget | Sharpe, Sortino, VaR quick-view cards |
+| 16 | Onboarding Tooltip System | UX | First-time user guide; Step-by-step overlay; Dismissible |
+| 17 | Pro Tip (Dismissible) | UX | Context-aware tips; localStorage persistence; One-time dismiss |
+| 18 | Empty State CTA | UX | "Log First Trade" prompt when no trades exist |
+
+---
+
+### Phase 15: Global Features & Production Polish
+
+**Dependency:** All previous phases
+**Goal:** Cross-cutting features, production readiness, dan final polish.
+
+| # | Feature | Type | Detail |
+|---|---------|------|--------|
+| 1 | AI Chatbot (Floating) | AI | 3 modes: Analyst, Validator, Coach; Session persistence; Markdown support |
+| 2 | Edge Function: `confluence-chat` | Backend | Analyst mode: Market analysis, setup validation, trade ideas |
+| 3 | Edge Function: `post-trade-chat` | Backend | Coach mode: Trade review, psychological coaching, improvement plans |
+| 4 | Bulk Export Page | Page | Journal CSV/PDF; Settings backup/restore; Binance daily PnL |
+| 5 | Edge Function: `weekly-report` | Backend | Automated weekly performance report; Email delivery |
+| 6 | Notification Center | Page | In-app notification list; Read/unread management; Category filtering |
+| 7 | Push Notifications | System | Browser push; `push_subscriptions` table; Service worker |
+| 8 | Edge Function: `send-push-notification` | Backend | Push notification delivery; Subscription management |
+| 9 | Edge Function: `send-cleanup-notification` | Backend | Cleanup expired subscriptions; Maintenance |
+| 10 | Global Audit Log System | Security | `audit_logs` table; `logAuditEvent()`; Entity tracking across all domains |
+| 11 | Currency Conversion Display | UX | Hourly rate caching; Multi-currency support; `useCurrencyConversion` |
+| 12 | Backtest Engine | Tool | Real Klines data; Session breakdown; Equity curve; Comparison mode |
+| 13 | Edge Function: `backtest-strategy` | Backend | Kline fetching; Strategy simulation; Metrics calculation |
+| 14 | Strategy Leaderboard | Social | Global shared strategies ranking; Clone count sorting; Performance metrics |
+| 15 | Solana Wallet Provider | Integration | Global `WalletProvider` wrapper; Phantom/Solflare adapters |
+| 16 | Landing Page | Page | Product showcase; Feature highlights; CTA to signup |
+| 17 | PWA Configuration | Production | `vite-plugin-pwa`; Service worker; Offline capability; Install prompt |
+| 18 | Performance Optimization | Production | React Query tuning (staleTime: 2m, gcTime: 10m); Memoization; Lazy loading |
+| 19 | Hybrid Trading Mode Audit | Security | Complete data isolation verification; Mode leakage prevention |
+| 20 | Edge Function: `sync-trading-pairs` | Backend | `trading_pairs` table sync from Binance; Active pairs list |
+| 21 | Trading Pairs Management | Data | `trading_pairs` table; Auto-sync; Active/inactive filtering |
+| 22 | Edge Function: `send-sync-failure-email` | Backend | Email notification after 3+ sync failures |
+| 23 | Sync Notification System | System | In-app + email for sync failures; Quota warnings |
+| 24 | Batch Trade Insert | Performance | `batch_insert_trades()` RPC; Bulk import optimization |
+| 25 | Trade Cleanup Automation | Maintenance | `cleanup_old_trades()` RPC; `permanent_delete_old_trades()` |
+| 26 | React Query Error Retry | Resilience | Exponential backoff; Max 3 retries; Error boundary fallback |
+| 27 | SEO & Meta Tags | Production | `react-helmet`; Dynamic title/description per page; OG tags |
+| 28 | Accessibility (a11y) | Production | ARIA labels; Keyboard navigation; Screen reader support |
+| 29 | Trading Session Detection | Logic | `get_trading_session()` RPC; Auto-detect Asia/London/NY from trade time |
+| 30 | Feature Permission Enforcement | Security | `has_permission()` RPC; Tier-gated features; Upgrade prompts |
+
+---
+
+### Coverage Summary (Full System)
+
+| Metric | Count |
+|--------|-------|
+| Total Domains | 9 (Foundation, Shell, Settings, Accounts, Binance, Market, Risk, Strategy, Journal) |
+| Total Pages | 25+ |
+| Total Features (Detailed) | 336+ |
+| Total Edge Functions | 26 |
+| Total Database Tables | 20 |
+| Total RPC Functions | 25+ |
+| Total React Hooks (Custom) | 30+ |
+| Total Phases | 15 |
+
 ### Cross-References
 - Schema database: [`docs/DATABASE.md`](./DATABASE.md)
 - Skenario pengguna detail: [`docs/USER_SCENARIOS.md`](./USER_SCENARIOS.md)
@@ -284,3 +772,4 @@ Halaman terpusat untuk mengimpor dan menyinkronkan trade dari berbagai sumber. T
 | 2026-02-13 | Full coverage — 96 Trader features, 33 System features (129 total, +48%). Added enrichment drawer granular sub-features, sync monitoring/reconciliation, trade card indicators, import error/retry states. Component map expanded to 36 entries |
 | 2026-02-13 | Restructured Import as unified hub — Moved Binance sync/enrichment from Trade History to Import & Sync (`/import`). Added Binance tab features (#14-26). Trade History cleaned to pure data viewing. Total: 137 features |
 | 2026-02-13 | v2.3 — Refined Trade History into 6 modules (43 features), removed deprecated/duplicate entries. Modules: Viewing (12), Enrichment (4), Notes/Tags/Screenshots (6), Sync & Data Management (13), Metrics/Visuals (7), External (1). Total: 133 features |
+| 2026-02-13 | v3.0 — Added Section 4: Full System Phase Map. 15 phases covering 9 domains, 25+ pages, 336+ features, 26 edge functions. Phase dependency diagram and coverage summary included |
