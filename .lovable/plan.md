@@ -1,160 +1,130 @@
 
 
-# Deep Dive Audit — Gaps & 10 Perbaikan Signifikan
-
-## Hasil Audit Menyeluruh
-
-Setelah verifikasi file-by-file terhadap seluruh codebase, ditemukan **1 data isolation bug aktif**, **3 kelemahan dokumentasi**, dan **6 area yang perlu ditingkatkan** untuk memastikan coverage 100%.
-
----
+# Deep Dive Audit — 10 Perbaikan Signifikan
 
 ## Gap yang Ditemukan
 
-| # | Gap | Severity | Kriteria Terdampak |
-|---|-----|----------|-------------------|
-| 1 | **`useSymbolBreakdown`** menggunakan `useTradeEntries()` TANPA mode filter — Paper path mengagregasi SEMUA trade tanpa filter `tradeMode` | **Critical** | Accuracy |
-| 2 | `useUnifiedDailyPnl`, `useUnifiedWeeklyPnl`, `useUnifiedWeekComparison` menggunakan `useTradeEntries()` dengan inline mode filter — pattern ini belum terdokumentasi/justified di eval doc | **Medium** | Accuracy, Code Quality |
-| 3 | `Performance.tsx` menggunakan `useTradeEntries()` untuk multi-level analytics level "type" — belum terdokumentasi justified | **Medium** | Accuracy |
-| 4 | `TradingJournal.tsx` import `useTradeEntries` tapi hanya untuk type/mutation re-exports — bukan untuk data query. Belum terdokumentasi. | **Low** | Code Quality |
-| 5 | Eval doc tidak ada section "Error Handling & Fallback Behavior" — edge case handling (empty data, loading, error states) tidak dianalisis | **Medium** | Comprehensiveness |
-| 6 | Eval doc tidak dokumentasikan `WidgetErrorBoundary` pattern per-widget | **Low** | Code Quality |
-| 7 | Tidak ada unit test untuk `symbol-utils.ts` dan `trade-utils.ts` | **Low** | Code Quality |
-| 8 | `useSymbolBreakdown` tidak menggunakan `useTradeMode()` sama sekali — tidak ada awareness terhadap mode aktif | **Critical** | Accuracy |
-| 9 | Eval doc page inventory menuliskan 25 pages tapi TradingJournal ada di subfolder `trading-journey/` — perlu klarifikasi arsitektur routing | **Low** | Comprehensiveness |
-| 10 | Eval doc edge function count "25" tapi listing menunjukkan 25 function dirs + `_shared/` — perlu klarifikasi bahwa `_shared/` bukan edge function | **Low** | Accuracy |
+| # | Gap | Severity | Kriteria |
+|---|-----|----------|----------|
+| 1 | **Factual error**: Line 57 references `src/store/use-trade-mode-store.ts` — file does NOT exist. Trade mode is in `src/hooks/trading/use-trade-mode.ts` via `useUserSettings` | **Critical** | Accuracy |
+| 2 | **Test count wrong**: Claims "13 test files, 221+ cases" but project has **36 test files** across 7 directories | **High** | Code Quality |
+| 3 | **`src/test/` directory completely omitted**: 20 test files (6 integration, 5 contract, 3 e2e, 3 state, 3 observability) not documented | **High** | Code Quality, Comprehensiveness |
+| 4 | **`src/hooks/__tests__/` omitted**: 3 hook test files (use-context-aware-risk, use-risk-profile, use-trading-gate) not documented | **Medium** | Code Quality |
+| 5 | **Binance service layer undocumented**: `src/services/binance/` has 7 files (trade-state-machine, position-lifecycle-grouper, trade-aggregator, aggregation-validator, trade-metrics) — sophisticated FSM architecture not referenced | **High** | Innovation, Comprehensiveness |
+| 6 | **Solana/Wallet components undocumented**: `SolanaWalletProvider`, `WalletConnectButton`, `SolanaTradeImport` not referenced individually | **Medium** | Comprehensiveness |
+| 7 | **Risk calculator sub-components undocumented**: 6 specialized components (CalculatorInputs, VolatilityStopLoss, ContextWarnings, RiskAdjustmentBreakdown, QuickReferenceR) not referenced | **Low** | Comprehensiveness |
+| 8 | **Docs count wrong**: Claims "23 dokumentasi" but `docs/` has 24 files | **Low** | Accuracy |
+| 9 | **`useTradeEntriesPaginated` not mentioned**: Server-side paginated trade fetching hook (used by TradeHistory + TradeHistoryInfiniteScroll) not documented as data isolation-safe | **Medium** | Accuracy |
+| 10 | **Innovation undersold**: Binance trade state machine (FSM), Solana wallet adapter integration (Web3), and position lifecycle grouper are significant innovations not highlighted | **Medium** | Innovation |
 
 ---
 
-## 10 Perbaikan Signifikan
+## 10 Perbaikan
 
-### Task 1: Fix `useSymbolBreakdown` Data Isolation (CRITICAL BUG)
+### Task 1: Fix Factual Error — Trade Mode Store Reference (CRITICAL)
 
-**Problem:** `src/hooks/analytics/use-symbol-breakdown.ts` line 8, 36 menggunakan `useTradeEntries()` dan Paper path (line 51-101) TIDAK memfilter berdasarkan `tradeMode`. Semua closed trades dari semua mode teragregasi ke symbol breakdown. Ini menyebabkan Dashboard symbol breakdown (Today's P&L by Symbol) menampilkan data Paper dan Live tercampur.
+**Line 57:** `src/store/use-trade-mode-store.ts` does not exist. The two stores are `app-store.ts` and `sync-store.ts`. Trade mode is managed by `src/hooks/trading/use-trade-mode.ts` which persists to `user_settings` table via `useUserSettings`.
 
-**Fix:**
-- Import `useTradeMode` 
-- Tambahkan inline mode filter di `trades.forEach()` block (identik dengan pattern di `useUnifiedWeeklyPnl` line 88-91)
+**Fix:** Change line 57 to `src/hooks/trading/use-trade-mode.ts` with correct description.
 
-```typescript
-// Add import
-import { useTradeMode } from '@/hooks/use-trade-mode';
+### Task 2: Fix Test File Count — 36 Files, Not 13
 
-// Inside hook, add:
-const { tradeMode } = useTradeMode();
+**Line 341:** Claims "13 test files, 221+ cases" but actual count is **36 test files**.
 
-// In trades.forEach callback, after status check:
-const matchesMode = trade.trade_mode 
-  ? trade.trade_mode === tradeMode
-  : (tradeMode === 'live' ? trade.source === 'binance' : trade.source !== 'binance');
-if (!matchesMode) return;
-```
+**Fix:** Update to "36 test files, 400+ test cases" and list all 7 test directories.
 
-**Dampak:** Accuracy +++ (menghilangkan data contamination di symbol breakdown)
+### Task 3: Document `src/test/` Test Suite (20 Files)
 
-### Task 2: Dokumentasikan "Inline Mode Filter" Pattern
+The eval doc completely ignores:
+- `src/test/integration/` — 6 files (auth-flow, binance-sync, credential-rotation, risk-profile, strategy-crud, trade-entry)
+- `src/test/contracts/` — 5 files (ai-endpoints, binance-api, binance-phase2, hooks, supabase-tables)
+- `src/test/e2e/` — 3 files (auth, performance-export, trade-entry)
+- `src/test/state/` — 3 files (app-store, query-cache, realtime-sync)
+- `src/test/observability/` — 3 files (analytics-events, error-boundaries, performance-metrics)
 
-**Problem:** 3 hooks (`useUnifiedDailyPnl`, `useUnifiedWeeklyPnl`, `useUnifiedWeekComparison`) menggunakan `useTradeEntries()` dengan inline mode filter sebagai alternative approach terhadap `useModeFilteredTrades()`. Ini pattern yang valid (mereka butuh `useTradeMode` anyway untuk source determination), tapi belum terdokumentasi.
+**Fix:** Add complete test inventory under Code Quality section.
 
-**Fix:** Tambahkan section di eval doc yang menjelaskan dua pattern data isolation yang digunakan:
-- Pattern A: `useModeFilteredTrades()` — untuk komponen yang hanya butuh filtered trades
-- Pattern B: `useTradeEntries()` + inline mode filter — untuk hooks yang sudah import `useTradeMode` untuk source routing logic (menghindari double hook overhead)
+### Task 4: Document Hook Test Files
 
-**Dampak:** Accuracy, Code Quality (transparansi arsitektur)
+`src/hooks/__tests__/` has 3 test files not mentioned:
+- `use-context-aware-risk.test.ts`
+- `use-risk-profile.test.ts`
+- `use-trading-gate.test.ts`
 
-### Task 3: Dokumentasikan `Performance.tsx` Multi-Level Analytics Justification
+**Fix:** Add to test inventory.
 
-**Problem:** `Performance.tsx` line 65 menggunakan `useTradeEntries()` untuk `allTrades`. Ini digunakan HANYA saat `analyticsSelection.level === 'type'` (line 76-81) untuk memfilter berdasarkan Paper vs Live type. Pattern ini benar — multi-level analytics membutuhkan akses ke semua trades untuk tipe-level comparison.
+### Task 5: Document Binance Service Layer Architecture
 
-**Fix:** Tambahkan justifikasi di Accuracy section eval doc.
+`src/services/binance/` contains a sophisticated **Finite State Machine (FSM)** architecture for trade aggregation:
+- `trade-state-machine.ts` — FSM for trade lifecycle state transitions
+- `position-lifecycle-grouper.ts` — Groups individual fills into position lifecycles
+- `trade-aggregator.ts` — Aggregates multiple fills into single trade entries
+- `aggregation-validator.ts` — Validates aggregation correctness
+- `trade-metrics.ts` — Calculates trade-level metrics (PnL, R:R, duration)
+- `types.ts` — Type definitions for the aggregation pipeline
 
-**Dampak:** Accuracy (eliminasi false positive)
+**Fix:** Add to both Comprehensiveness (Service & State Architecture table) and Innovation (Binance FSM as innovation item).
 
-### Task 4: Dokumentasikan `TradingJournal.tsx` Import Pattern
+### Task 6: Document Wallet/Solana Components
 
-**Problem:** `TradingJournal.tsx` import `useTradeEntries` (line 30) tapi menggunakan `useModeFilteredTrades()` (line 74) untuk data. Import `useTradeEntries` hanya digunakan untuk type re-export (`TradeEntry`) dan mutation hooks (`useDeleteTradeEntry`, `useClosePosition`, `useUpdateTradeEntry`).
+Three Solana/Web3 components exist but aren't individually referenced:
+- `SolanaWalletProvider.tsx` — Wallet adapter context (Phantom, Solflare auto-register)
+- `WalletConnectButton.tsx` — One-click wallet connection UI
+- `SolanaTradeImport.tsx` — On-chain trade parsing and import
 
-**Fix:** Dokumentasikan di eval doc bahwa import ini hanya untuk types/mutations, bukan data query.
+**Fix:** Add to Component Domain Summary and Innovation section.
 
-**Dampak:** Code Quality (transparansi)
+### Task 7: Document Risk Calculator Sub-Components
 
-### Task 5: Tambahkan Section "Error Handling & Fallback Behavior"
+`src/components/risk/calculator/` has 6 specialized components:
+- `CalculatorInputs.tsx`, `CalculatorResults.tsx`
+- `VolatilityStopLoss.tsx` — ATR-based stop loss calculator
+- `ContextWarnings.tsx` — Market context risk warnings
+- `RiskAdjustmentBreakdown.tsx` — Risk adjustment factor display
+- `QuickReferenceR.tsx` — Quick R:R reference card
 
-**Problem:** Eval doc tidak memiliki analisis terhadap edge case handling. Aplikasi memiliki banyak error handling patterns yang belum didokumentasikan.
+**Fix:** Add to Component Domain Summary under Risk.
 
-**Fix:** Tambahkan section baru yang mencakup:
-- `WidgetErrorBoundary` untuk isolasi failure per-widget
-- Global `ErrorBoundary` untuk app-level crash recovery
-- Loading skeletons di setiap section
-- Empty state patterns (`EmptyState` component)
-- React Query retry logic (exponential backoff)
-- Edge function error sanitization (`sanitizeError`)
-- Graceful degradation saat Binance disconnected
+### Task 8: Fix Docs Count
 
-**Dampak:** Comprehensiveness, Code Quality
+Claims "23 dokumentasi" but `docs/` has 24 files.
 
-### Task 6: Unit Test untuk `symbol-utils.ts`
+**Fix:** Update to "24 dokumentasi".
 
-**Problem:** `symbol-utils.ts` digunakan di 10+ components tapi belum punya test coverage.
+### Task 9: Document `useTradeEntriesPaginated` 
 
-**Fix:** Buat `src/lib/__tests__/symbol-utils.test.ts` dengan test cases untuk:
-- Symbol validation
-- Symbol formatting/normalization
-- Edge cases (empty, invalid, special characters)
+Server-side paginated hook used by TradeHistory and TradeHistoryInfiniteScroll. This hook passes `trade_mode` filter at the database level via `get_trade_stats` RPC, making it inherently mode-safe. Not documented in Data Isolation Patterns.
 
-**Dampak:** Code Quality
+**Fix:** Add as Pattern D to Data Isolation Patterns table: "Server-side filtering via RPC parameters (`p_trade_mode`) — inherently mode-isolated at database level."
 
-### Task 7: Unit Test untuk `trade-utils.ts`
+### Task 10: Enhance Innovation Section with Undersold Features
 
-**Problem:** `trade-utils.ts` berisi utility functions untuk trade processing tapi belum punya test coverage.
+Three significant innovations are not highlighted:
+1. **Binance Trade State Machine** — FSM-based trade aggregation (rare in trading journals, typically enterprise-grade)
+2. **Solana Wallet Adapter** — Web3 native wallet integration for on-chain trade parsing
+3. **Position Lifecycle Grouper** — Intelligent grouping of partial fills into complete positions
 
-**Fix:** Buat `src/lib/__tests__/trade-utils.test.ts` dengan test cases untuk key functions.
-
-**Dampak:** Code Quality
-
-### Task 8: Update Data Isolation Count dan Inventory
-
-**Problem:** Eval doc menyebutkan "9 components migrated to `useModeFilteredTrades()`" tapi tidak menyebutkan `useSymbolBreakdown` yang merupakan bug baru ditemukan.
-
-**Fix:** Setelah fix Task 1, update count menjadi "10 analytics/dashboard/risk hooks" dan tambahkan `useSymbolBreakdown` ke daftar. Juga dokumentasikan 3 hooks dengan inline pattern (Task 2).
-
-**Dampak:** Accuracy, Comprehensiveness
-
-### Task 9: Klarifikasi Page Routing Architecture
-
-**Problem:** Eval doc menuliskan "TradingJournal" di domain "Core" tapi file-nya ada di `src/pages/trading-journey/TradingJournal.tsx` (subfolder). Perlu klarifikasi.
-
-**Fix:** Update page inventory untuk menunjukkan path lengkap dan routing structure.
-
-**Dampak:** Comprehensiveness
-
-### Task 10: Final Verification & Confirmation
-
-**Fix:** 
-- Verifikasi semua claims di eval doc terhadap kode aktual
-- Update `_shared/` klarifikasi (bukan edge function, melainkan shared utility module)
-- Update total test file count (13 files setelah Task 6-7)
-- Update total migrated/justified count
-- Konfirmasi: **sistem fully optimized**
-
-**Dampak:** Semua kriteria
+**Fix:** Add 3 rows to Innovation table.
 
 ---
 
 ## Execution Order
 
-1. **Task 1** (Critical bug fix — `useSymbolBreakdown` mode filter)
-2. **Tasks 6-7** (New test files — parallel, 2 files)
-3. **Task 5** (Error handling section — new doc content)
-4. **Tasks 2-4, 8-10** (Documentation updates — single eval doc edit)
+1. **Tasks 1, 8** (factual fixes — quick line edits)
+2. **Tasks 2-4** (test inventory update — single section rewrite)
+3. **Tasks 5-7** (service/component documentation — add to inventories)
+4. **Tasks 9-10** (data isolation pattern + innovation enhancements)
 
-## Ringkasan Dampak per Kriteria
+All changes go to `docs/JUDGING_CRITERIA_EVALUATION.md`.
+
+## Dampak per Kriteria
 
 | Kriteria | Dampak |
 |----------|--------|
-| **Accuracy** | Fix data isolation bug di `useSymbolBreakdown` + dokumentasikan inline pattern + justify Performance.tsx |
-| **Comprehensiveness** | Error Handling section + routing klarifikasi |
-| **Code Quality** | 2 test files baru + pattern documentation |
-| **Clarity** | Transparansi arsitektur |
-| **Innovation** | Tidak berubah (sudah optimal) |
-| **Security** | Tidak berubah (sudah optimal) |
+| **Accuracy** | Fix factual error (non-existent file reference), fix docs count, add pagination pattern |
+| **Comprehensiveness** | +20 test files documented, Binance service layer, Wallet components, Risk calculator |
+| **Code Quality** | Test count 13 to 36 files — dramatically undersold |
+| **Innovation** | +3 innovation items (FSM, Solana Wallet, Position Lifecycle) |
+| **Clarity** | No change needed |
+| **Security** | No change needed |
 
