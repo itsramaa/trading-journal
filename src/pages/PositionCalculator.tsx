@@ -9,7 +9,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
-import { Skeleton } from "@/components/ui/skeleton";
+import { FormSkeleton, MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Calculator, Activity, Percent, Settings } from "lucide-react";
@@ -127,7 +127,8 @@ export default function PositionCalculator() {
           title="Risk Calculator"
           description="Loading your risk settings..."
         />
-        <Skeleton className="h-[400px]" />
+        <MetricsGridSkeleton />
+        <FormSkeleton />
       </div>
     );
   }

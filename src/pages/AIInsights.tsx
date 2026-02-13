@@ -37,6 +37,7 @@ import { EmotionalPatternAnalysis } from "@/components/analytics/EmotionalPatter
 import { SessionInsights } from "@/components/analytics/SessionInsights";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
+import { MetricsGridSkeleton, ChartSkeleton } from "@/components/ui/loading-skeleton";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { format as formatDate, subDays, isWithinInterval } from "date-fns";
 import { 
@@ -71,7 +72,7 @@ interface TimeSlotAnalysis {
 }
 
 export default function AIInsights() {
-  const { data: trades = [] } = useModeFilteredTrades();
+  const { data: trades = [], isLoading } = useModeFilteredTrades();
   const { data: strategies = [] } = useTradingStrategies();
   const { data: contextualData } = useContextualAnalytics();
   const { formatPnl } = useCurrencyConversion();
@@ -329,6 +330,20 @@ export default function AIInsights() {
 
     return items;
   }, [stats]);
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          icon={Brain}
+          title="AI Insights"
+          description="AI-powered analysis of your trading patterns"
+        />
+        <MetricsGridSkeleton />
+        <ChartSkeleton />
+      </div>
+    );
+  }
 
   if (!stats) {
     return (
