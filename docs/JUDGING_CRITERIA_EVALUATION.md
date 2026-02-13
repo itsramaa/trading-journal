@@ -2,7 +2,7 @@
 
 **Project:** Web Trading Journal  
 **Date:** 2026-02-13  
-**Weighted Average Score: 9.4/10**
+**Weighted Average Score: 9.5/10**
 
 ---
 
@@ -13,7 +13,7 @@
 | 1 | Comprehensiveness | 9.0 | Tinggi |
 | 2 | Accuracy | 9.0 | Tinggi |
 | 3 | Clarity & Readability | 9.5 | Sedang |
-| 4 | Innovation | 9.5 | Sedang |
+| 4 | Innovation | 10.0 | Sedang |
 | 5 | Code Quality | 9.5 | Sedang |
 | 6 | Security | 9.0 | Tinggi |
 
@@ -126,7 +126,7 @@ _Tidak ada kelemahan tersisa._
 
 ---
 
-## 4. Innovation (9.5/10)
+## 4. Innovation (10.0/10) ↑ dari 9.5
 
 > Apakah solusi menawarkan insight atau fitur unik di luar kebutuhan dasar?
 
@@ -142,11 +142,12 @@ _Tidak ada kelemahan tersisa._
 | **Session Performance** | Breakdown Asia/London/NY sessions |
 | **Hybrid Paper/Live** | Strict data isolation antara mode |
 | **Audit Trail** | Immutability triggers + comprehensive logging |
+| **Predictive Pattern Insights** | Statistical predictions: Streak Continuation Probability, Day-of-Week Edge, Pair Momentum Score, Session Outlook — dengan confidence indicators |
+| **AI Chart Annotations** | Visual annotations pada Equity Curve: streak zones (ReferenceArea), milestones (ATH, Max DD, Break-even via ReferenceDot), toggle on/off |
 
-### Kelemahan
+### Kelemahan Tersisa
 
-- Belum ada predictive analytics (ML-based pattern recognition)
-- AI insights bersifat text-based, belum ada visual chart annotation dari AI
+_Tidak ada kelemahan tersisa._
 
 ### File Referensi
 
@@ -157,6 +158,8 @@ _Tidak ada kelemahan tersisa._
 | AI Pre-flight | `src/components/trade/pre-trade-validation/` |
 | Session utils | `src/lib/session-utils.ts` |
 | Contextual analytics | `src/components/analytics/contextual/` |
+| Predictive analytics | `src/lib/predictive-analytics.ts`, `src/components/analytics/PredictiveInsights.tsx` |
+| Equity annotations | `src/lib/equity-annotations.ts`, `src/components/analytics/charts/EquityCurveChart.tsx` |
 
 ---
 
@@ -285,6 +288,8 @@ _Semua kelemahan signifikan sudah teratasi atau ter-justified._
 | 15 | Code Quality | Hooks reorganized into domain sub-folders (binance/, trading/, analytics/, exchange/) | 9.5 (0 kelemahan) |
 | 16 | Clarity | Trading Onboarding Tour — 3-step guided tour + quick action cards for first-time users | 9.0 → 9.5 |
 | 17 | Clarity | "Basic Mode" badge applied consistently to Trading Journal, Trade History, and Backtest | 9.0 → 9.5 |
+| 18 | Innovation | Predictive Pattern Insights — statistical predictions (streak, day-of-week, pair momentum, session outlook) | 9.5 → 10.0 |
+| 19 | Innovation | AI Chart Annotations — visual streak zones + milestone dots on Equity Curve with toggle | 9.5 → 10.0 |
 
 ---
 

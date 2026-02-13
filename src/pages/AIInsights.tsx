@@ -28,6 +28,7 @@ import {
   Calendar,
   Activity,
   Download,
+  Zap,
 } from "lucide-react";
 import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import { useContextualAnalytics } from "@/hooks/use-contextual-analytics";
@@ -35,6 +36,7 @@ import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { ContextualPerformance } from "@/components/analytics/contextual/ContextualPerformance";
 import { EmotionalPatternAnalysis } from "@/components/analytics/EmotionalPatternAnalysis";
 import { SessionInsights } from "@/components/analytics/session/SessionInsights";
+import { PredictiveInsights } from "@/components/analytics/PredictiveInsights";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import { MetricsGridSkeleton, ChartSkeleton } from "@/components/ui/loading-skeleton";
@@ -392,6 +394,10 @@ export default function AIInsights() {
               <Lightbulb className="h-4 w-4" />
               Pattern Analysis
             </TabsTrigger>
+            <TabsTrigger value="predictions" className="gap-2">
+              <Zap className="h-4 w-4" />
+              Predictions
+            </TabsTrigger>
             <TabsTrigger value="contextual" className="gap-2">
               <Activity className="h-4 w-4" />
               Contextual Performance
@@ -555,6 +561,11 @@ export default function AIInsights() {
             </div>
           </CardContent>
         </Card>
+          </TabsContent>
+
+          {/* Predictions Tab */}
+          <TabsContent value="predictions" className="mt-0">
+            <PredictiveInsights />
           </TabsContent>
 
           {/* Contextual Performance Tab */}
