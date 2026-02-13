@@ -591,7 +591,7 @@ export default function Performance() {
               {contextualData?.bySession && (
                 <div className="space-y-4">
                   <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Session Performance</h3>
-                  <div className="grid gap-6 lg:grid-cols-2">
+                  <div className="space-y-6">
                     <SessionPerformanceChart bySession={contextualData.bySession} />
                     <TradingHeatmapChart trades={filteredTrades} />
                   </div>

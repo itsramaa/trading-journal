@@ -186,7 +186,7 @@ export function TradingHeatmap({ trades: externalTrades, className, showEventOve
           <div className="overflow-x-auto">
             <div className="inline-block min-w-full">
               {/* Header row */}
-              <div className="flex items-center mb-1">
+              <div className="flex items-center gap-1.5 mb-2">
                 <div className="w-20 flex-shrink-0 text-xs text-muted-foreground text-left pr-2">Time</div>
                 {DAYS.map((day) => (
                   <div key={day} className="flex-1 min-w-[48px] text-xs text-muted-foreground text-center font-medium">
@@ -197,7 +197,7 @@ export function TradingHeatmap({ trades: externalTrades, className, showEventOve
               
               {/* Data rows */}
               {HOURS.map((hour, hourIdx) => (
-                <div key={hour} className="flex items-center mb-1">
+                <div key={hour} className="flex items-center gap-1.5 mb-1.5">
                   <div className="w-20 flex-shrink-0 text-xs text-muted-foreground pr-2 flex items-center gap-1">
                     <span className="w-10">{hour.toString().padStart(2, '0')}:00</span>
                     {(hourIdx === 0 || hour === 8 || hour === 16) && (
