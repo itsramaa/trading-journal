@@ -71,7 +71,7 @@ export function calculateTradingHealthScore(
     ? metrics.winStreakMax / (metrics.winStreakMax + metrics.lossStreakMax)
     : 0.5;
   const recoveryScore = clamp(mapRange(metrics.recoveryFactor, -1, 5, 0, 100), 0, 100);
-  const consistencyScore = (streakRatio * 50 + recoveryScore * 50) / 50;
+  const consistencyScore = (streakRatio * 100 + recoveryScore) / 2;
   breakdown.push({
     name: 'Consistency',
     score: Math.round(clamp(consistencyScore, 0, 100)),
