@@ -201,7 +201,7 @@ _Tidak ada kelemahan tersisa._
 - Analytics Level Selector dengan visual feedback (badge + banner)
 - Color-coded P&L (profit/loss CSS classes)
 - Loading skeletons untuk setiap section
-- ✅ **FIXED:** Performance page direfaktor dari 856 baris menjadi ~170 baris orchestrator + 5 sub-components
+- ✅ **FIXED:** Performance page direfaktor dari 856 baris menjadi ~255 baris orchestrator + 5 sub-components
 - ✅ **FIXED:** Analytics components diorganisasi ke sub-folders (`contextual/`, `session/`, `charts/`)
 - ✅ **FIXED:** Beginner-friendly tooltips ditambahkan ke contextual analytics (Fear/Greed, Volatility, Event Impact)
 - ✅ **NEW:** Contextual Analytics Onboarding Guide — collapsible banner yang menjelaskan cara membaca contextual analytics, dengan dismiss via localStorage
@@ -482,6 +482,7 @@ _Semua kelemahan signifikan sudah teratasi atau ter-justified._
 | 50 | Accuracy | Docs count corrected from 23 → 24, store inventory corrected (removed non-existent trade-mode-store) | 10.0 (accuracy) |
 | 51 | Innovation | 3 innovation items added: Binance Trade State Machine (FSM), Position Lifecycle Grouper, Solana Wallet Adapter (Web3) | 10.0 (innovation) |
 | 52 | Accuracy | Pattern D added to Data Isolation Patterns: server-side RPC filtering via `p_trade_mode` in `useTradeEntriesPaginated` | 10.0 (completeness) |
+| 53 | Accuracy (MAJOR) | Fixed Consistency Score math bug in `trading-health-score.ts` — streakRatio contribution was negligible (0-1 vs 0-100 scale). Corrected formula: `(streakRatio * 100 + recoveryScore) / 2` | 10.0 (critical fix) |
 
 ---
 
