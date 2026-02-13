@@ -1,114 +1,46 @@
 
-# Restructure Import Trades as Unified Data Import Hub
 
-## Problem
-Currently, sync/import functionality is scattered:
-- **Trade History** (`/history`) contains: `BinanceFullSyncPanel`, Incremental Sync button, Enrichment controls, Sync Quota display
-- **Import Trades** (`/import`) only contains: Solana on-chain import
+# Update FEATURE-MATRIX.md Section 2: Trade History — Refined 6-Module Structure
 
-This creates UX confusion -- users must navigate to Trade History to sync Binance data, which is conceptually an "import" operation, not a "history review" activity.
+## Overview
+Replace the current Trade History section (50 trader features, some duplicated/deprecated) with the user-provided refined structure of **43 features** organized into **6 clear modules**. This reduces noise, removes deprecated entries (#14, #15), and groups features logically.
 
-## Solution: Hybrid Import Hub
-Transform `/import` into a **tabbed Import Hub** following the hybrid approach:
-1. **Auto incremental fetch** when switching to Live mode (background, lightweight)
-2. **Manual Full Sync / Re-sync** available in the Import page
-3. **Solana import** remains as a separate tab
+## Changes
 
-## Architecture
+### File: `docs/FEATURE-MATRIX.md`
 
-```text
-/import (Import Trades Page)
-+--------------------------------------------------+
-| PageHeader: "Import & Sync Trades"                |
-| Description: "Import trades from exchanges,       |
-|  wallets, or sync your trading history"            |
-+--------------------------------------------------+
-| [Binance Sync] [Solana Import]                    |
-+--------------------------------------------------+
-| Tab: Binance Sync                                 |
-|   - Connection status banner                      |
-|   - Full Sync Panel (moved from TradeHistory)     |
-|   - Incremental Sync status + trigger             |
-|   - Enrichment controls                           |
-|   - Sync Quota display                            |
-|   - Sync Monitoring (Reconciliation, Quality)     |
-+--------------------------------------------------+
-| Tab: Solana Import                                |
-|   - Existing SolanaTradeImport (unchanged)        |
-|   - Supported Protocols card                      |
-+--------------------------------------------------+
-```
+**Replace Section 2 (lines 68-143+)** with the new 6-module structure:
 
-## Changes Required
+#### Module 1: Trade History / Viewing (12 features)
+Features #1-#12: List/Gallery view, 7 filter types, AI sort, clear filters, infinite scroll, load progress, sub-tabs.
 
-### 1. Restructure `src/pages/ImportTrades.tsx`
-- Rename page title: "Import & Sync Trades"
-- Add Tabs component: `binance` | `solana`
-- **Binance Tab**: Move all sync-related UI here:
-  - `BinanceFullSyncPanel` (full, non-compact mode)
-  - Incremental Sync status/button
-  - Enrichment controls (Enrich Trades button + progress)
-  - `SyncQuotaDisplay` (full version)
-  - Binance connection status indicator
-  - Mode visibility guard (hide tab content in Paper mode)
-- **Solana Tab**: Keep existing `SolanaTradeImport` + Supported Protocols card
-- Feature info cards updated to cover both sources
-- Default tab based on mode: Live mode defaults to Binance, Paper mode defaults to Solana
+#### Module 2: Trade Enrichment (4 features)
+Features #13-#16: Enrich drawer, batch enrichment, needs enrichment badge, all enriched badge.
 
-### 2. Clean up `src/pages/TradeHistory.tsx`
-Remove from Trade History:
-- `BinanceFullSyncPanel` import and usage (line 38, 453)
-- Incremental sync button/status UI (lines 455-486)
-- Enrichment controls (Enrich Trades button + progress, lines 488-537)
-- Related imports: `useBinanceIncrementalSync`, `useBinanceAggregatedSync`, `useSyncStore` selectors for sync progress, `useTradeEnrichmentBinance`, `useTradesNeedingEnrichmentCount`
-- Keep: `isFullSyncing` check for loading awareness (read-only from global store)
-- Keep: Fee/Funding tabs (they display data, not import it)
-- Add: Small "Go to Import" link/button in the filter area pointing to `/import` for users who need to sync
+#### Module 3: Notes / Tags / Screenshots (6 features)
+Features #17-#22: Quick note, expand/collapse, notes badge, recently updated badge, tags display, screenshot count.
 
-### 3. Auto Incremental Sync (Background)
-- Move `useBinanceIncrementalSync({ autoSyncOnMount: true })` to `DashboardLayout` level or a dedicated provider
-- This ensures incremental sync runs once on app load (Live mode), not tied to any specific page
-- `GlobalSyncIndicator` already exists in the header -- no changes needed there
+#### Module 4: Sync & Data Management (13 features)
+Features #23-#35: Incremental sync, full sync, range selection, force re-fetch, resume, discard checkpoint, re-sync range, retry failed, progress phases, ETA, quality score, data quality summary, monitoring panel.
 
-### 4. Update Sidebar Label
-- In `AppSidebar.tsx`: Change label from "Import Trades" to "Import & Sync" for clarity
+#### Module 5: Trade Metrics / Visuals (7 features)
+Features #36-#42: R:R tooltip, confluence tooltip, inline fees, fee history tab, funding history tab, strategy badges, AI quality badge.
 
-### 5. Update Documentation
-- Update `docs/FEATURE-MATRIX.md`: Move sync features from Trade History section to Import section
-- Update `docs/CLASS-DIAGRAM.md` if component relationships change
+#### Module 6: External / Miscellaneous (1 feature)
+Feature #43: View transaction on Solscan.
 
-## Files Modified
+### Key Differences from Current Version
+- Removed deprecated strikethrough entries (#14, #15 in current doc)
+- Consolidated duplicate features (e.g., notes-related items grouped together)
+- Added missing precondition/postcondition details from user spec
+- Reorganized from flat list to 6 logical sub-sections with headers
+- Reduced from 50 to 43 trader features (cleaner, no duplication)
+- System features section (2.2) retained and renumbered if needed
+- Export CSV moved out of top-level (implicitly covered in viewing module or kept as-is)
 
-| File | Action |
-|------|--------|
-| `src/pages/ImportTrades.tsx` | Major rewrite -- tabbed layout with Binance sync + Solana import |
-| `src/pages/TradeHistory.tsx` | Remove sync/enrichment UI, add "Go to Import" link |
-| `src/components/layout/AppSidebar.tsx` | Rename menu item |
-| `src/components/layout/DashboardLayout.tsx` | Add auto incremental sync hook at layout level |
-| `docs/FEATURE-MATRIX.md` | Update feature locations |
-| `docs/CLASS-DIAGRAM.md` | Update component mapping |
+### System Features (2.2)
+Keep existing 15 system features unchanged -- they are orthogonal to the trader feature reorganization. Only update cross-references if any feature numbers shifted.
 
-## What Stays in Trade History
-- Filter controls (date, result, direction, session, strategy, pairs)
-- View mode toggle (List/Gallery)
-- Trade list with sub-tabs (All/Binance/Paper)
-- Fee History tab (displays data from local DB)
-- Funding History tab (displays data from local DB)
-- Export CSV button
-- Trade enrichment drawer (for individual trade enrichment on click)
-- Infinite scroll pagination
-- Server-side stats (P&L, win rate)
+### Revision History
+Add entry: "v2.3 — Refined Trade History into 6 modules (43 features), removed deprecated/duplicate entries"
 
-## What Moves to Import
-- `BinanceFullSyncPanel` (Full Sync trigger + monitoring)
-- Incremental Sync button + status
-- Bulk Enrichment controls (Enrich N Trades button)
-- Sync Quota display
-- Sync progress indicators
-- Resume/Retry/Discard checkpoint controls
-
-## Technical Notes
-- `GlobalSyncIndicator` in header remains unchanged -- sync progress visible globally regardless of current page
-- Zustand sync store (`sync-store`) remains unchanged -- state persists across navigation
-- Auto incremental sync at layout level ensures data freshness without requiring user to visit Import page
-- Fee/Funding tabs in Trade History stay because they display already-synced data, not trigger sync operations
