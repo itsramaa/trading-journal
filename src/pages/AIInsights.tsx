@@ -395,10 +395,6 @@ export default function AIInsights() {
               <Lightbulb className="h-4 w-4" />
               Pattern Analysis
             </TabsTrigger>
-            <TabsTrigger value="emotional" className="gap-2">
-              <Brain className="h-4 w-4" />
-              Emotional
-            </TabsTrigger>
             <TabsTrigger value="predictions" className="gap-2">
               <Zap className="h-4 w-4" />
               Predictions
@@ -568,10 +564,6 @@ export default function AIInsights() {
         </Card>
           </TabsContent>
 
-          {/* Emotional Tab */}
-          <TabsContent value="emotional" className="mt-0">
-            <EmotionalPatternAnalysis />
-          </TabsContent>
 
           {/* Predictions Tab */}
           <TabsContent value="predictions" className="mt-0">
@@ -579,8 +571,9 @@ export default function AIInsights() {
           </TabsContent>
 
           {/* Contextual Performance Tab */}
-          <TabsContent value="contextual" className="mt-0">
+          <TabsContent value="contextual" className="mt-0 space-y-6">
             <ContextualPerformance />
+            <EmotionalPatternAnalysis />
           </TabsContent>
         </Tabs>
     </div>

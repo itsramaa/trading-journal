@@ -54,6 +54,7 @@ const MAX_INSERT_RETRIES = 3; // Retries per batch
 
 // Rate limit state (shared across calls)
 let currentRateLimitDelay = BASE_RATE_LIMIT_DELAY;
+let lastLoggedWeight: number | null = null;
 
 // =============================================================================
 // API Helper with Rate Limit Handling
@@ -87,13 +88,19 @@ async function callBinanceApi<T>(
     
     const result: ApiResponse<T> = await response.json();
     
-    // Log usedWeight to sync panel for real-time rate limit visibility
+    // Log usedWeight only when it changes significantly or has data
     if (result.usedWeight) {
-      const addLog = useSyncStore.getState().addSyncLog;
-      const level = result.usedWeight > 900 ? 'warn' : 'info';
       const dataCount = Array.isArray(result.data) ? result.data.length : 0;
-      const dataInfo = dataCount > 0 ? ` | ${dataCount} records fetched` : '';
-      addLog(`Rate limit: ${result.usedWeight}/1200 weight (per 30s window)${dataInfo}`, level);
+      const weightChanged = !lastLoggedWeight || Math.abs(result.usedWeight - lastLoggedWeight) >= 20;
+      const hasData = dataCount > 0;
+      
+      if (weightChanged || hasData || result.usedWeight > 900) {
+        const addLog = useSyncStore.getState().addSyncLog;
+        const level = result.usedWeight > 900 ? 'warn' : 'info';
+        const dataInfo = hasData ? ` | ${dataCount} records fetched` : '';
+        addLog(`Rate limit: ${result.usedWeight}/1200 weight (per 30s window)${dataInfo}`, level);
+        lastLoggedWeight = result.usedWeight;
+      }
     }
     
     // Handle rate limit - wait and retry
