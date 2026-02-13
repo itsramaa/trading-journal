@@ -9,7 +9,7 @@ import { Calendar } from "lucide-react";
 export default function EconomicCalendar() {
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 overflow-x-hidden">
         <PageHeader
           icon={Calendar}
           title="Economic Calendar"
