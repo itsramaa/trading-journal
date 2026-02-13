@@ -10,7 +10,7 @@
  * - win_rate: Percentage of winning trades
  * - total_trades: Total count matching filters
  */
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useTradeMode } from "@/hooks/use-trade-mode";
@@ -112,6 +112,7 @@ export function useTradeStats(options: UseTradeStatsOptions = {}) {
     },
     enabled: !!user?.id && enabled,
     staleTime: 30_000, // 30 seconds
+    placeholderData: keepPreviousData,
   });
 }
 

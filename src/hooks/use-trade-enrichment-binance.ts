@@ -12,7 +12,7 @@
  */
 
 import { useState, useCallback } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
@@ -206,6 +206,7 @@ export function useTradesNeedingEnrichmentCount() {
     },
     enabled: !!user?.id,
     staleTime: 30_000, // 30 seconds
+    placeholderData: keepPreviousData,
   });
 }
 

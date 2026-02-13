@@ -5,7 +5,7 @@
  * Uses global sync store for persistent state across navigation.
  * Renders everything inline within a Card (no dialogs).
  */
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -392,43 +392,72 @@ function SyncProgressIndicator({ progress }: { progress: AggregationProgress }) 
   const isRateLimited = progress.message?.toLowerCase().includes('rate limit') || 
                          progress.message?.toLowerCase().includes('429');
 
+  // Stale sync detection — warn if no progress for 2 minutes
+  const [lastProgressTime, setLastProgressTime] = useState(Date.now());
+  const [isStale, setIsStale] = useState(false);
+
+  useEffect(() => {
+    setLastProgressTime(Date.now());
+    setIsStale(false);
+  }, [progress.current, progress.phase]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (Date.now() - lastProgressTime > 120_000) {
+        setIsStale(true);
+      }
+    }, 30_000);
+    return () => clearInterval(interval);
+  }, [lastProgressTime]);
+
   return (
-    <div className={`flex items-center gap-3 px-3 py-2 rounded-lg border ${
-      isRateLimited 
-        ? 'bg-warning/10 border-warning/30' 
-        : 'bg-primary/10 border-primary/20'
-    }`}>
-      <Loader2 className={`h-4 w-4 animate-spin ${isRateLimited ? 'text-warning' : 'text-primary'}`} />
-      <div className="flex flex-col gap-1 min-w-[200px]">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            <span className="text-sm font-medium">{phaseLabel}</span>
-            {isRateLimited && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Badge variant="outline" className="gap-1 bg-warning/10 border-warning/30 text-warning text-[10px] py-0 px-1.5">
-                      <Zap className="h-2.5 w-2.5" />
-                      Rate Limited
-                    </Badge>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p className="text-xs">API rate limit hit. Sync will auto-retry with delay.</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
+    <div className="space-y-2">
+      <div className={`flex items-center gap-3 px-3 py-2 rounded-lg border ${
+        isRateLimited 
+          ? 'bg-warning/10 border-warning/30' 
+          : 'bg-primary/10 border-primary/20'
+      }`}>
+        <Loader2 className={`h-4 w-4 animate-spin ${isRateLimited ? 'text-warning' : 'text-primary'}`} />
+        <div className="flex flex-col gap-1 min-w-[200px]">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm font-medium">{phaseLabel}</span>
+              {isRateLimited && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge variant="outline" className="gap-1 bg-warning/10 border-warning/30 text-warning text-[10px] py-0 px-1.5">
+                        <Zap className="h-2.5 w-2.5" />
+                        Rate Limited
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="text-xs">API rate limit hit. Sync will auto-retry with delay.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+            </div>
+            <span className="text-xs text-muted-foreground">{percent}%</span>
           </div>
-          <span className="text-xs text-muted-foreground">{percent}%</span>
-        </div>
-        <Progress value={percent} className="h-2" />
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-muted-foreground truncate max-w-[180px]">
-            {progress.message}
-          </span>
-          <SyncETADisplay compact />
+          <Progress value={percent} className="h-2" />
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground truncate max-w-[180px]">
+              {progress.message}
+            </span>
+            <SyncETADisplay compact />
+          </div>
         </div>
       </div>
+
+      {isStale && (
+        <Alert variant="destructive" className="mt-0">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription className="text-xs">
+            Sync appears stuck (no progress for 2 minutes). Consider canceling and retrying.
+          </AlertDescription>
+        </Alert>
+      )}
     </div>
   );
 }
