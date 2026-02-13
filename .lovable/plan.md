@@ -1,116 +1,124 @@
 
-# Full-System Audit — Findings & Remediation Plan
 
-## Audit Summary
+# Full-System Batch Audit — Findings & Remediation Plan
 
-After deep-diving into the actual codebase (not just docs), I found **1 confirmed bug** and **1 documentation update** needed. Everything else verified as solid.
+## Audit Methodology
 
----
-
-## Finding 1: Mathematical Bug in Trading Health Score (MAJOR)
-
-**File:** `src/lib/trading-health-score.ts`, line 74  
-**Severity:** Major  
-**Criteria Impacted:** Accuracy, Innovation, Code Quality
-
-### Problem
-
-```typescript
-// Current (BUGGY):
-const consistencyScore = (streakRatio * 50 + recoveryScore * 50) / 50;
-```
-
-`streakRatio` is 0-1 range, `recoveryScore` is 0-100 range. The formula simplifies to:
-
-```
-streakRatio + recoveryScore  (e.g., 0.625 + 50 = 50.625)
-```
-
-The streak ratio contribution is **negligible** (0-1) compared to recovery score (0-100). Streak ratio is effectively ignored in the composite score.
-
-### Correct Formula
-
-```typescript
-// FIXED: Both components normalized to 0-100 before averaging
-const consistencyScore = (streakRatio * 100 + recoveryScore) / 2;
-```
-
-This gives equal weight to both streak quality (0-100 after `*100`) and recovery factor (already 0-100). Example: `(62.5 + 50) / 2 = 56.25` — streak ratio now meaningfully contributes.
-
-### Impact
-- **Accuracy:** Fixes incorrect Consistency Score in Trading Health Score composite
-- **Innovation:** Health Score (key differentiator) now mathematically correct
-- **Code Quality:** Eliminates hidden math flaw that passed tests due to `clamp(0, 100)` masking the error
+Audited all core calculation libs, 80+ hooks, state management, edge functions, error handling, data isolation patterns, and cross-referenced every claim in `JUDGING_CRITERIA_EVALUATION.md` against actual source code.
 
 ---
 
-## Finding 2: Documentation Line Count (MINOR)
+## Batch 1: All Findings
 
-**File:** `docs/JUDGING_CRITERIA_EVALUATION.md`, line 204  
-**Severity:** Minor  
+### Finding 1: Data Isolation Bug in `useSymbolBreakdown` (MAJOR)
+
+**File:** `src/hooks/analytics/use-symbol-breakdown.ts`
+**Severity:** Major
+**Criteria Impacted:** Accuracy, Security (data contamination)
+
+**Problem:**
+The hook uses raw `isConnected` instead of `tradeMode === 'live' && isConnected` for source routing. When a user is in **Paper mode** but has Binance connected, this hook returns **Live Binance data** instead of Paper data — a direct violation of the data isolation policy.
+
+**Two affected lines:**
+- Line 42: `if (isConnected) return { daily: [], weekly: [] };`
+  - Skips paper calculation even in Paper mode if Binance is connected
+- Line 122: `if (isConnected && binancePnl.bySymbol)`
+  - Returns Binance data even in Paper mode
+
+**Correct pattern** (already used by `useUnifiedWeeklyPnl` at line 156 and `useUnifiedDailyPnl` at line 50):
+```typescript
+const useLiveSource = tradeMode === 'live' && isConnected;
+```
+
+**Fix:**
+- Line 42: Change to `if (tradeMode === 'live' && isConnected) return { daily: [], weekly: [] };`
+- Line 122: Change to `if (tradeMode === 'live' && isConnected && binancePnl.bySymbol)`
+
+This was supposedly fixed previously (Finding #40 in the eval doc says "inline mode filter added to Paper path"), but the **source routing guard** at lines 42 and 122 was never updated — only the inner `trades.forEach` filter was fixed. The outer guard short-circuits before the mode filter even runs.
+
+---
+
+### Finding 2: Documentation Claim Mismatch — `useSymbolBreakdown` Fix Incomplete (MINOR)
+
+**File:** `docs/JUDGING_CRITERIA_EVALUATION.md`, Line 40 and 156
+**Severity:** Minor
 **Criteria Impacted:** Accuracy
 
-### Problem
-
-Line 204 still references the original refactored line count:
-```
-Performance page direfaktor dari 856 baris menjadi ~170 baris orchestrator
-```
-
-But line 221 and 293 already correctly say `~255 lines`. This is an inconsistency within the same document — line 204 uses old value while lines 221/293 use the corrected value.
-
-### Fix
-
-Update line 204 to match: `~255 baris orchestrator`
+The doc claims `useSymbolBreakdown` is fully fixed (Finding #40), but as shown above, the source routing guard is still wrong. The doc entry needs to be updated to reflect the additional fix.
 
 ---
 
-## Verified as Correct (No Issues Found)
+### Finding 3: Health Score Weights in Doc vs Code (VERIFIED OK)
 
-| Area | Status | Evidence |
-|------|--------|----------|
-| Binance FSM (6 states + transition matrix) | Fully Implemented | `trade-state-machine.ts` — VALID_TRANSITIONS, resolveTradeState, liquidation detection |
-| Solana Parser (Deriverse Program ID) | Fully Implemented | `solana-trade-parser.ts` — correct program ID, multi-DEX support |
-| Data Isolation (4 patterns) | Fully Implemented | `useContextualAnalytics` uses `useModeFilteredTrades` (line 6), `useSymbolBreakdown` has inline filter (lines 57-60) |
-| Error Boundaries (2-tier) | Fully Implemented | `ErrorBoundary.tsx` — global + WidgetErrorBoundary with retry |
-| Query Invalidation (cascading) | Fully Implemented | `query-invalidation.ts` — 4 functions covering all query keys |
-| Trading Gate (risk control) | Fully Implemented | `use-trading-gate.ts` — unified balance, AI quality gate, daily loss thresholds |
-| Audit Logging | Fully Implemented | Trade delete/close logged via `logAuditEvent` |
-| Post-Trade Analysis | Fully Implemented | Auto-triggers on position close, non-blocking |
-| Predictive Analytics | Fully Implemented | Streak probability, day-of-week edge, pair momentum, session outlook |
-| Market Scoring | Fully Implemented | 6-component composite score with proper normalization |
-| Advanced Risk Metrics | Fully Implemented | Sharpe, Sortino, Calmar, VaR, Kelly, Max DD with recovery |
-| Sanitization (client + server) | Fully Implemented | `sanitize.ts` — 7 utility functions + 19 test cases |
-| Weights sum to 1.0 | Verified | Health Score: 0.20+0.20+0.15+0.15+0.15+0.15 = 1.00 |
-| Lazy Loading all pages | Verified | `App.tsx` — all 26 pages use `React.lazy` |
-| React Query optimization | Verified | staleTime: 2m, gcTime: 10m, retry: 2 with exponential backoff |
+Doc claims weights sum to 1.0: `0.20+0.20+0.15+0.15+0.15+0.15`. Code confirmed: exactly these values. No issue.
+
+### Finding 4: Infinity Handling (VERIFIED OK)
+
+`profitFactor` can be `Infinity` from `calculateTradingStats`. When passed to `calculateTradingHealthScore`, `mapRange(Infinity, 0.5, 3, 0, 100)` returns `Infinity`, but `clamp(Infinity, 0, 100)` returns `100`. All UI components handle `Infinity` display with `profitFactor === Infinity ? 'infinity' : ...` pattern. No issue.
+
+### Finding 5: Session Overlap Priority (VERIFIED OK)
+
+`getSessionForTime` uses if/else priority ordering (Sydney > Tokyo > London > NY). The separate `getActiveOverlaps` function correctly identifies overlap zones. By design, not a bug.
+
+### Finding 6: Advanced Risk Metrics Math (VERIFIED OK)
+
+Sharpe, Sortino, Calmar, VaR, Kelly — all formulas verified mathematically correct. Downside deviation correctly uses `returns.length` as denominator (not just `downsideReturns.length`), which is the standard Sortino formula.
+
+### Finding 7: Error Boundary Architecture (VERIFIED OK)
+
+Two-tier architecture confirmed: global `ErrorBoundary` (lines 16-81) + `WidgetErrorBoundary` (lines 87-122) with retry capability.
+
+### Finding 8: Zustand Store Architecture (VERIFIED OK)
+
+`app-store.ts` uses `persist` middleware with `partialize` (only persists currency/notifications, not transient UI state). `sync-store.ts` uses raw Zustand (no middleware) but manually persists checkpoint/lastSync to localStorage. Both clean.
+
+### Finding 9: Binance FSM (VERIFIED OK)
+
+6-state machine with valid transition matrix, liquidation detection with 90% loss heuristic. Enterprise-grade.
+
+### Finding 10: All 25 Edge Functions (VERIFIED OK)
+
+Counted: 25 directories in `supabase/functions/` (excluding `_shared/`). Matches doc.
 
 ---
 
-## Implementation Steps
+## Summary
 
-### Step 1: Fix Consistency Score Formula
-**File:** `src/lib/trading-health-score.ts`  
-Change line 74 from:
+| # | Finding | Severity | Status |
+|---|---------|----------|--------|
+| 1 | `useSymbolBreakdown` source routing ignores `tradeMode` | Major | Needs fix |
+| 2 | Doc claims Fix #40 is complete but guard was missed | Minor | Needs doc update |
+| 3-10 | Health Score weights, Infinity, Sessions, Risk Metrics, Error Boundaries, Stores, FSM, Edge Functions | - | Verified OK |
+
+---
+
+## Implementation Plan
+
+### Step 1: Fix `useSymbolBreakdown` Source Routing
+
+**File:** `src/hooks/analytics/use-symbol-breakdown.ts`
+
+**Change 1 (line 42):**
 ```typescript
-const consistencyScore = (streakRatio * 50 + recoveryScore * 50) / 50;
+// Before:
+if (isConnected) return { daily: [], weekly: [] };
+// After:
+if (tradeMode === 'live' && isConnected) return { daily: [], weekly: [] };
 ```
-To:
+
+**Change 2 (line 122):**
 ```typescript
-const consistencyScore = (streakRatio * 100 + recoveryScore) / 2;
+// Before:
+if (isConnected && binancePnl.bySymbol) {
+// After:
+if (tradeMode === 'live' && isConnected && binancePnl.bySymbol) {
 ```
 
-### Step 2: Fix Documentation Inconsistency
-**File:** `docs/JUDGING_CRITERIA_EVALUATION.md`  
-Update line 204 to reference `~255 baris` instead of `~170 baris`.
+### Step 2: Update `JUDGING_CRITERIA_EVALUATION.md`
 
-Add finding #53 to the improvements table:
-```
-| 53 | Accuracy (MAJOR) | Fixed Consistency Score math bug in `trading-health-score.ts` — streakRatio contribution was negligible (0-1 vs 0-100 scale). Corrected formula: `(streakRatio * 100 + recoveryScore) / 2` | 10.0 (critical fix) |
-```
-
-### Step 3: Update Health Score Test
-The existing test `handles zero metrics without NaN` will still pass. No test changes needed as the clamp ensures 0-100 range is maintained. However, we should verify the test suite passes after the fix.
+- Update Finding #40 description to note the additional source routing fix
+- Add Finding #54: Source routing guard fix in `useSymbolBreakdown`
+- Verify "Data Isolation Patterns" section accurately reflects this fix
 
 ---
 
@@ -118,9 +126,10 @@ The existing test `handles zero metrics without NaN` will still pass. No test ch
 
 | Criteria | Impact |
 |----------|--------|
-| **Accuracy** | Fixes mathematical error in flagship metric (Trading Health Score) |
-| **Innovation** | Health Score (key differentiator) now produces mathematically meaningful Consistency sub-score |
-| **Code Quality** | Eliminates hidden formula bug that was masked by clamping |
-| **Comprehensiveness** | No change (already 100%) |
-| **Clarity** | Doc inconsistency resolved |
-| **Security** | No change (already solid) |
+| **Accuracy** | Fixes data contamination — Paper mode symbol breakdown now correctly isolated from Binance data |
+| **Security** | Eliminates data leakage vector where Live exchange data bleeds into Paper analytics |
+| **Code Quality** | Aligns `useSymbolBreakdown` with the same `tradeMode === 'live' && isConnected` pattern used by `useUnifiedDailyPnl` and `useUnifiedWeeklyPnl` |
+| **Comprehensiveness** | No change |
+| **Clarity** | No change |
+| **Innovation** | No change |
+
