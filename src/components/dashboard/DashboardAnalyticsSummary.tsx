@@ -43,8 +43,10 @@ export function DashboardAnalyticsSummary() {
       isWithinInterval(new Date(t.trade_date), { start: thirtyDaysAgo, end: new Date() })
     );
     
+    const getPnl = (t: typeof closedTrades[0]) => t.realized_pnl ?? t.pnl ?? 0;
+    
     // Win Rate
-    const wins = last30DayTrades.filter(t => (t.realized_pnl || 0) > 0);
+    const wins = last30DayTrades.filter(t => getPnl(t) > 0);
     const winRate = last30DayTrades.length > 0 
       ? (wins.length / last30DayTrades.length) * 100 
       : 0;
@@ -54,16 +56,16 @@ export function DashboardAnalyticsSummary() {
     const prev30DayTrades = closedTrades.filter(t => 
       isWithinInterval(new Date(t.trade_date), { start: sixtyDaysAgo, end: thirtyDaysAgo })
     );
-    const prevWins = prev30DayTrades.filter(t => (t.realized_pnl || 0) > 0);
+    const prevWins = prev30DayTrades.filter(t => getPnl(t) > 0);
     const prevWinRate = prev30DayTrades.length > 0 
       ? (prevWins.length / prev30DayTrades.length) * 100 
       : 0;
     const winRateTrend = winRate - prevWinRate;
     
     // Profit Factor
-    const grossProfit = wins.reduce((sum, t) => sum + (t.realized_pnl || 0), 0);
-    const losses = last30DayTrades.filter(t => (t.realized_pnl || 0) < 0);
-    const grossLoss = Math.abs(losses.reduce((sum, t) => sum + (t.realized_pnl || 0), 0));
+    const grossProfit = wins.reduce((sum, t) => sum + getPnl(t), 0);
+    const losses = last30DayTrades.filter(t => getPnl(t) < 0);
+    const grossLoss = Math.abs(losses.reduce((sum, t) => sum + getPnl(t), 0));
     const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? Infinity : 0;
     
     // 14-day sparkline data
@@ -78,7 +80,7 @@ export function DashboardAnalyticsSummary() {
       const dayTrades = closedTrades.filter(t => 
         format(new Date(t.trade_date), 'yyyy-MM-dd') === dateStr
       );
-      const dayPnl = dayTrades.reduce((sum, t) => sum + (t.realized_pnl || 0), 0);
+      const dayPnl = dayTrades.reduce((sum, t) => sum + getPnl(t), 0);
       cumulative += dayPnl;
       
       sparklineData.push({

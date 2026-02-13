@@ -95,13 +95,14 @@ export default function AIInsights() {
   const stats = useMemo(() => {
     if (closedTrades.length === 0) return null;
 
-    const wins = closedTrades.filter(t => (t.realized_pnl || 0) > 0);
-    const losses = closedTrades.filter(t => (t.realized_pnl || 0) < 0);
+    const getPnl = (t: typeof closedTrades[0]) => t.realized_pnl ?? t.pnl ?? 0;
+    const wins = closedTrades.filter(t => getPnl(t) > 0);
+    const losses = closedTrades.filter(t => getPnl(t) < 0);
     const winRate = (wins.length / closedTrades.length) * 100;
     
-    const totalPnl = closedTrades.reduce((sum, t) => sum + (t.realized_pnl || 0), 0);
-    const avgWin = wins.length > 0 ? wins.reduce((sum, t) => sum + (t.realized_pnl || 0), 0) / wins.length : 0;
-    const avgLoss = losses.length > 0 ? Math.abs(losses.reduce((sum, t) => sum + (t.realized_pnl || 0), 0) / losses.length) : 0;
+    const totalPnl = closedTrades.reduce((sum, t) => sum + getPnl(t), 0);
+    const avgWin = wins.length > 0 ? wins.reduce((sum, t) => sum + getPnl(t), 0) / wins.length : 0;
+    const avgLoss = losses.length > 0 ? Math.abs(losses.reduce((sum, t) => sum + getPnl(t), 0) / losses.length) : 0;
     const profitFactor = avgLoss > 0 ? (avgWin * wins.length) / (avgLoss * losses.length) : 0;
     
     // Calculate streak
@@ -112,7 +113,7 @@ export default function AIInsights() {
     );
     
     for (const trade of sortedTrades) {
-      const isWin = (trade.realized_pnl || 0) > 0;
+      const isWin = getPnl(trade) > 0;
       if (streakType === null) {
         streakType = isWin ? 'win' : 'loss';
         currentStreak = 1;
@@ -127,7 +128,7 @@ export default function AIInsights() {
     const pairStats: Record<string, { wins: number; losses: number; pnl: number }> = {};
     closedTrades.forEach(t => {
       if (!pairStats[t.pair]) pairStats[t.pair] = { wins: 0, losses: 0, pnl: 0 };
-      const pnl = t.realized_pnl || 0;
+      const pnl = getPnl(t);
       pairStats[t.pair].pnl += pnl;
       if (pnl > 0) pairStats[t.pair].wins++;
       else pairStats[t.pair].losses++;
@@ -153,7 +154,7 @@ export default function AIInsights() {
       if (!timeSlots[key]) {
         timeSlots[key] = { day, hour, winRate: 0, trades: 0, avgPnl: 0 };
       }
-      const pnl = t.realized_pnl || 0;
+      const pnl = getPnl(t);
       const slot = timeSlots[key];
       slot.avgPnl = (slot.avgPnl * slot.trades + pnl) / (slot.trades + 1);
       slot.trades++;

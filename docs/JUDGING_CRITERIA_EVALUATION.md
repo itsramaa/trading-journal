@@ -528,6 +528,14 @@ _Semua kelemahan signifikan sudah teratasi atau ter-justified._
 | `src/lib/query-invalidation.ts` | Checked | OK — complete cascade matrix |
 | `src/store/app-store.ts` | Checked | OK — Zustand persist |
 | `src/store/sync-store.ts` | Checked | OK — checkpoint management |
+| `src/pages/AIInsights.tsx` | **Fixed (Batch 5)** | PnL fallback `\|\| 0` → `?? pnl ?? 0` in stats calculations (15+ occurrences) |
+| `src/hooks/use-weekly-report-export.ts` | **Fixed (Batch 5)** | PnL fallback standardized + added `pnl` to select query |
+| `src/components/analytics/EmotionalPatternAnalysis.tsx` | **Fixed (Batch 5)** | PnL fallback standardized |
+| `src/components/dashboard/DashboardAnalyticsSummary.tsx` | **Fixed (Batch 5)** | PnL fallback standardized (win rate, profit factor, sparkline) |
+| `src/components/analytics/SevenDayStatsCard.tsx` | **Fixed (Batch 5)** | PnL fallback standardized |
+| `src/hooks/use-notification-triggers.ts` | Checked | Low risk — notification display only, not calculation |
+| `src/pages/trading-journey/TradingJournal.tsx` | Checked | Low risk — summary display for closed trades |
+| `src/components/trading/FundingHistoryTab.tsx` | Checked | Display only — conditional styling |
 
 ---
 

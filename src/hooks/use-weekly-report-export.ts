@@ -55,7 +55,7 @@ export function useWeeklyReportExport() {
 
     const { data: trades, error } = await supabase
       .from('trade_entries')
-      .select('realized_pnl, commission, pair, trade_date, direction')
+      .select('realized_pnl, pnl, commission, pair, trade_date, direction')
       .eq('user_id', user.id)
       .eq('status', 'closed')
       .eq('trade_mode', activeMode)
@@ -66,33 +66,34 @@ export function useWeeklyReportExport() {
       return null;
     }
 
-    const winningTrades = trades.filter((t) => (t.realized_pnl || 0) > 0);
-    const losingTrades = trades.filter((t) => (t.realized_pnl || 0) < 0);
-    const breakevenTrades = trades.filter((t) => (t.realized_pnl || 0) === 0);
+    const getPnl = (t: typeof trades[0]) => t.realized_pnl ?? t.pnl ?? 0;
+    const winningTrades = trades.filter((t) => getPnl(t) > 0);
+    const losingTrades = trades.filter((t) => getPnl(t) < 0);
+    const breakevenTrades = trades.filter((t) => getPnl(t) === 0);
 
-    const grossPnl = trades.reduce((sum, t) => sum + (t.realized_pnl || 0), 0);
+    const grossPnl = trades.reduce((sum, t) => sum + getPnl(t), 0);
     const totalFees = trades.reduce((sum, t) => sum + (t.commission || 0), 0);
     const netPnl = grossPnl - totalFees;
 
-    const totalWins = winningTrades.reduce((sum, t) => sum + (t.realized_pnl || 0), 0);
-    const totalLosses = Math.abs(losingTrades.reduce((sum, t) => sum + (t.realized_pnl || 0), 0));
+    const totalWins = winningTrades.reduce((sum, t) => sum + getPnl(t), 0);
+    const totalLosses = Math.abs(losingTrades.reduce((sum, t) => sum + getPnl(t), 0));
 
     const avgWin = winningTrades.length > 0 ? totalWins / winningTrades.length : 0;
     const avgLoss = losingTrades.length > 0 ? totalLosses / losingTrades.length : 0;
     const profitFactor = totalLosses > 0 ? totalWins / totalLosses : totalWins > 0 ? Infinity : 0;
 
     const largestWin = winningTrades.length > 0
-      ? Math.max(...winningTrades.map((t) => t.realized_pnl || 0))
+      ? Math.max(...winningTrades.map((t) => getPnl(t)))
       : 0;
     const largestLoss = losingTrades.length > 0
-      ? Math.min(...losingTrades.map((t) => t.realized_pnl || 0))
+      ? Math.min(...losingTrades.map((t) => getPnl(t)))
       : 0;
 
     // Calculate top pairs
     const pairStats = new Map<string, { pnl: number; trades: number }>();
     trades.forEach((t) => {
       const current = pairStats.get(t.pair) || { pnl: 0, trades: 0 };
-      current.pnl += t.realized_pnl || 0;
+      current.pnl += getPnl(t);
       current.trades += 1;
       pairStats.set(t.pair, current);
     });
@@ -110,7 +111,7 @@ export function useWeeklyReportExport() {
     trades.forEach((t) => {
       const date = t.trade_date.split('T')[0];
       const current = dailyMap.get(date) || { pnl: 0, trades: 0 };
-      current.pnl += t.realized_pnl || 0;
+      current.pnl += getPnl(t);
       current.trades += 1;
       dailyMap.set(date, current);
     });
