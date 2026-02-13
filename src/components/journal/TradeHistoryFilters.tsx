@@ -3,7 +3,7 @@
  * Includes: Result (profit/loss), Strategies (multi-select), Direction, Pair, Session, Date Range, AI Score
  */
 import { useState } from "react";
-import { Check, ChevronsUpDown, Filter, X, TrendingUp, TrendingDown, Brain, Clock } from "lucide-react";
+import { Check, ChevronsUpDown, Filter, X, TrendingUp, TrendingDown, Brain, Clock, Tag } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -50,6 +50,9 @@ interface TradeHistoryFiltersProps {
   // AI score sort
   sortByAI: 'none' | 'asc' | 'desc';
   onSortByAIChange: (sort: 'none' | 'asc' | 'desc') => void;
+  // Tag filter (clickable from trade cards)
+  selectedTags?: string[];
+  onTagsChange?: (tags: string[]) => void;
   // Stats
   totalCount?: number;
   filteredCount?: number;
@@ -72,6 +75,8 @@ export function TradeHistoryFilters({
   onPairsChange,
   sortByAI,
   onSortByAIChange,
+  selectedTags = [],
+  onTagsChange,
   totalCount,
   filteredCount,
 }: TradeHistoryFiltersProps) {
@@ -105,6 +110,7 @@ export function TradeHistoryFilters({
     onSessionFilterChange?.('all');
     onStrategyIdsChange([]);
     onPairsChange([]);
+    onTagsChange?.([]);
     onSortByAIChange('none');
   };
 
@@ -116,6 +122,7 @@ export function TradeHistoryFilters({
     sessionFilter !== 'all' ||
     selectedStrategyIds.length > 0 ||
     selectedPairs.length > 0 ||
+    selectedTags.length > 0 ||
     sortByAI !== 'none';
 
   return (
@@ -391,6 +398,18 @@ export function TradeHistoryFilters({
               <X className="h-3 w-3 cursor-pointer ml-1" onClick={() => onSessionFilterChange?.('all')} />
             </Badge>
           )}
+
+          {/* Tag filter badges */}
+          {selectedTags.map(tag => (
+            <Badge key={tag} variant="secondary" className="gap-1">
+              <Tag className="h-3 w-3" />
+              {tag}
+              <X 
+                className="h-3 w-3 cursor-pointer ml-1" 
+                onClick={() => onTagsChange?.(selectedTags.filter(t => t !== tag))} 
+              />
+            </Badge>
+          ))}
 
           {/* Filter count */}
           {totalCount !== undefined && filteredCount !== undefined && (

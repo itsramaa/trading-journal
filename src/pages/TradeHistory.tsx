@@ -60,6 +60,7 @@ export default function TradeHistory() {
       sessionFilter,
       selectedStrategyIds,
       selectedPairs,
+      selectedTags,
       sortByAI,
       showFullHistory,
     },
@@ -70,6 +71,7 @@ export default function TradeHistory() {
       setSessionFilter,
       setSelectedStrategyIds,
       setSelectedPairs,
+      setSelectedTags,
       setSortByAI,
     },
     computed: {
@@ -140,12 +142,13 @@ export default function TradeHistory() {
       direction: directionFilter !== 'all' ? directionFilter : undefined,
       strategyIds: selectedStrategyIds.length > 0 ? selectedStrategyIds : undefined,
       session: sessionFilter !== 'all' ? sessionFilter as TradeFilters['session'] : undefined,
+      selectedTags: selectedTags.length > 0 ? selectedTags : undefined,
       // Apply source filter from user settings
       source: binanceSourceFilter,
       // C-05: Mode isolation
       tradeMode,
     };
-  }, [effectiveStartDate, effectiveEndDate, selectedPairs, resultFilter, directionFilter, selectedStrategyIds, sessionFilter, binanceSourceFilter, tradeMode]);
+  }, [effectiveStartDate, effectiveEndDate, selectedPairs, resultFilter, directionFilter, selectedStrategyIds, sessionFilter, selectedTags, binanceSourceFilter, tradeMode]);
 
   // Paginated query for trade list
   const {
@@ -275,6 +278,11 @@ export default function TradeHistory() {
             onDelete={setDeletingTrade}
             onEnrich={handleEnrichTrade}
             onQuickNote={handleQuickNote}
+            onTagClick={(tag) => {
+              setSelectedTags(prev => 
+                prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+              );
+            }}
             calculateRR={calculateRR}
             formatCurrency={formatCurrency}
             isBinance={entry.source === 'binance'}
@@ -430,6 +438,8 @@ export default function TradeHistory() {
               onSortByAIChange={setSortByAI}
               sessionFilter={sessionFilter}
               onSessionFilterChange={setSessionFilter}
+              selectedTags={selectedTags}
+              onTagsChange={setSelectedTags}
               totalCount={totalCount}
               filteredCount={sortedTrades.length}
             />

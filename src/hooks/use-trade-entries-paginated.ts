@@ -25,6 +25,7 @@ export interface TradeFilters {
   strategyIds?: string[];         // Multi-select strategies
   session?: 'sydney' | 'tokyo' | 'london' | 'new_york' | 'all';  // DB-level session filter
   tradeMode?: 'paper' | 'live';  // Mode isolation filter
+  selectedTags?: string[];        // Tag filter (AND logic)
 }
 
 export interface PaginatedTradeEntriesOptions {
@@ -101,6 +102,13 @@ export function useTradeEntriesPaginated(options: PaginatedTradeEntriesOptions =
       // Trade mode filter for Paper/Live isolation
       if (filters?.tradeMode) {
         query = query.eq("trade_mode", filters.tradeMode);
+      }
+
+      // Tag filter (AND logic: trade must have ALL selected tags)
+      if (filters?.selectedTags && filters.selectedTags.length > 0) {
+        for (const tag of filters.selectedTags) {
+          query = query.contains("tags", [tag]);
+        }
       }
 
       // Apply cursor for pagination
