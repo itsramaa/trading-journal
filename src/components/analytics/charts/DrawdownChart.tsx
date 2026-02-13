@@ -71,7 +71,7 @@ export function DrawdownChart() {
   }
 
   return (
-    <Card>
+    <Card role="region" aria-label="Drawdown chart showing equity drawdown percentage over time">
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
@@ -85,7 +85,7 @@ export function DrawdownChart() {
         </div>
       </CardHeader>
       <CardContent>
-        <div className="h-[300px]">
+        <div className="h-[300px]" role="img" aria-label={`Drawdown chart with maximum drawdown of ${formatPercentUnsigned(maxDrawdown)}`}>
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={drawdownData}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />

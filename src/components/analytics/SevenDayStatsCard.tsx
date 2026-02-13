@@ -63,7 +63,7 @@ export function SevenDayStatsCard() {
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-semibold">7-Day Stats</h2>
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-4" role="group" aria-label="7-day trading statistics summary">
         <Card>
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">

@@ -150,7 +150,7 @@ export function TradingBehaviorAnalytics({ trades }: Props) {
   if (!durationStats && !directionStats && !orderTypeStats) return null;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" role="region" aria-label="Trading behavior analytics including duration, direction ratio, and order type performance">
       <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
         Trading Behavior
       </h3>

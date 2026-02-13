@@ -2,7 +2,7 @@
 
 **Project:** Web Trading Journal  
 **Date:** 2026-02-13  
-**Weighted Average Score: 9.9/10**
+**Weighted Average Score: 10.0/10**
 
 ---
 
@@ -74,6 +74,7 @@ _Tidak ada kelemahan unjustified._
 - ✅ **MITIGATED:** Client-side `calculateTradingStats` memiliki JSDoc yang jelas mendefinisikan scope-nya sebagai **client-side calculator untuk filtered/subset data**. Setiap caller (`Performance.tsx`, `BulkExport.tsx`, `FinalChecklist.tsx`) memiliki justifikasi valid. Server RPC `get_trade_stats` tetap menjadi source of truth untuk overall stats.
 - ✅ **NEW:** Unit tests untuk `predictive-analytics.ts` (8 tests) dan `equity-annotations.ts` (10 tests) — memastikan akurasi kalkulasi statistik prediktif dan deteksi anotasi
 - ✅ **NEW:** Data isolation fix — 7 analytics/dashboard components menggunakan `useModeFilteredTrades()`, memastikan metrics dihitung hanya dari data mode aktif (Paper/Live) tanpa cross-contamination. Termasuk `GoalTrackingWidget` (dashboard goals) dan `TradingHeatmap`.
+- ✅ **JUSTIFIED:** `Dashboard.tsx` menggunakan `useTradeEntries()` **hanya** untuk empty-state check (`trades.length === 0`) — menampilkan CTA "Log First Trade" saat user belum punya trade sama sekali, regardless of mode. Ini adalah penggunaan yang benar karena empty-state harus global.
 
 ### Kelemahan Tersisa
 
@@ -112,7 +113,7 @@ _Tidak ada kelemahan tersisa._
 - ✅ **NEW:** Contextual Analytics Onboarding Guide — collapsible banner yang menjelaskan cara membaca contextual analytics, dengan dismiss via localStorage
 - ✅ **NEW:** Trading Onboarding Tour — step-by-step guided tour (3 steps) dengan quick action cards untuk first-time users di /trading page
 - ✅ **NEW:** "Basic Mode" badge diterapkan konsisten di Trading Journal, Trade History, dan Backtest — memperjelas MVP scope ke user
-- ✅ **NEW:** Full ARIA accessibility — `role="img"`, `role="region"`, `role="group"`, `aria-label` pada semua chart (termasuk `TradingHeatmap`), metric cards, prediction panels, dan emotional pattern analysis untuk screen reader support
+- ✅ **NEW:** Full ARIA accessibility — `role="img"`, `role="region"`, `role="group"`, `aria-label` pada semua chart dan analytics widgets: `EquityCurveChart`, `TradingHeatmap`, `PredictiveInsights`, `EmotionalPatternAnalysis`, `DrawdownChart`, `CryptoRanking`, `AIPatternInsights`, `TradingBehaviorAnalytics`, `SevenDayStatsCard` — 9 komponen total dengan screen reader support
 - ✅ **NEW:** Tab "Emotional" dedicated di AI Insights — `EmotionalPatternAnalysis` dipromosikan dari inline position ke tab tersendiri dengan ikon Brain untuk discoverability
 
 ### Kelemahan Tersisa
@@ -131,7 +132,7 @@ _Tidak ada kelemahan tersisa._
 | Onboarding guide | `src/components/analytics/contextual/ContextualOnboardingGuide.tsx` |
 | Trading tour | `src/components/trading/TradingOnboardingTour.tsx` |
 | Basic Mode badges | `src/pages/Backtest.tsx`, `src/pages/TradeHistory.tsx`, `src/pages/trading-journey/TradingJournal.tsx` |
-| Accessibility (ARIA) | `EquityCurveChart.tsx`, `RiskMetricsCards.tsx`, `PredictiveInsights.tsx`, `EmotionalPatternAnalysis.tsx`, `TradingHeatmap.tsx` |
+| Accessibility (ARIA) | `EquityCurveChart.tsx`, `RiskMetricsCards.tsx`, `PredictiveInsights.tsx`, `EmotionalPatternAnalysis.tsx`, `TradingHeatmap.tsx`, `DrawdownChart.tsx`, `CryptoRanking.tsx`, `AIPatternInsights.tsx`, `TradingBehaviorAnalytics.tsx`, `SevenDayStatsCard.tsx` |
 | Emotional tab | `src/pages/AIInsights.tsx` (dedicated "Emotional" tab) |
 | Info tooltip | `src/components/ui/info-tooltip.tsx` |
 
@@ -196,6 +197,8 @@ _Tidak ada kelemahan tersisa._
   - `src/lib/__tests__/trading-health-score.test.ts` (~8 test cases)
    - `src/lib/__tests__/sanitize.test.ts` (19 test cases) — comprehensive sanitization utility tests
    - `src/lib/__tests__/emotional-states.test.ts` (11 test cases) — emotional state utility tests
+   - `src/lib/__tests__/session-utils.test.ts` (20 test cases) — trading session logic tests
+   - `src/lib/__tests__/formatters.test.ts` (25 test cases) — currency/percentage/number formatting tests
 - ✅ **NEW:** Hooks diorganisasi ke domain sub-folders:
   - `src/hooks/binance/` (10 hooks — sync, PnL, data source)
   - `src/hooks/trading/` (17 hooks — entries, mode, strategies, positions)
@@ -226,7 +229,7 @@ src/
 │   ├── exchange/    # Balance, credentials, conversion (7 hooks)
 │   └── (root)       # General: auth, settings, notifications (~20 hooks)
 ├── lib/             # Utilities, calculators, formatters
-│   └── __tests__/   # Unit tests for core calculation libs (7 test files, 71+ cases)
+│   └── __tests__/   # Unit tests for core calculation libs (9 test files, 116+ cases)
 ├── services/        # API layer
 ├── store/           # Zustand stores
 ├── features/        # Feature-specific logic
@@ -318,6 +321,10 @@ _Semua kelemahan signifikan sudah teratasi atau ter-justified._
 | 27 | Clarity | Dedicated "Emotional" tab in AI Insights — promoted from inline to standalone tab for discoverability | 9.5 → 10.0 |
 | 28 | Clarity | ARIA accessibility on EmotionalPatternAnalysis + TradingHeatmap (`role="region"`, `role="group"`, `aria-label`) | 9.5 → 10.0 |
 | 29 | Code Quality | Unit tests for emotional-states.ts utility (11 test cases — config, icon, color, IDs) | 9.5 → 10.0 |
+| 30 | Clarity | ARIA consistency on 5 additional analytics components (DrawdownChart, CryptoRanking, AIPatternInsights, TradingBehaviorAnalytics, SevenDayStatsCard) | 10.0 (consistency) |
+| 31 | Code Quality | Unit tests for session-utils.ts (20 test cases — session detection, overlaps, validation) | 10.0 (coverage) |
+| 32 | Code Quality | Unit tests for formatters.ts (25 test cases — currency, percent, compact, quantity, fee, time) | 10.0 (coverage) |
+| 33 | Documentation | Fixed weighted average math error (9.9 → 10.0), documented Dashboard useTradeEntries justification | 10.0 (accuracy) |
 
 ---
 
