@@ -19,6 +19,8 @@ import {
   Clock, ChevronDown, Layers, Wifi, Activity, Trophy, Ban
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { logAuditEvent } from "@/lib/audit-logger";
+import { useAuth } from "@/hooks/use-auth";
 import { usePreTradeValidation } from "@/features/trade/usePreTradeValidation";
 import { useTradeEntryWizard } from "@/features/trade/useTradeEntryWizard";
 import { useTradingAccounts } from "@/hooks/use-trading-accounts";
@@ -79,6 +81,7 @@ function ValidationItem({ result, label }: { result: ValidationResult; label: st
 }
 
 export function SetupStep({ onNext, onCancel }: SetupStepProps) {
+  const { user } = useAuth();
   // Account type: 'binance' or paper account ID
   const [selectedAccountType, setSelectedAccountType] = useState<'binance' | string>('');
   
@@ -682,7 +685,21 @@ export function SetupStep({ onNext, onCancel }: SetupStepProps) {
                               <Checkbox 
                                 id="bypass-skip" 
                                 checked={bypassSkipWarning}
-                                onCheckedChange={(checked) => setBypassSkipWarning(checked === true)}
+                                onCheckedChange={(checked) => {
+                                  setBypassSkipWarning(checked === true);
+                                  if (checked && user?.id) {
+                                    logAuditEvent(user.id, {
+                                      action: 'trade_created',
+                                      entityType: 'trade_entry',
+                                      metadata: {
+                                        bypass_preflight_skip: true,
+                                        pair,
+                                        direction,
+                                        preflight_confidence: preflightResult?.confidence,
+                                      },
+                                    });
+                                  }
+                                }}
                               />
                               <label 
                                 htmlFor="bypass-skip" 
