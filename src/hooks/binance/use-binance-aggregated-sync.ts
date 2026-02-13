@@ -91,7 +91,9 @@ async function callBinanceApi<T>(
     if (result.usedWeight) {
       const addLog = useSyncStore.getState().addSyncLog;
       const level = result.usedWeight > 900 ? 'warn' : 'info';
-      addLog(`Rate limit: ${result.usedWeight}/1200 weight used`, level);
+      const dataCount = Array.isArray(result.data) ? result.data.length : 0;
+      const dataInfo = dataCount > 0 ? ` | ${dataCount} records fetched` : '';
+      addLog(`Rate limit: ${result.usedWeight}/1200 weight (per 30s window)${dataInfo}`, level);
     }
     
     // Handle rate limit - wait and retry
