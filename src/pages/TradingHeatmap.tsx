@@ -15,6 +15,7 @@ import {
   Trophy, AlertTriangle, Flame, Snowflake
 } from "lucide-react";
 import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
+import { MetricsGridSkeleton, ChartSkeleton } from "@/components/ui/loading-skeleton";
 import { TradingHeatmap } from "@/components/analytics/TradingHeatmap";
 import { formatWinRate } from "@/lib/formatters";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
@@ -220,14 +221,24 @@ export default function TradingHeatmapPage() {
 
   const formatHour = (hour: number) => `${hour.toString().padStart(2, '0')}:00`;
 
+  // Session card config for DRY rendering
+  const SESSION_CONFIG = [
+    { key: 'sydney' as const, icon: Moon, colorClass: 'text-purple-500' },
+    { key: 'tokyo' as const, icon: Moon, colorClass: 'text-blue-500' },
+    { key: 'london' as const, icon: Sunrise, colorClass: 'text-orange-500' },
+    { key: 'new_york' as const, icon: Sun, colorClass: 'text-yellow-500' },
+  ];
+
   if (isLoading) {
     return (
       <div className="space-y-6">
         <PageHeader
           icon={Grid3X3}
           title="Trading Heatmap"
-          description="Loading..."
+          description="Analyze your trading performance by time of day and day of week"
         />
+        <MetricsGridSkeleton />
+        <ChartSkeleton />
       </div>
     );
   }
@@ -290,77 +301,28 @@ export default function TradingHeatmapPage() {
           <>
             {/* Session Performance Cards */}
             <div className="grid gap-4 md:grid-cols-4">
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <Moon className="h-4 w-4 text-purple-500" />
-                    {SESSION_LABELS.sydney}
-                    <Badge variant="outline" className="ml-auto text-xs">{formatSessionTimeLocal('sydney')}</Badge>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className={`text-xl font-bold ${sessionStats.sydney.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                    {formatPnl(sessionStats.sydney.pnl)}
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    {sessionStats.sydney.trades} trades • {formatWinRate(sessionStats.sydney.winRate)} win rate
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <Moon className="h-4 w-4 text-blue-500" />
-                    {SESSION_LABELS.tokyo}
-                    <Badge variant="outline" className="ml-auto text-xs">{formatSessionTimeLocal('tokyo')}</Badge>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className={`text-xl font-bold ${sessionStats.tokyo.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                    {formatPnl(sessionStats.tokyo.pnl)}
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    {sessionStats.tokyo.trades} trades • {formatWinRate(sessionStats.tokyo.winRate)} win rate
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <Sunrise className="h-4 w-4 text-orange-500" />
-                    {SESSION_LABELS.london}
-                    <Badge variant="outline" className="ml-auto text-xs">{formatSessionTimeLocal('london')}</Badge>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className={`text-xl font-bold ${sessionStats.london.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                    {formatPnl(sessionStats.london.pnl)}
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    {sessionStats.london.trades} trades • {formatWinRate(sessionStats.london.winRate)} win rate
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <Sun className="h-4 w-4 text-yellow-500" />
-                    {SESSION_LABELS.new_york}
-                    <Badge variant="outline" className="ml-auto text-xs">{formatSessionTimeLocal('new_york')}</Badge>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className={`text-xl font-bold ${sessionStats.new_york.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                    {formatPnl(sessionStats.new_york.pnl)}
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    {sessionStats.new_york.trades} trades • {formatWinRate(sessionStats.new_york.winRate)} win rate
-                  </p>
-                </CardContent>
-              </Card>
+              {SESSION_CONFIG.map(({ key, icon: Icon, colorClass }) => {
+                const s = sessionStats[key];
+                return (
+                  <Card key={key}>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium flex items-center gap-2">
+                        <Icon className={`h-4 w-4 ${colorClass}`} />
+                        {SESSION_LABELS[key]}
+                        <Badge variant="outline" className="ml-auto text-xs">{formatSessionTimeLocal(key)}</Badge>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className={`text-xl font-bold ${s.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                        {formatPnl(s.pnl)}
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {s.trades} trades • {formatWinRate(s.winRate)} win rate
+                      </p>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
 
             {/* Main Heatmap */}
