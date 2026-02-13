@@ -26,6 +26,7 @@ import {
   Target,
   Info,
 } from "lucide-react";
+import { ContextualOnboardingGuide } from "./ContextualOnboardingGuide";
 import { 
   FEAR_GREED_ZONES, 
   DATA_QUALITY,
@@ -192,6 +193,9 @@ export function ContextualPerformance() {
   
   return (
     <div className="space-y-6">
+      {/* Onboarding Guide for first-time users */}
+      <ContextualOnboardingGuide />
+      
       {/* Data Quality Banner */}
       {data.dataQualityPercent < DATA_QUALITY.QUALITY_WARNING_PERCENT && (
         <div className="flex items-center gap-3 p-4 rounded-lg bg-muted/50 border">
