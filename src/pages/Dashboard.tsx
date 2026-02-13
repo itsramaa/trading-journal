@@ -27,6 +27,9 @@ import { MarketScoreWidget } from "@/components/dashboard/MarketScoreWidget";
 import { SmartQuickActions } from "@/components/dashboard/SmartQuickActions";
 import { PortfolioOverviewCard } from "@/components/dashboard/PortfolioOverviewCard";
 import { DashboardAnalyticsSummary } from "@/components/dashboard/DashboardAnalyticsSummary";
+import { EquityCurveChart } from "@/components/analytics/EquityCurveChart";
+import { GoalTrackingWidget } from "@/components/dashboard/GoalTrackingWidget";
+import { WidgetErrorBoundary } from "@/components/ErrorBoundary";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useBinanceConnectionStatus } from "@/features/binance";
@@ -177,10 +180,20 @@ const Dashboard = () => {
           <ADLRiskWidget />
         </div>
 
-        {/* Row 7: Advanced Risk Metrics */}
+        {/* Row 7: Equity Curve + Goal Tracking */}
+        <div className="grid gap-4 lg:grid-cols-3">
+          <WidgetErrorBoundary name="Equity Curve">
+            <EquityCurveChart className="lg:col-span-2" />
+          </WidgetErrorBoundary>
+          <WidgetErrorBoundary name="Goal Tracking">
+            <GoalTrackingWidget />
+          </WidgetErrorBoundary>
+        </div>
+
+        {/* Row 8: Advanced Risk Metrics */}
         <RiskMetricsCards />
 
-        {/* Row 8: AI Insights */}
+        {/* Row 9: AI Insights */}
         <AIInsightsWidget />
 
         {/* Pro Tip (dismissible) */}
