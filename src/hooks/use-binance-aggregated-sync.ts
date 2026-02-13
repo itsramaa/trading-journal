@@ -436,6 +436,24 @@ export function useBinanceAggregatedSync() {
     mutationFn: async (options: FullSyncOptions = {}): Promise<AggregationResult> => {
       if (!user?.id) throw new Error('User not authenticated');
       
+      // Sync Quota Enforcement: check before starting
+      const { data: quotaCheck, error: quotaError } = await supabase
+        .rpc('check_sync_quota', { p_user_id: user.id });
+      
+      if (quotaError) {
+        console.error('[FullSync] Quota check failed:', quotaError);
+      } else if (quotaCheck && quotaCheck.length > 0 && !quotaCheck[0].allowed) {
+        throw new Error(`Daily sync quota exhausted (${quotaCheck[0].current_count}/${quotaCheck[0].max_quota}). Resets at UTC midnight.`);
+      }
+      
+      // Increment quota atomically on server
+      const { error: incrementError } = await supabase
+        .rpc('increment_sync_quota', { p_user_id: user.id });
+      
+      if (incrementError) {
+        console.warn('[FullSync] Failed to increment sync quota:', incrementError);
+      }
+      
       const forceRefetch = options.forceRefetch || false;
       
       console.log('[FullSync] Starting aggregated sync with options:', {

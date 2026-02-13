@@ -32,6 +32,8 @@ import {
 
 const BINANCE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/binance-futures`;
 const STORAGE_KEY = 'binance_last_sync_timestamp';
+const SYNC_LOCK_KEY = 'binance_incremental_sync_lock';
+const LOCK_STALE_MS = 5 * 60 * 1000; // 5 minutes
 const STALE_THRESHOLD_MS = 4 * 60 * 60 * 1000; // 4 hours
 const DEFAULT_LOOKBACK_DAYS = 7;
 const RATE_LIMIT_DELAY = 200;
@@ -98,6 +100,24 @@ function isSyncStale(): boolean {
 }
 
 // =============================================================================
+// Cross-Tab Sync Lock
+// =============================================================================
+
+function acquireSyncLock(): boolean {
+  const existing = localStorage.getItem(SYNC_LOCK_KEY);
+  if (existing) {
+    const lockTime = parseInt(existing, 10);
+    if (!isNaN(lockTime) && Date.now() - lockTime < LOCK_STALE_MS) return false;
+  }
+  localStorage.setItem(SYNC_LOCK_KEY, Date.now().toString());
+  return true;
+}
+
+function releaseSyncLock() {
+  localStorage.removeItem(SYNC_LOCK_KEY);
+}
+
+// =============================================================================
 // Data Fetching
 // =============================================================================
 
@@ -151,6 +171,12 @@ export function useBinanceIncrementalSync(options: {
   const syncMutation = useMutation({
     mutationFn: async (): Promise<IncrementalSyncResult> => {
       if (!user?.id) throw new Error('User not authenticated');
+      
+      // Cross-tab lock: prevent multiple tabs from syncing simultaneously
+      if (!acquireSyncLock()) {
+        console.log('[IncrementalSync] Sync locked by another tab, skipping');
+        return { success: true, newTrades: 0, skippedDuplicates: 0, lastSyncTime: new Date() };
+      }
 
       const now = Date.now();
       const lastSync = getLastSyncTime();
@@ -278,6 +304,7 @@ export function useBinanceIncrementalSync(options: {
       };
     },
     onSuccess: (result) => {
+      releaseSyncLock();
       setProgress(null);
       setLastSyncTimeState(result.lastSyncTime);
       invalidateTradeQueries(queryClient);
@@ -287,6 +314,7 @@ export function useBinanceIncrementalSync(options: {
       }
     },
     onError: (error) => {
+      releaseSyncLock();
       setProgress(null);
       console.error('[IncrementalSync] Error:', error);
     },

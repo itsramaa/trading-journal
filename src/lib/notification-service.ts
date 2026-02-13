@@ -194,6 +194,26 @@ export async function notifySyncFailure(params: {
 }): Promise<boolean> {
   const { userId, failureCount, lastError, sendEmail = true } = params;
   
+  // Dedup: skip if unread sync_error notification exists within last hour
+  try {
+    const oneHourAgo = new Date(Date.now() - 3600000).toISOString();
+    const { data: existing } = await (supabase
+      .from('notifications')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('type', 'sync_error')
+      .eq('read', false)
+      .gte('created_at', oneHourAgo)
+      .limit(1) as unknown as Promise<{ data: Array<{ id: string }> | null }>);
+    
+    if (existing && existing.length > 0) {
+      console.log('[Notification] Skipping duplicate sync_error notification (exists within last hour)');
+      return true;
+    }
+  } catch (err) {
+    console.warn('[Notification] Dedup check failed, proceeding with notification:', err);
+  }
+  
   // Create in-app notification
   const created = await createNotification({
     userId,
