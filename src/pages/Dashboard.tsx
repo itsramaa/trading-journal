@@ -17,7 +17,7 @@ import { MarketScoreWidget } from "@/components/dashboard/MarketScoreWidget";
 import { SmartQuickActions } from "@/components/dashboard/SmartQuickActions";
 import { PortfolioOverviewCard } from "@/components/dashboard/PortfolioOverviewCard";
 import { DashboardAnalyticsSummary } from "@/components/dashboard/DashboardAnalyticsSummary";
-import { EquityCurveChart } from "@/components/analytics/EquityCurveChart";
+import { EquityCurveChart } from "@/components/analytics/charts/EquityCurveChart";
 import { GoalTrackingWidget } from "@/components/dashboard/GoalTrackingWidget";
 import { WidgetErrorBoundary } from "@/components/ErrorBoundary";
 import { useTradeEntries } from "@/hooks/use-trade-entries";

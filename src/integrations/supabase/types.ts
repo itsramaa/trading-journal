@@ -1228,7 +1228,7 @@ export type Database = {
       check_rate_limit: {
         Args: {
           p_category: string
-          p_exchange: string
+          p_exchange?: string
           p_user_id: string
           p_weight?: number
         }

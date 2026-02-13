@@ -32,9 +32,9 @@ import {
 import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import { useContextualAnalytics } from "@/hooks/use-contextual-analytics";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
-import { ContextualPerformance } from "@/components/analytics/ContextualPerformance";
+import { ContextualPerformance } from "@/components/analytics/contextual/ContextualPerformance";
 import { EmotionalPatternAnalysis } from "@/components/analytics/EmotionalPatternAnalysis";
-import { SessionInsights } from "@/components/analytics/SessionInsights";
+import { SessionInsights } from "@/components/analytics/session/SessionInsights";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import { MetricsGridSkeleton, ChartSkeleton } from "@/components/ui/loading-skeleton";
