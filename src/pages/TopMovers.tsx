@@ -25,6 +25,7 @@ import { useBinanceTopMovers, type Ticker24h } from "@/features/binance";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { cn } from "@/lib/utils";
 import { getBaseSymbol } from "@/lib/symbol-utils";
+import { CryptoIcon } from "@/components/ui/crypto-icon";
 
 type SortBy = 'percentage' | 'priceChange' | 'volume';
 
@@ -53,6 +54,7 @@ function MoverCard({ ticker, rank, type, sortBy }: MoverCardProps) {
       {/* Symbol & Price */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
+          <CryptoIcon symbol={ticker.symbol} size={24} />
           <span className="font-semibold">{symbol}</span>
           <Badge variant="outline" className="text-xs">USDT</Badge>
         </div>
