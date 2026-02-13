@@ -37,7 +37,7 @@
 - ✅ **NEW:** Emotional Pattern Analysis terintegrasi di AI Insights — win rate breakdown per emotional state (confident, fearful, FOMO, revenge), AI-generated emotional insights
 - ✅ **NEW:** EmotionalPatternAnalysis dipromosikan ke tab dedicated "Emotional" di AI Insights untuk discoverability maksimal
 - ✅ **NEW:** Data isolation fix — 10 analytics/dashboard/risk components (`EmotionalPatternAnalysis`, `EquityCurveChart`, `DrawdownChart`, `CryptoRanking`, `AIPatternInsights`, `TradingHeatmap`, `GoalTrackingWidget`, `useContextualAnalytics`, `usePreTradeValidation`, `useSymbolBreakdown`) kini menggunakan `useModeFilteredTrades()` atau inline mode filter untuk strict Paper/Live separation
-- ✅ **NEW:** `useSymbolBreakdown` — critical bug fix: Paper path sebelumnya mengagregasi SEMUA closed trades tanpa filter `tradeMode`, menyebabkan symbol breakdown (Today's P&L by Symbol) menampilkan data Paper dan Live tercampur. Fixed dengan inline mode filter pattern.
+- ✅ **NEW:** `useSymbolBreakdown` — critical bug fix: Paper path sebelumnya mengagregasi SEMUA closed trades tanpa filter `tradeMode`, menyebabkan symbol breakdown (Today's P&L by Symbol) menampilkan data Paper dan Live tercampur. Fixed dengan inline mode filter pattern + source routing guard fix (`tradeMode === 'live' && isConnected`).
 
 ### Kelemahan Tersisa
 
@@ -153,7 +153,7 @@ _Tidak ada kelemahan unjustified._
 - ✅ **NEW:** Unit tests untuk `predictive-analytics.ts` (8 tests) dan `equity-annotations.ts` (10 tests) — memastikan akurasi kalkulasi statistik prediktif dan deteksi anotasi
 - ✅ **NEW:** Data isolation fix — 9 analytics/dashboard/risk components menggunakan `useModeFilteredTrades()`, memastikan metrics dihitung hanya dari data mode aktif (Paper/Live) tanpa cross-contamination. Termasuk `GoalTrackingWidget` (dashboard goals), `TradingHeatmap`, `useContextualAnalytics` (Fear/Greed zone performance), dan `usePreTradeValidation` (max positions, correlation checks).
 - ✅ **JUSTIFIED:** `Dashboard.tsx` menggunakan `useTradeEntries()` **hanya** untuk empty-state check (`trades.length === 0`) — menampilkan CTA "Log First Trade" saat user belum punya trade sama sekali, regardless of mode. Ini adalah penggunaan yang benar karena empty-state harus global.
-- ✅ **NEW:** `useSymbolBreakdown` — critical bug fix: inline mode filter ditambahkan di Paper path `trades.forEach()` block. Sebelumnya mengagregasi semua closed trades tanpa filter `tradeMode`.
+- ✅ **NEW:** `useSymbolBreakdown` — critical bug fix: inline mode filter ditambahkan di Paper path `trades.forEach()` block + source routing guard (`tradeMode === 'live' && isConnected`) di lines 42 dan 122. Sebelumnya, outer guard menggunakan raw `isConnected` yang menyebabkan Binance data tetap dikembalikan di Paper mode.
 
 ### Data Isolation Patterns
 
@@ -469,7 +469,7 @@ _Semua kelemahan signifikan sudah teratasi atau ter-justified._
 | 37 | Code Quality | Unit tests for market-scoring.ts (29 test cases — composite score, trading bias, volatility, event risk, fear/greed) | 10.0 (coverage) |
 | 38 | Comprehensiveness | Edge function inventory (25 functions), page inventory (25 pages), component domain summary (100+ components), feature module summary (5 domains) added to eval doc | 10.0 (100% coverage) |
 | 39 | Documentation | Fixed weighted average math error, documented Dashboard useTradeEntries justification, complete architecture documentation | 10.0 (accuracy) |
-| 40 | Accuracy (CRITICAL) | `useSymbolBreakdown` data isolation fix — inline mode filter added to Paper path `trades.forEach()` block, preventing Paper/Live data contamination in symbol breakdown | 10.0 (critical fix) |
+| 40 | Accuracy (CRITICAL) | `useSymbolBreakdown` data isolation fix — inline mode filter added to Paper path + source routing guard fixed (`tradeMode === 'live' && isConnected` at lines 42 & 122) | 10.0 (critical fix) |
 | 41 | Code Quality | Unit tests for `symbol-utils.ts` (22 test cases — symbol parsing, quote detection, formatting) | 10.0 (coverage) |
 | 42 | Code Quality | Unit tests for `trade-utils.ts` (35 test cases — enrichment, direction, R:R, screenshots, notes) | 10.0 (coverage) |
 | 43 | Comprehensiveness | Error Handling & Fallback Behavior section — documented WidgetErrorBoundary, global ErrorBoundary, loading skeletons, EmptyState, React Query retry, edge function error sanitization, Binance disconnect fallback | 10.0 (completeness) |
@@ -483,6 +483,7 @@ _Semua kelemahan signifikan sudah teratasi atau ter-justified._
 | 51 | Innovation | 3 innovation items added: Binance Trade State Machine (FSM), Position Lifecycle Grouper, Solana Wallet Adapter (Web3) | 10.0 (innovation) |
 | 52 | Accuracy | Pattern D added to Data Isolation Patterns: server-side RPC filtering via `p_trade_mode` in `useTradeEntriesPaginated` | 10.0 (completeness) |
 | 53 | Accuracy (MAJOR) | Fixed Consistency Score math bug in `trading-health-score.ts` — streakRatio contribution was negligible (0-1 vs 0-100 scale). Corrected formula: `(streakRatio * 100 + recoveryScore) / 2` | 10.0 (critical fix) |
+| 54 | Accuracy + Security (MAJOR) | `useSymbolBreakdown` source routing guard fix — lines 42 & 122 used raw `isConnected` instead of `tradeMode === 'live' && isConnected`, causing Live Binance data to leak into Paper mode symbol breakdown. Now aligned with `useUnifiedDailyPnl`/`useUnifiedWeeklyPnl` pattern | 10.0 (critical fix) |
 
 ---
 

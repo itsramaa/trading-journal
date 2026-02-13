@@ -39,7 +39,7 @@ export function useSymbolBreakdown(): SymbolBreakdownResult {
   
   // Calculate Paper Trading symbol breakdown
   const paperBreakdown = useMemo(() => {
-    if (isConnected) return { daily: [], weekly: [] };
+    if (tradeMode === 'live' && isConnected) return { daily: [], weekly: [] };
     
     const today = new Date();
     const todayStr = today.toISOString().split('T')[0];
@@ -119,7 +119,7 @@ export function useSymbolBreakdown(): SymbolBreakdownResult {
   // Return Binance or Paper data
   return useMemo((): SymbolBreakdownResult => {
     // Binance connected - use bySymbol data
-    if (isConnected && binancePnl.bySymbol) {
+    if (tradeMode === 'live' && isConnected && binancePnl.bySymbol) {
       const binanceBreakdown: SymbolBreakdownItem[] = Object.entries(binancePnl.bySymbol)
         .filter(([symbol]) => symbol !== 'N/A')
         .map(([symbol, data]) => ({
