@@ -88,12 +88,12 @@ _Tidak ada kelemahan unjustified._
 | **Notifications** | `send-cleanup-notification` | Data cleanup notifications |
 | **Notifications** | `strategy-clone-notify` | Strategy clone notifications |
 
-### Page Inventory (25 pages)
+### Page Inventory (26 pages)
 
 | Domain | Pages | Path |
 |--------|-------|------|
 | **Core** | Dashboard, Performance, TradeHistory | `src/pages/` |
-| **Core** | TradingJournal | `src/pages/trading-journey/TradingJournal.tsx` |
+| **Core** | TradingJournal, StrategyManagement | `src/pages/trading-journey/` |
 | **Analytics** | DailyPnL, TradingHeatmap, TopMovers, AIInsights | `src/pages/` |
 | **Trading** | PositionCalculator, MarketData, MarketInsight, EconomicCalendar | `src/pages/` |
 | **Risk** | RiskManagement, Backtest | `src/pages/` |
@@ -350,7 +350,7 @@ src/
 │   ├── exchange/    # Balance, credentials, conversion (7 hooks)
 │   └── (root)       # General: auth, settings, notifications (~20 hooks)
 ├── lib/             # Utilities, calculators, formatters
-│   └── __tests__/   # Unit tests for core calculation libs (13 test files, 221+ cases)
+│   └── __tests__/   # Unit tests for core calculation libs (13 test files, 231+ cases)
 ├── test/            # Advanced test suites (20 files)
 │   ├── integration/ # 6 files: auth-flow, binance-sync, credential-rotation, risk-profile, strategy-crud, trade-entry
 │   ├── contracts/   # 5 files: ai-endpoints, binance-api, binance-phase2, hooks, supabase-tables
@@ -364,7 +364,7 @@ src/
 ├── features/        # Feature-specific logic
 └── integrations/    # Supabase client + types
 
-**Total Test Coverage: 36 test files, 400+ test cases across 7 directories:**
+**Total Test Coverage: 36 test files, 430+ test cases across 7 directories:**
 - `src/lib/__tests__/` — 13 files (core calculation & utility tests)
 - `src/test/integration/` — 6 files (cross-module integration tests)
 - `src/test/contracts/` — 5 files (API contract validation)
