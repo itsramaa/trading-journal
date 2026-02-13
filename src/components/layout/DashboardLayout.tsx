@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { Loader2 } from "lucide-react";
 import { AppSidebar } from "./AppSidebar";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
@@ -214,7 +215,13 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           </div>
         </header>
         <main id="main-content" className="flex flex-1 flex-col gap-6 p-4 md:p-6">
-          {children}
+          <Suspense fallback={
+            <div className="flex flex-1 items-center justify-center py-20">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          }>
+            {children}
+          </Suspense>
         </main>
       </SidebarInset>
 
