@@ -96,8 +96,17 @@ export function filterTradesByStrategies(
 }
 
 /**
- * Calculate comprehensive trading statistics
- * All calculations are deterministic and based on actual trade data
+ * Calculate comprehensive trading statistics (CLIENT-SIDE).
+ * 
+ * This is a **client-side calculator** for filtered/subset data used in:
+ * - Performance.tsx: stats from locally-filtered trades (date range, strategy filters)
+ * - BulkExport.tsx: stats for export generation (needs local data access)
+ * - FinalChecklist.tsx: stats for AI quality scoring (needs full trade array)
+ * 
+ * For **overall/canonical stats**, use the `get_trade_stats` RPC which is the
+ * server-side source of truth (handles pagination, consistent filtering at DB level).
+ * 
+ * All calculations are deterministic and based on actual trade data.
  */
 export function calculateTradingStats(trades: TradeEntry[]): TradingStats {
   const emptyStats: TradingStats = {
