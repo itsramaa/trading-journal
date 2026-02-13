@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { FilterActiveIndicator } from "@/components/ui/filter-active-indicator";
 import { History, Download } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { TradeHistoryFilters, TradeEnrichmentDrawer } from "@/components/journal";
 import type { UnifiedPosition } from "@/components/journal";
 import { TradeHistoryStats } from "@/components/history/TradeHistoryStats";
@@ -150,6 +151,7 @@ export default function TradeHistory() {
     <div className="space-y-6">
       <PageHeader icon={History} title="Trade History" description="Review and enrich your closed trades for journaling">
         <div className="flex items-center gap-6">
+          <Badge variant="outline" className="text-xs font-normal">Basic Mode</Badge>
           <TradeHistoryStats
             isLoading={isStatsLoading && !tradeStats}
             displayedCount={sortedTrades.length}

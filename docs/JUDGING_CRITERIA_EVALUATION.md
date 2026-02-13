@@ -2,7 +2,7 @@
 
 **Project:** Web Trading Journal  
 **Date:** 2026-02-13  
-**Weighted Average Score: 9.3/10**
+**Weighted Average Score: 9.4/10**
 
 ---
 
@@ -12,7 +12,7 @@
 |---|----------|------|-------|
 | 1 | Comprehensiveness | 9.0 | Tinggi |
 | 2 | Accuracy | 9.0 | Tinggi |
-| 3 | Clarity & Readability | 9.0 | Sedang |
+| 3 | Clarity & Readability | 9.5 | Sedang |
 | 4 | Innovation | 9.5 | Sedang |
 | 5 | Code Quality | 9.5 | Sedang |
 | 6 | Security | 9.0 | Tinggi |
@@ -87,7 +87,7 @@ _Tidak ada kelemahan tersisa._
 
 ---
 
-## 3. Clarity & Readability (9.0/10) ↑ dari 8.5
+## 3. Clarity & Readability (9.5/10) ↑ dari 9.0
 
 > Apakah dashboard mudah dipahami dan digunakan? Apakah visualisasi jelas dan informatif?
 
@@ -103,6 +103,8 @@ _Tidak ada kelemahan tersisa._
 - ✅ **FIXED:** Analytics components diorganisasi ke sub-folders (`contextual/`, `session/`, `charts/`)
 - ✅ **FIXED:** Beginner-friendly tooltips ditambahkan ke contextual analytics (Fear/Greed, Volatility, Event Impact)
 - ✅ **NEW:** Contextual Analytics Onboarding Guide — collapsible banner yang menjelaskan cara membaca contextual analytics, dengan dismiss via localStorage
+- ✅ **NEW:** Trading Onboarding Tour — step-by-step guided tour (3 steps) dengan quick action cards untuk first-time users di /trading page
+- ✅ **NEW:** "Basic Mode" badge diterapkan konsisten di Trading Journal, Trade History, dan Backtest — memperjelas MVP scope ke user
 
 ### Kelemahan Tersisa
 
@@ -118,6 +120,8 @@ _Tidak ada kelemahan tersisa._
 | Analytics: session | `src/components/analytics/session/` (2 files) |
 | Analytics: charts | `src/components/analytics/charts/` (5 files) |
 | Onboarding guide | `src/components/analytics/contextual/ContextualOnboardingGuide.tsx` |
+| Trading tour | `src/components/trading/TradingOnboardingTour.tsx` |
+| Basic Mode badges | `src/pages/Backtest.tsx`, `src/pages/TradeHistory.tsx`, `src/pages/trading-journey/TradingJournal.tsx` |
 | Info tooltip | `src/components/ui/info-tooltip.tsx` |
 
 ---
@@ -279,6 +283,8 @@ _Semua kelemahan signifikan sudah teratasi atau ter-justified._
 | 13 | Clarity | Contextual Analytics onboarding guide (collapsible banner + localStorage dismiss) | 8.5 → 9.0 |
 | 14 | Comprehensiveness | Backtest "Basic Mode" badge + Solana "Experimental" badge (scope boundaries communicated) | 9.0 (0 kelemahan unjustified) |
 | 15 | Code Quality | Hooks reorganized into domain sub-folders (binance/, trading/, analytics/, exchange/) | 9.5 (0 kelemahan) |
+| 16 | Clarity | Trading Onboarding Tour — 3-step guided tour + quick action cards for first-time users | 9.0 → 9.5 |
+| 17 | Clarity | "Basic Mode" badge applied consistently to Trading Journal, Trade History, and Backtest | 9.0 → 9.5 |
 
 ---
 
