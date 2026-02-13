@@ -122,7 +122,7 @@ export function DashboardLayout() {
 
   return (
     <SidebarProvider 
-      defaultOpen={sidebarOpen}
+      open={sidebarOpen}
       onOpenChange={setSidebarOpen}
     >
       {/* Command Palette */}
