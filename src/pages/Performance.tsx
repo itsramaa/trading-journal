@@ -20,7 +20,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Checkbox } from "@/components/ui/checkbox";
 import { 
-  TrendingUp, 
+  TrendingUp,
+  TrendingDown, 
   Target, 
   BarChart3, 
   AlertTriangle, 
@@ -480,6 +481,43 @@ export default function Performance() {
                   </CardContent>
                 </Card>
               </div>
+              </div>
+
+              {/* Largest Gain / Loss */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Extreme Outcomes</h3>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Card className="border-profit/20">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium flex items-center gap-1">
+                        <TrendingUp className="h-4 w-4 text-profit" />
+                        Largest Gain
+                        <InfoTooltip content="Your single most profitable trade. Helps identify what works best and whether gains are concentrated." />
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-profit">
+                        +{chartFormatCurrency(stats.largestWin)}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">Best single trade outcome</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="border-loss/20">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium flex items-center gap-1">
+                        <TrendingDown className="h-4 w-4 text-loss" />
+                        Largest Loss
+                        <InfoTooltip content="Your single worst trade. Critical for risk management — ensure this stays within your max risk per trade." />
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-loss">
+                        {chartFormatCurrency(stats.largestLoss)}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">Worst single trade outcome</p>
+                    </CardContent>
+                  </Card>
+                </div>
               </div>
 
               {/* Additional Metrics */}
