@@ -74,7 +74,7 @@ export function EmotionalPatternAnalysis() {
       }
       
       const stats = statsByEmotion[state];
-      const pnl = trade.realized_pnl || 0;
+      const pnl = trade.realized_pnl ?? trade.pnl ?? 0;
       stats.trades++;
       stats.totalPnl += pnl;
       if (pnl > 0) stats.wins++;

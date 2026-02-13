@@ -43,7 +43,7 @@ export function SevenDayStatsCard() {
     // Calculate best/worst day
     const byDay = recentTrades.reduce((acc, t) => {
       const day = new Date(t.trade_date).toISOString().split('T')[0];
-      acc[day] = (acc[day] || 0) + (t.realized_pnl || 0);
+      acc[day] = (acc[day] || 0) + (t.realized_pnl ?? t.pnl ?? 0);
       return acc;
     }, {} as Record<string, number>);
     
