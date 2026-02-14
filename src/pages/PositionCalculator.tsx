@@ -3,7 +3,7 @@
  * Includes compact market score widget for quick assessment before sizing
  */
 import { useState, useMemo, useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,7 +32,9 @@ import {
 } from "@/lib/constants/risk-thresholds";
 
 export default function PositionCalculator() {
-  const [activeTab, setActiveTab] = useState("calculator");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'calculator';
+  const setActiveTab = (tab: string) => setSearchParams({ tab });
   const isMobile = useIsMobile();
   const { data: riskProfile, isLoading: profileLoading } = useRiskProfile();
   const { balance: combinedBalance, source, isLoading: balanceLoading } = useBestAvailableBalance();

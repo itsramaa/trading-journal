@@ -1,6 +1,6 @@
 // Risk components barrel export
 export { DailyLossTracker } from './DailyLossTracker';
-export { PositionSizeCalculator } from './PositionSizeCalculator';
+
 export { RiskEventLog } from './RiskEventLog';
 export { CorrelationMatrix } from './CorrelationMatrix';
 export { RiskProfileSummaryCard } from './RiskProfileSummaryCard';

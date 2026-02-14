@@ -32,9 +32,9 @@ function getRiskLevelIcon(level: string) {
 
 function getRiskLevelColor(level: string) {
   switch (level) {
-    case 'low': return 'text-blue-500';
+    case 'low': return 'text-[hsl(var(--chart-5))]';
     case 'medium': return 'text-primary';
-    case 'high': return 'text-warning';
+    case 'high': return 'text-[hsl(var(--chart-4))]';
     case 'extreme': return 'text-destructive';
     default: return 'text-muted-foreground';
   }
@@ -102,7 +102,19 @@ export function VolatilityStopLoss({
   }
   
   if (!volatility || !stopLossSuggestions) {
-    return null;
+    return (
+      <Card className="p-6">
+        <div className="flex flex-col items-center justify-center text-center space-y-3 py-6">
+          <Activity className="h-10 w-10 text-muted-foreground/50" />
+          <div className="space-y-1">
+            <p className="text-sm font-medium">Volatility Data Unavailable</p>
+            <p className="text-xs text-muted-foreground max-w-sm">
+              ATR-based stop-loss recommendations require market data. Ensure a trading pair is selected and market data is accessible.
+            </p>
+          </div>
+        </div>
+      </Card>
+    );
   }
   
   const Icon = getRiskLevelIcon(volatility.risk.level);
@@ -156,7 +168,7 @@ export function VolatilityStopLoss({
         <div className={cn(
           "text-sm p-2 rounded-lg",
           volatility.risk.level === 'extreme' ? "bg-destructive/10 text-destructive" :
-          volatility.risk.level === 'high' ? "bg-warning/10 text-warning" :
+          volatility.risk.level === 'high' ? "bg-[hsl(var(--chart-4))]/10 text-[hsl(var(--chart-4))]" :
           "bg-muted/50 text-muted-foreground"
         )}>
           {sizing.recommendation}
