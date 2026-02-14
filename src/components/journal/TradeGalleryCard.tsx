@@ -109,6 +109,22 @@ export const TradeGalleryCard = forwardRef<HTMLDivElement, TradeGalleryCardProps
           </span>
         </div>
         
+        {/* Key prices */}
+        <div className="text-xs text-muted-foreground mt-2 space-y-0.5">
+          <div className="flex justify-between">
+            <span>Entry</span>
+            <span className="font-mono">{trade.entry_price ? trade.entry_price.toFixed(2) : '-'}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>SL</span>
+            <span className="font-mono">{trade.stop_loss ? trade.stop_loss.toFixed(2) : '-'}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>TP</span>
+            <span className="font-mono">{trade.take_profit ? trade.take_profit.toFixed(2) : '-'}</span>
+          </div>
+        </div>
+        
         <div className="flex items-center gap-1 mt-1.5 flex-wrap">
           {trade.strategies?.[0] && (
             <Badge 

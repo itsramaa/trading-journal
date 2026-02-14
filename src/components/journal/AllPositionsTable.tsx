@@ -58,6 +58,9 @@ export interface UnifiedPosition {
   entryDatetime?: string | null;
   // M-33: read-only flag
   isReadOnly: boolean;
+  // SL/TP
+  stopLoss?: number | null;
+  takeProfit?: number | null;
   // Original data for actions
   originalData: TradeEntry | BinancePosition;
 }
@@ -112,6 +115,8 @@ function mapToUnifiedPositions(
       fundingFees: (pos as any).funding_fees || 0,
       entryDatetime: (pos as any).entry_datetime || pos.created_at,
       isReadOnly: isLiveSource,
+      stopLoss: pos.stop_loss,
+      takeProfit: pos.take_profit,
       originalData: pos,
     });
   });
@@ -195,15 +200,19 @@ function PositionGalleryCard({
         )}
       </div>
 
-      {/* Entry + time */}
+      {/* Key prices */}
       <div className="text-sm text-muted-foreground space-y-1">
         <div className="flex justify-between">
           <span>Entry</span>
           <span className="font-mono">{position.entryPrice.toFixed(2)}</span>
         </div>
         <div className="flex justify-between">
-          <span>Time</span>
-          <TimeInTrade entryDatetime={position.entryDatetime} />
+          <span>SL</span>
+          <span className="font-mono">{position.stopLoss ? position.stopLoss.toFixed(2) : '-'}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>TP</span>
+          <span className="font-mono">{position.takeProfit ? position.takeProfit.toFixed(2) : '-'}</span>
         </div>
       </div>
 
