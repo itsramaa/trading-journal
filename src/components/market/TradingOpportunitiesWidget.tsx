@@ -34,7 +34,7 @@ function TradingOpportunitiesContent({
   // Handle async data errors
   if (error) {
     return (
-      <Card className={className}>
+      <Card className={className} role="region" aria-label="Trading Opportunities">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-lg">
             <Target className="h-5 w-5 text-primary" />
@@ -54,7 +54,7 @@ function TradingOpportunitiesContent({
   }
 
   return (
-    <Card className={className}>
+    <Card className={className} role="region" aria-label="Trading Opportunities">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -85,9 +85,9 @@ function TradingOpportunitiesContent({
           </div>
         ) : (
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-            {opportunities.map((opp, idx) => (
+            {opportunities.map((opp) => (
               <div 
-                key={idx} 
+                key={opp.pair} 
                 className="p-3 rounded-lg border"
               >
                 <div className="flex items-center justify-between mb-2">

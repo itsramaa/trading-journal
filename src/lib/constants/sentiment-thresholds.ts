@@ -129,18 +129,18 @@ export function classifySentiment(bullishScore: number): 'bullish' | 'bearish' |
  * Get sentiment color class based on score
  */
 export function getSentimentColorClass(score: number): string {
-  if (score >= SENTIMENT_SCORE.BULLISH_THRESHOLD) return 'text-green-500';
-  if (score <= SENTIMENT_SCORE.BEARISH_THRESHOLD) return 'text-red-500';
-  return 'text-yellow-500';
+  if (score >= SENTIMENT_SCORE.BULLISH_THRESHOLD) return 'text-profit';
+  if (score <= SENTIMENT_SCORE.BEARISH_THRESHOLD) return 'text-loss';
+  return 'text-warning';
 }
 
 /**
  * Get sentiment background class based on score
  */
 export function getSentimentBgClass(score: number): string {
-  if (score >= SENTIMENT_SCORE.BULLISH_THRESHOLD) return 'bg-green-500/10';
-  if (score <= SENTIMENT_SCORE.BEARISH_THRESHOLD) return 'bg-red-500/10';
-  return 'bg-yellow-500/10';
+  if (score >= SENTIMENT_SCORE.BULLISH_THRESHOLD) return 'bg-profit/10';
+  if (score <= SENTIMENT_SCORE.BEARISH_THRESHOLD) return 'bg-loss/10';
+  return 'bg-warning/10';
 }
 
 /**

@@ -42,7 +42,7 @@ function WhaleTrackingContent({
   // Handle async data errors
   if (error) {
     return (
-      <Card className={className}>
+      <Card className={className} role="region" aria-label="Whale Tracking">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-lg">
             <Activity className="h-5 w-5 text-primary" />
@@ -62,7 +62,7 @@ function WhaleTrackingContent({
   }
 
   return (
-    <Card className={className}>
+    <Card className={className} role="region" aria-label="Whale Tracking">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -92,9 +92,9 @@ function WhaleTrackingContent({
             <p className="text-sm">No whale activity detected</p>
           </div>
         ) : (
-          whaleData.map((whale, idx) => (
+          whaleData.map((whale) => (
             <div 
-              key={idx} 
+              key={`${whale.asset}-${whale.signal}`} 
               className="flex items-center justify-between p-3 rounded-lg border"
             >
               <div className="flex items-center gap-3">
