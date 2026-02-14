@@ -10,17 +10,14 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { 
   CandlestickChart, 
-  FlaskConical, 
   Settings, 
   RefreshCw, 
-  
   Wallet,
   TrendingUp,
   TrendingDown,
-  ArrowDownUp,
   Shield
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -45,7 +42,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import type { Account } from "@/types/account";
-import { isPaperAccount } from "@/lib/account-utils";
+
 
 export default function Accounts() {
   const [transactionDialogOpen, setTransactionDialogOpen] = useState(false);
@@ -63,20 +60,16 @@ export default function Accounts() {
   
   useAccountsRealtime();
   const { format, formatPnl } = useCurrencyConversion();
-  const { showExchangeData, showPaperData } = useModeVisibility();
+  const { showExchangeData } = useModeVisibility();
 
-  // Paper accounts
-  const paperAccounts = useMemo(() => 
-    accounts?.filter(a => isPaperAccount(a)) || [],
-    [accounts]
-  );
-  const paperAccountIds = useMemo(() => paperAccounts.map(a => a.id), [paperAccounts]);
+  // All account IDs for open trades query
+  const allAccountIds = useMemo(() => accounts?.map(a => a.id) || [], [accounts]);
 
-  // Query for open paper trades - filtered by paper account IDs
-  const { data: paperOpenTradesCount } = useQuery({
-    queryKey: ['paper-open-trades-count', paperAccountIds],
+  // Query for open trades across all accounts
+  const { data: openTradesCount } = useQuery({
+    queryKey: ['open-trades-count', allAccountIds],
     queryFn: async () => {
-      if (!paperAccountIds.length) return 0;
+      if (!allAccountIds.length) return 0;
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return 0;
       
@@ -85,11 +78,11 @@ export default function Accounts() {
         .select('id', { count: 'exact', head: true })
         .eq('user_id', user.id)
         .eq('status', 'open')
-        .in('trading_account_id', paperAccountIds);
+        .in('trading_account_id', allAccountIds);
       
       return count || 0;
     },
-    enabled: showPaperData && paperAccountIds.length > 0,
+    enabled: allAccountIds.length > 0,
     staleTime: 30 * 1000,
   });
 
@@ -107,21 +100,21 @@ export default function Accounts() {
 
   const isConfigured = showExchangeData && (connectionStatus?.isConfigured ?? false);
   const isConnected = showExchangeData && (connectionStatus?.isConnected ?? false);
-  const activePositions = showExchangeData ? (positions?.filter(p => p.positionAmt !== 0) || []) : [];
+  const activePositions = isConnected ? (positions?.filter(p => p.positionAmt !== 0) || []) : [];
   
-  const paperAccountsCount = paperAccounts.length;
-  const paperTotalBalance = useMemo(() => 
-    paperAccounts.reduce((sum, a) => sum + (Number(a.balance) || 0), 0),
-    [paperAccounts]
+  const allAccountsCount = accounts?.length || 0;
+  const totalDbBalance = useMemo(() => 
+    (accounts || []).reduce((sum, a) => sum + (Number(a.balance) || 0), 0),
+    [accounts]
   );
   
-  // Unified display values
+  // Unified display values - combine DB + Binance data
   const binanceBalanceNum = isConnected ? (Number(balance?.totalWalletBalance) || 0) : 0;
-  const displayBalance = showPaperData ? paperTotalBalance : binanceBalanceNum;
-  const balanceSubtitle = showPaperData ? 'Paper balance' : (isConnected ? 'Binance wallet' : 'No accounts with balance');
-  const displayCount = showPaperData ? paperAccountsCount : (isConnected ? 1 : 0);
-  const countSubtitle = showPaperData ? `${paperAccountsCount} paper account${paperAccountsCount !== 1 ? 's' : ''}` : (isConnected ? '1 Binance' : 'No accounts');
-  const displayPositions = showPaperData ? (paperOpenTradesCount || 0) : activePositions.length;
+  const displayBalance = totalDbBalance + binanceBalanceNum;
+  const balanceSubtitle = isConnected ? 'DB accounts + Binance wallet' : 'Total account balance';
+  const displayCount = allAccountsCount + (isConnected ? 1 : 0);
+  const countSubtitle = `${allAccountsCount} account${allAccountsCount !== 1 ? 's' : ''}${isConnected ? ' + 1 Binance' : ''}`;
+  const displayPositions = (openTradesCount || 0) + activePositions.length;
 
   return (
     <>
@@ -170,7 +163,7 @@ export default function Accounts() {
               <Wallet className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              {balanceLoading && !showPaperData ? (
+              {balanceLoading ? (
                 <Skeleton className="h-8 w-32" />
               ) : (
                 <>
@@ -197,9 +190,7 @@ export default function Accounts() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Open Positions</CardTitle>
-              {showPaperData ? (
-                <ArrowDownUp className="h-4 w-4 text-muted-foreground" />
-              ) : (balance?.totalUnrealizedProfit || 0) >= 0 ? (
+              {(balance?.totalUnrealizedProfit || 0) >= 0 ? (
                 <TrendingUp className="h-4 w-4 text-profit" />
               ) : (
                 <TrendingDown className="h-4 w-4 text-loss" />
@@ -208,7 +199,7 @@ export default function Accounts() {
             <CardContent>
               <div className="text-2xl font-bold">{displayPositions}</div>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
-                {!showPaperData && isConnected && activePositions.length > 0 && (
+                {isConnected && activePositions.length > 0 && (
                   <span className={`text-xs ${(balance?.totalUnrealizedProfit || 0) >= 0 ? 'text-profit' : 'text-loss'}`}>
                     {formatPnl(balance?.totalUnrealizedProfit || 0)} unrealized
                   </span>
@@ -223,28 +214,16 @@ export default function Accounts() {
 
         {/* Section Header + Add Account */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <h2 className="text-xl font-semibold">Trading Accounts</h2>
-            {showPaperData && (
-              <Badge variant="outline">
-                <FlaskConical className="h-3 w-3 mr-1" />
-                Simulated
-              </Badge>
-            )}
-          </div>
-          {showPaperData && <AddAccountForm defaultIsBacktest={true} />}
+          <h2 className="text-xl font-semibold">Trading Accounts</h2>
+          <AddAccountForm />
         </div>
 
-        {/* Account Cards - Both modes, filtered */}
+        {/* Account Cards - All accounts, no mode filter */}
         <AccountCardList
           filterType="trading"
-          excludeBacktest={!showPaperData}
-          backtestOnly={showPaperData}
           onTransact={handleTransact}
           onEdit={handleEdit}
-          emptyMessage={showPaperData 
-            ? "No paper trading accounts yet. Create one to test your strategies risk-free."
-            : "No live trading accounts yet. Add an account to track your real trades."}
+          emptyMessage="No trading accounts yet. Create one to get started."
         />
 
         {/* Account Comparison Table */}
