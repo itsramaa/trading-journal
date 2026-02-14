@@ -44,10 +44,12 @@ export const EVENT_LABEL_PRIORITY = [
 // ============================================
 
 export const CALENDAR_DATE_RANGE = {
-  /** Days to look back for historical events */
-  LOOKBACK_DAYS: 90,
-  /** Days to look ahead for upcoming events */
-  LOOKAHEAD_DAYS: 30,
+  /** 
+   * Forex Factory free endpoint only provides current week data.
+   * These values are kept for reference but actual data scope is ~7 days.
+   */
+  LOOKBACK_DAYS: 7,
+  LOOKAHEAD_DAYS: 7,
 } as const;
 
 // ============================================

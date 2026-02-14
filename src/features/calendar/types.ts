@@ -1,6 +1,6 @@
 /**
  * Economic Calendar Types
- * Based on Trading Economics API integration
+ * Based on Forex Factory API integration
  */
 
 export interface EconomicEvent {
@@ -36,15 +36,13 @@ export interface EconomicCalendarResponse {
   lastUpdated: string;
 }
 
-// Trading Economics API raw response type
-export interface TradingEconomicsEvent {
-  Date: string;
-  Event: string;
-  Country: string;
-  Importance: number; // 1 = low, 2 = medium, 3 = high
-  Forecast: string | null;
-  Previous: string | null;
-  Actual: string | null;
-  Symbol?: string;
-  Category?: string;
+// Forex Factory raw response type
+export interface ForexFactoryEvent {
+  title: string;
+  country: string;
+  date: string;
+  impact: string; // "High", "Medium", "Low", "Holiday", "Non-Economic"
+  forecast: string;
+  previous: string;
+  actual?: string;
 }
