@@ -25,6 +25,7 @@ import { cn } from '@/lib/utils';
 import { useModeFilteredTrades } from '@/hooks/use-mode-filtered-trades';
 import { useTradingStrategies } from '@/hooks/use-trading-strategies';
 import { useAccounts } from '@/hooks/use-accounts';
+import { useTradeMode } from '@/hooks/use-trade-mode';
 import { useAppStore } from '@/store/app-store';
 import { useAuth } from '@/hooks/use-auth';
 import { ChatMessage } from './ChatMessage';
@@ -137,6 +138,7 @@ export function AIChatbot() {
   const { data: tradeEntries } = useModeFilteredTrades();
   const { data: strategies } = useTradingStrategies();
   const { data: accounts } = useAccounts();
+  const { tradeMode } = useTradeMode();
 
   const currentMode = AI_MODES[aiMode];
   const ModeIcon = currentMode.icon;
@@ -281,17 +283,21 @@ export function AIChatbot() {
       const { data: { session } } = await supabase.auth.getSession();
       const authToken = session?.access_token;
 
+      // Build conversation history (exclude the just-added user message)
+      const priorMessages = messageHistory[aiMode].filter(m => m.content !== '');
+      const historyPayload = priorMessages.map(m => ({ role: m.role, content: m.content }));
+
       // Build body based on mode - each mode gets its specific context
-      let body: any = { question: text };
+      let body: any = { question: text, history: historyPayload };
 
       if (aiMode === 'trading') {
         // Trading mode: full trade history + strategies + market context
         const tradingContext = getTradingContext();
         const marketContext = await fetchMarketContext();
         body = {
+          ...body,
           trades: tradingContext.trades,
           strategies: tradingContext.strategies,
-          question: text,
           marketContext,
         };
       } else if (aiMode === 'market') {
@@ -299,7 +305,7 @@ export function AIChatbot() {
         const tradingContext = getTradingContext();
         const openPositions = tradeEntries?.filter(t => t.status === 'open') || [];
         body = {
-          question: text,
+          ...body,
           userContext: {
             totalTrades: tradingContext.trades.length,
             openPositions: openPositions.map(p => ({
@@ -318,7 +324,7 @@ export function AIChatbot() {
         // Setup mode: strategies with rules + trading pairs for validation
         const tradingPairs = await fetchTradingPairs();
         body = {
-          question: text,
+          ...body,
           strategies: strategies?.map(s => ({
             id: s.id,
             name: s.name,
@@ -330,8 +336,10 @@ export function AIChatbot() {
           })) || [],
           tradingPairs,
         };
+      } else if (aiMode === 'posttrade') {
+        // Post-trade mode: send tradeMode for data isolation
+        body.tradeMode = tradeMode;
       }
-      // posttrade mode: just question, edge function fetches data via auth
 
       const response = await fetch(endpoint, {
         method: 'POST',

@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -15,20 +16,17 @@ function parseTradeSetup(text: string): {
 } {
   const result: any = {};
   
-  // Extract pair (e.g., BTCUSDT, BTC/USDT, BTC)
   const pairMatch = text.match(/([A-Z]{2,10})(\/)?USDT?/i);
   if (pairMatch) {
     result.pair = pairMatch[0].toUpperCase().replace('/', '');
     if (!result.pair.includes('USDT')) result.pair += 'USDT';
   }
   
-  // Extract direction
   if (/\blong\b/i.test(text)) result.direction = 'LONG';
   else if (/\bshort\b/i.test(text)) result.direction = 'SHORT';
   else if (/\bbuy\b/i.test(text) || /\bbeli\b/i.test(text)) result.direction = 'LONG';
   else if (/\bsell\b/i.test(text) || /\bjual\b/i.test(text)) result.direction = 'SHORT';
   
-  // Extract prices (entry, SL, TP)
   const entryMatch = text.match(/(?:entry|masuk|di|at)\s*:?\s*\$?(\d+(?:[.,]\d+)?)/i);
   if (entryMatch) result.entry = parseFloat(entryMatch[1].replace(',', '.'));
   
@@ -41,7 +39,6 @@ function parseTradeSetup(text: string): {
   return result;
 }
 
-// Calculate R:R ratio
 function calculateRR(entry: number, stopLoss: number, takeProfit: number, direction: string): number {
   if (direction === 'LONG') {
     const risk = entry - stopLoss;
@@ -60,7 +57,32 @@ serve(async (req) => {
   }
 
   try {
-    const { question, setup, strategies, tradingPairs } = await req.json();
+    // === AUTH CHECK ===
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
+    if (claimsError || !claimsData?.claims?.sub) {
+      return new Response(JSON.stringify({ error: 'Invalid token' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    // === END AUTH CHECK ===
+
+    const { question, setup, strategies, tradingPairs, history } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
     
@@ -68,10 +90,8 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY is not configured');
     }
 
-    // Parse setup from question if not provided directly
     const parsedSetup = setup || parseTradeSetup(question || '');
 
-    // Match parsed setup with user's strategies
     let strategyMatch = '';
     if (parsedSetup.pair && strategies?.length > 0) {
       const pairBase = parsedSetup.pair.replace('USDT', '').replace('PERP', '');
@@ -111,7 +131,6 @@ ${strategies.slice(0, 3).map((s: any) => `- ${s.name} (min R:R: ${s.min_rr || 1.
 `;
     }
     
-    // Fetch market data and economic calendar in parallel
     let marketContext = '';
     let calendarContext = '';
     
@@ -135,7 +154,6 @@ ${strategies.slice(0, 3).map((s: any) => `- ${s.name} (min R:R: ${s.min_rr || 1.
         const marketData = await marketRes.json();
         const calendarData = await calendarRes.json();
         
-        // Process market data
         const assetSignal = marketData.sentiment?.signals?.find((s: any) => 
           s.asset === symbol.replace('USDT', '')
         );
@@ -159,7 +177,6 @@ CURRENT MARKET CONTEXT FOR ${parsedSetup.pair}:
 - Overall Market: ${marketData.sentiment?.overall || 'neutral'}`;
         }
         
-        // Process calendar data for event warnings
         if (calendarData.impactSummary?.hasHighImpact) {
           const todayEvent = calendarData.todayHighlight?.event;
           const riskLevel = calendarData.impactSummary.riskLevel;
@@ -177,7 +194,6 @@ CURRENT MARKET CONTEXT FOR ${parsedSetup.pair}:
 - AI Impact: ${todayEvent.cryptoImpact?.toUpperCase() || 'UNKNOWN'} - ${todayEvent.aiPrediction || 'No prediction available'}`;
           }
           
-          // List upcoming high-impact events
           const upcomingHigh = calendarData.events?.filter((e: any) => e.importance === 'high').slice(0, 3);
           if (upcomingHigh && upcomingHigh.length > 0) {
             calendarContext += `\n- Upcoming High-Impact Events:`;
@@ -191,7 +207,6 @@ CURRENT MARKET CONTEXT FOR ${parsedSetup.pair}:
       }
     }
 
-    // Calculate R:R if we have enough data
     let rrRatio = '';
     if (parsedSetup.entry && parsedSetup.stopLoss && parsedSetup.takeProfit && parsedSetup.direction) {
       const rr = calculateRR(parsedSetup.entry, parsedSetup.stopLoss, parsedSetup.takeProfit, parsedSetup.direction);
@@ -232,6 +247,25 @@ If setup details are missing, ask for them specifically.
 If user has defined strategies, validate the setup against their strategy rules.
 Always respond in English.`;
 
+    // Build messages array with conversation history
+    const messages: { role: string; content: string }[] = [
+      { role: "system", content: systemPrompt },
+    ];
+
+    if (Array.isArray(history) && history.length > 0) {
+      const recentHistory = history.slice(-20);
+      for (const msg of recentHistory) {
+        if (msg.role === 'user' || msg.role === 'assistant') {
+          messages.push({ role: msg.role, content: String(msg.content || '').slice(0, 4000) });
+        }
+      }
+    }
+
+    messages.push({
+      role: "user",
+      content: question || "Please analyze my trade setup.",
+    });
+
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -240,10 +274,7 @@ Always respond in English.`;
       },
       body: JSON.stringify({
         model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: question || "Tolong analisis setup trading saya." },
-        ],
+        messages,
         stream: true,
       }),
     });
