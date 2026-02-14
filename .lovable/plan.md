@@ -1,158 +1,118 @@
 
-
-# Economic Calendar Page - Functional Correctness Audit
+# AI Analysis Page - Functional Correctness Audit
 
 ## Audit Scope
 
-Reviewed all files in the Economic Calendar domain: page (`EconomicCalendar.tsx`), component (`CalendarTab.tsx`), hook (`useEconomicCalendar.ts`), types (`features/calendar/types.ts`), edge function (`economic-calendar/index.ts`), shared constants (`_shared/constants/economic-calendar.ts`, `lib/constants/economic-calendar.ts`), cross-domain consumer (`use-economic-events.ts`), and test mocks (`handlers.ts`).
+Reviewed all files in the AI Analysis domain: page (`MarketInsight.tsx`), components (`AIAnalysisTab.tsx`, `CombinedAnalysisCard.tsx`, `BiasExpiryIndicator.tsx`), hooks (`useMarketSentiment.ts`, `useMacroAnalysis.ts`, `useCombinedAnalysis.ts`, `useMarketAlerts.ts`, `useMultiSymbolMarketInsight.ts`), types (`features/market-insight/types.ts`), edge functions (`market-insight/index.ts`, `macro-analysis/index.ts`), shared constants, and barrel exports.
 
 ---
 
 ## Issues Found
 
-### 1. Edge Function Missing Authentication (Security - HIGH)
+### 1. macro-analysis Edge Function Leaks Internal Error Messages (Security - HIGH)
 
-**File:** `supabase/functions/economic-calendar/index.ts`
+**File:** `supabase/functions/macro-analysis/index.ts` (line 302)
 
-The edge function has **zero authentication**. No JWT validation, no `getClaims`, no user verification. Any anonymous request can invoke it, consuming Lovable AI credits (for AI predictions) and Forex Factory API bandwidth.
-
-Every other edge function in the project (e.g., `market-insight`, `ai-preflight`, `trade-quality`) validates the JWT token via `getClaims` and returns 401 for unauthenticated requests. This function is the sole exception.
-
-**Fix:** Import and use `getClaims` from the shared auth utility, returning 401 if no valid user. Pattern:
-
+The catch block returns raw error messages directly to the client:
 ```typescript
-import { getClaims } from "../_shared/auth.ts";
+JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' })
+```
 
-// Inside serve handler, after CORS check:
-const claims = await getClaims(req);
-if (!claims?.sub) {
-  return new Response(JSON.stringify({ error: "Unauthorized" }), {
-    status: 401,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
+The `market-insight` edge function correctly returns a generic message (`'An error occurred processing your request'`). This function violates the project's own security standard (documented in memory: "All Edge Functions use a sanitizeError helper to return generic messages to the client while logging internal details only on the server"). Internal stack traces or library-specific error strings could leak implementation details.
+
+**Fix:** Replace with a generic message, matching `market-insight`:
+```typescript
+JSON.stringify({ error: 'An error occurred processing your request' })
 ```
 
 ---
 
-### 2. Dead Code: `isThisWeek()` Function Never Called (Code Quality - LOW)
+### 2. `handleRefresh` Not Memoized, Causing Repeated API Calls on Bias Expiry (Accuracy / Code Quality - HIGH)
 
-**File:** `supabase/functions/economic-calendar/index.ts` (lines 47-52)
+**File:** `src/pages/MarketInsight.tsx` (lines 56-59)
 
-The `isThisWeek()` function is defined but never invoked anywhere in the edge function or any other file. The Forex Factory endpoint already returns only this week's data, making the function unnecessary. Dead code adds maintenance burden and cognitive noise.
-
-**Fix:** Remove the `isThisWeek` function entirely (lines 47-52).
-
----
-
-### 3. Test Mock Response Shape Mismatches Real API Response (Code Quality / Accuracy - MEDIUM)
-
-**File:** `src/test/mocks/handlers.ts` (lines 150-177)
-
-The mock returns a response wrapped in `{ success: true, data: { events: [...] } }` with fields like `title`, `impact`, `currency` -- but the real edge function returns `{ events: [...], todayHighlight: {...}, impactSummary: {...}, lastUpdated: "..." }` with fields like `event`, `importance`, `country`. The mock:
-
-- Wraps in `success` + `data` (real API does not)
-- Uses `title` instead of `event`
-- Uses `impact` instead of `importance`
-- Uses `currency` instead of `country`
-- Missing `todayHighlight`, `impactSummary`, `lastUpdated`
-
-Any test relying on this mock would receive completely wrong data shapes, silently passing with empty/undefined renders.
-
-**Fix:** Update the mock to match the `EconomicCalendarResponse` type:
+`handleRefresh` is defined as a plain function, so it gets a new reference on every render. It is passed to `BiasExpiryIndicator` as `onExpired`. Inside `BiasExpiryIndicator`, the `useEffect` at line 29-32 depends on `[isExpired, onExpired]`:
 
 ```typescript
-http.post(`${SUPABASE_URL}/functions/v1/economic-calendar`, async () => {
-  await delay(100);
-  return HttpResponse.json({
-    events: [
-      {
-        id: "1",
-        date: new Date().toISOString(),
-        event: "FOMC Meeting",
-        country: "United States",
-        importance: "high",
-        forecast: "5.25%",
-        previous: "5.25%",
-        actual: null,
-        aiPrediction: null,
-        cryptoImpact: null,
-      },
-      // ...
-    ],
-    todayHighlight: {
-      event: null,
-      hasEvent: false,
-      timeUntil: null,
-    },
-    impactSummary: {
-      hasHighImpact: false,
-      eventCount: 0,
-      riskLevel: "LOW",
-      positionAdjustment: "normal",
-    },
-    lastUpdated: new Date().toISOString(),
-  });
-}),
+useEffect(() => {
+  if (isExpired && onExpired) {
+    onExpired();
+  }
+}, [isExpired, onExpired]);
+```
+
+When bias expires:
+1. `isExpired` becomes `true`
+2. `onExpired()` fires, calling `refetchSentiment()` + `refetchMacro()`
+3. React re-renders the page
+4. `handleRefresh` gets a new reference
+5. `onExpired` prop changes, re-triggering the effect
+6. Goto step 2 -- infinite loop of API calls
+
+This creates a burst of repeated requests until the data finally returns with a new `lastUpdated` that un-expires the bias. On slow connections or API failures, this could fire dozens of requests.
+
+**Fix:** Wrap `handleRefresh` in `useCallback`:
+```typescript
+const handleRefresh = useCallback(() => {
+  refetchSentiment();
+  refetchMacro();
+}, [refetchSentiment, refetchMacro]);
 ```
 
 ---
 
-### 4. Page Missing ErrorBoundary Wrapper (Comprehensiveness - MEDIUM)
+### 3. Page Missing Top-Level ErrorBoundary (Comprehensiveness - MEDIUM)
 
-**File:** `src/pages/EconomicCalendar.tsx`
+**File:** `src/pages/MarketInsight.tsx`
 
-The page renders `CalendarTab` directly with no `ErrorBoundary`. If any runtime error occurs inside CalendarTab (e.g., malformed date from API, unexpected null), the entire page crashes with a white screen. The Market Data page wraps every widget with ErrorBoundary -- this page should follow the same pattern.
+The `AIAnalysisTab` has its own internal `ErrorBoundary`, but `BiasExpiryIndicator` and `CombinedAnalysisCard` sit outside any error boundary. If `useCombinedAnalysis` throws a runtime error (e.g., unexpected null from API data shape mismatch), or `BiasExpiryIndicator` encounters an invalid date string, the entire page crashes with a white screen.
 
-**Fix:** Wrap `CalendarTab` in an ErrorBoundary with key-based retry:
+Every other audited page (Economic Calendar, Market Data widgets) now has top-level error boundaries. This page should follow the same pattern.
 
+**Fix:** Wrap the page content in an ErrorBoundary with key-based retry:
 ```typescript
-import { useState } from "react";
-import { ErrorBoundary } from "@/components/ui/error-boundary";
-
-export default function EconomicCalendar() {
-  const [retryKey, setRetryKey] = useState(0);
-  return (
-    <div className="space-y-6 overflow-x-hidden">
-      <PageHeader ... />
-      <ErrorBoundary
-        title="Economic Calendar"
-        onRetry={() => setRetryKey(k => k + 1)}
-      >
-        <CalendarTab key={retryKey} hideTitle />
-      </ErrorBoundary>
-    </div>
-  );
-}
+const [retryKey, setRetryKey] = useState(0);
+// ...
+<ErrorBoundary
+  title="AI Analysis"
+  onRetry={() => setRetryKey(k => k + 1)}
+>
+  <div key={retryKey} className="space-y-6">
+    {/* existing content */}
+  </div>
+</ErrorBoundary>
 ```
 
 ---
 
 ## Verified Correct (No Issues)
 
-- **Data fetching**: `useEconomicCalendar` with proper staleTime (15min), refetchInterval (30min), retry (2)
-- **Error fallback in edge function**: Returns valid empty response with status 200 on failure (prevents UI crash)
-- **Loading states**: Skeleton loaders for "Today's Key Release" and event list
-- **Empty state**: "No upcoming events this week" when events array is empty
-- **Error state**: "Failed to load" with retry button on `isError`
-- **Impact Alert Banner**: Correctly gated by `hasHighImpact && riskLevel !== LOW`
-- **Risk calculation**: `calculateRiskLevel` correctly maps today + week high-impact counts
-- **AI predictions**: Graceful fallback (returns events unchanged) when `LOVABLE_API_KEY` is missing or AI fails
-- **AI tool_choice**: Forced function calling ensures structured JSON response
-- **Importance mapping**: `mapFFImpact` -> `mapImportance` chain correctly maps "High"->3->"high", "Medium"->2->"medium"
-- **Country code mapping**: USD->"United States" for `isRelevantEvent` filter
-- **Event sorting**: By date ascending (correct chronological order)
-- **Display limit**: `MAX_EVENTS = 15` enforced via `.slice()`
-- **AI prediction limit**: `MAX_AI_PREDICTIONS = 5` enforced
-- **Semantic colors**: `bg-profit/10 text-profit` and `bg-loss/10 text-loss` for crypto impact badges
-- **ARIA**: Event list has `role="list"` and `aria-label`, items have `role="listitem"`
-- **Collapsible AI predictions**: Proper Radix Collapsible with chevron rotation
-- **Today detection**: Correct ISO date comparison via `.split('T')[0]`
-- **Time until calculation**: Hours + minutes with "Now" for past events
-- **Cross-domain consumer** (`use-economic-events.ts`): Correctly reuses `useEconomicCalendar` (single data source), memoized with `useMemo`
-- **Constants alignment**: Frontend and edge function constants are synchronized
-- **Refresh button**: Disabled during `isFetching`, spinner animation
-- **Footer disclaimer**: Data attribution to Forex Factory + last updated timestamp
+- **Authentication**: Both `market-insight` and `macro-analysis` edge functions validate JWT via `getClaims` with 401 responses
+- **Input validation**: `market-insight` uses `SYMBOL_REGEX` + `validateSymbols()` with `.slice()` limit
+- **Query configuration**: `staleTime`, `refetchInterval`, `retry`, `retryDelay` all properly configured in both hooks
+- **Fear and Greed fallback**: Both edge functions return neutral (50) on API failure
+- **CoinGecko fallback**: Returns neutral defaults on failure in both functions
+- **AI summary fallback**: `macro-analysis` correctly falls back to `generateRuleBasedSummary` when `LOVABLE_API_KEY` is missing or AI call fails
+- **Combined analysis memoization**: `useCombinedAnalysis` uses `useMemo` with correct dependency array `[sentimentData, macroData]`
+- **Alignment calculation**: Score difference thresholds (0.15 aligned, 0.25 conflict) are logically sound
+- **Position size adjustment**: Correctly maps to 0.5 (reduce), 0.75, or 1.0 based on recommendation
+- **Confidence calculation**: Properly factors in alignment status and data quality
+- **Bias expiry computation**: Locally computed from `tradingStyle` mapping (scalping=15m, short=60m, swing=240m) -- correct
+- **Bias timer**: 30-second interval update for countdown display
+- **Loading skeletons**: Present in `AIAnalysisTab`, `CombinedAnalysisCard`, and `BiasExpiryIndicator` (implicit via null return)
+- **Empty/null state**: `CombinedAnalysisCard` shows "Unable to calculate" message when data is null
+- **Error state**: `AIAnalysisTab` renders `AsyncErrorFallback` with retry on error
+- **Market alerts**: Deduplication via hourly/30-min keyed `Set` prevents toast spam; cleanup runs hourly
+- **Semantic colors**: `text-profit` / `text-loss` used consistently for directional indicators
+- **ARIA attributes**: Score regions have `role="region"` and `aria-label`; alignment row has `aria-live="polite"`
+- **InfoTooltips**: Complex terms (Crypto Sentiment, Macro Sentiment, Alignment, Position Size) all have explanatory tooltips
+- **Refresh button**: Disabled during loading, spinner animation applied
+- **Shared query keys**: `useMarketSentiment` and `useMacroAnalysis` are reused by `useCombinedAnalysis` (same query key = shared cache, no duplicate requests)
+- **RSI, MA, Volatility formulas**: Mathematically correct (verified in prior Market Data audit)
+- **Whale detection logic**: Correct volume spike + price direction cross-analysis
+- **Technical signal generation**: Proper MA crossover + RSI + momentum scoring
+- **Macro sentiment scoring**: Correct weighted (35/35/30) formula for market cap + F&G + funding
+- **Error propagation**: `sentimentError || macroError` correctly passed to `AIAnalysisTab`
 
 ---
 
@@ -160,9 +120,37 @@ export default function EconomicCalendar() {
 
 | # | File | Issue | Criteria | Severity |
 |---|------|-------|----------|----------|
-| 1 | `economic-calendar/index.ts` | No authentication -- edge function is completely open | Security | High |
-| 2 | `economic-calendar/index.ts` | Dead code: `isThisWeek()` never called | Code Quality | Low |
-| 3 | `src/test/mocks/handlers.ts` | Mock response shape mismatches real API | Code Quality, Accuracy | Medium |
-| 4 | `src/pages/EconomicCalendar.tsx` | Missing ErrorBoundary wrapper | Comprehensiveness | Medium |
+| 1 | `macro-analysis/index.ts` line 302 | Raw error message leaked to client | Security | High |
+| 2 | `MarketInsight.tsx` lines 56-59 | `handleRefresh` not memoized, causes repeated calls on bias expiry | Accuracy | High |
+| 3 | `MarketInsight.tsx` | Missing top-level ErrorBoundary | Comprehensiveness | Medium |
 
-Total: 3 files modified, 4 issues addressed.
+Total: 2 files, 3 fixes.
+
+## Technical Details
+
+### Fix 1: Sanitize macro-analysis error response
+
+In `supabase/functions/macro-analysis/index.ts` line 302, replace:
+```typescript
+JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' })
+```
+With:
+```typescript
+JSON.stringify({ error: 'An error occurred processing your request' })
+```
+
+### Fix 2: Memoize handleRefresh
+
+In `src/pages/MarketInsight.tsx`, import `useCallback` and wrap `handleRefresh`:
+```typescript
+import { useMemo, useCallback } from "react";
+// ...
+const handleRefresh = useCallback(() => {
+  refetchSentiment();
+  refetchMacro();
+}, [refetchSentiment, refetchMacro]);
+```
+
+### Fix 3: Add top-level ErrorBoundary
+
+In `src/pages/MarketInsight.tsx`, import `ErrorBoundary` and `useState`, wrap content with key-based retry pattern.
