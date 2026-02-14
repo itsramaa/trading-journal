@@ -1,56 +1,125 @@
 
 
-# LivePriceTicker Marquee: Deep UX Analysis & Fix
+# Sidebar & Integrated Components: Deep UX Analysis & Fixes
 
-## Root Cause
+## Scope & Coverage
 
-The `SidebarInset` component (`src/components/ui/sidebar.tsx`, line 277) applies `overflow-x-hidden` to the `<main>` wrapper. This is the direct parent of the `LivePriceTicker`.
+All files read in full:
+- `src/components/layout/AppSidebar.tsx` (239 lines)
+- `src/components/layout/NavGroup.tsx` (218 lines)
+- `src/components/layout/NavUser.tsx` (133 lines)
+- `src/components/layout/DashboardLayout.tsx` (231 lines)
+- `src/components/layout/HeaderControls.tsx` (138 lines)
+- `src/components/layout/CommandPalette.tsx` (400 lines)
+- `src/components/layout/TradeModeSelector.tsx` (127 lines)
+- `src/components/layout/CurrencyDisplay.tsx` (106 lines)
+- `src/components/layout/GlobalSyncIndicator.tsx` (111 lines)
+- `src/components/layout/SimulationBanner.tsx` (26 lines)
+- `src/components/layout/LivePriceTicker.tsx` (175 lines)
+- `src/components/layout/SessionContextModal.tsx` (175 lines)
+- `src/components/risk/RiskAlertBanner.tsx` (80 lines)
+- `src/components/wallet/WalletConnectButton.tsx` (106 lines)
+- `src/components/ui/sidebar.tsx` (637 lines)
+- `src/components/ui/keyboard-shortcut.tsx` (201 lines)
+- `src/hooks/use-sidebar-persistence.ts` (45 lines)
+- `src/hooks/use-mobile.tsx` (18 lines)
 
-The ticker's marquee works by:
-1. Duplicating all 10 price items (20 total)
-2. Setting inner div to `width: max-content` (overflows the container)
-3. Animating with `transform: translateX(-50%)` to create a seamless loop
-4. On hover: switching to `overflow-x-auto` for manual drag-to-scroll
+---
 
-**Both behaviors are broken** because the grandparent `<main>` clips all horizontal overflow before the ticker's own overflow rules can take effect.
+## Issues Found
 
-## Fix
+### 1. "Top Movers" and "Import & Sync" Missing from Keyboard Shortcuts, Command Palette, and Breadcrumbs
 
-Wrap the `LivePriceTicker` content in a container that isolates it from the parent's `overflow-x-hidden`. The fix is to add `overflow-x: clip` to the ticker's own container (which contains overflow within itself) while ensuring the inner scrolling div can animate freely. Specifically:
+**Top Movers** (`/top-movers`) is in the sidebar navigation but:
+- Missing from `ROUTE_SHORTCUTS` in `NavGroup.tsx` -- no keyboard shortcut assigned
+- Missing from `NAVIGATION_SHORTCUTS` in `keyboard-shortcut.tsx` -- G+key won't navigate to it
+- Missing from `PAGES` array in `CommandPalette.tsx` -- not searchable in command palette
+- Missing from `routeHierarchy` in `DashboardLayout.tsx` -- breadcrumb shows generic "Page" instead of "Top Movers > Market"
 
-### File: `src/components/layout/LivePriceTicker.tsx`
+**Import & Sync** (`/import`) is in the sidebar but:
+- Missing from `ROUTE_SHORTCUTS` in `NavGroup.tsx` -- no keyboard shortcut
+- Missing from `NAVIGATION_SHORTCUTS` in `keyboard-shortcut.tsx`
+- Missing from `PAGES` array in `CommandPalette.tsx`
+- Missing from `routeHierarchy` in `DashboardLayout.tsx` -- breadcrumb shows generic "Page"
 
-The ticker container (line 110-122) currently relies on `overflow-hidden` / `overflow-x-auto` toggling. But with the parent also clipping, the animated inner div's transform is clipped at the `<main>` level.
+**Bulk Export** (`/export`) is in the sidebar but:
+- Missing from `ROUTE_SHORTCUTS` in `NavGroup.tsx`
+- Missing from `NAVIGATION_SHORTCUTS` in `keyboard-shortcut.tsx`
+- Missing from `PAGES` array in `CommandPalette.tsx`
+- Missing from `routeHierarchy` in `DashboardLayout.tsx`
 
-**Solution**: Change the ticker container to use `overflow: clip` (which clips visually but does not create a scroll container, allowing the CSS animation to work within its own bounds). For the hover/drag state, wrap the scrollable area in an additional inner container that has its own overflow context.
+### 2. Command Palette `PAGES` Array Has Items Without Shortcuts That Will Crash
 
-Concretely:
-1. Keep the outer container as the visual boundary with `overflow-hidden` (for the animation state)
-2. When hovered, switch the **outer container** to `overflow-x-auto` -- but this alone is blocked by the parent's `overflow-x-hidden`
-3. The real fix: remove `overflow-x-hidden` from `SidebarInset` and replace with `overflow-x-clip`. `overflow-x-clip` prevents layout-level horizontal scroll bars on the page but does NOT create a scroll container that blocks child `overflow-x-auto` elements.
+In `CommandPalette.tsx` line 368, the grouped pages rendering assumes `page.shortcut` exists:
+```tsx
+<Kbd keys={["G", page.shortcut!]} className="opacity-60" />
+```
+The `!` assertion will pass `null` into `Kbd`, causing a rendering issue for any page without a shortcut (like "Closed Trades" at line 52 which has `shortcut: null`). This item is only in the standalone group currently (which has a conditional), but adding new pages to grouped domains without shortcuts would crash.
 
-### File: `src/components/ui/sidebar.tsx`
+### 3. No Other Issues Found
 
-**Line 277**: Replace `overflow-x-hidden` with `overflow-x-clip`.
+- **Mode consistency**: Sidebar, header, and all integrated components are mode-agnostic in structure. The TradeModeSelector, SimulationBanner, and RiskAlertBanner correctly toggle based on mode context only -- no structural differences between Paper and Live.
+- **Loading states**: NavUser has proper skeleton loading (lines 46-59). TradeModeSelector has skeleton (line 44). LivePriceTicker has skeleton (lines 90-103). GlobalSyncIndicator returns null when idle.
+- **Empty states**: NotificationToggle shows "No notifications" empty state. CommandPalette shows "No results found."
+- **Dropdown backgrounds**: NavUser dropdown has `bg-popover` (line 87). WalletConnectButton dropdown has default background. NotificationToggle popover has `bg-popover` (line 63). All correct.
+- **Sidebar persistence**: `use-sidebar-persistence.ts` correctly reads/writes localStorage. NavGroup also persists collapse state per group.
+- **Mobile behavior**: Sidebar closes on nav click via `setOpenMobile(false)`. Mobile Sheet rendering is correct.
+- **Keyboard shortcuts**: G+key pattern, Ctrl+B sidebar toggle, Ctrl+K command palette -- all properly implemented with input-field guards.
+- **Color tokens**: All semantic tokens (`text-profit`, `text-loss`, chart tokens) used correctly.
+- **ARIA**: ThemeToggle, SimulationBanner, RiskAlertBanner, SidebarRail all have proper aria-labels.
 
-`overflow-x-clip` is the modern CSS property that clips overflow visually (like `hidden`) but does **not** establish a new scroll container. This means:
-- The page still won't show horizontal scrollbars (same visual result)  
-- Child elements like the ticker can manage their own overflow independently
-- CSS animations using `transform` on child elements work correctly
+---
 
-## No Other Issues Found
+## Implementation Plan
 
-- **Data fetching**: Network request returns 200 with valid data from the edge function proxy
-- **Loading state**: Skeleton UI properly renders during loading
-- **Mode consistency**: Ticker is mode-agnostic (uses public Binance API, not user-scoped data)
-- **Color tokens**: Uses `text-profit` and `text-loss` (valid semantic tokens)
-- **Header layout**: Breadcrumbs, TradeModeSelector, search, notifications -- all properly structured
+### File 1: `src/components/layout/NavGroup.tsx` (ROUTE_SHORTCUTS)
+Add missing shortcuts:
+```
+"/top-movers": "O",
+"/import": "N",
+"/export": "W",
+```
+
+### File 2: `src/components/ui/keyboard-shortcut.tsx` (NAVIGATION_SHORTCUTS)
+Add matching entries:
+```
+'o': { path: '/top-movers', label: 'Top Movers', domain: 'Market' },
+'n': { path: '/import', label: 'Import & Sync', domain: 'Journal' },
+'w': { path: '/export', label: 'Bulk Export', domain: 'Tools' },
+```
+
+### File 3: `src/components/layout/CommandPalette.tsx` (PAGES array)
+Add three entries with matching shortcuts:
+```
+{ title: "Top Movers", url: "/top-movers", icon: Flame, shortcut: "O", domain: "Market" },
+{ title: "Import & Sync", url: "/import", icon: Download, shortcut: "N", domain: "Journal" },
+{ title: "Bulk Export", url: "/export", icon: Download, shortcut: "W", domain: "Tools" },
+```
+Also add missing icon imports (`Flame`, `Download`).
+
+Fix the unsafe `page.shortcut!` assertion on line 368 by adding a conditional:
+```tsx
+{page.shortcut && <Kbd keys={["G", page.shortcut]} className="opacity-60" />}
+```
+
+### File 4: `src/components/layout/DashboardLayout.tsx` (routeHierarchy)
+Add missing breadcrumb entries:
+```
+"/top-movers": { title: "Top Movers", domain: "Market", domainPath: "/market-data" },
+"/import": { title: "Import & Sync", domain: "Journal", domainPath: "/trading" },
+"/export": { title: "Bulk Export", domain: "Tools", domainPath: "/export" },
+```
+
+---
 
 ## Technical Summary
 
 | File | Change |
 |------|--------|
-| `src/components/ui/sidebar.tsx` (line 277) | Replace `overflow-x-hidden` with `overflow-x-clip` |
+| `src/components/layout/NavGroup.tsx` | Add 3 entries to `ROUTE_SHORTCUTS` |
+| `src/components/ui/keyboard-shortcut.tsx` | Add 3 entries to `NAVIGATION_SHORTCUTS` |
+| `src/components/layout/CommandPalette.tsx` | Add 3 entries to `PAGES`, add icon imports, fix unsafe `!` assertion |
+| `src/components/layout/DashboardLayout.tsx` | Add 3 entries to `routeHierarchy` |
 
-This single change unblocks both the marquee animation and the drag-to-scroll interaction without affecting any other page layout.
+Total: 4 files, ~15 lines added/changed. All changes are additive -- no existing functionality is modified.
 
