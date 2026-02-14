@@ -1,4 +1,5 @@
 import { Bell, BellOff, Check, Trash2, FileDown, CalendarDays, Loader2 } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -24,6 +25,9 @@ export default function Notifications() {
   const markAllAsRead = useMarkAllAsRead();
   const clearAll = useClearAllNotifications();
   const { exportCurrentWeek, exportLastWeek, isGenerating } = useWeeklyReportExport();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'all';
+  const setActiveTab = (tab: string) => setSearchParams({ tab });
 
   const formatTimestamp = (dateStr: string) => {
     try {
@@ -165,7 +169,7 @@ export default function Notifications() {
           </CardContent>
         </Card>
 
-        <Tabs defaultValue="all" className="space-y-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList>
             <TabsTrigger value="all">
               All
