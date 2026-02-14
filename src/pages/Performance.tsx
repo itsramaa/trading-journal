@@ -2,7 +2,7 @@
  * Performance Analytics - Overview and Strategies
  * Orchestrator component that delegates to sub-components
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { PageHeader } from "@/components/ui/page-header";
@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { FilterActiveIndicator } from "@/components/ui/filter-active-indicator";
 import { type AnalyticsSelection } from "@/components/analytics/AnalyticsLevelSelector";
 import { type DateRange } from "@/components/trading/DateRangeFilter";
@@ -56,6 +57,7 @@ import { Link } from "react-router-dom";
 import type { UnifiedMarketContext } from "@/types/market-context";
 
 export default function Performance() {
+  const [retryKey, setRetryKey] = useState(0);
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get("tab") || "overview";
   const handleTabChange = (value: string) => {
@@ -149,7 +151,8 @@ export default function Performance() {
   }
 
   return (
-    <div className="space-y-6">
+    <ErrorBoundary title="Performance Analytics" onRetry={() => setRetryKey(k => k + 1)}>
+    <div key={retryKey} className="space-y-6">
       <PageHeader icon={BarChart3} title="Performance Analytics" description="Deep dive into your trading performance metrics">
         {analyticsSelection.level !== 'overall' && (
           <Badge variant="secondary" className="text-xs">
@@ -276,5 +279,6 @@ export default function Performance() {
         </Tabs>
       )}
     </div>
+    </ErrorBoundary>
   );
 }

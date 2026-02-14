@@ -72,7 +72,7 @@ export function EventDayComparison({ eventDayMetrics, normalDayMetrics }: EventD
           {/* Event Days Column */}
           <div className="space-y-4">
             <div className="flex items-center gap-2 pb-2 border-b">
-              <Calendar className="h-4 w-4 text-warning" />
+              <Calendar className="h-4 w-4 text-[hsl(var(--chart-4))]" />
               <span className="font-semibold">Event Days</span>
               <Badge variant="secondary" className="ml-auto">
                 {eventDayMetrics.trades} trades

@@ -45,7 +45,7 @@ export function CryptoRanking() {
       };
 
       existing.trades++;
-      const pnl = trade.realized_pnl || trade.pnl || 0;
+      const pnl = trade.realized_pnl ?? trade.pnl ?? 0;
       existing.totalPnl += pnl;
 
       if (pnl > 0) {

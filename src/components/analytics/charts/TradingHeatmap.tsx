@@ -90,7 +90,7 @@ export function TradingHeatmap({ trades: externalTrades, className, showEventOve
       };
 
       existing.trades++;
-      const pnl = trade.realized_pnl || trade.pnl || 0;
+      const pnl = trade.realized_pnl ?? trade.pnl ?? 0;
       existing.totalPnl += pnl;
       
       // Check if this trade date has events
@@ -216,14 +216,14 @@ export function TradingHeatmap({ trades: externalTrades, className, showEventOve
                               className={cn(
                                 "w-full h-12 rounded-md flex flex-col items-center justify-center text-xs font-medium cursor-default transition-all hover:scale-105 relative",
                                 getCellColor(cell),
-                                hasEvent && "ring-2 ring-warning ring-offset-1 ring-offset-background"
+                                hasEvent && "ring-2 ring-[hsl(var(--chart-4))] ring-offset-1 ring-offset-background"
                               )}
                             >
                               {/* Event indicator badge */}
                               {hasEvent && (
                                 <div className="absolute -top-1 -right-1">
-                                  <div className="w-3 h-3 bg-warning rounded-full flex items-center justify-center">
-                                    <Calendar className="w-2 h-2 text-warning-foreground" />
+                                  <div className="w-3 h-3 bg-[hsl(var(--chart-4))] rounded-full flex items-center justify-center">
+                                    <Calendar className="w-2 h-2 text-background" />
                                   </div>
                                 </div>
                               )}
@@ -249,7 +249,7 @@ export function TradingHeatmap({ trades: externalTrades, className, showEventOve
                                 
                                 {/* Event Warning */}
                                 {hasEvent && cell.eventLabels && cell.eventLabels.length > 0 && (
-                                  <div className="flex items-center gap-1.5 text-warning bg-warning/10 rounded px-1.5 py-0.5">
+                                  <div className="flex items-center gap-1.5 text-[hsl(var(--chart-4))] bg-[hsl(var(--chart-4))]/10 rounded px-1.5 py-0.5">
                                     <Calendar className="w-3 h-3" />
                                     <span className="font-medium">
                                       {cell.eventLabels.length === 1 
@@ -307,8 +307,8 @@ export function TradingHeatmap({ trades: externalTrades, className, showEventOve
           </div>
           {showEventOverlay && (
             <div className="flex items-center gap-1 ml-2 pl-2 border-l">
-              <div className="w-4 h-4 rounded ring-2 ring-warning ring-offset-1 ring-offset-background flex items-center justify-center">
-                <Calendar className="w-2.5 h-2.5 text-warning" />
+              <div className="w-4 h-4 rounded ring-2 ring-[hsl(var(--chart-4))] ring-offset-1 ring-offset-background flex items-center justify-center">
+                <Calendar className="w-2.5 h-2.5 text-[hsl(var(--chart-4))]" />
               </div>
               <span>High-Impact Event</span>
             </div>

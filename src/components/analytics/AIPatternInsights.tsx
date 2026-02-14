@@ -37,9 +37,9 @@ export function AIPatternInsights() {
       const existing = patternMap.get(key) || { wins: 0, losses: 0, totalPnl: 0, trades: 0 };
       
       existing.trades++;
-      existing.totalPnl += trade.realized_pnl || trade.pnl || 0;
+      existing.totalPnl += trade.realized_pnl ?? trade.pnl ?? 0;
       
-      if ((trade.realized_pnl || trade.pnl || 0) > 0) {
+      if ((trade.realized_pnl ?? trade.pnl ?? 0) > 0) {
         existing.wins++;
       } else {
         existing.losses++;

@@ -34,7 +34,7 @@ export function DrawdownChart({ trades: externalTrades }: DrawdownChartProps = {
     let peak = 0;
     
     return sortedTrades.map((trade) => {
-      const pnl = trade.realized_pnl || trade.pnl || 0;
+      const pnl = trade.realized_pnl ?? trade.pnl ?? 0;
       cumulative += pnl;
       
       // Update peak

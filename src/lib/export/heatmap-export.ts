@@ -22,7 +22,7 @@ export function exportHeatmapCSV(trades: HeatmapTrade[], options?: { dateRange?:
 
     const existing = grid.get(key) || { trades: 0, wins: 0, pnl: 0 };
     existing.trades++;
-    const pnl = trade.realized_pnl || trade.pnl || 0;
+    const pnl = trade.realized_pnl ?? trade.pnl ?? 0;
     existing.pnl += pnl;
     if (pnl > 0) existing.wins++;
     grid.set(key, existing);
