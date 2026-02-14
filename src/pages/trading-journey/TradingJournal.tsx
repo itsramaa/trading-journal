@@ -10,6 +10,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -94,6 +95,7 @@ export default function TradingJournal() {
   };
 
   const [isWizardOpen, setIsWizardOpen] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
   const [deletingTrade, setDeletingTrade] = useState<TradeEntry | null>(null);
   const [closingPosition, setClosingPosition] = useState<TradeEntry | null>(null);
   const [editingPosition, setEditingPosition] = useState<TradeEntry | null>(null);
@@ -310,7 +312,8 @@ export default function TradingJournal() {
   }
 
   return (
-    <div className="space-y-6">
+    <ErrorBoundary title="Trading Journal" onRetry={() => setRetryKey(k => k + 1)}>
+    <div key={retryKey} className="space-y-6">
       <div className="space-y-6">
         <PageHeader
           icon={BookOpen}
@@ -609,5 +612,6 @@ export default function TradingJournal() {
         />
       </div>
     </div>
+    </ErrorBoundary>
   );
 }

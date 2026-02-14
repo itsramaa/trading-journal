@@ -3,7 +3,7 @@
  * Supports both DB trades (UUID) and live Binance positions (binance-SYMBOL)
  * Layout: Header → Key Metrics Strip → 3-col Grid → Full-width sections
  */
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, startTransition } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { useBinancePositions } from "@/features/binance";
 import type { BinancePosition } from "@/features/binance/types";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { CryptoIcon } from "@/components/ui/crypto-icon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,7 +28,7 @@ import {
   TrendingUp,
   TrendingDown,
   BookOpen,
-  Pencil,
+  
   Wifi,
   FileText,
   Clock,
@@ -118,6 +119,7 @@ export default function TradeDetail() {
   const { user } = useAuth();
   const { format: formatCurrency, formatPnl } = useCurrencyConversion();
   const [enrichDrawerOpen, setEnrichDrawerOpen] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
   const queryClient = useQueryClient();
 
   const isBinancePosition = tradeId?.startsWith('binance-') ?? false;
@@ -311,7 +313,7 @@ export default function TradeDetail() {
     return (
       <div className="flex flex-col items-center justify-center py-20 space-y-4">
         <p className="text-muted-foreground">Trade not found or access denied.</p>
-        <Button variant="outline" onClick={() => window.history.length > 1 ? navigate(-1) : navigate('/trading')}>
+        <Button variant="outline" onClick={() => startTransition(() => window.history.length > 1 ? navigate(-1) : navigate('/trading'))}>
           <ArrowLeft className="h-4 w-4 mr-2" /> Go Back
         </Button>
       </div>
@@ -333,11 +335,12 @@ export default function TradeDetail() {
   const hasAnyEnrichment = hasStrategyData || hasJournalData || hasTimeframeData || screenshots.length > 0;
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <ErrorBoundary title="Trade Detail" onRetry={() => setRetryKey(k => k + 1)}>
+    <div key={retryKey} className="space-y-6 max-w-5xl mx-auto">
       {/* ===== HEADER ===== */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div className="flex items-start gap-3">
-          <Button variant="ghost" size="icon" onClick={() => window.history.length > 1 ? navigate(-1) : navigate('/trading')} className="mt-0.5">
+          <Button variant="ghost" size="icon" onClick={() => startTransition(() => window.history.length > 1 ? navigate(-1) : navigate('/trading'))} className="mt-0.5">
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <CryptoIcon symbol={trade.pair} size={32} className="mt-1" />
@@ -638,5 +641,6 @@ export default function TradeDetail() {
         onSaved={handleEnrichmentSaved}
       />
     </div>
+    </ErrorBoundary>
   );
 }
