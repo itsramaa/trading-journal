@@ -2,13 +2,12 @@
  * Trade History Content - Trade list rendering and infinite scroll
  */
 import { cn } from "@/lib/utils";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TradeHistoryCard } from "@/components/trading/TradeHistoryCard";
 import { TradeGalleryCard, TradeGalleryCardSkeleton } from "@/components/journal/TradeGalleryCard";
-import { History, FileText, Wifi, Loader2 } from "lucide-react";
+import { History, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import type { TradeEntry } from "@/hooks/use-trade-entries";
 import { EMPTY_STATE_MESSAGES, VIEW_MODE_CONFIG, type ViewMode } from "@/lib/constants/trade-history";
@@ -71,7 +70,7 @@ export function TradeHistoryContent({
 
     if (viewMode === 'gallery') {
       return (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {trades.map((entry) => (
             <TradeGalleryCard
               key={entry.id}
@@ -106,7 +105,7 @@ export function TradeHistoryContent({
   const renderLoadingSkeleton = () => {
     if (viewMode === 'gallery') {
       return (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {Array.from({ length: VIEW_MODE_CONFIG.skeletonCount.gallery }).map((_, i) => (
             <TradeGalleryCardSkeleton key={i} />
           ))}
@@ -130,56 +129,44 @@ export function TradeHistoryContent({
     );
   };
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <FileText className="h-5 w-5" aria-hidden="true" />
-          Closed Trades
-          {isBinanceConnected && (
-            <Badge variant="outline" className="text-xs gap-1 ml-2">
-              <Wifi className="h-3 w-3 text-profit" aria-hidden="true" />
-              Binance
-            </Badge>
-          )}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          renderLoadingSkeleton()
-        ) : isError ? (
-          <EmptyState
-            icon={History}
-            title="Failed to load trades"
-            description={error?.message || "An error occurred while loading trades."}
-          />
-        ) : (
-          <>
-            <div className={cn("transition-opacity duration-200", isFetching && !isLoading && "opacity-60")}>
-              {renderTradeList(sortedTrades)}
-            </div>
+  if (isLoading) {
+    return renderLoadingSkeleton();
+  }
 
-            <div ref={loadMoreRef} className="py-4 flex justify-center">
-              {isFetchingNextPage ? (
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span className="text-sm">Loading more trades...</span>
-                </div>
-              ) : hasNextPage ? (
-                <span className="text-sm text-muted-foreground">Scroll for more</span>
-              ) : sortedTrades.length > 0 && totalCount > sortedTrades.length ? (
-                <span className="text-sm text-muted-foreground">
-                  {sortedTrades.length} of {totalCount} trades loaded
-                </span>
-              ) : sortedTrades.length > 0 ? (
-                <span className="text-sm text-muted-foreground">
-                  All {sortedTrades.length} trades loaded
-                </span>
-              ) : null}
-            </div>
-          </>
-        )}
-      </CardContent>
-    </Card>
+  if (isError) {
+    return (
+      <EmptyState
+        icon={History}
+        title="Failed to load trades"
+        description={error?.message || "An error occurred while loading trades."}
+      />
+    );
+  }
+
+  return (
+    <>
+      <div className={cn("transition-opacity duration-200", isFetching && !isLoading && "opacity-60")}>
+        {renderTradeList(sortedTrades)}
+      </div>
+
+      <div ref={loadMoreRef} className="py-4 flex justify-center">
+        {isFetchingNextPage ? (
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span className="text-sm">Loading more trades...</span>
+          </div>
+        ) : hasNextPage ? (
+          <span className="text-sm text-muted-foreground">Scroll for more</span>
+        ) : sortedTrades.length > 0 && totalCount > sortedTrades.length ? (
+          <span className="text-sm text-muted-foreground">
+            {sortedTrades.length} of {totalCount} trades loaded
+          </span>
+        ) : sortedTrades.length > 0 ? (
+          <span className="text-sm text-muted-foreground">
+            All {sortedTrades.length} trades loaded
+          </span>
+        ) : null}
+      </div>
+    </>
   );
 }

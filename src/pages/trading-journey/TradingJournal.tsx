@@ -227,6 +227,8 @@ export default function TradingJournal() {
       unrealizedPnL: trade.pnl || 0,
       leverage: (trade as any).leverage || 1,
       isReadOnly: trade.source === 'binance' || trade.trade_mode === 'live',
+      stopLoss: trade.stop_loss,
+      takeProfit: trade.take_profit,
       originalData: trade,
     };
     setEnrichingPosition(unified);

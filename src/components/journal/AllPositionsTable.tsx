@@ -295,13 +295,6 @@ export function AllPositionsTable({
             <TableHead className="text-right hidden md:table-cell">Entry</TableHead>
             <TableHead className="text-right hidden md:table-cell">Current</TableHead>
             <TableHead className="text-right hidden lg:table-cell">Size</TableHead>
-            <TableHead className="text-right hidden lg:table-cell">Fees</TableHead>
-            <TableHead className="text-right hidden lg:table-cell">
-              <span className="flex items-center justify-end gap-1">
-                <Clock className="h-3 w-3" />
-                Time
-              </span>
-            </TableHead>
             <TableHead className="text-right">P&L</TableHead>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
@@ -370,24 +363,6 @@ export function AllPositionsTable({
                 </TableCell>
                 <TableCell className="text-right font-mono hidden lg:table-cell">
                   {position.quantity.toFixed(4)}
-                </TableCell>
-                <TableCell className="text-right font-mono text-muted-foreground hidden lg:table-cell">
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger>
-                        {totalFees > 0 ? `-${totalFees.toFixed(2)}` : '-'}
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <div className="text-xs space-y-1">
-                          <p>Commission: ${(position.fees || 0).toFixed(4)}</p>
-                          <p>Funding: ${(position.fundingFees || 0).toFixed(4)}</p>
-                        </div>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </TableCell>
-                <TableCell className="text-right font-mono text-muted-foreground hidden lg:table-cell">
-                  <TimeInTrade entryDatetime={position.entryDatetime} />
                 </TableCell>
                 <TableCell className={`text-right font-mono ${pnlColor}`}>
                   {formatCurrency(position.unrealizedPnL)}

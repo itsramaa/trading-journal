@@ -2,7 +2,7 @@
  * TradeHistoryCard - Display a single trade entry in the history
  * Enhanced with accessibility, Enrich button for journaling, Quick Note, and market context badges
  */
-import { useState } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -34,7 +34,7 @@ interface TradeHistoryCardProps {
   showEnrichButton?: boolean;
 }
 
-export function TradeHistoryCard({ 
+export const TradeHistoryCard = React.forwardRef<HTMLDivElement, TradeHistoryCardProps>(function TradeHistoryCard({ 
   entry, 
   onDelete,
   onEnrich,
@@ -44,7 +44,7 @@ export function TradeHistoryCard({
   formatCurrency,
   isBinance = false,
   showEnrichButton = false,
-}: TradeHistoryCardProps) {
+}, ref) {
   const [isQuickNoteOpen, setIsQuickNoteOpen] = useState(false);
   const [quickNote, setQuickNote] = useState('');
   const [isSavingNote, setIsSavingNote] = useState(false);
@@ -91,7 +91,7 @@ export function TradeHistoryCard({
   
   return (
     <>
-      <Card className="border-muted">
+      <Card ref={ref} className="border-muted">
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
@@ -347,4 +347,5 @@ export function TradeHistoryCard({
       </Dialog>
     </>
   );
-}
+});
+TradeHistoryCard.displayName = 'TradeHistoryCard';
