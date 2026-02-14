@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { TradeHistoryCard } from "@/components/trading/TradeHistoryCard";
 import { TradeGalleryCard, TradeGalleryCardSkeleton } from "@/components/journal/TradeGalleryCard";
 import { History, FileText, Wifi, Loader2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import type { TradeEntry } from "@/hooks/use-trade-entries";
 import type { UnifiedPosition } from "@/components/journal";
 import { EMPTY_STATE_MESSAGES, VIEW_MODE_CONFIG, type ViewMode } from "@/lib/constants/trade-history";
@@ -57,6 +58,12 @@ export function TradeHistoryContent({
   calculateRR,
   formatCurrency,
 }: TradeHistoryContentProps) {
+  const navigate = useNavigate();
+
+  const handleGalleryCardClick = (trade: TradeEntry) => {
+    navigate(`/trading/${trade.id}`);
+  };
+
   const renderTradeList = (trades: TradeEntry[]) => {
     if (trades.length === 0) {
       return (
@@ -75,7 +82,7 @@ export function TradeHistoryContent({
             <TradeGalleryCard
               key={entry.id}
               trade={entry}
-              onTradeClick={onEnrichTrade}
+              onTradeClick={handleGalleryCardClick}
             />
           ))}
         </div>

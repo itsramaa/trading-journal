@@ -3,9 +3,9 @@
  * Supports both DB trades (UUID) and live Binance positions (binance-SYMBOL)
  * Layout: Header → Key Metrics Strip → 3-col Grid → Full-width sections
  */
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
@@ -41,10 +41,19 @@ import {
   MessageSquare,
   CheckCircle2,
   XCircle,
+  Activity,
 } from "lucide-react";
 import { format } from "date-fns";
 
 // --- Helpers ---
+
+/** Safe number formatting that handles strings, null, undefined */
+function safeFixed(val: unknown, digits = 2): string | undefined {
+  if (val === null || val === undefined) return undefined;
+  const n = typeof val === 'string' ? parseFloat(val) : val;
+  if (typeof n !== 'number' || isNaN(n)) return undefined;
+  return n.toFixed(digits);
+}
 
 function KeyMetric({ label, value, className }: { label: string; value: React.ReactNode; className?: string }) {
   return (
@@ -96,8 +105,9 @@ function formatDatetime(dt: string | null | undefined): string {
   }
 }
 
+/** Check if any value has content. Treats 0 as valid content. */
 function hasContent(...values: unknown[]): boolean {
-  return values.some(v => v !== null && v !== undefined && v !== '' && v !== 0);
+  return values.some(v => v !== null && v !== undefined && v !== '');
 }
 
 // --- Main Component ---
@@ -108,12 +118,14 @@ export default function TradeDetail() {
   const { user } = useAuth();
   const { format: formatCurrency, formatPnl } = useCurrencyConversion();
   const [enrichDrawerOpen, setEnrichDrawerOpen] = useState(false);
+  const queryClient = useQueryClient();
 
   const isBinancePosition = tradeId?.startsWith('binance-') ?? false;
   const binanceSymbol = isBinancePosition ? tradeId!.replace('binance-', '') : null;
 
   const { data: binancePositions = [], isLoading: binanceLoading } = useBinancePositions();
 
+  // DB trade query (for Paper/closed trades)
   const { data: dbTrade, isLoading: dbLoading } = useQuery({
     queryKey: ["trade-detail", tradeId],
     queryFn: async () => {
@@ -146,11 +158,44 @@ export default function TradeDetail() {
     enabled: !!user?.id && !!tradeId && !isBinancePosition,
   });
 
+  // Enrichment data for Binance positions (stored in trade_entries via enrichment drawer)
+  const { data: binanceEnrichment } = useQuery({
+    queryKey: ["trade-enrichment-binance", binanceSymbol],
+    queryFn: async () => {
+      if (!user?.id || !binanceSymbol) return null;
+      const { data, error } = await supabase
+        .from("trade_entries")
+        .select("*")
+        .eq("binance_trade_id", `binance-${binanceSymbol}`)
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (error) return null;
+      if (!data) return null;
+
+      const { data: stratLinks } = await supabase
+        .from("trade_entry_strategies")
+        .select("trading_strategies(*)")
+        .eq("trade_entry_id", data.id);
+
+      const strategies = stratLinks?.map((s: any) => s.trading_strategies).filter(Boolean) || [];
+
+      return {
+        ...data,
+        screenshots: (data.screenshots as unknown) as TradeScreenshot[] | null,
+        rule_compliance: (data.rule_compliance as unknown) as Record<string, boolean> | null,
+        post_trade_analysis: (data.post_trade_analysis as unknown) as Record<string, any> | null,
+        strategies,
+      };
+    },
+    enabled: isBinancePosition && !!user?.id && !!binanceSymbol,
+  });
+
   const binanceTrade = useMemo(() => {
     if (!isBinancePosition || !binanceSymbol) return null;
     const pos = binancePositions.find((p: BinancePosition) => p.symbol === binanceSymbol);
     if (!pos) return null;
-    return {
+
+    const base: any = {
       id: `binance-${pos.symbol}`,
       pair: pos.symbol,
       direction: pos.positionAmt >= 0 ? 'LONG' : 'SHORT',
@@ -160,7 +205,7 @@ export default function TradeDetail() {
       pnl: pos.unrealizedProfit,
       commission: 0, fees: 0, funding_fees: 0,
       leverage: pos.leverage, margin_type: pos.marginType,
-      source: 'binance', trade_mode: 'live', trade_state: 'open',
+      source: 'binance', trade_mode: 'live', trade_state: 'active',
       trade_rating: null, trade_style: null,
       trade_date: new Date().toISOString(),
       entry_datetime: null, exit_datetime: null, hold_time_minutes: null,
@@ -176,14 +221,54 @@ export default function TradeDetail() {
       binance_trade_id: null, binance_order_id: null, trading_account_id: null,
       created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
       status: 'open', user_id: user?.id || '',
+      realized_pnl: null,
       _markPrice: pos.markPrice,
       _liquidationPrice: pos.liquidationPrice,
-    } as any;
-  }, [isBinancePosition, binanceSymbol, binancePositions, user?.id]);
+    };
+
+    // Merge enrichment data if available
+    if (binanceEnrichment) {
+      base.notes = binanceEnrichment.notes;
+      base.emotional_state = binanceEnrichment.emotional_state;
+      base.tags = binanceEnrichment.tags;
+      base.screenshots = binanceEnrichment.screenshots || [];
+      base.strategies = (binanceEnrichment as any).strategies || [];
+      base.entry_signal = binanceEnrichment.entry_signal;
+      base.market_condition = binanceEnrichment.market_condition;
+      base.confluence_score = binanceEnrichment.confluence_score;
+      base.bias_timeframe = binanceEnrichment.bias_timeframe;
+      base.execution_timeframe = binanceEnrichment.execution_timeframe;
+      base.precision_timeframe = binanceEnrichment.precision_timeframe;
+      base.chart_timeframe = binanceEnrichment.chart_timeframe;
+      base.trade_rating = binanceEnrichment.trade_rating;
+      base.trade_style = binanceEnrichment.trade_style;
+      base.lesson_learned = binanceEnrichment.lesson_learned;
+      base.rule_compliance = (binanceEnrichment.rule_compliance as unknown) as Record<string, boolean> | null;
+      base.post_trade_analysis = (binanceEnrichment as any).post_trade_analysis;
+      base.ai_quality_score = binanceEnrichment.ai_quality_score;
+      base.ai_confidence = binanceEnrichment.ai_confidence;
+      base.stop_loss = binanceEnrichment.stop_loss;
+      base.take_profit = binanceEnrichment.take_profit;
+      base.entry_order_type = binanceEnrichment.entry_order_type;
+      base.exit_order_type = binanceEnrichment.exit_order_type;
+      base.r_multiple = binanceEnrichment.r_multiple;
+      base.max_adverse_excursion = binanceEnrichment.max_adverse_excursion;
+    }
+
+    return base;
+  }, [isBinancePosition, binanceSymbol, binancePositions, user?.id, binanceEnrichment]);
 
   const trade = isBinancePosition ? binanceTrade : dbTrade;
   const isLoading = isBinancePosition ? binanceLoading : dbLoading;
   const isReadOnly = trade?.source === 'binance' || trade?.trade_mode === 'live' || isBinancePosition;
+
+  // Set page title
+  useEffect(() => {
+    if (trade) {
+      document.title = `${trade.pair} ${trade.direction} - Trade Detail`;
+    }
+    return () => { document.title = 'Trading Journal'; };
+  }, [trade?.pair, trade?.direction]);
 
   const enrichmentPosition: UnifiedPosition | null = useMemo(() => {
     if (!trade) return null;
@@ -199,6 +284,14 @@ export default function TradeDetail() {
       isReadOnly: !!isReadOnly, originalData: trade,
     };
   }, [trade, isReadOnly]);
+
+  const handleEnrichmentSaved = () => {
+    if (isBinancePosition) {
+      queryClient.invalidateQueries({ queryKey: ["trade-enrichment-binance", binanceSymbol] });
+    } else {
+      queryClient.invalidateQueries({ queryKey: ["trade-detail", tradeId] });
+    }
+  };
 
   // --- Loading ---
   if (isLoading) {
@@ -225,7 +318,7 @@ export default function TradeDetail() {
     );
   }
 
-  const pnlValue = trade.pnl || 0;
+  const pnlValue = trade.realized_pnl ?? trade.pnl ?? 0;
   const totalFees = (trade.commission || 0) + (trade.fees || 0) + ((trade as any).funding_fees || 0);
   const netPnl = pnlValue - totalFees;
   const isPaper = trade.source !== 'binance' && trade.trade_mode !== 'live';
@@ -237,6 +330,7 @@ export default function TradeDetail() {
   const hasTimeframeData = hasContent(trade.bias_timeframe, trade.execution_timeframe, (trade as any).precision_timeframe);
   const hasStrategyData = hasContent(trade.entry_signal, trade.market_condition, trade.confluence_score) || (trade.strategies?.length > 0);
   const hasJournalData = hasContent(trade.emotional_state, trade.notes, trade.lesson_learned) || (trade.tags?.length > 0) || (ruleCompliance && Object.keys(ruleCompliance).length > 0);
+  const hasAnyEnrichment = hasStrategyData || hasJournalData || hasTimeframeData || screenshots.length > 0;
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
@@ -282,7 +376,7 @@ export default function TradeDetail() {
               <BookOpen className="h-4 w-4 mr-1" /> Enrich
             </Button>
             {!isReadOnly && (
-              <Button variant="outline" size="sm" onClick={() => navigate('/trading')}>
+              <Button variant="outline" size="sm" onClick={() => setEnrichDrawerOpen(true)}>
                 <Pencil className="h-4 w-4 mr-1" /> Edit
               </Button>
             )}
@@ -294,11 +388,11 @@ export default function TradeDetail() {
       <Card className="bg-muted/30">
         <CardContent className="py-4">
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
-            <KeyMetric label="Entry" value={trade.entry_price.toFixed(2)} />
-            <KeyMetric label="Exit" value={trade.exit_price?.toFixed(2)} />
-            <KeyMetric label="Size" value={trade.quantity.toFixed(4)} />
+            <KeyMetric label="Entry" value={safeFixed(trade.entry_price, 2)} />
+            <KeyMetric label="Exit" value={safeFixed(trade.exit_price, 2)} />
+            <KeyMetric label="Size" value={safeFixed(trade.quantity, 4)} />
             <KeyMetric label="Leverage" value={(trade as any).leverage ? `${(trade as any).leverage}x` : undefined} />
-            <KeyMetric label="R-Multiple" value={(trade as any).r_multiple?.toFixed(2)} />
+            <KeyMetric label="R-Multiple" value={safeFixed((trade as any).r_multiple, 2)} />
             <KeyMetric
               label="Gross P&L"
               value={formatPnl(pnlValue)}
@@ -308,6 +402,24 @@ export default function TradeDetail() {
         </CardContent>
       </Card>
 
+      {/* ===== ENRICHMENT CTA (for unenriched positions) ===== */}
+      {isBinancePosition && !hasAnyEnrichment && (
+        <Card className="border-dashed border-primary/30 bg-primary/5">
+          <CardContent className="py-6 text-center space-y-3">
+            <BookOpen className="h-8 w-8 text-primary mx-auto" />
+            <div>
+              <p className="font-medium">This position hasn't been enriched yet</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Add journal notes, strategies, and screenshots to improve your analysis.
+              </p>
+            </div>
+            <Button onClick={() => setEnrichDrawerOpen(true)} className="gap-2">
+              <BookOpen className="h-4 w-4" /> Enrich Now
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* ===== MAIN CONTENT GRID ===== */}
       <div className="grid gap-4 md:grid-cols-3">
         {/* Left column (2/3) */}
@@ -315,21 +427,19 @@ export default function TradeDetail() {
           {/* Price & Performance */}
           <SectionCard title="Price & Performance" icon={DollarSign}>
             <div className="grid grid-cols-2 gap-x-6">
-              <DetailRow label="Entry Price" value={trade.entry_price.toFixed(4)} />
-              <DetailRow label="Exit Price" value={trade.exit_price?.toFixed(4)} />
-              <DetailRow label="Stop Loss" value={trade.stop_loss?.toFixed(4)} />
-              <DetailRow label="Take Profit" value={trade.take_profit?.toFixed(4)} />
-              {trade._markPrice && <DetailRow label="Mark Price" value={trade._markPrice.toFixed(4)} />}
-              {trade._liquidationPrice && <DetailRow label="Liq. Price" value={trade._liquidationPrice.toFixed(4)} />}
+              <DetailRow label="Entry Price" value={safeFixed(trade.entry_price, 4)} />
+              <DetailRow label="Exit Price" value={safeFixed(trade.exit_price, 4)} />
+              <DetailRow label="Stop Loss" value={safeFixed(trade.stop_loss, 4)} />
+              <DetailRow label="Take Profit" value={safeFixed(trade.take_profit, 4)} />
             </div>
             <div className="border-t border-border mt-3 pt-3">
               <div className="grid grid-cols-2 gap-x-6">
                 <DetailRow label="Gross P&L" value={formatPnl(pnlValue)} className={pnlValue >= 0 ? 'text-profit' : 'text-loss'} />
                 <DetailRow label="Net P&L" value={formatPnl(netPnl)} className={netPnl >= 0 ? 'text-profit' : 'text-loss'} />
-                <DetailRow label="Commission" value={trade.commission ? formatCurrency(trade.commission) : undefined} />
-                <DetailRow label="Fees" value={trade.fees ? formatCurrency(trade.fees) : undefined} />
-                <DetailRow label="Funding Fees" value={(trade as any).funding_fees ? formatCurrency((trade as any).funding_fees) : undefined} />
-                <DetailRow label="MAE" value={(trade as any).max_adverse_excursion?.toFixed(4)} />
+                <DetailRow label="Commission" value={hasContent(trade.commission) ? formatCurrency(trade.commission!) : undefined} />
+                <DetailRow label="Fees" value={hasContent(trade.fees) ? formatCurrency(trade.fees!) : undefined} />
+                <DetailRow label="Funding Fees" value={hasContent((trade as any).funding_fees) ? formatCurrency((trade as any).funding_fees) : undefined} />
+                <DetailRow label="MAE" value={safeFixed((trade as any).max_adverse_excursion, 4)} />
               </div>
             </div>
             {trade.result && (
@@ -338,6 +448,18 @@ export default function TradeDetail() {
               </div>
             )}
           </SectionCard>
+
+          {/* Live Position Data (Binance only) */}
+          {isBinancePosition && (trade._markPrice || trade._liquidationPrice) && (
+            <SectionCard title="Live Position Data" icon={Activity}>
+              <div className="grid grid-cols-2 gap-x-6">
+                <DetailRow label="Mark Price" value={safeFixed(trade._markPrice, 4)} />
+                <DetailRow label="Liq. Price" value={safeFixed(trade._liquidationPrice, 4)} />
+                <DetailRow label="Margin Type" value={(trade as any).margin_type} />
+                <DetailRow label="Leverage" value={(trade as any).leverage ? `${(trade as any).leverage}x` : undefined} />
+              </div>
+            </SectionCard>
+          )}
 
           {/* Timing */}
           {hasTimingData && (
@@ -387,8 +509,8 @@ export default function TradeDetail() {
               <DetailRow label="Exit Order" value={(trade as any).exit_order_type} />
               {hasContent(trade.ai_quality_score, trade.ai_confidence) && (
                 <div className="border-t border-border mt-2 pt-2">
-                  <DetailRow label="AI Quality" value={trade.ai_quality_score?.toFixed(0)} />
-                  <DetailRow label="AI Confidence" value={trade.ai_confidence ? `${trade.ai_confidence.toFixed(0)}%` : undefined} />
+                  <DetailRow label="AI Quality" value={safeFixed(trade.ai_quality_score, 0)} />
+                  <DetailRow label="AI Confidence" value={trade.ai_confidence ? `${safeFixed(trade.ai_confidence, 0)}%` : undefined} />
                 </div>
               )}
             </SectionCard>
@@ -518,6 +640,7 @@ export default function TradeDetail() {
         position={enrichmentPosition}
         open={enrichDrawerOpen}
         onOpenChange={setEnrichDrawerOpen}
+        onSaved={handleEnrichmentSaved}
       />
     </div>
   );
