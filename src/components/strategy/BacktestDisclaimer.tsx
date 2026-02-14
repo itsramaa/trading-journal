@@ -44,8 +44,8 @@ export function BacktestDisclaimer({
   if (variant === "compact") {
     return (
       <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
-        <Alert variant="default" className={cn("border-warning/50 bg-warning/5", className)}>
-          <AlertTriangle className="h-4 w-4 text-warning" />
+        <Alert variant="default" className={cn("border-[hsl(var(--chart-4))]/50 bg-[hsl(var(--chart-4))]/5", className)}>
+          <AlertTriangle className="h-4 w-4 text-[hsl(var(--chart-4))]" />
           <AlertTitle className="flex items-center justify-between">
             <span>Simulated Results</span>
             <CollapsibleTrigger asChild>
@@ -98,8 +98,8 @@ export function BacktestDisclaimer({
 
   // Full variant
   return (
-    <Alert variant="default" className={cn("border-warning/50 bg-warning/5", className)}>
-      <AlertTriangle className="h-4 w-4 text-warning" />
+    <Alert variant="default" className={cn("border-[hsl(var(--chart-4))]/50 bg-[hsl(var(--chart-4))]/5", className)}>
+      <AlertTriangle className="h-4 w-4 text-[hsl(var(--chart-4))]" />
       <AlertTitle>Simulated Results - Important Disclaimer</AlertTitle>
       <AlertDescription className="space-y-3">
         <p className="text-sm">
@@ -155,7 +155,7 @@ export function BacktestDisclaimer({
           </div>
         )}
 
-        <p className="text-sm font-medium text-warning">
+        <p className="text-sm font-medium text-[hsl(var(--chart-4))]">
           ⚠️ Actual trading results may differ significantly from these simulated results.
         </p>
         
