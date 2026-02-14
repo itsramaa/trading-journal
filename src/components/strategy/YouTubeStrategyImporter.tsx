@@ -40,13 +40,13 @@ interface YouTubeStrategyImporterProps {
 
 // Methodology display config
 const METHODOLOGY_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  smc: { label: 'SMC', color: 'bg-purple-500/20 text-purple-400 border-purple-500/30', icon: <Boxes className="h-3 w-3" /> },
-  ict: { label: 'ICT', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30', icon: <TrendingUp className="h-3 w-3" /> },
-  indicator_based: { label: 'Indicator', color: 'bg-green-500/20 text-green-400 border-green-500/30', icon: <Target className="h-3 w-3" /> },
-  price_action: { label: 'Price Action', color: 'bg-orange-500/20 text-orange-400 border-orange-500/30', icon: <Zap className="h-3 w-3" /> },
-  wyckoff: { label: 'Wyckoff', color: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30', icon: <Boxes className="h-3 w-3" /> },
-  elliott_wave: { label: 'Elliott Wave', color: 'bg-pink-500/20 text-pink-400 border-pink-500/30', icon: <TrendingUp className="h-3 w-3" /> },
-  hybrid: { label: 'Hybrid', color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30', icon: <Brain className="h-3 w-3" /> },
+  smc: { label: 'SMC', color: 'bg-[hsl(var(--chart-3))]/20 text-[hsl(var(--chart-3))] border-[hsl(var(--chart-3))]/30', icon: <Boxes className="h-3 w-3" /> },
+  ict: { label: 'ICT', color: 'bg-[hsl(var(--chart-5))]/20 text-[hsl(var(--chart-5))] border-[hsl(var(--chart-5))]/30', icon: <TrendingUp className="h-3 w-3" /> },
+  indicator_based: { label: 'Indicator', color: 'bg-profit/20 text-profit border-profit/30', icon: <Target className="h-3 w-3" /> },
+  price_action: { label: 'Price Action', color: 'bg-[hsl(var(--chart-4))]/20 text-[hsl(var(--chart-4))] border-[hsl(var(--chart-4))]/30', icon: <Zap className="h-3 w-3" /> },
+  wyckoff: { label: 'Wyckoff', color: 'bg-[hsl(var(--chart-1))]/20 text-[hsl(var(--chart-1))] border-[hsl(var(--chart-1))]/30', icon: <Boxes className="h-3 w-3" /> },
+  elliott_wave: { label: 'Elliott Wave', color: 'bg-[hsl(var(--chart-6))]/20 text-[hsl(var(--chart-6))] border-[hsl(var(--chart-6))]/30', icon: <TrendingUp className="h-3 w-3" /> },
+  hybrid: { label: 'Hybrid', color: 'bg-[hsl(var(--chart-2))]/20 text-[hsl(var(--chart-2))] border-[hsl(var(--chart-2))]/30', icon: <Brain className="h-3 w-3" /> },
 };
 
 export function YouTubeStrategyImporter({ 

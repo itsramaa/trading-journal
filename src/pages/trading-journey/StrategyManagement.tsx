@@ -5,7 +5,7 @@
  * Includes StrategyCloneStatsWidget (moved from Dashboard per UX audit)
  */
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
@@ -36,7 +36,9 @@ import type { EntryRule, ExitRule, TradingMethodology, TradingStyle, TradingSess
 
 export default function StrategyManagement() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('library');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'library';
+  const setActiveTab = (tab: string) => setSearchParams({ tab });
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingStrategy, setEditingStrategy] = useState<TradingStrategy | null>(null);
   const [deletingStrategy, setDeletingStrategy] = useState<TradingStrategy | null>(null);
