@@ -9,6 +9,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
+import { useBinancePositions } from "@/features/binance";
+import type { BinancePosition } from "@/features/binance/types";
 import { CryptoIcon } from "@/components/ui/crypto-icon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -97,8 +99,15 @@ export default function TradeDetail() {
   const { format: formatCurrency, formatPnl } = useCurrencyConversion();
   const [enrichDrawerOpen, setEnrichDrawerOpen] = useState(false);
 
-  // Fetch single trade with strategies
-  const { data: trade, isLoading, error } = useQuery({
+  // Detect Binance live position vs DB trade
+  const isBinancePosition = tradeId?.startsWith('binance-') ?? false;
+  const binanceSymbol = isBinancePosition ? tradeId!.replace('binance-', '') : null;
+
+  // Fetch Binance positions (always called, but only used for Binance IDs)
+  const { data: binancePositions = [], isLoading: binanceLoading } = useBinancePositions();
+
+  // Fetch single trade from DB (only for non-Binance IDs)
+  const { data: dbTrade, isLoading: dbLoading, error } = useQuery({
     queryKey: ["trade-detail", tradeId],
     queryFn: async () => {
       if (!user?.id || !tradeId) return null;
@@ -113,7 +122,6 @@ export default function TradeDetail() {
       if (error) throw error;
       if (!data) return null;
 
-      // Fetch linked strategies
       const { data: stratLinks } = await supabase
         .from("trade_entry_strategies")
         .select("trading_strategies(*)")
@@ -132,10 +140,81 @@ export default function TradeDetail() {
         strategies,
       } as TradeEntry & { post_trade_analysis: Record<string, any> | null };
     },
-    enabled: !!user?.id && !!tradeId,
+    enabled: !!user?.id && !!tradeId && !isBinancePosition,
   });
 
-  const isReadOnly = trade?.source === 'binance' || trade?.trade_mode === 'live';
+  // Build trade display object from Binance position
+  const binanceTrade = useMemo(() => {
+    if (!isBinancePosition || !binanceSymbol) return null;
+    const pos = binancePositions.find((p: BinancePosition) => p.symbol === binanceSymbol);
+    if (!pos) return null;
+    const direction = pos.positionAmt >= 0 ? 'LONG' : 'SHORT';
+    return {
+      id: `binance-${pos.symbol}`,
+      pair: pos.symbol,
+      direction,
+      entry_price: pos.entryPrice,
+      exit_price: null,
+      stop_loss: null,
+      take_profit: null,
+      quantity: Math.abs(pos.positionAmt),
+      pnl: pos.unrealizedProfit,
+      commission: 0,
+      fees: 0,
+      funding_fees: 0,
+      leverage: pos.leverage,
+      margin_type: pos.marginType,
+      source: 'binance',
+      trade_mode: 'live',
+      trade_state: 'open',
+      trade_rating: null,
+      trade_style: null,
+      trade_date: new Date().toISOString(),
+      entry_datetime: null,
+      exit_datetime: null,
+      hold_time_minutes: null,
+      session: null,
+      entry_signal: null,
+      market_condition: null,
+      confluence_score: null,
+      entry_order_type: null,
+      exit_order_type: null,
+      ai_quality_score: null,
+      ai_confidence: null,
+      bias_timeframe: null,
+      execution_timeframe: null,
+      precision_timeframe: null,
+      chart_timeframe: null,
+      emotional_state: null,
+      notes: null,
+      lesson_learned: null,
+      rule_compliance: null,
+      tags: null,
+      screenshots: [] as TradeScreenshot[],
+      market_context: null,
+      post_trade_analysis: null,
+      strategies: [],
+      result: null,
+      r_multiple: null,
+      max_adverse_excursion: null,
+      binance_trade_id: null,
+      binance_order_id: null,
+      trading_account_id: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      status: 'open',
+      user_id: user?.id || '',
+      // Extra display fields
+      _markPrice: pos.markPrice,
+      _liquidationPrice: pos.liquidationPrice,
+      _notional: pos.notional,
+    } as any;
+  }, [isBinancePosition, binanceSymbol, binancePositions, user?.id]);
+
+  const trade = isBinancePosition ? binanceTrade : dbTrade;
+  const isLoading = isBinancePosition ? binanceLoading : dbLoading;
+
+  const isReadOnly = trade?.source === 'binance' || trade?.trade_mode === 'live' || isBinancePosition;
 
   // Build UnifiedPosition for enrichment drawer
   const enrichmentPosition: UnifiedPosition | null = useMemo(() => {
@@ -239,6 +318,8 @@ export default function TradeDetail() {
         <SectionCard title="Price & Performance" icon={DollarSign}>
           <DetailRow label="Entry Price" value={trade.entry_price.toFixed(4)} />
           <DetailRow label="Exit Price" value={trade.exit_price?.toFixed(4)} />
+          {trade._markPrice && <DetailRow label="Mark Price" value={trade._markPrice.toFixed(4)} />}
+          {trade._liquidationPrice && <DetailRow label="Liquidation Price" value={trade._liquidationPrice.toFixed(4)} />}
           <DetailRow label="Stop Loss" value={trade.stop_loss?.toFixed(4)} />
           <DetailRow label="Take Profit" value={trade.take_profit?.toFixed(4)} />
           <Separator className="my-2" />
