@@ -3,12 +3,13 @@
  * Uses public Binance Klines API - no authentication required
  * Wrapped with ErrorBoundary for graceful API failure handling
  */
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { Activity, TrendingUp, AlertTriangle, Flame, Snowflake } from "lucide-react";
-import { useMultiSymbolVolatility, type VolatilityRisk } from "@/features/binance";
+import { useMultiSymbolVolatility } from "@/features/binance";
 import { cn } from "@/lib/utils";
 import { CryptoIcon } from "@/components/ui/crypto-icon";
 import { DEFAULT_WATCHLIST_SYMBOLS, DISPLAY_LIMITS } from "@/lib/constants/market-config";
@@ -62,20 +63,17 @@ function VolatilityMeterContent({
   symbols = [...DEFAULT_WATCHLIST_SYMBOLS],
   className 
 }: VolatilityMeterWidgetProps) {
-  // Volatility data uses public Binance endpoints - no API key required
   const { data: volatilityData, isLoading, isError } = useMultiSymbolVolatility(symbols);
   
-  // Calculate average volatility
   const avgVolatility = volatilityData && volatilityData.length > 0
     ? volatilityData.reduce((sum, v) => sum + v.annualizedVolatility, 0) / volatilityData.length
     : 0;
   
-  // Determine overall market condition using centralized function
   const marketCondition = getMarketCondition(avgVolatility);
 
   if (isLoading) {
     return (
-      <Card className={className}>
+      <Card className={className} role="region" aria-label="Volatility Meter">
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <Activity className="h-4 w-4" />
@@ -96,7 +94,7 @@ function VolatilityMeterContent({
   
   if (isError || !volatilityData) {
     return (
-      <Card className={className}>
+      <Card className={className} role="region" aria-label="Volatility Meter">
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <Activity className="h-4 w-4" />
@@ -113,7 +111,7 @@ function VolatilityMeterContent({
   }
   
   return (
-    <Card className={className}>
+    <Card className={className} role="region" aria-label="Volatility Meter">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-base">
@@ -151,10 +149,8 @@ function VolatilityMeterContent({
                 key={data.symbol}
                 className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors"
               >
-                {/* Icon */}
                 <CryptoIcon symbol={symbolName} size={20} />
                 
-                {/* Symbol & Level */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-sm">{symbolName}</span>
@@ -170,7 +166,6 @@ function VolatilityMeterContent({
                   </div>
                 </div>
                 
-                {/* Volatility Value */}
                 <div className="text-right shrink-0">
                   <div className="text-sm font-mono-numbers font-medium">
                     {data.annualizedVolatility.toFixed(1)}%
@@ -184,7 +179,7 @@ function VolatilityMeterContent({
           })}
         </div>
         
-        {/* Legend - using centralized config */}
+        {/* Legend */}
         <div className="flex flex-wrap items-center justify-center gap-3 pt-2 text-xs text-muted-foreground border-t">
           {Object.entries(VOLATILITY_LEVEL_CONFIG).map(([level, config]) => {
             const Icon = getVolatilityIcon(level as VolatilityLevel);
@@ -203,15 +198,17 @@ function VolatilityMeterContent({
 
 /**
  * Exported component wrapped with ErrorBoundary
- * Gracefully handles Binance API failures
+ * Uses key-based remount for retry instead of window.location.reload()
  */
 export function VolatilityMeterWidget(props: VolatilityMeterWidgetProps) {
+  const [retryKey, setRetryKey] = useState(0);
+  
   return (
     <ErrorBoundary 
       title="Volatility Meter"
-      onRetry={() => window.location.reload()}
+      onRetry={() => setRetryKey(k => k + 1)}
     >
-      <VolatilityMeterContent {...props} />
+      <VolatilityMeterContent key={retryKey} {...props} />
     </ErrorBoundary>
   );
 }

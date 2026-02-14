@@ -1,7 +1,7 @@
 /**
  * Market Sentiment Widget
  * Displays bullish/bearish scores from Binance Phase 1 data
- * With searchable pair selector supporting all trading pairs
+ * Controlled component - symbol state managed by parent via props
  */
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -49,6 +49,9 @@ import {
 import { getSentimentColorClass, getSentimentBgClass } from "@/lib/constants/sentiment-thresholds";
 
 interface MarketSentimentWidgetProps {
+  /** Controlled symbol value from parent */
+  symbol?: string;
+  /** @deprecated Use `symbol` prop instead */
   defaultSymbol?: string;
   showSymbolSelector?: boolean;
   className?: string;
@@ -56,16 +59,19 @@ interface MarketSentimentWidgetProps {
 }
 
 export function MarketSentimentWidget({ 
-  defaultSymbol = DEFAULT_SYMBOL,
+  symbol: controlledSymbol,
+  defaultSymbol,
   showSymbolSelector = true,
   className,
   onSymbolChange
 }: MarketSentimentWidgetProps) {
-  const [symbol, setSymbol] = useState(defaultSymbol);
+  // Support both controlled (symbol) and uncontrolled (defaultSymbol) modes
+  const activeSymbol = controlledSymbol ?? defaultSymbol ?? DEFAULT_SYMBOL;
+  
   const [period, setPeriod] = useState<OpenInterestPeriod>(DEFAULT_SENTIMENT_PERIOD as OpenInterestPeriod);
   const [open, setOpen] = useState(false);
   
-  const { data: sentiment, isLoading, refetch } = useBinanceMarketSentiment(symbol, period);
+  const { data: sentiment, isLoading, refetch } = useBinanceMarketSentiment(activeSymbol, period);
   const { data: tradingPairs = [], isLoading: pairsLoading } = useTradingPairs();
   
   // Build symbol options from trading pairs
@@ -82,8 +88,12 @@ export function MarketSentimentWidget({
       }));
   }, [tradingPairs]);
   
-  // Get current symbol label
-  const currentLabel = symbolOptions.find(s => s.value === symbol)?.label || symbol.replace('USDT', '');
+  const currentLabel = symbolOptions.find(s => s.value === activeSymbol)?.label || activeSymbol.replace('USDT', '');
+
+  const handleSymbolSelect = (newSymbol: string) => {
+    onSymbolChange?.(newSymbol);
+    setOpen(false);
+  };
 
   const getFactorIcon = (factor: string) => {
     switch (factor) {
@@ -131,7 +141,7 @@ export function MarketSentimentWidget({
 
   if (isLoading) {
     return (
-      <Card className={className}>
+      <Card className={className} role="region" aria-label="Market Sentiment">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <Skeleton className="h-5 w-32" />
@@ -152,8 +162,12 @@ export function MarketSentimentWidget({
     );
   }
 
+  // Determine if sentiment data is truly insufficient vs neutral
+  const isSentimentInsufficient = sentiment && 
+    Object.values(sentiment.factors).every(v => v === 'neutral' || v === 'stable');
+
   return (
-    <Card className={className}>
+    <Card className={className} role="region" aria-label="Market Sentiment">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="text-base flex items-center gap-2">
@@ -174,7 +188,7 @@ export function MarketSentimentWidget({
                     className="h-8 w-28 justify-between"
                     disabled={pairsLoading}
                   >
-                    {symbol}
+                    {activeSymbol}
                     <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
@@ -183,52 +197,42 @@ export function MarketSentimentWidget({
                     <CommandInput placeholder="Search pair..." className="h-9" />
                     <CommandList>
                       <CommandEmpty>No pair found.</CommandEmpty>
-                        {/* Quick access defaults */}
                         <CommandGroup heading="Popular">
                           {QUICK_ACCESS_SYMBOLS.map((s) => (
                             <CommandItem
                               key={s.value}
                               value={s.value}
-                              onSelect={() => {
-                                setSymbol(s.value);
-                                onSymbolChange?.(s.value);
-                                setOpen(false);
-                            }}
-                          >
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                symbol === s.value ? "opacity-100" : "opacity-0"
-                              )}
-                            />
-                            {s.value}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                        {/* All pairs */}
-                        <CommandGroup heading="All Pairs">
-                          {symbolOptions
-                            .filter(s => !QUICK_ACCESS_SYMBOLS.some(d => d.value === s.value))
-                          .map((s) => (
-                            <CommandItem
-                              key={s.value}
-                              value={s.value}
-                              onSelect={() => {
-                                setSymbol(s.value);
-                                onSymbolChange?.(s.value);
-                                setOpen(false);
-                              }}
+                              onSelect={() => handleSymbolSelect(s.value)}
                             >
                               <Check
                                 className={cn(
                                   "mr-2 h-4 w-4",
-                                  symbol === s.value ? "opacity-100" : "opacity-0"
+                                  activeSymbol === s.value ? "opacity-100" : "opacity-0"
                                 )}
                               />
                               {s.value}
                             </CommandItem>
                           ))}
-                      </CommandGroup>
+                        </CommandGroup>
+                        <CommandGroup heading="All Pairs">
+                          {symbolOptions
+                            .filter(s => !QUICK_ACCESS_SYMBOLS.some(d => d.value === s.value))
+                            .map((s) => (
+                              <CommandItem
+                                key={s.value}
+                                value={s.value}
+                                onSelect={() => handleSymbolSelect(s.value)}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    activeSymbol === s.value ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                {s.value}
+                              </CommandItem>
+                            ))}
+                        </CommandGroup>
                     </CommandList>
                   </Command>
                 </PopoverContent>
@@ -274,13 +278,15 @@ export function MarketSentimentWidget({
                     {sentiment.bullishScore}
                   </div>
                   <div className="text-xs text-muted-foreground uppercase tracking-wide">
-                    {sentiment.sentiment}
+                    {isSentimentInsufficient ? 'Insufficient Data' : sentiment.sentiment}
                   </div>
                 </div>
                 {/* Visual indicator ring */}
                 <svg 
                   className="absolute inset-0 -rotate-90" 
                   viewBox="0 0 112 112"
+                  role="img"
+                  aria-label={`Sentiment score: ${sentiment.bullishScore}%`}
                 >
                   <circle
                     cx="56"
