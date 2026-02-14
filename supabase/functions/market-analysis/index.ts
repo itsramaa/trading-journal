@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -11,7 +12,32 @@ serve(async (req) => {
   }
 
   try {
-    const { question, userContext } = await req.json();
+    // === AUTH CHECK ===
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
+    if (claimsError || !claimsData?.claims?.sub) {
+      return new Response(JSON.stringify({ error: 'Invalid token' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    // === END AUTH CHECK ===
+
+    const { question, userContext, history } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
     
@@ -108,6 +134,27 @@ GUIDELINES:
 - Be concise but thorough
 - Always respond in English`;
 
+    // Build messages array with conversation history
+    const messages: { role: string; content: string }[] = [
+      { role: "system", content: systemPrompt },
+    ];
+
+    // Add conversation history if provided (limit to last 20 messages to avoid token overflow)
+    if (Array.isArray(history) && history.length > 0) {
+      const recentHistory = history.slice(-20);
+      for (const msg of recentHistory) {
+        if (msg.role === 'user' || msg.role === 'assistant') {
+          messages.push({ role: msg.role, content: String(msg.content || '').slice(0, 4000) });
+        }
+      }
+    }
+
+    // Add current user message
+    messages.push({
+      role: "user",
+      content: question || "What are the current crypto market conditions? Provide a complete analysis.",
+    });
+
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -116,10 +163,7 @@ GUIDELINES:
       },
       body: JSON.stringify({
         model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: question || "Bagaimana kondisi market crypto saat ini? Berikan analisis lengkap." },
-        ],
+        messages,
         stream: true,
       }),
     });

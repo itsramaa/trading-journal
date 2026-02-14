@@ -50,6 +50,7 @@ serve(async (req) => {
     const strategies = Array.isArray(body.strategies) ? body.strategies.slice(0, MAX_STRATEGIES) : [];
     const question = sanitizeString(body.question || '', MAX_QUESTION_LENGTH);
     const marketContext = body.marketContext && typeof body.marketContext === 'object' ? body.marketContext : null;
+    const history = Array.isArray(body.history) ? body.history : [];
     // === END VALIDATION ===
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
@@ -173,6 +174,25 @@ GUIDELINES:
 - Format responses clearly with sections when appropriate
 - Be specific with numbers and percentages`;
 
+    // Build messages array with conversation history
+    const aiMessages: { role: string; content: string }[] = [
+      { role: "system", content: systemPrompt },
+    ];
+
+    if (history.length > 0) {
+      const recentHistory = history.slice(-20);
+      for (const msg of recentHistory) {
+        if (msg.role === 'user' || msg.role === 'assistant') {
+          aiMessages.push({ role: msg.role, content: String(msg.content || '').slice(0, 4000) });
+        }
+      }
+    }
+
+    aiMessages.push({
+      role: "user",
+      content: question || "Provide a complete analysis of my trading performance and identify key patterns.",
+    });
+
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -181,10 +201,7 @@ GUIDELINES:
       },
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: question || "Berikan analisis lengkap performa trading saya dan identifikasi pola-pola penting." },
-        ],
+        messages: aiMessages,
         stream: true,
       }),
     });

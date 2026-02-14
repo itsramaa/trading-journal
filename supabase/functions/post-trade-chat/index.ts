@@ -20,7 +20,7 @@ serve(async (req) => {
       });
     }
 
-    const { question, tradeId } = await req.json();
+    const { question, tradeId, tradeMode, history } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
     const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
@@ -37,7 +37,7 @@ serve(async (req) => {
     );
 
     // Fetch user's recent closed trades with strategy associations
-    const { data: trades, error: tradesError } = await supabase
+    let query = supabase
       .from('trade_entries')
       .select(`
         *,
@@ -54,6 +54,13 @@ serve(async (req) => {
       .order('trade_date', { ascending: false })
       .limit(20);
 
+    // Filter by trade_mode for data isolation
+    if (tradeMode === 'paper' || tradeMode === 'live') {
+      query = query.eq('trade_mode', tradeMode);
+    }
+
+    const { data: trades, error: tradesError } = await query;
+
     if (tradesError) {
       console.error('Error fetching trades:', tradesError);
       throw tradesError;
@@ -64,7 +71,6 @@ serve(async (req) => {
     if (tradeId && trades) {
       targetTrade = trades.find(t => t.id === tradeId);
     } else if (trades && trades.length > 0) {
-      // Default to most recent trade
       targetTrade = trades[0];
     }
 
@@ -92,7 +98,7 @@ serve(async (req) => {
       }).join('\n');
       
       tradesContext = `
-TRADING STATS (Last 20 Trades):
+TRADING STATS (Last 20 ${tradeMode === 'paper' ? 'Paper' : tradeMode === 'live' ? 'Live' : ''} Trades):
 - Win Rate: ${winRate.toFixed(1)}%
 - Total P&L: $${totalPnl.toFixed(2)}
 - Avg Win: $${avgWin.toFixed(2)}
@@ -111,16 +117,12 @@ ${recentSummary}`;
         ? Math.abs(targetTrade.exit_price - targetTrade.entry_price) / Math.abs(targetTrade.entry_price - targetTrade.stop_loss)
         : 'N/A';
       
-      // Extract strategy names from joined data
       const strategies = targetTrade.trade_entry_strategies?.map((tes: any) => 
         tes.trading_strategies?.name
       ).filter(Boolean) || [];
       const strategyNames = strategies.length > 0 ? strategies.join(', ') : 'None tagged';
       
-      // Check for screenshots
       const hasScreenshots = Array.isArray(targetTrade.screenshots) && targetTrade.screenshots.length > 0;
-      
-      // Check for AI analysis
       const hasAiAnalysis = !!targetTrade.post_trade_analysis || !!targetTrade.ai_quality_score;
       
       targetTradeContext = `
@@ -164,6 +166,25 @@ RESPONSE STYLE:
 - Always respond in English
 - Keep responses concise but insightful`;
 
+    // Build messages array with conversation history
+    const messages: { role: string; content: string }[] = [
+      { role: "system", content: systemPrompt },
+    ];
+
+    if (Array.isArray(history) && history.length > 0) {
+      const recentHistory = history.slice(-20);
+      for (const msg of recentHistory) {
+        if (msg.role === 'user' || msg.role === 'assistant') {
+          messages.push({ role: msg.role, content: String(msg.content || '').slice(0, 4000) });
+        }
+      }
+    }
+
+    messages.push({
+      role: "user",
+      content: question || "Analyze my last trade and provide lessons learned.",
+    });
+
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -172,10 +193,7 @@ RESPONSE STYLE:
       },
       body: JSON.stringify({
         model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: question || "Analisis trade terakhir saya dan berikan lessons learned." },
-        ],
+        messages,
         stream: true,
       }),
     });
