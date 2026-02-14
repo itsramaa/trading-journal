@@ -41,6 +41,7 @@ import {
 } from "@/features/binance";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
+import { isPaperAccount } from "@/lib/account-utils";
 import type { Account } from "@/types/account";
 
 
@@ -60,7 +61,7 @@ export default function Accounts() {
   
   useAccountsRealtime();
   const { format, formatPnl } = useCurrencyConversion();
-  const { showExchangeData } = useModeVisibility();
+  const { showExchangeData, showPaperData } = useModeVisibility();
 
   // All account IDs for open trades query
   const allAccountIds = useMemo(() => accounts?.map(a => a.id) || [], [accounts]);
@@ -102,19 +103,23 @@ export default function Accounts() {
   const isConnected = showExchangeData && (connectionStatus?.isConnected ?? false);
   const activePositions = isConnected ? (positions?.filter(p => p.positionAmt !== 0) || []) : [];
   
-  const allAccountsCount = accounts?.length || 0;
+  // Filter accounts by mode for summary
+  const modeAccounts = useMemo(() => 
+    (accounts || []).filter(a => {
+      const paper = isPaperAccount(a);
+      return showPaperData ? paper : !paper;
+    }), [accounts, showPaperData]);
+
   const totalDbBalance = useMemo(() => 
-    (accounts || []).reduce((sum, a) => sum + (Number(a.balance) || 0), 0),
-    [accounts]
-  );
+    modeAccounts.reduce((sum, a) => sum + (Number(a.balance) || 0), 0),
+    [modeAccounts]);
   
-  // Unified display values - combine DB + Binance data
-  const binanceBalanceNum = isConnected ? (Number(balance?.totalWalletBalance) || 0) : 0;
+  // Unified display values - mode-filtered
+  const binanceBalanceNum = isConnected && !showPaperData ? (Number(balance?.totalWalletBalance) || 0) : 0;
   const displayBalance = totalDbBalance + binanceBalanceNum;
-  const balanceSubtitle = isConnected ? 'DB accounts + Binance wallet' : 'Total account balance';
-  const displayCount = allAccountsCount + (isConnected ? 1 : 0);
-  const countSubtitle = `${allAccountsCount} account${allAccountsCount !== 1 ? 's' : ''}${isConnected ? ' + 1 Binance' : ''}`;
-  const displayPositions = (openTradesCount || 0) + activePositions.length;
+  const modeAccountsCount = modeAccounts.length;
+  const displayCount = modeAccountsCount + (isConnected && !showPaperData ? 1 : 0);
+  const displayPositions = (openTradesCount || 0) + (!showPaperData ? activePositions.length : 0);
 
   return (
     <>
@@ -170,7 +175,9 @@ export default function Accounts() {
                   <div className="text-2xl font-bold font-mono-numbers">
                     {format(displayBalance)}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">{balanceSubtitle}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {showPaperData ? 'Paper accounts' : (isConnected ? 'Exchange + Binance' : 'Exchange accounts')}
+                  </p>
                 </>
               )}
             </CardContent>
@@ -183,7 +190,9 @@ export default function Accounts() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{displayCount}</div>
-              <p className="text-xs text-muted-foreground mt-1">{countSubtitle}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {showPaperData ? 'Paper accounts' : 'Exchange accounts'}
+              </p>
             </CardContent>
           </Card>
 
@@ -212,18 +221,22 @@ export default function Accounts() {
           </Card>
         </div>
 
-        {/* Section Header + Add Account */}
+        {/* Section Header + Add Account (Paper mode only) */}
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-semibold">Trading Accounts</h2>
-          <AddAccountForm />
+          {showPaperData && <AddAccountForm />}
         </div>
 
-        {/* Account Cards - All accounts, no mode filter */}
+        {/* Account Cards - filtered by mode */}
         <AccountCardList
           filterType="trading"
+          excludeBacktest={!showPaperData}
+          backtestOnly={showPaperData}
           onTransact={handleTransact}
           onEdit={handleEdit}
-          emptyMessage="No trading accounts yet. Create one to get started."
+          emptyMessage={showPaperData 
+            ? "No paper accounts yet. Create one to get started." 
+            : "No exchange accounts found. Connect your exchange in API Settings."}
         />
 
         {/* Account Comparison Table */}
