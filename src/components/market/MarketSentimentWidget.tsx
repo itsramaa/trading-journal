@@ -367,7 +367,7 @@ function MarketSentimentContent({
                     <span>Funding Rate</span>
                     <span className={cn(
                       "font-mono",
-                      sentiment.rawData.markPrice.lastFundingRate > 0 ? "text-profit" : "text-loss"
+                      sentiment.rawData.markPrice.lastFundingRate > 0 ? "text-profit" : sentiment.rawData.markPrice.lastFundingRate < 0 ? "text-loss" : "text-muted-foreground"
                     )}>
                       {(sentiment.rawData.markPrice.lastFundingRate * 100).toFixed(4)}%
                     </span>
@@ -401,12 +401,13 @@ function MarketSentimentContent({
  * Exported component wrapped with ErrorBoundary
  */
 export function MarketSentimentWidget(props: MarketSentimentWidgetProps) {
+  const [retryKey, setRetryKey] = useState(0);
   return (
     <ErrorBoundary 
       title="Market Sentiment"
-      onRetry={() => window.location.reload()}
+      onRetry={() => setRetryKey(k => k + 1)}
     >
-      <MarketSentimentContent {...props} />
+      <MarketSentimentContent key={retryKey} {...props} />
     </ErrorBoundary>
   );
 }
