@@ -1,128 +1,130 @@
 
-
-# Trading Journal & Trade Detail: Deep UX Analysis & Fixes
+# AI Analysis Page: Deep UX Analysis & Fixes
 
 ## Scope & Coverage (100%)
 
 All files read in full:
 
-**Pages**: `TradingJournal.tsx` (614 lines), `TradeDetail.tsx` (642 lines)
+**Page**: `src/pages/MarketInsight.tsx` (133 lines)
 
-**Journal Components**: `AllPositionsTable.tsx`, `BinanceOpenOrdersTable.tsx`, `PositionDialogs.tsx`, `PositionsTable.tsx`, `ScreenshotUploader.tsx`, `TradeEnrichmentDrawer.tsx` (637 lines), `TradeFilters.tsx`, `TradeGalleryCard.tsx`, `TradeHistoryFilters.tsx`, `TradeHistoryInfiniteScroll.tsx`, `TradeHistoryTabs.tsx`, `TradeRatingSection.tsx`, `TradeReviewSection.tsx`, `TradeTimeframeSection.tsx`, `TradeSummaryStats.tsx`, `index.ts`
+**Components**: `src/components/market-insight/AIAnalysisTab.tsx` (262 lines), `CombinedAnalysisCard.tsx` (253 lines), `BiasExpiryIndicator.tsx` (69 lines), `CalendarTab.tsx` (346 lines), `index.ts` (5 lines)
 
-**History Components**: `TradeHistoryContent.tsx`, `TradeHistoryStats.tsx`, `TradeHistoryToolbar.tsx`
+**Feature Hooks**: `src/features/market-insight/useMarketSentiment.ts`, `useMacroAnalysis.ts`, `useCombinedAnalysis.ts` (160 lines), `useMarketAlerts.ts` (109 lines), `useMultiSymbolMarketInsight.ts` (43 lines), `types.ts` (95 lines), `index.ts` (8 lines)
 
-**Trading Components**: `TradeHistoryCard.tsx`, `TradingOnboardingTour.tsx`
+**Edge Functions**: `supabase/functions/market-insight/index.ts` (311 lines), `supabase/functions/macro-analysis/index.ts` (280 lines), `supabase/functions/market-analysis/index.ts` (202 lines)
 
-**Hooks (barrel + sources traced)**: `use-trade-entries`, `use-mode-filtered-trades`, `use-trade-entries-paginated`, `use-trade-stats`, `use-trade-history-filters`, `use-trade-enrichment`, `use-mode-visibility`, `use-trade-mode`, `use-trading-strategies`, `use-currency-conversion`, `use-trade-screenshots`, `use-trade-ai-analysis`, `use-post-trade-analysis`, `use-binance-data-source`
+**Shared**: `src/components/ui/error-boundary.tsx` (182 lines)
+
+**Cross-domain**: Dashboard AIInsightsWidget, chatbot market mode, MarketData page, EconomicCalendar page, `use-capture-market-context.ts`
 
 ---
 
 ## Issues Found
 
-### 1. viewMode Not URL-Persisted (UX Standard Violation)
+### 1. `macro-analysis` Edge Function Has No Auth Check (Security Gap)
 
-`TradingJournal.tsx` line 101: `const [viewMode, setViewMode] = useState<ViewMode>('gallery');`
+`supabase/functions/macro-analysis/index.ts` (lines 182-280) accepts any request without JWT verification. Unlike `market-insight` which has full auth, `macro-analysis` is completely open, exposing AI gateway costs (it calls `ai.gateway.lovable.dev` for the AI summary).
 
-The UX Consistency Standard (#1) requires all view-mode toggles to be controlled via `useSearchParams` for persistence across refreshes and deep-linking. The tab state (`activeTab`) already uses `useSearchParams` correctly, but `viewMode` does not. Refreshing the page always resets to gallery view.
+**Fix**: Add the standard JWT auth check pattern (same as `market-insight` and `trading-analysis`).
 
-**Fix**: Drive `viewMode` from `useSearchParams` alongside the existing `tab` parameter.
+### 2. `market-analysis` Calls `market-insight` Without Auth Header (Broken Data Pipeline)
 
-### 2. Enrichment Drawer Resets Fields for Binance-Source Trades (BUG)
+`supabase/functions/market-analysis/index.ts` lines 49-60: When the chatbot's "market" mode triggers `market-analysis`, it internally calls `market-insight` and `macro-analysis` using plain `fetch` without forwarding the `Authorization` header. Since `market-insight` requires auth, this call returns 401, meaning the AI chatbot's market mode operates with empty/error context data.
 
-`TradeEnrichmentDrawer.tsx` lines 293-324: The `useEffect` only loads existing enrichment data when `position.source === "paper"`. For any trade with `source: 'binance'` (including synced closed trades that already have saved notes, ratings, strategies, etc.), the drawer resets ALL fields to empty.
+**Fix**: Forward the `authHeader` in the internal fetch calls to both `market-insight` and `macro-analysis`.
 
-This means:
-- Opening the enrichment drawer for a synced Binance closed trade (from the Closed tab) shows blank fields even though the trade has existing journal data in the DB
-- Opening the drawer on TradeDetail for a live Binance position (where enrichment was merged from a separate query) also shows blank fields
+### 3. Dead Imports in `AIAnalysisTab.tsx`
 
-**Fix**: Load enrichment data from `position.originalData` regardless of source. The condition should check if `originalData` is a `TradeEntry` (has journal fields), not whether source is 'paper'.
+`src/components/market-insight/AIAnalysisTab.tsx` line 22: imports `useMarketSentiment` and `useMacroAnalysis` but never uses them -- all data comes via props. These are dead imports that add unnecessary bundle weight and confusion.
 
-### 3. Enrichment CTA Only Shows for Binance Positions on TradeDetail
+**Fix**: Remove the unused import line.
 
-`TradeDetail.tsx` line 401: `{isBinancePosition && !hasAnyEnrichment && (`
+### 4. `error` Prop Not Passed to `AIAnalysisTab`
 
-This "Enrich Now" call-to-action card only appears for live Binance positions. A paper or closed DB trade that has zero enrichment (no notes, no strategies, no screenshots) never sees this helpful prompt. Per mode-as-context parity, the CTA should appear for any unenriched trade regardless of source.
+`src/pages/MarketInsight.tsx` lines 117-122: The `AIAnalysisTab` component accepts an `error` prop and has built-in error handling (async error fallback with retry). However, the parent page never passes `error` to it. Instead, the page renders its own less informative error card (lines 102-114) that says "Failed to load market data. Please try refreshing." but has no retry button.
 
-**Fix**: Change condition to `{!hasAnyEnrichment && trade.status === 'open' && (` or simply `{!hasAnyEnrichment && (`.
+The component's own error handler (`AsyncErrorFallback`) includes a retry button and shows the actual error message -- objectively better UX.
 
-### 4. Dead/Unused Components (5 files)
+**Fix**: Pass the error to `AIAnalysisTab` and remove the redundant page-level error card, or at minimum pass the error prop so the component can render its own fallback. Since `AIAnalysisTab` already short-circuits on error (line 41-48), passing the error means the duplicate page-level card should be removed to avoid showing two error states.
 
-The following components are exported from `index.ts` but never imported by any page or component outside the barrel:
+### 5. No Issues Found (Verified Correct)
 
-| File | Status | Reason |
-|------|--------|--------|
-| `TradeHistoryTabs.tsx` | Dead code | Replaced by the inline Closed tab in TradingJournal |
-| `TradeHistoryInfiniteScroll.tsx` | Dead code | Replaced by `TradeHistoryContent.tsx` + inline infinite scroll |
-| `PositionsTable.tsx` (+ `BinancePositionsTab`) | Dead code | Replaced by `AllPositionsTable.tsx` |
-| `TradeFilters.tsx` | Dead code | Replaced by `TradeHistoryFilters.tsx` |
-
-These add confusion and maintenance burden. They should be deleted and removed from `index.ts`.
-
-### 5. Dead Code: Unreachable "Paper Pending Trades" Divider
-
-`TradingJournal.tsx` lines 438-443: Inside the `{showPaperData && (` block, there's a conditional divider `{isBinanceConnected && showExchangeOrders && (`. Since `showPaperData` is only true in Paper mode and `showExchangeOrders` is only true in Live mode, this inner condition can NEVER be true. The divider is dead code.
-
-**Fix**: Remove the unreachable divider block.
-
-### 6. No Issues Found (Verified Correct)
-
-- Tab state URL persistence (active/pending/closed) -- correct via `useSearchParams`
-- Mode-as-context parity: identical tab structure, components, and features in both Paper and Live -- correct
-- Data isolation: `tradeMode` filter applied to paginated queries, stats, and trade list -- correct
-- Read-only enforcement: `isReadOnly` flag correctly computed from `source === 'binance' || trade_mode === 'live'` -- correct
-- Loading states: all three tabs have loading skeletons, paginated content shows skeleton, TradeDetail shows skeleton -- correct
-- Error states: `TradeHistoryContent` handles `isError` with EmptyState fallback -- correct
-- Empty states: all tabs and list views have proper EmptyState components with contextual messages -- correct
-- Gallery/List toggle: works correctly in Active and Closed tabs -- correct
-- Infinite scroll: `useInView` + `fetchNextPage` pattern correctly implemented -- correct
-- Delete flow: soft-delete for closed trades, hard-delete for open, with recovery info in confirmation -- correct
-- Close/Edit position dialogs: proper form validation with zod schemas -- correct
-- TradeDetail back navigation: `navigate(-1)` with fallback to `/trading` -- correct
-- TradeDetail enrichment: drawer invalidates correct query keys for both DB and Binance positions -- correct
-- TradeGalleryCard: implements `forwardRef` per UX standard #5 -- correct
-- TradeHistoryCard: implements `forwardRef` per UX standard #5 -- correct
-- Color tokens: all P&L values use `text-profit` / `text-loss` semantic tokens -- correct
-- ARIA: proper labels on buttons, toggle groups, and interactive elements -- correct
-- Onboarding tour: first-time user guidance correctly integrated -- correct
+- **Mode parity**: Page has zero mode-dependent logic -- identical for Paper and Live. Correct per "mode is context, not feature type."
+- **Loading states**: `AIAnalysisTab` shows proper Skeleton placeholders for both sentiment and macro sections. `CombinedAnalysisCard` shows skeleton loading. Correct.
+- **Empty/null states**: `CombinedAnalysisCard` handles `data === null` with a fallback message. Correct.
+- **Bias expiry**: Computed locally from `tradingStyle` with correct `BIAS_VALIDITY_MINUTES` map. Auto-refresh on expiry via `onExpired` callback. Correct.
+- **Color tokens**: All sentiment indicators use `text-profit`, `text-loss`, semantic tokens. Correct.
+- **ARIA**: Progress bars have `aria-label`, regions have `role="region"`, `aria-live="polite"` on alignment status. `InfoTooltip` on complex terms. Correct.
+- **Error boundary**: `AIAnalysisTab` wrapped in `ErrorBoundary` with retry. Correct.
+- **Market alerts**: `useMarketAlerts` fires toasts for extreme Fear/Greed and crypto-macro conflict with hourly dedup. Correct.
+- **React Query config**: Proper `staleTime`, `refetchInterval`, retry with exponential backoff. Correct.
+- **Combined analysis**: Scoring logic with crypto/macro alignment, position size adjustment, and confidence calculation. Correct.
+- **CalendarTab**: Not used on this page (used on separate `/calendar` route). Correctly separated. Not dead code.
+- **`useMultiSymbolMarketInsight`**: Used by `/market-data` page. Not dead code.
 
 ---
 
 ## Implementation Plan
 
-### File 1: `src/pages/trading-journey/TradingJournal.tsx`
+### File 1: `supabase/functions/macro-analysis/index.ts`
 
-**URL-persist viewMode** (line 101): Replace `useState` with `useSearchParams`-driven state:
-- Read `view` param from URL: `searchParams.get('view') || 'gallery'`
-- On toggle change, set both `tab` and `view` params together
-- Remove the `useState` for viewMode
+**Add auth check**: Add JWT verification at the top of the handler, matching the pattern from `market-insight`:
+- Import `createClient` from supabase-js
+- Check `authorization` header for Bearer token
+- Verify via `supabase.auth.getClaims(token)`
+- Return 401 if invalid
 
-**Remove dead divider** (lines 438-443): Delete the unreachable `{isBinanceConnected && showExchangeOrders && (` block inside the Pending tab's paper section.
+### File 2: `supabase/functions/market-analysis/index.ts`
 
-### File 2: `src/components/journal/TradeEnrichmentDrawer.tsx`
+**Forward auth header in internal calls** (lines 49-60): Add `Authorization: authHeader` to the headers of both internal fetch calls to `market-insight` and `macro-analysis`:
 
-**Fix enrichment data loading** (lines 291-324): Change the condition from `position.source === "paper"` to check whether `originalData` contains TradeEntry fields (i.e., has an `id` that's a UUID, or simply check if it has a `notes` property). Load existing data from `originalData` for ALL sources, not just paper.
+```typescript
+const [sentimentRes, macroRes] = await Promise.all([
+  fetch(`${SUPABASE_URL}/functions/v1/market-insight`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': authHeader,
+    },
+    body: JSON.stringify({}),
+  }),
+  fetch(`${SUPABASE_URL}/functions/v1/macro-analysis`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': authHeader,
+    },
+    body: JSON.stringify({}),
+  }),
+]);
+```
 
-### File 3: `src/pages/trading-journey/TradeDetail.tsx`
+### File 3: `src/components/market-insight/AIAnalysisTab.tsx`
 
-**Expand enrichment CTA** (line 401): Change `{isBinancePosition && !hasAnyEnrichment && (` to `{!hasAnyEnrichment && (` so any unenriched trade (paper or live, open or closed) sees the prompt.
+**Remove dead imports** (line 22): Delete `import { useMarketSentiment, useMacroAnalysis } from "@/features/market-insight";`
 
-### File 4: Dead Code Cleanup
+### File 4: `src/pages/MarketInsight.tsx`
 
-Delete the following files:
-- `src/components/journal/TradeHistoryTabs.tsx`
-- `src/components/journal/TradeHistoryInfiniteScroll.tsx`
-- `src/components/journal/PositionsTable.tsx`
-- `src/components/journal/TradeFilters.tsx`
+**Pass error prop to AIAnalysisTab** and **remove duplicate error card**:
+- Remove the page-level error card (lines 102-114)
+- Pass `error={sentimentError || macroError}` to `AIAnalysisTab`
 
-### File 5: `src/components/journal/index.ts`
+Before:
+```tsx
+{hasError && ( <Card>...</Card> )}
+<AIAnalysisTab sentimentData={...} macroData={...} isLoading={...} onRefresh={...} />
+```
 
-Remove the exports for deleted files:
-- `export { TradeFilters } from './TradeFilters';`
-- `export { PositionsTable, BinancePositionsTab } from './PositionsTable';`
-- `export { TradeHistoryTabs } from './TradeHistoryTabs';`
-- `export { TradeHistoryInfiniteScroll } from './TradeHistoryInfiniteScroll';`
-- `export type { PositionsTableProps } from './PositionsTable';`
+After:
+```tsx
+<AIAnalysisTab
+  sentimentData={sentimentData}
+  macroData={macroData}
+  isLoading={isLoading}
+  onRefresh={handleRefresh}
+  error={sentimentError || macroError || null}
+/>
+```
 
 ---
 
@@ -130,13 +132,9 @@ Remove the exports for deleted files:
 
 | File | Change |
 |------|--------|
-| `src/pages/trading-journey/TradingJournal.tsx` | URL-persist viewMode, remove dead divider |
-| `src/components/journal/TradeEnrichmentDrawer.tsx` | Fix: load enrichment data for all sources, not just paper |
-| `src/pages/trading-journey/TradeDetail.tsx` | Show enrichment CTA for all unenriched trades |
-| `src/components/journal/TradeHistoryTabs.tsx` | Delete (dead code) |
-| `src/components/journal/TradeHistoryInfiniteScroll.tsx` | Delete (dead code) |
-| `src/components/journal/PositionsTable.tsx` | Delete (dead code) |
-| `src/components/journal/TradeFilters.tsx` | Delete (dead code) |
-| `src/components/journal/index.ts` | Remove dead exports |
+| `supabase/functions/macro-analysis/index.ts` | Add JWT auth check |
+| `supabase/functions/market-analysis/index.ts` | Forward auth header in internal calls |
+| `src/components/market-insight/AIAnalysisTab.tsx` | Remove dead imports |
+| `src/pages/MarketInsight.tsx` | Pass error prop, remove duplicate error card |
 
-Total: 3 files modified, 4 files deleted, 1 barrel file cleaned. Fixes cover 1 UX standard violation, 1 functional bug, 1 feature gap, and 5 dead code files.
+Total: 4 files modified. Fixes cover 1 security gap, 1 broken data pipeline, 1 dead import, and 1 UX improvement (error handling delegation).
