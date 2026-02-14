@@ -34,9 +34,10 @@ function RateLimitItem({ status }: RateLimitItemProps) {
       <div className="flex items-center justify-between text-sm">
         <span className="capitalize font-medium">{status.endpoint_category}</span>
         <div className="flex items-center gap-2">
-          <span className={isCritical ? 'text-destructive' : isWarning ? 'text-warning' : 'text-muted-foreground'}>
+          <span className={isCritical ? 'text-destructive' : isWarning ? 'text-[hsl(var(--chart-4))]' : 'text-muted-foreground'}>
             {status.weight_used} / {status.max_weight}
           </span>
+
           {resetTime > 0 && (
             <Badge variant="outline" className="text-xs">
               {formatResetTime(resetTime)}
