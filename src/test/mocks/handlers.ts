@@ -150,29 +150,44 @@ export const handlers = [
   http.post(`${SUPABASE_URL}/functions/v1/economic-calendar`, async () => {
     await delay(100);
     return HttpResponse.json({
-      success: true,
-      data: {
-        events: [
-          {
-            id: "1",
-            title: "FOMC Meeting",
-            date: new Date().toISOString(),
-            impact: "high",
-            currency: "USD",
-            forecast: "5.25%",
-            previous: "5.25%",
-          },
-          {
-            id: "2",
-            title: "Non-Farm Payrolls",
-            date: new Date().toISOString(),
-            impact: "high",
-            currency: "USD",
-            forecast: "180K",
-            previous: "175K",
-          },
-        ],
+      events: [
+        {
+          id: "1",
+          date: new Date().toISOString(),
+          event: "FOMC Meeting",
+          country: "United States",
+          importance: "high" as const,
+          forecast: "5.25%",
+          previous: "5.25%",
+          actual: null,
+          aiPrediction: null,
+          cryptoImpact: null,
+        },
+        {
+          id: "2",
+          date: new Date().toISOString(),
+          event: "Non-Farm Payrolls",
+          country: "United States",
+          importance: "high" as const,
+          forecast: "180K",
+          previous: "175K",
+          actual: null,
+          aiPrediction: null,
+          cryptoImpact: null,
+        },
+      ],
+      todayHighlight: {
+        event: null,
+        hasEvent: false,
+        timeUntil: null,
       },
+      impactSummary: {
+        hasHighImpact: false,
+        eventCount: 0,
+        riskLevel: "LOW",
+        positionAdjustment: "normal",
+      },
+      lastUpdated: new Date().toISOString(),
     });
   }),
 
