@@ -1,118 +1,158 @@
 
 
-# Market Data Page - Functional Correctness Audit
+# Economic Calendar Page - Functional Correctness Audit
 
 ## Audit Scope
 
-Reviewed 15+ files across pages, components, hooks, edge functions, contexts, constants, types, and utilities that compose the Market Data domain.
+Reviewed all files in the Economic Calendar domain: page (`EconomicCalendar.tsx`), component (`CalendarTab.tsx`), hook (`useEconomicCalendar.ts`), types (`features/calendar/types.ts`), edge function (`economic-calendar/index.ts`), shared constants (`_shared/constants/economic-calendar.ts`, `lib/constants/economic-calendar.ts`), cross-domain consumer (`use-economic-events.ts`), and test mocks (`handlers.ts`).
 
 ---
 
 ## Issues Found
 
-### 1. MarketSentimentWidget ErrorBoundary Uses `window.location.reload()` (Code Quality / Consistency - MEDIUM)
+### 1. Edge Function Missing Authentication (Security - HIGH)
 
-**File:** `src/components/market/MarketSentimentWidget.tsx` (line 407)
+**File:** `supabase/functions/economic-calendar/index.ts`
 
-The MarketSentimentWidget's ErrorBoundary uses `window.location.reload()` as its retry mechanism:
+The edge function has **zero authentication**. No JWT validation, no `getClaims`, no user verification. Any anonymous request can invoke it, consuming Lovable AI credits (for AI predictions) and Forex Factory API bandwidth.
+
+Every other edge function in the project (e.g., `market-insight`, `ai-preflight`, `trade-quality`) validates the JWT token via `getClaims` and returns 401 for unauthenticated requests. This function is the sole exception.
+
+**Fix:** Import and use `getClaims` from the shared auth utility, returning 401 if no valid user. Pattern:
+
 ```typescript
-<ErrorBoundary 
-  title="Market Sentiment"
-  onRetry={() => window.location.reload()}
->
+import { getClaims } from "../_shared/auth.ts";
+
+// Inside serve handler, after CORS check:
+const claims = await getClaims(req);
+if (!claims?.sub) {
+  return new Response(JSON.stringify({ error: "Unauthorized" }), {
+    status: 401,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
 ```
 
-The VolatilityMeterWidget uses a key-based remount pattern (`setRetryKey(k => k + 1)`) which is the established best practice in this codebase -- it avoids full page reload, preserves state of other widgets, and only remounts the failed component. The WhaleTrackingWidget and TradingOpportunitiesWidget correctly pass `props.onRetry` (which triggers `refetch()`).
+---
 
-**Fix:** Adopt the key-based remount pattern matching VolatilityMeterWidget:
+### 2. Dead Code: `isThisWeek()` Function Never Called (Code Quality - LOW)
+
+**File:** `supabase/functions/economic-calendar/index.ts` (lines 47-52)
+
+The `isThisWeek()` function is defined but never invoked anywhere in the edge function or any other file. The Forex Factory endpoint already returns only this week's data, making the function unnecessary. Dead code adds maintenance burden and cognitive noise.
+
+**Fix:** Remove the `isThisWeek` function entirely (lines 47-52).
+
+---
+
+### 3. Test Mock Response Shape Mismatches Real API Response (Code Quality / Accuracy - MEDIUM)
+
+**File:** `src/test/mocks/handlers.ts` (lines 150-177)
+
+The mock returns a response wrapped in `{ success: true, data: { events: [...] } }` with fields like `title`, `impact`, `currency` -- but the real edge function returns `{ events: [...], todayHighlight: {...}, impactSummary: {...}, lastUpdated: "..." }` with fields like `event`, `importance`, `country`. The mock:
+
+- Wraps in `success` + `data` (real API does not)
+- Uses `title` instead of `event`
+- Uses `impact` instead of `importance`
+- Uses `currency` instead of `country`
+- Missing `todayHighlight`, `impactSummary`, `lastUpdated`
+
+Any test relying on this mock would receive completely wrong data shapes, silently passing with empty/undefined renders.
+
+**Fix:** Update the mock to match the `EconomicCalendarResponse` type:
+
 ```typescript
-export function MarketSentimentWidget(props: MarketSentimentWidgetProps) {
+http.post(`${SUPABASE_URL}/functions/v1/economic-calendar`, async () => {
+  await delay(100);
+  return HttpResponse.json({
+    events: [
+      {
+        id: "1",
+        date: new Date().toISOString(),
+        event: "FOMC Meeting",
+        country: "United States",
+        importance: "high",
+        forecast: "5.25%",
+        previous: "5.25%",
+        actual: null,
+        aiPrediction: null,
+        cryptoImpact: null,
+      },
+      // ...
+    ],
+    todayHighlight: {
+      event: null,
+      hasEvent: false,
+      timeUntil: null,
+    },
+    impactSummary: {
+      hasHighImpact: false,
+      eventCount: 0,
+      riskLevel: "LOW",
+      positionAdjustment: "normal",
+    },
+    lastUpdated: new Date().toISOString(),
+  });
+}),
+```
+
+---
+
+### 4. Page Missing ErrorBoundary Wrapper (Comprehensiveness - MEDIUM)
+
+**File:** `src/pages/EconomicCalendar.tsx`
+
+The page renders `CalendarTab` directly with no `ErrorBoundary`. If any runtime error occurs inside CalendarTab (e.g., malformed date from API, unexpected null), the entire page crashes with a white screen. The Market Data page wraps every widget with ErrorBoundary -- this page should follow the same pattern.
+
+**Fix:** Wrap `CalendarTab` in an ErrorBoundary with key-based retry:
+
+```typescript
+import { useState } from "react";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
+
+export default function EconomicCalendar() {
   const [retryKey, setRetryKey] = useState(0);
   return (
-    <ErrorBoundary 
-      title="Market Sentiment"
-      onRetry={() => setRetryKey(k => k + 1)}
-    >
-      <MarketSentimentContent key={retryKey} {...props} />
-    </ErrorBoundary>
+    <div className="space-y-6 overflow-x-hidden">
+      <PageHeader ... />
+      <ErrorBoundary
+        title="Economic Calendar"
+        onRetry={() => setRetryKey(k => k + 1)}
+      >
+        <CalendarTab key={retryKey} hideTitle />
+      </ErrorBoundary>
+    </div>
   );
 }
 ```
 
 ---
 
-### 2. `useBinanceMarketSentiment` Recalculates on Every Render (Accuracy / Code Quality - MEDIUM)
-
-**File:** `src/features/binance/useBinanceMarketData.ts` (lines 368-442)
-
-The `calculateSentiment()` function is defined inline and called on every render when `!isLoading && !isError` (line 445). It does not use `useMemo`, meaning sentiment scores, factors, and raw data are recomputed on every unrelated re-render of a parent component. While functionally correct, this is wasteful and violates the memoization pattern used everywhere else in the project.
-
-**Fix:** Wrap with `useMemo` keyed on the five query data values:
-```typescript
-const data = useMemo(() => {
-  if (isLoading || isError) return null;
-  return calculateSentiment();
-}, [
-  isLoading, isError,
-  topTraderQuery.data, globalRatioQuery.data,
-  takerVolumeQuery.data, openInterestQuery.data,
-  markPriceQuery.data, symbol
-]);
-```
-
-This requires importing `useMemo` at the top of the file and moving `calculateSentiment` logic into the memo callback.
-
----
-
-### 3. Funding Rate Color Missing Zero-Value Case (Accuracy - LOW)
-
-**File:** `src/components/market/MarketSentimentWidget.tsx` (line 370)
-
-The funding rate display uses:
-```typescript
-sentiment.rawData.markPrice.lastFundingRate > 0 ? "text-profit" : "text-loss"
-```
-
-When `lastFundingRate` is exactly `0`, it will incorrectly render as `text-loss` (red). A zero funding rate is neutral, not bearish.
-
-**Fix:** Add the zero case:
-```typescript
-sentiment.rawData.markPrice.lastFundingRate > 0 
-  ? "text-profit" 
-  : sentiment.rawData.markPrice.lastFundingRate < 0 
-    ? "text-loss" 
-    : "text-muted-foreground"
-```
-
----
-
 ## Verified Correct (No Issues)
 
-The following were explicitly verified and found functionally sound:
-
-- **Edge function auth**: JWT validation via `getClaims` with proper 401 responses
-- **Input validation**: `SYMBOL_REGEX` + `.slice(0, MAX_SYMBOLS_PER_REQUEST)` prevents injection and abuse
-- **Symbol validation pipeline**: `filterValidSymbols()` validates against DB with 1-hour cache + fallback list
-- **MarketContext persistence**: localStorage read/write with JSON parse error handling
-- **useMarketContext guard**: Throws if used outside provider (fail-fast)
-- **Query configuration**: staleTime, refetchInterval, retry, retryDelay all properly configured
-- **normalizeError utility**: Handles Error, string, unknown, and null correctly
-- **Sentiment calculation logic**: RSI, MA, volatility formulas are mathematically correct
-- **Whale detection**: Volume spike + price direction cross-analysis with confidence capping
-- **Fear & Greed fallback**: Returns neutral (50) on API failure instead of crashing
-- **CoinGecko fallback**: Returns neutral defaults on failure
-- **Data quality metric**: Correctly reflects kline data completeness
-- **Confidence scoring**: Agreement bonus, distance-from-neutral, data quality all properly weighted
-- **ErrorBoundary coverage**: All 4 widgets wrapped
-- **ARIA attributes**: All 4 widgets have `role="region"` and `aria-label`
-- **Loading skeletons**: Present in all 4 widgets
-- **Empty states**: Present in WhaleTracking, TradingOpportunities, Volatility, Sentiment
-- **Error states with retry**: Present in all 4 widgets
-- **Semantic colors**: `text-profit`/`text-loss` used consistently (fixed in prior audit)
-- **Centralized constants**: All thresholds, limits, and config in `src/lib/constants/`
-- **Shared constants in edge function**: `_shared/constants/market-config.ts` ensures sync
-- **React keys**: Stable keys used (fixed in prior audit)
-- **Symbol selector**: Combobox with search, popular group, all pairs group
+- **Data fetching**: `useEconomicCalendar` with proper staleTime (15min), refetchInterval (30min), retry (2)
+- **Error fallback in edge function**: Returns valid empty response with status 200 on failure (prevents UI crash)
+- **Loading states**: Skeleton loaders for "Today's Key Release" and event list
+- **Empty state**: "No upcoming events this week" when events array is empty
+- **Error state**: "Failed to load" with retry button on `isError`
+- **Impact Alert Banner**: Correctly gated by `hasHighImpact && riskLevel !== LOW`
+- **Risk calculation**: `calculateRiskLevel` correctly maps today + week high-impact counts
+- **AI predictions**: Graceful fallback (returns events unchanged) when `LOVABLE_API_KEY` is missing or AI fails
+- **AI tool_choice**: Forced function calling ensures structured JSON response
+- **Importance mapping**: `mapFFImpact` -> `mapImportance` chain correctly maps "High"->3->"high", "Medium"->2->"medium"
+- **Country code mapping**: USD->"United States" for `isRelevantEvent` filter
+- **Event sorting**: By date ascending (correct chronological order)
+- **Display limit**: `MAX_EVENTS = 15` enforced via `.slice()`
+- **AI prediction limit**: `MAX_AI_PREDICTIONS = 5` enforced
+- **Semantic colors**: `bg-profit/10 text-profit` and `bg-loss/10 text-loss` for crypto impact badges
+- **ARIA**: Event list has `role="list"` and `aria-label`, items have `role="listitem"`
+- **Collapsible AI predictions**: Proper Radix Collapsible with chevron rotation
+- **Today detection**: Correct ISO date comparison via `.split('T')[0]`
+- **Time until calculation**: Hours + minutes with "Now" for past events
+- **Cross-domain consumer** (`use-economic-events.ts`): Correctly reuses `useEconomicCalendar` (single data source), memoized with `useMemo`
+- **Constants alignment**: Frontend and edge function constants are synchronized
+- **Refresh button**: Disabled during `isFetching`, spinner animation
+- **Footer disclaimer**: Data attribution to Forex Factory + last updated timestamp
 
 ---
 
@@ -120,23 +160,9 @@ The following were explicitly verified and found functionally sound:
 
 | # | File | Issue | Criteria | Severity |
 |---|------|-------|----------|----------|
-| 1 | MarketSentimentWidget.tsx | ErrorBoundary uses `window.location.reload()` instead of key-based remount | Code Quality | Medium |
-| 2 | useBinanceMarketData.ts | `calculateSentiment()` not memoized, recalculates every render | Code Quality | Medium |
-| 3 | MarketSentimentWidget.tsx | Funding rate zero value renders as loss (red) instead of neutral | Accuracy | Low |
+| 1 | `economic-calendar/index.ts` | No authentication -- edge function is completely open | Security | High |
+| 2 | `economic-calendar/index.ts` | Dead code: `isThisWeek()` never called | Code Quality | Low |
+| 3 | `src/test/mocks/handlers.ts` | Mock response shape mismatches real API | Code Quality, Accuracy | Medium |
+| 4 | `src/pages/EconomicCalendar.tsx` | Missing ErrorBoundary wrapper | Comprehensiveness | Medium |
 
-Total: 2 files, 3 fixes.
-
-## Technical Details
-
-### Fix 1: Key-based remount for MarketSentimentWidget
-
-Add `useState` import (already imported), wrap with key-based retry pattern matching VolatilityMeterWidget.
-
-### Fix 2: Memoize calculateSentiment
-
-Add `useMemo` import to `useBinanceMarketData.ts`, wrap the sentiment calculation in a `useMemo` hook with proper dependency array.
-
-### Fix 3: Funding rate zero handling
-
-Add ternary for the `=== 0` case to render `text-muted-foreground` instead of `text-loss`.
-
+Total: 3 files modified, 4 issues addressed.
