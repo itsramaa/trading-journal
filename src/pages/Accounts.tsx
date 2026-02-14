@@ -176,7 +176,7 @@ export default function Accounts() {
                     {format(displayBalance)}
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {showPaperData ? 'Paper accounts' : (isConnected ? 'Exchange + Binance' : 'Exchange accounts')}
+                    {showPaperData ? 'Paper accounts' : 'Exchange accounts'}
                   </p>
                 </>
               )}
