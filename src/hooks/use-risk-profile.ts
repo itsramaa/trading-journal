@@ -186,7 +186,8 @@ export function useUpdateDailyRiskSnapshot() {
       queryClient.invalidateQueries({ queryKey: ["daily-risk-snapshot"] });
     },
     onError: (error) => {
-      toast.error(`Failed to update risk snapshot: ${error.message}`);
+      console.error('[RiskSnapshot] Update failed:', error);
+      toast.error('Failed to update risk snapshot. Please try again.');
     },
   });
 }
