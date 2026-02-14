@@ -58,9 +58,9 @@ export function TradingOnboardingTour({ onNewTrade }: TradingOnboardingTourProps
     },
     {
       icon: History,
-      title: "Trade History",
+      title: "Closed Trades",
       description: "Review closed trades, add notes, and track your journaling progress",
-      href: "/history",
+      href: "/trading?tab=closed",
     },
     {
       icon: Calculator,

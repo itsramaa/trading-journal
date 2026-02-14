@@ -48,8 +48,8 @@ const PAGES = [
   { title: "AI Analysis", url: "/market", icon: TrendingUp, shortcut: "M", domain: "Market" },
   { title: "Economic Calendar", url: "/calendar", icon: Calendar, shortcut: "C", domain: "Market" },
   { title: "Market Data", url: "/market-data", icon: BarChart3, shortcut: "V", domain: "Market" },
-  { title: "Trade Entry", url: "/trading", icon: Notebook, shortcut: "T", domain: "Journal" },
-  { title: "Trade History", url: "/history", icon: History, shortcut: "H", domain: "Journal" },
+  { title: "Trading Journal", url: "/trading", icon: Notebook, shortcut: "T", domain: "Journal" },
+  { title: "Closed Trades", url: "/trading?tab=closed", icon: History, shortcut: null, domain: "Journal" },
   { title: "Risk Overview", url: "/risk", icon: Shield, shortcut: "R", domain: "Risk" },
   { title: "Position Calculator", url: "/calculator", icon: Calculator, shortcut: "X", domain: "Risk" },
   { title: "My Strategies", url: "/strategies", icon: Lightbulb, shortcut: "S", domain: "Strategy" },
@@ -175,7 +175,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   };
 
   const handleTradeSelect = (tradeId: string) => {
-    navigate(`/history?trade=${tradeId}`);
+    navigate(`/trading/${tradeId}`);
     onOpenChange(false);
     setSearchQuery("");
   };
@@ -323,7 +323,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                     <page.icon className="h-4 w-4" />
                     <span>{page.title}</span>
                   </div>
-                  <Kbd keys={["G", page.shortcut]} className="opacity-60" />
+                  {page.shortcut && <Kbd keys={["G", page.shortcut]} className="opacity-60" />}
                 </CommandItem>
               ))}
             </CommandGroup>
@@ -344,7 +344,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                 <page.icon className="h-4 w-4" />
                 <span>{page.title}</span>
               </div>
-              <Kbd keys={["G", page.shortcut]} className="opacity-60" />
+              {page.shortcut && <Kbd keys={["G", page.shortcut]} className="opacity-60" />}
             </CommandItem>
           ))}
         </CommandGroup>
@@ -365,7 +365,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                   <page.icon className="h-4 w-4" />
                   <span>{page.title}</span>
                 </div>
-                <Kbd keys={["G", page.shortcut]} className="opacity-60" />
+                <Kbd keys={["G", page.shortcut!]} className="opacity-60" />
               </CommandItem>
             ))}
           </CommandGroup>

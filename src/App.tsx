@@ -21,7 +21,7 @@ const Accounts = lazy(() => import("./pages/Accounts"));
 const AccountDetail = lazy(() => import("./pages/AccountDetail"));
 const TradingJournal = lazy(() => import("./pages/trading-journey/TradingJournal"));
 const TradeDetail = lazy(() => import("./pages/trading-journey/TradeDetail"));
-const TradeHistory = lazy(() => import("./pages/TradeHistory"));
+
 const StrategyManagement = lazy(() => import("./pages/trading-journey/StrategyManagement"));
 const Backtest = lazy(() => import("./pages/Backtest"));
 const Performance = lazy(() => import("./pages/Performance"));
@@ -136,7 +136,7 @@ const App = () => (
                 {/* Journal Domain */}
                 <Route path="/trading" element={<TradingJournal />} />
                 <Route path="/trading/:tradeId" element={<TradeDetail />} />
-                <Route path="/history" element={<TradeHistory />} />
+                
                 <Route path="/import" element={<ImportTrades />} />
                 
                 {/* Risk Domain */}
