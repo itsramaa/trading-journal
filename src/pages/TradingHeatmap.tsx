@@ -11,8 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
-  Grid3X3, TrendingUp, TrendingDown, Clock, Download, Sun, Moon, Sunrise,
-  Trophy, AlertTriangle, Flame, Snowflake
+  Grid3X3, TrendingUp, TrendingDown, Download, Sun, Moon, Sunrise,
+  Flame, Snowflake
 } from "lucide-react";
 import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import { MetricsGridSkeleton, ChartSkeleton } from "@/components/ui/loading-skeleton";
@@ -39,6 +39,14 @@ interface StreakData {
   currentStreak: number;
   isWinning: boolean;
 }
+
+// Session card config — module-level constant for render stability
+const SESSION_CONFIG = [
+  { key: 'sydney' as const, icon: Moon, colorClass: 'text-[hsl(var(--chart-3))]' },
+  { key: 'tokyo' as const, icon: Moon, colorClass: 'text-[hsl(var(--chart-5))]' },
+  { key: 'london' as const, icon: Sunrise, colorClass: 'text-[hsl(var(--chart-4))]' },
+  { key: 'new_york' as const, icon: Sun, colorClass: 'text-[hsl(var(--chart-2))]' },
+];
 
 export default function TradingHeatmapPage() {
   const { data: trades, isLoading } = useModeFilteredTrades();
@@ -173,61 +181,7 @@ export default function TradingHeatmapPage() {
     return { best, worst };
   }, [filteredTrades]);
 
-  // Export to CSV
-  const exportToCSV = () => {
-    const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const HOURS = [0, 4, 8, 12, 16, 20];
-    
-    // Build grid data
-    const grid = new Map<string, { trades: number; wins: number; pnl: number }>();
-    
-    filteredTrades.forEach(trade => {
-      const d = new Date(trade.trade_date);
-      const day = d.getDay();
-      const hour = Math.floor(d.getHours() / 4) * 4;
-      const key = `${day}-${hour}`;
-      
-      const existing = grid.get(key) || { trades: 0, wins: 0, pnl: 0 };
-      existing.trades++;
-      const pnl = trade.realized_pnl || trade.pnl || 0;
-      existing.pnl += pnl;
-      if (pnl > 0) existing.wins++;
-      grid.set(key, existing);
-    });
-    
-    // Build CSV
-    const rows = ['Day,Time,Trades,Wins,WinRate,TotalPNL'];
-    
-    DAYS.forEach((dayName, dayIdx) => {
-      HOURS.forEach(hour => {
-        const data = grid.get(`${dayIdx}-${hour}`);
-        const trades = data?.trades || 0;
-        const wins = data?.wins || 0;
-        const winRate = trades > 0 ? ((wins / trades) * 100).toFixed(1) : '0.0';
-        const pnl = data?.pnl?.toFixed(2) || '0.00';
-        rows.push(`${dayName},${hour.toString().padStart(2, '0')}:00,${trades},${wins},${winRate}%,$${pnl}`);
-      });
-    });
-    
-    const csv = rows.join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `trading-heatmap-${dateRange}-${selectedPair}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   const formatHour = (hour: number) => `${hour.toString().padStart(2, '0')}:00`;
-
-  // Session card config for DRY rendering
-  const SESSION_CONFIG = [
-    { key: 'sydney' as const, icon: Moon, colorClass: 'text-purple-500' },
-    { key: 'tokyo' as const, icon: Moon, colorClass: 'text-blue-500' },
-    { key: 'london' as const, icon: Sunrise, colorClass: 'text-orange-500' },
-    { key: 'new_york' as const, icon: Sun, colorClass: 'text-yellow-500' },
-  ];
 
   if (isLoading) {
     return (
@@ -378,7 +332,7 @@ export default function TradingHeatmapPage() {
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <Flame className="h-4 w-4 text-orange-500" />
+                    <Flame className="h-4 w-4 text-[hsl(var(--chart-4))]" />
                     Longest Win Streak
                   </CardTitle>
                 </CardHeader>
@@ -394,7 +348,7 @@ export default function TradingHeatmapPage() {
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <Snowflake className="h-4 w-4 text-blue-500" />
+                    <Snowflake className="h-4 w-4 text-[hsl(var(--chart-5))]" />
                     Longest Loss Streak
                   </CardTitle>
                 </CardHeader>
