@@ -2,6 +2,7 @@
  * Market Insight Page - Unified Market Analysis Hub
  * Single page view: AI Market Sentiment, AI Macro Analysis, Combined Analysis
  */
+import { useMemo } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,7 @@ import {
 import { cn } from "@/lib/utils";
 import { 
   useMarketSentiment, 
+  BIAS_VALIDITY_MINUTES,
   useMacroAnalysis, 
   useCombinedAnalysis, 
   useMarketAlerts 
@@ -31,7 +33,7 @@ const MarketInsight = () => {
     isLoading: sentimentLoading, 
     error: sentimentError,
     refetch: refetchSentiment 
-  } = useMarketSentiment(tradingStyle);
+  } = useMarketSentiment();
   
   const { 
     data: macroData, 
@@ -58,6 +60,14 @@ const MarketInsight = () => {
     refetchMacro();
   };
 
+  // Compute validUntil locally based on tradingStyle (fixes race condition)
+  const validUntil = useMemo(() => {
+    const lastUpdated = sentimentData?.sentiment?.lastUpdated || sentimentData?.lastUpdated;
+    if (!lastUpdated) return null;
+    const minutes = BIAS_VALIDITY_MINUTES[(tradingStyle as keyof typeof BIAS_VALIDITY_MINUTES)] || BIAS_VALIDITY_MINUTES.short_trade;
+    return new Date(new Date(lastUpdated).getTime() + minutes * 60 * 1000).toISOString();
+  }, [sentimentData, tradingStyle]);
+
   const isLoading = sentimentLoading || macroLoading;
   const hasError = sentimentError || macroError;
 
@@ -65,7 +75,7 @@ const MarketInsight = () => {
     <div className="space-y-6">
       <PageHeader
         icon={TrendingUp}
-        title="Market Insight"
+        title="AI Analysis"
         description="AI-powered market analysis and trading opportunities"
       >
         <Button 
@@ -81,9 +91,9 @@ const MarketInsight = () => {
         </Button>
       </PageHeader>
       
-      {sentimentData?.sentiment?.validUntil && (
+      {validUntil && (
         <BiasExpiryIndicator 
-          validUntil={sentimentData.sentiment.validUntil} 
+          validUntil={validUntil} 
           onExpired={handleRefresh}
           className="w-fit"
         />
