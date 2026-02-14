@@ -16,12 +16,10 @@ import {
 } from "@/components/ui/table";
 import { TrendingUp, TrendingDown, BarChart3, ExternalLink } from "lucide-react";
 import { useAccountLevelStats } from "@/hooks/use-exchange-analytics";
-import { useTradeMode } from "@/hooks/use-trade-mode";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 
 export function AccountComparisonTable() {
-  const { tradeMode } = useTradeMode();
-  const { data: accountStats, isLoading } = useAccountLevelStats({ tradeMode });
+  const { data: accountStats, isLoading } = useAccountLevelStats({});
   const { formatPnl, format: formatCurrency } = useCurrencyConversion();
 
   if (isLoading) {
@@ -54,7 +52,7 @@ export function AccountComparisonTable() {
           Account Comparison
         </CardTitle>
         <CardDescription>
-          Performance comparison across all accounts ({tradeMode} mode)
+          Performance comparison across all accounts
         </CardDescription>
       </CardHeader>
       <CardContent>
