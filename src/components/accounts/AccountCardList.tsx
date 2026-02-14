@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { CandlestickChart, FlaskConical, MoreHorizontal, Trash2, ChevronRight } from "lucide-react";
+import { CandlestickChart, FlaskConical, MoreHorizontal, Trash2, ChevronRight, Pencil } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,8 +11,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAccounts, useDeleteAccount } from "@/hooks/use-accounts";
-import { ACCOUNT_TYPE_LABELS, type AccountType } from "@/types/account";
+import { ACCOUNT_TYPE_LABELS, type AccountType, type Account } from "@/types/account";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
+import { isPaperAccount } from "@/lib/account-utils";
 import { toast } from "sonner";
 
 const ACCOUNT_TYPE_ICONS: Record<AccountType, React.ElementType> = {
@@ -23,6 +24,7 @@ const ACCOUNT_TYPE_ICONS: Record<AccountType, React.ElementType> = {
 interface AccountCardListProps {
   onSelectAccount?: (accountId: string) => void;
   onTransact?: (accountId: string, type: 'deposit' | 'withdraw') => void;
+  onEdit?: (account: Account) => void;
   filterType?: AccountType;
   excludeBacktest?: boolean;
   backtestOnly?: boolean;
@@ -31,7 +33,8 @@ interface AccountCardListProps {
 
 export function AccountCardList({ 
   onSelectAccount, 
-  onTransact, 
+  onTransact,
+  onEdit,
   filterType, 
   excludeBacktest = false,
   backtestOnly = false,
@@ -49,9 +52,9 @@ export function AccountCardList({
     
     // Paper/Live filter for trading accounts
     if (filterType === 'trading') {
-      const isPaper = !a.exchange || a.exchange === 'manual';
-      if (excludeBacktest && isPaper) return false;
-      if (backtestOnly && !isPaper) return false;
+      const paper = isPaperAccount(a);
+      if (excludeBacktest && paper) return false;
+      if (backtestOnly && !paper) return false;
     }
     
     return true;
@@ -109,7 +112,7 @@ export function AccountCardList({
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {accounts.map((account) => {
-        const isBacktest = !account.exchange || account.exchange === 'manual';
+        const isBacktest = isPaperAccount(account);
         const Icon = isBacktest ? FlaskConical : ACCOUNT_TYPE_ICONS[account.account_type] || CandlestickChart;
         const balance = Number(account.balance);
         const broker = account.metadata?.broker;
@@ -139,6 +142,10 @@ export function AccountCardList({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit?.(account); }}>
+                    <Pencil className="mr-2 h-4 w-4" />
+                    Edit
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onTransact?.(account.id, 'deposit'); }}>
                     Deposit
                   </DropdownMenuItem>

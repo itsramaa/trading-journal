@@ -102,6 +102,7 @@ export function useCreateAccount() {
         is_backtest?: boolean;
         initial_balance?: number;
       };
+      exchange?: string;
     }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
@@ -113,6 +114,9 @@ export function useCreateAccount() {
       if (account.account_type === 'backtest') {
         dbAccountType = 'trading';
       }
+
+      // Determine exchange field: paper accounts get 'manual' explicitly
+      const exchangeValue = account.metadata?.is_backtest ? 'manual' : (account.exchange || '');
 
       // Create the account with initial balance
       const { data, error } = await supabase
@@ -128,6 +132,7 @@ export function useCreateAccount() {
           balance: initialBalance,
           is_active: true,
           metadata: account.metadata || null,
+          exchange: exchangeValue,
         })
         .select()
         .single();

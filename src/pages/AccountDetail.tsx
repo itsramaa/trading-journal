@@ -46,6 +46,7 @@ import { useAccountAnalytics } from "@/hooks/use-account-analytics";
 import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import type { AccountType, AccountTransactionType } from "@/types/account";
+import { isPaperAccount } from "@/lib/account-utils";
 
 const ACCOUNT_TYPE_ICONS: Record<AccountType, React.ElementType> = {
   trading: CandlestickChart,
@@ -130,7 +131,7 @@ export default function AccountDetail() {
   const [activeTab, setActiveTab] = useState("overview");
 
   const account = accounts?.find((a) => a.id === accountId);
-  const isBacktest = account?.metadata?.is_backtest === true;
+  const isBacktest = account ? isPaperAccount(account) : false;
   
   // Filter transactions
   const filteredTransactions = useMemo(() => {
@@ -221,7 +222,7 @@ export default function AccountDetail() {
         </div>
 
         {/* Key Metrics Row */}
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-5">
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
@@ -241,6 +242,30 @@ export default function AccountDetail() {
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 Gross: {formatPnl(stats?.totalPnlGross || 0)}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Return on Capital</p>
+                  {statsLoading ? <Skeleton className="h-7 w-16" /> : (() => {
+                    const initialBalance = account.metadata?.initial_balance || Number(account.balance);
+                    const roc = initialBalance > 0 ? ((stats?.totalPnlNet || 0) / initialBalance) * 100 : 0;
+                    return (
+                      <p className={`text-xl font-bold ${roc >= 0 ? 'text-profit' : 'text-loss'}`}>
+                        {roc >= 0 ? '+' : ''}{roc.toFixed(2)}%
+                      </p>
+                    );
+                  })()}
+                </div>
+                <Percent className="h-8 w-8 text-muted-foreground/50" />
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                <InfoTooltip content="Net P&L ÷ Initial Capital × 100. Based on first deposit or current balance if no initial balance recorded." variant="help" />
+                {' '}vs initial capital
               </p>
             </CardContent>
           </Card>
@@ -361,7 +386,10 @@ export default function AccountDetail() {
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">Drawdown</CardTitle>
-                  <CardDescription>Peak-to-trough decline percentage</CardDescription>
+                <CardDescription>
+                  Peak-to-trough decline from highest equity point
+                  <InfoTooltip content="Drawdown is calculated from peak cumulative P&L, not from initial balance. If all trades are losses, drawdown may show 0% since no peak was established." variant="help" />
+                </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="h-[200px]">
