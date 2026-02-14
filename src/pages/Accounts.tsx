@@ -18,15 +18,13 @@ import {
   TrendingUp,
   TrendingDown,
   ArrowDownUp,
-  Shield,
-  ChevronDown,
-  ChevronUp
+  Shield
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+
 
 import { PageHeader } from "@/components/ui/page-header";
 import { AddAccountForm } from "@/components/accounts/AddAccountForm";
@@ -55,7 +53,7 @@ export default function Accounts() {
   const [defaultTransactionTab, setDefaultTransactionTab] = useState<'deposit' | 'withdraw'>('deposit');
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editAccount, setEditAccount] = useState<Account | null>(null);
-  const [binanceDetailsOpen, setBinanceDetailsOpen] = useState(false);
+  
   
   const { data: accounts } = useAccounts();
   const { data: connectionStatus } = useBinanceConnectionStatus();
@@ -254,69 +252,61 @@ export default function Accounts() {
                 </CardContent>
               </Card>
             ) : (
-              <Collapsible open={binanceDetailsOpen} onOpenChange={setBinanceDetailsOpen}>
-                <CollapsibleTrigger asChild>
-                  <Button variant="ghost" className="flex items-center gap-2 px-0 hover:bg-transparent">
-                    <h2 className="text-lg font-semibold">Binance Futures Details</h2>
-                    <Badge variant="secondary" className="bg-profit/20 text-profit">Live</Badge>
-                    {binanceDetailsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  </Button>
-                </CollapsibleTrigger>
-                <CollapsibleContent className="mt-3">
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <Card>
-                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Wallet Balance</CardTitle>
-                        <Wallet className="h-4 w-4 text-muted-foreground" />
-                      </CardHeader>
-                      <CardContent>
-                        {balanceLoading ? <Skeleton className="h-8 w-32" /> : (
-                          <>
-                            <div className="text-2xl font-bold font-mono-numbers">{format(balance?.totalWalletBalance || 0)}</div>
-                            <p className="text-xs text-muted-foreground mt-1">Total USDT balance</p>
-                          </>
-                        )}
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Available</CardTitle>
-                        <CandlestickChart className="h-4 w-4 text-muted-foreground" />
-                      </CardHeader>
-                      <CardContent>
-                        {balanceLoading ? <Skeleton className="h-8 w-32" /> : (
-                          <>
-                            <div className="text-2xl font-bold font-mono-numbers">{format(balance?.availableBalance || 0)}</div>
-                            <p className="text-xs text-muted-foreground mt-1">For new positions</p>
-                          </>
-                        )}
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Unrealized P&L</CardTitle>
-                        {(balance?.totalUnrealizedProfit || 0) >= 0 ? (
-                          <TrendingUp className="h-4 w-4 text-profit" />
-                        ) : (
-                          <TrendingDown className="h-4 w-4 text-loss" />
-                        )}
-                      </CardHeader>
-                      <CardContent>
-                        {balanceLoading ? <Skeleton className="h-8 w-32" /> : (
-                          <>
-                            <div className={`text-2xl font-bold font-mono-numbers ${(balance?.totalUnrealizedProfit || 0) >= 0 ? 'text-profit' : 'text-loss'}`}>
-                              {formatPnl(balance?.totalUnrealizedProfit || 0)}
-                            </div>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {activePositions.length} active position{activePositions.length !== 1 ? 's' : ''}
-                            </p>
-                          </>
-                        )}
-                      </CardContent>
-                    </Card>
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
+              <div className="space-y-3">
+                <h2 className="text-lg font-semibold">Live Trade Accounts</h2>
+                <div className="grid gap-4 md:grid-cols-3">
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Wallet Balance</CardTitle>
+                      <Wallet className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      {balanceLoading ? <Skeleton className="h-8 w-32" /> : (
+                        <>
+                          <div className="text-2xl font-bold font-mono-numbers">{format(balance?.totalWalletBalance || 0)}</div>
+                          <p className="text-xs text-muted-foreground mt-1">Binance Futures</p>
+                        </>
+                      )}
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Available</CardTitle>
+                      <CandlestickChart className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      {balanceLoading ? <Skeleton className="h-8 w-32" /> : (
+                        <>
+                          <div className="text-2xl font-bold font-mono-numbers">{format(balance?.availableBalance || 0)}</div>
+                          <p className="text-xs text-muted-foreground mt-1">Binance Futures</p>
+                        </>
+                      )}
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Unrealized P&L</CardTitle>
+                      {(balance?.totalUnrealizedProfit || 0) >= 0 ? (
+                        <TrendingUp className="h-4 w-4 text-profit" />
+                      ) : (
+                        <TrendingDown className="h-4 w-4 text-loss" />
+                      )}
+                    </CardHeader>
+                    <CardContent>
+                      {balanceLoading ? <Skeleton className="h-8 w-32" /> : (
+                        <>
+                          <div className={`text-2xl font-bold font-mono-numbers ${(balance?.totalUnrealizedProfit || 0) >= 0 ? 'text-profit' : 'text-loss'}`}>
+                            {formatPnl(balance?.totalUnrealizedProfit || 0)}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Binance Futures · {activePositions.length} active position{activePositions.length !== 1 ? 's' : ''}
+                          </p>
+                        </>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
             )}
           </div>
         )}
@@ -324,9 +314,7 @@ export default function Accounts() {
         {/* Section Header + Add Account */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <h2 className="text-xl font-semibold">
-              {showPaperData ? 'Paper Trading Accounts' : 'Trading Accounts'}
-            </h2>
+            <h2 className="text-xl font-semibold">Trading Accounts</h2>
             {showPaperData && (
               <Badge variant="outline">
                 <FlaskConical className="h-3 w-3 mr-1" />
