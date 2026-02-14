@@ -1,63 +1,79 @@
 
 
-# Header Search Icon + Currency/Exchange Rate Fixes
+# Floating Chatbot: Deep UX Analysis & Fixes
 
-## Changes
+## Scope & Coverage
 
-### 1. Search Button -- Icon Only (all screen sizes)
-
-Currently there are two search buttons:
-- Desktop (`hidden md:flex`): Wide button with "Search..." text and keyboard shortcut badge
-- Mobile (`md:hidden`): Icon-only button
-
-**Fix**: Replace both with a single icon-only button (like the current mobile version), positioned to the left of the notification bell. Remove the wide text-based search button entirely.
-
-### 2. Currency Popover Label -- Hardcode "Select Currency"
-
-Line 52 in `CurrencyDisplay.tsx` uses `t('currency.select') || 'Select Currency'`. The i18n key `currency.select` is not guaranteed to resolve, causing a raw key to display. Replace with a plain string `"Select Currency"`.
-
-### 3. Exchange Rate -- API-First, No Hardcoded Initial Display
-
-Current behavior: `useExchangeRate` passes `initialData: storedRate || 16000` to `useQuery`. This means the UI immediately shows the hardcoded `16000` (or the stale persisted rate) before the API responds. The store also defaults to `15800`.
-
-**Fix**:
-- Remove `initialData` from the query config so it starts in a proper loading state
-- Remove the hardcoded `exchangeRate: 15800` default from the Zustand store (set to `0`)
-- Return `isLoading: true` until the API actually responds
-- In `CurrencyDisplay`, show a loading skeleton/spinner for the rate while fetching
-- The hourly auto-refresh (`refetchInterval: 60 * 60 * 1000`) is already correctly configured
+All files read in full:
+- `src/components/chat/AIChatbot.tsx` (780 lines)
+- `src/components/chat/ChatMessage.tsx` (73 lines)
+- `src/components/chat/QuickActionsPanel.tsx` (237 lines)
+- `src/components/chat/TipsPanel.tsx` (35 lines)
+- `src/store/app-store.ts` (chatbot state section)
+- `src/App.tsx` (AIChatbot mount point)
 
 ---
 
-## Technical Details
+## Issues Found
 
-### File: `src/components/layout/DashboardLayout.tsx`
-- Remove lines 193-210 (both search buttons)
-- Add a single icon-only search button before `NotificationToggle`:
-```tsx
-<Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setCommandOpen(true)} aria-label="Search">
-  <Search className="h-4 w-4" />
-</Button>
-<NotificationToggle />
+### 1. Mixed Language: Indonesian Strings in Otherwise English UI
+
+The chatbot UI is entirely English **except** for three Indonesian strings:
+
+| Location | Line | Current (Indonesian) | Should Be (English) |
+|----------|------|---------------------|---------------------|
+| `AIChatbot.tsx` | 595 | `title="Reset semua percakapan"` | `title="Reset all conversations"` |
+| `AIChatbot.tsx` | 660 | `"Gunakan Quick Actions di panel kiri atau ketik pertanyaan Anda."` | `"Use Quick Actions on the left panel or type your question."` |
+| `TipsPanel.tsx` | 6-11 | All 6 tips in Indonesian | (see issue #2 -- component is dead code) |
+
+### 2. Dead Code: `TipsPanel.tsx` Is Never Used
+
+`TipsPanel.tsx` exists with Indonesian tips, but it is **not imported or rendered anywhere**. The expanded right panel in `AIChatbot.tsx` (lines 732-773) renders its own inline tips in English. `TipsPanel.tsx` is dead code and should be deleted to avoid confusion.
+
+### 3. No Other Issues Found
+
+- **Mode consistency**: Chatbot uses `useModeFilteredTrades` (mode-aware). No structural differences between Paper/Live -- correct.
+- **Per-mode history**: Each tab preserves its own message history independently. Switching tabs does not clear history. Correct.
+- **Loading state**: Typing indicator with animated dots shows during AI response. Send button shows spinner. Input disabled during loading. All correct.
+- **Error state**: Catch block in `sendMessage` removes empty assistant messages and appends error message. Correct.
+- **Empty state**: Greeting + suggestions shown when no messages exist. Correct.
+- **Streaming**: SSE parsing with proper buffer handling, progressive content update. Correct.
+- **Auth**: Checks `user` and returns null if not logged in. Uses JWT for authenticated endpoints. Correct.
+- **Keyboard**: Enter to send, Escape to collapse/close. Correct.
+- **Global state sync**: `useAppStore` integration for external open/prompt triggers. Correct.
+- **ChatMessage**: Markdown rendering with proper component overrides (headings, lists, code, blockquote, links). Correct.
+- **QuickActionsPanel**: Filters actions by current mode, categories properly grouped. Correct.
+- **ARIA**: Proper labels on all interactive elements, `role="log"`, `aria-live="polite"`, `aria-busy`. Correct.
+- **Color tokens**: Uses `bg-primary/10`, `text-primary`, `bg-muted` -- semantic tokens. Correct.
+
+---
+
+## Implementation Plan
+
+### File 1: `src/components/chat/AIChatbot.tsx`
+
+**Line 595**: Change tooltip from Indonesian to English:
+```
+"Reset semua percakapan" -> "Reset all conversations"
 ```
 
-### File: `src/components/layout/CurrencyDisplay.tsx`
-- Line 52: Replace `{t('currency.select') || 'Select Currency'}` with `"Select Currency"`
-- Remove unused `useTranslation` import
-- Add loading state for exchange rate display: show `--` or a small spinner while `rateLoading` is true and rate is 0
+**Line 660**: Change expanded-mode hint from Indonesian to English:
+```
+"Gunakan Quick Actions di panel kiri atau ketik pertanyaan Anda." -> "Use Quick Actions on the left panel or type your question."
+```
 
-### File: `src/hooks/exchange/use-exchange-rate.ts`
-- Remove `initialData: storedRate || DEFAULT_USD_IDR_RATE` (line 74)
-- Change return to: `rate: query.data ?? storedRate ?? DEFAULT_USD_IDR_RATE`
-- `isLoading` will now be `true` on first mount until API responds
+### File 2: `src/components/chat/TipsPanel.tsx`
 
-### File: `src/store/app-store.ts`
-- Line 78: Change `exchangeRate: 15800` to `exchangeRate: 0` so it doesn't pretend to have a valid rate before API fetch
+**Delete this file entirely.** It is not imported or used by any component. The expanded right panel in `AIChatbot.tsx` already renders its own inline tips in English.
+
+---
+
+## Technical Summary
 
 | File | Change |
 |------|--------|
-| `src/components/layout/DashboardLayout.tsx` | Replace 2 search buttons with 1 icon-only button before notification bell |
-| `src/components/layout/CurrencyDisplay.tsx` | Hardcode "Select Currency", add rate loading state |
-| `src/hooks/exchange/use-exchange-rate.ts` | Remove `initialData` for API-first behavior |
-| `src/store/app-store.ts` | Set default `exchangeRate` to `0` |
+| `src/components/chat/AIChatbot.tsx` | Fix 2 Indonesian strings to English |
+| `src/components/chat/TipsPanel.tsx` | Delete (dead code) |
+
+Total: 2 lines changed, 1 file deleted. All changes are cosmetic/cleanup -- no logic changes.
 
