@@ -1,169 +1,120 @@
 
-
-# Dashboard Page: Deep UX Analysis & Fixes
+# Accounts Page: Deep UX Analysis & Fixes
 
 ## Scope & Coverage (100%)
 
 All files read in full:
 
-**Page**: `src/pages/Dashboard.tsx` (221 lines)
+**Pages**: `Accounts.tsx` (266 lines), `AccountDetail.tsx` (224 lines)
 
-**Dashboard Widgets (11 files)**: `PortfolioOverviewCard.tsx` (268 lines), `DashboardAnalyticsSummary.tsx` (234 lines), `AIInsightsWidget.tsx` (496 lines), `RiskMetricsCards.tsx` (177 lines), `GoalTrackingWidget.tsx` (235 lines), `MarketScoreWidget.tsx` (306 lines), `SystemStatusIndicator.tsx` (173 lines), `ADLRiskWidget.tsx` (253 lines), `SmartQuickActions.tsx` (137 lines), `MarketSessionsWidget.tsx` (220 lines), `StrategyCloneStatsWidget.tsx` (172 lines)
+**Components**: `AccountCardList.tsx` (270 lines), `AccountComparisonTable.tsx` (124 lines), `AddAccountForm.tsx` (187 lines), `EditAccountDialog.tsx` (123 lines), `AccountTransactionDialog.tsx` (341 lines), `AccountSelect.tsx` (142 lines)
 
-**Cross-domain Components**: `RiskSummaryCard.tsx` (207 lines), `EquityCurveChart.tsx` (245 lines), `ErrorBoundary.tsx` (WidgetErrorBoundary)
+**Detail Sub-Components**: `AccountDetailHeader.tsx` (200 lines), `AccountDetailMetrics.tsx` (163 lines), `AccountDetailOverview.tsx` (261 lines), `AccountDetailTransactions.tsx` (181 lines), `AccountDetailFinancial.tsx` (125 lines)
 
-**Hooks Traced**: `use-unified-portfolio-data.ts` (299 lines), `use-mode-filtered-trades`, `use-mode-visibility`, `use-trade-entries`, `use-positions`, `use-trading-gate`, `use-currency-conversion`, `use-realtime`, `use-binance-connection-status`, `use-binance-daily-pnl`, `use-ai-settings-enforcement`, `use-unified-market-score`, `use-risk-events`, `use-risk-profile`
+**Hooks**: `use-accounts.ts` (372 lines), `use-account-analytics.ts` (84 lines)
 
-**Route verification**: App.tsx route definitions cross-referenced
+**Shared**: `account-utils.ts`, `account.ts` (types)
 
 ---
 
 ## Issues Found
 
-### 1. `RiskSummaryCard` Links to Non-Existent Route (Broken Navigation)
+### 1. AccountDetail Tab Not URL-Persisted (UX Standard #1 Violation)
 
-`src/components/risk/RiskSummaryCard.tsx` line 61: `<Link to="/risk-management">` -- this route does not exist. The actual route defined in `App.tsx` is `/risk`. When a user without a risk profile clicks "Set Up Risk Profile", they navigate to a 404 page.
+`AccountDetail.tsx` line 37: `const [activeTab, setActiveTab] = useState("overview");`
 
-**Fix**: Change `/risk-management` to `/risk`.
+Per UX Consistency Standard #1, all top-level tabs must use `useSearchParams` for URL persistence. Refreshing the page resets the tab to Overview. Deep-linking (e.g., `/accounts/123?tab=financial`) is impossible.
 
-### 2. `AIInsightsWidget` Uses Wrong PnL Field (Calculation Standard Violation)
+**Fix**: Replace `useState` with `useSearchParams`-based tab state.
 
-`src/components/dashboard/AIInsightsWidget.tsx` line 55: `pairStats[pair].pnl += trade.pnl || 0;`
+### 2. AccountComparisonTable Returns `null` When Empty (Layout Stability Violation - UX Standard #4)
 
-The `calculatePairStats` function uses `trade.pnl` directly, bypassing the standardized `realized_pnl ?? pnl ?? 0` fallback chain. For Binance-synced trades, `realized_pnl` is the authoritative value. This produces inaccurate pair win rate recommendations for live mode users.
+`AccountComparisonTable.tsx` lines 52-54: `if (activeStats.length === 0) return null;`
 
-**Fix**: Change to `pairStats[pair].pnl += trade.realized_pnl ?? trade.pnl ?? 0;`
+When a user has accounts but zero completed trades, the comparison section disappears entirely, causing layout shift below the account cards.
 
-### 3. `MarketScoreWidget` Uses 28 Hardcoded Color Instances (UX Standard Violation)
+**Fix**: Return a minimal empty-state card instead of null.
 
-`src/components/dashboard/MarketScoreWidget.tsx` contains extensive hardcoded Tailwind colors instead of semantic tokens:
+### 3. AccountTransactionDialog Shows All Accounts Regardless of Mode (Data Isolation Violation)
 
-- `getBiasConfig()` (lines 60-93): Uses `text-green-500`, `bg-green-500/10`, `border-green-500/30`, `text-red-500`, `bg-red-500/10`, `border-red-500/30`, `text-red-600`, `bg-red-600/10`, `border-red-600/30`, `text-yellow-500`, `bg-yellow-500/10`, `border-yellow-500/30`
-- `getScoreColor()` (lines 95-101): Uses `text-green-500`, `text-green-400`, `text-yellow-500`, `text-orange-500`, `text-red-500`
-- `getProgressColor()` (lines 103-107): Uses `bg-green-500`, `bg-yellow-500`, `bg-red-500`
-- Compact event warning (line 136): `text-yellow-500`
+`AccountTransactionDialog.tsx` lines 158-159: The account select dropdown filters only by `is_active`, showing ALL accounts from both Paper and Live modes. A user in Paper mode can deposit to a Live account (and vice versa), violating strict mode isolation.
 
-Per UX Consistency Standard #2, these should use semantic tokens: `text-profit`/`text-loss` for favorable/unfavorable bias, and chart tokens for intermediate levels.
+**Fix**: Filter the accounts list by the active mode using `isPaperAccount` and `useModeVisibility`.
 
-**Fix**: Replace all hardcoded colors with semantic token equivalents:
-- Long Favorable: `text-profit`, `bg-profit/10`, `border-profit/30`
-- Short Favorable: `text-loss`, `bg-loss/10`, `border-loss/30`
-- Avoid: `text-destructive`, `bg-destructive/10`, `border-destructive/30`
-- Neutral: `text-[hsl(var(--chart-4))]`, `bg-[hsl(var(--chart-4))]/10`, `border-[hsl(var(--chart-4))]/30`
-- Score colors: `text-profit` (>=70), `text-chart-2` (>=55), `text-chart-3` (>=45), `text-chart-4` (>=30), `text-loss` (<30)
+### 4. Equity Curve Y-Axis Hardcodes Dollar Sign (Accuracy Violation)
 
-### 4. `DashboardAnalyticsSummary` Has One Hardcoded Color (UX Standard Violation)
+`AccountDetailOverview.tsx` line 71: `tickFormatter={(v) => \`$\${v.toFixed(0)}\`}`
 
-`src/components/dashboard/DashboardAnalyticsSummary.tsx` line 111: `text-yellow-500` for profit factor between 1.0-1.5.
+The Y-axis uses a hardcoded `$` symbol regardless of the user's selected currency (could be IDR/Rp). The tooltip on line 76 correctly uses `formatCurrency(value)`, creating an inconsistency within the same chart.
 
-**Fix**: Replace with `text-[hsl(var(--chart-4))]` (warning-level chart token).
+**Fix**: Use `formatCurrency` for axis tick formatting.
 
-### 5. `DashboardAnalyticsSummary` Returns `null` When < 3 Trades (Layout Stability Violation)
+### 5. AccountDetail PnL Uses `||` Instead of `??` (Accuracy Risk)
 
-`DashboardAnalyticsSummary.tsx` line 106: `if (analyticsData.trades30d < 3) return null;`
+`AccountDetail.tsx` line 96: `const pnl = trade.realized_pnl || trade.pnl || 0;`
 
-Per UX Consistency Standard #4, components must provide fallback empty states instead of returning `null`, preventing layout shifts. When a new user has 1-2 trades, this row completely disappears, causing the layout to jump.
+The `||` operator treats `0` as falsy. If `realized_pnl` is exactly `0` (a breakeven trade), this falls through to `trade.pnl` instead of correctly using `0`. The standardized chain is `realized_pnl ?? pnl ?? 0` using nullish coalescing.
 
-**Fix**: Return a minimal card with an informative message instead of null (e.g., "Log 3+ trades this month to see performance analytics").
+**Fix**: Change `||` to `??` for both fallbacks.
 
-### 6. `RiskMetricsCards` Returns `null` When < 3 Trades (Layout Stability Violation)
+### 6. No Issues Found (Verified Correct)
 
-`RiskMetricsCards.tsx` line 49: `if (closedTrades.length < 3) return null;`
-
-Same issue as #5. The entire "Advanced Risk Metrics" row disappears, causing layout shift.
-
-**Fix**: Return a minimal card with context instead of null.
-
-### 7. No Issues Found (Verified Correct)
-
-- **Mode-as-context parity**: Dashboard layout is 100% identical between Paper and Live. The only mode-driven differences are data-level: `showExchangeData` controls visibility of live positions section (Row 5), ADL widget shows "Live Only" placeholder in Paper mode. Both are structural parity compliant -- same cards, same rows.
-- **Data isolation**: `useModeFilteredTrades` used consistently across widgets. `useUnifiedPortfolioData` correctly switches between Binance and paper sources based on mode. `useTradeEntries` (unfiltered) used only for global empty-state check -- intentionally mode-agnostic.
-- **PnL standard (other components)**: `PortfolioOverviewCard` delegates to `useUnifiedPortfolioData` which uses correct chain. `GoalTrackingWidget` uses `t.realized_pnl ?? t.pnl ?? 0`. `RiskMetricsCards` passes `realized_pnl` to calculation. `EquityCurveChart` uses `trade.realized_pnl ?? trade.pnl ?? 0`. `DashboardAnalyticsSummary` uses `t.realized_pnl ?? t.pnl ?? 0`. All correct.
-- **Loading states**: `PortfolioOverviewCard` has skeleton, `SystemStatusIndicator` has spinner, `ADLRiskWidget` has skeleton, `AIInsightsWidget` has skeleton, `MarketScoreWidget` shows '--'. All correct.
-- **Empty states**: `PortfolioOverviewCard` has onboarding CTA, `ADLRiskWidget` has "No Active Positions" state, `AIInsightsWidget` has "Generate Insights" CTA + disabled state, `EquityCurveChart` has empty message. All correct.
-- **Error handling**: `EquityCurveChart` and `GoalTrackingWidget` wrapped in `WidgetErrorBoundary`. `MarketScoreWidget` has its own `ErrorBoundary`. `AIInsightsWidget` has internal error state with retry. `SystemStatusIndicator` has loading state.
-- **Color tokens (other components)**: `PortfolioOverviewCard` uses `text-profit`/`text-loss` exclusively. `SystemStatusIndicator` uses `text-profit`, `text-loss`, and chart tokens for warning. `RiskSummaryCard` uses `text-profit`, `text-loss`, chart tokens. `GoalTrackingWidget` uses `text-profit`/`text-loss`. All correct.
-- **ARIA**: `SystemStatusIndicator` has `role="status"`, `aria-live="polite"`. `ADLRiskWidget` positions have proper labels. `RiskMetricsCards` has `role="group"` and `aria-label`. `EquityCurveChart` has `role="img"` with descriptive `aria-label`. Correct.
-- **Realtime**: Dashboard subscribes to `accounts`, `account_transactions`, `trade_entries` for live updates. Correct.
-- **Dead components**: `MarketSessionsWidget` is not used on Dashboard (verified unused on any page -- but not raising as issue since it may be planned for future use). `StrategyCloneStatsWidget` correctly moved to StrategyManagement page.
-- **Navigation links**: All other widget links (`/performance`, `/risk`, `/settings?tab=exchange`, `/settings?tab=ai`, `/accounts`, `/market`, `/trading`, `/strategies`) verified against App.tsx routes. All valid except #1.
+- **Mode-as-context parity**: Accounts page layout is 100% identical between Paper and Live. AccountDetail page has identical 3-tab structure for both modes. Only CRUD availability differs (Paper: full CRUD; Live/Binance: read-only + refresh). Correct.
+- **Data isolation (main page)**: `modeAccounts` correctly filters by `isPaperAccount` + `showPaperData`. Summary cards show mode-filtered totals. Open trades query filters by `modeAccountIds`. Correct.
+- **Loading states**: Accounts page has skeleton for balance card. AccountCardList has 3-skeleton grid. AccountComparisonTable has skeleton rows. AccountDetail has full-page 5-card skeleton. AccountDetailTransactions has 5-skeleton rows. AccountDetailFinancial has 4-skeleton rows. All correct.
+- **Empty states**: AccountCardList shows centered empty card with mode-contextual message. AccountDetailTransactions shows "managed by exchange" for Binance, search-aware empty for Paper. AccountDetailOverview equity curve shows "No closed trades yet". All correct.
+- **Error states**: Not-found checks for both Binance disconnected and missing DB account with back-navigation. Delete confirmation uses AlertDialog with soft-delete messaging. All correct.
+- **Semantic color tokens**: All components use `text-profit`/`text-loss` consistently. AccountCardList uses `bg-chart-4/10` for paper account icons. AccountComparisonTable uses semantic tokens for all financial metrics. AccountDetailMetrics uses semantic tokens throughout. All correct.
+- **ARIA**: Accounts page summary has `role="region" aria-label="Accounts overview"`. AccountComparisonTable has `role="region" aria-label="Account performance comparison"`. Refresh button has `aria-label`. All correct.
+- **Realtime**: `useAccountsRealtime()` subscribes to live updates on the main page. Correct.
+- **Soft delete**: `useDeleteAccount` sets `deleted_at` and `is_active: false` (recoverable). `useAccounts` filters by `is('deleted_at', null)`. Dialog messaging confirms 30-day recovery. Correct.
+- **Financial audit trail**: Deposit/withdrawal are insert-only (no UPDATE/DELETE on `account_transactions`), matching the immutable ledger policy. Withdrawal validates balance client-side. Initial balance creates a deposit transaction. Correct.
+- **Security (RLS)**: `useAccounts` filters by authenticated `user.id`. `useAccountTransactions` filters by `user.id`. Mutations check auth. Correct.
+- **Currency from settings**: AddAccountForm auto-selects currency from `useUserSettings().default_currency`. Form informs user of the auto-selected currency. Correct.
+- **AccountSelect**: Uses canonical `isPaperAccount` for filtering. Correct.
+- **Validation**: AddAccountForm uses Zod schema with descriptive error messages. Balance cannot be negative. Name is required with max length. Correct.
+- **Cross-domain links**: Risk Settings links to `/risk?tab=settings`. API Settings links to `/settings?tab=exchange`. Performance link in Financial tab links to `/performance`. All verified valid.
 
 ---
 
 ## Implementation Plan
 
-### File 1: `src/components/risk/RiskSummaryCard.tsx`
+### File 1: `src/pages/AccountDetail.tsx`
 
-**Fix broken route** (line 61): Change `/risk-management` to `/risk`.
+**Add URL-persisted tab state**: Replace `useState` with `useSearchParams`:
 
-### File 2: `src/components/dashboard/AIInsightsWidget.tsx`
+```typescript
+// Replace line 8 import to include useSearchParams:
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 
-**Fix PnL calculation** (line 55): Change `trade.pnl || 0` to `(trade.realized_pnl ?? trade.pnl ?? 0)`.
-
-### File 3: `src/components/dashboard/MarketScoreWidget.tsx`
-
-**Replace all hardcoded colors with semantic tokens**:
-
-`getBiasConfig()` (lines 58-93):
-- LONG_FAVORABLE: `text-green-500` -> `text-profit`, `bg-green-500/10` -> `bg-profit/10`, `border-green-500/30` -> `border-profit/30`
-- SHORT_FAVORABLE: `text-red-500` -> `text-loss`, `bg-red-500/10` -> `bg-loss/10`, `border-red-500/30` -> `border-loss/30`
-- AVOID: `text-red-600` -> `text-destructive`, `bg-red-600/10` -> `bg-destructive/10`, `border-red-600/30` -> `border-destructive/30`
-- NEUTRAL: `text-yellow-500` -> `text-[hsl(var(--chart-4))]`, `bg-yellow-500/10` -> `bg-[hsl(var(--chart-4))]/10`, `border-yellow-500/30` -> `border-[hsl(var(--chart-4))]/30`
-
-`getScoreColor()` (lines 95-101):
-- `text-green-500` -> `text-profit`
-- `text-green-400` -> `text-chart-2`
-- `text-yellow-500` -> `text-[hsl(var(--chart-3))]`
-- `text-orange-500` -> `text-[hsl(var(--chart-4))]`
-- `text-red-500` -> `text-loss`
-
-`getProgressColor()` (lines 103-107):
-- `bg-green-500` -> `bg-profit`
-- `bg-yellow-500` -> `bg-[hsl(var(--chart-4))]`
-- `bg-red-500` -> `bg-loss`
-
-Compact event warning (line 136): `text-yellow-500` -> `text-[hsl(var(--chart-4))]`
-
-Non-compact event warning (line 211): `bg-yellow-500/10 border-yellow-500/30 text-yellow-600` -> `bg-[hsl(var(--chart-4))]/10 border-[hsl(var(--chart-4))]/30 text-[hsl(var(--chart-4))]`
-
-Also line 220: `border-yellow-500 text-yellow-600` -> `border-[hsl(var(--chart-4))] text-[hsl(var(--chart-4))]`
-
-### File 4: `src/components/dashboard/DashboardAnalyticsSummary.tsx`
-
-**Fix hardcoded color** (line 111): Change `text-yellow-500` to `text-[hsl(var(--chart-4))]`.
-
-**Fix layout stability** (line 106): Replace `return null` with a minimal empty-state card:
-```tsx
-if (analyticsData.trades30d < 3) {
-  return (
-    <Card>
-      <CardContent className="py-4">
-        <div className="flex items-center gap-3 text-sm text-muted-foreground">
-          <BarChart3 className="h-5 w-5 text-primary" />
-          <span>Log 3+ trades this month to unlock 30-day performance analytics</span>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
+// Replace line 37:
+// const [activeTab, setActiveTab] = useState("overview");
+const [searchParams, setSearchParams] = useSearchParams();
+const activeTab = searchParams.get("tab") || "overview";
+const setActiveTab = (tab: string) => {
+  setSearchParams({ tab }, { replace: true });
+};
 ```
 
-### File 5: `src/components/dashboard/RiskMetricsCards.tsx`
+Remove `useState` from line 8 import (only `useMemo` remains needed from React).
 
-**Fix layout stability** (line 49): Replace `return null` with a minimal empty-state card:
+### File 2: `src/components/accounts/AccountComparisonTable.tsx`
+
+**Replace null return with empty-state card** (lines 52-54):
+
 ```tsx
-if (closedTrades.length < 3) {
+if (activeStats.length === 0) {
   return (
-    <Card className={className}>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Shield className="h-5 w-5 text-primary" />
-          Advanced Risk Metrics
+    <Card role="region" aria-label="Account performance comparison">
+      <CardHeader>
+        <CardTitle className="text-lg flex items-center gap-2">
+          <BarChart3 className="h-5 w-5 text-primary" />
+          Account Comparison
         </CardTitle>
       </CardHeader>
       <CardContent>
         <p className="text-sm text-muted-foreground">
-          Close 3+ trades to unlock advanced risk metrics (Sharpe, Sortino, VaR, and more)
+          Complete trades across your accounts to unlock side-by-side performance comparison
         </p>
       </CardContent>
     </Card>
@@ -171,16 +122,68 @@ if (closedTrades.length < 3) {
 }
 ```
 
+### File 3: `src/components/accounts/AccountTransactionDialog.tsx`
+
+**Filter account select by active mode**: Import `isPaperAccount` and `useModeVisibility`, then filter:
+
+```typescript
+import { isPaperAccount } from "@/lib/account-utils";
+import { useModeVisibility } from "@/hooks/use-mode-visibility";
+
+// Inside the component:
+const { showPaperData } = useModeVisibility();
+
+// In renderAccountSelect, update the filter (lines 158-159):
+{accounts
+  ?.filter((a) => {
+    if (!a.is_active) return false;
+    const paper = isPaperAccount(a);
+    return showPaperData ? paper : !paper;
+  })
+  .map((account) => ( ... ))
+}
+```
+
+### File 4: `src/components/accounts/detail/AccountDetailOverview.tsx`
+
+**Fix hardcoded dollar sign on Y-axis** (line 71):
+
+Replace:
+```typescript
+tickFormatter={(v) => `$${v.toFixed(0)}`}
+```
+
+With:
+```typescript
+tickFormatter={(v) => formatCurrency(v)}
+```
+
+The `formatCurrency` function is already imported and available (line 47).
+
+### File 5: `src/pages/AccountDetail.tsx`
+
+**Fix PnL fallback operator** (line 96):
+
+Replace:
+```typescript
+const pnl = trade.realized_pnl || trade.pnl || 0;
+```
+
+With:
+```typescript
+const pnl = trade.realized_pnl ?? trade.pnl ?? 0;
+```
+
 ---
 
 ## Technical Summary
 
-| File | Change |
-|------|--------|
-| `src/components/risk/RiskSummaryCard.tsx` | Fix broken route `/risk-management` to `/risk` |
-| `src/components/dashboard/AIInsightsWidget.tsx` | Fix PnL calculation to use `realized_pnl ?? pnl ?? 0` |
-| `src/components/dashboard/MarketScoreWidget.tsx` | Replace 28 hardcoded colors with semantic tokens |
-| `src/components/dashboard/DashboardAnalyticsSummary.tsx` | Fix 1 hardcoded color + replace `null` return with empty state |
-| `src/components/dashboard/RiskMetricsCards.tsx` | Replace `null` return with empty state card |
+| File | Change | Criteria |
+|------|--------|----------|
+| `src/pages/AccountDetail.tsx` | URL-persist tab state via `useSearchParams` | Clarity (deep-linking) |
+| `src/pages/AccountDetail.tsx` | Fix PnL `\|\|` to `??` operator | Accuracy |
+| `src/components/accounts/AccountComparisonTable.tsx` | Replace `null` return with empty-state card | Clarity (layout stability) |
+| `src/components/accounts/AccountTransactionDialog.tsx` | Filter account select by active trade mode | Security (data isolation) |
+| `src/components/accounts/detail/AccountDetailOverview.tsx` | Fix hardcoded `$` on Y-axis to use currency hook | Accuracy |
 
-Total: 5 files modified. Fixes cover 1 broken navigation, 1 PnL calculation violation, 2 layout stability violations, and 29 hardcoded color instances across 2 components.
+Total: 4 files modified (5 changes). Fixes cover 1 UX standard violation (URL persistence), 1 layout stability violation, 1 data isolation violation, 1 accuracy issue (hardcoded currency), and 1 accuracy risk (falsy-zero PnL operator).
