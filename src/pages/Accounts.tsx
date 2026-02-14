@@ -116,11 +116,11 @@ export default function Accounts() {
     [modeAccounts]);
   
   // Unified display values - mode-filtered
-  const binanceBalanceNum = isConnected && !showPaperData ? (Number(balance?.totalWalletBalance) || 0) : 0;
+  const binanceBalanceNum = isConnected ? (Number(balance?.totalWalletBalance) || 0) : 0;
   const displayBalance = totalDbBalance + binanceBalanceNum;
   const modeAccountsCount = modeAccounts.length;
-  const displayCount = modeAccountsCount + (isConnected && !showPaperData ? 1 : 0);
-  const displayPositions = (openTradesCount || 0) + (!showPaperData ? activePositions.length : 0);
+  const displayCount = modeAccountsCount + (isConnected ? 1 : 0);
+  const displayPositions = (openTradesCount || 0) + (isConnected ? activePositions.length : 0);
 
   return (
     <>

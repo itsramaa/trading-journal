@@ -108,7 +108,7 @@ export function AccountComparisonTable() {
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className="capitalize text-xs">
-                        {account.exchange}
+                        {(!account.exchange || account.exchange === 'manual') ? 'Paper' : account.exchange}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">{account.totalTrades}</TableCell>
