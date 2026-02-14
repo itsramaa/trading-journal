@@ -58,7 +58,7 @@ export function RiskSummaryCard() {
             </p>
           </div>
           <Button asChild variant="outline" size="sm" className="w-full">
-            <Link to="/risk-management">
+            <Link to="/risk">
               <Settings className="h-4 w-4 mr-2" />
               Set Up Risk Profile
             </Link>
