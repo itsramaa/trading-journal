@@ -136,7 +136,7 @@ export function AccountCardList({
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {/* Binance Virtual Card - Live mode only */}
       {isConnected && (
-        <Card className="cursor-pointer hover:shadow-md transition-shadow group border-primary/20"
+        <Card className="cursor-pointer hover:shadow-md transition-shadow group"
           onClick={() => navigate('/accounts/binance')}
         >
           <CardHeader className="flex flex-row items-start justify-between pb-2">
@@ -158,6 +158,7 @@ export function AccountCardList({
               </span>
               <div className="flex items-center gap-2">
                 <Badge variant="outline">USDT</Badge>
+                <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
               </div>
             </div>
             {activePositions.length > 0 && (

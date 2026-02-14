@@ -1,0 +1,200 @@
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  ArrowLeft,
+  CandlestickChart,
+  FlaskConical,
+  ArrowDownCircle,
+  ArrowUpCircle,
+  RefreshCw,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+  Activity,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { AccountTransactionDialog } from "@/components/accounts/AccountTransactionDialog";
+import { EditAccountDialog } from "@/components/accounts/EditAccountDialog";
+import { useDeleteAccount } from "@/hooks/use-accounts";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
+import { isPaperAccount } from "@/lib/account-utils";
+import { toast } from "sonner";
+import type { Account, AccountType } from "@/types/account";
+
+const ACCOUNT_TYPE_ICONS: Record<AccountType, React.ElementType> = {
+  trading: CandlestickChart,
+  backtest: FlaskConical,
+};
+
+interface AccountDetailHeaderProps {
+  account: Account | null;
+  isBinanceVirtual: boolean;
+  displayName: string;
+  displayBalance: number;
+  displaySubtitle: string;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
+}
+
+export function AccountDetailHeader({
+  account,
+  isBinanceVirtual,
+  displayName,
+  displayBalance,
+  displaySubtitle,
+  onRefresh,
+  isRefreshing,
+}: AccountDetailHeaderProps) {
+  const navigate = useNavigate();
+  const deleteAccount = useDeleteAccount();
+  const { format: formatCurrency } = useCurrencyConversion();
+
+  const [transactionDialogOpen, setTransactionDialogOpen] = useState(false);
+  const [defaultTransactionTab, setDefaultTransactionTab] = useState<'deposit' | 'withdraw'>('deposit');
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+  const isBacktest = account ? isPaperAccount(account) : false;
+  const DetailIcon = isBinanceVirtual
+    ? Activity
+    : account
+      ? isBacktest ? FlaskConical : ACCOUNT_TYPE_ICONS[account.account_type]
+      : CandlestickChart;
+
+  return (
+    <>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+        <Button variant="ghost" size="icon" onClick={() => navigate("/accounts")} className="self-start">
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${isBacktest && !isBinanceVirtual ? 'bg-chart-4' : 'bg-primary'}`}>
+          <DetailIcon className="h-6 w-6 text-primary-foreground" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-2xl font-bold truncate">{displayName}</h1>
+            {isBinanceVirtual && (
+              <Badge variant="outline" className="text-profit border-profit/30">Live</Badge>
+            )}
+            {!isBinanceVirtual && isBacktest && <Badge variant="secondary">Paper Trading</Badge>}
+            {!isBinanceVirtual && account?.exchange && account.exchange !== 'manual' && (
+              <Badge variant="outline" className="capitalize">{account.exchange}</Badge>
+            )}
+          </div>
+          <p className="text-muted-foreground">{displaySubtitle}</p>
+        </div>
+        <div className="flex items-center gap-3 sm:ml-auto">
+          <div className="text-right">
+            <p className="text-sm text-muted-foreground">Balance</p>
+            <p className="text-2xl font-bold">{formatCurrency(displayBalance)}</p>
+          </div>
+          {isBinanceVirtual ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={onRefresh} disabled={isRefreshing}>
+                  <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                  Refresh Data
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setEditDialogOpen(true)}>
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Edit Account
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => { setDefaultTransactionTab('deposit'); setTransactionDialogOpen(true); }}>
+                  <ArrowDownCircle className="mr-2 h-4 w-4" />
+                  Deposit
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { setDefaultTransactionTab('withdraw'); setTransactionDialogOpen(true); }}>
+                  <ArrowUpCircle className="mr-2 h-4 w-4" />
+                  Withdraw
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="text-destructive" onClick={() => setDeleteDialogOpen(true)}>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete Account
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
+      </div>
+
+      {/* Dialogs - DB accounts only */}
+      {!isBinanceVirtual && account && (
+        <>
+          <AccountTransactionDialog
+            open={transactionDialogOpen}
+            onOpenChange={setTransactionDialogOpen}
+            defaultAccount={account}
+            defaultTab={defaultTransactionTab}
+          />
+          <EditAccountDialog
+            open={editDialogOpen}
+            onOpenChange={setEditDialogOpen}
+            account={account}
+          />
+          <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete "{account.name}"?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This account will be moved to trash and can be recovered within 30 days via Settings. All associated transaction history will be preserved.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={async () => {
+                    try {
+                      await deleteAccount.mutateAsync(account.id);
+                      toast.success(`Account "${account.name}" moved to trash`);
+                      navigate("/accounts");
+                    } catch (error: any) {
+                      toast.error(error?.message || "Failed to delete account");
+                    }
+                  }}
+                >
+                  Delete Account
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </>
+      )}
+    </>
+  );
+}

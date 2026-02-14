@@ -1,131 +1,87 @@
+/**
+ * AccountDetail Page - Unified detail view for both Paper and Live accounts.
+ * 
+ * Layout is 100% identical between modes. Only data source and business rules differ:
+ * - Paper: full CRUD, data from DB
+ * - Live (Binance virtual): read-only, data from exchange API + synced trades
+ */
 import { useMemo, useState } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet";
-import { 
-  ArrowLeft, 
-  CandlestickChart, 
-  FlaskConical,
-  ArrowDownCircle,
-  ArrowUpCircle,
-  RefreshCw,
-  Search,
-  Filter,
-  TrendingUp,
-  TrendingDown,
-  Target,
-  BarChart3,
-  Activity,
-  Percent,
-  DollarSign,
-  Flame,
-  MoreHorizontal,
-  Pencil,
-  Trash2
-} from "lucide-react";
 import { format } from "date-fns";
-
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { InfoTooltip } from "@/components/ui/info-tooltip";
-import {
-  AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, 
-  Tooltip, ResponsiveContainer, ReferenceLine, BarChart, Bar
-} from "recharts";
-import { useAccounts, useAccountTransactions, useDeleteAccount } from "@/hooks/use-accounts";
+
+import { AccountDetailHeader } from "@/components/accounts/detail/AccountDetailHeader";
+import { AccountDetailMetrics } from "@/components/accounts/detail/AccountDetailMetrics";
+import { AccountDetailOverview } from "@/components/accounts/detail/AccountDetailOverview";
+import { AccountDetailStrategies } from "@/components/accounts/detail/AccountDetailStrategies";
+import { AccountDetailTransactions } from "@/components/accounts/detail/AccountDetailTransactions";
+import { AccountDetailFinancial } from "@/components/accounts/detail/AccountDetailFinancial";
+
+import { useAccounts, useAccountTransactions } from "@/hooks/use-accounts";
 import { useAccountAnalytics } from "@/hooks/use-account-analytics";
 import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
-import { AccountTransactionDialog } from "@/components/accounts/AccountTransactionDialog";
-import { EditAccountDialog } from "@/components/accounts/EditAccountDialog";
 import {
   useBinanceConnectionStatus,
   useBinanceBalance,
   useBinancePositions,
   useRefreshBinanceData,
 } from "@/features/binance";
-import { toast } from "sonner";
-import type { AccountType, AccountTransactionType } from "@/types/account";
 import { isPaperAccount } from "@/lib/account-utils";
-
-const ACCOUNT_TYPE_ICONS: Record<AccountType, React.ElementType> = {
-  trading: CandlestickChart,
-  backtest: FlaskConical,
-};
-
-const TRANSACTION_TYPE_CONFIG: Record<
-  AccountTransactionType,
-  { label: string; icon: React.ElementType; color: string }
-> = {
-  deposit: { label: "Deposit", icon: ArrowDownCircle, color: "text-profit" },
-  withdrawal: { label: "Withdrawal", icon: ArrowUpCircle, color: "text-loss" },
-};
 
 export default function AccountDetail() {
   const { accountId } = useParams<{ accountId: string }>();
   const navigate = useNavigate();
-  
+  const [activeTab, setActiveTab] = useState("overview");
+
   const isBinanceVirtual = accountId === 'binance';
-  
+
   // DB account hooks (skip for binance virtual)
   const { data: accounts, isLoading: accountsLoading } = useAccounts();
   const { data: transactions, isLoading: transactionsLoading } = useAccountTransactions(
     isBinanceVirtual ? undefined : accountId
   );
   const { data: allTrades } = useModeFilteredTrades();
-  const { data: stats, isLoading: statsLoading } = useAccountAnalytics({ 
-    accountId: isBinanceVirtual ? '' : (accountId || '')
+
+  // Analytics: for Binance virtual, fetch live trade stats (no specific account_id)
+  const { data: stats, isLoading: statsLoading } = useAccountAnalytics({
+    accountId: isBinanceVirtual ? '' : (accountId || ''),
+    tradeMode: isBinanceVirtual ? 'live' : undefined,
   });
-  const { format: formatCurrency, formatPnl } = useCurrencyConversion();
-  const deleteAccount = useDeleteAccount();
 
   // Binance hooks (always called, data used only when isBinanceVirtual)
   const { data: connectionStatus, isLoading: binanceStatusLoading } = useBinanceConnectionStatus();
   const { data: binanceBalance, isLoading: binanceBalanceLoading } = useBinanceBalance();
   const { data: binancePositions } = useBinancePositions();
   const refreshBinance = useRefreshBinanceData();
-  
+
   const isConnected = connectionStatus?.isConnected ?? false;
   const activePositions = binancePositions?.filter(p => p.positionAmt !== 0) || [];
 
-  // Dialog states for actions
-  const [transactionDialogOpen, setTransactionDialogOpen] = useState(false);
-  const [defaultTransactionTab, setDefaultTransactionTab] = useState<'deposit' | 'withdraw'>('deposit');
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  
-  // Filter trades for this account (for equity curve and strategy breakdown)
+  const account = isBinanceVirtual ? null : accounts?.find((a) => a.id === accountId);
+
+  // Derived values - unified across modes
+  const displayName = isBinanceVirtual ? 'Binance Futures' : (account?.name || '');
+  const displayBalance = isBinanceVirtual
+    ? (Number(binanceBalance?.totalWalletBalance) || 0)
+    : Number(account?.balance || 0);
+  const displaySubtitle = isBinanceVirtual
+    ? 'Connected Exchange • USDT'
+    : `${account?.metadata?.broker || 'Trading Account'} • ${account?.currency}`;
+  const initialBalance = isBinanceVirtual
+    ? (Number(binanceBalance?.totalWalletBalance) || 0) // Use wallet balance as baseline for Live
+    : (account?.metadata?.initial_balance || Number(account?.balance));
+  const unrealizedPnl = Number(binanceBalance?.totalUnrealizedProfit) || 0;
+
+  // Filter trades for this account (equity curve + strategy breakdown)
+  // For Binance virtual: use all live-mode closed trades
   const accountTrades = useMemo(() => {
-    if (isBinanceVirtual) return [];
+    if (isBinanceVirtual) {
+      return allTrades?.filter(t => t.trade_mode === 'live' && t.status === 'closed') || [];
+    }
     return allTrades?.filter(t => t.trading_account_id === accountId && t.status === 'closed') || [];
   }, [allTrades, accountId, isBinanceVirtual]);
 
@@ -177,46 +133,7 @@ export default function AccountDetail() {
     return Array.from(map.values()).sort((a, b) => b.pnl - a.pnl);
   }, [accountTrades]);
 
-  // Filtering state for transactions
-  const [searchQuery, setSearchQuery] = useState("");
-  const [typeFilter, setTypeFilter] = useState<AccountTransactionType | "all">("all");
-  const [activeTab, setActiveTab] = useState("overview");
-
-  const account = isBinanceVirtual ? null : accounts?.find((a) => a.id === accountId);
-  const isBacktest = account ? isPaperAccount(account) : false;
-  
-  // Derived values for unified rendering
-  const displayName = isBinanceVirtual ? 'Binance Futures' : (account?.name || '');
-  const displayBalance = isBinanceVirtual 
-    ? (Number(binanceBalance?.totalWalletBalance) || 0)
-    : Number(account?.balance || 0);
-  const displayCurrency = isBinanceVirtual ? 'USDT' : (account?.currency || 'USD');
-  const displaySubtitle = isBinanceVirtual 
-    ? 'Connected Exchange • USDT' 
-    : `${account?.metadata?.broker || 'Trading Account'} • ${account?.currency}`;
-  const DetailIcon = isBinanceVirtual ? Activity : (
-    account ? (isBacktest ? FlaskConical : ACCOUNT_TYPE_ICONS[account.account_type]) : CandlestickChart
-  );
-
-  // Binance-specific metrics
-  const unrealizedPnl = Number(binanceBalance?.totalUnrealizedProfit) || 0;
-  const availableBalance = Number(binanceBalance?.availableBalance) || 0;
-  const marginUsed = isBinanceVirtual ? (displayBalance - availableBalance) : 0;
-  const marginUsedPercent = displayBalance > 0 ? (marginUsed / displayBalance) * 100 : 0;
-
-  // Filter transactions
-  const filteredTransactions = useMemo(() => {
-    if (!transactions) return [];
-    return transactions.filter((tx) => {
-      const matchesSearch = searchQuery === "" || 
-        (tx.description?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false) ||
-        (tx.notes?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
-      const matchesType = typeFilter === "all" || tx.transaction_type === typeFilter;
-      return matchesSearch && matchesType;
-    });
-  }, [transactions, searchQuery, typeFilter]);
-
-  // Capital flow stats
+  // Capital flow stats (DB accounts only)
   const flowStats = useMemo(() => {
     if (!transactions?.length) return null;
     const totalDeposits = transactions
@@ -235,8 +152,8 @@ export default function AccountDetail() {
     return (
       <div className="space-y-6">
         <Skeleton className="h-8 w-48" />
-        <div className="grid gap-4 md:grid-cols-4">
-          {[...Array(4)].map((_, i) => (
+        <div className="grid gap-4 md:grid-cols-5">
+          {[...Array(5)].map((_, i) => (
             <Skeleton key={i} className="h-24" />
           ))}
         </div>
@@ -244,14 +161,12 @@ export default function AccountDetail() {
     );
   }
 
-  // Not found check
+  // Not found checks
   if (isBinanceVirtual && !isConnected) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <p className="text-muted-foreground">Binance not connected</p>
-        <Button onClick={() => navigate("/accounts")} className="mt-4">
-          Back to Accounts
-        </Button>
+        <Button onClick={() => navigate("/accounts")} className="mt-4">Back to Accounts</Button>
       </div>
     );
   }
@@ -260,9 +175,7 @@ export default function AccountDetail() {
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <p className="text-muted-foreground">Account not found</p>
-        <Button onClick={() => navigate("/accounts")} className="mt-4">
-          Back to Accounts
-        </Button>
+        <Button onClick={() => navigate("/accounts")} className="mt-4">Back to Accounts</Button>
       </div>
     );
   }
@@ -275,768 +188,68 @@ export default function AccountDetail() {
       </Helmet>
 
       <div className="space-y-6">
-        {/* Header - Responsive */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/accounts")} className="self-start">
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div 
-            className={`flex h-12 w-12 items-center justify-center rounded-xl ${isBacktest && !isBinanceVirtual ? 'bg-chart-4' : 'bg-primary'}`}
-          >
-            <DetailIcon className="h-6 w-6 text-primary-foreground" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-2xl font-bold truncate">{displayName}</h1>
-              {isBinanceVirtual && (
-                <Badge variant="outline" className="text-profit border-profit/30">Live</Badge>
-              )}
-              {!isBinanceVirtual && isBacktest && <Badge variant="secondary">Paper Trading</Badge>}
-              {!isBinanceVirtual && account?.exchange && account.exchange !== 'manual' && (
-                <Badge variant="outline" className="capitalize">{account.exchange}</Badge>
-              )}
-            </div>
-            <p className="text-muted-foreground">{displaySubtitle}</p>
-          </div>
-          <div className="flex items-center gap-3 sm:ml-auto">
-            <div className="text-right">
-              <p className="text-sm text-muted-foreground">{isBinanceVirtual ? 'Wallet Balance' : 'Current Balance'}</p>
-              <p className="text-2xl font-bold">{formatCurrency(displayBalance)}</p>
-            </div>
-            {isBinanceVirtual ? (
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => refreshBinance.mutate()}
-                disabled={refreshBinance.isPending}
-              >
-                <RefreshCw className={`h-4 w-4 ${refreshBinance.isPending ? 'animate-spin' : ''}`} />
-              </Button>
-            ) : (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon">
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setEditDialogOpen(true)}>
-                  <Pencil className="mr-2 h-4 w-4" />
-                  Edit Account
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => { setDefaultTransactionTab('deposit'); setTransactionDialogOpen(true); }}>
-                  <ArrowDownCircle className="mr-2 h-4 w-4" />
-                  Deposit
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => { setDefaultTransactionTab('withdraw'); setTransactionDialogOpen(true); }}>
-                  <ArrowUpCircle className="mr-2 h-4 w-4" />
-                  Withdraw
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem 
-                  className="text-destructive"
-                  onClick={() => setDeleteDialogOpen(true)}
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete Account
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            )}
-          </div>
-        </div>
+        {/* Header - identical layout, different actions */}
+        <AccountDetailHeader
+          account={account}
+          isBinanceVirtual={isBinanceVirtual}
+          displayName={displayName}
+          displayBalance={displayBalance}
+          displaySubtitle={displaySubtitle}
+          onRefresh={() => refreshBinance.mutate()}
+          isRefreshing={refreshBinance.isPending}
+        />
 
-        {/* Key Metrics Row */}
-        <div className="grid gap-4 md:grid-cols-5">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">{isBinanceVirtual ? 'Unrealized P&L' : 'Net P&L'}</p>
-                  {statsLoading && !isBinanceVirtual ? <Skeleton className="h-7 w-24" /> : (
-                    <p className={`text-xl font-bold ${(isBinanceVirtual ? unrealizedPnl : (stats?.totalPnlNet || 0)) >= 0 ? 'text-profit' : 'text-loss'}`}>
-                      {formatPnl(isBinanceVirtual ? unrealizedPnl : (stats?.totalPnlNet || 0))}
-                    </p>
-                  )}
-                </div>
-                {(isBinanceVirtual ? unrealizedPnl : (stats?.totalPnlNet || 0)) >= 0 ? (
-                  <TrendingUp className="h-8 w-8 text-profit/50" />
-                ) : (
-                  <TrendingDown className="h-8 w-8 text-loss/50" />
-                )}
-              </div>
-              {!isBinanceVirtual && (
-              <p className="text-xs text-muted-foreground mt-1">
-                Gross: {formatPnl(stats?.totalPnlGross || 0)}
-              </p>
-              )}
-            </CardContent>
-          </Card>
+        {/* Metrics - identical 5 cards, same labels */}
+        <AccountDetailMetrics
+          stats={stats}
+          statsLoading={statsLoading}
+          isBinanceVirtual={isBinanceVirtual}
+          displayBalance={displayBalance}
+          initialBalance={initialBalance}
+          unrealizedPnl={isBinanceVirtual ? unrealizedPnl : undefined}
+          activePositionsCount={isBinanceVirtual ? activePositions.length : undefined}
+        />
 
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">{isBinanceVirtual ? 'Available Balance' : 'Return on Capital'}</p>
-                  {isBinanceVirtual ? (
-                    <p className="text-xl font-bold">{formatCurrency(availableBalance)}</p>
-                  ) : statsLoading ? <Skeleton className="h-7 w-16" /> : (() => {
-                    const initialBalance = account?.metadata?.initial_balance || Number(account?.balance);
-                    const roc = initialBalance > 0 ? ((stats?.totalPnlNet || 0) / initialBalance) * 100 : 0;
-                    return (
-                      <p className={`text-xl font-bold ${roc >= 0 ? 'text-profit' : 'text-loss'}`}>
-                        {roc >= 0 ? '+' : ''}{roc.toFixed(2)}%
-                      </p>
-                    );
-                  })()}
-                </div>
-                {isBinanceVirtual ? (
-                  <Target className="h-8 w-8 text-muted-foreground/50" />
-                ) : (
-                <Percent className="h-8 w-8 text-muted-foreground/50" />
-                )}
-              </div>
-              {!isBinanceVirtual && (
-              <p className="text-xs text-muted-foreground mt-1">
-                <InfoTooltip content="Net P&L ÷ Initial Capital × 100. Based on first deposit or current balance if no initial balance recorded." variant="help" />
-                {' '}vs initial capital
-              </p>
-              )}
-              {isBinanceVirtual && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Margin Used: {marginUsedPercent.toFixed(1)}%
-                </p>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">{isBinanceVirtual ? 'Open Positions' : 'Win Rate'}</p>
-                  {isBinanceVirtual ? (
-                    <p className="text-xl font-bold">{activePositions.length}</p>
-                  ) : statsLoading ? <Skeleton className="h-7 w-16" /> : (
-                    <p className="text-xl font-bold">{(stats?.winRate || 0).toFixed(1)}%</p>
-                  )}
-                </div>
-                <Target className="h-8 w-8 text-muted-foreground/50" />
-              </div>
-              {!isBinanceVirtual && (
-              <p className="text-xs text-muted-foreground mt-1">
-                {stats?.winCount || 0}W / {stats?.lossCount || 0}L
-              </p>
-              )}
-            </CardContent>
-          </Card>
-
-          {!isBinanceVirtual && (
-          <>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Profit Factor</p>
-                  {statsLoading ? <Skeleton className="h-7 w-16" /> : (
-                    <p className={`text-xl font-bold ${(stats?.profitFactor || 0) >= 1 ? 'text-profit' : 'text-loss'}`}>
-                      {(stats?.profitFactor || 0) >= 999 ? '∞' : (stats?.profitFactor || 0).toFixed(2)}
-                    </p>
-                  )}
-                </div>
-                <Activity className="h-8 w-8 text-muted-foreground/50" />
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Avg Win: {formatCurrency(Math.abs(stats?.avgWin || 0))}
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Total Trades</p>
-                  {statsLoading ? <Skeleton className="h-7 w-12" /> : (
-                    <p className="text-xl font-bold">{stats?.totalTrades || 0}</p>
-                  )}
-                </div>
-                <BarChart3 className="h-8 w-8 text-muted-foreground/50" />
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Avg P&L: {formatPnl(stats?.avgPnlPerTrade || 0)}
-              </p>
-            </CardContent>
-          </Card>
-          </>
-          )}
-
-          {isBinanceVirtual && (
-          <>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Margin Used</p>
-                  <p className="text-xl font-bold">{formatCurrency(marginUsed)}</p>
-                </div>
-                <Percent className="h-8 w-8 text-muted-foreground/50" />
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {marginUsedPercent.toFixed(1)}% of wallet
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Total P&L</p>
-                  <p className={`text-xl font-bold ${unrealizedPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                    {formatPnl(unrealizedPnl)}
-                  </p>
-                </div>
-                <BarChart3 className="h-8 w-8 text-muted-foreground/50" />
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Across {activePositions.length} position{activePositions.length !== 1 ? 's' : ''}
-              </p>
-            </CardContent>
-          </Card>
-          </>
-          )}
-        </div>
-
-        {/* Tabbed Content */}
+        {/* Tabs - identical 4 tabs for both modes */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
             <TabsTrigger value="overview">Overview</TabsTrigger>
-            {!isBinanceVirtual && <TabsTrigger value="strategies">Strategies</TabsTrigger>}
-            {!isBinanceVirtual && <TabsTrigger value="transactions">Transactions</TabsTrigger>}
-            {!isBinanceVirtual && <TabsTrigger value="financial">Financial</TabsTrigger>}
-            {isBinanceVirtual && <TabsTrigger value="positions">Positions</TabsTrigger>}
+            <TabsTrigger value="strategies">Strategies</TabsTrigger>
+            <TabsTrigger value="transactions">Transactions</TabsTrigger>
+            <TabsTrigger value="financial">Financial</TabsTrigger>
           </TabsList>
 
-          {/* Overview Tab - Equity Curve + Drawdown */}
-          <TabsContent value="overview" className="space-y-6 mt-4">
-            {/* Equity Curve */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Equity Curve</CardTitle>
-                <CardDescription>Cumulative P&L over time for this account</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {equityData.length === 0 ? (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <TrendingUp className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                    <p>No closed trades yet</p>
-                    <p className="text-sm">Complete trades to see equity curve</p>
-                  </div>
-                ) : (
-                  <div className="h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={equityData}>
-                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                        <XAxis dataKey="date" className="text-xs" tick={{ fill: 'hsl(var(--muted-foreground))' }} />
-                        <YAxis 
-                          tickFormatter={(v) => `$${v.toFixed(0)}`} 
-                          className="text-xs" 
-                          tick={{ fill: 'hsl(var(--muted-foreground))' }} 
-                        />
-                        <Tooltip
-                          formatter={(value: number) => [formatCurrency(value), 'Cumulative P&L']}
-                          contentStyle={{
-                            backgroundColor: 'hsl(var(--card))',
-                            border: '1px solid hsl(var(--border))',
-                            borderRadius: '8px',
-                          }}
-                        />
-                        <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" />
-                        <Area 
-                          type="monotone" 
-                          dataKey="cumulative" 
-                          stroke="hsl(var(--primary))" 
-                          fill="hsl(var(--primary)/0.15)"
-                          strokeWidth={2}
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Drawdown Chart */}
-            {equityData.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Drawdown</CardTitle>
-                <CardDescription>
-                  Peak-to-trough decline from highest equity point
-                  <InfoTooltip content="Drawdown is calculated from peak cumulative P&L, not from initial balance. If all trades are losses, drawdown may show 0% since no peak was established." variant="help" />
-                </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-[200px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={equityData}>
-                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                        <XAxis dataKey="date" className="text-xs" tick={{ fill: 'hsl(var(--muted-foreground))' }} />
-                        <YAxis 
-                          tickFormatter={(v) => `${v.toFixed(0)}%`} 
-                          className="text-xs" 
-                          tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                          domain={['auto', 0]}
-                        />
-                        <Tooltip
-                          formatter={(value: number) => [`${Math.abs(value).toFixed(2)}%`, 'Drawdown']}
-                          contentStyle={{
-                            backgroundColor: 'hsl(var(--card))',
-                            border: '1px solid hsl(var(--border))',
-                            borderRadius: '8px',
-                          }}
-                        />
-                        <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" />
-                        <Area 
-                          type="monotone" 
-                          dataKey="drawdown" 
-                          stroke="hsl(var(--destructive))" 
-                          fill="hsl(var(--destructive)/0.2)"
-                          strokeWidth={2}
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Fee Breakdown */}
-            {(stats?.totalFees || 0) > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Fee Breakdown</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Commission</p>
-                      <p className="text-lg font-semibold text-loss">{formatCurrency(stats?.totalCommission || 0)}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Funding Fees</p>
-                      <p className="text-lg font-semibold text-loss">{formatCurrency(stats?.totalFundingFees || 0)}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Total Fees</p>
-                      <p className="text-lg font-semibold text-loss">{formatCurrency(stats?.totalFees || 0)}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Capital Flow Summary */}
-            {flowStats && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Capital Flow</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Deposits</p>
-                      <p className="text-lg font-semibold text-profit">+{formatCurrency(flowStats.totalDeposits)}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Withdrawals</p>
-                      <p className="text-lg font-semibold text-loss">-{formatCurrency(flowStats.totalWithdrawals)}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground flex items-center gap-1">
-                        Net Flow
-                        <InfoTooltip content="Deposits minus Withdrawals" />
-                      </p>
-                      <p className={`text-lg font-semibold ${flowStats.netFlow >= 0 ? 'text-profit' : 'text-loss'}`}>
-                        {formatPnl(flowStats.netFlow)}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+          <TabsContent value="overview" className="mt-4">
+            <AccountDetailOverview
+              equityData={equityData}
+              stats={stats}
+              flowStats={flowStats}
+              isBinanceVirtual={isBinanceVirtual}
+              activePositions={isBinanceVirtual ? activePositions : undefined}
+            />
           </TabsContent>
 
-          {/* Strategies Tab */}
           <TabsContent value="strategies" className="mt-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Strategy Breakdown</CardTitle>
-                <CardDescription>Performance per strategy on this account</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {strategyBreakdown.length === 0 ? (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <Flame className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                    <p>No strategy data</p>
-                    <p className="text-sm">Tag trades with strategies to see breakdown</p>
-                  </div>
-                ) : (
-                  <div className="rounded-md border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Strategy</TableHead>
-                          <TableHead className="text-right">Trades</TableHead>
-                          <TableHead className="text-right">Win Rate</TableHead>
-                          <TableHead className="text-right">P&L</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {strategyBreakdown.map((s, i) => {
-                          const winRate = s.trades > 0 ? (s.wins / s.trades) * 100 : 0;
-                          return (
-                            <TableRow key={i}>
-                              <TableCell className="font-medium">{s.name}</TableCell>
-                              <TableCell className="text-right">{s.trades}</TableCell>
-                              <TableCell className="text-right">{winRate.toFixed(1)}%</TableCell>
-                              <TableCell className={`text-right font-mono ${s.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                                {formatPnl(s.pnl)}
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <AccountDetailStrategies strategyBreakdown={strategyBreakdown} />
           </TabsContent>
 
-          {/* Transactions Tab */}
           <TabsContent value="transactions" className="mt-4">
-            <Card>
-              <CardHeader>
-                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <CardTitle className="text-lg">Transaction History</CardTitle>
-                    <CardDescription>Deposits and withdrawals</CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {/* Search and Filter */}
-                <div className="flex flex-col gap-3 mb-4 md:flex-row">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search transactions..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-9"
-                    />
-                  </div>
-                  <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as any)}>
-                    <SelectTrigger className="w-full md:w-[180px]">
-                      <Filter className="h-4 w-4 mr-2" />
-                      <SelectValue placeholder="Filter by type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Types</SelectItem>
-                      <SelectItem value="deposit">Deposits</SelectItem>
-                      <SelectItem value="withdrawal">Withdrawals</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                {transactionsLoading ? (
-                  <div className="space-y-3">
-                    {[...Array(5)].map((_, i) => (
-                      <Skeleton key={i} className="h-12 w-full" />
-                    ))}
-                  </div>
-                ) : !filteredTransactions?.length ? (
-                  <div className="flex flex-col items-center justify-center py-12 text-center">
-                    <ArrowDownCircle className="h-12 w-12 text-muted-foreground/50 mb-4" />
-                    <h3 className="text-lg font-medium">
-                      {transactions?.length ? "No matching transactions" : "No transactions yet"}
-                    </h3>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {transactions?.length 
-                        ? "Try adjusting your search or filter." 
-                        : "Start by making a deposit to fund your trading account."}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="rounded-md border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Date</TableHead>
-                          <TableHead>Type</TableHead>
-                          <TableHead>Description</TableHead>
-                          <TableHead className="text-right">Amount</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredTransactions.map((tx) => {
-                          const config = TRANSACTION_TYPE_CONFIG[tx.transaction_type];
-                          const TxIcon = config?.icon || ArrowDownCircle;
-                          const isCredit = tx.transaction_type === "deposit";
-
-                          return (
-                            <TableRow key={tx.id}>
-                              <TableCell className="text-muted-foreground">
-                                {format(new Date(tx.created_at), "MMM dd, yyyy HH:mm")}
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex items-center gap-2">
-                                  <TxIcon className={`h-4 w-4 ${config?.color || ''}`} />
-                                  <span>{config?.label || tx.transaction_type}</span>
-                                </div>
-                              </TableCell>
-                              <TableCell className="max-w-[200px] truncate">
-                                {tx.description || tx.notes || "-"}
-                              </TableCell>
-                              <TableCell className={`text-right font-mono ${isCredit ? "text-profit" : "text-loss"}`}>
-                                {isCredit ? "+" : "-"}{formatCurrency(Number(tx.amount))}
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <AccountDetailTransactions
+              transactions={transactions}
+              transactionsLoading={transactionsLoading}
+              isBinanceVirtual={isBinanceVirtual}
+            />
           </TabsContent>
 
-          {/* Financial Tab */}
           <TabsContent value="financial" className="mt-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Financial Summary</CardTitle>
-                <CardDescription>Trading costs and capital efficiency</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {statsLoading ? (
-                  <div className="space-y-3">
-                    {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
-                  </div>
-                ) : (
-                  <div className="space-y-6">
-                    {/* P&L Breakdown */}
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div className="rounded-lg border p-4">
-                        <p className="text-sm text-muted-foreground mb-1">Gross P&L</p>
-                        <p className={`text-2xl font-bold font-mono-numbers ${(stats?.totalPnlGross || 0) >= 0 ? 'text-profit' : 'text-loss'}`}>
-                          {formatPnl(stats?.totalPnlGross || 0)}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">Before fees and costs</p>
-                      </div>
-                      <div className="rounded-lg border p-4">
-                        <p className="text-sm text-muted-foreground mb-1">Net P&L</p>
-                        <p className={`text-2xl font-bold font-mono-numbers ${(stats?.totalPnlNet || 0) >= 0 ? 'text-profit' : 'text-loss'}`}>
-                          {formatPnl(stats?.totalPnlNet || 0)}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">After all fees deducted</p>
-                      </div>
-                    </div>
-
-                    {/* Fee Breakdown */}
-                    <div>
-                      <h3 className="text-sm font-medium mb-3">Fee Breakdown</h3>
-                      <div className="grid gap-4 md:grid-cols-3">
-                        <div className="rounded-lg border p-4">
-                          <p className="text-sm text-muted-foreground">Commission</p>
-                          <p className="text-lg font-semibold text-loss font-mono-numbers">
-                            {formatCurrency(stats?.totalCommission || 0)}
-                          </p>
-                        </div>
-                        <div className="rounded-lg border p-4">
-                          <p className="text-sm text-muted-foreground">Funding Fees</p>
-                          <p className="text-lg font-semibold text-loss font-mono-numbers">
-                            {formatCurrency(stats?.totalFundingFees || 0)}
-                          </p>
-                        </div>
-                        <div className="rounded-lg border p-4">
-                          <p className="text-sm text-muted-foreground">Total Fees</p>
-                          <p className="text-lg font-semibold text-loss font-mono-numbers">
-                            {formatCurrency(stats?.totalFees || 0)}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Capital Efficiency */}
-                    <div>
-                      <h3 className="text-sm font-medium mb-3">Capital Efficiency</h3>
-                      <div className="grid gap-4 md:grid-cols-2">
-                        {(() => {
-                          const initialBalance = account?.metadata?.initial_balance || Number(account?.balance);
-                          const roc = initialBalance > 0 ? ((stats?.totalPnlNet || 0) / initialBalance) * 100 : 0;
-                          const feeImpact = (stats?.totalPnlGross || 0) !== 0 
-                            ? ((stats?.totalFees || 0) / Math.abs(stats?.totalPnlGross || 1)) * 100 
-                            : 0;
-                          return (
-                            <>
-                              <div className="rounded-lg border p-4">
-                                <p className="text-sm text-muted-foreground">Return on Capital</p>
-                                <p className={`text-2xl font-bold ${roc >= 0 ? 'text-profit' : 'text-loss'}`}>
-                                  {roc >= 0 ? '+' : ''}{roc.toFixed(2)}%
-                                </p>
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  Net P&L ÷ Initial Capital
-                                </p>
-                              </div>
-                              <div className="rounded-lg border p-4">
-                                <p className="text-sm text-muted-foreground">Fee Impact</p>
-                                <p className="text-2xl font-bold text-loss">
-                                  {feeImpact.toFixed(1)}%
-                                </p>
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  Fees as % of gross P&L
-                                </p>
-                              </div>
-                            </>
-                          );
-                        })()}
-                      </div>
-                    </div>
-
-                    {/* Link to Performance */}
-                    <div className="pt-2 border-t">
-                      <p className="text-sm text-muted-foreground">
-                        For detailed performance analytics, visit the{' '}
-                        <Link to="/performance" className="text-primary hover:underline">
-                          Performance page
-                        </Link>.
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <AccountDetailFinancial
+              stats={stats}
+              statsLoading={statsLoading}
+              initialBalance={initialBalance}
+            />
           </TabsContent>
-
-          {/* Binance Positions Tab */}
-          {isBinanceVirtual && (
-            <TabsContent value="positions" className="mt-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Active Positions</CardTitle>
-                  <CardDescription>Currently open positions on Binance Futures</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {activePositions.length === 0 ? (
-                    <div className="text-center py-12 text-muted-foreground">
-                      <Activity className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                      <p>No open positions</p>
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Symbol</TableHead>
-                            <TableHead>Side</TableHead>
-                            <TableHead className="text-right">Size</TableHead>
-                            <TableHead className="text-right">Entry Price</TableHead>
-                            <TableHead className="text-right">Mark Price</TableHead>
-                            <TableHead className="text-right">Unrealized P&L</TableHead>
-                            <TableHead className="text-right">Leverage</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {activePositions.map((pos) => {
-                            const pnl = Number(pos.unrealizedProfit) || 0;
-                            const isLong = pos.positionAmt > 0;
-                            return (
-                              <TableRow key={`${pos.symbol}-${isLong ? 'long' : 'short'}`}>
-                                <TableCell className="font-medium">{pos.symbol}</TableCell>
-                                <TableCell>
-                                  <Badge variant={isLong ? "default" : "destructive"} className="text-xs">
-                                    {isLong ? 'LONG' : 'SHORT'}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell className="text-right font-mono">
-                                  {Math.abs(pos.positionAmt).toFixed(4)}
-                                </TableCell>
-                                <TableCell className="text-right font-mono">
-                                  {Number(pos.entryPrice).toFixed(2)}
-                                </TableCell>
-                                <TableCell className="text-right font-mono">
-                                  {Number(pos.markPrice).toFixed(2)}
-                                </TableCell>
-                                <TableCell className={`text-right font-mono ${pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                                  {formatPnl(pnl)}
-                                </TableCell>
-                                <TableCell className="text-right">
-                                  {pos.leverage}x
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-          )}
         </Tabs>
       </div>
-
-      {/* Transaction Dialog - DB accounts only */}
-      {!isBinanceVirtual && account && (
-      <>
-      <AccountTransactionDialog
-        open={transactionDialogOpen}
-        onOpenChange={setTransactionDialogOpen}
-        defaultAccount={account}
-        defaultTab={defaultTransactionTab}
-      />
-
-      <EditAccountDialog
-        open={editDialogOpen}
-        onOpenChange={setEditDialogOpen}
-        account={account}
-      />
-
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete "{account.name}"?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This account will be moved to trash and can be recovered within 30 days via Settings. All associated transaction history will be preserved.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={async () => {
-                try {
-                  await deleteAccount.mutateAsync(account.id);
-                  toast.success(`Account "${account.name}" moved to trash`);
-                  navigate("/accounts");
-                } catch (error: any) {
-                  toast.error(error?.message || "Failed to delete account");
-                }
-              }}
-            >
-              Delete Account
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-      </>
-      )}
     </>
   );
 }

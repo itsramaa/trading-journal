@@ -22,7 +22,6 @@ import {
   FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { useCreateAccount } from "@/hooks/use-accounts";
 import { useUserSettings } from "@/hooks/use-user-settings";
@@ -65,11 +64,11 @@ export function AddAccountForm({ trigger, onSuccess, defaultIsBacktest = false }
       name: "",
       broker: "",
       initial_balance: 0,
-      is_backtest: defaultIsBacktest,
+      is_backtest: true, // Form only shown in Paper mode, always true
     },
   });
 
-  const isBacktest = form.watch("is_backtest");
+  
 
   const handleSubmit = async (data: AccountFormValues) => {
     try {
@@ -146,26 +145,7 @@ export function AddAccountForm({ trigger, onSuccess, defaultIsBacktest = false }
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="is_backtest"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <FormLabel className="text-base">Paper Trading</FormLabel>
-                    <FormDescription>
-                      Mark this as a simulated/paper trading account
-                    </FormDescription>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
+            {/* Paper Trading is always true - form only appears in Paper mode */}
 
             <FormField
               control={form.control}
@@ -177,7 +157,7 @@ export function AddAccountForm({ trigger, onSuccess, defaultIsBacktest = false }
                     <Input type="number" step="any" placeholder="0" {...field} />
                   </FormControl>
                   <FormDescription>
-                    {isBacktest ? "Starting capital for paper trading" : "Current account balance"}
+                    Starting capital for paper trading
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
