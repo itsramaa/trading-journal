@@ -1,10 +1,9 @@
 
+# Deep UX Analysis: Trading Journal Page (`/trading`)
 
-# Deep UX Analysis: AI Analysis Page (`/market`)
+## Status: Functional Core, 2 Fixes + 1 New Feature Required
 
-## Status: Solid Core, 2 Issues Found (1 Bug, 1 Cosmetic)
-
-The AI Analysis page at `/market` (component: `MarketInsight.tsx`) is correctly **mode-agnostic** -- all data comes from public APIs (Binance, CoinGecko, Alternative.me) via edge functions. Layout and components are identical across Paper and Live modes.
+The Trading Journal page correctly implements mode-based data isolation (Paper vs Live) with consistent layout across modes. The `AllPositionsTable` properly handles unified positions from both sources, and the `TradeEnrichmentDrawer` works for both Paper and Binance entries.
 
 ---
 
@@ -12,82 +11,114 @@ The AI Analysis page at `/market` (component: `MarketInsight.tsx`) is correctly 
 
 | Aspect | Status | Detail |
 |--------|--------|--------|
-| Mode independence | OK | Only uses `tradingStyle` for bias expiry duration -- not mode-dependent |
-| Data flow | OK | `useMarketSentiment` -> `market-insight` EF; `useMacroAnalysis` -> `macro-analysis` EF |
-| Combined analysis | OK | `useCombinedAnalysis` derives alignment from crypto + macro scores client-side |
-| Error handling | OK | `ErrorBoundary` + `AsyncErrorFallback` in `AIAnalysisTab` |
-| Loading states | OK | Skeleton loaders for all 3 sections |
-| Empty/error states | OK | Error card with retry CTA |
-| Refresh mechanism | OK | Manual button + 5-min auto-refresh (sentiment) + 15-min (macro) |
-| Alert system | OK | `useMarketAlerts` fires toast on extreme Fear/Greed and crypto-macro conflicts |
-| Bias expiry | OK | `BiasExpiryIndicator` with countdown and auto-refresh on expiry |
-| Cross-feature use | OK | Sentiment/macro data consumed by `useCaptureMarketContext`, `useNotificationTriggers`, Dashboard |
-
-### Component Tree (verified correct)
-
-```text
-MarketInsight (page at /market)
-  +-- PageHeader (title: "Market Insight", Refresh button)
-  +-- BiasExpiryIndicator (conditional: countdown badge)
-  +-- Error Card (conditional: fetch failures)
-  +-- AIAnalysisTab
-  |    +-- AI Market Sentiment card (confidence, Fear & Greed, recommendation, signals)
-  |    +-- AI Macro Analysis card (sentiment pill, correlations grid, AI summary)
-  +-- CombinedAnalysisCard (alignment score, recommendation, position size adj.)
-```
+| Mode isolation | OK | `useModeFilteredTrades` + `useModeVisibility` properly gate data |
+| Layout consistency | OK | Same Tabs (Pending/Active), same table structure for both modes |
+| Read-only enforcement | OK | `isReadOnly` flag blocks edit/close/delete for Live/Binance trades |
+| Enrichment drawer | OK | Works for both Paper and Binance positions |
+| Summary stats | OK | Aggregates Paper + Binance with breakdown labels |
+| Loading/empty states | OK | Skeleton loaders + contextual empty messages |
+| Trade Wizard gating | OK | Only available in Paper mode via `canCreateManualTrade` |
+| Onboarding tour | OK | First-time user guidance with CTA |
 
 ---
 
 ## Issues Found
 
-### BUG 1: `validUntil` Race Condition in `useMarketSentiment` (Medium)
+### ISSUE 1: Lock Icon in Actions Column (User Request -- Remove)
 
-**File:** `src/features/market-insight/useMarketSentiment.ts`
+**File:** `src/components/journal/AllPositionsTable.tsx` (lines 314-326)
 
-The hook accepts an optional `tradingStyle` parameter that determines `validityMinutes` (Scalping: 15m, Short: 60m, Swing: 240m). This value is used inside `queryFn` to calculate `validUntil`. However, the queryKey is always `["market-sentiment"]` regardless of `tradingStyle`.
+For read-only (Live/Binance) trades, the actions column shows a Lock icon with a tooltip "Live trades are read-only." This creates visual noise and conveys restriction rather than capability.
 
-**Problem:** React Query deduplicates by queryKey. Whichever caller triggers the fetch first determines `validUntil` for ALL consumers. Since `useCombinedAnalysis()`, `useMarketAlerts()`, `useCaptureMarketContext()`, and `useNotificationTriggers()` all call `useMarketSentiment()` without `tradingStyle`, they default to `short_trade` (60m). If any of these resolves before `MarketInsight.tsx` (which passes the actual `tradingStyle`), the cached response has `validUntil` based on 60m, not the user's trading style.
+The user explicitly requests removing this Lock icon. Read-only trades should still show the Enrich (BookOpen) button and the new View Detail button -- they just don't show Edit/Close/Delete.
 
-This means a Scalping user sees a 60m validity badge instead of 15m, and a Swing user sees 60m instead of 240m.
-
-**Fix:** Move `validUntil` calculation OUT of `queryFn` and into the consuming component. The hook should return raw data; the page computes `validUntil` locally:
-
-1. Remove `validUntil` mutation from `useMarketSentiment`
-2. Compute `validUntil` in `MarketInsight.tsx` using `sentimentData.sentiment.lastUpdated` + `tradingStyle`
-
-This keeps the cached data pure and lets each consumer apply its own interpretation.
+**Fix:** Remove the Lock icon block entirely. The Enrich button already appears for all positions regardless of `isReadOnly`. The absence of Edit/Close/Delete buttons is self-explanatory.
 
 ---
 
-### COSMETIC 2: Page Title Mismatch (Minor)
+### ISSUE 2: No Trade Detail Page Exists (User Request -- Create)
 
-**Files:** Multiple navigation files
+**Current state:** There is no `/trading/:tradeId` route or Trade Detail page. Clicking a trade in the table only opens the `TradeEnrichmentDrawer` (a side sheet for editing journal data). There is no read-only detail view.
 
-The page is registered as **"AI Analysis"** in sidebar, command palette, keyboard shortcuts, and breadcrumbs. But the `PageHeader` inside `MarketInsight.tsx` renders **"Market Insight"** as the title with description "AI-powered market analysis and trading opportunities."
+**Problem:** Users cannot view comprehensive trade information at a glance without opening the edit-oriented enrichment drawer.
 
-This creates a minor disconnect: user clicks "AI Analysis" in the sidebar but sees "Market Insight" as the page title.
+**Fix:** Create a full Trade Detail page at `/trading/:tradeId` with:
 
-**Fix:** Update `PageHeader` title from "Market Insight" to "AI Analysis" for consistency with all navigation references. Keep the description as-is.
+1. **Eye icon** in the Actions column (all trades, both Paper and Live) that navigates to the detail page
+2. **Comprehensive read-only display** of all trade data organized in sections:
 
----
+   **Section 1 -- Trade Overview (Header)**
+   - Symbol + CryptoIcon, Direction badge, Status badge, Trade State badge
+   - Source badge (Paper/Binance), Trade Mode, Trading Style
+   - Trade Rating badge
 
-## No Mode-Related Issues
+   **Section 2 -- Price & Performance**
+   - Entry Price, Exit Price, Stop Loss, Take Profit
+   - Quantity, Leverage, Margin Type
+   - Gross P&L, Net P&L (after commission + funding fees)
+   - R-Multiple, Risk:Reward ratio
+   - Max Adverse Excursion (MAE)
 
-The AI Analysis page has **zero mode-related inconsistencies** because:
-1. All data is from public APIs -- no user trade data
-2. No account-specific queries or `trade_entries` reads
-3. `tradingStyle` affects only bias expiry duration, not data visibility
-4. `useMarketAlerts` fires identical alerts regardless of mode
+   **Section 3 -- Timing**
+   - Entry Datetime, Exit Datetime
+   - Hold Time (formatted)
+   - Session (Asia/London/NY)
+   - Trade Date
+
+   **Section 4 -- Strategy & Setup**
+   - Linked strategies (badges)
+   - Entry Signal, Market Condition
+   - Confluence Score
+   - AI Quality Score + AI Confidence
+   - Entry/Exit Order Types
+
+   **Section 5 -- Timeframe Analysis**
+   - Bias Timeframe (HTF)
+   - Execution Timeframe
+   - Precision Timeframe (LTF)
+
+   **Section 6 -- Journal Enrichment**
+   - Emotional State
+   - Trade Notes (rendered as text)
+   - Lesson Learned
+   - Rule Compliance (checklist display)
+   - Custom Tags
+   - Screenshots gallery (clickable thumbnails)
+
+   **Section 7 -- AI Analysis**
+   - Post-Trade Analysis (structured post-mortem)
+   - Market Context snapshot (Fear & Greed, events)
+
+   **Section 8 -- Metadata**
+   - Created at, Updated at
+   - Binance Trade ID / Order ID (if applicable)
+
+   **Actions in header:**
+   - "Enrich" button (opens `TradeEnrichmentDrawer`)
+   - "Edit" button (Paper only, non-read-only)
+   - "Back to Journal" navigation
 
 ---
 
 ## Implementation Summary
 
-| File | Action | Detail |
-|------|--------|--------|
-| `src/features/market-insight/useMarketSentiment.ts` | Remove `validUntil` mutation from `queryFn` | Keep cached data pure -- no side effects in queryFn |
-| `src/pages/MarketInsight.tsx` | Compute `validUntil` locally from `sentimentData` + `tradingStyle` | Pass computed value to `BiasExpiryIndicator` |
-| `src/pages/MarketInsight.tsx` | Update PageHeader title to "AI Analysis" | Match sidebar/command palette naming |
+| # | File | Action | Detail |
+|---|------|--------|--------|
+| 1 | `src/pages/trading-journey/TradeDetail.tsx` | Create | New Trade Detail page with comprehensive read-only view |
+| 2 | `src/App.tsx` | Add route | `/trading/:tradeId` pointing to `TradeDetail` |
+| 3 | `src/components/journal/AllPositionsTable.tsx` | Update actions | Add Eye icon for "View Detail" navigation; remove Lock icon block |
+| 4 | `src/components/journal/index.ts` | No change | Detail page is a page, not a journal component |
 
-Total: 1 bug fix (validUntil race), 1 cosmetic fix (title). No structural changes needed.
+### Technical Approach
 
+- The detail page fetches the single trade by ID from the existing `useTradeEntries` cache (filter by ID from `useModeFilteredTrades`)
+- If trade not in cache (direct URL access), fetch directly from database via single `.select().eq('id', tradeId)`
+- The page uses `useNavigate` for "Back" button and passes trade data to `TradeEnrichmentDrawer` for the Enrich action
+- All monetary values use `useCurrencyConversion` formatters
+- The page is mode-agnostic in layout -- it renders whatever data exists on the trade record
+
+### Data Fields Rendered (from `trade_entries` schema)
+
+The detail page will render **all 60+ columns** from the database schema, organized into the sections above. Fields with null/empty values show a dash (`-`) for clean display.
+
+Total: 1 new page, 1 route addition, 1 component update (AllPositionsTable actions).
