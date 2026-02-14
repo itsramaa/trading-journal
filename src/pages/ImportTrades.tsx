@@ -6,6 +6,7 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { PageHeader } from "@/components/ui/page-header";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { SolanaTradeImport } from "@/components/wallet/SolanaTradeImport";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +35,7 @@ const SUPPORTED_DEXS = [
 
 export default function ImportTrades() {
   const { tradeMode } = useTradeMode();
+  const [retryKey, setRetryKey] = useState(0);
   const { showExchangeData } = useModeVisibility();
   const { data: connectionStatus } = useBinanceConnectionStatus();
   const isBinanceConnected = showExchangeData && (connectionStatus?.isConnected ?? false);
@@ -67,7 +69,8 @@ export default function ImportTrades() {
   const isBinanceDisabled = isPaperMode || !isBinanceConnected;
 
   return (
-    <div className="space-y-6">
+    <ErrorBoundary title="Import & Sync" onRetry={() => setRetryKey(k => k + 1)}>
+    <div key={retryKey} className="space-y-6">
       <PageHeader
         icon={Download}
         title="Import & Sync Trades"
@@ -314,5 +317,6 @@ export default function ImportTrades() {
         </TabsContent>
       </Tabs>
     </div>
+    </ErrorBoundary>
   );
 }

@@ -186,7 +186,7 @@ function mapToTradeEntry(trade: ParsedSolanaTrade, userId: string, tradeMode: st
   return {
     user_id: userId,
     pair: trade.pair,
-    direction: trade.direction === 'LONG' ? 'BUY' : trade.direction === 'SHORT' ? 'SELL' : 'UNKNOWN',
+    direction: trade.direction === 'LONG' ? 'LONG' : trade.direction === 'SHORT' ? 'SHORT' : 'LONG',
     entry_price: trade.entryPrice,
     exit_price: trade.exitPrice,
     quantity: trade.quantity,
