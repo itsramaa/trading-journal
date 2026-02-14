@@ -3,6 +3,7 @@
  * Optimized for image-first display with lazy loading
  * Now includes "Needs Enrichment" indicator for incomplete Binance trades
  */
+import { forwardRef } from "react";
 import { format } from "date-fns";
 import { ImageOff, AlertCircle } from "lucide-react";
 import { CryptoIcon } from "@/components/ui/crypto-icon";
@@ -19,25 +20,23 @@ interface TradeGalleryCardProps {
   onTradeClick: (trade: TradeEntry) => void;
 }
 
-export function TradeGalleryCard({ 
-  trade, 
-  onTradeClick,
-}: TradeGalleryCardProps) {
-  const { formatPnl } = useCurrencyConversion();
-  
-  // Use centralized utility functions
-  const hasScreenshots = tradeHasScreenshots(trade);
-  const thumbnailUrl = getThumbnailUrl(trade);
-  const pnl = trade.realized_pnl ?? trade.pnl ?? 0;
-  const isProfit = isTradeProfit(pnl);
-  const isLoss = isTradeLoss(pnl);
-  const needsEnrichment = tradeNeedsEnrichment(trade);
-  
-  return (
-    <Card 
-      className="cursor-pointer hover:border-primary transition-colors overflow-hidden group"
-      onClick={() => onTradeClick(trade)}
-    >
+export const TradeGalleryCard = forwardRef<HTMLDivElement, TradeGalleryCardProps>(
+  function TradeGalleryCard({ trade, onTradeClick }, ref) {
+    const { formatPnl } = useCurrencyConversion();
+    
+    const hasScreenshots = tradeHasScreenshots(trade);
+    const thumbnailUrl = getThumbnailUrl(trade);
+    const pnl = trade.realized_pnl ?? trade.pnl ?? 0;
+    const isProfit = isTradeProfit(pnl);
+    const isLoss = isTradeLoss(pnl);
+    const needsEnrichment = tradeNeedsEnrichment(trade);
+    
+    return (
+      <Card 
+        ref={ref}
+        className="cursor-pointer hover:border-primary transition-colors overflow-hidden group"
+        onClick={() => onTradeClick(trade)}
+      >
       {/* Thumbnail Section */}
       <div className="aspect-video bg-muted relative overflow-hidden">
         {thumbnailUrl ? (
@@ -132,8 +131,9 @@ export function TradeGalleryCard({
         </div>
       </CardContent>
     </Card>
-  );
-}
+    );
+  }
+);
 
 // Skeleton for loading state
 export function TradeGalleryCardSkeleton() {
