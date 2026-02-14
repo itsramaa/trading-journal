@@ -281,7 +281,25 @@ export function CalendarTab({ hideTitle = false }: CalendarTabProps) {
                         <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                           <span>{formatEventDate(event.date)}</span>
                           <span>{formatEventTime(event.date)} UTC</span>
-                          {event.forecast && <span>Forecast: {event.forecast}</span>}
+                          <span>{event.country}</span>
+                        </div>
+                        
+                        {/* Forecast / Previous / Actual data row */}
+                        <div className="flex items-center gap-4 mt-2 text-xs">
+                          <div className="flex items-center gap-1">
+                            <span className="text-muted-foreground">Forecast:</span>
+                            <span className="font-mono font-medium">{event.forecast || 'N/A'}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="text-muted-foreground">Previous:</span>
+                            <span className="font-mono">{event.previous || 'N/A'}</span>
+                          </div>
+                          {event.actual && (
+                            <div className="flex items-center gap-1">
+                              <span className="text-muted-foreground">Actual:</span>
+                              <span className="font-mono font-bold text-foreground">{event.actual}</span>
+                            </div>
+                          )}
                         </div>
                         
                         {event.aiPrediction && (
