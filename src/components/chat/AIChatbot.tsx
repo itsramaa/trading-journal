@@ -592,7 +592,7 @@ export function AIChatbot() {
                   size="sm"
                   onClick={clearAllHistory}
                   className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-destructive shrink-0"
-                  title="Reset semua percakapan"
+                  title="Reset all conversations"
                 >
                   <Trash2 className="h-3 w-3" />
                   <span className="hidden sm:inline">Reset</span>
@@ -657,7 +657,7 @@ export function AIChatbot() {
                       )}
                       {isExpanded && (
                         <div className="pl-11 text-xs text-muted-foreground">
-                          Gunakan Quick Actions di panel kiri atau ketik pertanyaan Anda.
+                          Use Quick Actions on the left panel or type your question.
                         </div>
                       )}
                     </div>
