@@ -31,7 +31,7 @@ export function RiskSummaryCard() {
     if (!showExchangeData || !connectionStatus?.isConnected || positions.length < 2) return null;
     const symbols = extractSymbols(positions);
     return checkCorrelationRisk(symbols);
-  }, [positions, connectionStatus]);
+  }, [positions, connectionStatus, showExchangeData]);
 
   // Determine data source for badge display
   const dataSource = useMemo(() => {
