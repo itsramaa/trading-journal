@@ -21,6 +21,7 @@ import {
   Minus,
   Download,
   Activity,
+  Info,
 } from "lucide-react";
 import { 
   ResponsiveContainer, 
@@ -36,71 +37,28 @@ import { useUnifiedDailyPnl } from "@/hooks/use-unified-daily-pnl";
 import { useUnifiedWeeklyPnl } from "@/hooks/use-unified-weekly-pnl";
 import { useUnifiedWeekComparison } from "@/hooks/use-unified-week-comparison";
 import { useSymbolBreakdown } from "@/hooks/use-symbol-breakdown";
-import { usePerformanceExport } from "@/hooks/use-performance-export";
 import { Link } from "react-router-dom";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
-import { useModeVisibility } from "@/hooks/use-mode-visibility";
 import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
 import { format } from "date-fns";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+
+// Extracted to module-level to avoid re-creation on every render
+const ChangeIndicator = ({ value, suffix = '' }: { value: number; suffix?: string }) => {
+  if (value > 0) return <span className="text-profit flex items-center gap-1"><ArrowUp className="h-3 w-3" />+{value.toFixed(1)}{suffix}</span>;
+  if (value < 0) return <span className="text-loss flex items-center gap-1"><ArrowDown className="h-3 w-3" />{value.toFixed(1)}{suffix}</span>;
+  return <span className="text-muted-foreground flex items-center gap-1"><Minus className="h-3 w-3" />0{suffix}</span>;
+};
 
 export default function DailyPnL() {
   const dailyStats = useUnifiedDailyPnl();
   const weeklyStats = useUnifiedWeeklyPnl();
   const weekComparison = useUnifiedWeekComparison();
   const { weeklyBreakdown: symbolBreakdown } = useSymbolBreakdown();
-  const { exportToCSV, exportToPDF } = usePerformanceExport();
   const { formatCompact, format: formatCurrency } = useCurrencyConversion();
-  const { showExchangeData } = useModeVisibility();
-
-  const ChangeIndicator = ({ value, suffix = '' }: { value: number; suffix?: string }) => {
-    if (value > 0) return <span className="text-profit flex items-center gap-1"><ArrowUp className="h-3 w-3" />+{value.toFixed(1)}{suffix}</span>;
-    if (value < 0) return <span className="text-loss flex items-center gap-1"><ArrowDown className="h-3 w-3" />{value.toFixed(1)}{suffix}</span>;
-    return <span className="text-muted-foreground flex items-center gap-1"><Minus className="h-3 w-3" />0{suffix}</span>;
-  };
-
-  const handleExportCSV = () => {
-    exportToCSV({
-      trades: [],
-      stats: {
-        totalTrades: weeklyStats.totalTrades,
-        winRate: weekComparison.currentWeek.winRate,
-        profitFactor: 0,
-        totalPnl: weeklyStats.totalNet,
-        avgWin: 0,
-        avgLoss: 0,
-        maxDrawdownPercent: 0,
-        sharpeRatio: 0,
-        avgRR: 0,
-        expectancy: 0,
-      },
-      dateRange: { from: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), to: new Date() },
-      weeklyData: weeklyStats.dailyData,
-      symbolBreakdown,
-    });
-  };
-
-  const handleExportPDF = () => {
-    exportToPDF({
-      trades: [],
-      stats: {
-        totalTrades: weeklyStats.totalTrades,
-        winRate: weekComparison.currentWeek.winRate,
-        profitFactor: 0,
-        totalPnl: weeklyStats.totalNet,
-        avgWin: 0,
-        avgLoss: 0,
-        maxDrawdownPercent: 0,
-        sharpeRatio: 0,
-        avgRR: 0,
-        expectancy: 0,
-      },
-      dateRange: { from: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), to: new Date() },
-      weeklyData: weeklyStats.dailyData,
-      symbolBreakdown,
-    });
-  };
 
   const isLoading = dailyStats.isLoading || weeklyStats.isLoading;
+  const hasNoActivity = dailyStats.totalTrades === 0 && weeklyStats.totalTrades === 0;
 
   if (isLoading) {
     return (
@@ -133,6 +91,16 @@ export default function DailyPnL() {
           </Button>
         </PageHeader>
 
+        {/* Empty State Banner */}
+        {hasNoActivity && (
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription>
+              No trading activity recorded yet. Start trading to see your P&L breakdown here.
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Today's P&L Summary */}
         <Card className="border-primary/20">
           <CardHeader className="pb-3">
@@ -149,14 +117,12 @@ export default function DailyPnL() {
                   {formatCompact(dailyStats.grossPnl)}
                 </p>
               </div>
-              {showExchangeData && (
-                <div>
-                  <p className="text-sm text-muted-foreground">Commission</p>
-                  <p className="text-2xl font-bold text-muted-foreground">
-                    -{formatCurrency(dailyStats.totalCommission)}
-                  </p>
-                </div>
-              )}
+              <div>
+                <p className="text-sm text-muted-foreground">Commission</p>
+                <p className="text-2xl font-bold text-muted-foreground">
+                  -{formatCurrency(dailyStats.totalCommission)}
+                </p>
+              </div>
               <div>
                 <p className="text-sm text-muted-foreground">Trades Today</p>
                 <p className="text-2xl font-bold">{dailyStats.totalTrades}</p>
@@ -314,8 +280,8 @@ export default function DailyPnL() {
           </CardContent>
         </Card>
 
-        {/* Symbol Breakdown - Only shown in Live mode with data */}
-        {showExchangeData && symbolBreakdown.length > 0 && (
+        {/* Symbol Breakdown - Shown in both modes when data exists */}
+        {symbolBreakdown.length > 0 && (
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Symbol Breakdown</CardTitle>
