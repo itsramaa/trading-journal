@@ -32,9 +32,12 @@ interface PerformanceKeyMetricsProps {
   };
   formatCurrency: (v: number) => string;
   binanceStats: BinanceStatsSlice;
+  showExchangeData?: boolean;
 }
 
-export function PerformanceKeyMetrics({ stats, formatCurrency, binanceStats }: PerformanceKeyMetricsProps) {
+export function PerformanceKeyMetrics({ stats, formatCurrency, binanceStats, showExchangeData = true }: PerformanceKeyMetricsProps) {
+  const profitFactorColor = stats.profitFactor >= 1.5 ? 'text-profit' : stats.profitFactor >= 1.0 ? 'text-foreground' : 'text-loss';
+
   return (
     <>
       {/* Key Metrics */}
@@ -63,7 +66,7 @@ export function PerformanceKeyMetrics({ stats, formatCurrency, binanceStats }: P
               <TrendingUp className="h-4 w-4 text-profit" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-profit">
+              <div className={`text-2xl font-bold ${profitFactorColor}`}>
                 {stats.profitFactor === Infinity ? '∞' : stats.profitFactor.toFixed(2)}
               </div>
               <p className="text-xs text-muted-foreground">Gross profit / Gross loss</p>
@@ -166,7 +169,7 @@ export function PerformanceKeyMetrics({ stats, formatCurrency, binanceStats }: P
             <div className={`text-xl font-bold ${stats.totalPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
               {stats.totalPnl >= 0 ? '+' : ''}{formatCurrency(stats.totalPnl)}
             </div>
-            {binanceStats.isConnected && binanceStats.grossPnl !== 0 && (
+            {showExchangeData && binanceStats.isConnected && binanceStats.grossPnl !== 0 && (
               <div className="mt-2 pt-2 border-t space-y-1">
                 <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground">Gross (Today)</span>

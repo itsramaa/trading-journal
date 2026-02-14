@@ -143,7 +143,7 @@ export function PerformanceStrategiesTab({
                     {activeStrategies.map((entry, index) => (
                       <Cell 
                         key={`cell-${index}`} 
-                        fill={entry.totalPnl >= 0 ? 'hsl(var(--chart-2))' : 'hsl(var(--destructive))'} 
+                        fill={entry.totalPnl >= 0 ? 'hsl(var(--chart-2))' : 'hsl(var(--loss))'} 
                       />
                     ))}
                   </Bar>
