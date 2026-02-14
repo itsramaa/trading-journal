@@ -4,6 +4,7 @@
  * Hybrid approach: auto incremental + manual full sync
  */
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { PageHeader } from "@/components/ui/page-header";
 import { SolanaTradeImport } from "@/components/wallet/SolanaTradeImport";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,8 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Progress } from "@/components/ui/progress";
-import { EmptyState } from "@/components/ui/empty-state";
-import { Download, Zap, Shield, Globe, Layers, Wifi, RefreshCw, Loader2, CheckCircle, AlertCircle, AlertTriangle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Download, Zap, Shield, Globe, Layers, Wifi, RefreshCw, Loader2, CheckCircle, AlertCircle, AlertTriangle, Info } from "lucide-react";
 import { format } from "date-fns";
 import { useTradeMode } from "@/hooks/use-trade-mode";
 import { useModeVisibility } from "@/hooks/use-mode-visibility";
@@ -38,6 +39,14 @@ export default function ImportTrades() {
   const isBinanceConnected = showExchangeData && (connectionStatus?.isConnected ?? false);
   const isPaperMode = tradeMode === 'paper';
 
+  // Controlled tab state via URL
+  const [searchParams, setSearchParams] = useSearchParams();
+  const defaultTab = isPaperMode ? "solana" : "binance";
+  const activeTab = searchParams.get("tab") || defaultTab;
+  const handleTabChange = (value: string) => {
+    setSearchParams({ tab: value }, { replace: true });
+  };
+
   // Incremental sync
   const { sync: triggerIncrementalSync, isLoading: isIncrementalSyncing, lastSyncTime, isStale } = useBinanceIncrementalSync({ autoSyncOnMount: false });
 
@@ -48,13 +57,14 @@ export default function ImportTrades() {
   const canResume = !!checkpoint;
   const fullSyncAutoOpen = isFullSyncing || canResume;
 
-  // Enrichment
+  // Enrichment — only query when relevant
+  const enrichmentEnabled = !isPaperMode && isBinanceConnected;
   const [enrichmentProgress, setEnrichmentProgress] = useState<EnrichmentProgress | null>(null);
   const { enrichTrades, isEnriching } = useTradeEnrichmentBinance();
-  const { data: tradesNeedingEnrichment = 0 } = useTradesNeedingEnrichmentCount();
+  const { data: tradesNeedingEnrichment = 0 } = useTradesNeedingEnrichmentCount(enrichmentEnabled);
 
-  // Default tab based on mode
-  const defaultTab = isPaperMode ? "solana" : "binance";
+  // Whether Binance tab content is interactive
+  const isBinanceDisabled = isPaperMode || !isBinanceConnected;
 
   return (
     <div className="space-y-6">
@@ -70,13 +80,16 @@ export default function ImportTrades() {
 
       {/* Feature Highlights */}
       <div className="grid gap-4 sm:grid-cols-3">
-        <Card className="border-border/50">
+        <Card className={`border-border/50 ${isPaperMode ? 'opacity-50' : ''}`}>
           <CardContent className="flex items-start gap-3 pt-5 pb-4">
             <div className="p-2 rounded-lg bg-primary/10 shrink-0">
               <Zap className="h-4 w-4 text-primary" />
             </div>
             <div>
-              <p className="text-sm font-medium">Auto Incremental Sync</p>
+              <p className="text-sm font-medium">
+                Auto Incremental Sync
+                {isPaperMode && <span className="text-muted-foreground ml-1 text-xs">(Live only)</span>}
+              </p>
               <p className="text-xs text-muted-foreground mt-0.5">
                 Automatically fetches new trades since last sync checkpoint
               </p>
@@ -112,7 +125,7 @@ export default function ImportTrades() {
       </div>
 
       {/* Main Tabbed Interface */}
-      <Tabs defaultValue={defaultTab} className="w-full">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList>
           <TabsTrigger value="binance" className="gap-2">
             <Wifi className="h-4 w-4" />
@@ -127,146 +140,147 @@ export default function ImportTrades() {
 
         {/* Binance Sync Tab */}
         <TabsContent value="binance" className="space-y-4">
-          {isPaperMode ? (
-            <Card>
-              <CardContent className="py-8">
-                <EmptyState
-                  icon={AlertTriangle}
-                  title="Paper Mode Active"
-                  description="Switch to Live mode to sync trades from Binance. Paper mode trades are created manually via the Trading Journal."
-                />
-              </CardContent>
-            </Card>
-          ) : !isBinanceConnected ? (
-            <Card>
-              <CardContent className="py-8">
-                <EmptyState
-                  icon={Wifi}
-                  title="Binance Not Connected"
-                  description="Connect your Binance API credentials in Settings to start syncing trades."
-                />
-                <div className="flex justify-center mt-2">
-                  <Button asChild variant="outline" size="sm">
-                    <Link to="/settings">Go to Settings</Link>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            <>
-              {/* Incremental Sync & Enrichment Controls */}
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <RefreshCw className="h-4 w-4 text-primary" />
-                    Quick Actions
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <div className="flex flex-wrap items-center gap-3">
-                    {/* Incremental Sync */}
-                    {lastSyncTime && !isFullSyncing && !isIncrementalSyncing && (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={triggerIncrementalSync}
-                              className="gap-2"
-                            >
-                              <RefreshCw className="h-3 w-3" />
-                              <span className="text-xs">
+          {/* Paper mode banner */}
+          {isPaperMode && (
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription>
+                Binance sync is available in <strong>Live mode</strong>. Switch modes via the header selector to sync exchange trades.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Not connected banner (Live mode only) */}
+          {!isPaperMode && !isBinanceConnected && (
+            <Alert>
+              <Wifi className="h-4 w-4" />
+              <AlertDescription className="flex items-center justify-between">
+                <span>Connect your Binance API credentials in Settings to start syncing trades.</span>
+                <Button asChild variant="outline" size="sm" className="ml-3 shrink-0">
+                  <Link to="/settings">Go to Settings</Link>
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Quick Actions — always rendered, disabled when not available */}
+          <Card className={isBinanceDisabled ? 'opacity-50 pointer-events-none' : ''}>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <RefreshCw className="h-4 w-4 text-primary" />
+                Quick Actions
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Incremental Sync — show for first-time users too */}
+                {!isFullSyncing && !isIncrementalSyncing && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={triggerIncrementalSync}
+                          disabled={isBinanceDisabled}
+                          className="gap-2"
+                        >
+                          <RefreshCw className="h-3 w-3" />
+                          <span className="text-xs">
+                            {lastSyncTime ? (
+                              <>
                                 Incremental Sync
                                 <span className="text-muted-foreground ml-1">
                                   (last: {format(lastSyncTime, 'HH:mm')})
                                 </span>
                                 {isStale && <span className="text-warning ml-1">(stale)</span>}
-                              </span>
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Fetch only new trades since last sync checkpoint</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    )}
-
-                    {isIncrementalSyncing && (
-                      <Badge variant="secondary" className="gap-1">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        Syncing new trades...
-                      </Badge>
-                    )}
-
-                    {/* Enrichment Progress */}
-                    {isEnriching && enrichmentProgress && (
-                      <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20">
-                        <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                        <div className="flex flex-col gap-1">
-                          <span className="text-sm font-medium">
-                            {enrichmentProgress.message || 'Enriching trades...'}
+                              </>
+                            ) : (
+                              'Start First Sync'
+                            )}
                           </span>
-                          <div className="flex items-center gap-2">
-                            <Progress value={enrichmentProgress.percent ?? 0} className="w-32 h-2" />
-                            <span className="text-xs text-muted-foreground">
-                              {(enrichmentProgress.percent ?? 0).toFixed(0)}%
-                            </span>
-                          </div>
-                        </div>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>{lastSyncTime ? 'Fetch only new trades since last sync checkpoint' : 'Perform your first incremental sync to import recent trades'}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+
+                {isIncrementalSyncing && (
+                  <Badge variant="secondary" className="gap-1">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Syncing new trades...
+                  </Badge>
+                )}
+
+                {/* Enrichment Progress */}
+                {isEnriching && enrichmentProgress && (
+                  <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20">
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                    <div className="flex flex-col gap-1">
+                      <span className="text-sm font-medium">
+                        {enrichmentProgress.message || 'Enriching trades...'}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <Progress value={enrichmentProgress.percent ?? 0} className="w-32 h-2" />
+                        <span className="text-xs text-muted-foreground">
+                          {(enrichmentProgress.percent ?? 0).toFixed(0)}%
+                        </span>
                       </div>
-                    )}
-
-                    {/* Enrich Button */}
-                    {!isEnriching && tradesNeedingEnrichment > 0 && (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              onClick={() => enrichTrades({
-                                daysBack: 730,
-                                onProgress: setEnrichmentProgress,
-                              })}
-                              className="gap-2"
-                            >
-                              <AlertCircle className="h-4 w-4" />
-                              Enrich {tradesNeedingEnrichment} Trades
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Fetch accurate entry/exit prices from Binance for trades with missing data</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    )}
-
-                    {/* All enriched */}
-                    {!isEnriching && tradesNeedingEnrichment === 0 && (
-                      <Badge variant="outline" className="text-xs gap-1 text-profit">
-                        <CheckCircle className="h-3 w-3" />
-                        All trades enriched
-                      </Badge>
-                    )}
+                    </div>
                   </div>
-                </CardContent>
-              </Card>
+                )}
 
-              {/* Advanced: Full Sync (collapsible) */}
-              {/* Advanced: Full Sync (always visible) */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 py-2 px-1 text-sm text-muted-foreground">
-                  <Shield className="h-4 w-4" />
-                  <span className="font-medium">Advanced: Full Sync (Recovery)</span>
-                </div>
-                <p className="text-xs text-muted-foreground px-1 -mt-1 mb-2">
-                  Complete re-download of all trade history. Use when incremental sync misses data or for initial setup.
-                </p>
-                <BinanceFullSyncPanel isBinanceConnected={isBinanceConnected} />
+                {/* Enrich Button */}
+                {!isEnriching && tradesNeedingEnrichment > 0 && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => enrichTrades({
+                            daysBack: 730,
+                            onProgress: setEnrichmentProgress,
+                          })}
+                          disabled={isBinanceDisabled}
+                          className="gap-2"
+                        >
+                          <AlertCircle className="h-4 w-4" />
+                          Enrich {tradesNeedingEnrichment} Trades
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Fetch accurate entry/exit prices from Binance for trades with missing data</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+
+                {/* All enriched */}
+                {!isEnriching && tradesNeedingEnrichment === 0 && enrichmentEnabled && (
+                  <Badge variant="outline" className="text-xs gap-1 text-profit">
+                    <CheckCircle className="h-3 w-3" />
+                    All trades enriched
+                  </Badge>
+                )}
               </div>
-            </>
-          )}
+            </CardContent>
+          </Card>
+
+          {/* Advanced: Full Sync */}
+          <div className={`space-y-2 ${isBinanceDisabled ? 'opacity-50 pointer-events-none' : ''}`}>
+            <div className="flex items-center gap-2 py-2 px-1 text-sm text-muted-foreground">
+              <Shield className="h-4 w-4" />
+              <span className="font-medium">Advanced: Full Sync (Recovery)</span>
+            </div>
+            <p className="text-xs text-muted-foreground px-1 -mt-1 mb-2">
+              Complete re-download of all trade history. Use when incremental sync misses data or for initial setup.
+            </p>
+            <BinanceFullSyncPanel isBinanceConnected={isBinanceConnected && !isPaperMode} />
+          </div>
         </TabsContent>
 
         {/* Solana Import Tab */}

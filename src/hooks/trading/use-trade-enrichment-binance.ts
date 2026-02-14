@@ -181,7 +181,7 @@ async function fetchPaginatedIncome(
 /**
  * Hook to get count of trades needing enrichment
  */
-export function useTradesNeedingEnrichmentCount() {
+export function useTradesNeedingEnrichmentCount(enabled = true) {
   const { user } = useAuth();
   
   return useQuery({
@@ -204,7 +204,7 @@ export function useTradesNeedingEnrichmentCount() {
       
       return count || 0;
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && enabled,
     staleTime: 30_000, // 30 seconds
     placeholderData: keepPreviousData,
   });

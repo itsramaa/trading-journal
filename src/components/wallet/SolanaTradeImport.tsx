@@ -40,7 +40,9 @@ export function SolanaTradeImport() {
     deselectAll,
     reset,
     importedCount,
+    tradeMode,
   } = useSolanaTradeImport();
+  const isPaperMode = tradeMode === 'paper';
   const [scanLimit, setScanLimit] = useState(50);
 
   if (!connected) {
@@ -256,14 +258,19 @@ export function SolanaTradeImport() {
                   <Button variant="outline" onClick={reset}>
                     Cancel
                   </Button>
-                  <Button 
-                    onClick={importSelected}
-                    disabled={selectedTrades.size === 0}
-                    className="min-w-[160px]"
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    Import {selectedTrades.size} Trades
-                  </Button>
+                  <div className="flex items-center gap-3">
+                    <Badge variant={isPaperMode ? "secondary" : "default"} className="text-xs">
+                      {isPaperMode ? "→ Paper" : "→ Live"}
+                    </Badge>
+                    <Button 
+                      onClick={importSelected}
+                      disabled={selectedTrades.size === 0}
+                      className="min-w-[160px]"
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Import {selectedTrades.size} Trades
+                    </Button>
+                  </div>
                 </div>
               </>
             ) : (
