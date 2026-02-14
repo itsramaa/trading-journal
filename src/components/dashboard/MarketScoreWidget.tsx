@@ -60,50 +60,50 @@ function MarketScoreWidgetContent({ symbol = 'BTCUSDT', compact = false }: Marke
       case 'LONG_FAVORABLE':
         return {
           icon: TrendingUp,
-          color: 'text-green-500',
-          bgColor: 'bg-green-500/10',
-          borderColor: 'border-green-500/30',
+          color: 'text-profit',
+          bgColor: 'bg-profit/10',
+          borderColor: 'border-profit/30',
           label: 'Long Favorable',
         };
       case 'SHORT_FAVORABLE':
         return {
           icon: TrendingDown,
-          color: 'text-red-500',
-          bgColor: 'bg-red-500/10',
-          borderColor: 'border-red-500/30',
+          color: 'text-loss',
+          bgColor: 'bg-loss/10',
+          borderColor: 'border-loss/30',
           label: 'Short Favorable',
         };
       case 'AVOID':
         return {
           icon: AlertTriangle,
-          color: 'text-red-600',
-          bgColor: 'bg-red-600/10',
-          borderColor: 'border-red-600/30',
+          color: 'text-destructive',
+          bgColor: 'bg-destructive/10',
+          borderColor: 'border-destructive/30',
           label: 'Avoid Trading',
         };
       default:
         return {
           icon: Activity,
-          color: 'text-yellow-500',
-          bgColor: 'bg-yellow-500/10',
-          borderColor: 'border-yellow-500/30',
+          color: 'text-[hsl(var(--chart-4))]',
+          bgColor: 'bg-[hsl(var(--chart-4))]/10',
+          borderColor: 'border-[hsl(var(--chart-4))]/30',
           label: 'Neutral',
         };
     }
   };
 
   const getScoreColor = (value: number) => {
-    if (value >= 70) return 'text-green-500';
-    if (value >= 55) return 'text-green-400';
-    if (value >= 45) return 'text-yellow-500';
-    if (value >= 30) return 'text-orange-500';
-    return 'text-red-500';
+    if (value >= 70) return 'text-profit';
+    if (value >= 55) return 'text-[hsl(var(--chart-2))]';
+    if (value >= 45) return 'text-[hsl(var(--chart-3))]';
+    if (value >= 30) return 'text-[hsl(var(--chart-4))]';
+    return 'text-loss';
   };
 
   const getProgressColor = (value: number) => {
-    if (value >= 60) return 'bg-green-500';
-    if (value >= 40) return 'bg-yellow-500';
-    return 'bg-red-500';
+    if (value >= 60) return 'bg-profit';
+    if (value >= 40) return 'bg-[hsl(var(--chart-4))]';
+    return 'bg-loss';
   };
 
   const biasConfig = getBiasConfig();
@@ -133,7 +133,7 @@ function MarketScoreWidgetContent({ symbol = 'BTCUSDT', compact = false }: Marke
             </Badge>
           </div>
           {hasHighImpactEvent && (
-            <div className="mt-3 flex items-center gap-2 text-xs text-yellow-500">
+            <div className="mt-3 flex items-center gap-2 text-xs text-[hsl(var(--chart-4))]">
               <Calendar className="h-3 w-3" />
               <span>High-impact event today</span>
             </div>
@@ -208,7 +208,7 @@ function MarketScoreWidgetContent({ symbol = 'BTCUSDT', compact = false }: Marke
 
         {/* Event Warning */}
         {hasHighImpactEvent && (
-          <div className="flex items-center gap-2 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-yellow-600">
+          <div className="flex items-center gap-2 p-3 rounded-lg bg-[hsl(var(--chart-4))]/10 border border-[hsl(var(--chart-4))]/30 text-[hsl(var(--chart-4))]">
             <Calendar className="h-4 w-4" />
             <div className="flex-1">
               <p className="text-sm font-medium">High-Impact Event Today</p>
@@ -217,7 +217,7 @@ function MarketScoreWidgetContent({ symbol = 'BTCUSDT', compact = false }: Marke
               )}
             </div>
             {positionSizeAdjustment !== 'normal' && (
-              <Badge variant="outline" className="text-xs border-yellow-500 text-yellow-600">
+              <Badge variant="outline" className="text-xs border-[hsl(var(--chart-4))] text-[hsl(var(--chart-4))]">
                 {positionSizeAdjustment.replace('_', ' ')}
               </Badge>
             )}

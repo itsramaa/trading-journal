@@ -46,7 +46,23 @@ export function RiskMetricsCards({ className }: RiskMetricsCardsProps) {
     [closedTrades, portfolio.totalCapital]
   );
 
-  if (closedTrades.length < 3) return null;
+  if (closedTrades.length < 3) {
+    return (
+      <Card className={cn('', className)}>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Shield className="h-5 w-5 text-primary" />
+            Advanced Risk Metrics
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            Close 3+ trades to unlock advanced risk metrics (Sharpe, Sortino, VaR, and more)
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const getRatingColor = (value: number, thresholds: { good: number; bad: number }) => {
     if (value >= thresholds.good) return 'text-profit';

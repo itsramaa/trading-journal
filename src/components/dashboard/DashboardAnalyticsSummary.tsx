@@ -102,13 +102,24 @@ export function DashboardAnalyticsSummary() {
     };
   }, [trades]);
 
-  // Don't show if not enough data
-  if (analyticsData.trades30d < 3) return null;
+  // Show empty state if not enough data
+  if (analyticsData.trades30d < 3) {
+    return (
+      <Card>
+        <CardContent className="py-4">
+          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+            <BarChart3 className="h-5 w-5 text-primary" />
+            <span>Log 3+ trades this month to unlock 30-day performance analytics</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const getProfitFactorColor = (pf: number) => {
     if (pf >= 2) return 'text-profit';
     if (pf >= 1.5) return 'text-foreground';
-    if (pf >= 1) return 'text-yellow-500';
+    if (pf >= 1) return 'text-[hsl(var(--chart-4))]';
     return 'text-loss';
   };
 
