@@ -4,7 +4,7 @@
  * M-01: Added fees/funding and time-in-trade columns
  * M-33: Read-only enforcement for live/Binance trades
  */
-import { useState, useEffect } from "react";
+import { useState, useEffect, startTransition } from "react";
 import { CryptoIcon } from "@/components/ui/crypto-icon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -308,7 +308,7 @@ export function AllPositionsTable({
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => navigate(`/trading/${position.id}`)}
+                      onClick={() => startTransition(() => navigate(`/trading/${position.id}`))}
                       title="View detail"
                     >
                       <Eye className="h-4 w-4" />
