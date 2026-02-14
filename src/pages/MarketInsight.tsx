@@ -2,7 +2,7 @@
  * Market Insight Page - Unified Market Analysis Hub
  * Single page view: AI Market Sentiment, AI Macro Analysis, Combined Analysis
  */
-import { useMemo } from "react";
+import { useMemo, useCallback, useState } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { 
@@ -10,6 +10,7 @@ import {
   RefreshCw
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { 
   useMarketSentiment, 
   BIAS_VALIDITY_MINUTES,
@@ -25,6 +26,7 @@ import {
 import { useTradeMode } from "@/hooks/use-trade-mode";
 
 const MarketInsight = () => {
+  const [retryKey, setRetryKey] = useState(0);
   const { tradingStyle } = useTradeMode();
   const { 
     data: sentimentData, 
@@ -53,10 +55,10 @@ const MarketInsight = () => {
     showConflictAlerts: true 
   });
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     refetchSentiment();
     refetchMacro();
-  };
+  }, [refetchSentiment, refetchMacro]);
 
   // Compute validUntil locally based on tradingStyle (fixes race condition)
   const validUntil = useMemo(() => {
@@ -87,29 +89,36 @@ const MarketInsight = () => {
           Refresh Data
         </Button>
       </PageHeader>
-      
-      {validUntil && (
-        <BiasExpiryIndicator 
-          validUntil={validUntil} 
-          onExpired={handleRefresh}
-          className="w-fit"
-        />
-      )}
 
-      {/* AI Analysis Content - No tabs, direct display */}
-      <AIAnalysisTab 
-        sentimentData={sentimentData}
-        macroData={macroData}
-        isLoading={isLoading}
-        onRefresh={handleRefresh}
-        error={sentimentError || macroError || null}
-      />
+      <ErrorBoundary
+        title="AI Analysis"
+        onRetry={() => setRetryKey(k => k + 1)}
+      >
+        <div key={retryKey} className="space-y-6">
+          {validUntil && (
+            <BiasExpiryIndicator 
+              validUntil={validUntil} 
+              onExpired={handleRefresh}
+              className="w-fit"
+            />
+          )}
 
-      {/* Combined Crypto + Macro Analysis */}
-      <CombinedAnalysisCard 
-        data={combinedData} 
-        isLoading={combinedLoading || sentimentLoading || macroLoading} 
-      />
+          {/* AI Analysis Content - No tabs, direct display */}
+          <AIAnalysisTab 
+            sentimentData={sentimentData}
+            macroData={macroData}
+            isLoading={isLoading}
+            onRefresh={handleRefresh}
+            error={sentimentError || macroError || null}
+          />
+
+          {/* Combined Crypto + Macro Analysis */}
+          <CombinedAnalysisCard 
+            data={combinedData} 
+            isLoading={combinedLoading || sentimentLoading || macroLoading} 
+          />
+        </div>
+      </ErrorBoundary>
     </div>
   );
 };
