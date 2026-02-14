@@ -1,66 +1,74 @@
 
 
-# Trading Journal and Trade Detail Page - Functional Correctness Audit
+# Import & Sync Page - Functional Correctness Audit
 
 ## Audit Scope
 
-Reviewed all files in the Trading Journal and Trade Detail domains: pages (`TradingJournal.tsx`, `TradeDetail.tsx`), components (`AllPositionsTable.tsx`, `TradeSummaryStats.tsx`, `TradeEnrichmentDrawer.tsx`, `BinanceOpenOrdersTable.tsx`, `TradeHistoryFilters.tsx`, `TradeGalleryCard.tsx`, `PositionDialogs.tsx`, `TradeReviewSection.tsx`, `TradeRatingSection.tsx`, `TradeTimeframeSection.tsx`, `ScreenshotUploader.tsx`), hooks (`use-trade-entries.ts`, `use-trade-entries-paginated.ts`, `use-trade-history-filters.ts`, `use-mode-filtered-trades.ts`, `use-trade-stats.ts`, `use-trade-enrichment.ts`, `use-trade-mode.ts`, `use-post-trade-analysis.ts`), types, constants (`trade-history.ts`), utilities (`trade-utils.ts`, `query-invalidation.ts`), and cross-domain dependencies.
+Reviewed all files in the Import & Sync domain: page (`ImportTrades.tsx`), components (`BinanceFullSyncPanel.tsx`, `SolanaTradeImport.tsx`, `SyncStatusBadge.tsx`, `SyncReconciliationReport.tsx`, `SyncQuotaDisplay.tsx`, `ReSyncTimeWindow.tsx`, `SyncRangeSelector.tsx`, `SyncETADisplay.tsx`), hooks (`use-binance-incremental-sync.ts`, `use-binance-aggregated-sync.ts`, `use-trade-enrichment-binance.ts`, `use-solana-trade-import.ts`, `use-sync-quota.ts`, `use-binance-background-sync.ts`), store (`sync-store.ts`), services (`binance/`, `solana-trade-parser.ts`, `binance-trade-enricher.ts`), types, constants, cross-tab locking, and the service worker (`sw-custom.js`).
 
 ---
 
 ## Issues Found
 
-### 1. TradeDetail Missing `startTransition` for Navigation (Code Quality - MEDIUM)
+### 1. Solana Import Direction Mapping Violates DB Constraint (Data Integrity - CRITICAL)
 
-**File:** `src/pages/trading-journey/TradeDetail.tsx` (lines 314, 340)
+**File:** `src/hooks/use-solana-trade-import.ts` (line 189)
 
-The back button uses `navigate(-1)` without wrapping in `startTransition`. The `AllPositionsTable` component correctly uses `startTransition(() => navigate(...))` for navigating TO the detail page (line 279, 380), but the detail page itself does not do the same when navigating BACK. This can cause React Suspense boundaries to trigger a loading fallback during navigation, resulting in a flash of the skeleton/loading UI.
-
-Additionally, `window.history.length > 1` is unreliable in SPAs because the history stack is always > 1 after any navigation. This condition will always be true after any in-app navigation, making the fallback to `/trading` unreachable in practice.
-
-**Fix:** Import `startTransition` and wrap both navigate calls:
+The `mapToTradeEntry` function maps directions as:
 ```typescript
-import { useMemo, useState, useEffect, startTransition } from "react";
+direction: trade.direction === 'LONG' ? 'BUY' : trade.direction === 'SHORT' ? 'SELL' : 'UNKNOWN',
+```
 
-// Line 314 (not found state):
-onClick={() => startTransition(() => navigate(-1))}
+The `trade_entries` table has a CHECK constraint:
+```sql
+CHECK (direction = ANY (ARRAY['LONG', 'SHORT', 'long', 'short']))
+```
 
-// Line 340 (header back button):
-onClick={() => startTransition(() => navigate(-1))}
+`BUY`, `SELL`, and `UNKNOWN` are **not allowed values**. Every Solana import attempt will fail with a constraint violation error. The Binance sync hooks correctly use `LONG`/`SHORT` directly, confirming this is a Solana-specific regression.
+
+**Fix:** Map direction to the correct enum values:
+```typescript
+direction: trade.direction === 'LONG' ? 'LONG' : trade.direction === 'SHORT' ? 'SHORT' : 'LONG',
+```
+(Fallback to `LONG` is safe since the parser already determines direction; `UNKNOWN` is not a valid DB value).
+
+---
+
+### 2. Enrichment Error Toast Leaks Internal Error Messages (Security - HIGH)
+
+**File:** `src/hooks/trading/use-trade-enrichment-binance.ts` (line 493)
+
+The `onError` callback exposes raw error messages to the user:
+```typescript
+toast.error(`Enrichment failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+```
+
+This can leak internal implementation details (Supabase errors, API response payloads, database constraint messages). The project's security standard requires generic messages on the client with internal details logged server-side only. Every other audited edge function and sync handler follows this pattern.
+
+**Fix:** Show a generic message and log the details:
+```typescript
+onError: (error) => {
+  console.error('[Enrichment] Error:', error);
+  toast.error('Enrichment failed. Please try again or contact support.');
+},
 ```
 
 ---
 
-### 2. Both Pages Missing Top-Level ErrorBoundary (Comprehensiveness - MEDIUM)
+### 3. Page Missing Top-Level ErrorBoundary (Comprehensiveness - MEDIUM)
 
-**Files:** `src/pages/trading-journey/TradingJournal.tsx`, `src/pages/trading-journey/TradeDetail.tsx`
+**File:** `src/pages/ImportTrades.tsx`
 
-Neither page wraps its content in an `ErrorBoundary`. A runtime error in any sub-component (e.g., `AllPositionsTable`, `TradeHistoryContent`, enrichment drawer, or a malformed date/number in trade data) will crash the entire page with a white screen. Every other audited domain page (Market Data, Economic Calendar, AI Analysis) now has a top-level ErrorBoundary with key-based retry.
+The page renders complex sub-components (`BinanceFullSyncPanel`, `SolanaTradeImport`) with no `ErrorBoundary`. A runtime error in any sync component (e.g., malformed checkpoint data from localStorage, unexpected API response shape) will crash the entire page. Every other audited page now has a top-level ErrorBoundary with key-based retry.
 
-**Fix:** Add ErrorBoundary with `retryKey` pattern to both pages, following the established pattern:
-
-For TradingJournal:
-```typescript
-import { ErrorBoundary } from "@/components/ui/error-boundary";
-
-// Inside the component, wrap the Card containing Tabs:
-const [retryKey, setRetryKey] = useState(0);
-
-<ErrorBoundary title="Trading Journal" onRetry={() => setRetryKey(k => k + 1)}>
-  <div key={retryKey}>
-    {/* existing TradeSummaryStats + Card with Tabs */}
-  </div>
-</ErrorBoundary>
-```
-
-For TradeDetail:
+**Fix:** Add ErrorBoundary with `retryKey` pattern:
 ```typescript
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 
 const [retryKey, setRetryKey] = useState(0);
 
-<ErrorBoundary title="Trade Detail" onRetry={() => setRetryKey(k => k + 1)}>
-  <div key={retryKey} className="space-y-6 max-w-5xl mx-auto">
+<ErrorBoundary title="Import & Sync" onRetry={() => setRetryKey(k => k + 1)}>
+  <div key={retryKey} className="space-y-6">
     {/* existing content */}
   </div>
 </ErrorBoundary>
@@ -68,46 +76,55 @@ const [retryKey, setRetryKey] = useState(0);
 
 ---
 
-### 3. Dead Import: `Pencil` Icon in TradeDetail (Code Quality - LOW)
+### 4. Incremental Sync `releaseSyncLock` Not Called on Early Return (Code Quality - MEDIUM)
 
-**File:** `src/pages/trading-journey/TradeDetail.tsx` (line 30)
+**File:** `src/hooks/binance/use-binance-incremental-sync.ts` (lines 176-207)
 
-The `Pencil` icon is imported from `lucide-react` but never used in the component. This adds unnecessary bundle weight and cognitive noise.
+When the sync lock is acquired (line 176) but no income records are found (line 198), the function returns early at line 201 without calling `releaseSyncLock()`. The lock persists in localStorage until it goes stale (5 minutes), blocking all other tabs from syncing during that window.
 
-**Fix:** Remove `Pencil` from the import statement at line 29.
+The `onSuccess` callback at line 307 calls `releaseSyncLock()`, but only after the mutation resolves. However, the flow at line 198-207 returns a success result directly, so `onSuccess` DOES fire. Let me re-verify...
+
+Actually, on closer inspection, the early return at line 201 returns from `mutationFn`, which feeds into `onSuccess` at line 306 where `releaseSyncLock()` is called. So the lock IS released. This is NOT a bug -- the lock release is handled by the mutation lifecycle. Withdrawn.
 
 ---
 
 ## Verified Correct (No Issues)
 
-The following were explicitly verified and found functionally sound:
-
-- **Soft-delete filtering**: RLS policy on `trade_entries` includes `deleted_at IS NULL` in the SELECT rule, automatically excluding soft-deleted records from all client queries without needing explicit filters in hooks
-- **PnL calculation standard**: TradeDetail correctly uses `realized_pnl ?? pnl ?? 0` fallback chain; Net PnL correctly subtracts commission + fees + funding_fees
-- **RPC `get_trade_stats`**: Overloaded function exists with `p_trade_mode` and `p_account_id` parameters; uses `deleted_at IS NULL`; PnL calculations match the standard
-- **Mode isolation**: `useModeFilteredTrades` correctly filters by `tradeMode`; paginated queries pass `tradeMode` to DB-level filter; `TradeSummaryStats` correctly gates data by `showPaperData` and `showExchangeData`
-- **Binance enrichment overlay**: TradeDetail correctly merges API data with DB enrichment records using `binance_trade_id` as the lookup key
-- **Close position logic**: P&L calculation `priceDiff * quantity - fees` is correct for both LONG and SHORT; `result` is derived from P&L; `realized_pnl` is set; post-trade analysis is triggered asynchronously (non-blocking)
-- **URL-driven state**: Tab state persisted via `useSearchParams`; view mode (gallery/list) persisted via URL; default tab is 'active' (clears param); implements the UX Consistency Standard
-- **Pagination**: Cursor-based with `trade_date + id` composite cursor; `hasMore` detection via `limit + 1` pattern; infinite scroll via `useInView` with proper threshold and rootMargin
-- **Delete flow**: Closed trades use soft-delete (`useSoftDeleteTradeEntry`); open trades use hard delete (`useDeleteTradeEntry`); confirmation dialog uses correct recoverable messaging ("Settings > Deleted Trades")
-- **Read-only enforcement**: `isReadOnly` correctly set for `source === 'binance'` or `trade_mode === 'live'`; enrichment drawer respects this flag
-- **Binance position direction**: `positionAmt >= 0 ? 'LONG' : 'SHORT'` is safe because Binance positions with `positionAmt === 0` are filtered upstream
-- **Query invalidation**: Both paginated and non-paginated query keys are invalidated on mutations; enrichment drawer correctly invalidates the relevant query key based on whether it's a Binance or DB trade
-- **Loading states**: Full skeleton loader for initial page load; MetricsGridSkeleton for TradingJournal; 3-card skeleton for TradeDetail
-- **Not found state**: TradeDetail shows "Trade not found or access denied" with back button
-- **Empty states**: EmptyState component used for zero trades in history
-- **Page title management**: TradeDetail sets `document.title` and cleans up on unmount
-- **Filter state encapsulation**: `useTradeHistoryFilters` properly encapsulates all filter logic with computed values and memoized actions
-- **ARIA attributes**: Tab triggers have `aria-hidden` on icons; buttons have `aria-label`; view mode toggles have `aria-label`
-- **Semantic colors**: `text-profit` / `text-loss` used consistently for PnL display across both pages
-- **Content-aware sections**: TradeDetail hides sections (Timing, Timeframe, Strategy, Journal) when no data exists via `hasContent()` checks
-- **Screenshot display**: Lazy-loaded images with `loading="lazy"`; links open in new tab with `rel="noopener noreferrer"`
-- **Enrichment CTA**: Shown only when `!hasAnyEnrichment` to encourage trade documentation
-- **Metadata collapsible**: Properly uses Radix Collapsible for IDs and system metadata
-- **Trade audit logging**: Create, close, and delete operations all log audit events with proper entity tracking
-- **`startTransition` in AllPositionsTable**: Navigation to detail pages correctly wrapped (lines 279, 380)
-- **Security (RLS)**: All queries scoped to `user_id` via RLS; TradeDetail query explicitly adds `.eq("user_id", user.id)`
+- **Cross-tab sync locking**: `acquireSyncLock` / `releaseSyncLock` with 5-minute stale timeout; properly released in both `onSuccess` and `onError` callbacks
+- **Sync quota enforcement**: Server-side atomic RPC (`check_sync_quota` + `increment_sync_quota`) before every full sync; UI blocks when exhausted
+- **Checkpoint persistence**: localStorage-based with 24-hour expiry; properly cleared on success, preserved on failure for resume
+- **Checkpoint resume**: Skips already-processed symbols; uses `insertedTradeIds` to avoid re-inserting trades; correctly restores `timeRange` from checkpoint
+- **Duplicate protection (Binance)**: Deduplication via `binance_trade_id` lookup before insert in both incremental and full sync
+- **Duplicate protection (Solana)**: Uses `signature` as `binance_trade_id` for dedup check
+- **Rate limit handling**: Adaptive delay based on `usedWeight` header; automatic retry on 429 with exponential backoff
+- **Batch insert with retry**: Atomic RPC `batch_insert_trades` with 3 retries per batch; partial success tracking
+- **Force re-fetch flow**: Confirmation dialog before destructive delete; clears all binance-sourced trades before re-downloading
+- **Income pagination**: Cursor-based using `tranId` with safety limit (20,000 records); proper chunk-based time windowing
+- **Trade pagination**: Handles Binance 7-day limit via chunking; cursor-based `fromId` for trades exceeding 1000/request
+- **Symbol validation**: `isValidFuturesSymbol` correctly validates length, USDT/BUSD suffix, and alphanumeric pattern
+- **Symbol optimization**: Only fetches symbols with non-zero `REALIZED_PNL` income (reduces API calls by ~50%)
+- **Parallel fetching**: Up to 4 symbols fetched in parallel with prefetch pipeline (overlaps IO with processing)
+- **Reconciliation**: Cross-validates aggregated PnL against Binance income records; reports match rate and quality score
+- **Audit logging**: Invalid trades logged to `audit_logs` table for review (fire-and-forget)
+- **Monitoring integration**: `recordSyncSuccess` / `recordSyncFailure` for health tracking
+- **URL tab persistence**: Tab state via `useSearchParams` with mode-aware default (Solana for paper, Binance for live)
+- **Mode isolation**: Binance tab disabled in Paper mode; `isBinanceDisabled` correctly gates all Binance interactions
+- **Paper mode banners**: Info alert shown when in Paper mode; connection prompt when not connected
+- **Stale sync detection**: 2-minute no-progress threshold with visual warning in `SyncProgressIndicator`
+- **Sync log panel**: Terminal-style collapsible with auto-scroll, semantic color coding, and clear button
+- **ETA calculation**: Batch-based estimation using per-symbol timing; null during income fetch (insufficient data)
+- **Enrichment windowing**: Groups trades into 7-day windows for efficient income fetching; deduplicates by `tranId`
+- **Enrichment progress**: Multi-phase tracking (checking -> fetching-income -> fetching-trades -> enriching -> updating -> done)
+- **Loading states**: Spinner badges for incremental sync; full progress UI for full sync; Loader2 for Solana scan
+- **Empty states**: "No DEX trades found" with "Scan More" option; zero-trade completion messages
+- **Error states**: Error badge with resume/retry buttons for full sync; error message with retry for Solana
+- **Feature highlight cards**: Properly dimmed in Paper mode with `(Live only)` label
+- **Solana wallet detection**: Proper `connected` check with wallet connect CTA
+- **Solana import mode awareness**: Badge shows "Paper" or "Live" target mode; `trade_mode` correctly passed to `mapToTradeEntry`
+- **Background sync**: Service worker with IndexedDB for offline sync requests; notification on completion
+- **ARIA/accessibility**: Tooltips on all action buttons; collapsible triggers are keyboard-accessible
+- **Semantic colors**: `text-profit` for success badges; `text-warning` for rate limit; `text-destructive` for errors
+- **Query invalidation**: `invalidateTradeQueries` called after successful sync (both incremental and full) and enrichment
 
 ---
 
@@ -115,23 +132,38 @@ The following were explicitly verified and found functionally sound:
 
 | # | File | Issue | Criteria | Severity |
 |---|------|-------|----------|----------|
-| 1 | `TradeDetail.tsx` lines 314, 340 | Navigation back without `startTransition` | Code Quality | Medium |
-| 2 | `TradingJournal.tsx` + `TradeDetail.tsx` | Missing top-level ErrorBoundary on both pages | Comprehensiveness | Medium |
-| 3 | `TradeDetail.tsx` line 30 | Dead import: `Pencil` icon unused | Code Quality | Low |
+| 1 | `use-solana-trade-import.ts` line 189 | Direction mapped to `BUY`/`SELL`/`UNKNOWN` but DB constraint only allows `LONG`/`SHORT` -- all Solana imports fail | Accuracy, Data Integrity | Critical |
+| 2 | `use-trade-enrichment-binance.ts` line 493 | Raw error messages leaked to user via toast | Security | High |
+| 3 | `ImportTrades.tsx` | Missing top-level ErrorBoundary | Comprehensiveness | Medium |
 
-Total: 2 files, 3 fixes.
+Total: 3 files, 3 fixes.
 
 ## Technical Details
 
-### Fix 1: Add startTransition to TradeDetail navigation
+### Fix 1: Correct Solana direction mapping
 
-In `TradeDetail.tsx`, add `startTransition` to the import from React and wrap both `navigate(-1)` calls with it.
+In `src/hooks/use-solana-trade-import.ts` line 189, replace:
+```typescript
+direction: trade.direction === 'LONG' ? 'BUY' : trade.direction === 'SHORT' ? 'SELL' : 'UNKNOWN',
+```
+With:
+```typescript
+direction: trade.direction === 'LONG' ? 'LONG' : trade.direction === 'SHORT' ? 'SHORT' : 'LONG',
+```
 
-### Fix 2: ErrorBoundary for both pages
+### Fix 2: Sanitize enrichment error toast
 
-Import `ErrorBoundary` from `@/components/ui/error-boundary` and add `useState` for `retryKey`. Wrap the main content area of each page.
+In `src/hooks/trading/use-trade-enrichment-binance.ts` line 493, replace:
+```typescript
+toast.error(`Enrichment failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+```
+With:
+```typescript
+console.error('[Enrichment] Error:', error);
+toast.error('Trade enrichment failed. Please try again.');
+```
 
-### Fix 3: Remove dead import
+### Fix 3: Add ErrorBoundary to ImportTrades page
 
-Remove `Pencil` from the lucide-react import destructuring in `TradeDetail.tsx`.
+In `src/pages/ImportTrades.tsx`, import `ErrorBoundary` and wrap the page content with `retryKey` state pattern, following the established convention from other audited pages.
 
