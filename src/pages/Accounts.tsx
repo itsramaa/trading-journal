@@ -63,29 +63,7 @@ export default function Accounts() {
   const { format, formatPnl } = useCurrencyConversion();
   const { showExchangeData, showPaperData } = useModeVisibility();
 
-  // All account IDs for open trades query
-  const allAccountIds = useMemo(() => accounts?.map(a => a.id) || [], [accounts]);
-
-  // Query for open trades across all accounts
-  const { data: openTradesCount } = useQuery({
-    queryKey: ['open-trades-count', allAccountIds],
-    queryFn: async () => {
-      if (!allAccountIds.length) return 0;
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return 0;
-      
-      const { count } = await supabase
-        .from('trade_entries')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .eq('status', 'open')
-        .in('trading_account_id', allAccountIds);
-      
-      return count || 0;
-    },
-    enabled: allAccountIds.length > 0,
-    staleTime: 30 * 1000,
-  });
+  // openTradesCount moved below modeAccounts declaration
 
   const handleTransact = (accountId: string, type: 'deposit' | 'withdraw') => {
     const account = accounts?.find(a => a.id === accountId);
@@ -99,7 +77,6 @@ export default function Accounts() {
     setEditDialogOpen(true);
   };
 
-  const isConfigured = showExchangeData && (connectionStatus?.isConfigured ?? false);
   const isConnected = showExchangeData && (connectionStatus?.isConnected ?? false);
   const activePositions = isConnected ? (positions?.filter(p => p.positionAmt !== 0) || []) : [];
   
@@ -109,6 +86,30 @@ export default function Accounts() {
       const paper = isPaperAccount(a);
       return showPaperData ? paper : !paper;
     }), [accounts, showPaperData]);
+
+  // Mode-filtered account IDs for open trades query
+  const modeAccountIds = useMemo(() => modeAccounts.map(a => a.id), [modeAccounts]);
+
+  // Query for open trades - filtered by active mode
+  const { data: openTradesCount } = useQuery({
+    queryKey: ['open-trades-count', modeAccountIds],
+    queryFn: async () => {
+      if (!modeAccountIds.length) return 0;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return 0;
+      
+      const { count } = await supabase
+        .from('trade_entries')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('status', 'open')
+        .in('trading_account_id', modeAccountIds);
+      
+      return count || 0;
+    },
+    enabled: modeAccountIds.length > 0,
+    staleTime: 30 * 1000,
+  });
 
   const totalDbBalance = useMemo(() => 
     modeAccounts.reduce((sum, a) => sum + (Number(a.balance) || 0), 0),

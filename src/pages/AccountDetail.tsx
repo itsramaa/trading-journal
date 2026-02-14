@@ -22,7 +22,7 @@ import { AccountDetailFinancial } from "@/components/accounts/detail/AccountDeta
 import { useAccounts, useAccountTransactions } from "@/hooks/use-accounts";
 import { useAccountAnalytics } from "@/hooks/use-account-analytics";
 import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
-import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
+
 import {
   useBinanceConnectionStatus,
   useBinanceBalance,
@@ -71,7 +71,7 @@ export default function AccountDetail() {
     ? 'Connected Exchange • USDT'
     : `${account?.metadata?.broker || 'Trading Account'} • ${account?.currency}`;
   const initialBalance = isBinanceVirtual
-    ? (Number(binanceBalance?.totalWalletBalance) || 0) // Use wallet balance as baseline for Live
+    ? Math.max((Number(binanceBalance?.totalWalletBalance) || 0) - (stats?.totalPnlNet || 0), 1)
     : (account?.metadata?.initial_balance || Number(account?.balance));
   const unrealizedPnl = Number(binanceBalance?.totalUnrealizedProfit) || 0;
 
@@ -184,7 +184,7 @@ export default function AccountDetail() {
           activePositionsCount={isBinanceVirtual ? activePositions.length : undefined}
         />
 
-        {/* Tabs - identical 4 tabs for both modes */}
+        {/* Tabs - identical 3 tabs for both modes */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
            <TabsList>
              <TabsTrigger value="overview">Overview</TabsTrigger>
