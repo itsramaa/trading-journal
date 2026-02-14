@@ -38,9 +38,11 @@ const NAVIGATION_SHORTCUTS: Record<string, { path: string; label: string; domain
   'm': { path: '/market', label: 'AI Analysis', domain: 'Market' },
   'c': { path: '/calendar', label: 'Economic Calendar', domain: 'Market' },
   'v': { path: '/market-data', label: 'Market Data', domain: 'Market' },
+  'o': { path: '/top-movers', label: 'Top Movers', domain: 'Market' },
   
   // Journal domain  
   't': { path: '/trading', label: 'Trading Journal', domain: 'Journal' },
+  'n': { path: '/import', label: 'Import & Sync', domain: 'Journal' },
   
   // Risk domain
   'r': { path: '/risk', label: 'Risk Overview', domain: 'Risk' },
@@ -58,6 +60,9 @@ const NAVIGATION_SHORTCUTS: Record<string, { path: string; label: string; domain
   
   // Accounts domain
   'a': { path: '/accounts', label: 'Accounts', domain: 'Accounts' },
+  
+  // Tools domain
+  'w': { path: '/export', label: 'Bulk Export', domain: 'Tools' },
   
   // Settings domain
   ',': { path: '/settings', label: 'Settings', domain: 'Settings' },

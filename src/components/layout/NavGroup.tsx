@@ -59,7 +59,10 @@ const ROUTE_SHORTCUTS: Record<string, string> = {
   "/daily-pnl": "L",
   "/heatmap": "E",
   "/ai-insights": "I",
+  "/top-movers": "O",
   "/accounts": "A",
+  "/import": "N",
+  "/export": "W",
   "/settings": ",",
 };
 
