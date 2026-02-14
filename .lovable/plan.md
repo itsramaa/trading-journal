@@ -1,69 +1,76 @@
 
 
-# Fix: Data Mismatch di Accounts Page (Paper vs Live)
+# Fix: Mode-Based Account Filtering
 
-## Root Cause
+## Masalah Saat Ini
 
-Semua akun di database memiliki `exchange: manual` → semuanya dianggap "paper account". Ketika mode Live aktif, filter `excludeBacktest={true}` membuang SEMUA akun, sehingga:
-- **Summary Cards**: Menampilkan data Binance API (benar)
-- **AccountCardList**: Kosong (ngaco - tidak ada akun live di DB)
-- **AccountComparisonTable**: Kosong juga
+Halaman Accounts menampilkan **semua akun** di kedua mode. Seharusnya:
 
-Masalah utama: **tidak ada mekanisme untuk menampilkan akun live dari Binance sebagai card**.
+| Mode | Akun yang Ditampilkan | Add Account |
+|------|----------------------|-------------|
+| Paper | Paper accounts (`exchange: manual`) | Ya |
+| Live | Exchange accounts (`exchange: binance`, dll) | Tidak |
 
-## Solusi
+Layout dan komponen 100% sama, hanya **data source** yang berbeda.
 
-Karena user ingin layout 100% identik antara Paper dan Live (hanya data beda), kita perlu:
+## Perubahan
 
-### 1. Hapus filter Paper/Live di `AccountCardList`
+### `src/pages/Accounts.tsx`
 
-Ganti props `excludeBacktest` / `backtestOnly` menjadi menampilkan **semua akun** di kedua mode. Akun yang ada di DB tetap ditampilkan tanpa filter mode.
+1. **Re-add mode filter ke `AccountCardList`**:
+   - Paper mode: `backtestOnly={true}` (hanya paper accounts)
+   - Live mode: `excludeBacktest={true}` (hanya exchange accounts)
+
+2. **Conditional Add Account**: Hanya tampil di Paper mode
+
+3. **Summary Cards**: Filter balance/count berdasarkan mode juga
 
 ```typescript
-// BEFORE (di Accounts.tsx)
-<AccountCardList
-  filterType="trading"
-  excludeBacktest={!showPaperData}  // Live: hide paper
-  backtestOnly={showPaperData}      // Paper: only paper
-/>
+const { showPaperData } = useModeVisibility();
 
-// AFTER
+// Filter accounts for summary berdasarkan mode
+const modeAccounts = useMemo(() => 
+  (accounts || []).filter(a => {
+    const paper = isPaperAccount(a);
+    return showPaperData ? paper : !paper;
+  }), [accounts, showPaperData]);
+
+const totalDbBalance = useMemo(() => 
+  modeAccounts.reduce((sum, a) => sum + (Number(a.balance) || 0), 0),
+  [modeAccounts]);
+
+const modeAccountsCount = modeAccounts.length;
+```
+
+```typescript
+// Section Header - Add Account hanya di Paper mode
+<div className="flex items-center justify-between">
+  <h2 className="text-xl font-semibold">Trading Accounts</h2>
+  {showPaperData && <AddAccountForm />}
+</div>
+
+// AccountCardList dengan mode filter
 <AccountCardList
   filterType="trading"
+  excludeBacktest={!showPaperData}
+  backtestOnly={showPaperData}
   onTransact={handleTransact}
   onEdit={handleEdit}
-  emptyMessage="No trading accounts yet."
+  emptyMessage={showPaperData 
+    ? "No paper accounts yet. Create one to get started." 
+    : "No exchange accounts found. Connect your exchange in API Settings."}
 />
 ```
 
-### 2. Update Summary Cards agar konsisten
+### Import tambahan
 
-Summary cards harus menampilkan data yang sesuai dengan apa yang ditampilkan di card list (semua akun), bukan data per-mode. Karena semua akun saat ini adalah paper, summary harus mencerminkan total balance dari semua akun DB + data Binance jika connected.
+Tambah `isPaperAccount` dari `@/lib/account-utils` untuk filter summary cards.
 
-| Metric | Value |
-|--------|-------|
-| Balance | Total semua akun DB (+ Binance balance jika connected) |
-| Accounts | Jumlah semua akun DB (+ 1 jika Binance connected) |
-| Open Positions | Paper open trades + Binance positions |
-
-### 3. Simplify `AccountCardList` filter logic
-
-Hapus props `excludeBacktest` dan `backtestOnly` karena tidak lagi diperlukan di halaman Accounts. Filter hanya berdasarkan `filterType`.
-
-### 4. Update `AccountComparisonTable`
-
-Hapus filter `tradeMode` agar menampilkan comparison semua akun yang punya trades, regardless of mode.
-
-## Files yang Diubah
+### File
 
 | File | Perubahan |
 |------|-----------|
-| `src/pages/Accounts.tsx` | Hapus filter mode di AccountCardList, simplify summary cards |
-| `src/components/accounts/AccountCardList.tsx` | Hapus props `excludeBacktest`/`backtestOnly`, tampilkan semua akun |
-| `src/components/accounts/AccountComparisonTable.tsx` | Hapus filter tradeMode |
+| `src/pages/Accounts.tsx` | Re-add mode filter, conditional Add Account, filter summary by mode |
 
-## Catatan
-
-- Props `excludeBacktest`/`backtestOnly` tetap ada di `AccountCardList` dan `AccountSelect` untuk backward compatibility (dipakai di komponen lain), tapi di halaman Accounts tidak lagi digunakan.
-- Ke depan, jika user menambahkan akun dengan exchange selain `manual` (misal `binance`), akun tersebut otomatis muncul sebagai akun Live.
+`AccountCardList.tsx` tidak perlu diubah -- props `excludeBacktest`/`backtestOnly` sudah berfungsi dengan benar.
 
