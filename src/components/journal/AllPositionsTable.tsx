@@ -30,9 +30,10 @@ import {
   X,
   Trash2,
   BookOpen,
-  Lock,
+  Eye,
   Clock,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import type { TradeEntry } from "@/hooks/use-trade-entries";
 import type { BinancePosition } from "@/features/binance/types";
 
@@ -161,6 +162,7 @@ export function AllPositionsTable({
   onDelete,
   formatCurrency,
 }: AllPositionsTableProps) {
+  const navigate = useNavigate();
   const unifiedPositions = mapToUnifiedPositions(paperPositions, binancePositions);
 
   if (isLoading) {
@@ -306,25 +308,20 @@ export function AllPositionsTable({
                     <Button
                       size="sm"
                       variant="ghost"
+                      onClick={() => navigate(`/trading/${position.id}`)}
+                      title="View detail"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
                       onClick={() => onEnrich(position)}
                       title="Enrich with journal data"
                     >
                       <BookOpen className="h-4 w-4" />
                     </Button>
-                    {position.isReadOnly ? (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="inline-flex items-center px-2 text-muted-foreground">
-                              <Lock className="h-3.5 w-3.5" />
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p className="text-xs">Live trades are read-only</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    ) : (
+                    {!position.isReadOnly && (
                       <>
                         {onEdit && (
                           <Button
