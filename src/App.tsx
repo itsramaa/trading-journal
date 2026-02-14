@@ -19,7 +19,6 @@ import { AIChatbot } from "./components/chat/AIChatbot";
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Accounts = lazy(() => import("./pages/Accounts"));
 const AccountDetail = lazy(() => import("./pages/AccountDetail"));
-const BinanceAccountDetail = lazy(() => import("./pages/BinanceAccountDetail"));
 const TradingJournal = lazy(() => import("./pages/trading-journey/TradingJournal"));
 const TradeHistory = lazy(() => import("./pages/TradeHistory"));
 const StrategyManagement = lazy(() => import("./pages/trading-journey/StrategyManagement"));
@@ -155,7 +154,6 @@ const App = () => (
                 
                 {/* Accounts Domain */}
                 <Route path="/accounts" element={<Accounts />} />
-                <Route path="/accounts/binance" element={<BinanceAccountDetail />} />
                 <Route path="/accounts/:accountId" element={<AccountDetail />} />
                 <Route path="/export" element={<BulkExport />} />
                 

@@ -67,6 +67,12 @@ import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { AccountTransactionDialog } from "@/components/accounts/AccountTransactionDialog";
 import { EditAccountDialog } from "@/components/accounts/EditAccountDialog";
+import {
+  useBinanceConnectionStatus,
+  useBinanceBalance,
+  useBinancePositions,
+  useRefreshBinanceData,
+} from "@/features/binance";
 import { toast } from "sonner";
 import type { AccountType, AccountTransactionType } from "@/types/account";
 import { isPaperAccount } from "@/lib/account-utils";
@@ -87,14 +93,29 @@ const TRANSACTION_TYPE_CONFIG: Record<
 export default function AccountDetail() {
   const { accountId } = useParams<{ accountId: string }>();
   const navigate = useNavigate();
+  
+  const isBinanceVirtual = accountId === 'binance';
+  
+  // DB account hooks (skip for binance virtual)
   const { data: accounts, isLoading: accountsLoading } = useAccounts();
-  const { data: transactions, isLoading: transactionsLoading } = useAccountTransactions(accountId);
+  const { data: transactions, isLoading: transactionsLoading } = useAccountTransactions(
+    isBinanceVirtual ? undefined : accountId
+  );
   const { data: allTrades } = useModeFilteredTrades();
   const { data: stats, isLoading: statsLoading } = useAccountAnalytics({ 
-    accountId: accountId || '' 
+    accountId: isBinanceVirtual ? '' : (accountId || '')
   });
   const { format: formatCurrency, formatPnl } = useCurrencyConversion();
   const deleteAccount = useDeleteAccount();
+
+  // Binance hooks (always called, data used only when isBinanceVirtual)
+  const { data: connectionStatus, isLoading: binanceStatusLoading } = useBinanceConnectionStatus();
+  const { data: binanceBalance, isLoading: binanceBalanceLoading } = useBinanceBalance();
+  const { data: binancePositions } = useBinancePositions();
+  const refreshBinance = useRefreshBinanceData();
+  
+  const isConnected = connectionStatus?.isConnected ?? false;
+  const activePositions = binancePositions?.filter(p => p.positionAmt !== 0) || [];
 
   // Dialog states for actions
   const [transactionDialogOpen, setTransactionDialogOpen] = useState(false);
@@ -104,8 +125,9 @@ export default function AccountDetail() {
   
   // Filter trades for this account (for equity curve and strategy breakdown)
   const accountTrades = useMemo(() => {
+    if (isBinanceVirtual) return [];
     return allTrades?.filter(t => t.trading_account_id === accountId && t.status === 'closed') || [];
-  }, [allTrades, accountId]);
+  }, [allTrades, accountId, isBinanceVirtual]);
 
   // Equity curve data
   const equityData = useMemo(() => {
@@ -160,9 +182,28 @@ export default function AccountDetail() {
   const [typeFilter, setTypeFilter] = useState<AccountTransactionType | "all">("all");
   const [activeTab, setActiveTab] = useState("overview");
 
-  const account = accounts?.find((a) => a.id === accountId);
+  const account = isBinanceVirtual ? null : accounts?.find((a) => a.id === accountId);
   const isBacktest = account ? isPaperAccount(account) : false;
   
+  // Derived values for unified rendering
+  const displayName = isBinanceVirtual ? 'Binance Futures' : (account?.name || '');
+  const displayBalance = isBinanceVirtual 
+    ? (Number(binanceBalance?.totalWalletBalance) || 0)
+    : Number(account?.balance || 0);
+  const displayCurrency = isBinanceVirtual ? 'USDT' : (account?.currency || 'USD');
+  const displaySubtitle = isBinanceVirtual 
+    ? 'Connected Exchange • USDT' 
+    : `${account?.metadata?.broker || 'Trading Account'} • ${account?.currency}`;
+  const DetailIcon = isBinanceVirtual ? Activity : (
+    account ? (isBacktest ? FlaskConical : ACCOUNT_TYPE_ICONS[account.account_type]) : CandlestickChart
+  );
+
+  // Binance-specific metrics
+  const unrealizedPnl = Number(binanceBalance?.totalUnrealizedProfit) || 0;
+  const availableBalance = Number(binanceBalance?.availableBalance) || 0;
+  const marginUsed = isBinanceVirtual ? (displayBalance - availableBalance) : 0;
+  const marginUsedPercent = displayBalance > 0 ? (marginUsed / displayBalance) * 100 : 0;
+
   // Filter transactions
   const filteredTransactions = useMemo(() => {
     if (!transactions) return [];
@@ -186,12 +227,11 @@ export default function AccountDetail() {
       .reduce((sum, t) => sum + Number(t.amount), 0);
     return { totalDeposits, totalWithdrawals, netFlow: totalDeposits - totalWithdrawals };
   }, [transactions]);
-  
-  const Icon = account 
-    ? (isBacktest ? FlaskConical : ACCOUNT_TYPE_ICONS[account.account_type]) 
-    : CandlestickChart;
 
-  if (accountsLoading) {
+  // Loading states
+  const isLoading = isBinanceVirtual ? (binanceStatusLoading || binanceBalanceLoading) : accountsLoading;
+
+  if (isLoading) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-8 w-48" />
@@ -204,7 +244,19 @@ export default function AccountDetail() {
     );
   }
 
-  if (!account) {
+  // Not found check
+  if (isBinanceVirtual && !isConnected) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12">
+        <p className="text-muted-foreground">Binance not connected</p>
+        <Button onClick={() => navigate("/accounts")} className="mt-4">
+          Back to Accounts
+        </Button>
+      </div>
+    );
+  }
+
+  if (!isBinanceVirtual && !account) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <p className="text-muted-foreground">Account not found</p>
@@ -218,8 +270,8 @@ export default function AccountDetail() {
   return (
     <>
       <Helmet>
-        <title>{account.name} | Trading Account</title>
-        <meta name="description" content={`Analytics and details for ${account.name}`} />
+        <title>{displayName} | Trading Account</title>
+        <meta name="description" content={`Analytics and details for ${displayName}`} />
       </Helmet>
 
       <div className="space-y-6">
@@ -229,27 +281,38 @@ export default function AccountDetail() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div 
-            className={`flex h-12 w-12 items-center justify-center rounded-xl ${isBacktest ? 'bg-chart-4' : 'bg-primary'}`}
+            className={`flex h-12 w-12 items-center justify-center rounded-xl ${isBacktest && !isBinanceVirtual ? 'bg-chart-4' : 'bg-primary'}`}
           >
-            <Icon className="h-6 w-6 text-primary-foreground" />
+            <DetailIcon className="h-6 w-6 text-primary-foreground" />
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-2xl font-bold truncate">{account.name}</h1>
-              {isBacktest && <Badge variant="secondary">Paper Trading</Badge>}
-              {account.exchange && account.exchange !== 'manual' && (
+              <h1 className="text-2xl font-bold truncate">{displayName}</h1>
+              {isBinanceVirtual && (
+                <Badge variant="outline" className="text-profit border-profit/30">Live</Badge>
+              )}
+              {!isBinanceVirtual && isBacktest && <Badge variant="secondary">Paper Trading</Badge>}
+              {!isBinanceVirtual && account?.exchange && account.exchange !== 'manual' && (
                 <Badge variant="outline" className="capitalize">{account.exchange}</Badge>
               )}
             </div>
-            <p className="text-muted-foreground">
-              {account.metadata?.broker || 'Trading Account'} • {account.currency}
-            </p>
+            <p className="text-muted-foreground">{displaySubtitle}</p>
           </div>
           <div className="flex items-center gap-3 sm:ml-auto">
             <div className="text-right">
-              <p className="text-sm text-muted-foreground">Current Balance</p>
-              <p className="text-2xl font-bold">{formatCurrency(Number(account.balance))}</p>
+              <p className="text-sm text-muted-foreground">{isBinanceVirtual ? 'Wallet Balance' : 'Current Balance'}</p>
+              <p className="text-2xl font-bold">{formatCurrency(displayBalance)}</p>
             </div>
+            {isBinanceVirtual ? (
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => refreshBinance.mutate()}
+                disabled={refreshBinance.isPending}
+              >
+                <RefreshCw className={`h-4 w-4 ${refreshBinance.isPending ? 'animate-spin' : ''}`} />
+              </Button>
+            ) : (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="icon">
@@ -280,6 +343,7 @@ export default function AccountDetail() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            )}
           </div>
         </div>
 
@@ -289,22 +353,24 @@ export default function AccountDetail() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Net P&L</p>
-                  {statsLoading ? <Skeleton className="h-7 w-24" /> : (
-                    <p className={`text-xl font-bold ${(stats?.totalPnlNet || 0) >= 0 ? 'text-profit' : 'text-loss'}`}>
-                      {formatPnl(stats?.totalPnlNet || 0)}
+                  <p className="text-sm text-muted-foreground">{isBinanceVirtual ? 'Unrealized P&L' : 'Net P&L'}</p>
+                  {statsLoading && !isBinanceVirtual ? <Skeleton className="h-7 w-24" /> : (
+                    <p className={`text-xl font-bold ${(isBinanceVirtual ? unrealizedPnl : (stats?.totalPnlNet || 0)) >= 0 ? 'text-profit' : 'text-loss'}`}>
+                      {formatPnl(isBinanceVirtual ? unrealizedPnl : (stats?.totalPnlNet || 0))}
                     </p>
                   )}
                 </div>
-                {(stats?.totalPnlNet || 0) >= 0 ? (
+                {(isBinanceVirtual ? unrealizedPnl : (stats?.totalPnlNet || 0)) >= 0 ? (
                   <TrendingUp className="h-8 w-8 text-profit/50" />
                 ) : (
                   <TrendingDown className="h-8 w-8 text-loss/50" />
                 )}
               </div>
+              {!isBinanceVirtual && (
               <p className="text-xs text-muted-foreground mt-1">
                 Gross: {formatPnl(stats?.totalPnlGross || 0)}
               </p>
+              )}
             </CardContent>
           </Card>
 
@@ -312,9 +378,11 @@ export default function AccountDetail() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Return on Capital</p>
-                  {statsLoading ? <Skeleton className="h-7 w-16" /> : (() => {
-                    const initialBalance = account.metadata?.initial_balance || Number(account.balance);
+                  <p className="text-sm text-muted-foreground">{isBinanceVirtual ? 'Available Balance' : 'Return on Capital'}</p>
+                  {isBinanceVirtual ? (
+                    <p className="text-xl font-bold">{formatCurrency(availableBalance)}</p>
+                  ) : statsLoading ? <Skeleton className="h-7 w-16" /> : (() => {
+                    const initialBalance = account?.metadata?.initial_balance || Number(account?.balance);
                     const roc = initialBalance > 0 ? ((stats?.totalPnlNet || 0) / initialBalance) * 100 : 0;
                     return (
                       <p className={`text-xl font-bold ${roc >= 0 ? 'text-profit' : 'text-loss'}`}>
@@ -323,12 +391,23 @@ export default function AccountDetail() {
                     );
                   })()}
                 </div>
+                {isBinanceVirtual ? (
+                  <Target className="h-8 w-8 text-muted-foreground/50" />
+                ) : (
                 <Percent className="h-8 w-8 text-muted-foreground/50" />
+                )}
               </div>
+              {!isBinanceVirtual && (
               <p className="text-xs text-muted-foreground mt-1">
                 <InfoTooltip content="Net P&L ÷ Initial Capital × 100. Based on first deposit or current balance if no initial balance recorded." variant="help" />
                 {' '}vs initial capital
               </p>
+              )}
+              {isBinanceVirtual && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Margin Used: {marginUsedPercent.toFixed(1)}%
+                </p>
+              )}
             </CardContent>
           </Card>
 
@@ -336,19 +415,25 @@ export default function AccountDetail() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Win Rate</p>
-                  {statsLoading ? <Skeleton className="h-7 w-16" /> : (
+                  <p className="text-sm text-muted-foreground">{isBinanceVirtual ? 'Open Positions' : 'Win Rate'}</p>
+                  {isBinanceVirtual ? (
+                    <p className="text-xl font-bold">{activePositions.length}</p>
+                  ) : statsLoading ? <Skeleton className="h-7 w-16" /> : (
                     <p className="text-xl font-bold">{(stats?.winRate || 0).toFixed(1)}%</p>
                   )}
                 </div>
                 <Target className="h-8 w-8 text-muted-foreground/50" />
               </div>
+              {!isBinanceVirtual && (
               <p className="text-xs text-muted-foreground mt-1">
                 {stats?.winCount || 0}W / {stats?.lossCount || 0}L
               </p>
+              )}
             </CardContent>
           </Card>
 
+          {!isBinanceVirtual && (
+          <>
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
@@ -384,15 +469,54 @@ export default function AccountDetail() {
               </p>
             </CardContent>
           </Card>
+          </>
+          )}
+
+          {isBinanceVirtual && (
+          <>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Margin Used</p>
+                  <p className="text-xl font-bold">{formatCurrency(marginUsed)}</p>
+                </div>
+                <Percent className="h-8 w-8 text-muted-foreground/50" />
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {marginUsedPercent.toFixed(1)}% of wallet
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Total P&L</p>
+                  <p className={`text-xl font-bold ${unrealizedPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                    {formatPnl(unrealizedPnl)}
+                  </p>
+                </div>
+                <BarChart3 className="h-8 w-8 text-muted-foreground/50" />
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Across {activePositions.length} position{activePositions.length !== 1 ? 's' : ''}
+              </p>
+            </CardContent>
+          </Card>
+          </>
+          )}
         </div>
 
         {/* Tabbed Content */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
             <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="strategies">Strategies</TabsTrigger>
-            <TabsTrigger value="transactions">Transactions</TabsTrigger>
-            <TabsTrigger value="financial">Financial</TabsTrigger>
+            {!isBinanceVirtual && <TabsTrigger value="strategies">Strategies</TabsTrigger>}
+            {!isBinanceVirtual && <TabsTrigger value="transactions">Transactions</TabsTrigger>}
+            {!isBinanceVirtual && <TabsTrigger value="financial">Financial</TabsTrigger>}
+            {isBinanceVirtual && <TabsTrigger value="positions">Positions</TabsTrigger>}
           </TabsList>
 
           {/* Overview Tab - Equity Curve + Drawdown */}
@@ -753,7 +877,7 @@ export default function AccountDetail() {
                       <h3 className="text-sm font-medium mb-3">Capital Efficiency</h3>
                       <div className="grid gap-4 md:grid-cols-2">
                         {(() => {
-                          const initialBalance = account.metadata?.initial_balance || Number(account.balance);
+                          const initialBalance = account?.metadata?.initial_balance || Number(account?.balance);
                           const roc = initialBalance > 0 ? ((stats?.totalPnlNet || 0) / initialBalance) * 100 : 0;
                           const feeImpact = (stats?.totalPnlGross || 0) !== 0 
                             ? ((stats?.totalFees || 0) / Math.abs(stats?.totalPnlGross || 1)) * 100 
@@ -798,10 +922,79 @@ export default function AccountDetail() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* Binance Positions Tab */}
+          {isBinanceVirtual && (
+            <TabsContent value="positions" className="mt-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Active Positions</CardTitle>
+                  <CardDescription>Currently open positions on Binance Futures</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {activePositions.length === 0 ? (
+                    <div className="text-center py-12 text-muted-foreground">
+                      <Activity className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                      <p>No open positions</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Symbol</TableHead>
+                            <TableHead>Side</TableHead>
+                            <TableHead className="text-right">Size</TableHead>
+                            <TableHead className="text-right">Entry Price</TableHead>
+                            <TableHead className="text-right">Mark Price</TableHead>
+                            <TableHead className="text-right">Unrealized P&L</TableHead>
+                            <TableHead className="text-right">Leverage</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {activePositions.map((pos) => {
+                            const pnl = Number(pos.unrealizedProfit) || 0;
+                            const isLong = pos.positionAmt > 0;
+                            return (
+                              <TableRow key={`${pos.symbol}-${isLong ? 'long' : 'short'}`}>
+                                <TableCell className="font-medium">{pos.symbol}</TableCell>
+                                <TableCell>
+                                  <Badge variant={isLong ? "default" : "destructive"} className="text-xs">
+                                    {isLong ? 'LONG' : 'SHORT'}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-right font-mono">
+                                  {Math.abs(pos.positionAmt).toFixed(4)}
+                                </TableCell>
+                                <TableCell className="text-right font-mono">
+                                  {Number(pos.entryPrice).toFixed(2)}
+                                </TableCell>
+                                <TableCell className="text-right font-mono">
+                                  {Number(pos.markPrice).toFixed(2)}
+                                </TableCell>
+                                <TableCell className={`text-right font-mono ${pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                                  {formatPnl(pnl)}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {pos.leverage}x
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
         </Tabs>
       </div>
 
-      {/* Transaction Dialog */}
+      {/* Transaction Dialog - DB accounts only */}
+      {!isBinanceVirtual && account && (
+      <>
       <AccountTransactionDialog
         open={transactionDialogOpen}
         onOpenChange={setTransactionDialogOpen}
@@ -809,14 +1002,12 @@ export default function AccountDetail() {
         defaultTab={defaultTransactionTab}
       />
 
-      {/* Edit Dialog */}
       <EditAccountDialog
         open={editDialogOpen}
         onOpenChange={setEditDialogOpen}
         account={account}
       />
 
-      {/* Delete Confirmation */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -844,6 +1035,8 @@ export default function AccountDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </>
+      )}
     </>
   );
 }
