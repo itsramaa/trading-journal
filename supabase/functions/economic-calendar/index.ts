@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 import {
   DISPLAY_LIMITS,
   TIME_WINDOWS,
@@ -42,13 +43,6 @@ function mapFFImpact(impact: string): number {
     case 'Low': return 1;
     default: return 0;
   }
-}
-
-function isThisWeek(dateString: string): boolean {
-  const eventDate = new Date(dateString);
-  const now = new Date();
-  const weekFromNow = new Date(now.getTime() + TIME_WINDOWS.WEEK_DAYS * 24 * 60 * 60 * 1000);
-  return eventDate >= now && eventDate <= weekFromNow;
 }
 
 function isToday(dateString: string): boolean {
@@ -174,6 +168,30 @@ serve(async (req) => {
   }
 
   try {
+    // === AUTH CHECK ===
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
+    if (claimsError || !claimsData?.claims?.sub) {
+      return new Response(JSON.stringify({ error: 'Invalid token' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    // === END AUTH CHECK ===
     // Fetch from Forex Factory free JSON endpoint (no API key required)
     const ffResponse = await fetch('https://nfs.faireconomy.media/ff_calendar_thisweek.json', {
       headers: {
