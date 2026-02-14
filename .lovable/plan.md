@@ -1,56 +1,56 @@
 
-# Notifications Page: Deep UX Analysis & Fixes
 
-## Scope & Coverage
+# LivePriceTicker Marquee: Deep UX Analysis & Fix
 
-Analyzed files (all read in full):
-- `src/pages/Notifications.tsx` (220 lines, page with 2 tabs: All / Unread)
-- `src/hooks/use-notifications.ts` (provided in context, DB queries + realtime)
-- `src/hooks/use-notification-triggers.ts` (provided in context, auto-create notifications)
-- `src/hooks/use-push-notifications.ts` (provided in context, Web Push)
-- `src/hooks/use-weekly-report-export.ts` (weekly PDF export, used inline)
-- `src/lib/constants/notification-config.ts` (provided in context, type-to-color mapping)
-- `src/store/app-store.ts` (provided in context, legacy local notifications)
+## Root Cause
 
-## Issue Found
+The `SidebarInset` component (`src/components/ui/sidebar.tsx`, line 277) applies `overflow-x-hidden` to the `<main>` wrapper. This is the direct parent of the `LivePriceTicker`.
 
-### 1. Uncontrolled Tabs -- No URL Persistence
+The ticker's marquee works by:
+1. Duplicating all 10 price items (20 total)
+2. Setting inner div to `width: max-content` (overflows the container)
+3. Animating with `transform: translateX(-50%)` to create a seamless loop
+4. On hover: switching to `overflow-x-auto` for manual drag-to-scroll
 
-**Line 168**: `<Tabs defaultValue="all">` uses uncontrolled `defaultValue`. No `useSearchParams` is imported or used anywhere in the file.
+**Both behaviors are broken** because the grandparent `<main>` clips all horizontal overflow before the ticker's own overflow rules can take effect.
 
-This means:
-- Switching between "All" and "Unread" tabs does not update the URL
-- Browser back/forward and bookmarking after tab switch are broken
-- Deep-linking (e.g., `/notifications?tab=unread`) does not work
-- Inconsistent with the controlled `useSearchParams` pattern now established on Settings, Profile, Bulk Export, Strategies, Backtest, Performance, Risk, Position Calculator, AI Insights, and Import pages
+## Fix
 
-**Fix**: Import `useSearchParams`, derive `activeTab`, replace `defaultValue` with controlled `value`/`onValueChange`.
+Wrap the `LivePriceTicker` content in a container that isolates it from the parent's `overflow-x-hidden`. The fix is to add `overflow-x: clip` to the ticker's own container (which contains overflow within itself) while ensuring the inner scrolling div can animate freely. Specifically:
 
-### 2. No Other Issues Found
+### File: `src/components/layout/LivePriceTicker.tsx`
 
-- **Loading state**: Proper skeleton UI rendered when `isLoading` is true (lines 79-96). Clean layout with icon + text placeholders.
-- **Empty states**: Both tabs have contextual empty states -- "No notifications" with `BellOff` icon for All, "All caught up!" with `Check` icon for Unread.
-- **Color tokens**: Uses `text-profit` (valid), `text-muted-foreground` (valid), `text-primary` (valid). No broken `text-warning` usage.
-- **Mode consistency**: Notifications are user-scoped (filtered by `user_id`), not mode-dependent. Both Paper and Live see the same notification list. No fix needed.
-- **Weekly Report section**: Properly integrated with loading spinner during generation. Buttons disabled while generating. Clean.
-- **NotificationCard**: Inline component with proper read/unread styling (opacity-60 for read), mark-as-read button with pending state, asset symbol badge. No issues.
-- **Action buttons**: "Mark all as read" conditionally shown when unread > 0. "Clear all" conditionally shown when notifications exist. Both disable during pending mutation. Correct.
+The ticker container (line 110-122) currently relies on `overflow-hidden` / `overflow-x-auto` toggling. But with the parent also clipping, the animated inner div's transform is clipped at the `<main>` level.
 
----
+**Solution**: Change the ticker container to use `overflow: clip` (which clips visually but does not create a scroll container, allowing the CSS animation to work within its own bounds). For the hover/drag state, wrap the scrollable area in an additional inner container that has its own overflow context.
 
-## Implementation Plan
+Concretely:
+1. Keep the outer container as the visual boundary with `overflow-hidden` (for the animation state)
+2. When hovered, switch the **outer container** to `overflow-x-auto` -- but this alone is blocked by the parent's `overflow-x-hidden`
+3. The real fix: remove `overflow-x-hidden` from `SidebarInset` and replace with `overflow-x-clip`. `overflow-x-clip` prevents layout-level horizontal scroll bars on the page but does NOT create a scroll container that blocks child `overflow-x-auto` elements.
 
-### File: `src/pages/Notifications.tsx`
-1. Import `useSearchParams` from `react-router-dom`
-2. Destructure `[searchParams, setSearchParams]` in the component
-3. Derive `activeTab` from `searchParams.get('tab') || 'all'`
-4. Create `setActiveTab` callback that updates search params
-5. Replace `<Tabs defaultValue="all">` with `<Tabs value={activeTab} onValueChange={setActiveTab}>`
+### File: `src/components/ui/sidebar.tsx`
 
----
+**Line 277**: Replace `overflow-x-hidden` with `overflow-x-clip`.
+
+`overflow-x-clip` is the modern CSS property that clips overflow visually (like `hidden`) but does **not** establish a new scroll container. This means:
+- The page still won't show horizontal scrollbars (same visual result)  
+- Child elements like the ticker can manage their own overflow independently
+- CSS animations using `transform` on child elements work correctly
+
+## No Other Issues Found
+
+- **Data fetching**: Network request returns 200 with valid data from the edge function proxy
+- **Loading state**: Skeleton UI properly renders during loading
+- **Mode consistency**: Ticker is mode-agnostic (uses public Binance API, not user-scoped data)
+- **Color tokens**: Uses `text-profit` and `text-loss` (valid semantic tokens)
+- **Header layout**: Breadcrumbs, TradeModeSelector, search, notifications -- all properly structured
 
 ## Technical Summary
 
-| File | Changes |
-|------|---------|
-| `src/pages/Notifications.tsx` | Controlled tabs via `useSearchParams` (4 lines added/changed) |
+| File | Change |
+|------|--------|
+| `src/components/ui/sidebar.tsx` (line 277) | Replace `overflow-x-hidden` with `overflow-x-clip` |
+
+This single change unblocks both the marquee animation and the drag-to-scroll interaction without affecting any other page layout.
+
