@@ -1,76 +1,54 @@
 
 
-# Backtest Page: Deep UX Analysis & Fixes
+# Bulk Export Page: Deep UX Analysis & Fixes
 
 ## Scope & Coverage
 
 Analyzed files (all read in full):
-- `src/pages/Backtest.tsx` (48 lines, page orchestrator)
-- `src/components/strategy/BacktestRunner.tsx` (465 lines, run tab)
-- `src/components/strategy/BacktestResults.tsx` (392 lines, results display)
-- `src/components/strategy/BacktestComparison.tsx` (397 lines, compare tab)
-- `src/components/strategy/BacktestDisclaimer.tsx` (168 lines, disclaimer alert)
-- `src/components/strategy/BacktestSessionBreakdown.tsx` (381 lines, session analysis)
-- `src/hooks/use-backtest.ts` (CRUD hooks)
-- `src/hooks/use-backtest-export.ts` (CSV/PDF export)
-- `src/types/backtest.ts` (type definitions)
-- `src/lib/constants/backtest-config.ts` (shared constants)
+- `src/pages/BulkExport.tsx` (629 lines, page orchestrator with 5 tabs)
+- `src/components/settings/JournalExportCard.tsx` (309 lines, Journal tab content)
+- `src/components/settings/SettingsBackupRestore.tsx` (359 lines, Backup tab content)
+- `src/hooks/use-performance-export.ts` (299 lines, CSV/PDF export)
+- `src/hooks/analytics/use-contextual-export.ts` (303 lines, contextual PDF export)
+- `src/hooks/use-reconciliation-export.ts` (reconciliation CSV/PDF export)
+- `src/hooks/use-weekly-report-export.ts` (411 lines, weekly PDF generation)
+- `src/features/binance/useBinanceBulkExport.ts` (Binance bulk export workflow)
+- `src/lib/export/heatmap-export.ts` (heatmap CSV export)
+- `src/lib/export/trade-export.ts` (trade CSV/JSON export)
 
-## Issues Found
+## Issue Found
 
-### 1. Uncontrolled Page-Level Tabs -- No URL Persistence
+### 1. Uncontrolled Tabs -- Partial URL Read Without Write-Back
 
-**Backtest.tsx line 24**: `<Tabs defaultValue="run">` uses uncontrolled state. This means:
-- Deep links like `/backtest?tab=compare` do not work
-- Navigating away and back always resets to "Run Backtest"
-- Inconsistent with the `useSearchParams` pattern now established on AI Insights, Performance, Risk Calculator, and Strategies pages
+**Line 69**: `const [searchParams] = useSearchParams()` reads the `tab` param but does not destructure the setter.
+**Line 168**: `<Tabs defaultValue={resolvedDefaultTab}>` uses `defaultValue` (uncontrolled), meaning:
 
-Note: `BacktestRunner` already uses `useSearchParams` internally (line 49) but only to read `?strategy=` for pre-selecting a strategy -- it does not control the page tabs.
+- The tab correctly initializes from URL on first render (e.g., `/export?tab=reports` works on initial load)
+- But navigating between tabs does NOT update the URL
+- Browser back/forward buttons do not work for tab changes
+- Bookmarking after switching tabs captures the wrong tab
+- Inconsistent with the controlled `useSearchParams` pattern now established on Position Calculator, Strategies, Backtest, Performance, AI Insights, Risk, and Import pages
 
-**Fix**: Add `useSearchParams` to `Backtest.tsx` for controlled tab state (`run` | `compare`).
+**Fix**: Destructure the setter, replace `defaultValue` with controlled `value`/`onValueChange`.
 
-### 2. Broken `text-warning` Color Token in BacktestDisclaimer
+### 2. No Other Issues Found
 
-**BacktestDisclaimer.tsx** uses `text-warning`, `border-warning/50`, and `bg-warning/5` extensively (lines 47-48, 101-102, 158). The CSS variable `--warning` does not exist in the project stylesheets. This means:
-- The AlertTriangle icon has no applied color (invisible or inherited)
-- The border and background tints are not rendered
-- This is the exact same class of bug fixed in VolatilityStopLoss
-
-Affected lines:
-- Line 47: `border-warning/50 bg-warning/5`
-- Line 48: `text-warning`
-- Line 101: `border-warning/50 bg-warning/5`
-- Line 102: `text-warning`
-- Line 158: `text-warning`
-
-**Fix**: Replace with semantic chart token `chart-4` (orange/amber, used for warnings throughout the app):
-- `text-warning` -> `text-[hsl(var(--chart-4))]`
-- `border-warning/50` -> `border-[hsl(var(--chart-4))]/50`
-- `bg-warning/5` -> `bg-[hsl(var(--chart-4))]/5`
-
-### 3. Mode Consistency (No Structural Issues)
-
-BacktestRunner correctly uses `useTradeMode()` to hide Binance balance in Paper mode (line 86-87). This is a data-source label, not a structural difference. Both modes have identical feature access, layout, and flow. No fix needed.
-
-### 4. Other Observations (No Fix Needed)
-
-- **BacktestResults inner tabs** (`defaultValue="equity"` on line 249): These are sub-tabs within a transient result view -- URL persistence would be counterproductive since results are ephemeral state.
-- **BacktestComparison**: Clean implementation with proper loading skeleton, empty state, and semantic colors (`text-profit`/`text-loss`). No issues.
-- **BacktestSessionBreakdown**: Uses semantic design tokens (`chart-1` through `chart-4`, `profit`/`loss`). No issues.
-- **Export hooks**: Pure utility, no UI concerns.
+- **Mode consistency**: Correct. The page uses `useModeFilteredTrades()` for trade data and `useTradeMode()` for display labels. Binance tab correctly shows disconnected alert when not connected. Both Paper and Live modes see identical structure.
+- **Color tokens**: The Tax Reporting Tips card uses `text-chart-4`, `border-chart-4/30`, `bg-chart-4/5` which are valid Tailwind theme utilities (not the broken `text-warning` pattern).
+- **SettingsBackupRestore warning**: Uses `border-yellow-500/50 bg-yellow-500/10 text-yellow-500` -- standard destructive-override warning pattern, acceptable.
+- **JournalExportCard**: Clean implementation with proper loading state, format selection, and context toggles. No issues.
+- **Export hooks**: All pure utility hooks with no UI concerns. Mode isolation is enforced via `useModeFilteredTrades` and direct `trade_mode` filtering in weekly report queries.
+- **Empty states**: All export cards properly disable buttons when data is unavailable and show descriptive badges ("No data", "No sync data").
+- **Loading states**: Binance export shows progress bar with poll count. Weekly report shows spinner. Journal export shows spinner. All correct.
 
 ---
 
 ## Implementation Plan
 
-### File: `src/pages/Backtest.tsx`
-1. Import `useSearchParams` from `react-router-dom`
-2. Replace `<Tabs defaultValue="run">` with controlled `value`/`onValueChange` bound to URL search params
-
-### File: `src/components/strategy/BacktestDisclaimer.tsx`
-1. Replace all 5 occurrences of `text-warning` with `text-[hsl(var(--chart-4))]`
-2. Replace all `border-warning/50` with `border-[hsl(var(--chart-4))]/50`
-3. Replace all `bg-warning/5` with `bg-[hsl(var(--chart-4))]/5`
+### File: `src/pages/BulkExport.tsx`
+1. Destructure the `setSearchParams` setter from `useSearchParams()`
+2. Derive `activeTab` from search params with smart default (connected = "binance", else "journal")
+3. Replace `<Tabs defaultValue={resolvedDefaultTab}>` with `<Tabs value={activeTab} onValueChange={...}>`
 
 ---
 
@@ -78,6 +56,5 @@ BacktestRunner correctly uses `useTradeMode()` to hide Binance balance in Paper 
 
 | File | Changes |
 |------|---------|
-| `src/pages/Backtest.tsx` | Controlled tabs via `useSearchParams` |
-| `src/components/strategy/BacktestDisclaimer.tsx` | Replace 5 broken `warning` color references with semantic `chart-4` token |
+| `src/pages/BulkExport.tsx` | Controlled tabs via `useSearchParams` (3 lines changed) |
 
