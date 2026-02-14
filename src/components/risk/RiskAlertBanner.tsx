@@ -24,19 +24,19 @@ export function RiskAlertBanner() {
     <div className={cn(
       "w-full px-4 py-3 flex items-center justify-between gap-4",
       isDisabled 
-        ? "bg-red-500/10 border-b border-red-500/30" 
-        : "bg-yellow-500/10 border-b border-yellow-500/30"
+        ? "bg-loss/10 border-b border-loss/30" 
+        : "bg-[hsl(var(--chart-4))]/10 border-b border-[hsl(var(--chart-4))]/30"
     )}>
       <div className="flex items-center gap-3">
         {isDisabled ? (
-          <XCircle className="h-5 w-5 text-red-500 shrink-0" />
+          <XCircle className="h-5 w-5 text-loss shrink-0" />
         ) : (
-          <AlertTriangle className="h-5 w-5 text-yellow-500 shrink-0" />
+          <AlertTriangle className="h-5 w-5 text-[hsl(var(--chart-4))] shrink-0" />
         )}
         <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
           <span className={cn(
             "font-semibold",
-            isDisabled ? "text-red-500" : "text-yellow-500"
+            isDisabled ? "text-loss" : "text-[hsl(var(--chart-4))]"
           )}>
             {isDisabled ? '🔴 TRADING DISABLED' : '⚠️ RISK WARNING'}
           </span>
@@ -58,8 +58,8 @@ export function RiskAlertBanner() {
           asChild
           className={cn(
             isDisabled 
-              ? "text-red-500 hover:text-red-600 hover:bg-red-500/10" 
-              : "text-yellow-500 hover:text-yellow-600 hover:bg-yellow-500/10"
+              ? "text-loss hover:bg-loss/10" 
+              : "text-[hsl(var(--chart-4))] hover:bg-[hsl(var(--chart-4))]/10"
           )}
         >
           <Link to="/risk">View Details</Link>

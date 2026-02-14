@@ -16,18 +16,23 @@ import {
 } from "@/components/risk";
 import { useRiskProfile } from "@/hooks/use-risk-profile";
 import { useRiskEvents } from "@/hooks/use-risk-events";
-import { useModeVisibility } from "@/hooks/use-mode-visibility";
 import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 
 export default function RiskManagement() {
   const { data: riskProfile, isLoading: profileLoading } = useRiskProfile();
   const { events: riskEvents } = useRiskEvents();
-  const { showExchangeData } = useModeVisibility();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  const activeTab = searchParams.get("tab") || "overview";
+  const handleTabChange = (value: string) => {
+    setSearchParams({ tab: value }, { replace: true });
+  };
 
   const navigateToSettings = () => {
-    window.location.href = '/settings?tab=trading';
+    navigate('/settings?tab=trading');
   };
 
   if (profileLoading) {
@@ -51,7 +56,7 @@ export default function RiskManagement() {
         description="Configure and monitor your trading risk parameters"
       />
 
-      <Tabs defaultValue="overview" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
         <TabsList className="grid w-full grid-cols-2 lg:w-auto lg:inline-flex">
           <TabsTrigger value="overview" className="gap-2">
             <LayoutDashboard className="h-4 w-4" />
@@ -133,7 +138,7 @@ export default function RiskManagement() {
             </Card>
           </div>
 
-          {showExchangeData && <CorrelationMatrix />}
+          <CorrelationMatrix />
         </TabsContent>
 
         <TabsContent value="history">
