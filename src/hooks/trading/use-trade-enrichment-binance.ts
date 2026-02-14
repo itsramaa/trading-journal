@@ -490,7 +490,8 @@ export function useTradeEnrichmentBinance() {
       }
     },
     onError: (error) => {
-      toast.error(`Enrichment failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('[Enrichment] Error:', error);
+      toast.error('Trade enrichment failed. Please try again.');
     },
   });
   
