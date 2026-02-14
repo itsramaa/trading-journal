@@ -42,6 +42,7 @@ export function useAccounts() {
         .from('accounts')
         .select('*')
         .eq('user_id', user.id)
+        .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -199,9 +200,14 @@ export function useDeleteAccount() {
 
   return useMutation({
     mutationFn: async (id: string) => {
+      // Soft-delete: set deleted_at and deactivate (recoverable within 30 days)
       const { error } = await supabase
         .from('accounts')
-        .delete()
+        .update({ 
+          deleted_at: new Date().toISOString(), 
+          is_active: false,
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', id);
 
       if (error) throw error;

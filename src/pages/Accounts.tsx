@@ -173,7 +173,7 @@ export default function Accounts() {
         </PageHeader>
 
         {/* Accounts Overview Cards - System-First: Aggregated Data */}
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-3" role="region" aria-label="Accounts overview">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Accounts</CardTitle>
@@ -420,9 +420,6 @@ export default function Accounts() {
             </div>
             )}
 
-            {/* Account Comparison Table */}
-            <AccountComparisonTable />
-
             {/* Paper Trading Section — Paper mode only */}
             {showPaperData && (
               <div className="space-y-4">
@@ -436,6 +433,41 @@ export default function Accounts() {
                   </div>
                   <AddAccountForm />
                 </div>
+
+                {/* Paper Summary Cards */}
+                <div className="grid gap-4 md:grid-cols-3" role="region" aria-label="Paper trading summary">
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Paper Balance</CardTitle>
+                      <Wallet className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold font-mono-numbers">{format(paperTotalBalance)}</div>
+                      <p className="text-xs text-muted-foreground mt-1">Across {paperAccountsCount} account{paperAccountsCount !== 1 ? 's' : ''}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Paper Accounts</CardTitle>
+                      <FlaskConical className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{paperAccountsCount}</div>
+                      <p className="text-xs text-muted-foreground mt-1">Active paper accounts</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Open Trades</CardTitle>
+                      <ArrowDownUp className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{paperOpenTradesCount || 0}</div>
+                      <p className="text-xs text-muted-foreground mt-1">Paper positions open</p>
+                    </CardContent>
+                  </Card>
+                </div>
+
                 <AccountCardList
                   filterType="trading"
                   backtestOnly
@@ -449,6 +481,9 @@ export default function Accounts() {
                 />
               </div>
             )}
+
+            {/* Account Comparison Table - at the bottom as summary */}
+            <AccountComparisonTable />
           </TabsContent>
 
           {/* Transactions Tab - Always rendered, component handles empty state */}

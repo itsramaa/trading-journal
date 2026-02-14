@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -62,6 +62,17 @@ export function AccountTransactionDialog({
   const { data: accounts } = useAccounts();
   const deposit = useDeposit();
   const withdraw = useWithdraw();
+
+  // Sync activeTab when defaultTab prop changes (e.g., re-open with different action)
+  useEffect(() => { setActiveTab(defaultTab); }, [defaultTab]);
+
+  // Sync form accountId when defaultAccount prop changes
+  useEffect(() => {
+    if (defaultAccount?.id) {
+      depositForm.setValue('accountId', defaultAccount.id);
+      withdrawForm.setValue('accountId', defaultAccount.id);
+    }
+  }, [defaultAccount?.id]);
 
   const depositForm = useForm<TransactionFormValues>({
     resolver: zodResolver(transactionSchema),

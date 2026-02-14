@@ -17,7 +17,10 @@ import {
   Activity,
   Percent,
   DollarSign,
-  Flame
+  Flame,
+  MoreHorizontal,
+  Pencil,
+  Trash2
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -36,15 +39,35 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import {
   AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, 
   Tooltip, ResponsiveContainer, ReferenceLine, BarChart, Bar
 } from "recharts";
-import { useAccounts, useAccountTransactions } from "@/hooks/use-accounts";
+import { useAccounts, useAccountTransactions, useDeleteAccount } from "@/hooks/use-accounts";
 import { useAccountAnalytics } from "@/hooks/use-account-analytics";
 import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
+import { AccountTransactionDialog } from "@/components/accounts/AccountTransactionDialog";
+import { EditAccountDialog } from "@/components/accounts/EditAccountDialog";
+import { toast } from "sonner";
 import type { AccountType, AccountTransactionType } from "@/types/account";
 import { isPaperAccount } from "@/lib/account-utils";
 
@@ -71,6 +94,13 @@ export default function AccountDetail() {
     accountId: accountId || '' 
   });
   const { format: formatCurrency, formatPnl } = useCurrencyConversion();
+  const deleteAccount = useDeleteAccount();
+
+  // Dialog states for actions
+  const [transactionDialogOpen, setTransactionDialogOpen] = useState(false);
+  const [defaultTransactionTab, setDefaultTransactionTab] = useState<'deposit' | 'withdraw'>('deposit');
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   
   // Filter trades for this account (for equity curve and strategy breakdown)
   const accountTrades = useMemo(() => {
@@ -193,9 +223,9 @@ export default function AccountDetail() {
       </Helmet>
 
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/accounts")}>
+        {/* Header - Responsive */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+          <Button variant="ghost" size="icon" onClick={() => navigate("/accounts")} className="self-start">
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div 
@@ -203,9 +233,9 @@ export default function AccountDetail() {
           >
             <Icon className="h-6 w-6 text-primary-foreground" />
           </div>
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold">{account.name}</h1>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-2xl font-bold truncate">{account.name}</h1>
               {isBacktest && <Badge variant="secondary">Paper Trading</Badge>}
               {account.exchange && account.exchange !== 'manual' && (
                 <Badge variant="outline" className="capitalize">{account.exchange}</Badge>
@@ -215,9 +245,41 @@ export default function AccountDetail() {
               {account.metadata?.broker || 'Trading Account'} • {account.currency}
             </p>
           </div>
-          <div className="text-right">
-            <p className="text-sm text-muted-foreground">Current Balance</p>
-            <p className="text-2xl font-bold">{formatCurrency(Number(account.balance))}</p>
+          <div className="flex items-center gap-3 sm:ml-auto">
+            <div className="text-right">
+              <p className="text-sm text-muted-foreground">Current Balance</p>
+              <p className="text-2xl font-bold">{formatCurrency(Number(account.balance))}</p>
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setEditDialogOpen(true)}>
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Edit Account
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => { setDefaultTransactionTab('deposit'); setTransactionDialogOpen(true); }}>
+                  <ArrowDownCircle className="mr-2 h-4 w-4" />
+                  Deposit
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { setDefaultTransactionTab('withdraw'); setTransactionDialogOpen(true); }}>
+                  <ArrowUpCircle className="mr-2 h-4 w-4" />
+                  Withdraw
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem 
+                  className="text-destructive"
+                  onClick={() => setDeleteDialogOpen(true)}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete Account
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
@@ -629,6 +691,50 @@ export default function AccountDetail() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Transaction Dialog */}
+      <AccountTransactionDialog
+        open={transactionDialogOpen}
+        onOpenChange={setTransactionDialogOpen}
+        defaultAccount={account}
+        defaultTab={defaultTransactionTab}
+      />
+
+      {/* Edit Dialog */}
+      <EditAccountDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        account={account}
+      />
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete "{account.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This account will be moved to trash and can be recovered within 30 days via Settings. All associated transaction history will be preserved.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async () => {
+                try {
+                  await deleteAccount.mutateAsync(account.id);
+                  toast.success(`Account "${account.name}" moved to trash`);
+                  navigate("/accounts");
+                } catch (error: any) {
+                  toast.error(error?.message || "Failed to delete account");
+                }
+              }}
+            >
+              Delete Account
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

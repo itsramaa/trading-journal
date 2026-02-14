@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CandlestickChart, FlaskConical, MoreHorizontal, Trash2, ChevronRight, Pencil } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,6 +9,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAccounts, useDeleteAccount } from "@/hooks/use-accounts";
@@ -44,6 +55,7 @@ export function AccountCardList({
   const { data: allAccounts, isLoading } = useAccounts();
   const deleteAccount = useDeleteAccount();
   const { format } = useCurrencyConversion();
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   
   // Filter accounts based on type and backtest status
   const accounts = allAccounts?.filter(a => {
@@ -64,16 +76,15 @@ export function AccountCardList({
     navigate(`/accounts/${accountId}`);
   };
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Are you sure you want to delete "${name}"? This will also delete all transaction history.`)) {
-      return;
-    }
-
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
     try {
-      await deleteAccount.mutateAsync(id);
-      toast.success(`Account "${name}" deleted`);
+      await deleteAccount.mutateAsync(deleteTarget.id);
+      toast.success(`Account "${deleteTarget.name}" moved to trash`);
     } catch (error: any) {
       toast.error(error?.message || "Failed to delete account");
+    } finally {
+      setDeleteTarget(null);
     }
   };
 
@@ -110,6 +121,7 @@ export function AccountCardList({
   }
 
   return (
+    <>
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {accounts.map((account) => {
         const isBacktest = isPaperAccount(account);
@@ -154,7 +166,7 @@ export function AccountCardList({
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     className="text-destructive"
-                    onClick={(e) => { e.stopPropagation(); handleDelete(account.id, account.name); }}
+                    onClick={(e) => { e.stopPropagation(); setDeleteTarget({ id: account.id, name: account.name }); }}
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
                     Delete
@@ -184,5 +196,27 @@ export function AccountCardList({
         );
       })}
     </div>
+
+    {/* Delete Confirmation Dialog */}
+    <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete "{deleteTarget?.name}"?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This account will be moved to trash and can be recovered within 30 days via Settings. All associated transaction history will be preserved.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={handleDelete}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            Delete Account
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }
