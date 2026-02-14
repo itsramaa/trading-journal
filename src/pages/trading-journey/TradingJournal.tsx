@@ -98,7 +98,12 @@ export default function TradingJournal() {
   const [closingPosition, setClosingPosition] = useState<TradeEntry | null>(null);
   const [editingPosition, setEditingPosition] = useState<TradeEntry | null>(null);
   const [enrichingPosition, setEnrichingPosition] = useState<UnifiedPosition | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>('gallery');
+  const viewMode = (searchParams.get('view') || 'gallery') as ViewMode;
+  const setViewMode = (v: ViewMode) => {
+    const newParams = new URLSearchParams(searchParams);
+    if (v === 'gallery') { newParams.delete('view'); } else { newParams.set('view', v); }
+    setSearchParams(newParams, { replace: true });
+  };
 
   const queryClient = useQueryClient();
   const { format: formatCurrency } = useCurrencyConversion();
@@ -435,12 +440,6 @@ export default function TradingJournal() {
                 {/* Paper Pending Trades — Paper mode only */}
                 {showPaperData && (
                   <div className="space-y-3">
-                    {isBinanceConnected && showExchangeOrders && (
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Circle className="h-4 w-4" />
-                        <span>Paper Pending Trades</span>
-                      </div>
-                    )}
                     <AllPositionsTable
                       paperPositions={openPositions.filter(p => !p.entry_price || p.entry_price === 0)}
                       binancePositions={[]}

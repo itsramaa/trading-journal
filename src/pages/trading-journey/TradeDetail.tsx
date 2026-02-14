@@ -398,7 +398,7 @@ export default function TradeDetail() {
       </Card>
 
       {/* ===== ENRICHMENT CTA (for unenriched positions) ===== */}
-      {isBinancePosition && !hasAnyEnrichment && (
+      {!hasAnyEnrichment && (
         <Card className="border-dashed border-primary/30 bg-primary/5">
           <CardContent className="py-6 text-center space-y-3">
             <BookOpen className="h-8 w-8 text-primary mx-auto" />
