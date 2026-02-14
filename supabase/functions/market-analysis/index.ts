@@ -49,12 +49,12 @@ serve(async (req) => {
     const [sentimentRes, macroRes] = await Promise.all([
       fetch(`${SUPABASE_URL}/functions/v1/market-insight`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': authHeader },
         body: JSON.stringify({}),
       }),
       fetch(`${SUPABASE_URL}/functions/v1/macro-analysis`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': authHeader },
         body: JSON.stringify({}),
       }),
     ]);

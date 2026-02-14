@@ -19,7 +19,6 @@ import {
   Minus 
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useMarketSentiment, useMacroAnalysis } from "@/features/market-insight";
 import type { MarketInsightResponse, MacroAnalysisResponse } from "@/features/market-insight/types";
 
 interface AIAnalysisTabProps {
