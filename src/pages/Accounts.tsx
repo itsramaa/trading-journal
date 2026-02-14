@@ -53,7 +53,7 @@ export default function Accounts() {
   const [editAccount, setEditAccount] = useState<Account | null>(null);
   
   
-  const { data: accounts } = useAccounts();
+  const { data: accounts, isLoading: accountsLoading } = useAccounts();
   const { data: connectionStatus } = useBinanceConnectionStatus();
   const { data: balance, isLoading: balanceLoading } = useBinanceBalance();
   const { data: positions } = useBinancePositions();
@@ -102,8 +102,9 @@ export default function Accounts() {
         .from('trade_entries')
         .select('id', { count: 'exact', head: true })
         .eq('user_id', user.id)
-        .eq('status', 'open')
-        .in('trading_account_id', modeAccountIds);
+      .eq('status', 'open')
+      .is('deleted_at', null)
+      .in('trading_account_id', modeAccountIds);
       
       return count || 0;
     },
@@ -169,7 +170,7 @@ export default function Accounts() {
               <Wallet className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              {balanceLoading ? (
+              {(balanceLoading || accountsLoading) ? (
                 <Skeleton className="h-8 w-32" />
               ) : (
                 <>
