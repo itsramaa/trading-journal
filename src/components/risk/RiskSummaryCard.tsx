@@ -185,15 +185,15 @@ export function RiskSummaryCard() {
         {/* Correlation Warning */}
         {correlationWarning && (
           <div className="flex items-start gap-2 pt-2 border-t">
-            <Link2 className="h-4 w-4 text-warning mt-0.5 shrink-0" />
+            <Link2 className="h-4 w-4 text-[hsl(var(--chart-4))] mt-0.5 shrink-0" />
             <div className="flex-1">
-              <span className="text-sm font-medium text-warning">
+              <span className="text-sm font-medium text-[hsl(var(--chart-4))]">
                 Correlated Positions
               </span>
               <p className="text-xs text-muted-foreground mt-0.5">
                 {correlationWarning.pairs.length} pair{correlationWarning.pairs.length !== 1 ? 's' : ''} ({formatPercentUnsigned(correlationWarning.avgCorrelation * 100, 0)} avg)
                 {correlationWarning.highRiskCount > 0 && (
-                  <Badge variant="outline" className="ml-1.5 text-xs border-warning/30 text-warning">
+                  <Badge variant="outline" className="ml-1.5 text-xs border-[hsl(var(--chart-4))]/30 text-[hsl(var(--chart-4))]">
                     High Risk
                   </Badge>
                 )}

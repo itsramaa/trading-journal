@@ -23,7 +23,6 @@ export const CORRELATION_THRESHOLDS = {
   WARNING: 0.6,   // Show warning at 60% correlation
   HIGH: 0.75,     // High correlation threshold
   VERY_HIGH: 0.8, // Very high correlation (danger level)
-  DEFAULT_FALLBACK: 0.3, // Default when pair not in map
 } as const;
 
 // UI Color Thresholds for correlation display
