@@ -1,132 +1,89 @@
 
-
-# Deep UX Analysis & Fix Plan: Trade Detail Page
+# Trade History: Deep UX Analysis & Fixes
 
 ## Issues Found
 
-### 1. CRITICAL: Trade History Gallery Click Opens Enrichment Drawer Instead of Detail Page
-In `TradeHistoryContent.tsx` (line 78), clicking a `TradeGalleryCard` in Trade History calls `onEnrichTrade` (opens enrichment drawer) instead of navigating to `/trading/:id`. This is inconsistent with the Journal gallery cards which navigate to the detail page. Closed trades should navigate to the detail page where users can see the full trade analysis.
+### 1. CRITICAL: Back Navigation Always Goes to `/trading`, Not Referrer
+`TradeDetail.tsx` line 340 hardcodes `navigate('/trading')` for the Back button. When a user navigates from `/history` (gallery or list card click) to `/trading/:id`, pressing Back takes them to the **Trading Journal** instead of **Trade History**. This breaks the navigation mental model.
 
-### 2. CRITICAL: Console Warning - DetailRow Given Refs
-Console logs show `Function components cannot be given refs` for `DetailRow` in `TradeDetail`. The `Collapsible`/`Tooltip` components try to pass refs to `DetailRow` which is a plain function component without `forwardRef`.
+**Fix**: Replace `navigate('/trading')` with `navigate(-1)` (browser history back). This respects the referrer regardless of entry point. Add a fallback: if there's no history (direct link), default to `/trading`.
 
-### 3. CRITICAL: `hasContent` Function Incorrectly Treats `0` as Empty
-`hasContent` on line 100 returns false for `0`, which means valid trade data (e.g., `commission = 0`, `fees = 0`) is treated as "no data". This causes sections to hide incorrectly.
+### 2. HIGH: Header Badge Shows "Basic Mode" -- Stale/Hardcoded
+`TradeHistory.tsx` line 154 renders `<Badge>Basic Mode</Badge>` which is a hardcoded label unrelated to the active trade mode (Paper/Live). This is inconsistent with the mode-aware architecture and confusing to users.
 
-### 4. HIGH: Paper/Live Mode Parity Violation in Detail Page
-- **Binance positions** (Live mode): The `binanceTrade` mapping (lines 149-182) uses `trade_state: 'open'` instead of `'ACTIVE'` -- inconsistent with the `TradeStateBadge` component expectations.
-- **Binance positions**: Missing `entry_signal`, `market_condition`, and many enrichment fields that could exist if the user has previously enriched the trade. The page does NOT check for an existing `trade_entries` record linked via `binance_trade_id`.
-- **Live detail page** should show the same full layout as Paper, just with read-only core fields and live data from the exchange API merged with enrichment data from the database.
+**Fix**: Replace with a dynamic badge showing the active `tradeMode` (`Paper` or `Live`), consistent with how other pages use mode indicators.
 
-### 5. HIGH: Enrichment Data Not Loaded for Binance Detail Page
-When viewing a Binance position detail (`/trading/binance-DUSKUSDT`), the page constructs a synthetic `binanceTrade` object with all null enrichment fields. But if the user has previously enriched this position via the `TradeEnrichmentDrawer`, that data exists in `trade_entries` with `binance_trade_id = 'binance-DUSKUSDT'`. This enrichment data is never fetched, so journal notes, strategies, screenshots, timeframes, ratings etc. are all lost on the detail view.
+### 3. HIGH: Tabs (All/Binance/Paper) Violate Mode Isolation
+`TradeHistoryContent.tsx` shows All/Binance/Paper tabs regardless of active mode. In **Paper mode**, showing a "Binance" tab with 0 trades is noise. In **Live mode**, showing "Paper" tab with 0 trades is equally confusing. The source-based tabs should be contextual to the active mode, or at minimum, the tabs irrelevant to the current mode should be hidden.
 
-### 6. MEDIUM: Edit Button Navigates Back to Journal Instead of Opening Edit Dialog
-The "Edit" button (line 285-288) navigates to `/trading` instead of opening an inline edit dialog or the enrichment drawer. This is a dead-end UX -- user loses context.
+**Fix**: Pass `tradeMode` to `TradeHistoryContent` and conditionally render tabs:
+- Paper mode: Show "All" tab only (all are paper trades by definition since the query already filters by `tradeMode`)
+- Live mode: Show "All" and "Binance" tabs (hide "Paper" since mode filter already excludes them)
+- Or simpler: remove the tabs entirely since the query already filters by `tradeMode`. The tabs are redundant with mode isolation.
 
-### 7. MEDIUM: `entry_price.toFixed()` Can Crash
-Line 297: `trade.entry_price.toFixed(2)` -- if `entry_price` is somehow not a number (e.g., string from API), this crashes. Should use safe formatting.
+### 4. MEDIUM: Gallery Card Click Navigates to Detail -- But No "View Detail" in Gallery View
+Gallery cards navigate to `/trading/${trade.id}` via `handleGalleryCardClick`. This is correct and consistent with the Journal. However, the gallery card itself provides no visual hint that it's clickable to a detail page (no eye icon, no "View" text). Users may think clicking opens the enrichment drawer.
 
-### 8. MEDIUM: Page Title Shows "Page" Instead of Trade Symbol
-The browser header shows "Page" (visible in screenshot). The `PageHeader` component or document title is not set for the detail page.
+**Fix**: No code change needed -- the `cursor-pointer` and `hover:border-primary` on `TradeGalleryCard` are sufficient visual cues. The behavior is now consistent with Journal after the previous fix.
 
-### 9. LOW: No Link from Trade History Cards to Detail Page
-`TradeHistoryCard` has no "View Detail" action. The dropdown menu only has "Quick Note", "Edit Journal", and "Delete". Users have no way to navigate to the full detail page from Trade History list view.
+### 5. MEDIUM: `onEnrichTrade` in Trade History Creates `UnifiedPosition` with `leverage: 1` Hardcoded
+`TradeHistory.tsx` line 138 hardcodes `leverage: 1` in the `UnifiedPosition` object for enrichment. Binance trades may have different leverage values stored in the database but this is ignored.
 
-### 10. LOW: Enrichment Drawer `onSaved` Not Triggered on Detail Page
-In `TradeDetail.tsx` line 517-521, the `TradeEnrichmentDrawer` does not pass `onSaved` callback, so after saving enrichment the detail page data is stale (no refetch triggered).
+**Fix**: Use `trade.leverage || 1` instead of hardcoded `1`.
+
+### 6. MEDIUM: TradeDetail "Not Found" State Shows "Back to Journal" -- Wrong Context
+Line 314-316: When a trade is not found, the message says "Back to Journal" even when accessed from History.
+
+**Fix**: Use `navigate(-1)` and change label to "Go Back".
+
+### 7. LOW: TradeDetail Has Duplicate "Enrich" and "Edit" Buttons That Do Same Thing
+Lines 375-381: Both "Enrich" and "Edit" buttons call `setEnrichDrawerOpen(true)`. The "Edit" button only shows for non-readOnly trades, but it opens the same enrichment drawer. This is redundant.
+
+**Fix**: Remove the separate "Edit" button. The "Enrich" button already covers both use cases since the enrichment drawer handles read-only fields internally.
+
+### 8. LOW: `formatHoldTime` Returns `-` for `0` Minutes
+Line 91: `if (!minutes) return '-'` treats `0` as falsy. A trade with 0 hold time (instant fill) would show `-` instead of `0m`.
+
+**Fix**: Change to `if (minutes === null || minutes === undefined) return '-'`.
 
 ---
 
 ## Implementation Plan
 
-### Phase 1: Fix Critical Bugs & Data Loading
+### File: `src/pages/trading-journey/TradeDetail.tsx`
 
-**File: `src/pages/trading-journey/TradeDetail.tsx`**
+1. **Fix Back navigation**: Replace `navigate('/trading')` (line 340) and `navigate('/trading')` (line 314) with `navigate(-1)`. Change "Back to Journal" label to "Go Back".
 
-1. **Fix `hasContent` to allow zero values**: Change line 100 from excluding `0` to only excluding `null`, `undefined`, and `''`.
+2. **Remove duplicate Edit button**: Remove lines 378-381 (the Edit button that duplicates Enrich).
 
-2. **Load enrichment data for Binance positions**: After constructing the synthetic `binanceTrade`, query `trade_entries` by `binance_trade_id` to merge any existing enrichment data (notes, strategies, screenshots, timeframes, ratings, etc.). This ensures previously saved journal data appears.
+3. **Fix `formatHoldTime`**: Change `if (!minutes)` to `if (minutes === null || minutes === undefined)`.
 
-3. **Fix `trade_state` mapping**: Change `trade_state: 'open'` to `trade_state: 'ACTIVE'` on line 163.
+### File: `src/pages/TradeHistory.tsx`
 
-4. **Fix Edit button**: Replace the "Edit" navigation with opening the enrichment drawer (`setEnrichDrawerOpen(true)`), since the enrichment drawer IS the edit interface for both Paper and Live.
+4. **Fix "Basic Mode" badge**: Replace hardcoded "Basic Mode" with dynamic `tradeMode === 'paper' ? 'Paper Mode' : 'Live Mode'` badge with appropriate styling.
 
-5. **Add `onSaved` to EnrichmentDrawer**: Pass a callback that invalidates the `trade-detail` query so the page refreshes after enrichment.
+5. **Fix leverage in enrichment mapping**: Change `leverage: 1` to `leverage: (trade as any).leverage || 1`.
 
-6. **Set page title**: Use `document.title` or existing `PageHeader` to show the trade symbol.
+### File: `src/components/history/TradeHistoryContent.tsx`
 
-7. **Safe number formatting**: Wrap `.toFixed()` calls with a helper that handles non-number values.
+6. **Remove redundant source tabs**: Since the paginated query already filters by `tradeMode`, the All/Binance/Paper tabs are mostly redundant. Simplify:
+   - Remove `binanceTrades` and `paperTrades` props
+   - Remove the Tabs component entirely
+   - Render `sortedTrades` directly with the existing `renderTradeList`
+   - Keep the "Closed Trades" card header with Binance badge indicator
 
-### Phase 2: Mode Parity & Navigation Consistency
+   This removes visual noise and aligns with the mode isolation principle: the data is already filtered by mode, sub-filtering by source within a mode is unnecessary complexity.
 
-**File: `src/components/history/TradeHistoryContent.tsx`**
+### File: `src/pages/TradeHistory.tsx` (related cleanup)
 
-8. **Gallery card click navigates to detail**: Change `onTradeClick={onEnrichTrade}` to navigate to `/trading/${entry.id}` instead of opening the enrichment drawer. This makes gallery view behavior consistent between Journal and History.
-
-**File: `src/components/trading/TradeHistoryCard.tsx`**
-
-9. **Add "View Detail" to dropdown menu**: Add a menu item that navigates to `/trading/${entry.id}`. This gives list view users access to the full detail page.
-
-**File: `src/components/journal/TradeGalleryCard.tsx`**
-
-10. No changes needed -- the card correctly delegates click to parent via `onTradeClick`.
-
-### Phase 3: Detail Page Layout Polish
-
-**File: `src/pages/trading-journey/TradeDetail.tsx`**
-
-11. **Binance-specific live data section**: For Binance positions, show a "Live Position Data" card with Mark Price, Liquidation Price, Margin Type, and Leverage -- fields only available from the exchange API.
-
-12. **Always show enrichment CTA**: When a Binance position has no enrichment data, show a prominent CTA card: "This position hasn't been enriched yet. Add journal notes, strategies, and screenshots to improve your analysis." with an "Enrich Now" button.
-
-13. **Consistent section visibility**: Sections like Timing, Strategy, Journal should follow the same rules for both Paper and Live -- show if data exists (from enrichment), hide if not. The mode only affects `isReadOnly` for core trade fields.
+7. **Remove unused `binanceTrades`/`paperTrades` memos**: Lines 106-107 become dead code after removing tabs from content.
 
 ---
 
-## Technical Details
-
-### Enrichment Data Merge for Binance (Key Change)
-
-```typescript
-// After constructing binanceTrade from API data,
-// query for existing enrichment record
-const { data: binanceEnrichment } = useQuery({
-  queryKey: ["trade-enrichment", binanceSymbol],
-  queryFn: async () => {
-    const { data } = await supabase
-      .from("trade_entries")
-      .select("*, trade_entry_strategies(trading_strategies(*))")
-      .eq("binance_trade_id", `binance-${binanceSymbol}`)
-      .eq("user_id", user.id)
-      .maybeSingle();
-    return data;
-  },
-  enabled: isBinancePosition && !!user?.id,
-});
-
-// Merge: API data + enrichment data
-const trade = useMemo(() => {
-  if (!binanceTrade) return dbTrade;
-  if (!binanceEnrichment) return binanceTrade;
-  return {
-    ...binanceTrade,
-    // Overlay enrichment fields
-    notes: binanceEnrichment.notes,
-    emotional_state: binanceEnrichment.emotional_state,
-    tags: binanceEnrichment.tags,
-    screenshots: binanceEnrichment.screenshots,
-    strategies: binanceEnrichment.trade_entry_strategies?.map(s => s.trading_strategies),
-    // ... all other enrichment fields
-  };
-}, [binanceTrade, binanceEnrichment, dbTrade]);
-```
-
-### Files Modified
+## Technical Summary
 
 | File | Changes |
 |------|---------|
-| `src/pages/trading-journey/TradeDetail.tsx` | Fix hasContent, load enrichment for Binance, fix trade_state, fix Edit button, add onSaved, safe formatting, page title, enrichment CTA |
-| `src/components/history/TradeHistoryContent.tsx` | Gallery click navigates to detail page |
-| `src/components/trading/TradeHistoryCard.tsx` | Add "View Detail" menu item |
-
+| `src/pages/trading-journey/TradeDetail.tsx` | `navigate(-1)` for Back, remove duplicate Edit button, fix `formatHoldTime` for 0 |
+| `src/pages/TradeHistory.tsx` | Dynamic mode badge, fix leverage mapping, remove `binanceTrades`/`paperTrades` memos |
+| `src/components/history/TradeHistoryContent.tsx` | Remove source tabs (All/Binance/Paper), simplify to direct list rendering |
