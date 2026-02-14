@@ -1,93 +1,81 @@
 
 
-# Market Data Page - Comprehensive Audit
+# Accounts Page - Comprehensive Functional Audit
 
-## Overall Assessment
+## Audit Scope
 
-The Market Data page is architecturally sound with good modular design, ErrorBoundary wrappers on 3/4 widgets, centralized config constants, and proper auth-gated edge functions. However, there are several issues that need to be addressed across the judging criteria.
+Reviewed 17 files across the Accounts domain: pages (Accounts.tsx, AccountDetail.tsx), components (AccountCardList, AccountTransactionDialog, AddAccountForm, EditAccountDialog, AccountComparisonTable, AccountTransactionsTable, AccountSelect, FinancialSummaryCard), detail sub-components (Header, Metrics, Overview, Transactions, Financial), hooks (use-accounts, use-account-analytics, use-exchange-analytics, use-mode-filtered-trades), types, and utilities.
 
 ---
 
 ## Issues Found
 
-### 1. Hardcoded Colors Violate Semantic Financial Color Standard (Clarity/Code Quality)
+### 1. Open Trades Count Includes Soft-Deleted Trades (Accuracy - HIGH)
 
-**Files affected:**
-- `src/components/market/MarketSentimentWidget.tsx` (lines 129, 131, 317, 319, 326, 328, 369)
-- `src/lib/constants/sentiment-thresholds.ts` (lines 132-134, 140-143)
-- `src/components/market/MarketContextBadge.tsx` (lines 36-41, 46-48, 55-59)
+**File:** `src/pages/Accounts.tsx` lines 101-106
 
-The project standard requires `text-profit` / `text-loss` and `bg-profit` / `bg-loss` semantic tokens for all financial indicators. The MarketSentimentWidget bull/bear bar uses hardcoded `text-green-500` / `text-red-500` and `bg-green-500` / `bg-red-500`. The utility functions `getSentimentColorClass()` and `getSentimentBgClass()` also return hardcoded color classes.
-
-**Fix:**
-- Replace `text-green-500` with `text-profit` and `text-red-500` with `text-loss` in the bull/bear bar section
-- Replace `bg-green-500` with `bg-profit` and `bg-red-500` with `bg-loss` for bar fills
-- Update `getSentimentColorClass()` to return `text-profit` / `text-loss` / `text-warning`
-- Update `getSentimentBgClass()` to return `bg-profit/10` / `bg-loss/10` / `bg-warning/10`
-- Update funding rate color in raw data section (line 369)
-
-Note: `MarketContextBadge.tsx` uses a multi-level color scale (red/orange/yellow/green/emerald for Fear/Greed 0-100), which is informational rather than financial P&L, so those are acceptable as-is.
-
----
-
-### 2. MarketSentimentWidget Missing ErrorBoundary Wrapper (Comprehensiveness/Code Quality)
-
-**File:** `src/components/market/MarketSentimentWidget.tsx`
-
-VolatilityMeterWidget, WhaleTrackingWidget, and TradingOpportunitiesWidget are all wrapped with `ErrorBoundary`. MarketSentimentWidget is the only widget without one, creating an inconsistency where a runtime error in the sentiment gauge could crash the entire page.
-
-**Fix:** Add an ErrorBoundary wrapper with key-based retry, matching the pattern used in VolatilityMeterWidget.
-
----
-
-### 3. WhaleTrackingWidget and TradingOpportunitiesWidget Use Array Index as Key (Code Quality)
-
-**Files:**
-- `src/components/market/WhaleTrackingWidget.tsx` (line 95: `key={idx}`)
-- `src/components/market/TradingOpportunitiesWidget.tsx` (line 88: `key={idx}`)
-
-Using array index as React key can cause incorrect reconciliation if the list order changes between renders. Both lists have a natural unique identifier: `whale.asset` for whale data and `opp.pair` for opportunities.
-
-**Fix:**
-- WhaleTrackingWidget: `key={whale.asset}` (but assets could repeat, so use `key={\`${whale.asset}-${whale.signal}\`}`)
-- TradingOpportunitiesWidget: `key={opp.pair}`
-
----
-
-### 4. `getFactorBadge` in MarketSentimentWidget Uses Hardcoded Colors (Clarity)
-
-**File:** `src/components/market/MarketSentimentWidget.tsx` (lines 129-131)
-
-The factor badges use `border-green-500/50 text-green-500` and `border-red-500/50 text-red-500` instead of semantic tokens.
-
-**Fix:** Replace with `border-profit/50 text-profit` and `border-loss/50 text-loss`.
-
----
-
-### 5. Missing ARIA Label on Whale and Opportunities Cards (Comprehensiveness)
-
-**Files:**
-- `src/components/market/WhaleTrackingWidget.tsx` - Card at line 65 has no `role="region"` or `aria-label`
-- `src/components/market/TradingOpportunitiesWidget.tsx` - Card at line 57 has no `role="region"` or `aria-label`
-
-VolatilityMeterWidget and MarketSentimentWidget both have proper ARIA attributes. These two are missing them.
-
-**Fix:** Add `role="region" aria-label="Whale Tracking"` and `role="region" aria-label="Trading Opportunities"` to the respective Card components (both the content and error variants).
-
----
-
-### 6. Duplicate Import Lines in MarketData.tsx (Code Quality)
-
-**File:** `src/pages/MarketData.tsx` (lines 7-8)
+The query counting open positions does not exclude soft-deleted trades:
 
 ```typescript
-import { MarketSentimentWidget, WhaleTrackingWidget, TradingOpportunitiesWidget } from "@/components/market";
-import { VolatilityMeterWidget } from "@/components/market";
+const { count } = await supabase
+  .from('trade_entries')
+  .select('id', { count: 'exact', head: true })
+  .eq('user_id', user.id)
+  .eq('status', 'open')
+  .in('trading_account_id', modeAccountIds);
 ```
 
-Two separate import statements from the same module.
+A soft-deleted trade that was still "open" when deleted will be counted toward "Open Positions" in the summary card, inflating the displayed number.
 
-**Fix:** Consolidate into a single import statement.
+**Fix:** Add `.is('deleted_at', null)` to the query, consistent with every other trade query in the codebase.
+
+---
+
+### 2. Balance Summary Card Missing Loading State for DB Accounts (Accuracy - MEDIUM)
+
+**File:** `src/pages/Accounts.tsx` lines 172-174
+
+The Balance summary card only shows a loading skeleton when `balanceLoading` is true (Binance balance loading). In Paper mode, the balance comes entirely from DB accounts via `useAccounts()`, but the accounts loading state is never checked for the skeleton. This means:
+
+- User navigates to Accounts page in Paper mode
+- `useAccounts()` is still fetching
+- `totalDbBalance` is `0` (from empty array)
+- The card displays `$0.00` briefly before jumping to the real balance
+
+**Fix:** Destructure `isLoading: accountsLoading` from `useAccounts()` and combine with `balanceLoading`:
+
+```typescript
+const { data: accounts, isLoading: accountsLoading } = useAccounts();
+// ...
+const summaryLoading = balanceLoading || accountsLoading;
+```
+
+Then use `summaryLoading` instead of `balanceLoading` for the skeleton condition.
+
+---
+
+## Verified Correct (No Issues)
+
+The following areas were explicitly verified and found to be functioning correctly:
+
+- **PnL Fallback Chain**: `trade.realized_pnl ?? trade.pnl ?? 0` used consistently in equity curve (AccountDetail.tsx line 100)
+- **Tab URL Persistence**: `useSearchParams` for AccountDetail tab state
+- **Nullish Coalescing for initialBalance**: `account?.metadata?.initial_balance ?? Number(account?.balance)` (already fixed)
+- **Mode Isolation**: `modeAccounts`, `modeAccountIds`, mode-filtered transaction dialog dropdowns all filter by `isPaperAccount` correctly
+- **Soft-Delete Architecture**: 30-day recovery messaging in both AccountCardList and AccountDetailHeader delete dialogs
+- **Database Trigger for Balance**: `on_account_transaction_insert` trigger handles balance updates on deposit/withdraw
+- **Withdrawal Validation**: Client-side `amount > balance` check in AccountTransactionDialog
+- **Financial Audit Trail**: Insert-only `account_transactions` with RLS (no UPDATE/DELETE policies)
+- **User-ID Scoping**: All queries scope by `user_id` via `supabase.auth.getUser()`
+- **Semantic Colors**: `text-profit` / `text-loss` used consistently across all financial indicators
+- **Loading Skeletons**: Present in AccountCardList, AccountDetail, AccountDetailTransactions, FinancialSummaryCard
+- **Empty States**: Present in AccountCardList, AccountTransactionsTable, AccountDetailOverview, AccountDetailTransactions, AccountComparisonTable
+- **AccountComparisonTable**: Shows empty Card (not null) when no data, correct
+- **Zod Validation**: Descriptive error messages in AddAccountForm schema
+- **Currency from Settings**: `useUserSettings().default_currency` used in AddAccountForm
+- **Equity Curve & Drawdown**: Correct cumulative PnL and peak-to-trough drawdown calculation
+- **Binance Virtual Account**: Proper routing, data isolation, read-only actions
+- **Account Comparison Table Mode Filtering**: Correctly filters by `isPaperAccount` logic
 
 ---
 
@@ -95,31 +83,36 @@ Two separate import statements from the same module.
 
 | # | File | Issue | Criteria | Severity |
 |---|------|-------|----------|----------|
-| 1 | MarketSentimentWidget.tsx, sentiment-thresholds.ts | Hardcoded `green-500`/`red-500` instead of `text-profit`/`text-loss` | Clarity, Code Quality | Medium |
-| 2 | MarketSentimentWidget.tsx | Missing ErrorBoundary wrapper | Comprehensiveness, Code Quality | Medium |
-| 3 | WhaleTrackingWidget.tsx, TradingOpportunitiesWidget.tsx | Array index as React key | Code Quality | Low |
-| 4 | MarketSentimentWidget.tsx | Factor badges use hardcoded colors | Clarity | Low |
-| 5 | WhaleTrackingWidget.tsx, TradingOpportunitiesWidget.tsx | Missing ARIA `role="region"` and `aria-label` | Comprehensiveness | Low |
-| 6 | MarketData.tsx | Duplicate import from same module | Code Quality | Low |
+| 1 | `src/pages/Accounts.tsx` line 105 | Open trades query missing `.is('deleted_at', null)` | Accuracy | High |
+| 2 | `src/pages/Accounts.tsx` lines 56, 172 | Balance card missing loading state for DB accounts | Accuracy | Medium |
 
-## Verified Correct (No Issues)
+Total: 1 file, 2 fixes.
 
-- Edge function `market-insight` has proper auth check (JWT validation)
-- Edge function has input validation with regex and slice limit
-- Symbol validation via `filterValidSymbols()` before edge function call
-- MarketContext provides cross-page symbol persistence with localStorage
-- VolatilityMeterWidget correctly wrapped with ErrorBoundary + key-based retry
-- WhaleTrackingWidget and TradingOpportunitiesWidget wrapped with ErrorBoundary
-- Centralized config constants (market-config.ts, sentiment-thresholds.ts, volatility-config.ts)
-- Loading skeletons present in all widgets
-- Empty states present in all widgets
-- Error states with retry in all widgets
-- `normalizeError()` utility for consistent error handling
-- `useMemo` for derived data (whaleData, opportunitiesData, symbolsToFetch)
-- Data quality and last updated footer
-- Responsive grid layout (`md:grid-cols-2`, `lg:grid-cols-3`)
-- CryptoIcon integration in VolatilityMeter
-- Security: edge function validates auth token before processing
+## Technical Details
 
-Total: 6 files modified, 6 issues addressed.
+### Fix 1: Add soft-delete filter to open trades query
 
+In `src/pages/Accounts.tsx`, add `.is('deleted_at', null)` after the `.eq('status', 'open')` line:
+
+```typescript
+const { count } = await supabase
+  .from('trade_entries')
+  .select('id', { count: 'exact', head: true })
+  .eq('user_id', user.id)
+  .eq('status', 'open')
+  .is('deleted_at', null)          // <-- add this line
+  .in('trading_account_id', modeAccountIds);
+```
+
+### Fix 2: Add accounts loading state to balance skeleton
+
+Change:
+```typescript
+const { data: accounts } = useAccounts();
+```
+To:
+```typescript
+const { data: accounts, isLoading: accountsLoading } = useAccounts();
+```
+
+And change the skeleton condition from `balanceLoading` to `(balanceLoading || accountsLoading)`.
