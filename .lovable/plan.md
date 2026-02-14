@@ -1,55 +1,69 @@
 
 
-# Accounts: Layout Parity Between Paper & Live
+# Fix: Data Mismatch di Accounts Page (Paper vs Live)
 
-## Problem
+## Root Cause
 
-Live mode masih punya section ekstra "Live Trade Accounts" (3 Binance cards: Wallet Balance, Available, Unrealized P&L) yang tidak ada di Paper mode. Ini melanggar prinsip "layout identik, data beda".
+Semua akun di database memiliki `exchange: manual` → semuanya dianggap "paper account". Ketika mode Live aktif, filter `excludeBacktest={true}` membuang SEMUA akun, sehingga:
+- **Summary Cards**: Menampilkan data Binance API (benar)
+- **AccountCardList**: Kosong (ngaco - tidak ada akun live di DB)
+- **AccountComparisonTable**: Kosong juga
 
-## Changes pada `src/pages/Accounts.tsx`
+Masalah utama: **tidak ada mekanisme untuk menampilkan akun live dari Binance sebagai card**.
 
-### 1. Hapus seluruh Binance Connection Section (line 224-312)
+## Solusi
 
-Hapus block `{showExchangeData && (...)}` yang berisi:
-- `BinanceNotConfiguredState` card
-- Connection Error card  
-- "Live Trade Accounts" section dengan 3 detail cards
+Karena user ingin layout 100% identik antara Paper dan Live (hanya data beda), kita perlu:
 
-Data Binance (balance, positions, unrealized P&L) sudah ditampilkan di **Summary Cards** di atas (Balance, Accounts, Open Positions). Section ini duplikasi.
+### 1. Hapus filter Paper/Live di `AccountCardList`
 
-### 2. Hide "Add Account" di Live mode (line 325)
+Ganti props `excludeBacktest` / `backtestOnly` menjadi menampilkan **semua akun** di kedua mode. Akun yang ada di DB tetap ditampilkan tanpa filter mode.
 
-Ganti:
 ```typescript
-<AddAccountForm defaultIsBacktest={showPaperData} />
-```
-Menjadi:
-```typescript
-{showPaperData && <AddAccountForm defaultIsBacktest={true} />}
-```
+// BEFORE (di Accounts.tsx)
+<AccountCardList
+  filterType="trading"
+  excludeBacktest={!showPaperData}  // Live: hide paper
+  backtestOnly={showPaperData}      // Paper: only paper
+/>
 
-Live mode tidak perlu Add Account karena akun Live di-manage via exchange API.
-
-### 3. Cleanup imports
-
-Hapus yang tidak lagi dipakai:
-- `XCircle` dari lucide-react
-- `BinanceNotConfiguredState`
-- `Skeleton` (masih dipakai di summary cards, keep)
-
-### Struktur Akhir (identik kedua mode)
-
-```text
-PageHeader
-Summary Cards (Balance | Accounts | Positions)
-Section Header: "Trading Accounts" + Badge (Paper) + [Add Account hanya Paper]
-AccountCardList (filtered by mode)
-AccountComparisonTable
+// AFTER
+<AccountCardList
+  filterType="trading"
+  onTransact={handleTransact}
+  onEdit={handleEdit}
+  emptyMessage="No trading accounts yet."
+/>
 ```
 
-### File
+### 2. Update Summary Cards agar konsisten
 
-| File | Change |
-|------|--------|
-| `src/pages/Accounts.tsx` | Hapus Binance section, hide Add Account di Live |
+Summary cards harus menampilkan data yang sesuai dengan apa yang ditampilkan di card list (semua akun), bukan data per-mode. Karena semua akun saat ini adalah paper, summary harus mencerminkan total balance dari semua akun DB + data Binance jika connected.
+
+| Metric | Value |
+|--------|-------|
+| Balance | Total semua akun DB (+ Binance balance jika connected) |
+| Accounts | Jumlah semua akun DB (+ 1 jika Binance connected) |
+| Open Positions | Paper open trades + Binance positions |
+
+### 3. Simplify `AccountCardList` filter logic
+
+Hapus props `excludeBacktest` dan `backtestOnly` karena tidak lagi diperlukan di halaman Accounts. Filter hanya berdasarkan `filterType`.
+
+### 4. Update `AccountComparisonTable`
+
+Hapus filter `tradeMode` agar menampilkan comparison semua akun yang punya trades, regardless of mode.
+
+## Files yang Diubah
+
+| File | Perubahan |
+|------|-----------|
+| `src/pages/Accounts.tsx` | Hapus filter mode di AccountCardList, simplify summary cards |
+| `src/components/accounts/AccountCardList.tsx` | Hapus props `excludeBacktest`/`backtestOnly`, tampilkan semua akun |
+| `src/components/accounts/AccountComparisonTable.tsx` | Hapus filter tradeMode |
+
+## Catatan
+
+- Props `excludeBacktest`/`backtestOnly` tetap ada di `AccountCardList` dan `AccountSelect` untuk backward compatibility (dipakai di komponen lain), tapi di halaman Accounts tidak lagi digunakan.
+- Ke depan, jika user menambahkan akun dengan exchange selain `manual` (misal `binance`), akun tersebut otomatis muncul sebagai akun Live.
 
