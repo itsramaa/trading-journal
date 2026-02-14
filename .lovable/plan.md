@@ -1,9 +1,10 @@
 
-# Deep UX Analysis: Economic Calendar Page
 
-## Status: Solid Core, 3 Issues Found (1 Bug, 1 Dead Logic, 1 Stale Copy)
+# Deep UX Analysis: AI Analysis Page (`/market`)
 
-The Economic Calendar page (`/calendar`) is correctly **mode-agnostic** -- all data comes from public Forex Factory API via edge function. Layout, flow, and components are identical across Paper and Live modes, which is the correct design.
+## Status: Solid Core, 2 Issues Found (1 Bug, 1 Cosmetic)
+
+The AI Analysis page at `/market` (component: `MarketInsight.tsx`) is correctly **mode-agnostic** -- all data comes from public APIs (Binance, CoinGecko, Alternative.me) via edge functions. Layout and components are identical across Paper and Live modes.
 
 ---
 
@@ -11,89 +12,72 @@ The Economic Calendar page (`/calendar`) is correctly **mode-agnostic** -- all d
 
 | Aspect | Status | Detail |
 |--------|--------|--------|
-| Mode independence | OK | No `useTradeMode`, no mode branching -- correct for public economic data |
-| Data flow | OK | `useEconomicCalendar` -> edge function `economic-calendar` -> Forex Factory JSON |
-| AI predictions | OK | Lovable AI (Gemini 2.5 Flash) generates crypto impact for high-impact events |
-| Error handling | OK | Graceful fallback with empty events array + retry button |
-| Loading states | OK | Skeleton loaders for all sections |
-| Empty states | OK | "No high-impact events" and "No upcoming events" messages |
-| Refresh mechanism | OK | Manual refresh button + 30-minute auto-refresh |
-| Constants centralization | OK | Both frontend (`lib/constants/economic-calendar.ts`) and backend (`_shared/constants/economic-calendar.ts`) |
-| Cross-feature integration | OK | Used by `ContextWarnings`, `EquityCurveWithEvents`, `useCaptureMarketContext` |
+| Mode independence | OK | Only uses `tradingStyle` for bias expiry duration -- not mode-dependent |
+| Data flow | OK | `useMarketSentiment` -> `market-insight` EF; `useMacroAnalysis` -> `macro-analysis` EF |
+| Combined analysis | OK | `useCombinedAnalysis` derives alignment from crypto + macro scores client-side |
+| Error handling | OK | `ErrorBoundary` + `AsyncErrorFallback` in `AIAnalysisTab` |
+| Loading states | OK | Skeleton loaders for all 3 sections |
+| Empty/error states | OK | Error card with retry CTA |
+| Refresh mechanism | OK | Manual button + 5-min auto-refresh (sentiment) + 15-min (macro) |
+| Alert system | OK | `useMarketAlerts` fires toast on extreme Fear/Greed and crypto-macro conflicts |
+| Bias expiry | OK | `BiasExpiryIndicator` with countdown and auto-refresh on expiry |
+| Cross-feature use | OK | Sentiment/macro data consumed by `useCaptureMarketContext`, `useNotificationTriggers`, Dashboard |
 
 ### Component Tree (verified correct)
 
 ```text
-EconomicCalendar (page)
-  +-- PageHeader
-  +-- CalendarTab (hideTitle=true)
-       +-- Refresh button
-       +-- Impact Alert Banner (conditional: high-impact risk days)
-       +-- Today's Key Release card (with AI prediction + crypto impact badge)
-       +-- Upcoming Events list (collapsible AI predictions per event)
-       +-- Footer disclaimer + last updated timestamp
+MarketInsight (page at /market)
+  +-- PageHeader (title: "Market Insight", Refresh button)
+  +-- BiasExpiryIndicator (conditional: countdown badge)
+  +-- Error Card (conditional: fetch failures)
+  +-- AIAnalysisTab
+  |    +-- AI Market Sentiment card (confidence, Fear & Greed, recommendation, signals)
+  |    +-- AI Macro Analysis card (sentiment pill, correlations grid, AI summary)
+  +-- CombinedAnalysisCard (alignment score, recommendation, position size adj.)
 ```
 
 ---
 
 ## Issues Found
 
-### BUG 1: `useEconomicEvents` Date Params Are Silently Ignored (Medium)
+### BUG 1: `validUntil` Race Condition in `useMarketSentiment` (Medium)
 
-**Files:**
-- `src/hooks/use-economic-events.ts` (lines 42-46)
-- `supabase/functions/economic-calendar/index.ts` (line 171+)
+**File:** `src/features/market-insight/useMarketSentiment.ts`
 
-`useEconomicEvents` sends `{ from, to }` in the request body to the edge function:
-```typescript
-const { data, error } = await supabase.functions.invoke('economic-calendar', {
-  body: { from: fromDate, to: toDate },
-});
-```
+The hook accepts an optional `tradingStyle` parameter that determines `validityMinutes` (Scalping: 15m, Short: 60m, Swing: 240m). This value is used inside `queryFn` to calculate `validUntil`. However, the queryKey is always `["market-sentiment"]` regardless of `tradingStyle`.
 
-But the edge function **never reads** `req.body` -- it always fetches `ff_calendar_thisweek.json` (current week only). The date range parameters are completely ignored.
+**Problem:** React Query deduplicates by queryKey. Whichever caller triggers the fetch first determines `validUntil` for ALL consumers. Since `useCombinedAnalysis()`, `useMarketAlerts()`, `useCaptureMarketContext()`, and `useNotificationTriggers()` all call `useMarketSentiment()` without `tradingStyle`, they default to `short_trade` (60m). If any of these resolves before `MarketInsight.tsx` (which passes the actual `tradingStyle`), the cached response has `validUntil` based on 60m, not the user's trading style.
 
-This means `TradingHeatmap` (which uses `useHighImpactEventDates` with a 90-day lookback) thinks it's getting 90 days of data but actually only receives the current week's events. The heatmap event overlay is therefore incomplete.
+This means a Scalping user sees a 60m validity badge instead of 15m, and a Swing user sees 60m instead of 240m.
 
-**Fix:** This is an API contract mismatch. Two options:
-1. **Quick fix**: Remove the `body` params from `useEconomicEvents` and document that the endpoint only returns this-week data. Update `CALENDAR_DATE_RANGE.LOOKBACK_DAYS` usage accordingly.
-2. **Proper fix**: Update the edge function to read date params and fetch multiple weeks from Forex Factory (they offer `ff_calendar_thisweek.json` and `ff_calendar_nextweek.json`). However, historical data beyond 1-2 weeks is not available from this free endpoint.
+**Fix:** Move `validUntil` calculation OUT of `queryFn` and into the consuming component. The hook should return raw data; the page computes `validUntil` locally:
 
-**Recommendation:** Quick fix -- remove the misleading date params, and ensure callers know the data scope is "this week only."
+1. Remove `validUntil` mutation from `useMarketSentiment`
+2. Compute `validUntil` in `MarketInsight.tsx` using `sentimentData.sentiment.lastUpdated` + `tradingStyle`
+
+This keeps the cached data pure and lets each consumer apply its own interpretation.
 
 ---
 
-### ISSUE 2: Stale Footer Copy (Cosmetic)
+### COSMETIC 2: Page Title Mismatch (Minor)
 
-**File:** `src/components/market-insight/CalendarTab.tsx` (line 319)
+**Files:** Multiple navigation files
 
-Footer says:
-> "Data from Trading Economics API"
+The page is registered as **"AI Analysis"** in sidebar, command palette, keyboard shortcuts, and breadcrumbs. But the `PageHeader` inside `MarketInsight.tsx` renders **"Market Insight"** as the title with description "AI-powered market analysis and trading opportunities."
 
-But the actual data source was changed to **Forex Factory** (`nfs.faireconomy.media`). This is misleading to the user.
+This creates a minor disconnect: user clicks "AI Analysis" in the sidebar but sees "Market Insight" as the page title.
 
-**Fix:** Update to "Data from Forex Factory. AI analysis is for informational purposes only."
-
----
-
-### ISSUE 3: Duplicate Hook Pattern (Cleanup)
-
-**Files:**
-- `src/features/calendar/useEconomicCalendar.ts` -- Used by CalendarTab, ContextWarnings, EquityCurveWithEvents, useCaptureMarketContext
-- `src/hooks/use-economic-events.ts` -- Used only by TradingHeatmap
-
-Both hooks call the same edge function `economic-calendar`. The second hook (`useEconomicEvents`) adds date filtering logic that doesn't actually work (see Bug 1). After fixing Bug 1, `useEconomicEvents` becomes a thin wrapper around the same data.
-
-**Fix:** After Bug 1 fix, refactor `useHighImpactEventDates` and `isHighImpactEventDay` to consume data from `useEconomicCalendar` instead. Then delete `use-economic-events.ts` to eliminate the duplicate data-fetching path.
+**Fix:** Update `PageHeader` title from "Market Insight" to "AI Analysis" for consistency with all navigation references. Keep the description as-is.
 
 ---
 
 ## No Mode-Related Issues
 
-The Economic Calendar has **zero mode-related inconsistencies** because:
-1. All data is from public Forex Factory API -- no user trade data
+The AI Analysis page has **zero mode-related inconsistencies** because:
+1. All data is from public APIs -- no user trade data
 2. No account-specific queries or `trade_entries` reads
-3. AI predictions are generic market analysis, not user-specific
+3. `tradingStyle` affects only bias expiry duration, not data visibility
+4. `useMarketAlerts` fires identical alerts regardless of mode
 
 ---
 
@@ -101,8 +85,9 @@ The Economic Calendar has **zero mode-related inconsistencies** because:
 
 | File | Action | Detail |
 |------|--------|--------|
-| `src/hooks/use-economic-events.ts` | Refactor | Remove body params from edge function call; make `useHighImpactEventDates` consume `useEconomicCalendar` data instead of separate fetch |
-| `src/components/market-insight/CalendarTab.tsx` | Fix line 319 | Update "Trading Economics API" to "Forex Factory" |
-| `src/components/analytics/charts/TradingHeatmap.tsx` | Update import | Use refactored hook |
+| `src/features/market-insight/useMarketSentiment.ts` | Remove `validUntil` mutation from `queryFn` | Keep cached data pure -- no side effects in queryFn |
+| `src/pages/MarketInsight.tsx` | Compute `validUntil` locally from `sentimentData` + `tradingStyle` | Pass computed value to `BiasExpiryIndicator` |
+| `src/pages/MarketInsight.tsx` | Update PageHeader title to "AI Analysis" | Match sidebar/command palette naming |
 
-Total: 1 bug fix (silent param ignore), 1 copy fix, 1 cleanup refactor. No structural changes needed.
+Total: 1 bug fix (validUntil race), 1 cosmetic fix (title). No structural changes needed.
+
