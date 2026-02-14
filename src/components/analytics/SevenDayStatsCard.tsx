@@ -1,6 +1,7 @@
 /**
  * SevenDayStatsCard - 7-Day trading stats widget
- * Moved from Dashboard to Performance page per UX audit
+ * Accepts optional trades prop to respect parent filters.
+ * Falls back to useModeFilteredTrades if no prop provided.
  */
 import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,9 +13,15 @@ import {
 } from "lucide-react";
 import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
+import type { TradeEntry } from "@/hooks/use-trade-entries";
 
-export function SevenDayStatsCard() {
-  const { data: trades = [] } = useModeFilteredTrades();
+interface SevenDayStatsCardProps {
+  trades?: TradeEntry[];
+}
+
+export function SevenDayStatsCard({ trades: externalTrades }: SevenDayStatsCardProps = {}) {
+  const { data: internalTrades = [] } = useModeFilteredTrades();
+  const trades = externalTrades ?? internalTrades;
   const { formatPnl } = useCurrencyConversion();
 
   // 7-Day Quick Stats

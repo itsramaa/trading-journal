@@ -1,5 +1,7 @@
 /**
  * Drawdown Chart - Shows equity drawdown over time
+ * Accepts optional trades prop to respect parent filters.
+ * Falls back to useModeFilteredTrades if no prop provided.
  */
 import { useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,9 +9,15 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import { format } from "date-fns";
 import { formatPercentUnsigned } from "@/lib/formatters";
+import type { TradeEntry } from "@/hooks/use-trade-entries";
 
-export function DrawdownChart() {
-  const { data: trades } = useModeFilteredTrades();
+interface DrawdownChartProps {
+  trades?: TradeEntry[];
+}
+
+export function DrawdownChart({ trades: externalTrades }: DrawdownChartProps = {}) {
+  const { data: internalTrades } = useModeFilteredTrades();
+  const trades = externalTrades ?? internalTrades;
 
   const drawdownData = useMemo(() => {
     if (!trades || trades.length === 0) return [];

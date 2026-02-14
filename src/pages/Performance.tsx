@@ -3,11 +3,13 @@
  * Orchestrator component that delegates to sub-components
  */
 import { useState, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import { PageHeader } from "@/components/ui/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FilterActiveIndicator } from "@/components/ui/filter-active-indicator";
@@ -42,6 +44,7 @@ import { useStrategyPerformance } from "@/hooks/use-strategy-performance";
 import { useMonthlyPnl } from "@/hooks/use-monthly-pnl";
 import { useContextualAnalytics } from "@/hooks/use-contextual-analytics";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
+import { useModeVisibility } from "@/hooks/use-mode-visibility";
 import { 
   filterTradesByDateRange, 
   filterTradesByStrategies,
@@ -53,12 +56,23 @@ import { Link } from "react-router-dom";
 import type { UnifiedMarketContext } from "@/types/market-context";
 
 export default function Performance() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get("tab") || "overview";
+  const handleTabChange = (value: string) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.set("tab", value);
+      return next;
+    }, { replace: true });
+  };
+
   const [dateRange, setDateRange] = useState<DateRange>({ from: null, to: null });
   const [selectedStrategyIds, setSelectedStrategyIds] = useState<string[]>([]);
   const [eventDaysOnly, setEventDaysOnly] = useState(false);
   const [analyticsSelection, setAnalyticsSelection] = useState<AnalyticsSelection>({ level: 'overall' });
 
   const { formatCompact } = useCurrencyConversion();
+  const { showExchangeData } = useModeVisibility();
 
   // Data hooks
   const { data: modeFilteredTrades, isLoading: modeTradesLoading } = useModeFilteredTrades();
@@ -182,7 +196,7 @@ export default function Performance() {
       {trades && trades.length === 0 ? (
         <EmptyState icon={FileText} title="No trades recorded" description="Start logging your trades in the Trading Journal to see performance analytics here." />
       ) : (
-        <Tabs defaultValue="overview" className="space-y-8">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-8">
           <TabsList className="flex-wrap">
             <TabsTrigger value="overview" className="gap-2">
               <BarChart3 className="h-4 w-4" />
@@ -204,8 +218,8 @@ export default function Performance() {
 
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-8">
-            <SevenDayStatsCard />
-            <PerformanceKeyMetrics stats={stats} formatCurrency={chartFormatCurrency} binanceStats={binanceStats} />
+            <SevenDayStatsCard trades={filteredTrades} />
+            <PerformanceKeyMetrics stats={stats} formatCurrency={chartFormatCurrency} binanceStats={binanceStats} showExchangeData={showExchangeData} />
             <TradingBehaviorAnalytics trades={filteredTrades} />
 
             <div className="space-y-4">
@@ -213,19 +227,28 @@ export default function Performance() {
               <EquityCurveWithEvents equityData={equityData} formatCurrency={chartFormatCurrency} />
             </div>
 
-            {contextualData?.bySession && (
-              <div className="space-y-4">
-                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Session Performance</h3>
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Session Performance</h3>
+              {contextualData?.bySession ? (
                 <div className="space-y-6">
                   <SessionPerformanceChart bySession={contextualData.bySession} />
                   <TradingHeatmapChart trades={filteredTrades} />
                 </div>
-              </div>
-            )}
+              ) : (
+                <Card>
+                  <CardContent className="py-8">
+                    <div className="text-center text-muted-foreground">
+                      <p>No session data available</p>
+                      <p className="text-sm">Session performance will appear once you have enough closed trades</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
 
             <div className="space-y-4">
               <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Risk Analysis</h3>
-              <DrawdownChart />
+              <DrawdownChart trades={filteredTrades} />
             </div>
           </TabsContent>
 
