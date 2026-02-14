@@ -5,8 +5,8 @@
  * - Paper: full CRUD, data from DB
  * - Live (Binance virtual): read-only, data from exchange API + synced trades
  */
-import { useMemo, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useMemo } from "react";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Helmet } from "react-helmet";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -34,7 +34,11 @@ import { isPaperAccount } from "@/lib/account-utils";
 export default function AccountDetail() {
   const { accountId } = useParams<{ accountId: string }>();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("overview");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get("tab") || "overview";
+  const setActiveTab = (tab: string) => {
+    setSearchParams({ tab }, { replace: true });
+  };
 
   const isBinanceVirtual = accountId === 'binance';
 
@@ -93,7 +97,7 @@ export default function AccountDetail() {
     let cumulative = 0;
     let peak = 0;
     return sorted.map((trade) => {
-      const pnl = trade.realized_pnl || trade.pnl || 0;
+      const pnl = trade.realized_pnl ?? trade.pnl ?? 0;
       cumulative += pnl;
       if (cumulative > peak) peak = cumulative;
       const drawdown = peak > 0 ? ((peak - cumulative) / peak) * 100 : 0;

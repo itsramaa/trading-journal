@@ -33,6 +33,8 @@ import { toast } from "sonner";
 import { useAccounts, useDeposit, useWithdraw } from "@/hooks/use-accounts";
 import type { Account } from "@/types/account";
 import { formatCurrency } from "@/lib/formatters";
+import { isPaperAccount } from "@/lib/account-utils";
+import { useModeVisibility } from "@/hooks/use-mode-visibility";
 
 const transactionSchema = z.object({
   accountId: z.string().min(1, "Account is required"),
@@ -60,6 +62,7 @@ export function AccountTransactionDialog({
 }: AccountTransactionDialogProps) {
   const [activeTab, setActiveTab] = useState(defaultTab);
   const { data: accounts } = useAccounts();
+  const { showPaperData } = useModeVisibility();
   const deposit = useDeposit();
   const withdraw = useWithdraw();
 
@@ -156,7 +159,11 @@ export function AccountTransactionDialog({
         </FormControl>
         <SelectContent>
           {accounts
-            ?.filter((a) => a.is_active)
+            ?.filter((a) => {
+              if (!a.is_active) return false;
+              const paper = isPaperAccount(a);
+              return showPaperData ? paper : !paper;
+            })
             .map((account) => (
               <SelectItem key={account.id} value={account.id}>
                 <div className="flex items-center justify-between w-full gap-2">
