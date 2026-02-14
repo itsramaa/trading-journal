@@ -76,7 +76,7 @@ export default function AccountDetail() {
     : `${account?.metadata?.broker || 'Trading Account'} • ${account?.currency}`;
   const initialBalance = isBinanceVirtual
     ? Math.max((Number(binanceBalance?.totalWalletBalance) || 0) - (stats?.totalPnlNet || 0), 1)
-    : (account?.metadata?.initial_balance || Number(account?.balance));
+    : (account?.metadata?.initial_balance ?? Number(account?.balance));
   const unrealizedPnl = Number(binanceBalance?.totalUnrealizedProfit) || 0;
 
   // Filter trades for this account (equity curve + strategy breakdown)
