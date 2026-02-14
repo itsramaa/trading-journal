@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { User, Shield, LogOut, Loader2, Upload, Camera } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -42,6 +43,9 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 
 const Profile = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'profile';
+  const setActiveTab = (tab: string) => setSearchParams({ tab });
   const { user } = useAuth();
   const { data: profile, isLoading: profileLoading } = useUserProfile();
   const { data: settings, isLoading: settingsLoading } = useUserSettings();
@@ -135,7 +139,7 @@ const Profile = () => {
           description="Manage your profile and security settings."
         />
 
-        <Tabs defaultValue="profile" className="space-y-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList className="grid w-full grid-cols-2 lg:w-[300px]">
             <TabsTrigger value="profile" className="gap-2">
               <User className="h-4 w-4" />
