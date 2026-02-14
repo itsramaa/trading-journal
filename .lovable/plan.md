@@ -1,81 +1,88 @@
 
-# Risk Overview Page: Deep UX Analysis & Fixes
+
+# Performance Page: Deep UX Analysis & Fixes
 
 ## Issues Found
 
-### 1. Uncontrolled Tabs — No URL Persistence
+### 1. Uncontrolled Tabs -- No URL Persistence
 
-The `Tabs` component uses `defaultValue="overview"` (uncontrolled). This means:
-- Switching between Overview and History is not reflected in the URL
-- Deep links to `/risk?tab=history` don't work
-- Navigating away and back always resets to Overview
+`Performance.tsx` line 185 uses `defaultValue="overview"`. This means:
+- Tab state not reflected in URL
+- Deep links like `/performance?tab=monthly` don't work
+- Navigating away and back resets to Overview
+- Inconsistent with the controlled tab pattern now established on Risk, Import, and TradingJournal pages
 
-**Fix**: Use controlled `Tabs` with `useSearchParams`, same pattern applied to ImportTrades and TradingJournal.
+**Fix**: Replace with controlled `Tabs` using `useSearchParams`, identical pattern to other pages.
 
-### 2. CorrelationMatrix Completely Hidden in Paper Mode
+### 2. Binance Stats Shown in Paper Mode Without Guard
 
-Line 136: `{showExchangeData && <CorrelationMatrix />}` removes the component entirely in Paper mode. Per the mode-as-context principle, the layout should remain identical — only data and business rules change.
+`PerformanceKeyMetrics` renders Binance daily P&L breakdown (lines 169-188) based solely on `binanceStats.isConnected && binanceStats.grossPnl !== 0`. There is no mode check. In Paper mode, if the user has Binance connected, Live Binance data bleeds into the Paper performance view, violating data isolation.
 
-The CorrelationMatrix already uses `useModeFilteredTrades()` internally, which filters by current mode. In Paper mode, it will show paper trade positions (if any are open). The `showExchangeData` guard is unnecessary and breaks layout consistency.
+**Fix**: Pass `showExchangeData` from `useModeVisibility` to `PerformanceKeyMetrics` and guard the Binance stats section with it. Only show the Binance breakdown in Live mode.
 
-**Fix**: Remove the `showExchangeData` conditional. The CorrelationMatrix already handles empty states gracefully ("No open positions to analyze"). Paper mode users with open paper trades should see correlation data for those positions.
+### 3. SevenDayStatsCard Ignores Analytics Scope Filters
 
-### 3. Hardcoded Colors Violate Semantic Design System
+`SevenDayStatsCard` calls its own `useModeFilteredTrades()` internally (line 13). This means it always shows mode-level data and ignores the page-level filters (date range, strategy, analytics level scope). When a user filters to "Account: Binance Main", the 7-Day Stats still shows data from all accounts.
 
-Per memory `ui/semantic-financial-colors`, the platform uses `text-profit` and `text-loss` design tokens. Multiple risk components use raw Tailwind colors (`text-red-500`, `text-green-500`, `text-yellow-500`, `text-orange-500`) instead.
+**Fix**: Refactor `SevenDayStatsCard` to accept `trades` as a prop (same pattern as `TradingBehaviorAnalytics`). Pass the `filteredTrades` from the parent `Performance.tsx` so it respects all active filters.
 
-Affected files:
-- `RiskEventLog.tsx` — 10+ instances in `eventTypeConfig` and inline classes
-- `RiskSummaryCard.tsx` — 6+ instances in status icons and badges
-- `RiskAlertBanner.tsx` — 8+ instances in banner styling
+### 4. DrawdownChart Ignores Analytics Scope Filters
 
-**Fix**: Replace hardcoded colors with semantic tokens:
-- `text-red-500` -> `text-loss`
-- `text-green-500` -> `text-profit`
-- `text-yellow-500` -> `text-[hsl(var(--chart-4))]` (warning token already used in DailyLossTracker)
-- `text-orange-500` -> `text-[hsl(var(--chart-5))]`
-- Background variants similarly (e.g. `bg-red-500/20` -> `bg-loss/20`)
+Same issue as SevenDayStatsCard. `DrawdownChart` calls `useModeFilteredTrades()` internally (line 12). It ignores date range, strategy, and analytics level filters set on the Performance page.
 
-### 4. RiskEventLog History Tab — Liquidations/Margin Tabs Hidden Instead of Disabled-Preview in Paper Mode
+**Fix**: Refactor `DrawdownChart` to accept `trades` as a prop instead of fetching its own data. Pass `filteredTrades` from the parent.
 
-The Liquidations and Margin tabs in `RiskEventLog` check `isConfigured` (Binance API connected) to disable tabs. But there's no Paper mode awareness — if a Paper mode user somehow has Binance configured, they'd see Live liquidation data in Paper context, violating data isolation.
+### 5. Session Performance Conditionally Hidden Instead of Empty State
 
-**Fix**: Add mode awareness to `RiskEventLog`:
-- In Paper mode, disable Liquidations and Margin tabs with tooltip "Available in Live mode" (same pattern as Import page)
-- Keep the Risk Events tab fully functional (it queries from DB, already mode-neutral)
+Lines 216-224: The entire Session Performance section is wrapped in `{contextualData?.bySession && (...)}`. If contextual data hasn't loaded or has no session data, the section silently disappears from the layout. Other sections (like Equity Curve, Drawdown) always render with appropriate empty states.
 
-### 5. `navigateToSettings` Uses `window.location.href` Instead of React Router
+**Fix**: Always render the Session Performance section wrapper. Show a loading skeleton or "No session data available" empty state when `contextualData?.bySession` is falsy, consistent with how DrawdownChart and EquityCurve handle empty states.
 
-Line 29-31 uses `window.location.href = '/settings?tab=trading'` which causes a full page reload. Other parts of the app correctly use `<Link>` or `useNavigate()`.
+### 6. Strategy Comparison Chart Uses `hsl(var(--destructive))` Instead of Semantic Token
 
-**Fix**: Use `useNavigate()` from react-router-dom for SPA navigation.
+`PerformanceStrategiesTab.tsx` line 148 uses `hsl(var(--destructive))` for negative P&L bars. Per semantic color standards, financial losses should use `hsl(var(--loss))` / `text-loss`.
 
-### 6. RiskSummaryCard Uses Hardcoded 10000 as Fallback Balance
+**Fix**: Replace `hsl(var(--destructive))` with `hsl(var(--loss))` in the strategy comparison chart Cell fill.
 
-Line 96-97: `(riskProfile.max_daily_loss_percent ?? 5) / 100 * 10000` — when there's no `riskStatus` (no trading activity), the card shows daily loss limit calculated against a hardcoded $10,000 instead of the user's actual balance.
+### 7. Profit Factor Always Shows `text-profit` Color
 
-**Fix**: Either show just the percentage (since no balance is available), or omit the dollar amount in the "no activity" state. Showing a fake $10k-based number is misleading.
+`PerformanceKeyMetrics.tsx` line 66: Profit Factor value always uses `text-profit` regardless of actual value. A profit factor below 1.0 means losing money, which should use `text-loss`.
+
+**Fix**: Apply conditional coloring based on value:
+- >= 1.5: `text-profit`
+- >= 1.0: `text-foreground`
+- < 1.0: `text-loss`
 
 ---
 
 ## Implementation Plan
 
-### File: `src/pages/RiskManagement.tsx`
-1. **Controlled Tabs**: Replace `defaultValue="overview"` with controlled `value` + `onValueChange` via `useSearchParams`
-2. **Remove CorrelationMatrix guard**: Change `{showExchangeData && <CorrelationMatrix />}` to always render `<CorrelationMatrix />`
-3. **Fix navigation**: Replace `window.location.href` with `useNavigate()`
-4. Import `useNavigate` from react-router-dom
+### File: `src/pages/Performance.tsx`
+1. Import `useSearchParams` from `react-router-dom`
+2. Import `useModeVisibility` from hooks
+3. Replace `defaultValue="overview"` with controlled `value` + `onValueChange` via `useSearchParams`
+4. Pass `showExchangeData` to `PerformanceKeyMetrics` as prop
+5. Pass `filteredTrades` to `SevenDayStatsCard` as prop
+6. Pass `filteredTrades` to `DrawdownChart` as prop
+7. Always render Session Performance section with fallback empty state
 
-### File: `src/components/risk/RiskEventLog.tsx`
-1. **Semantic colors**: Replace all hardcoded `text-red-500`, `text-green-500`, etc. with `text-loss`, `text-profit`, `text-[hsl(var(--chart-4))]`, `text-[hsl(var(--chart-5))]`
-2. **Paper mode guard**: Import `useModeVisibility`, disable Liquidations and Margin tabs when `!showExchangeData` (Paper mode), with appropriate tooltip text
+### File: `src/components/performance/PerformanceKeyMetrics.tsx`
+1. Add `showExchangeData` to props interface
+2. Guard Binance stats section with `showExchangeData`
+3. Fix Profit Factor color: conditional based on value (>= 1.5 profit, >= 1.0 foreground, < 1.0 loss)
 
-### File: `src/components/risk/RiskSummaryCard.tsx`
-1. **Semantic colors**: Replace hardcoded colors with design tokens (`text-profit`, `text-loss`, `text-[hsl(var(--chart-4))]`)
-2. **Fix hardcoded balance**: In the "no activity" state, show only percentage instead of dollar amount based on fake $10k
+### File: `src/components/analytics/SevenDayStatsCard.tsx`
+1. Add optional `trades` prop to accept external trade data
+2. Remove internal `useModeFilteredTrades()` call when `trades` prop is provided
+3. Maintain backward compatibility: if no prop, keep internal fetch
 
-### File: `src/components/risk/RiskAlertBanner.tsx`
-1. **Semantic colors**: Replace `text-red-500` with `text-loss`, `text-yellow-500` with `text-[hsl(var(--chart-4))]`, and their background variants
+### File: `src/components/analytics/charts/DrawdownChart.tsx`
+1. Add optional `trades` prop to accept external trade data
+2. Remove internal `useModeFilteredTrades()` call when `trades` prop is provided
+3. Maintain backward compatibility
+
+### File: `src/components/performance/PerformanceStrategiesTab.tsx`
+1. Replace `hsl(var(--destructive))` with `hsl(var(--loss))` in Cell fill
 
 ---
 
@@ -83,7 +90,9 @@ Line 96-97: `(riskProfile.max_daily_loss_percent ?? 5) / 100 * 10000` — when t
 
 | File | Changes |
 |------|---------|
-| `src/pages/RiskManagement.tsx` | Controlled tabs via useSearchParams; remove CorrelationMatrix mode guard; fix navigateToSettings to use useNavigate |
-| `src/components/risk/RiskEventLog.tsx` | Semantic color tokens; Paper mode disable Liquidations/Margin tabs |
-| `src/components/risk/RiskSummaryCard.tsx` | Semantic color tokens; remove hardcoded $10k fallback |
-| `src/components/risk/RiskAlertBanner.tsx` | Semantic color tokens |
+| `src/pages/Performance.tsx` | Controlled tabs via useSearchParams; pass showExchangeData, filteredTrades to children; session section always renders |
+| `src/components/performance/PerformanceKeyMetrics.tsx` | Guard Binance stats with showExchangeData; fix Profit Factor color logic |
+| `src/components/analytics/SevenDayStatsCard.tsx` | Accept optional trades prop; respect parent filters |
+| `src/components/analytics/charts/DrawdownChart.tsx` | Accept optional trades prop; respect parent filters |
+| `src/components/performance/PerformanceStrategiesTab.tsx` | Semantic color token for loss bars |
+
