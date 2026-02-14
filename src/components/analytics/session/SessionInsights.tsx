@@ -48,13 +48,21 @@ const SESSION_ORDER: TradingSession[] = ['sydney', 'tokyo', 'london', 'new_york'
 
 export function SessionInsights({ bySession }: SessionInsightsProps) {
   const { formatPnl } = useCurrencyConversion();
+
+  // Defensive guard: ensure every session key has valid defaults
+  const safeBySession = useMemo(() => {
+    const defaults: PerformanceMetrics = { trades: 0, wins: 0, losses: 0, winRate: 0, avgPnl: 0, totalPnl: 0, profitFactor: 0 };
+    return Object.fromEntries(
+      SESSION_ORDER.map(s => [s, bySession[s] ?? defaults])
+    ) as Record<TradingSession, PerformanceMetrics>;
+  }, [bySession]);
   
   // Generate session-based insights
   const insights = useMemo((): SessionInsight[] => {
     const result: SessionInsight[] = [];
     
     // Filter sessions with enough trades
-    const validSessions = SESSION_ORDER.filter(s => bySession[s].trades >= DATA_QUALITY.MIN_TRADES_FOR_RANKING);
+    const validSessions = SESSION_ORDER.filter(s => safeBySession[s].trades >= DATA_QUALITY.MIN_TRADES_FOR_RANKING);
     
     if (validSessions.length < 2) {
       return [];
@@ -65,38 +73,38 @@ export function SessionInsights({ bySession }: SessionInsightsProps) {
     let worstSession = validSessions[0];
     
     validSessions.forEach(session => {
-      if (bySession[session].winRate > bySession[bestSession].winRate) {
+      if (safeBySession[session].winRate > safeBySession[bestSession].winRate) {
         bestSession = session;
       }
-      if (bySession[session].winRate < bySession[worstSession].winRate) {
+      if (safeBySession[session].winRate < safeBySession[worstSession].winRate) {
         worstSession = session;
       }
     });
     
     // Best session insight
-    if (bySession[bestSession].winRate >= SESSION_THRESHOLDS.SESSION_OPPORTUNITY_WIN_RATE) {
+    if (safeBySession[bestSession].winRate >= SESSION_THRESHOLDS.SESSION_OPPORTUNITY_WIN_RATE) {
       result.push({
         type: 'opportunity',
         title: `${SESSION_LABELS[bestSession]} Session is Your Edge`,
-        description: `Your ${formatWinRate(bySession[bestSession].winRate)} win rate during ${SESSION_LABELS[bestSession]} session (${formatSessionTimeLocal(bestSession)}) is significantly above average.`,
+        description: `Your ${formatWinRate(safeBySession[bestSession].winRate)} win rate during ${SESSION_LABELS[bestSession]} session (${formatSessionTimeLocal(bestSession)}) is significantly above average.`,
         session: bestSession,
         recommendation: 'Focus your trading activity during this session to maximize your edge.',
       });
     }
     
     // Worst session warning
-    if (bySession[worstSession].winRate < SESSION_THRESHOLDS.SESSION_WARNING_WIN_RATE && worstSession !== bestSession) {
+    if (safeBySession[worstSession].winRate < SESSION_THRESHOLDS.SESSION_WARNING_WIN_RATE && worstSession !== bestSession) {
       result.push({
         type: 'warning',
         title: `Avoid ${SESSION_LABELS[worstSession]} Session`,
-        description: `Your ${formatWinRate(bySession[worstSession].winRate)} win rate during ${SESSION_LABELS[worstSession]} session (${formatSessionTimeLocal(worstSession)}) is below breakeven.`,
+        description: `Your ${formatWinRate(safeBySession[worstSession].winRate)} win rate during ${SESSION_LABELS[worstSession]} session (${formatSessionTimeLocal(worstSession)}) is below breakeven.`,
         session: worstSession,
         recommendation: 'Consider reducing position sizes or avoiding trades during this session.',
       });
     }
     
     // Off-hours pattern (now 'other')
-    const otherData = bySession['other'];
+    const otherData = safeBySession['other'];
     if (otherData.trades >= SESSION_THRESHOLDS.OFF_HOURS_MIN_TRADES) {
       if (otherData.winRate < SESSION_THRESHOLDS.SESSION_WARNING_WIN_RATE) {
         result.push({
@@ -118,21 +126,21 @@ export function SessionInsights({ bySession }: SessionInsightsProps) {
     }
     
     // Session comparison pattern (Sydney/Tokyo vs New York)
-    const asiaWinRate = Math.max(bySession.sydney.winRate, bySession.tokyo.winRate);
-    const nyWinRate = bySession.new_york.winRate;
-    const asiaTrades = bySession.sydney.trades + bySession.tokyo.trades;
+    const asiaWinRate = Math.max(safeBySession.sydney.winRate, safeBySession.tokyo.winRate);
+    const nyWinRate = safeBySession.new_york.winRate;
+    const asiaTrades = safeBySession.sydney.trades + safeBySession.tokyo.trades;
     
-    if (asiaTrades >= DATA_QUALITY.MIN_TRADES_FOR_RANKING && bySession.new_york.trades >= DATA_QUALITY.MIN_TRADES_FOR_RANKING) {
+    if (asiaTrades >= DATA_QUALITY.MIN_TRADES_FOR_RANKING && safeBySession.new_york.trades >= DATA_QUALITY.MIN_TRADES_FOR_RANKING) {
       const diff = Math.abs(asiaWinRate - nyWinRate);
       if (diff > SESSION_THRESHOLDS.PERFORMANCE_GAP_SIGNIFICANT) {
         const betterSession: TradingSession = asiaWinRate > nyWinRate 
-          ? (bySession.sydney.winRate >= bySession.tokyo.winRate ? 'sydney' : 'tokyo')
+          ? (safeBySession.sydney.winRate >= safeBySession.tokyo.winRate ? 'sydney' : 'tokyo')
           : 'new_york';
         const worseSession: TradingSession = asiaWinRate > nyWinRate ? 'new_york' : 'sydney';
         result.push({
           type: 'pattern',
           title: 'Session Performance Gap',
-          description: `Your ${SESSION_LABELS[betterSession]} performance (${formatWinRate(bySession[betterSession].winRate)}) is ${diff.toFixed(0)}% better than ${SESSION_LABELS[worseSession]} (${formatWinRate(bySession[worseSession].winRate)}).`,
+          description: `Your ${SESSION_LABELS[betterSession]} performance (${formatWinRate(safeBySession[betterSession].winRate)}) is ${diff.toFixed(0)}% better than ${SESSION_LABELS[worseSession]} (${formatWinRate(safeBySession[worseSession].winRate)}).`,
           session: betterSession,
           recommendation: `Consider shifting more trading activity to ${SESSION_LABELS[betterSession]} session.`,
         });
@@ -140,10 +148,10 @@ export function SessionInsights({ bySession }: SessionInsightsProps) {
     }
     
     return result;
-  }, [bySession, formatPnl]);
+  }, [safeBySession, formatPnl]);
 
   // Calculate totals
-  const totalTrades = SESSION_ORDER.reduce((sum, s) => sum + bySession[s].trades, 0);
+  const totalTrades = SESSION_ORDER.reduce((sum, s) => sum + safeBySession[s].trades, 0);
   
   if (totalTrades < DATA_QUALITY.MIN_TRADES_FOR_INSIGHTS) {
     return (
@@ -187,7 +195,7 @@ export function SessionInsights({ bySession }: SessionInsightsProps) {
         {/* Session Summary Grid */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {SESSION_ORDER.map(session => {
-            const data = bySession[session];
+            const data = safeBySession[session];
             return (
               <div 
                 key={session}
