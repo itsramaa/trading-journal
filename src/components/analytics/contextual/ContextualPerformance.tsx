@@ -36,11 +36,11 @@ import {
 
 // Zone label mappings
 const FEAR_GREED_LABELS: Record<FearGreedZone, { label: string; color: string; range: string }> = {
-  extremeFear: { label: 'Extreme Fear', color: 'text-red-500', range: `0-${FEAR_GREED_ZONES.EXTREME_FEAR_MAX}` },
-  fear: { label: 'Fear', color: 'text-orange-500', range: `${FEAR_GREED_ZONES.EXTREME_FEAR_MAX + 1}-${FEAR_GREED_ZONES.FEAR_MAX}` },
+  extremeFear: { label: 'Extreme Fear', color: 'text-loss', range: `0-${FEAR_GREED_ZONES.EXTREME_FEAR_MAX}` },
+  fear: { label: 'Fear', color: 'text-[hsl(var(--chart-4))]', range: `${FEAR_GREED_ZONES.EXTREME_FEAR_MAX + 1}-${FEAR_GREED_ZONES.FEAR_MAX}` },
   neutral: { label: 'Neutral', color: 'text-muted-foreground', range: `${FEAR_GREED_ZONES.FEAR_MAX + 1}-${FEAR_GREED_ZONES.NEUTRAL_MAX}` },
-  greed: { label: 'Greed', color: 'text-emerald-500', range: `${FEAR_GREED_ZONES.NEUTRAL_MAX + 1}-${FEAR_GREED_ZONES.GREED_MAX}` },
-  extremeGreed: { label: 'Extreme Greed', color: 'text-green-500', range: `${FEAR_GREED_ZONES.GREED_MAX + 1}-100` },
+  greed: { label: 'Greed', color: 'text-[hsl(var(--chart-2))]', range: `${FEAR_GREED_ZONES.NEUTRAL_MAX + 1}-${FEAR_GREED_ZONES.GREED_MAX}` },
+  extremeGreed: { label: 'Extreme Greed', color: 'text-profit', range: `${FEAR_GREED_ZONES.GREED_MAX + 1}-100` },
 };
 
 const VOLATILITY_LABELS: Record<VolatilityLevel, { label: string; icon: typeof Activity }> = {
