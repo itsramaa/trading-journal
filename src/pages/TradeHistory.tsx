@@ -103,8 +103,6 @@ export default function TradeHistory() {
     });
   }, [allTrades, sortByAI]);
 
-  const binanceTrades = useMemo(() => sortedTrades.filter(t => t.source === 'binance'), [sortedTrades]);
-  const paperTrades = useMemo(() => sortedTrades.filter(t => t.source !== 'binance'), [sortedTrades]);
   const availablePairs = useMemo(() => Array.from(new Set(allTrades.map(t => t.pair))).sort(), [allTrades]);
 
   // Infinite scroll
@@ -135,7 +133,7 @@ export default function TradeHistory() {
       quantity: trade.quantity,
       source: (trade.source as 'binance' | 'paper') || 'paper',
       unrealizedPnL: trade.pnl || 0,
-      leverage: 1,
+      leverage: (trade as any).leverage || 1,
       isReadOnly: trade.source === 'binance' || trade.trade_mode === 'live',
       originalData: trade,
     };
@@ -151,7 +149,9 @@ export default function TradeHistory() {
     <div className="space-y-6">
       <PageHeader icon={History} title="Trade History" description="Review and enrich your closed trades for journaling">
         <div className="flex items-center gap-6">
-          <Badge variant="outline" className="text-xs font-normal">Basic Mode</Badge>
+          <Badge variant={tradeMode === 'paper' ? 'secondary' : 'default'} className="text-xs font-normal">
+            {tradeMode === 'paper' ? 'Paper Mode' : 'Live Mode'}
+          </Badge>
           <TradeHistoryStats
             isLoading={isStatsLoading && !tradeStats}
             displayedCount={sortedTrades.length}
@@ -220,8 +220,6 @@ export default function TradeHistory() {
       <TradeHistoryContent
         viewMode={viewMode}
         sortedTrades={sortedTrades}
-        binanceTrades={binanceTrades}
-        paperTrades={paperTrades}
         totalCount={totalCount}
         isLoading={isLoading}
         isError={isError}

@@ -1,10 +1,9 @@
 /**
- * Trade History Content - Trade list with tabs, rendering, and infinite scroll
+ * Trade History Content - Trade list rendering and infinite scroll
  */
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TradeHistoryCard } from "@/components/trading/TradeHistoryCard";
@@ -12,14 +11,11 @@ import { TradeGalleryCard, TradeGalleryCardSkeleton } from "@/components/journal
 import { History, FileText, Wifi, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import type { TradeEntry } from "@/hooks/use-trade-entries";
-import type { UnifiedPosition } from "@/components/journal";
 import { EMPTY_STATE_MESSAGES, VIEW_MODE_CONFIG, type ViewMode } from "@/lib/constants/trade-history";
 
 interface TradeHistoryContentProps {
   viewMode: ViewMode;
   sortedTrades: TradeEntry[];
-  binanceTrades: TradeEntry[];
-  paperTrades: TradeEntry[];
   totalCount: number;
   isLoading: boolean;
   isError: boolean;
@@ -40,8 +36,6 @@ interface TradeHistoryContentProps {
 export function TradeHistoryContent({
   viewMode,
   sortedTrades,
-  binanceTrades,
-  paperTrades,
   totalCount,
   isLoading,
   isError,
@@ -161,31 +155,9 @@ export function TradeHistoryContent({
           />
         ) : (
           <>
-            <Tabs defaultValue="all" className="w-full">
-              <TabsList className="mb-4">
-                <TabsTrigger value="all">All ({sortedTrades.length})</TabsTrigger>
-                <TabsTrigger value="binance">Binance ({binanceTrades.length})</TabsTrigger>
-                <TabsTrigger value="paper">Paper ({paperTrades.length})</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="all">
-                <div className={cn("transition-opacity duration-200", isFetching && !isLoading && "opacity-60")}>
-                  {renderTradeList(sortedTrades)}
-                </div>
-              </TabsContent>
-
-              <TabsContent value="binance">
-                <div className={cn("transition-opacity duration-200", isFetching && !isLoading && "opacity-60")}>
-                  {renderTradeList(binanceTrades)}
-                </div>
-              </TabsContent>
-
-              <TabsContent value="paper">
-                <div className={cn("transition-opacity duration-200", isFetching && !isLoading && "opacity-60")}>
-                  {renderTradeList(paperTrades)}
-                </div>
-              </TabsContent>
-            </Tabs>
+            <div className={cn("transition-opacity duration-200", isFetching && !isLoading && "opacity-60")}>
+              {renderTradeList(sortedTrades)}
+            </div>
 
             <div ref={loadMoreRef} className="py-4 flex justify-center">
               {isFetchingNextPage ? (

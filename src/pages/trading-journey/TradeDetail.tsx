@@ -88,7 +88,7 @@ function SectionCard({ title, icon: Icon, children, className }: { title: string
 }
 
 function formatHoldTime(minutes: number | null | undefined): string {
-  if (!minutes) return '-';
+  if (minutes === null || minutes === undefined) return '-';
   if (minutes < 60) return `${minutes}m`;
   const h = Math.floor(minutes / 60);
   if (h < 24) return `${h}h ${minutes % 60}m`;
@@ -311,8 +311,8 @@ export default function TradeDetail() {
     return (
       <div className="flex flex-col items-center justify-center py-20 space-y-4">
         <p className="text-muted-foreground">Trade not found or access denied.</p>
-        <Button variant="outline" onClick={() => navigate('/trading')}>
-          <ArrowLeft className="h-4 w-4 mr-2" /> Back to Journal
+        <Button variant="outline" onClick={() => window.history.length > 1 ? navigate(-1) : navigate('/trading')}>
+          <ArrowLeft className="h-4 w-4 mr-2" /> Go Back
         </Button>
       </div>
     );
@@ -337,7 +337,7 @@ export default function TradeDetail() {
       {/* ===== HEADER ===== */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div className="flex items-start gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/trading')} className="mt-0.5">
+          <Button variant="ghost" size="icon" onClick={() => window.history.length > 1 ? navigate(-1) : navigate('/trading')} className="mt-0.5">
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <CryptoIcon symbol={trade.pair} size={32} className="mt-1" />
@@ -373,13 +373,8 @@ export default function TradeDetail() {
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => setEnrichDrawerOpen(true)}>
-              <BookOpen className="h-4 w-4 mr-1" /> Enrich
+              <BookOpen className="h-4 w-4 mr-1" /> {isReadOnly ? 'Enrich' : 'Edit / Enrich'}
             </Button>
-            {!isReadOnly && (
-              <Button variant="outline" size="sm" onClick={() => setEnrichDrawerOpen(true)}>
-                <Pencil className="h-4 w-4 mr-1" /> Edit
-              </Button>
-            )}
           </div>
         </div>
       </div>
