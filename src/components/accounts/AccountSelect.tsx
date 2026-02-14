@@ -10,6 +10,7 @@ import { FormControl, FormItem, FormLabel, FormMessage } from "@/components/ui/f
 import { useAccounts } from "@/hooks/use-accounts";
 import { formatCurrency } from "@/lib/formatters";
 import type { AccountType } from "@/types/account";
+import { isPaperAccount } from "@/lib/account-utils";
 
 const ACCOUNT_TYPE_ICONS: Record<AccountType, React.ElementType> = {
   trading: CandlestickChart,
@@ -50,10 +51,10 @@ export function AccountSelect({
     if (filterByCurrency && a.currency !== filterByCurrency) return false;
     if (filterByType && a.account_type !== filterByType) return false;
     
-    // Handle backtest filtering for trading accounts
-    const isBacktest = a.metadata?.is_backtest === true;
-    if (excludeBacktest && isBacktest) return false;
-    if (backtestOnly && !isBacktest) return false;
+    // Handle backtest filtering using canonical isPaperAccount
+    const isPaper = isPaperAccount(a);
+    if (excludeBacktest && isPaper) return false;
+    if (backtestOnly && !isPaper) return false;
     
     return true;
   });
@@ -70,15 +71,15 @@ export function AccountSelect({
           </div>
         )}
         {filteredAccounts?.map((account) => {
-          const isBacktest = account.metadata?.is_backtest === true;
-          const Icon = isBacktest ? FlaskConical : ACCOUNT_TYPE_ICONS[account.account_type];
+          const isPaper = isPaperAccount(account);
+          const Icon = isPaper ? FlaskConical : ACCOUNT_TYPE_ICONS[account.account_type];
           
           return (
             <SelectItem key={account.id} value={account.id}>
               <div className="flex items-center gap-2 w-full">
                 <Icon className="h-4 w-4 text-muted-foreground" />
                 <span className="flex-1">{account.name}</span>
-                {isBacktest && (
+                {isPaper && (
                   <span className="text-xs text-muted-foreground">(Paper)</span>
                 )}
                 {showBalance && (

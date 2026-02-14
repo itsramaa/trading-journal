@@ -33,8 +33,9 @@ export function usePaperAccountValidation() {
       return { valid: true }; // Account not found, might be Binance
     }
 
-    // Only validate paper/backtest accounts
-    if (account.account_type !== 'backtest') {
+    // Only validate paper accounts (canonical check)
+    const isPaper = !account.exchange || account.exchange === 'manual' || account.exchange === '';
+    if (!isPaper) {
       return { valid: true }; // Real accounts use Binance validation
     }
 
@@ -69,7 +70,8 @@ export function usePaperAccountValidation() {
   const isPaperAccount = (accountId: string | null): boolean => {
     if (!accountId) return false;
     const account = accounts?.find(a => a.id === accountId);
-    return account?.account_type === 'backtest';
+    if (!account) return false;
+    return !account.exchange || account.exchange === 'manual' || account.exchange === '';
   };
 
   /**

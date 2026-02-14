@@ -12,6 +12,7 @@
  * - API_REBATE: API trading rebates
  */
 import { useState, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { 
   Calendar, 
   CircleDollarSign,
@@ -288,9 +289,9 @@ export function FinancialSummaryCard({
             <div className="flex items-center justify-center p-3 rounded-lg bg-muted/30 border border-dashed">
               <p className="text-sm text-muted-foreground">
                 View detailed breakdown in{' '}
-                <a href="/trade-history" className="text-primary hover:underline">
+                <Link to="/trade-history" className="text-primary hover:underline">
                   Trade History → Fees & Funding tabs
-                </a>
+                </Link>
               </p>
             </div>
           </>

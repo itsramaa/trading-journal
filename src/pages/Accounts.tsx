@@ -36,6 +36,7 @@ import { AccountTransactionDialog } from "@/components/accounts/AccountTransacti
 import { BinanceTransactionHistoryTab } from "@/components/trading/BinanceTransactionHistory";
 import { FinancialSummaryCard } from "@/components/accounts/FinancialSummaryCard";
 import { AccountComparisonTable } from "@/components/accounts/AccountComparisonTable";
+import { EditAccountDialog } from "@/components/accounts/EditAccountDialog";
 import { BinanceNotConfiguredState } from "@/components/binance/BinanceNotConfiguredState";
 
 import { useAccounts } from "@/hooks/use-accounts";
@@ -49,12 +50,15 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import type { Account } from "@/types/account";
+import { isPaperAccount } from "@/lib/account-utils";
 
 export default function Accounts() {
   const [transactionDialogOpen, setTransactionDialogOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<Account | undefined>();
   const [defaultTransactionTab, setDefaultTransactionTab] = useState<'deposit' | 'withdraw'>('deposit');
   const [activeTab, setActiveTab] = useState<'accounts' | 'transactions' | 'financial'>('accounts');
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editAccount, setEditAccount] = useState<Account | null>(null);
   
   const { data: accounts } = useAccounts();
   const { data: connectionStatus } = useBinanceConnectionStatus();
@@ -94,6 +98,11 @@ export default function Accounts() {
     setTransactionDialogOpen(true);
   };
 
+  const handleEdit = (account: Account) => {
+    setEditAccount(account);
+    setEditDialogOpen(true);
+  };
+
   const { showExchangeData, showExchangeBalance, showPaperData } = useModeVisibility();
 
   const isConfigured = showExchangeData && (connectionStatus?.isConfigured ?? false);
@@ -103,7 +112,7 @@ export default function Accounts() {
   // Paper accounts calculation (System-First)
   const paperAccounts = useMemo(() => 
     showPaperData 
-      ? (accounts?.filter(a => a.exchange === 'manual' || a.exchange === null || a.exchange === '') || [])
+      ? (accounts?.filter(a => isPaperAccount(a)) || [])
       : [],
     [accounts, showPaperData]
   );
@@ -204,7 +213,9 @@ export default function Accounts() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Active Positions</CardTitle>
-              {(balance?.totalUnrealizedProfit || 0) >= 0 ? (
+              {showPaperData ? (
+                <ArrowDownUp className="h-4 w-4 text-muted-foreground" />
+              ) : (balance?.totalUnrealizedProfit || 0) >= 0 ? (
                 <TrendingUp className="h-4 w-4 text-profit" />
               ) : (
                 <TrendingDown className="h-4 w-4 text-loss" />
@@ -433,6 +444,7 @@ export default function Accounts() {
                     setSelectedAccount(account);
                   }}
                   onTransact={handleTransact}
+                  onEdit={handleEdit}
                   emptyMessage="No paper trading accounts yet. Create one to test your strategies risk-free."
                 />
               </div>
@@ -457,6 +469,12 @@ export default function Accounts() {
         onOpenChange={setTransactionDialogOpen}
         defaultAccount={selectedAccount}
         defaultTab={defaultTransactionTab}
+      />
+
+      <EditAccountDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        account={editAccount}
       />
     </>
   );
