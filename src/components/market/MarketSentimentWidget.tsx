@@ -4,6 +4,7 @@
  * Controlled component - symbol state managed by parent via props
  */
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -58,7 +59,7 @@ interface MarketSentimentWidgetProps {
   onSymbolChange?: (symbol: string) => void;
 }
 
-export function MarketSentimentWidget({ 
+function MarketSentimentContent({ 
   symbol: controlledSymbol,
   defaultSymbol,
   showSymbolSelector = true,
@@ -126,8 +127,8 @@ export function MarketSentimentWidget({
         variant="outline" 
         className={cn(
           "text-xs capitalize",
-          isPositive && "border-green-500/50 text-green-500",
-          isNegative && "border-red-500/50 text-red-500",
+          isPositive && "border-profit/50 text-profit",
+          isNegative && "border-loss/50 text-loss",
           !isPositive && !isNegative && "border-muted-foreground/50 text-muted-foreground"
         )}
       >
@@ -314,20 +315,20 @@ export function MarketSentimentWidget({
             {/* Bull vs Bear bar */}
             <div className="space-y-1">
               <div className="flex justify-between text-xs">
-                <span className="text-green-500 font-medium">
+                <span className="text-profit font-medium">
                   Bullish {sentiment.bullishScore}%
                 </span>
-                <span className="text-red-500 font-medium">
+                <span className="text-loss font-medium">
                   Bearish {sentiment.bearishScore}%
                 </span>
               </div>
               <div className="h-2 rounded-full bg-muted overflow-hidden flex">
                 <div 
-                  className="bg-green-500 transition-all duration-500"
+                  className="bg-profit transition-all duration-500"
                   style={{ width: `${sentiment.bullishScore}%` }}
                 />
                 <div 
-                  className="bg-red-500 transition-all duration-500"
+                  className="bg-loss transition-all duration-500"
                   style={{ width: `${sentiment.bearishScore}%` }}
                 />
               </div>
@@ -366,7 +367,7 @@ export function MarketSentimentWidget({
                     <span>Funding Rate</span>
                     <span className={cn(
                       "font-mono",
-                      sentiment.rawData.markPrice.lastFundingRate > 0 ? "text-green-500" : "text-red-500"
+                      sentiment.rawData.markPrice.lastFundingRate > 0 ? "text-profit" : "text-loss"
                     )}>
                       {(sentiment.rawData.markPrice.lastFundingRate * 100).toFixed(4)}%
                     </span>
@@ -393,5 +394,19 @@ export function MarketSentimentWidget({
         )}
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * Exported component wrapped with ErrorBoundary
+ */
+export function MarketSentimentWidget(props: MarketSentimentWidgetProps) {
+  return (
+    <ErrorBoundary 
+      title="Market Sentiment"
+      onRetry={() => window.location.reload()}
+    >
+      <MarketSentimentContent {...props} />
+    </ErrorBoundary>
   );
 }

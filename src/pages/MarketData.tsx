@@ -4,8 +4,7 @@
  */
 import { useMemo } from "react";
 import { PageHeader } from "@/components/ui/page-header";
-import { MarketSentimentWidget, WhaleTrackingWidget, TradingOpportunitiesWidget } from "@/components/market";
-import { VolatilityMeterWidget } from "@/components/market";
+import { MarketSentimentWidget, WhaleTrackingWidget, TradingOpportunitiesWidget, VolatilityMeterWidget } from "@/components/market";
 import { BarChart3, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMultiSymbolMarketInsight } from "@/features/market-insight";
