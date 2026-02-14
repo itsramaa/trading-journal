@@ -2,13 +2,11 @@
  * AI Insights Page - Advanced AI-powered trading analytics
  * Features: Pattern recognition, recommendations, performance predictions
  */
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { 
@@ -20,7 +18,6 @@ import {
   CheckCircle,
   XCircle,
   Clock,
-  BarChart3,
   Lightbulb,
   Trophy,
   Flame,
@@ -31,6 +28,7 @@ import {
   Zap,
 } from "lucide-react";
 import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { useContextualAnalytics } from "@/hooks/use-contextual-analytics";
 import { ContextualPerformance } from "@/components/analytics/contextual/ContextualPerformance";
 import { EmotionalPatternAnalysis } from "@/components/analytics/EmotionalPatternAnalysis";
@@ -78,6 +76,7 @@ export default function AIInsights() {
   const { data: trades = [], isLoading } = useModeFilteredTrades();
   const { data: contextualData } = useContextualAnalytics();
   const { formatPnl } = useCurrencyConversion();
+  const [retryKey, setRetryKey] = useState(0);
 
   const closedTrades = useMemo(() => 
     trades.filter(t => t.status === 'closed'), [trades]
@@ -283,7 +282,7 @@ export default function AIInsights() {
     }
 
     return result;
-  }, [stats]);
+  }, [stats, formatPnl]);
 
   // Generate action items
   const actionItems = useMemo((): ActionItem[] => {
@@ -370,7 +369,8 @@ export default function AIInsights() {
   }
 
   return (
-    <div className="space-y-6">
+    <ErrorBoundary title="AI Insights" onRetry={() => setRetryKey(k => k + 1)}>
+    <div key={retryKey} className="space-y-6">
       <PageHeader
           icon={Brain}
           title="AI Insights"
@@ -575,5 +575,6 @@ export default function AIInsights() {
           </TabsContent>
         </Tabs>
     </div>
+    </ErrorBoundary>
   );
 }
