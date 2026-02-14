@@ -7,6 +7,7 @@ import { useState, useCallback } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useConnection } from '@solana/wallet-adapter-react';
 import { useAuth } from '@/hooks/use-auth';
+import { useTradeMode } from '@/hooks/use-trade-mode';
 import { supabase } from '@/integrations/supabase/client';
 import { parseSolanaWalletTrades, type ParsedSolanaTrade, type SolanaParserResult } from '@/services/solana-trade-parser';
 import { toast } from 'sonner';
@@ -26,12 +27,14 @@ export interface UsesolanaTradeImportReturn {
   deselectAll: () => void;
   reset: () => void;
   importedCount: number;
+  tradeMode: string;
 }
 
 export function useSolanaTradeImport(): UsesolanaTradeImportReturn {
   const { publicKey } = useWallet();
   const { connection } = useConnection();
   const { user } = useAuth();
+  const { tradeMode } = useTradeMode();
   const queryClient = useQueryClient();
 
   const [status, setStatus] = useState<ImportStatus>('idle');
@@ -129,7 +132,7 @@ export function useSolanaTradeImport(): UsesolanaTradeImportReturn {
       }
 
       // Batch insert
-      const entries = newTrades.map((trade) => mapToTradeEntry(trade, user.id));
+      const entries = newTrades.map((trade) => mapToTradeEntry(trade, user.id, tradeMode));
       
       const { error } = await supabase
         .from('trade_entries')
@@ -150,7 +153,7 @@ export function useSolanaTradeImport(): UsesolanaTradeImportReturn {
       toast.error(`Import failed: ${err}`);
       console.error(err);
     }
-  }, [user, result, selectedTrades, queryClient]);
+  }, [user, result, selectedTrades, queryClient, tradeMode]);
 
   const reset = useCallback(() => {
     setStatus('idle');
@@ -170,13 +173,14 @@ export function useSolanaTradeImport(): UsesolanaTradeImportReturn {
     deselectAll,
     reset,
     importedCount,
+    tradeMode,
   };
 }
 
 /**
  * Map parsed Solana trade to trade_entries insert format
  */
-function mapToTradeEntry(trade: ParsedSolanaTrade, userId: string) {
+function mapToTradeEntry(trade: ParsedSolanaTrade, userId: string, tradeMode: string) {
   const tradeDate = new Date(trade.blockTime * 1000).toISOString();
   
   return {
@@ -195,7 +199,7 @@ function mapToTradeEntry(trade: ParsedSolanaTrade, userId: string) {
     exit_datetime: trade.status === 'closed' ? tradeDate : null,
     source: 'solana',
     result: trade.pnl > 0 ? 'win' : trade.pnl < 0 ? 'loss' : 'breakeven',
-    trade_mode: 'live',
+    trade_mode: tradeMode,
     trade_state: trade.status === 'closed' ? 'closed' : 'active',
     trade_style: 'short_trade',
     binance_trade_id: trade.signature, // Reusing field to store Solana signature for dedup
