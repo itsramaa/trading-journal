@@ -1,88 +1,64 @@
 
 
-# Performance Page: Deep UX Analysis & Fixes
+# Daily P&L Page: Deep UX Analysis & Fixes
 
 ## Issues Found
 
-### 1. Uncontrolled Tabs -- No URL Persistence
+### 1. Symbol Breakdown Completely Hidden in Paper Mode
 
-`Performance.tsx` line 185 uses `defaultValue="overview"`. This means:
-- Tab state not reflected in URL
-- Deep links like `/performance?tab=monthly` don't work
-- Navigating away and back resets to Overview
-- Inconsistent with the controlled tab pattern now established on Risk, Import, and TradingJournal pages
+Line 318: `{showExchangeData && symbolBreakdown.length > 0 && (` hides the entire Symbol Breakdown section in Paper mode. However, `useSymbolBreakdown` already calculates paper trade data via `paperBreakdown.weekly` — the hook fully supports Paper mode with per-symbol aggregation from `trade_entries`.
 
-**Fix**: Replace with controlled `Tabs` using `useSearchParams`, identical pattern to other pages.
+This violates mode-as-context: the layout should be identical in both modes; only data sources differ. A Paper trader who trades multiple pairs (e.g., BTCUSDT, ETHUSDT) should see their per-symbol breakdown.
 
-### 2. Binance Stats Shown in Paper Mode Without Guard
+**Fix**: Remove the `showExchangeData` guard. Keep only `symbolBreakdown.length > 0` so the section shows whenever there is data, regardless of mode. The Fees column inside the breakdown is valid for both modes (`trade.fees` exists on paper trades too).
 
-`PerformanceKeyMetrics` renders Binance daily P&L breakdown (lines 169-188) based solely on `binanceStats.isConnected && binanceStats.grossPnl !== 0`. There is no mode check. In Paper mode, if the user has Binance connected, Live Binance data bleeds into the Paper performance view, violating data isolation.
+### 2. Commission Column Hidden in Paper Mode — Data Exists But Not Shown
 
-**Fix**: Pass `showExchangeData` from `useModeVisibility` to `PerformanceKeyMetrics` and guard the Binance stats section with it. Only show the Binance breakdown in Live mode.
+Line 152: `{showExchangeData && (` hides the Commission metric in Today's P&L card. However, `useUnifiedDailyPnl` returns `totalCommission` for Paper mode too (calculated from `trade.fees`). Paper traders who manually enter fees are denied visibility of their fee impact.
 
-### 3. SevenDayStatsCard Ignores Analytics Scope Filters
+This also breaks the 4-column grid layout: Paper mode shows 3 columns (Realized P&L, Trades, Win Rate) while Live shows 4 (+ Commission). Layout inconsistency.
 
-`SevenDayStatsCard` calls its own `useModeFilteredTrades()` internally (line 13). This means it always shows mode-level data and ignores the page-level filters (date range, strategy, analytics level scope). When a user filters to "Account: Binance Main", the 7-Day Stats still shows data from all accounts.
+**Fix**: Always show the Commission column. In Paper mode, it will show the sum of `fees` from paper trades (could be 0 if no fees entered). This maintains grid parity.
 
-**Fix**: Refactor `SevenDayStatsCard` to accept `trades` as a prop (same pattern as `TradingBehaviorAnalytics`). Pass the `filteredTrades` from the parent `Performance.tsx` so it respects all active filters.
+### 3. Export Functions Defined But Never Used (Dead Code)
 
-### 4. DrawdownChart Ignores Analytics Scope Filters
+`handleExportCSV` (line 61) and `handleExportPDF` (line 82) are defined with full logic, but the UI only renders a `<Link to="/export?tab=analytics">` button (line 129). These two functions are never called — pure dead code.
 
-Same issue as SevenDayStatsCard. `DrawdownChart` calls `useModeFilteredTrades()` internally (line 12). It ignores date range, strategy, and analytics level filters set on the Performance page.
+Additionally, both functions pass `trades: []` (empty array), making the "Trade History" section of the export output empty.
 
-**Fix**: Refactor `DrawdownChart` to accept `trades` as a prop instead of fetching its own data. Pass `filteredTrades` from the parent.
+**Fix**: Remove the dead `handleExportCSV` and `handleExportPDF` functions and their associated imports (`usePerformanceExport`). The Export button already correctly links to the dedicated Export page. This reduces bundle size and removes confusion.
 
-### 5. Session Performance Conditionally Hidden Instead of Empty State
+### 4. ChangeIndicator Recreated on Every Render
 
-Lines 216-224: The entire Session Performance section is wrapped in `{contextualData?.bySession && (...)}`. If contextual data hasn't loaded or has no session data, the section silently disappears from the layout. Other sections (like Equity Curve, Drawdown) always render with appropriate empty states.
+Line 55: `const ChangeIndicator = ({ value, suffix }) => ...` is defined **inside** the component body. This means React creates a new component reference on every render, causing unnecessary unmount/remount of the elements.
 
-**Fix**: Always render the Session Performance section wrapper. Show a loading skeleton or "No session data available" empty state when `contextualData?.bySession` is falsy, consistent with how DrawdownChart and EquityCurve handle empty states.
+**Fix**: Extract `ChangeIndicator` outside the `DailyPnL` component as a standalone function or move to a shared UI utility.
 
-### 6. Strategy Comparison Chart Uses `hsl(var(--destructive))` Instead of Semantic Token
+### 5. No Empty State for Zero-Activity Days
 
-`PerformanceStrategiesTab.tsx` line 148 uses `hsl(var(--destructive))` for negative P&L bars. Per semantic color standards, financial losses should use `hsl(var(--loss))` / `text-loss`.
+When a trader has no trades today and no trades this week, the page renders all cards with `$0.00`, `0%`, `0 trades`. There's no visual cue that data is simply absent vs. the trader actually having zero P&L. Other pages in the app use empty states for this scenario.
 
-**Fix**: Replace `hsl(var(--destructive))` with `hsl(var(--loss))` in the strategy comparison chart Cell fill.
+**Fix**: When `dailyStats.totalTrades === 0 && weeklyStats.totalTrades === 0`, show a contextual empty state banner (e.g., "No trading activity recorded yet. Start trading to see your P&L breakdown here.") above the cards, while still rendering the cards with zero values for structural consistency.
 
-### 7. Profit Factor Always Shows `text-profit` Color
+### 6. Unused Imports After Dead Code Removal
 
-`PerformanceKeyMetrics.tsx` line 66: Profit Factor value always uses `text-profit` regardless of actual value. A profit factor below 1.0 means losing money, which should use `text-loss`.
+After removing `handleExportCSV`/`handleExportPDF`, the following imports become unused:
+- `usePerformanceExport`
+- `useSymbolBreakdown` import of `weeklyBreakdown` can stay (it's used in the symbol breakdown section)
 
-**Fix**: Apply conditional coloring based on value:
-- >= 1.5: `text-profit`
-- >= 1.0: `text-foreground`
-- < 1.0: `text-loss`
+**Fix**: Clean up imports as part of the dead code removal.
 
 ---
 
 ## Implementation Plan
 
-### File: `src/pages/Performance.tsx`
-1. Import `useSearchParams` from `react-router-dom`
-2. Import `useModeVisibility` from hooks
-3. Replace `defaultValue="overview"` with controlled `value` + `onValueChange` via `useSearchParams`
-4. Pass `showExchangeData` to `PerformanceKeyMetrics` as prop
-5. Pass `filteredTrades` to `SevenDayStatsCard` as prop
-6. Pass `filteredTrades` to `DrawdownChart` as prop
-7. Always render Session Performance section with fallback empty state
+### File: `src/pages/DailyPnL.tsx`
 
-### File: `src/components/performance/PerformanceKeyMetrics.tsx`
-1. Add `showExchangeData` to props interface
-2. Guard Binance stats section with `showExchangeData`
-3. Fix Profit Factor color: conditional based on value (>= 1.5 profit, >= 1.0 foreground, < 1.0 loss)
-
-### File: `src/components/analytics/SevenDayStatsCard.tsx`
-1. Add optional `trades` prop to accept external trade data
-2. Remove internal `useModeFilteredTrades()` call when `trades` prop is provided
-3. Maintain backward compatibility: if no prop, keep internal fetch
-
-### File: `src/components/analytics/charts/DrawdownChart.tsx`
-1. Add optional `trades` prop to accept external trade data
-2. Remove internal `useModeFilteredTrades()` call when `trades` prop is provided
-3. Maintain backward compatibility
-
-### File: `src/components/performance/PerformanceStrategiesTab.tsx`
-1. Replace `hsl(var(--destructive))` with `hsl(var(--loss))` in Cell fill
+1. **Remove `showExchangeData` guard on Symbol Breakdown** (line 318): Change to `{symbolBreakdown.length > 0 && (`
+2. **Remove `showExchangeData` guard on Commission column** (line 152): Always render the Commission metric
+3. **Remove dead export functions**: Delete `handleExportCSV`, `handleExportPDF`, and the `usePerformanceExport` import
+4. **Extract `ChangeIndicator`**: Move outside the component body to module-level
+5. **Add empty state banner**: When both daily and weekly trades are 0, show a subtle info banner before the cards
 
 ---
 
@@ -90,9 +66,5 @@ Lines 216-224: The entire Session Performance section is wrapped in `{contextual
 
 | File | Changes |
 |------|---------|
-| `src/pages/Performance.tsx` | Controlled tabs via useSearchParams; pass showExchangeData, filteredTrades to children; session section always renders |
-| `src/components/performance/PerformanceKeyMetrics.tsx` | Guard Binance stats with showExchangeData; fix Profit Factor color logic |
-| `src/components/analytics/SevenDayStatsCard.tsx` | Accept optional trades prop; respect parent filters |
-| `src/components/analytics/charts/DrawdownChart.tsx` | Accept optional trades prop; respect parent filters |
-| `src/components/performance/PerformanceStrategiesTab.tsx` | Semantic color token for loss bars |
+| `src/pages/DailyPnL.tsx` | Remove `showExchangeData` guards on Commission and Symbol Breakdown; remove dead export code; extract ChangeIndicator; add empty state banner |
 
