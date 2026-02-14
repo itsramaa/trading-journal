@@ -3,13 +3,14 @@
  * Enhanced with accessibility, Enrich button for journaling, Quick Note, and market context badges
  */
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar, Tag, Target, MoreVertical, Trash2, Brain, Wifi, Edit3, ImageIcon, MessageSquarePlus, MessageSquare, Loader2, ExternalLink } from "lucide-react";
+import { Calendar, Tag, Target, MoreVertical, Trash2, Brain, Wifi, Edit3, ImageIcon, MessageSquarePlus, MessageSquare, Loader2, ExternalLink, Eye } from "lucide-react";
 import { TradeStateBadge } from "@/components/ui/trade-state-badge";
 import { TradeRatingBadge } from "@/components/ui/trade-rating-badge";
 import { format } from "date-fns";
@@ -49,6 +50,7 @@ export function TradeHistoryCard({
   const [quickNote, setQuickNote] = useState('');
   const [isSavingNote, setIsSavingNote] = useState(false);
   const [isNotesExpanded, setIsNotesExpanded] = useState(false);
+  const navigate = useNavigate();
 
   const rr = calculateRR(entry);
   // Use centralized utility functions
@@ -192,6 +194,10 @@ export function TradeHistoryCard({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => navigate(`/trading/${entry.id}`)}>
+                    <Eye className="h-4 w-4 mr-2" aria-hidden="true" />
+                    View Detail
+                  </DropdownMenuItem>
                   {onQuickNote && (
                     <DropdownMenuItem onClick={handleOpenQuickNote}>
                       <MessageSquarePlus className="h-4 w-4 mr-2" aria-hidden="true" />
