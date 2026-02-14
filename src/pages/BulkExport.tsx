@@ -66,7 +66,7 @@ const exportTypes: { type: BulkExportType; icon: typeof FileText }[] = [
 ];
 
 export default function BulkExport() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const defaultTab = searchParams.get('tab') || undefined;
 
   const { data: connectionStatus } = useBinanceConnectionStatus();
@@ -149,6 +149,8 @@ export default function BulkExport() {
   ];
 
   const resolvedDefaultTab = defaultTab || (isConnected ? "binance" : "journal");
+  const activeTab = searchParams.get('tab') || resolvedDefaultTab;
+  const setActiveTab = (tab: string) => setSearchParams({ tab });
 
   return (
     <div className="space-y-6">
@@ -165,7 +167,7 @@ export default function BulkExport() {
         </Badge>
       </PageHeader>
 
-      <Tabs defaultValue={resolvedDefaultTab} className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-5 lg:w-[600px]">
           <TabsTrigger value="binance" className="gap-2">
             <Receipt className="h-4 w-4" />
