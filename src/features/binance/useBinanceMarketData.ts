@@ -4,6 +4,7 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type {
   Kline,
@@ -364,8 +365,10 @@ export function useBinanceMarketSentiment(
   const isError = topTraderQuery.isError || globalRatioQuery.isError || 
                   takerVolumeQuery.isError || openInterestQuery.isError || markPriceQuery.isError;
   
-  // Calculate sentiment score using centralized thresholds
-  const calculateSentiment = () => {
+  // Calculate sentiment score using centralized thresholds (memoized)
+  const data = useMemo(() => {
+    if (isLoading || isError) return null;
+    
     const topTrader = topTraderQuery.data?.[0];
     const globalRatio = globalRatioQuery.data?.[0];
     const takerVolume = takerVolumeQuery.data?.[0];
@@ -439,10 +442,15 @@ export function useBinanceMarketSentiment(
         markPrice,
       },
     };
-  };
+  }, [
+    isLoading, isError, symbol,
+    topTraderQuery.data, globalRatioQuery.data,
+    takerVolumeQuery.data, openInterestQuery.data,
+    markPriceQuery.data
+  ]);
   
   return {
-    data: !isLoading && !isError ? calculateSentiment() : null,
+    data,
     isLoading,
     isError,
     refetch: () => {
