@@ -1,89 +1,75 @@
 
 
-# AI Insights Page - Functional Correctness Audit
+# Risk Overview Page - Functional Correctness Audit
 
 ## Audit Scope
 
-Reviewed: page (`AIInsights.tsx`), components (`PredictiveInsights.tsx`, `SessionInsights.tsx`, `EmotionalPatternAnalysis.tsx`, `ContextualPerformance.tsx`, `ContextualOnboardingGuide.tsx`), hooks (`use-contextual-analytics.ts`, `use-mode-filtered-trades.ts`), utilities (`predictive-analytics.ts`, `session-utils.ts`), constants (`ai-analytics.ts`, `emotional-states.ts`), and cross-domain dependencies.
+Reviewed: page (`RiskManagement.tsx`), components (`DailyLossTracker.tsx`, `RiskSummaryCard.tsx`, `RiskProfileSummaryCard.tsx`, `CorrelationMatrix.tsx`, `RiskEventLog.tsx`, `RiskAlertBanner.tsx`, `RiskSettingsForm.tsx`, `MarginHistoryTab.tsx`), hooks (`use-risk-profile.ts`, `use-risk-events.ts`, `use-trading-gate.ts`, `use-binance-daily-pnl.ts`), types (`risk.ts`), constants (`risk-thresholds.ts`), utilities (`correlation-utils.ts`, `symbol-utils.ts`), and cross-domain dependencies (`use-combined-balance.ts`, `use-unified-daily-pnl.ts`, `use-mode-visibility.ts`).
 
 ---
 
 ## Issues Found
 
-### 1. Session Outlook Prediction Broken Due to Session Name Mismatch (Accuracy - HIGH)
+### 1. RiskSummaryCard `correlationWarning` useMemo Missing `showExchangeData` Dependency (Accuracy - HIGH)
 
-**File:** `src/lib/predictive-analytics.ts` (lines 180-188)
+**File:** `src/components/risk/RiskSummaryCard.tsx` (line 34)
 
-The `getSessionOutlook` function determines the current session using hardcoded names (`'Asia'`, `'London'`, `'New York'`, `'Off-hours'`), then filters trades via:
-
-```typescript
-t.session?.toLowerCase().includes(currentSession.toLowerCase())
-```
-
-However, the database stores sessions as `'sydney'`, `'tokyo'`, `'london'`, `'new_york'`, `'other'`. The matching results:
-
-- `'Asia'` -- `'sydney'.includes('asia')` = false, `'tokyo'.includes('asia')` = false -- **BROKEN**
-- `'London'` -- `'london'.includes('london')` = true -- works
-- `'New York'` -- `'new_york'.includes('new york')` = false (underscore vs space) -- **BROKEN**
-- `'Off-hours'` -- `'other'.includes('off-hours')` = false -- **BROKEN**
-
-3 out of 4 session lookups silently fail, returning `null` (no prediction shown). Only the London session ever produces a Session Outlook prediction.
-
-**Fix:** Map UTC hours to database session values:
+The `correlationWarning` memo uses `showExchangeData` in its guard condition (line 31) but it is NOT included in the dependency array:
 
 ```typescript
-let currentSession: string;
-if (hour >= 20 || hour < 5) currentSession = 'sydney|tokyo';
-else if (hour >= 7 && hour < 16) currentSession = 'london';
-else if (hour >= 13 && hour < 22) currentSession = 'new_york';
-else currentSession = 'other';
-
-const sessionTrades = closed.filter(t => {
-  const s = t.session?.toLowerCase() || '';
-  return currentSession.split('|').some(cs => s === cs);
-});
+const correlationWarning = useMemo((): CorrelationWarning | null => {
+  if (!showExchangeData || !connectionStatus?.isConnected || positions.length < 2) return null;
+  // ...
+}, [positions, connectionStatus]); // Missing: showExchangeData
 ```
 
-And update the description string to use user-friendly labels (e.g., `SESSION_LABELS`).
+When a user switches from Live to Paper mode, `showExchangeData` changes from `true` to `false`, but the memo does not re-evaluate. The correlation warning from the Live context persists in the Paper mode dashboard, showing Live-specific risk data in a Paper context. This violates the data isolation policy.
+
+**Fix:** Add `showExchangeData` to the dependency array:
+```typescript
+}, [positions, connectionStatus, showExchangeData]);
+```
 
 ---
 
-### 2. `insights` useMemo Missing `formatPnl` Dependency (Accuracy - MEDIUM)
+### 2. Risk Snapshot Error Toast Leaks Internal Error Messages (Security - HIGH)
 
-**File:** `src/pages/AIInsights.tsx` (line 286)
+**File:** `src/hooks/use-risk-profile.ts` (line 189)
 
-The `insights` memo uses `formatPnl` inside its callback (lines 268, 269, 279, 280) but the dependency array is only `[stats]`:
+The `useUpdateDailyRiskSnapshot` mutation exposes raw error messages:
 
 ```typescript
-const insights = useMemo((): PerformanceInsight[] => {
-  // ... uses formatPnl(stats.bestPair.pnl) and formatPnl(stats.worstPair.pnl) ...
-}, [stats]); // Missing: formatPnl
+onError: (error) => {
+  toast.error(`Failed to update risk snapshot: ${error.message}`);
+},
 ```
 
-If the user changes their display currency, the insight descriptions will show stale currency-formatted values until a full page remount. This violates the accuracy criterion.
+This can leak internal Supabase error details (constraint violations, connection errors, RLS denials) directly to the user. The project security standard requires generic client messages with server-side logging only.
 
-**Fix:** Add `formatPnl` to the dependency array:
-
+**Fix:**
 ```typescript
-}, [stats, formatPnl]);
+onError: (error) => {
+  console.error('[RiskSnapshot] Update failed:', error);
+  toast.error('Failed to update risk snapshot. Please try again.');
+},
 ```
 
 ---
 
 ### 3. Page Missing Top-Level ErrorBoundary (Comprehensiveness - MEDIUM)
 
-**File:** `src/pages/AIInsights.tsx`
+**File:** `src/pages/RiskManagement.tsx`
 
-No ErrorBoundary wraps the page content. Complex sub-components (`PredictiveInsights`, `ContextualPerformance`, `EmotionalPatternAnalysis`, `SessionInsights`) each process raw trade data with math operations that can throw on unexpected shapes. A runtime error crashes the entire page. All other audited pages now have ErrorBoundaries.
+No ErrorBoundary wraps the page content. Sub-components like `DailyLossTracker`, `CorrelationMatrix`, and `RiskEventLog` all process live data that could throw on unexpected shapes (e.g., malformed event dates, null balance). All other audited pages now have ErrorBoundaries with key-based retry.
 
 **Fix:** Add ErrorBoundary with `retryKey` pattern:
-
 ```typescript
 import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { useState } from "react";
 
 const [retryKey, setRetryKey] = useState(0);
 
-<ErrorBoundary title="AI Insights" onRetry={() => setRetryKey(k => k + 1)}>
+<ErrorBoundary title="Risk Management" onRetry={() => setRetryKey(k => k + 1)}>
   <div key={retryKey} className="space-y-6">
     {/* existing content */}
   </div>
@@ -92,43 +78,37 @@ const [retryKey, setRetryKey] = useState(0);
 
 ---
 
-### 4. Dead Imports in AIInsights Page (Code Quality - LOW)
-
-**File:** `src/pages/AIInsights.tsx` (lines 10-11, 23)
-
-`Separator`, `Progress`, and `BarChart3` are imported but never used in this component. They add unnecessary bundle weight.
-
-**Fix:** Remove `Separator`, `Progress`, and `BarChart3` from the import statements.
-
----
-
 ## Verified Correct (No Issues)
 
-- **PnL calculation standard**: All computation paths use `realized_pnl ?? pnl ?? 0` fallback chain (AIInsights line 98, predictive-analytics line 38-39, contextual-analytics line 307, EmotionalPatternAnalysis line 77)
-- **Profit factor formula**: `(avgWin * wins.length) / (avgLoss * losses.length)` -- mathematically correct (AIInsights line 106, contextual-analytics line 103)
-- **Win rate calculation**: `(wins / total) * 100` -- correct everywhere
-- **Time slot win rate**: Rolling average formula at lines 159-162 is mathematically verified correct (properly accounts for already-incremented trade count)
-- **Streak calculation**: Sorted newest-first, breaks on first non-matching trade -- correct (AIInsights lines 111-125, predictive-analytics lines 57-64)
-- **Streak probability**: Historical pattern matching algorithm is sound -- counts occurrences of N consecutive same-type results and measures continuation rate (predictive-analytics lines 70-99)
-- **Day-of-week edge**: Compares today's historical win rate vs overall -- correct with proper `getDayLabel` usage
-- **Pair momentum**: Last-N-trades approach with 60%/40% thresholds -- logically sound
-- **Contextual analytics**: Pearson correlation is correctly implemented with denominator-zero guard and clamping to [-1, 1]
-- **Fear/Greed zone boundaries**: Consistent between `FEAR_GREED_ZONES` constants and `getFearGreedZone` function
-- **Volatility segmentation**: Correctly reads from `context.volatility.level` with 'medium' default
-- **Event proximity**: `hasHighImpactToday` boolean correctly maps to `eventDay` vs `normalDay`
-- **Session segmentation in contextual analytics**: Uses `getTradeSession()` helper (from session-utils) for ALL closed trades, not just those with context -- correct
-- **Data quality gates**: `MIN_TRADES_FOR_INSIGHTS` (5), `MIN_TRADES_FOR_PATTERNS` (10), `MIN_TRADES_FOR_RANKING` (3) consistently enforced across all components
-- **Empty states**: All four sub-components (PredictiveInsights, SessionInsights, EmotionalPatternAnalysis, ContextualPerformance) show meaningful empty states when data is insufficient
-- **Loading states**: `MetricsGridSkeleton` + `ChartSkeleton` for main page; `Skeleton` elements in ContextualPerformance
+The following were explicitly verified and found functionally sound:
+
+- **Daily loss calculation (Binance)**: `lossUsedPercent = (|currentPnl| / lossLimit) * 100` only when `currentPnl < 0`; otherwise 0 -- mathematically correct, prevents positive PnL from registering as "loss used"
+- **Daily loss calculation (Paper)**: Same formula applied to snapshot data with `Math.min(0, snapshot.current_pnl)` guard -- correct
+- **Remaining budget**: `lossLimit + Math.min(0, currentPnl)` then `Math.max(0, ...)` -- cannot go negative, correct
+- **Progress bar clamping**: `Math.min(100, riskStatus.loss_used_percent)` prevents visual overflow -- correct
+- **Threshold consistency**: `RISK_THRESHOLDS` (70/90) from `types/risk.ts` and `DAILY_LOSS_THRESHOLDS` (70/90/100) from `risk-thresholds.ts` are aligned; `DailyLossTracker` uses the former, `useTradingGate` uses the latter -- values match
+- **Mode isolation (DailyLossTracker)**: Binance data skipped when `isPaper` is true (line 210) -- correct
+- **Mode isolation (CorrelationMatrix)**: Uses `useModeFilteredTrades` for open positions -- only shows mode-appropriate trades
+- **Mode isolation (RiskEventLog)**: Liquidations/Margin tabs disabled in Paper mode via `useModeVisibility` -- correct
+- **Trading gate logic**: Checks thresholds in severity order (disabled > AI blocked > danger > warning) -- correct priority
+- **AI quality gate**: Requires minimum `SAMPLE_COUNT` (3) trades before enforcing -- prevents false blocking on insufficient data
+- **Risk event deduplication**: Checks `event_type + event_date + user_id` before inserting -- prevents duplicate daily events
+- **Correlation matrix**: Uses centralized `getCorrelation` from `correlation-utils.ts`; `getBaseSymbol` from `symbol-utils.ts` -- single source of truth
+- **Correlation auto-expand**: High correlation pairs (`>=0.7`) trigger auto-expand -- correct UX behavior
+- **Risk profile upsert**: Check-then-update/insert pattern with `maybeSingle()` -- safe
+- **Risk profile defaults**: `DEFAULT_RISK_PROFILE` values used in insert -- matches spec (2%, 5%, 10%, 40%, 0.75, 3)
+- **Audit logging**: Risk profile updates logged via `logAuditEvent` -- correct
 - **URL tab persistence**: `useSearchParams` for tab state -- correct
-- **Semantic colors**: `text-profit` / `text-loss` used consistently; `border-profit/30`, `bg-profit/5` for insight cards
-- **ARIA**: PredictiveInsights has `role="region"` with `aria-label`; PredictionCard has `role="group"` with descriptive label; EmotionalPatternAnalysis has `role="region"` and grouped stats with `role="group"`
-- **Centralized constants**: All thresholds sourced from `ai-analytics.ts` -- no hardcoded magic numbers
-- **Emotional state matching**: Uses `EMOTIONAL_STATES.find(e => e.id === state)` for config lookup; properly filters unknown states
-- **FOMO/Revenge warnings**: Specific checks for these high-risk emotional states with appropriate thresholds
-- **Mode isolation**: `useModeFilteredTrades` used by all data-fetching paths -- trades are filtered by current mode (Paper/Live)
-- **Currency formatting**: `useCurrencyConversion` used for all PnL display; `formatPnl` for directional formatting, `format` for absolute values
-- **Export link**: Correctly routes to `/export?tab=analytics`
+- **Loading states**: `MetricsGridSkeleton` for page; loading card states for `DailyLossTracker`; skeleton rows for `RiskEventLog`
+- **Empty states**: All components handle zero-data states (no profile, no events, no positions, no liquidations) with meaningful CTAs
+- **Semantic colors**: `text-profit` / `text-loss` / `text-[hsl(var(--chart-4))]` used consistently for ok/danger/warning states
+- **ARIA**: Slider components in `RiskSettingsForm` have `aria-label`; InfoTooltips on all key metrics
+- **Currency formatting**: `useCurrencyConversion` used in `DailyLossTracker` for all monetary values
+- **RiskAlertBanner**: Non-dismissable when disabled (only warnings can be dismissed) -- correct security behavior
+- **Liquidation display**: Properly shows symbol, side, quantity, avg price, timestamps -- complete
+- **MarginHistoryTab**: Symbol selector defaults to first active position; handles no-positions and no-history states
+- **RiskSettingsForm**: Pure presentational component with proper prop interface -- clean separation of concerns
+- **Security (RLS)**: All queries scoped by `user_id` via RLS; risk_profiles, risk_events, daily_risk_snapshots all have user-scoped policies
 
 ---
 
@@ -136,35 +116,42 @@ const [retryKey, setRetryKey] = useState(0);
 
 | # | File | Issue | Criteria | Severity |
 |---|------|-------|----------|----------|
-| 1 | `predictive-analytics.ts` lines 180-188 | Session name mismatch breaks 3/4 session outlook predictions | Accuracy | High |
-| 2 | `AIInsights.tsx` line 286 | `formatPnl` missing from `insights` useMemo dependencies | Accuracy | Medium |
-| 3 | `AIInsights.tsx` | Missing top-level ErrorBoundary | Comprehensiveness | Medium |
-| 4 | `AIInsights.tsx` lines 10-11, 23 | Dead imports: `Separator`, `Progress`, `BarChart3` | Code Quality | Low |
+| 1 | `RiskSummaryCard.tsx` line 34 | `showExchangeData` missing from `correlationWarning` useMemo deps -- stale correlation data across mode switches | Accuracy, Data Integrity | High |
+| 2 | `use-risk-profile.ts` line 189 | Raw `error.message` exposed to user in toast | Security | High |
+| 3 | `RiskManagement.tsx` | Missing top-level ErrorBoundary | Comprehensiveness | Medium |
 
-Total: 2 files, 4 fixes.
+Total: 3 files, 3 fixes.
 
 ## Technical Details
 
-### Fix 1: Correct session name matching in predictive-analytics.ts
+### Fix 1: Add missing dependency to RiskSummaryCard memo
 
-Replace lines 180-188 in `src/lib/predictive-analytics.ts` to map UTC hours to actual database session values (`sydney`, `tokyo`, `london`, `new_york`, `other`) and use exact equality matching instead of `.includes()`. Update the description string to use session display labels.
-
-### Fix 2: Add formatPnl to insights dependency array
-
-In `src/pages/AIInsights.tsx` line 286, change:
+In `src/components/risk/RiskSummaryCard.tsx` line 34, change:
 ```typescript
-}, [stats]);
+}, [positions, connectionStatus]);
 ```
 To:
 ```typescript
-}, [stats, formatPnl]);
+}, [positions, connectionStatus, showExchangeData]);
 ```
 
-### Fix 3: Add ErrorBoundary wrapper
+### Fix 2: Sanitize risk snapshot error toast
 
-Import `ErrorBoundary` and `useState`, wrap the page content div with the standard `retryKey` pattern.
+In `src/hooks/use-risk-profile.ts` lines 188-190, replace:
+```typescript
+onError: (error) => {
+  toast.error(`Failed to update risk snapshot: ${error.message}`);
+},
+```
+With:
+```typescript
+onError: (error) => {
+  console.error('[RiskSnapshot] Update failed:', error);
+  toast.error('Failed to update risk snapshot. Please try again.');
+},
+```
 
-### Fix 4: Remove dead imports
+### Fix 3: Add ErrorBoundary to RiskManagement page
 
-Remove `Separator`, `Progress`, and `BarChart3` from their respective import statements in `AIInsights.tsx`.
+Import `ErrorBoundary` from `@/components/ui/error-boundary` and `useState` from React. Add `retryKey` state and wrap the main content `div` with the standard pattern used in all other audited pages.
 
