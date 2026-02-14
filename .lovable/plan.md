@@ -1,53 +1,68 @@
 
 
-# Heatmap Page: Deep UX Analysis & Fixes
+# AI Insights Page: Deep UX Analysis & Fixes
+
+## Scope & Coverage
+
+Analyzed files:
+- `src/pages/AIInsights.tsx` (581 lines, orchestrator)
+- `src/components/analytics/PredictiveInsights.tsx` (predictions tab)
+- `src/components/analytics/contextual/ContextualPerformance.tsx` (contextual tab)
+- `src/components/analytics/EmotionalPatternAnalysis.tsx` (contextual tab)
+- `src/components/analytics/session/SessionInsights.tsx` (patterns tab, session section)
+- `src/lib/constants/ai-analytics.ts` (shared constants)
 
 ## Issues Found
 
-### 1. Duplicated CSV Export Logic (DRY Violation)
+### 1. Uncontrolled Tabs - No URL Persistence
 
-The page defines a full `exportToCSV` function (lines 177-220) that duplicates `src/lib/export/heatmap-export.ts` line-for-line. However, the UI actually renders a `<Link to="/export?tab=analytics">` button (line 287) instead of calling the inline function. The inline `exportToCSV` is **dead code** — never called anywhere.
+**Line 392**: `<Tabs defaultValue="patterns">` uses uncontrolled state. This means:
+- Deep links like `/ai-insights?tab=predictions` do not work
+- Navigating away and back always resets to "Pattern Analysis"
+- Inconsistent with controlled tab pattern established on Performance, DailyPnL, Risk, and Import pages
 
-**Fix**: Remove the dead `exportToCSV` function and its related imports. The Export button already correctly links to the dedicated Export page.
+**Fix**: Replace with controlled `Tabs` using `useSearchParams` from `react-router-dom` (already imported). Bind `value` and `onValueChange` to the `tab` search parameter.
 
-### 2. Hardcoded Colors Violate Semantic Design System
+### 2. Session Insights Conditionally Hidden Instead of Empty State
 
-`SESSION_CONFIG` (lines 226-230) uses raw Tailwind colors (`text-purple-500`, `text-blue-500`, `text-orange-500`, `text-yellow-500`) instead of the design tokens established in `SESSION_COLORS` from `src/lib/session-utils.ts`.
+**Line 509**: `{contextualData?.bySession && (` hides the entire Session Insights section when contextual data is absent. The section silently disappears with no feedback, unlike Predictions and Contextual tabs which both render proper empty states.
 
-Additionally, streak cards use hardcoded colors:
-- Line 381: `text-orange-500` on Flame icon
-- Line 397: `text-blue-500` on Snowflake icon
+The `SessionInsights` component already has its own internal empty state (line 148-166 of SessionInsights.tsx) for insufficient trades. The guard on line 509 prevents users from ever seeing that helpful feedback.
 
-The session card icons should use colors from the centralized `SESSION_COLORS` map, and streak icons should use semantic tokens (`text-[hsl(var(--chart-4))]` for warning/streak, `text-[hsl(var(--chart-5))]` for loss streak).
+**Fix**: Always render `<SessionInsights>`. Pass `bySession` with a fallback empty record so the component's built-in empty state handles the "no data" scenario naturally.
 
-**Fix**: Replace hardcoded session colors with extracted icon color classes derived from `SESSION_COLORS`. Replace streak icon colors with chart semantic tokens.
+### 3. `useTradingStrategies` Fetched But Never Used (Dead Code)
 
-### 3. SESSION_CONFIG Defined Inside Component Body
+**Line 78**: `const { data: strategies = [] } = useTradingStrategies();` is declared but `strategies` is never referenced anywhere in the 581-line component. This triggers an unnecessary database query on every page load, wasting bandwidth and adding latency.
 
-`SESSION_CONFIG` (line 225) is defined inside `TradingHeatmapPage`, causing it to be recreated on every render. It has no dependency on component state or props.
+**Fix**: Remove the import and hook call.
 
-**Fix**: Extract `SESSION_CONFIG` to module level as a constant.
+### 4. Hardcoded Colors in ContextualPerformance FEAR_GREED_LABELS
 
-### 4. No Mode Awareness Issues (Correctly Implemented)
+**Lines 39-43 of ContextualPerformance.tsx**: Uses raw Tailwind colors (`text-red-500`, `text-orange-500`, `text-emerald-500`, `text-green-500`) for Fear/Greed zone labels. Per the project's semantic design system memory (`semantic-financial-colors`), financial indicators should use design tokens.
 
-The page uses `useModeFilteredTrades()` which already handles Paper/Live isolation. No `showExchangeData` guards are present — **this is correct** because the Heatmap is a pure analytics view that works identically in both modes. The layout, flow, and components are mode-agnostic by design. No fix needed.
+**Fix**: Replace with semantic chart tokens:
+- `text-red-500` (Extreme Fear) -> `text-loss`
+- `text-orange-500` (Fear) -> `text-[hsl(var(--chart-4))]`
+- `text-muted-foreground` (Neutral) -> unchanged (already correct)
+- `text-emerald-500` (Greed) -> `text-[hsl(var(--chart-2))]`
+- `text-green-500` (Extreme Greed) -> `text-profit`
 
-### 5. TradingHeatmap Component Uses `trade.pnl || 0` Instead of Standardized Helper
+### 5. Mode Consistency (No Issues Found)
 
-Both `TradingHeatmap.tsx` (line 101) and the page (lines 90, 122, 148, 192) use inline `trade.realized_pnl || trade.pnl || 0` instead of the standardized `getTradeNetPnl()` helper from `src/lib/trading-calculations.ts`. Per the `standardized-pnl-calculation-logic` memory, this helper is the single source of truth.
-
-However, this is a minor consistency issue — the inline logic matches the helper's behavior. For consistency and maintainability, aligning with the helper would be ideal, but the impact is low. Noting for awareness; no fix in this batch to keep scope focused.
+All sub-components use `useModeFilteredTrades()` or `useContextualAnalytics()` which already handle Paper/Live isolation via `trade_mode` filtering. No `showExchangeData` guards exist. Layout, flow, and component availability are identical in both modes. This is correct and no fix is needed.
 
 ---
 
 ## Implementation Plan
 
-### File: `src/pages/TradingHeatmap.tsx`
+### File: `src/pages/AIInsights.tsx`
+1. Add `useSearchParams` usage for controlled tab state (`patterns`, `predictions`, `contextual`)
+2. Remove unused `useTradingStrategies` import and hook call
+3. Remove conditional guard on `SessionInsights`; always render it with a safe fallback for `bySession`
 
-1. **Remove dead `exportToCSV` function** (lines 177-220) and cleanup unused variables/imports
-2. **Extract `SESSION_CONFIG` to module level** — move outside the component
-3. **Replace hardcoded session colors**: Use semantic icon colors extracted from `SESSION_COLORS` patterns (purple, blue, orange, yellow are session-specific semantic choices — keep them but source from a centralized map)
-4. **Replace streak icon colors**: `text-orange-500` -> `text-[hsl(var(--chart-4))]`, `text-blue-500` -> `text-[hsl(var(--chart-5))]`
+### File: `src/components/analytics/contextual/ContextualPerformance.tsx`
+1. Replace hardcoded Fear/Greed zone colors with semantic design tokens
 
 ---
 
@@ -55,5 +70,6 @@ However, this is a minor consistency issue — the inline logic matches the help
 
 | File | Changes |
 |------|---------|
-| `src/pages/TradingHeatmap.tsx` | Remove dead exportToCSV; extract SESSION_CONFIG to module level; replace hardcoded streak icon colors with semantic chart tokens |
+| `src/pages/AIInsights.tsx` | Controlled tabs via `useSearchParams`; remove dead `useTradingStrategies`; always render SessionInsights with empty-state fallback |
+| `src/components/analytics/contextual/ContextualPerformance.tsx` | Replace 4 hardcoded Tailwind colors in `FEAR_GREED_LABELS` with semantic tokens |
 
