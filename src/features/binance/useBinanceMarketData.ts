@@ -30,22 +30,23 @@ import {
   analyzeTakerVolume,
 } from '@/lib/constants/sentiment-thresholds';
 
-const MARKET_DATA_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/binance-market-data`;
-
 /**
- * Call market data edge function
+ * Call market data edge function via supabase.functions.invoke
+ * Automatically includes auth headers for security
  */
 async function callMarketDataApi<T>(
   action: string,
   params: Record<string, any> = {}
 ): Promise<MarketDataApiResponse<T>> {
-  const response = await fetch(MARKET_DATA_FUNCTION_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action, ...params }),
+  const { data, error } = await supabase.functions.invoke('binance-market-data', {
+    body: { action, ...params },
   });
   
-  return response.json();
+  if (error) {
+    return { success: false, error: error.message };
+  }
+  
+  return data as MarketDataApiResponse<T>;
 }
 
 // ============================================

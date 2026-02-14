@@ -1,7 +1,8 @@
 /**
  * Market Data Page - Standalone page for market data tab content
+ * Uses global MarketContext for cross-page symbol persistence
  */
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { MarketSentimentWidget, WhaleTrackingWidget, TradingOpportunitiesWidget } from "@/components/market";
 import { VolatilityMeterWidget } from "@/components/dashboard/VolatilityMeterWidget";
@@ -9,24 +10,24 @@ import { BarChart3, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMultiSymbolMarketInsight } from "@/features/market-insight";
 import { cn } from "@/lib/utils";
+import { useMarketContext } from "@/contexts/MarketContext";
+import { normalizeError } from "@/lib/error-utils";
 import { 
   DEFAULT_WATCHLIST_SYMBOLS, 
-  DEFAULT_SYMBOL,
   DISPLAY_LIMITS,
   formatDataSources,
-  BADGE_LABELS 
 } from "@/lib/constants/market-config";
 
 export default function MarketData() {
-  const [selectedPair, setSelectedPair] = useState(DEFAULT_SYMBOL);
+  const { selectedSymbol, setSelectedSymbol } = useMarketContext();
   
   const symbolsToFetch = useMemo(() => {
     const watchlist = [...DEFAULT_WATCHLIST_SYMBOLS];
-    if (selectedPair && !watchlist.includes(selectedPair as any)) {
-      return [selectedPair, ...watchlist];
+    if (selectedSymbol && !watchlist.includes(selectedSymbol as any)) {
+      return [selectedSymbol, ...watchlist];
     }
     return watchlist;
-  }, [selectedPair]);
+  }, [selectedSymbol]);
 
   const { 
     data: marketData, 
@@ -35,7 +36,7 @@ export default function MarketData() {
     refetch 
   } = useMultiSymbolMarketInsight(symbolsToFetch);
 
-  const selectedAsset = useMemo(() => selectedPair.replace('USDT', ''), [selectedPair]);
+  const selectedAsset = useMemo(() => selectedSymbol.replace('USDT', ''), [selectedSymbol]);
 
   const whaleData = useMemo(() => {
     if (!marketData?.whaleActivity) return [];
@@ -47,11 +48,11 @@ export default function MarketData() {
     return marketData.opportunities.slice(0, DISPLAY_LIMITS.TRADING_OPPORTUNITIES);
   }, [marketData?.opportunities]);
 
-  const isSelectedInWatchlist = (DEFAULT_WATCHLIST_SYMBOLS as readonly string[]).includes(selectedPair);
-  const apiError = error instanceof Error ? error : error ? new Error(String(error)) : null;
+  const isSelectedInWatchlist = (DEFAULT_WATCHLIST_SYMBOLS as readonly string[]).includes(selectedSymbol);
+  const normalizedError = normalizeError(error);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" role="region" aria-label="Market Data Dashboard">
       <PageHeader
         icon={BarChart3}
         title="Market Data"
@@ -70,9 +71,9 @@ export default function MarketData() {
       </PageHeader>
 
       <MarketSentimentWidget 
-        defaultSymbol="BTCUSDT" 
+        symbol={selectedSymbol}
         showSymbolSelector={true}
-        onSymbolChange={setSelectedPair}
+        onSymbolChange={setSelectedSymbol}
       />
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -81,7 +82,7 @@ export default function MarketData() {
         <WhaleTrackingWidget 
           whaleData={whaleData}
           isLoading={isLoading}
-          error={error}
+          error={normalizedError}
           selectedAsset={selectedAsset}
           isSelectedInWatchlist={isSelectedInWatchlist}
           onRetry={() => refetch()}
@@ -91,13 +92,13 @@ export default function MarketData() {
       <TradingOpportunitiesWidget
         opportunities={opportunitiesData}
         isLoading={isLoading}
-        error={apiError}
+        error={normalizedError}
         selectedAsset={selectedAsset}
         isSelectedInWatchlist={isSelectedInWatchlist}
         onRetry={() => refetch()}
       />
 
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
         <span>
           Data quality: {marketData?.dataQuality ?? '-'}% • 
           Last updated: {marketData?.lastUpdated 
