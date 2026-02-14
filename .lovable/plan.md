@@ -1,128 +1,116 @@
 
 
-# Merge Trade History into Trading Journal as a Tab
+# Trade History & Cards: UX Fixes
 
-## What Changes
+## Issues Found
 
-Trade History will become the **3rd tab** ("Closed") inside the Trading Journal page, instead of being a separate page in the sidebar. The tab structure becomes:
+### 1. Gallery & List Cards Missing Key Trade Data (Entry, SL, TP)
 
-```text
-Trading Journal
-  [Pending] [Active] [Closed]
-```
+**TradeGalleryCard** shows: pair, direction, P&L, date, strategy, source. Missing: **Entry price, SL, TP**.
 
-## Implementation Plan
+**TradeHistoryCard** shows: Entry, Exit, R:R, Confluence, Fee. Missing: **SL, TP**. Has **Fee** and implicitly time-related data that per user should only be in the detail page.
 
-### 1. Add "Closed" Tab to Trading Journal
+**Fix**:
+- **TradeGalleryCard**: Add Entry, SL, TP rows below the existing pair info. Remove any fee/time if present.
+- **TradeHistoryCard**: Add SL and TP to the grid. Remove the Fee column (move to detail only). Keep Entry and Exit (essential for list context).
 
-**File: `src/pages/trading-journey/TradingJournal.tsx`**
+### 2. Duplicate View Toggle (Gallery/List)
 
-- Expand `TabsList` from `grid-cols-2` to `grid-cols-3`
-- Add a new `TabsTrigger value="closed"` with History icon and a badge showing closed trade count
-- Add `TabsContent value="closed"` that renders `TradeHistoryContent` (the same component currently used by the standalone page)
-- Import required hooks: `useTradeEntriesPaginated`, `useTradeHistoryFilters`, `useTradeStats`, `useTradeEnrichment`, etc.
-- The Closed tab will include:
-  - Stats summary (from `TradeHistoryStats`)
-  - Filter toolbar (from `TradeHistoryToolbar`)
-  - Gallery/List content (from `TradeHistoryContent`)
-  - Enrichment drawer integration
-  - Infinite scroll via intersection observer
+Currently there are **two** view toggles:
+- One in the outer `Card` header (TradingJournal line 375-387) -- above tabs
+- One inside `TradeHistoryToolbar` (Closed tab only, line 536-542)
 
-### 2. Remove Sidebar Entry
+The outer toggle only affects the Active tab (passed as `viewMode` prop to `AllPositionsTable`). The inner toggle also sets the same `viewMode` state but is visually separate.
 
-**File: `src/components/layout/AppSidebar.tsx`**
+**Fix**: Remove the `TradeHistoryToolbar` view toggle. The single outer toggle (above tabs) should control viewMode for ALL tabs (Active + Closed). Remove the duplicate from `TradeHistoryToolbar`.
 
-- Remove `{ title: "Trade History", url: "/history", icon: History }` from the Journal navigation group
+### 3. Active vs Closed Trade Detail Uses Different ID Formats
 
-### 3. Remove Standalone Route
+- Active Binance trades navigate with `binance-SYMBOL` (e.g. `binance-BTCUSDT`)
+- Closed trades (from DB) navigate with UUID
 
-**File: `src/App.tsx`**
+The detail page (`TradeDetail.tsx`) already handles both via `isBinancePosition` check. This is architecturally correct -- the ID format difference is intentional because live Binance positions don't have a DB UUID until they're enriched/closed. No fix needed here, this is working as designed.
 
-- Remove `<Route path="/history" element={<TradeHistory />} />`
-- Keep the lazy import removal for `TradeHistory`
-
-### 4. Clean Up Related References
-
-**File: `src/components/layout/DashboardLayout.tsx`**
-- Remove `/history` from `routeHierarchy`
-
-**File: `src/components/layout/NavGroup.tsx`**
-- Remove `/history` from `ROUTE_SHORTCUTS`
-
-**File: `src/components/layout/CommandPalette.tsx`**
-- Remove Trade History from command palette navigation items
-- Update trade search result navigation from `/history?trade=` to `/trading?tab=closed&trade=`
-
-**File: `src/components/ui/keyboard-shortcut.tsx`**
-- Remove `'h': { path: '/history', ... }` shortcut
-
-**File: `src/components/trading/TradingOnboardingTour.tsx`**
-- Update the Trade History tour step to reference the "Closed" tab within Trading Journal instead of `/history`
-
-### 5. URL Tab State Support
-
-**File: `src/pages/trading-journey/TradingJournal.tsx`**
-
-- Read initial tab from URL search params (`?tab=closed`) so deep links and command palette navigation work
-- Use `Tabs value={activeTab} onValueChange={setActiveTab}` (controlled) instead of `defaultValue`
-- Update URL when tab changes for shareability
-
-### 6. Keep the TradeHistory.tsx File (Refactored)
-
-The standalone `TradeHistory.tsx` page file will be **deleted** since its content is now embedded in the Trading Journal. The sub-components (`TradeHistoryContent`, `TradeHistoryStats`, `TradeHistoryToolbar`, `TradeHistoryFilters`) remain unchanged -- they are simply rendered inside the new "Closed" tab.
+**However**, the `PositionGalleryCard` (Active tab) navigates to `/trading/binance-SYMBOL` while `TradeGalleryCard` (Closed tab) navigates to `/trading/UUID`. This is correct behavior -- they're different data sources with different identifiers. The detail page unifies them.
 
 ---
 
-## Technical Details
+## Implementation
 
-### Tab Structure (Updated TradingJournal.tsx)
+### File: `src/components/journal/TradeGalleryCard.tsx`
 
-```typescript
-const [searchParams, setSearchParams] = useSearchParams();
-const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'active');
+Add Entry, SL, TP info rows in the CardContent section:
 
-// ... inside JSX:
-<Tabs value={activeTab} onValueChange={(val) => {
-  setActiveTab(val);
-  setSearchParams(val === 'active' ? {} : { tab: val });
-}}>
-  <TabsList className="grid w-full grid-cols-3 max-w-md">
-    <TabsTrigger value="pending">Pending</TabsTrigger>
-    <TabsTrigger value="active">Active</TabsTrigger>
-    <TabsTrigger value="closed">Closed</TabsTrigger>
-  </TabsList>
-  
-  <TabsContent value="pending">...</TabsContent>
-  <TabsContent value="active">...</TabsContent>
-  <TabsContent value="closed">
-    {/* Trade History content with stats, filters, toolbar, and list */}
-  </TabsContent>
-</Tabs>
+```
+{/* Info Section */}
+<CardContent className="p-3">
+  <div className="flex justify-between items-center">
+    <div className="flex items-center gap-1.5">
+      <CryptoIcon symbol={trade.pair} size={16} />
+      <span className="font-semibold text-sm">{trade.pair}</span>
+    </div>
+    <span className="text-xs text-muted-foreground">
+      {format(...)}
+    </span>
+  </div>
+
+  {/* NEW: Key prices */}
+  <div className="text-xs text-muted-foreground mt-2 space-y-0.5">
+    <div className="flex justify-between">
+      <span>Entry</span>
+      <span className="font-mono">{trade.entry_price ? formatCurrency(trade.entry_price) : '-'}</span>
+    </div>
+    <div className="flex justify-between">
+      <span>SL</span>
+      <span className="font-mono">{trade.stop_loss ? formatCurrency(trade.stop_loss) : '-'}</span>
+    </div>
+    <div className="flex justify-between">
+      <span>TP</span>
+      <span className="font-mono">{trade.take_profit ? formatCurrency(trade.take_profit) : '-'}</span>
+    </div>
+  </div>
+
+  {/* strategies row stays */}
+</CardContent>
 ```
 
-### Closed Tab Content
+### File: `src/components/trading/TradeHistoryCard.tsx`
 
-The "Closed" tab will contain all functionality from `TradeHistory.tsx`:
-- `TradeHistoryStats` -- summary cards
-- `TradeHistoryToolbar` -- sort, filter toggle, view mode toggle
-- `TradeHistoryFilters` -- collapsible filter panel
-- `TradeHistoryContent` -- gallery/list with infinite scroll
-- `TradeEnrichmentDrawer` -- shared with existing Active tab drawer
-- Delete confirmation dialog
+- Add SL and TP to the existing grid (currently has Entry, Exit, R:R, Confluence, Fee)
+- Remove the Fee column (fee details belong in detail page only)
+- Result: Entry, Exit, SL, TP, R:R, Confluence
 
-All hooks (`useTradeEntriesPaginated`, `useTradeStats`, `useTradeHistoryFilters`, etc.) will be called inside the TradingJournal component and passed as props or used directly.
+### File: `src/components/journal/AllPositionsTable.tsx` (PositionGalleryCard)
 
-### Files Modified
+Add SL and TP to the active position gallery card. Paper trades have SL/TP from the DB. Binance positions need the SL/TP from enrichment data (passed via `UnifiedPosition`).
 
-| File | Action |
+- Add `stopLoss` and `takeProfit` fields to `UnifiedPosition` interface
+- Map them from `TradeEntry.stop_loss` / `TradeEntry.take_profit` in `mapToUnifiedPositions`
+- Display in `PositionGalleryCard` alongside Entry
+
+### File: `src/pages/trading-journey/TradingJournal.tsx`
+
+- Remove the outer `ToggleGroup` (lines 375-387) from the Card header
+- Keep the `TradeHistoryToolbar` toggle for the Closed tab
+- BUT: pass `viewMode` + `onViewModeChange` to `AllPositionsTable` from the same state
+- Actually simpler: keep the outer toggle, remove the one from `TradeHistoryToolbar`
+
+**Decision**: Keep the outer toggle (above tabs). Remove the toggle from `TradeHistoryToolbar`. The outer toggle already controls `viewMode` state which is passed to both `AllPositionsTable` (Active tab) and `TradeHistoryContent` (Closed tab).
+
+### File: `src/components/history/TradeHistoryToolbar.tsx`
+
+- Remove the `ToggleGroup` for view mode from this component
+- Remove `viewMode` and `onViewModeChange` props
+
+---
+
+## Technical Summary
+
+| File | Changes |
 |------|--------|
-| `src/pages/trading-journey/TradingJournal.tsx` | Add "Closed" tab with Trade History content |
-| `src/pages/TradeHistory.tsx` | Delete (standalone page removed) |
-| `src/App.tsx` | Remove `/history` route |
-| `src/components/layout/AppSidebar.tsx` | Remove Trade History sidebar item |
-| `src/components/layout/DashboardLayout.tsx` | Remove `/history` from breadcrumb map |
-| `src/components/layout/NavGroup.tsx` | Remove `/history` shortcut |
-| `src/components/layout/CommandPalette.tsx` | Remove/update Trade History references |
-| `src/components/ui/keyboard-shortcut.tsx` | Remove `h` shortcut |
-| `src/components/trading/TradingOnboardingTour.tsx` | Update tour step |
+| `src/components/journal/TradeGalleryCard.tsx` | Add Entry, SL, TP rows |
+| `src/components/trading/TradeHistoryCard.tsx` | Add SL, TP columns; remove Fee column |
+| `src/components/journal/AllPositionsTable.tsx` | Add SL/TP to UnifiedPosition + PositionGalleryCard + mapping |
+| `src/pages/trading-journey/TradingJournal.tsx` | Keep outer view toggle as single source |
+| `src/components/history/TradeHistoryToolbar.tsx` | Remove duplicate view toggle |
 
