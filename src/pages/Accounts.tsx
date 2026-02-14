@@ -13,7 +13,7 @@ import {
   FlaskConical, 
   Settings, 
   RefreshCw, 
-  XCircle,
+  
   Wallet,
   TrendingUp,
   TrendingDown,
@@ -32,7 +32,7 @@ import { AccountCardList } from "@/components/accounts/AccountCardList";
 import { AccountTransactionDialog } from "@/components/accounts/AccountTransactionDialog";
 import { AccountComparisonTable } from "@/components/accounts/AccountComparisonTable";
 import { EditAccountDialog } from "@/components/accounts/EditAccountDialog";
-import { BinanceNotConfiguredState } from "@/components/binance/BinanceNotConfiguredState";
+
 
 import { useAccounts } from "@/hooks/use-accounts";
 import { useAccountsRealtime } from "@/hooks/use-realtime";
@@ -221,96 +221,6 @@ export default function Accounts() {
           </Card>
         </div>
 
-        {/* Binance Connection Section - Live mode only */}
-        {showExchangeData && (
-          <div className="space-y-4">
-            {!isConfigured ? (
-              <Card className="border-dashed">
-                <CardContent className="py-0">
-                  <BinanceNotConfiguredState 
-                    title="Binance Not Configured"
-                    description="Connect your Binance Futures API to view real-time balance and positions."
-                  />
-                </CardContent>
-              </Card>
-            ) : !isConnected ? (
-              <Card className="border-dashed">
-                <CardContent className="py-8">
-                  <div className="text-center max-w-md mx-auto">
-                    <XCircle className="h-12 w-12 mx-auto mb-4 text-loss/60" />
-                    <h3 className="text-lg font-semibold mb-2">Connection Error</h3>
-                    <p className="text-muted-foreground mb-4">
-                      Unable to connect to Binance. Please check your API credentials.
-                    </p>
-                    <Button asChild>
-                      <Link to="/settings?tab=exchange">
-                        <Settings className="h-4 w-4 mr-2" />
-                        Check API Settings
-                      </Link>
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-3">
-                <h2 className="text-lg font-semibold">Live Trade Accounts</h2>
-                <div className="grid gap-4 md:grid-cols-3">
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Wallet Balance</CardTitle>
-                      <Wallet className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                      {balanceLoading ? <Skeleton className="h-8 w-32" /> : (
-                        <>
-                          <div className="text-2xl font-bold font-mono-numbers">{format(balance?.totalWalletBalance || 0)}</div>
-                          <p className="text-xs text-muted-foreground mt-1">Binance Futures</p>
-                        </>
-                      )}
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Available</CardTitle>
-                      <CandlestickChart className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                      {balanceLoading ? <Skeleton className="h-8 w-32" /> : (
-                        <>
-                          <div className="text-2xl font-bold font-mono-numbers">{format(balance?.availableBalance || 0)}</div>
-                          <p className="text-xs text-muted-foreground mt-1">Binance Futures</p>
-                        </>
-                      )}
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Unrealized P&L</CardTitle>
-                      {(balance?.totalUnrealizedProfit || 0) >= 0 ? (
-                        <TrendingUp className="h-4 w-4 text-profit" />
-                      ) : (
-                        <TrendingDown className="h-4 w-4 text-loss" />
-                      )}
-                    </CardHeader>
-                    <CardContent>
-                      {balanceLoading ? <Skeleton className="h-8 w-32" /> : (
-                        <>
-                          <div className={`text-2xl font-bold font-mono-numbers ${(balance?.totalUnrealizedProfit || 0) >= 0 ? 'text-profit' : 'text-loss'}`}>
-                            {formatPnl(balance?.totalUnrealizedProfit || 0)}
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Binance Futures · {activePositions.length} active position{activePositions.length !== 1 ? 's' : ''}
-                          </p>
-                        </>
-                      )}
-                    </CardContent>
-                  </Card>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
         {/* Section Header + Add Account */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -322,7 +232,7 @@ export default function Accounts() {
               </Badge>
             )}
           </div>
-          <AddAccountForm defaultIsBacktest={showPaperData} />
+          {showPaperData && <AddAccountForm defaultIsBacktest={true} />}
         </div>
 
         {/* Account Cards - Both modes, filtered */}
