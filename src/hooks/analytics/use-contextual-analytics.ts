@@ -250,11 +250,12 @@ function generateInsights(
   return insights;
 }
 
-export function useContextualAnalytics(): {
+export function useContextualAnalytics(externalTrades?: Array<{ status: string; market_context: unknown; realized_pnl: number | null; pnl: number | null; result: string | null; trade_date: string; source?: string | null; session?: string | null }>): {
   data: ContextualAnalyticsResult | null;
   isLoading: boolean;
 } {
-  const { data: trades, isLoading } = useModeFilteredTrades();
+  const { data: internalTrades, isLoading } = useModeFilteredTrades();
+  const trades = externalTrades ?? internalTrades;
   
   const data = useMemo(() => {
     if (!trades || trades.length === 0) return null;

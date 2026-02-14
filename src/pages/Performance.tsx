@@ -81,8 +81,6 @@ export default function Performance() {
   const { data: strategies = [] } = useTradingStrategies();
   const binanceStats = useBinanceDailyPnl();
   const strategyPerformanceMap = useStrategyPerformance();
-  const { data: contextualData } = useContextualAnalytics();
-  const monthlyStats = useMonthlyPnl();
 
   // Derive base trades based on analytics level
   const trades = useMemo(() => {
@@ -123,6 +121,10 @@ export default function Performance() {
     }
     return filtered;
   }, [trades, dateRange, selectedStrategyIds, eventDaysOnly]);
+
+  // Hooks that depend on filteredTrades
+  const { data: contextualData } = useContextualAnalytics(filteredTrades);
+  const monthlyStats = useMonthlyPnl(filteredTrades);
 
   const eventDayTradeCount = useMemo(() => {
     if (!trades) return 0;
