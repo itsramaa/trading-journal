@@ -68,6 +68,11 @@ const routeHierarchy: Record<string, RouteInfo> = {
   // Accounts domain
   "/accounts": { title: "Account List", domain: "Accounts", domainPath: "/accounts" },
   
+  // Tools domain
+  "/top-movers": { title: "Top Movers", domain: "Market", domainPath: "/market-data" },
+  "/import": { title: "Import & Sync", domain: "Journal", domainPath: "/trading" },
+  "/export": { title: "Bulk Export", domain: "Tools", domainPath: "/export" },
+  
   // Settings domain
   "/settings": { title: "Settings", domain: "Settings", domainPath: "/settings" },
 };

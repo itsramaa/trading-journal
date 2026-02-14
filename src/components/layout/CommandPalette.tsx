@@ -26,6 +26,8 @@ import {
   ArrowUpDown,
   Wallet,
   FileText,
+  Flame,
+  Download,
 } from "lucide-react";
 import {
   CommandDialog,
@@ -48,8 +50,10 @@ const PAGES = [
   { title: "AI Analysis", url: "/market", icon: TrendingUp, shortcut: "M", domain: "Market" },
   { title: "Economic Calendar", url: "/calendar", icon: Calendar, shortcut: "C", domain: "Market" },
   { title: "Market Data", url: "/market-data", icon: BarChart3, shortcut: "V", domain: "Market" },
+  { title: "Top Movers", url: "/top-movers", icon: Flame, shortcut: "O", domain: "Market" },
   { title: "Trading Journal", url: "/trading", icon: Notebook, shortcut: "T", domain: "Journal" },
   { title: "Closed Trades", url: "/trading?tab=closed", icon: History, shortcut: null, domain: "Journal" },
+  { title: "Import & Sync", url: "/import", icon: Download, shortcut: "N", domain: "Journal" },
   { title: "Risk Overview", url: "/risk", icon: Shield, shortcut: "R", domain: "Risk" },
   { title: "Position Calculator", url: "/calculator", icon: Calculator, shortcut: "X", domain: "Risk" },
   { title: "My Strategies", url: "/strategies", icon: Lightbulb, shortcut: "S", domain: "Strategy" },
@@ -59,6 +63,7 @@ const PAGES = [
   { title: "Heatmap", url: "/heatmap", icon: Grid3X3, shortcut: "E", domain: "Analytics" },
   { title: "AI Insights", url: "/ai-insights", icon: Brain, shortcut: "I", domain: "Analytics" },
   { title: "Account List", url: "/accounts", icon: Building2, shortcut: "A", domain: "Accounts" },
+  { title: "Bulk Export", url: "/export", icon: Download, shortcut: "W", domain: "Tools" },
   { title: "Settings", url: "/settings", icon: Settings, shortcut: ",", domain: "Settings" },
 ];
 
@@ -365,7 +370,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                   <page.icon className="h-4 w-4" />
                   <span>{page.title}</span>
                 </div>
-                <Kbd keys={["G", page.shortcut!]} className="opacity-60" />
+                {page.shortcut && <Kbd keys={["G", page.shortcut]} className="opacity-60" />}
               </CommandItem>
             ))}
           </CommandGroup>
