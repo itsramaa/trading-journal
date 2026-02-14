@@ -1,64 +1,53 @@
 
 
-# Daily P&L Page: Deep UX Analysis & Fixes
+# Heatmap Page: Deep UX Analysis & Fixes
 
 ## Issues Found
 
-### 1. Symbol Breakdown Completely Hidden in Paper Mode
+### 1. Duplicated CSV Export Logic (DRY Violation)
 
-Line 318: `{showExchangeData && symbolBreakdown.length > 0 && (` hides the entire Symbol Breakdown section in Paper mode. However, `useSymbolBreakdown` already calculates paper trade data via `paperBreakdown.weekly` — the hook fully supports Paper mode with per-symbol aggregation from `trade_entries`.
+The page defines a full `exportToCSV` function (lines 177-220) that duplicates `src/lib/export/heatmap-export.ts` line-for-line. However, the UI actually renders a `<Link to="/export?tab=analytics">` button (line 287) instead of calling the inline function. The inline `exportToCSV` is **dead code** — never called anywhere.
 
-This violates mode-as-context: the layout should be identical in both modes; only data sources differ. A Paper trader who trades multiple pairs (e.g., BTCUSDT, ETHUSDT) should see their per-symbol breakdown.
+**Fix**: Remove the dead `exportToCSV` function and its related imports. The Export button already correctly links to the dedicated Export page.
 
-**Fix**: Remove the `showExchangeData` guard. Keep only `symbolBreakdown.length > 0` so the section shows whenever there is data, regardless of mode. The Fees column inside the breakdown is valid for both modes (`trade.fees` exists on paper trades too).
+### 2. Hardcoded Colors Violate Semantic Design System
 
-### 2. Commission Column Hidden in Paper Mode — Data Exists But Not Shown
+`SESSION_CONFIG` (lines 226-230) uses raw Tailwind colors (`text-purple-500`, `text-blue-500`, `text-orange-500`, `text-yellow-500`) instead of the design tokens established in `SESSION_COLORS` from `src/lib/session-utils.ts`.
 
-Line 152: `{showExchangeData && (` hides the Commission metric in Today's P&L card. However, `useUnifiedDailyPnl` returns `totalCommission` for Paper mode too (calculated from `trade.fees`). Paper traders who manually enter fees are denied visibility of their fee impact.
+Additionally, streak cards use hardcoded colors:
+- Line 381: `text-orange-500` on Flame icon
+- Line 397: `text-blue-500` on Snowflake icon
 
-This also breaks the 4-column grid layout: Paper mode shows 3 columns (Realized P&L, Trades, Win Rate) while Live shows 4 (+ Commission). Layout inconsistency.
+The session card icons should use colors from the centralized `SESSION_COLORS` map, and streak icons should use semantic tokens (`text-[hsl(var(--chart-4))]` for warning/streak, `text-[hsl(var(--chart-5))]` for loss streak).
 
-**Fix**: Always show the Commission column. In Paper mode, it will show the sum of `fees` from paper trades (could be 0 if no fees entered). This maintains grid parity.
+**Fix**: Replace hardcoded session colors with extracted icon color classes derived from `SESSION_COLORS`. Replace streak icon colors with chart semantic tokens.
 
-### 3. Export Functions Defined But Never Used (Dead Code)
+### 3. SESSION_CONFIG Defined Inside Component Body
 
-`handleExportCSV` (line 61) and `handleExportPDF` (line 82) are defined with full logic, but the UI only renders a `<Link to="/export?tab=analytics">` button (line 129). These two functions are never called — pure dead code.
+`SESSION_CONFIG` (line 225) is defined inside `TradingHeatmapPage`, causing it to be recreated on every render. It has no dependency on component state or props.
 
-Additionally, both functions pass `trades: []` (empty array), making the "Trade History" section of the export output empty.
+**Fix**: Extract `SESSION_CONFIG` to module level as a constant.
 
-**Fix**: Remove the dead `handleExportCSV` and `handleExportPDF` functions and their associated imports (`usePerformanceExport`). The Export button already correctly links to the dedicated Export page. This reduces bundle size and removes confusion.
+### 4. No Mode Awareness Issues (Correctly Implemented)
 
-### 4. ChangeIndicator Recreated on Every Render
+The page uses `useModeFilteredTrades()` which already handles Paper/Live isolation. No `showExchangeData` guards are present — **this is correct** because the Heatmap is a pure analytics view that works identically in both modes. The layout, flow, and components are mode-agnostic by design. No fix needed.
 
-Line 55: `const ChangeIndicator = ({ value, suffix }) => ...` is defined **inside** the component body. This means React creates a new component reference on every render, causing unnecessary unmount/remount of the elements.
+### 5. TradingHeatmap Component Uses `trade.pnl || 0` Instead of Standardized Helper
 
-**Fix**: Extract `ChangeIndicator` outside the `DailyPnL` component as a standalone function or move to a shared UI utility.
+Both `TradingHeatmap.tsx` (line 101) and the page (lines 90, 122, 148, 192) use inline `trade.realized_pnl || trade.pnl || 0` instead of the standardized `getTradeNetPnl()` helper from `src/lib/trading-calculations.ts`. Per the `standardized-pnl-calculation-logic` memory, this helper is the single source of truth.
 
-### 5. No Empty State for Zero-Activity Days
-
-When a trader has no trades today and no trades this week, the page renders all cards with `$0.00`, `0%`, `0 trades`. There's no visual cue that data is simply absent vs. the trader actually having zero P&L. Other pages in the app use empty states for this scenario.
-
-**Fix**: When `dailyStats.totalTrades === 0 && weeklyStats.totalTrades === 0`, show a contextual empty state banner (e.g., "No trading activity recorded yet. Start trading to see your P&L breakdown here.") above the cards, while still rendering the cards with zero values for structural consistency.
-
-### 6. Unused Imports After Dead Code Removal
-
-After removing `handleExportCSV`/`handleExportPDF`, the following imports become unused:
-- `usePerformanceExport`
-- `useSymbolBreakdown` import of `weeklyBreakdown` can stay (it's used in the symbol breakdown section)
-
-**Fix**: Clean up imports as part of the dead code removal.
+However, this is a minor consistency issue — the inline logic matches the helper's behavior. For consistency and maintainability, aligning with the helper would be ideal, but the impact is low. Noting for awareness; no fix in this batch to keep scope focused.
 
 ---
 
 ## Implementation Plan
 
-### File: `src/pages/DailyPnL.tsx`
+### File: `src/pages/TradingHeatmap.tsx`
 
-1. **Remove `showExchangeData` guard on Symbol Breakdown** (line 318): Change to `{symbolBreakdown.length > 0 && (`
-2. **Remove `showExchangeData` guard on Commission column** (line 152): Always render the Commission metric
-3. **Remove dead export functions**: Delete `handleExportCSV`, `handleExportPDF`, and the `usePerformanceExport` import
-4. **Extract `ChangeIndicator`**: Move outside the component body to module-level
-5. **Add empty state banner**: When both daily and weekly trades are 0, show a subtle info banner before the cards
+1. **Remove dead `exportToCSV` function** (lines 177-220) and cleanup unused variables/imports
+2. **Extract `SESSION_CONFIG` to module level** — move outside the component
+3. **Replace hardcoded session colors**: Use semantic icon colors extracted from `SESSION_COLORS` patterns (purple, blue, orange, yellow are session-specific semantic choices — keep them but source from a centralized map)
+4. **Replace streak icon colors**: `text-orange-500` -> `text-[hsl(var(--chart-4))]`, `text-blue-500` -> `text-[hsl(var(--chart-5))]`
 
 ---
 
@@ -66,5 +55,5 @@ After removing `handleExportCSV`/`handleExportPDF`, the following imports become
 
 | File | Changes |
 |------|---------|
-| `src/pages/DailyPnL.tsx` | Remove `showExchangeData` guards on Commission and Symbol Breakdown; remove dead export code; extract ChangeIndicator; add empty state banner |
+| `src/pages/TradingHeatmap.tsx` | Remove dead exportToCSV; extract SESSION_CONFIG to module level; replace hardcoded streak icon colors with semantic chart tokens |
 
