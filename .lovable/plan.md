@@ -1,225 +1,253 @@
 
 
-# Deep UX Analysis & Repair Plan: Accounts Domain
+# Deep UX Analysis: Accounts Page - Mode Consistency
 
-## Ringkasan Temuan
+## Core Problem
 
-Setelah audit menyeluruh terhadap seluruh codebase Accounts (2 pages, 8 components, 5 hooks), ditemukan **5 bugs fungsional**, **4 UX gaps**, dan **3 improvement areas** yang perlu diperbaiki.
+Mode (Paper/Live) is currently treated as a **feature type** rather than a **context filter**. This results in completely different layouts, disabled tabs, and asymmetric experiences between modes. The principle should be: **same structure, different data source**.
 
 ---
 
-## A. BUGS FUNGSIONAL
+## Finding 1: Accounts Tab Has Completely Different Layouts Per Mode (CRITICAL)
 
-### A1. AccountTransactionDialog: defaultTab dan defaultAccount Tidak Sync Saat Re-open (BUG)
+**Current behavior:**
+- **Live mode:** Shows Binance-specific section (Wallet Balance / Available / Unrealized P&L cards), no account card list
+- **Paper mode:** Shows paper summary cards + AccountCardList + AddAccountForm
 
-**Problem:** `AccountTransactionDialog` menggunakan `useState(defaultTab)` dan `useState(defaultAccount?.id)` di line 61 dan 69. `useState` hanya membaca initial value sekali. Jika user klik "Deposit" di Account A, lalu close dialog, lalu klik "Withdraw" di Account B, dialog tetap menampilkan "Deposit" tab dan Account A.
+**Problem:** A user switching from Paper to Live sees a completely different page structure. Live mode has no card-based account list, no "Add Account" button, and no way to navigate to an account detail page (because there are no clickable cards).
 
-**Fix:** Tambahkan `useEffect` untuk sync `activeTab` dan form `accountId` saat props berubah:
+**Fix:** Unify the Accounts tab into one layout:
+1. Summary row (3 cards) - data differs by mode but layout is identical
+2. Section header with "Add Account" button (both modes)
+3. AccountCardList filtered by mode
+4. AccountComparisonTable at bottom
+
+For Live mode, the existing Binance balance cards become the summary row. The AccountCardList should show non-paper accounts (`excludeBacktest=true`). The "not configured" / "connection error" states remain as inline cards within the section.
+
+**Files:** `src/pages/Accounts.tsx`
+
+---
+
+## Finding 2: Transactions & Financial Tabs Disabled in Paper Mode (CRITICAL)
+
+**Current behavior:** Lines 260-261 and 285-286:
 ```typescript
-useEffect(() => { setActiveTab(defaultTab); }, [defaultTab]);
-useEffect(() => {
-  if (defaultAccount?.id) {
-    depositForm.setValue('accountId', defaultAccount.id);
-    withdrawForm.setValue('accountId', defaultAccount.id);
-  }
-}, [defaultAccount]);
+disabled={!isConnected || !showExchangeData}
 ```
+Both tabs are completely disabled when in Paper mode.
 
-**File:** `src/components/accounts/AccountTransactionDialog.tsx`
+**Problem:** Paper accounts have deposit/withdrawal transactions (via `account_transactions` table). Disabling the Transactions tab means users cannot see their paper account transaction history from the main Accounts page. They must navigate to each AccountDetail individually.
 
----
+**Fix:**
+- **Transactions tab:** In Paper mode, show paper account transactions using `useAccountTransactions()` (already exists). In Live mode, keep `BinanceTransactionHistoryTab`.
+- **Financial tab:** In Paper mode, show a simplified financial summary derived from paper trade stats (fees from `useTradeStats`). In Live mode, keep `FinancialSummaryCard`.
 
-### A2. useDeleteAccount: Hard Delete, Bukan Soft Delete (BUG - Melanggar Arsitektur)
+Create a new `PaperTransactionsTab` component that lists all paper account transactions in one table, and a `PaperFinancialSummary` component that shows aggregated paper trade costs.
 
-**Problem:** `useDeleteAccount` di line 201 menggunakan `.delete()` langsung. Berdasarkan memory `database/soft-delete-architecture`, sistem menggunakan soft-delete via kolom `deleted_at`. Account deletion seharusnya set `deleted_at = now()`, bukan hard delete.
-
-**Fix:** Ubah `.delete()` menjadi `.update({ deleted_at: new Date().toISOString(), is_active: false })`.
-
-**File:** `src/hooks/use-accounts.ts`
-
----
-
-### A3. useAccounts: Tidak Filter `deleted_at IS NULL` (BUG)
-
-**Problem:** `useAccounts` query di line 41 tidak memfilter `deleted_at`. Jika soft-delete diterapkan (A2), akun yang sudah dihapus tetap muncul.
-
-**Fix:** Tambahkan `.is('deleted_at', null)` ke query.
-
-**File:** `src/hooks/use-accounts.ts`
+**Files:** `src/pages/Accounts.tsx`, new `src/components/accounts/PaperTransactionsTab.tsx`, new `src/components/accounts/PaperFinancialSummary.tsx`
 
 ---
 
-### A4. AccountDetail: Tidak Ada Deposit/Withdraw Action (MISSING FEATURE)
+## Finding 3: AddAccountForm Only Available in Paper Section
 
-**Problem:** Halaman AccountDetail menampilkan balance dan transaction history, tapi tidak ada button untuk melakukan Deposit atau Withdraw langsung dari halaman detail. User harus kembali ke halaman Accounts untuk melakukan transaksi.
+**Current behavior:** The `<AddAccountForm />` button only renders inside `showPaperData` block (line 434).
 
-**Fix:** Tambahkan Deposit/Withdraw buttons di header AccountDetail dan integrasikan `AccountTransactionDialog`.
+**Problem:** In Live mode, there's no way to add a new (non-paper) trading account. Users might want to track multiple real accounts manually.
 
-**File:** `src/pages/AccountDetail.tsx`
+**Fix:** Show `<AddAccountForm />` in both mode sections. The form already has an `is_backtest` toggle, so users can choose the account type regardless of current mode. Set `defaultIsBacktest` based on current mode.
 
----
-
-### A5. AccountDetail: Tidak Ada Edit Action (MISSING FEATURE)
-
-**Problem:** Sama seperti A4, tidak ada akses ke Edit dari halaman detail. User hanya bisa edit dari card list.
-
-**Fix:** Tambahkan Edit button di header dan integrasikan `EditAccountDialog`.
-
-**File:** `src/pages/AccountDetail.tsx`
+**Files:** `src/pages/Accounts.tsx`
 
 ---
 
-## B. UX GAPS
+## Finding 4: Paper Open Trades Query Not Filtered by Paper Accounts
 
-### B1. AccountComparisonTable Muncul di Antara Binance dan Paper Section
+**Current behavior:** Line 82-87:
+```typescript
+.eq('status', 'open')
+.not('trading_account_id', 'is', null)
+```
+This counts ALL open trades with a trading_account_id, including live trades.
 
-**Problem:** `AccountComparisonTable` di-render di line 424 antara section Binance (Live) dan section Paper. Secara visual ini membingungkan karena posisinya tidak jelas milik section mana. Ketika mode Paper, section Binance hidden tapi Comparison Table tetap di atas Paper section tanpa konteks.
+**Fix:** Join or filter to only count trades whose `trading_account_id` belongs to a paper account (exchange = 'manual' or null). Use an `in` filter with paper account IDs.
 
-**Fix:** Pindahkan `AccountComparisonTable` ke bawah section Paper (setelah `AccountCardList`) agar secara visual berada di akhir tab Accounts sebagai rangkuman perbandingan.
-
-**File:** `src/pages/Accounts.tsx`
-
----
-
-### B2. Paper Accounts Section: Tidak Ada Summary Cards
-
-**Problem:** Live mode menampilkan 3 detail cards (Wallet Balance, Available, Unrealized P&L). Paper mode hanya menampilkan card list tanpa summary setara. Ini membuat Paper mode terasa "kurang".
-
-**Fix:** Tambahkan summary row untuk Paper mode: Total Paper Balance, Total Paper Trades, dan Average Win Rate (dari `AccountComparisonTable` data atau aggregasi lokal).
-
-**File:** `src/pages/Accounts.tsx`
+**Files:** `src/pages/Accounts.tsx`
 
 ---
 
-### B3. Empty State di Accounts Tab Ketika Live Mode Tapi Tidak Connected
+## Finding 5: Overview Summary Cards Inconsistent Between Modes
 
-**Problem:** Ketika user di Live mode tapi Binance belum terkoneksi, halaman menampilkan "Binance Not Configured" card dan AccountComparisonTable (yang mungkin kosong), tapi tidak ada guidance yang jelas tentang apa yang harus dilakukan selanjutnya.
+**Current behavior:**
+- Paper: "Paper Balance", "Paper Accounts", "Open Trades"
+- Live: "Total Accounts" (count), "Total Balance", "Active Positions"
 
-**Fix:** Buat empty state yang lebih cohesive: sembunyikan AccountComparisonTable jika tidak ada data, dan tambahkan CTA yang lebih prominent.
+The top-level overview cards (lines 176-238) use mode-aware data, but their labels and semantics shift. Then each mode section has its OWN additional summary cards (Live: 3 Binance cards, Paper: 3 paper cards), creating visual duplication.
 
-**File:** `src/pages/Accounts.tsx`
+**Fix:** Remove the per-section summary cards. Keep only ONE unified summary row at the top with consistent labels:
+- Card 1: "Balance" (paper total or Binance wallet)
+- Card 2: "Accounts" (count)
+- Card 3: "Open Positions" (paper open trades or Binance positions)
 
----
+The subtitle text can indicate the data source (e.g., "Paper balance" vs "Binance wallet").
 
-### B4. AccountDetail: Header Tidak Responsive di Mobile
-
-**Problem:** Header AccountDetail (line 197-222) menggunakan `flex items-center gap-4` dengan balance di `text-right`. Di mobile (< 640px), balance dan account name akan terlalu rapat atau overflow.
-
-**Fix:** Tambahkan responsive breakpoint: stack vertically di mobile, horizontal di desktop.
-
-**File:** `src/pages/AccountDetail.tsx`
-
----
-
-## C. IMPROVEMENTS
-
-### C1. ARIA Labels dan Accessibility
-
-**Problem:** Cards dan tabel di Accounts page tidak memiliki `role="region"` atau `aria-label` sesuai standar yang sudah diterapkan di analytics components.
-
-**Fix:** Tambahkan ARIA attributes ke overview cards, Binance section, Paper section, dan AccountComparisonTable.
-
-**Files:** `src/pages/Accounts.tsx`, `src/components/accounts/AccountComparisonTable.tsx`
+**Files:** `src/pages/Accounts.tsx`
 
 ---
 
-### C2. AccountDetail: 634 Lines, Perlu Refactor
+## Finding 6: AccountCardList Not Shown in Live Mode
 
-**Problem:** File masih 634 baris dengan equity curve, drawdown, strategy breakdown, dan transaction table dalam satu file. Ini sudah di-flag di audit sebelumnya tapi belum dieksekusi.
+**Current behavior:** In Live mode, only Binance-specific cards render. There's no `<AccountCardList filterType="trading" excludeBacktest />` call.
 
-**Fix:** Extract ke sub-components:
-- `AccountOverviewTab.tsx` - equity curve, drawdown, fee breakdown, capital flow
-- `AccountStrategiesTab.tsx` - strategy breakdown table  
-- `AccountTransactionsTab.tsx` - transaction list with search/filter
+**Problem:** If a user has manually created non-paper trading accounts (e.g., to track IBKR trades), they're invisible in Live mode.
 
-**Files:** 3 new files + refactored `AccountDetail.tsx`
+**Fix:** Add `<AccountCardList filterType="trading" excludeBacktest />` to the Live section, alongside the Binance connection status card.
 
----
-
-### C3. Konsistensi Delete Confirmation
-
-**Problem:** `AccountCardList` menggunakan `confirm()` browser native untuk delete confirmation. Ini tidak konsisten dengan UI library (Radix AlertDialog) yang sudah tersedia.
-
-**Fix:** Ganti `confirm()` dengan `AlertDialog` component yang menampilkan jumlah trades terkait dan pesan bahwa deletion bisa di-recover via Settings.
-
-**File:** `src/components/accounts/AccountCardList.tsx`
+**Files:** `src/pages/Accounts.tsx`
 
 ---
 
 ## Implementation Plan
 
-### Phase 1: Bug Fixes (Prioritas Tertinggi)
+### Phase 1: Unified Layout Structure
 
-| # | Task | File |
-|---|------|------|
-| A1 | Fix TransactionDialog prop sync | AccountTransactionDialog.tsx |
-| A2 | Implementasi soft-delete | use-accounts.ts |
-| A3 | Filter deleted accounts dari query | use-accounts.ts |
+Refactor `Accounts.tsx` to use one consistent layout:
 
-### Phase 2: Missing Features
+```text
++--------------------------------------------------+
+| PageHeader (same for both modes)                 |
++--------------------------------------------------+
+| Summary Cards: Balance | Accounts | Positions    |
+| (data source differs, layout identical)          |
++--------------------------------------------------+
+| Tabs: Accounts | Transactions | Financial         |
++--------------------------------------------------+
+| Accounts Tab:                                     |
+|   [Live: Binance status card if applicable]       |
+|   Section header + Add Account button             |
+|   AccountCardList (filtered by mode)              |
+|   AccountComparisonTable                          |
++--------------------------------------------------+
+| Transactions Tab:                                 |
+|   [Live: BinanceTransactionHistoryTab]            |
+|   [Paper: PaperTransactionsTab]                   |
++--------------------------------------------------+
+| Financial Tab:                                    |
+|   [Live: FinancialSummaryCard]                    |
+|   [Paper: PaperFinancialSummary]                  |
++--------------------------------------------------+
+```
 
-| # | Task | File |
-|---|------|------|
-| A4 | Tambah Deposit/Withdraw di AccountDetail | AccountDetail.tsx |
-| A5 | Tambah Edit di AccountDetail | AccountDetail.tsx |
-| B2 | Paper mode summary cards | Accounts.tsx |
+Changes to `src/pages/Accounts.tsx`:
+- Remove duplicated summary card rows (keep only the top-level overview)
+- Unify the Accounts tab content: one section with Binance status (Live only) + AccountCardList (both modes) + AddAccountForm (both modes)
+- Enable Transactions and Financial tabs for both modes
+- Fix paper open trades query to filter by paper account IDs
+- Move Binance Wallet/Available/Unrealized cards into a collapsible "Binance Details" section within the Accounts tab (Live only), not as the primary layout
 
-### Phase 3: UX & Layout
+### Phase 2: Paper Mode Tab Content
 
-| # | Task | File |
-|---|------|------|
-| B1 | Reposisi AccountComparisonTable | Accounts.tsx |
-| B3 | Improve Live mode empty state | Accounts.tsx |
-| B4 | Responsive header AccountDetail | AccountDetail.tsx |
-| C3 | AlertDialog untuk delete confirmation | AccountCardList.tsx |
+Create two new components:
 
-### Phase 4: Code Quality & Polish
+**`src/components/accounts/PaperTransactionsTab.tsx`:**
+- Uses `useAccountTransactions()` without accountId filter (gets all user transactions)
+- Filters to only show transactions from paper accounts
+- Reuses the same Table layout pattern as `BinanceTransactionHistoryTab`
+- Includes search, type filter, and date range
 
-| # | Task | Files |
-|---|------|-------|
-| C1 | ARIA labels | Accounts.tsx, AccountComparisonTable.tsx |
-| C2 | Refactor AccountDetail ke sub-components | 3 new files + AccountDetail.tsx |
+**`src/components/accounts/PaperFinancialSummary.tsx`:**
+- Uses trade stats from paper mode to show:
+  - Total Gross P&L vs Net P&L
+  - Simulated fees (if tracked)
+  - Capital efficiency (Return on Capital)
+- Simpler than Binance financial summary since paper trades don't have real funding fees
 
----
+### Phase 3: Consistency Polish
 
-## Detail Teknis Per Phase
+- Ensure tab trigger labels and icons are identical between modes (no mode-specific badges on tabs)
+- Remove `disabled` prop from Transactions and Financial tabs
+- Ensure all empty states are actionable ("Add your first account" / "Connect Binance")
+- Verify AccountCardList renders in both modes with correct filters
 
-### Phase 1 Detail:
+### Technical Details
 
-**A2+A3 (use-accounts.ts):**
-- `useDeleteAccount`: ubah `.delete()` menjadi `.update({ deleted_at: new Date().toISOString(), is_active: false })`
-- `useAccounts`: tambah `.is('deleted_at', null)` pada query
-- Konfirmasi message: "Account akan dipindahkan ke trash. Bisa di-recover dalam 30 hari via Settings."
+**Accounts.tsx refactor (key changes):**
 
-**A1 (AccountTransactionDialog.tsx):**
-- Tambahkan 2 `useEffect` untuk sync `defaultTab` -> `activeTab` dan `defaultAccount` -> form values
-- Ini memastikan re-open dialog selalu menampilkan context yang benar
+1. Top summary cards - unified:
+```typescript
+// Card 1: Balance
+const displayBalance = showPaperData ? paperTotalBalance : binanceBalanceNum;
+const balanceLabel = showPaperData ? 'Paper balance' : 'Binance wallet';
 
-### Phase 2 Detail:
+// Card 2: Accounts  
+const displayCount = showPaperData ? paperAccountsCount : liveAccountsCount;
 
-**A4+A5 (AccountDetail.tsx):**
-- Tambahkan `DropdownMenu` di header area dengan opsi: Edit, Deposit, Withdraw, Delete
-- Import dan integrasikan `EditAccountDialog` dan `AccountTransactionDialog`
-- State management: `editDialogOpen`, `transactionDialogOpen`, `defaultTransactionTab`
+// Card 3: Positions
+const displayPositions = showPaperData ? paperOpenTradesCount : binancePositionsCount;
+```
 
-**B2 (Accounts.tsx - Paper Summary):**
-- Tambahkan 3 summary cards sebelum AccountCardList di Paper section
-- Cards: Paper Balance (total), Paper Accounts (count), Open Paper Trades (from existing query)
-- Reuse `paperTotalBalance`, `paperAccountsCount`, dan `paperOpenTradesCount` yang sudah di-compute
+2. Accounts tab - unified structure:
+```typescript
+<TabsContent value="accounts">
+  {/* Binance connection status - Live only */}
+  {showExchangeData && !isConnected && <BinanceStatusCard />}
+  
+  {/* Binance details - Live only, connected */}
+  {showExchangeData && isConnected && <BinanceDetailsCards />}
+  
+  {/* Section header with Add button - BOTH modes */}
+  <SectionHeader>
+    <AddAccountForm defaultIsBacktest={showPaperData} />
+  </SectionHeader>
+  
+  {/* Account cards - BOTH modes, filtered */}
+  <AccountCardList 
+    filterType="trading"
+    excludeBacktest={!showPaperData}
+    backtestOnly={showPaperData}
+  />
+  
+  <AccountComparisonTable />
+</TabsContent>
+```
 
-### Phase 3 Detail:
+3. Tabs - always enabled:
+```typescript
+<TabsTrigger value="transactions">Transactions</TabsTrigger>
+<TabsTrigger value="financial">Financial</TabsTrigger>
+// No disabled prop, no Wifi icon
+```
 
-**B1:** Pindahkan `<AccountComparisonTable />` ke setelah Paper section (sebelum closing `</TabsContent>`)
+4. Tab content - mode-switched:
+```typescript
+<TabsContent value="transactions">
+  {showExchangeData ? <BinanceTransactionHistoryTab /> : <PaperTransactionsTab />}
+</TabsContent>
+<TabsContent value="financial">
+  {showExchangeData ? <FinancialSummaryCard /> : <PaperFinancialSummary />}
+</TabsContent>
+```
 
-**C3 (AccountCardList.tsx):**
-- Ganti `confirm()` dengan AlertDialog dari Radix
-- Tampilkan: "Delete '{name}'? This account will be moved to trash and can be recovered within 30 days."
+**PaperTransactionsTab.tsx:**
+- Fetches all account transactions via `useAccountTransactions()`
+- Cross-references with `useAccounts()` to get account names
+- Table columns: Date, Account, Type, Description, Amount
+- Search + type filter
+- Empty state: "No transactions yet. Use Deposit/Withdraw from account cards."
 
-### Phase 4 Detail:
+**PaperFinancialSummary.tsx:**
+- Uses `useTradeStats()` with paper mode filter
+- Shows: Gross P&L, Net P&L, Total Trades, Win Rate, Avg Trade P&L, Return on Capital
+- Simpler layout than Binance financial (no funding/rebate data)
+- Links to Performance page for detailed breakdown
 
-**C2 Refactor AccountDetail:**
-- `AccountOverviewTab`: terima props `equityData`, `stats`, `flowStats`, `formatCurrency`, `formatPnl`
-- `AccountStrategiesTab`: terima props `strategyBreakdown`, `formatPnl`
-- `AccountTransactionsTab`: terima props `transactions`, `formatCurrency`
-- Parent `AccountDetail.tsx` tetap mengelola data fetching, sub-components hanya render
+**Paper open trades fix:**
+```typescript
+const paperAccountIds = paperAccounts.map(a => a.id);
+const { count } = await supabase
+  .from('trade_entries')
+  .select('id', { count: 'exact', head: true })
+  .eq('user_id', user.id)
+  .eq('status', 'open')
+  .in('trading_account_id', paperAccountIds);
+```
 
