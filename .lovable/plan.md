@@ -1,83 +1,51 @@
 
-# Settings Page: Deep UX Analysis & Fixes
+# Notifications Page: Deep UX Analysis & Fixes
 
 ## Scope & Coverage
 
 Analyzed files (all read in full):
-- `src/pages/Settings.tsx` (248 lines, page orchestrator with 5 tabs)
-- `src/components/settings/TradingConfigTab.tsx` (273 lines, Trading tab)
-- `src/components/settings/AISettingsTab.tsx` (provided in context, AI tab)
-- `src/components/settings/BinanceApiSettings.tsx` (293 lines, Exchange tab)
-- `src/components/settings/ComingSoonExchangeCard.tsx` (37 lines, exchange placeholder)
-- `src/components/settings/ApiKeyForm.tsx`
-- `src/components/settings/BinanceAccountConfigCard.tsx`
-- `src/components/settings/BinanceAutoSyncToggle.tsx`
-- `src/components/settings/BinanceDataSourceToggle.tsx`
-- `src/components/settings/RetentionPeriodSetting.tsx`
-- `src/components/settings/DeletedTradesPanel.tsx`
-- `src/components/settings/RateLimitDisplay.tsx`
-- `src/components/settings/SyncMonitoringPanel` (via BinanceApiSettings)
-- `src/hooks/use-user-settings.ts` (provided in context)
+- `src/pages/Notifications.tsx` (220 lines, page with 2 tabs: All / Unread)
+- `src/hooks/use-notifications.ts` (provided in context, DB queries + realtime)
+- `src/hooks/use-notification-triggers.ts` (provided in context, auto-create notifications)
+- `src/hooks/use-push-notifications.ts` (provided in context, Web Push)
+- `src/hooks/use-weekly-report-export.ts` (weekly PDF export, used inline)
+- `src/lib/constants/notification-config.ts` (provided in context, type-to-color mapping)
+- `src/store/app-store.ts` (provided in context, legacy local notifications)
 
-## Issues Found
+## Issue Found
 
-### 1. Uncontrolled Tabs -- No URL Write-Back
+### 1. Uncontrolled Tabs -- No URL Persistence
 
-**Settings.tsx line 23-24**: `const [searchParams] = useSearchParams()` reads the `tab` param but does not destructure the setter.
-**Line 74**: `<Tabs defaultValue={defaultTab}>` uses `defaultValue` (uncontrolled).
+**Line 168**: `<Tabs defaultValue="all">` uses uncontrolled `defaultValue`. No `useSearchParams` is imported or used anywhere in the file.
 
 This means:
-- Initial load from URL works (e.g., `/settings?tab=exchange`)
-- But switching tabs does NOT update the URL
+- Switching between "All" and "Unread" tabs does not update the URL
 - Browser back/forward and bookmarking after tab switch are broken
-- Inconsistent with the controlled `useSearchParams` pattern now established on Strategies, Backtest, Bulk Export, Performance, Risk, Position Calculator, AI Insights, and Import pages
+- Deep-linking (e.g., `/notifications?tab=unread`) does not work
+- Inconsistent with the controlled `useSearchParams` pattern now established on Settings, Profile, Bulk Export, Strategies, Backtest, Performance, Risk, Position Calculator, AI Insights, and Import pages
 
-**Fix**: Destructure the setter, replace `defaultValue` with controlled `value`/`onValueChange`.
+**Fix**: Import `useSearchParams`, derive `activeTab`, replace `defaultValue` with controlled `value`/`onValueChange`.
 
-### 2. Broken `text-warning` Color Token (2 files, 2 occurrences)
+### 2. No Other Issues Found
 
-The CSS variable `--warning` does not exist in the project stylesheets.
-
-**TradingConfigTab.tsx line 166**:
-```
-<AlertTriangle className="h-3 w-3 text-warning" />
-```
-
-**RateLimitDisplay.tsx line 37**:
-```
-isWarning ? 'text-warning' : 'text-muted-foreground'
-```
-
-Both render invisible/unstyled text because the token does not resolve.
-
-**Fix**: Replace `text-warning` with `text-[hsl(var(--chart-4))]` (the orange/amber semantic token used for warnings throughout the app).
-
-### 3. Mode Consistency (No Issues)
-
-Settings is a user-level configuration page, not mode-dependent. The Exchange tab conditionally shows Binance sub-components based on connection status (`isConnected`), not trade mode. Both Paper and Live modes see the same settings structure. No fix needed.
-
-### 4. Other Observations (No Fix Needed)
-
-- **Notifications tab**: Inline in Settings.tsx with proper grouping (Trading Alerts, Reports, Channels). Clean implementation.
-- **Appearance tab**: Theme switcher with visual preview cards. Correctly applies to DOM immediately.
-- **AISettingsTab**: Full implementation with loading state, local state management, save button. No issues.
-- **BinanceApiSettings**: Comprehensive CRUD with test connection, delete confirmation, conditional sub-panels. No issues.
-- **ComingSoonExchangeCard**: Simple placeholder with dashed border. No issues.
+- **Loading state**: Proper skeleton UI rendered when `isLoading` is true (lines 79-96). Clean layout with icon + text placeholders.
+- **Empty states**: Both tabs have contextual empty states -- "No notifications" with `BellOff` icon for All, "All caught up!" with `Check` icon for Unread.
+- **Color tokens**: Uses `text-profit` (valid), `text-muted-foreground` (valid), `text-primary` (valid). No broken `text-warning` usage.
+- **Mode consistency**: Notifications are user-scoped (filtered by `user_id`), not mode-dependent. Both Paper and Live see the same notification list. No fix needed.
+- **Weekly Report section**: Properly integrated with loading spinner during generation. Buttons disabled while generating. Clean.
+- **NotificationCard**: Inline component with proper read/unread styling (opacity-60 for read), mark-as-read button with pending state, asset symbol badge. No issues.
+- **Action buttons**: "Mark all as read" conditionally shown when unread > 0. "Clear all" conditionally shown when notifications exist. Both disable during pending mutation. Correct.
 
 ---
 
 ## Implementation Plan
 
-### File: `src/pages/Settings.tsx`
-1. Destructure `setSearchParams` from `useSearchParams()`
-2. Derive `activeTab` from search params with default `'trading'`
-3. Replace `<Tabs defaultValue={defaultTab}>` with `<Tabs value={activeTab} onValueChange={...}>`
-
-### File: `src/components/settings/TradingConfigTab.tsx`
-1. Replace `text-warning` on line 166 with `text-[hsl(var(--chart-4))]`
-
-### File: `src/components/settings/RateLimitDisplay.tsx`
-1. Replace `text-warning` on line 37 with `text-[hsl(var(--chart-4))]`
+### File: `src/pages/Notifications.tsx`
+1. Import `useSearchParams` from `react-router-dom`
+2. Destructure `[searchParams, setSearchParams]` in the component
+3. Derive `activeTab` from `searchParams.get('tab') || 'all'`
+4. Create `setActiveTab` callback that updates search params
+5. Replace `<Tabs defaultValue="all">` with `<Tabs value={activeTab} onValueChange={setActiveTab}>`
 
 ---
 
@@ -85,6 +53,4 @@ Settings is a user-level configuration page, not mode-dependent. The Exchange ta
 
 | File | Changes |
 |------|---------|
-| `src/pages/Settings.tsx` | Controlled tabs via `useSearchParams` (3 lines changed) |
-| `src/components/settings/TradingConfigTab.tsx` | Replace 1 broken `text-warning` with semantic `chart-4` token |
-| `src/components/settings/RateLimitDisplay.tsx` | Replace 1 broken `text-warning` with semantic `chart-4` token |
+| `src/pages/Notifications.tsx` | Controlled tabs via `useSearchParams` (4 lines added/changed) |
