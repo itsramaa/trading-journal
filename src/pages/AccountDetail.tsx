@@ -16,7 +16,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AccountDetailHeader } from "@/components/accounts/detail/AccountDetailHeader";
 import { AccountDetailMetrics } from "@/components/accounts/detail/AccountDetailMetrics";
 import { AccountDetailOverview } from "@/components/accounts/detail/AccountDetailOverview";
-import { AccountDetailStrategies } from "@/components/accounts/detail/AccountDetailStrategies";
 import { AccountDetailTransactions } from "@/components/accounts/detail/AccountDetailTransactions";
 import { AccountDetailFinancial } from "@/components/accounts/detail/AccountDetailFinancial";
 
@@ -107,31 +106,6 @@ export default function AccountDetail() {
     });
   }, [accountTrades]);
 
-  // Strategy breakdown
-  const strategyBreakdown = useMemo(() => {
-    if (!accountTrades.length) return [];
-    const map = new Map<string, { name: string; trades: number; pnl: number; wins: number }>();
-    for (const trade of accountTrades) {
-      const strategies = trade.strategies;
-      if (!strategies?.length) {
-        const key = 'untagged';
-        const existing = map.get(key) || { name: 'No Strategy', trades: 0, pnl: 0, wins: 0 };
-        existing.trades++;
-        existing.pnl += trade.realized_pnl || trade.pnl || 0;
-        if (trade.result === 'win') existing.wins++;
-        map.set(key, existing);
-      } else {
-        for (const s of strategies) {
-          const existing = map.get(s.id) || { name: s.name, trades: 0, pnl: 0, wins: 0 };
-          existing.trades++;
-          existing.pnl += trade.realized_pnl || trade.pnl || 0;
-          if (trade.result === 'win') existing.wins++;
-          map.set(s.id, existing);
-        }
-      }
-    }
-    return Array.from(map.values()).sort((a, b) => b.pnl - a.pnl);
-  }, [accountTrades]);
 
   // Capital flow stats (DB accounts only)
   const flowStats = useMemo(() => {
@@ -212,12 +186,11 @@ export default function AccountDetail() {
 
         {/* Tabs - identical 4 tabs for both modes */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList>
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="strategies">Strategies</TabsTrigger>
-            <TabsTrigger value="transactions">Transactions</TabsTrigger>
-            <TabsTrigger value="financial">Financial</TabsTrigger>
-          </TabsList>
+           <TabsList>
+             <TabsTrigger value="overview">Overview</TabsTrigger>
+             <TabsTrigger value="transactions">Transactions</TabsTrigger>
+             <TabsTrigger value="financial">Financial</TabsTrigger>
+           </TabsList>
 
           <TabsContent value="overview" className="mt-4">
             <AccountDetailOverview
@@ -227,10 +200,6 @@ export default function AccountDetail() {
               isBinanceVirtual={isBinanceVirtual}
               activePositions={isBinanceVirtual ? activePositions : undefined}
             />
-          </TabsContent>
-
-          <TabsContent value="strategies" className="mt-4">
-            <AccountDetailStrategies strategyBreakdown={strategyBreakdown} />
           </TabsContent>
 
           <TabsContent value="transactions" className="mt-4">
