@@ -136,6 +136,7 @@ export function RiskSettingsForm({
             min={10}
             max={100}
             step={5}
+            aria-label={`Max position size: ${maxPositionSize}%`}
           />
           <p className="text-xs text-muted-foreground">
             Maximum percentage of capital to deploy in a single position
@@ -154,6 +155,7 @@ export function RiskSettingsForm({
             min={1}
             max={10}
             step={1}
+            aria-label={`Max concurrent positions: ${maxConcurrentPositions}`}
           />
           <p className="text-xs text-muted-foreground">
             Maximum number of open positions allowed at the same time
