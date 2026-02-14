@@ -2,8 +2,8 @@
  * Dynamic Currency Display Component
  * Shows user's default currency selector with exchange rate info
  */
-import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Popover,
   PopoverContent,
@@ -14,7 +14,6 @@ import { useExchangeRate } from "@/hooks/use-exchange-rate";
 import { RefreshCw } from "lucide-react";
 
 export function CurrencyDisplay() {
-  const { t } = useTranslation();
   const { data: settings } = useUserSettings();
   const updateSettings = useUpdateUserSettings();
   const { rate, isLoading: rateLoading, refetch } = useExchangeRate();
@@ -49,7 +48,7 @@ export function CurrencyDisplay() {
       <PopoverContent className="w-72 p-3" align="end">
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">{t('currency.select') || 'Select Currency'}</span>
+            <span className="text-sm font-medium">Select Currency</span>
           </div>
 
           <div className="flex gap-2">
@@ -79,7 +78,10 @@ export function CurrencyDisplay() {
               <div>
                 <p className="text-xs text-muted-foreground">Exchange Rate</p>
                 <p className="text-sm font-medium">
-                  $1 = Rp {formatRate(rate)}
+                  {rateLoading && rate === 0
+                    ? <Skeleton className="h-4 w-24 inline-block" />
+                    : <>$1 = Rp {formatRate(rate)}</>
+                  }
                 </p>
               </div>
               <Button 
