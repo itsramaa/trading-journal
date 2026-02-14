@@ -1,67 +1,125 @@
 
-# Accounts Page: Final Audit - 1 Remaining Issue
 
-## Scope
+# Market Data Page - Comprehensive Audit
 
-All 17 files in the Accounts domain were read in full from scratch. The 5 previously implemented fixes are verified as correctly applied. One new accuracy issue was found.
+## Overall Assessment
 
----
-
-## Verified Correct (All Previous Fixes)
-
-1. **AccountDetail.tsx line 37-41**: `useSearchParams` for tab persistence - correct.
-2. **AccountDetail.tsx line 100**: `trade.realized_pnl ?? trade.pnl ?? 0` - correct.
-3. **AccountComparisonTable.tsx lines 52-67**: Empty-state Card instead of `null` - correct.
-4. **AccountTransactionDialog.tsx lines 161-166**: Mode-filtered account dropdown - correct.
-5. **AccountDetailOverview.tsx line 71**: `formatCurrency(v)` on Y-axis - correct.
+The Market Data page is architecturally sound with good modular design, ErrorBoundary wrappers on 3/4 widgets, centralized config constants, and proper auth-gated edge functions. However, there are several issues that need to be addressed across the judging criteria.
 
 ---
 
-## New Issue Found
+## Issues Found
 
-### AccountDetail.tsx line 79: `initialBalance` uses `||` instead of `??` (Accuracy)
+### 1. Hardcoded Colors Violate Semantic Financial Color Standard (Clarity/Code Quality)
+
+**Files affected:**
+- `src/components/market/MarketSentimentWidget.tsx` (lines 129, 131, 317, 319, 326, 328, 369)
+- `src/lib/constants/sentiment-thresholds.ts` (lines 132-134, 140-143)
+- `src/components/market/MarketContextBadge.tsx` (lines 36-41, 46-48, 55-59)
+
+The project standard requires `text-profit` / `text-loss` and `bg-profit` / `bg-loss` semantic tokens for all financial indicators. The MarketSentimentWidget bull/bear bar uses hardcoded `text-green-500` / `text-red-500` and `bg-green-500` / `bg-red-500`. The utility functions `getSentimentColorClass()` and `getSentimentBgClass()` also return hardcoded color classes.
+
+**Fix:**
+- Replace `text-green-500` with `text-profit` and `text-red-500` with `text-loss` in the bull/bear bar section
+- Replace `bg-green-500` with `bg-profit` and `bg-red-500` with `bg-loss` for bar fills
+- Update `getSentimentColorClass()` to return `text-profit` / `text-loss` / `text-warning`
+- Update `getSentimentBgClass()` to return `bg-profit/10` / `bg-loss/10` / `bg-warning/10`
+- Update funding rate color in raw data section (line 369)
+
+Note: `MarketContextBadge.tsx` uses a multi-level color scale (red/orange/yellow/green/emerald for Fear/Greed 0-100), which is informational rather than financial P&L, so those are acceptable as-is.
+
+---
+
+### 2. MarketSentimentWidget Missing ErrorBoundary Wrapper (Comprehensiveness/Code Quality)
+
+**File:** `src/components/market/MarketSentimentWidget.tsx`
+
+VolatilityMeterWidget, WhaleTrackingWidget, and TradingOpportunitiesWidget are all wrapped with `ErrorBoundary`. MarketSentimentWidget is the only widget without one, creating an inconsistency where a runtime error in the sentiment gauge could crash the entire page.
+
+**Fix:** Add an ErrorBoundary wrapper with key-based retry, matching the pattern used in VolatilityMeterWidget.
+
+---
+
+### 3. WhaleTrackingWidget and TradingOpportunitiesWidget Use Array Index as Key (Code Quality)
+
+**Files:**
+- `src/components/market/WhaleTrackingWidget.tsx` (line 95: `key={idx}`)
+- `src/components/market/TradingOpportunitiesWidget.tsx` (line 88: `key={idx}`)
+
+Using array index as React key can cause incorrect reconciliation if the list order changes between renders. Both lists have a natural unique identifier: `whale.asset` for whale data and `opp.pair` for opportunities.
+
+**Fix:**
+- WhaleTrackingWidget: `key={whale.asset}` (but assets could repeat, so use `key={\`${whale.asset}-${whale.signal}\`}`)
+- TradingOpportunitiesWidget: `key={opp.pair}`
+
+---
+
+### 4. `getFactorBadge` in MarketSentimentWidget Uses Hardcoded Colors (Clarity)
+
+**File:** `src/components/market/MarketSentimentWidget.tsx` (lines 129-131)
+
+The factor badges use `border-green-500/50 text-green-500` and `border-red-500/50 text-red-500` instead of semantic tokens.
+
+**Fix:** Replace with `border-profit/50 text-profit` and `border-loss/50 text-loss`.
+
+---
+
+### 5. Missing ARIA Label on Whale and Opportunities Cards (Comprehensiveness)
+
+**Files:**
+- `src/components/market/WhaleTrackingWidget.tsx` - Card at line 65 has no `role="region"` or `aria-label`
+- `src/components/market/TradingOpportunitiesWidget.tsx` - Card at line 57 has no `role="region"` or `aria-label`
+
+VolatilityMeterWidget and MarketSentimentWidget both have proper ARIA attributes. These two are missing them.
+
+**Fix:** Add `role="region" aria-label="Whale Tracking"` and `role="region" aria-label="Trading Opportunities"` to the respective Card components (both the content and error variants).
+
+---
+
+### 6. Duplicate Import Lines in MarketData.tsx (Code Quality)
+
+**File:** `src/pages/MarketData.tsx` (lines 7-8)
 
 ```typescript
-const initialBalance = isBinanceVirtual
-  ? Math.max((...), 1)
-  : (account?.metadata?.initial_balance || Number(account?.balance));
+import { MarketSentimentWidget, WhaleTrackingWidget, TradingOpportunitiesWidget } from "@/components/market";
+import { VolatilityMeterWidget } from "@/components/market";
 ```
 
-If a user creates an account with `initial_balance: 0` (e.g., a paper account used purely for tracking without starting capital), the `||` operator treats `0` as falsy and falls through to `Number(account?.balance)`. This causes **Return on Capital** (ROC) in AccountDetailMetrics and AccountDetailFinancial to use the current balance as the denominator instead of the actual initial capital of `0`, producing a misleading ROC percentage instead of correctly showing infinity or N/A.
+Two separate import statements from the same module.
 
-**Fix**: Change `||` to `??`:
-
-```typescript
-const initialBalance = isBinanceVirtual
-  ? Math.max((Number(binanceBalance?.totalWalletBalance) || 0) - (stats?.totalPnlNet || 0), 1)
-  : (account?.metadata?.initial_balance ?? Number(account?.balance));
-```
+**Fix:** Consolidate into a single import statement.
 
 ---
 
-## Full Verification Summary
+## Summary Table
 
-All other areas confirmed correct:
+| # | File | Issue | Criteria | Severity |
+|---|------|-------|----------|----------|
+| 1 | MarketSentimentWidget.tsx, sentiment-thresholds.ts | Hardcoded `green-500`/`red-500` instead of `text-profit`/`text-loss` | Clarity, Code Quality | Medium |
+| 2 | MarketSentimentWidget.tsx | Missing ErrorBoundary wrapper | Comprehensiveness, Code Quality | Medium |
+| 3 | WhaleTrackingWidget.tsx, TradingOpportunitiesWidget.tsx | Array index as React key | Code Quality | Low |
+| 4 | MarketSentimentWidget.tsx | Factor badges use hardcoded colors | Clarity | Low |
+| 5 | WhaleTrackingWidget.tsx, TradingOpportunitiesWidget.tsx | Missing ARIA `role="region"` and `aria-label` | Comprehensiveness | Low |
+| 6 | MarketData.tsx | Duplicate import from same module | Code Quality | Low |
 
-- Mode-as-context parity (identical layouts Paper/Live)
-- Data isolation (modeAccounts, modeAccountIds, open trades query)
-- Loading skeletons across all views
-- Empty states across all views
-- Semantic color tokens (text-profit/text-loss throughout)
-- ARIA roles and labels on summary region and comparison table
-- Soft-delete with 30-day recovery messaging
-- Financial audit trail (insert-only transactions, client-side balance check)
-- Security (user_id scoping on all queries, RLS on server)
-- Currency from user settings in AddAccountForm
-- Zod validation with descriptive error messages
-- Cross-domain links verified valid
+## Verified Correct (No Issues)
 
----
+- Edge function `market-insight` has proper auth check (JWT validation)
+- Edge function has input validation with regex and slice limit
+- Symbol validation via `filterValidSymbols()` before edge function call
+- MarketContext provides cross-page symbol persistence with localStorage
+- VolatilityMeterWidget correctly wrapped with ErrorBoundary + key-based retry
+- WhaleTrackingWidget and TradingOpportunitiesWidget wrapped with ErrorBoundary
+- Centralized config constants (market-config.ts, sentiment-thresholds.ts, volatility-config.ts)
+- Loading skeletons present in all widgets
+- Empty states present in all widgets
+- Error states with retry in all widgets
+- `normalizeError()` utility for consistent error handling
+- `useMemo` for derived data (whaleData, opportunitiesData, symbolsToFetch)
+- Data quality and last updated footer
+- Responsive grid layout (`md:grid-cols-2`, `lg:grid-cols-3`)
+- CryptoIcon integration in VolatilityMeter
+- Security: edge function validates auth token before processing
 
-## Technical Summary
+Total: 6 files modified, 6 issues addressed.
 
-| File | Change | Criteria |
-|------|--------|----------|
-| `src/pages/AccountDetail.tsx` line 79 | Change `\|\|` to `??` for `initialBalance` | Accuracy |
-
-Total: 1 file, 1 change. Fixes the last remaining falsy-zero operator issue in the Accounts domain.
