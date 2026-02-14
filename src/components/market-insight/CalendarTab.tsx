@@ -316,7 +316,7 @@ export function CalendarTab({ hideTitle = false }: CalendarTabProps) {
 
       {/* Footer disclaimer */}
       <p className="text-xs text-muted-foreground text-center">
-        Data from Trading Economics API. AI analysis is for informational purposes only.
+        Data from Forex Factory. AI analysis is for informational purposes only.
         {data?.lastUpdated && (
           <span className="block mt-1">
             Last updated: {format(new Date(data.lastUpdated), 'HH:mm:ss')}

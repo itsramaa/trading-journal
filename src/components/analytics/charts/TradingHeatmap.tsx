@@ -48,10 +48,7 @@ const HOURS = [0, 4, 8, 12, 16, 20];
 export function TradingHeatmap({ trades: externalTrades, className, showEventOverlay = true }: TradingHeatmapProps) {
   const { data: fetchedTrades } = useModeFilteredTrades();
   const { format: formatCurrency, formatPnl, formatCompact } = useCurrencyConversion();
-  const { eventDateMap, isLoading: eventsLoading } = useHighImpactEventDates({
-    startDate: subDays(new Date(), 90),
-    endDate: new Date(),
-  });
+  const { eventDateMap, isLoading: eventsLoading } = useHighImpactEventDates();
   
   // Use external trades if provided, otherwise use fetched
   const trades = externalTrades || fetchedTrades;
