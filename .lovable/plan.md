@@ -1,154 +1,166 @@
 
-
-# Risk Overview Page - Functional Correctness Audit (Round 2)
+# Performance Page - Functional Correctness Audit
 
 ## Audit Scope
 
-Full re-audit of: page (`RiskManagement.tsx`), components (`DailyLossTracker.tsx`, `RiskSummaryCard.tsx`, `RiskProfileSummaryCard.tsx`, `CorrelationMatrix.tsx`, `RiskEventLog.tsx`, `RiskAlertBanner.tsx`, `RiskSettingsForm.tsx`, `MarginHistoryTab.tsx`), hooks (`use-risk-profile.ts`, `use-risk-events.ts`, `use-trading-gate.ts`, `use-binance-daily-pnl.ts`, `use-unified-daily-pnl.ts`), types (`risk.ts`), constants (`risk-thresholds.ts`), utilities (`correlation-utils.ts`, `symbol-utils.ts`), and cross-domain dependencies.
-
-All three issues from Round 1 have been verified as fixed:
-- `showExchangeData` dependency added to `RiskSummaryCard.tsx` memo -- confirmed at line 34
-- Error toast sanitized in `use-risk-profile.ts` -- confirmed at lines 188-191
-- ErrorBoundary added to `RiskManagement.tsx` -- confirmed at lines 54-153
+Reviewed: page (`Performance.tsx`), sub-components (`PerformanceKeyMetrics.tsx`, `PerformanceMonthlyTab.tsx`, `PerformanceContextTab.tsx`, `PerformanceStrategiesTab.tsx`, `PerformanceFilters.tsx`), analytics components (`DrawdownChart.tsx`, `EquityCurveWithEvents.tsx`, `TradingBehaviorAnalytics.tsx`, `SevenDayStatsCard.tsx`, `SessionPerformanceChart.tsx`, `TradingHeatmap.tsx`, `CryptoRanking.tsx`, `AIPatternInsights.tsx`), hooks (`use-monthly-pnl.ts`, `use-contextual-analytics.ts`, `use-strategy-performance.ts`, `use-mode-filtered-trades.ts`), utilities (`trading-calculations.ts`), and cross-domain dependencies.
 
 ---
 
-## New Issues Found
+## Issues Found
 
-### 1. `text-warning` Color Token Undefined -- Correlation Warning Invisible (Clarity - HIGH)
+### 1. DrawdownChart Uses `||` Instead of `??` for PnL -- Breakeven Trades Silently Skipped (Accuracy - HIGH)
 
-**File:** `src/components/risk/RiskSummaryCard.tsx` (lines 188, 190, 196)
+**File:** `src/components/analytics/charts/DrawdownChart.tsx` (line 37)
 
-The correlation warning section uses `text-warning` and `border-warning/30` CSS classes:
 ```typescript
-<Link2 className="h-4 w-4 text-warning mt-0.5 shrink-0" />
-<span className="text-sm font-medium text-warning">
-<Badge ... className="ml-1.5 text-xs border-warning/30 text-warning">
+const pnl = trade.realized_pnl || trade.pnl || 0;
 ```
 
-However, `text-warning` is NOT defined in the project's CSS theme. The project standard uses `text-[hsl(var(--chart-4))]` for warning indicators (per the UX Consistency Standard). Because the `warning` color token does not exist, these elements inherit the parent text color (muted-foreground), making the correlation warning visually indistinguishable from normal text. Users cannot tell this is a warning.
+The `||` operator treats `0` as falsy. If `realized_pnl` is exactly `0` (breakeven trade), it falls through to `trade.pnl`, which may contain a stale estimate value. This violates the project's standardized PnL calculation policy which mandates `realized_pnl ?? pnl ?? 0`.
 
-**Fix:** Replace all `text-warning` with `text-[hsl(var(--chart-4))]` and `border-warning/30` with `border-[hsl(var(--chart-4))]/30`:
+The same bug exists in:
+- `src/components/analytics/charts/TradingHeatmap.tsx` (line 93)
+- `src/components/analytics/CryptoRanking.tsx` (line 48)
+- `src/components/analytics/AIPatternInsights.tsx` (lines 40-42)
+- `src/lib/export/heatmap-export.ts` (line 25)
+- `src/pages/TradingHeatmap.tsx` (lines 98, 130, 156, 372-373)
+
+**Fix:** Replace `||` with `??` in all affected files:
 ```typescript
-<Link2 className="h-4 w-4 text-[hsl(var(--chart-4))] mt-0.5 shrink-0" />
-<span className="text-sm font-medium text-[hsl(var(--chart-4))]">
-<Badge ... className="ml-1.5 text-xs border-[hsl(var(--chart-4))]/30 text-[hsl(var(--chart-4))]">
+const pnl = trade.realized_pnl ?? trade.pnl ?? 0;
 ```
+
+Total: 8 files, ~12 occurrences.
 
 ---
 
-### 2. Two Sliders Missing `aria-label` in RiskSettingsForm (Clarity - MEDIUM)
+### 2. `text-warning` and `hsl(var(--warning))` Color Tokens Undefined in EquityCurveWithEvents (Clarity - HIGH)
 
-**File:** `src/components/risk/RiskSettingsForm.tsx` (lines 133-142, 152-158)
+**File:** `src/components/analytics/charts/EquityCurveWithEvents.tsx` (lines 161, 243, 257)
 
-The first three sliders (Risk per Trade, Max Daily Loss, Max Weekly Drawdown) have proper `aria-label` attributes. The last two sliders (Max Position Size, Max Concurrent Positions) do NOT:
+The component uses `text-warning` (CSS class) and `hsl(var(--warning))` (inline style) which are NOT defined in the project's CSS theme. The `warning` token does not exist (confirmed by searching all CSS files). This means:
+- The tooltip "Event Day" label at line 161 is invisible/unstyled
+- Event annotation dots at line 243 have no fill color (renders as black or transparent)
+- Event legend icon at line 257 is invisible
 
-```typescript
-// Line 134 - Missing aria-label
-<Slider
-  value={[maxPositionSize]}
-  onValueChange={([value]) => onMaxPositionSizeChange(value)}
-  min={10}
-  max={100}
-  step={5}
-/>
+The same issue exists in:
+- `src/components/analytics/charts/TradingHeatmap.tsx` (lines 225-226, 252, 311)
+- `src/components/analytics/contextual/EventDayComparison.tsx` (line 75)
 
-// Line 153 - Missing aria-label
-<Slider
-  value={[maxConcurrentPositions]}
-  onValueChange={([value]) => onMaxConcurrentPositionsChange(value)}
-  min={1}
-  max={10}
-  step={1}
-/>
-```
-
-This inconsistency makes two of the five risk settings inaccessible to screen readers.
-
-**Fix:** Add `aria-label` to both:
-```typescript
-aria-label={`Max position size: ${maxPositionSize}%`}
-```
-```typescript
-aria-label={`Max concurrent positions: ${maxConcurrentPositions}`}
-```
+**Fix:** Replace all `text-warning` with `text-[hsl(var(--chart-4))]` and `hsl(var(--warning))` with `hsl(var(--chart-4))` across these files, matching the project standard established in the Risk Overview fix.
 
 ---
 
-### 3. Dead Constant: `CORRELATION_THRESHOLDS.DEFAULT_FALLBACK` Never Used (Code Quality - LOW)
+### 3. Performance Page Missing Top-Level ErrorBoundary (Comprehensiveness - MEDIUM)
 
-**File:** `src/lib/constants/risk-thresholds.ts` (line 26)
+**File:** `src/pages/Performance.tsx`
 
-The constant `DEFAULT_FALLBACK: 0.3` is defined in `CORRELATION_THRESHOLDS` but never imported or used anywhere in the codebase. The actual fallback in `correlation-utils.ts` line 78 returns `0` for unknown pairs:
+No ErrorBoundary wraps the page. The page renders complex chart components (`EquityCurveWithEvents`, `DrawdownChart`, `TradingHeatmapChart`, `SessionPerformanceChart`) that process live data and can throw on unexpected shapes. The RiskManagement page was just fixed with this same pattern.
 
+**Fix:** Add ErrorBoundary with `retryKey` pattern:
 ```typescript
-return CRYPTO_CORRELATIONS[key1] ?? CRYPTO_CORRELATIONS[key2] ?? 0;
-```
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 
-The documented intent was for unknown pairs to default to 0.3, but the implementation returns 0. Returning 0 is actually the safer choice (no false positives), so the constant is dead code.
+const [retryKey, setRetryKey] = useState(0);
 
-**Fix:** Remove `DEFAULT_FALLBACK` from the constants to prevent confusion:
-```typescript
-export const CORRELATION_THRESHOLDS = {
-  WARNING: 0.6,
-  HIGH: 0.75,
-  VERY_HIGH: 0.8,
-} as const;
+<ErrorBoundary title="Performance Analytics" onRetry={() => setRetryKey(k => k + 1)}>
+  <div key={retryKey} className="space-y-6">
+    {/* existing content */}
+  </div>
+</ErrorBoundary>
 ```
 
 ---
 
 ## Verified Correct (No Issues)
 
-All items verified in Round 1 remain correct. Additionally confirmed:
+The following were explicitly verified and found functionally sound:
 
-- **Round 1 Fix 1**: `showExchangeData` now in `correlationWarning` memo deps -- verified
-- **Round 1 Fix 2**: Error toast now generic with `console.error` for server-side logging -- verified
-- **Round 1 Fix 3**: ErrorBoundary wraps page with `retryKey` pattern -- verified
-- **Daily loss math**: Both Binance and Paper paths use `(|min(0, pnl)| / lossLimit) * 100` -- correct
-- **Remaining budget**: `lossLimit + min(0, pnl)` clamped to `max(0, ...)` -- correct
-- **Progress clamping**: `Math.min(100, ...)` -- correct
-- **Threshold alignment**: RISK_THRESHOLDS (70/90) and DAILY_LOSS_THRESHOLDS (70/90/100) match
-- **Mode isolation**: DailyLossTracker skips Binance in Paper; CorrelationMatrix uses `useModeFilteredTrades`; RiskEventLog disables exchange tabs in Paper
-- **Trading gate severity order**: disabled > AI blocked > danger > warning -- correct
-- **AI quality gate**: Minimum SAMPLE_COUNT (3) enforced -- correct
-- **Risk event deduplication**: event_type + event_date + user_id checked before insert -- correct
-- **Correlation matrix**: Centralized `getCorrelation` and `getBaseSymbol` -- single source of truth
-- **Risk profile upsert**: check-then-update/insert with `maybeSingle()` -- safe
-- **Audit logging**: Risk profile updates logged via `logAuditEvent` -- correct
-- **URL tab persistence**: `useSearchParams` -- correct
-- **Loading/empty states**: All components have proper loading skeletons and empty state CTAs
-- **Semantic colors**: `text-profit` / `text-loss` / `text-[hsl(var(--chart-4))]` used correctly (except Issue #1)
-- **ARIA**: First 3 sliders in RiskSettingsForm have `aria-label`; InfoTooltips on all key metrics
-- **Currency formatting**: `useCurrencyConversion` in DailyLossTracker and RiskSummaryCard -- correct
-- **RiskAlertBanner**: Non-dismissable when disabled -- correct security behavior
-- **Security (RLS)**: All queries scoped by `user_id` via RLS
-- **PnL standard**: `realized_pnl ?? pnl ?? 0` fallback chain used in unified-daily-pnl -- correct
+- **PnL calculation in `trading-calculations.ts`**: Uses `getTradeNetPnl(t)` helper with `t.realized_pnl ?? t.pnl ?? 0` -- correct standard
+- **Win rate formula**: `(wins / totalTrades) * 100` -- correct
+- **Profit factor**: `grossProfit / grossLoss` with Infinity guard when `grossLoss === 0` -- correct
+- **Expectancy**: `(winRate/100 * avgWin) - ((1 - winRate/100) * avgLoss)` -- correct
+- **Max drawdown**: Peak-to-trough on sorted equity curve with percentage relative to peak -- correct
+- **Sharpe ratio**: Annualized with `sqrt(252)` factor, 0% risk-free rate -- standard simplified approach
+- **Largest win/loss**: Uses `Math.max/min` on `getTradeNetPnl` -- correct (uses `??` not `||`)
+- **Strategy performance**: Contribution calculated as `strategyPnl / |totalPnl| * 100` -- correct, handles division by zero
+- **Monthly P&L hook**: Uses `realized_pnl ?? pnl ?? 0` throughout -- correct standard
+- **Monthly rolling 30-day**: Uses `eachDayOfInterval` with `subDays(now, 29)` for 30-day window -- correct
+- **Monthly change calculation**: `(current - last) / |last| * 100` with zero guard -- correct
+- **Contextual analytics**: Uses `realized_pnl ?? pnl ?? 0` throughout -- correct
+- **Fear/Greed segmentation**: Threshold-based zones from centralized constants -- correct
+- **Correlation calculation**: Pearson coefficient with minimum sample size guard -- correct
+- **Session segmentation**: Uses centralized `getTradeSession` utility -- single source of truth
+- **Mode isolation**: `useModeFilteredTrades` used for default data; `allTrades` only for `type` level -- correct separation
+- **Analytics level selector**: Account/Exchange/Type/Overall filtering with proper trade scoping -- correct
+- **Date range filtering**: Inclusive bounds check on `trade_date` -- correct
+- **Strategy filtering**: Empty array returns all trades; otherwise filters by strategy ID membership -- correct
+- **Event day filtering**: Checks `market_context.events.hasHighImpactToday` -- correct
+- **Equity curve generation**: Sorted by trade_date, cumulative PnL with `getTradeNetPnl` -- correct
+- **URL tab persistence**: `useSearchParams` for tab state -- correct
+- **Loading states**: `MetricsGridSkeleton` shown during loading -- correct
+- **Empty states**: `EmptyState` component when no trades -- correct
+- **Semantic colors**: `text-profit` / `text-loss` used consistently in key metrics, monthly tab, strategies tab -- correct
+- **Currency formatting**: `useCurrencyConversion` used in all monetary displays -- correct
+- **ARIA**: Behavior analytics has `role="region"` with `aria-label`; 7-day stats has `role="group"`; DrawdownChart and EquityCurve have both `role="region"` and `role="img"` -- correct
+- **InfoTooltips**: Present on all key metrics (Win Rate, Profit Factor, Expectancy, Max Drawdown, Sharpe, Avg R:R, Largest Gain/Loss) -- comprehensive
+- **Filter propagation**: `filteredTrades` passed to `useContextualAnalytics`, `useMonthlyPnl`, all sub-components -- consistent
+- **Strategy performance map**: Uses `useModeFilteredTrades` independently for AI quality scoring -- correct (mode-isolated)
+- **TradingBehaviorAnalytics**: Uses `realized_pnl ?? pnl ?? 0` -- correct; handles empty states with null returns
+- **SevenDayStatsCard**: Streak calculation from most recent trades -- correct logic
+- **SessionPerformanceChart**: Minimum 3 trades per session for best/worst, 5 total for display -- appropriate guards
 
 ---
 
 ## Summary
 
-| # | File | Issue | Criteria | Severity |
-|---|------|-------|----------|----------|
-| 1 | `RiskSummaryCard.tsx` lines 188, 190, 196 | `text-warning` undefined -- correlation warning visually invisible | Clarity | High |
-| 2 | `RiskSettingsForm.tsx` lines 134, 153 | Two sliders missing `aria-label` | Clarity | Medium |
-| 3 | `risk-thresholds.ts` line 26 | Dead constant `DEFAULT_FALLBACK` never used | Code Quality | Low |
+| # | Files | Issue | Criteria | Severity |
+|---|-------|-------|----------|----------|
+| 1 | `DrawdownChart.tsx`, `TradingHeatmap.tsx`, `CryptoRanking.tsx`, `AIPatternInsights.tsx`, `heatmap-export.ts`, `TradingHeatmap.tsx` (page) | `\|\|` instead of `??` for PnL extraction -- breakeven trades use wrong value | Accuracy | High |
+| 2 | `EquityCurveWithEvents.tsx`, `TradingHeatmap.tsx`, `EventDayComparison.tsx` | `text-warning` / `hsl(var(--warning))` undefined -- event indicators invisible | Clarity | High |
+| 3 | `Performance.tsx` | Missing top-level ErrorBoundary | Comprehensiveness | Medium |
 
-Total: 3 files, 3 fixes.
+Total: ~10 files, 3 categories of fixes.
 
 ## Technical Details
 
-### Fix 1: Replace undefined `text-warning` tokens in RiskSummaryCard
+### Fix 1: Replace `||` with `??` for PnL extraction (8 files, ~12 occurrences)
 
-In `src/components/risk/RiskSummaryCard.tsx`, replace all 4 occurrences of `text-warning` with `text-[hsl(var(--chart-4))]` and `border-warning/30` with `border-[hsl(var(--chart-4))]/30` at lines 188, 190, and 196.
+In each file, replace:
+```typescript
+trade.realized_pnl || trade.pnl || 0
+```
+With:
+```typescript
+trade.realized_pnl ?? trade.pnl ?? 0
+```
 
-### Fix 2: Add aria-label to two sliders in RiskSettingsForm
+Affected files and lines:
+- `src/components/analytics/charts/DrawdownChart.tsx` line 37
+- `src/components/analytics/charts/TradingHeatmap.tsx` line 93
+- `src/components/analytics/CryptoRanking.tsx` line 48
+- `src/components/analytics/AIPatternInsights.tsx` lines 40, 42
+- `src/lib/export/heatmap-export.ts` line 25
+- `src/pages/TradingHeatmap.tsx` lines 98, 130, 156, 372, 373
 
-In `src/components/risk/RiskSettingsForm.tsx`:
-- Line 139 (after `step={5}`): add `aria-label={\`Max position size: ${maxPositionSize}%\`}`
-- Line 158 (after `step={1}`): add `aria-label={\`Max concurrent positions: ${maxConcurrentPositions}\`}`
+### Fix 2: Replace undefined `text-warning` / `hsl(var(--warning))` tokens (3 files)
 
-### Fix 3: Remove dead DEFAULT_FALLBACK constant
+**`src/components/analytics/charts/EquityCurveWithEvents.tsx`:**
+- Line 161: `text-warning` to `text-[hsl(var(--chart-4))]`
+- Line 243: `hsl(var(--warning))` to `hsl(var(--chart-4))`
+- Line 257: `text-warning` to `text-[hsl(var(--chart-4))]`
 
-In `src/lib/constants/risk-thresholds.ts` line 26, remove the `DEFAULT_FALLBACK: 0.3` entry from `CORRELATION_THRESHOLDS`.
+**`src/components/analytics/charts/TradingHeatmap.tsx`:**
+- Line 225: `bg-warning` to `bg-[hsl(var(--chart-4))]`
+- Line 226: `text-warning-foreground` to `text-background`
+- Line 252: `text-warning bg-warning/10` to `text-[hsl(var(--chart-4))] bg-[hsl(var(--chart-4))]/10`
+- Line 310: `ring-warning` to `ring-[hsl(var(--chart-4))]`
+- Line 311: `text-warning` to `text-[hsl(var(--chart-4))]`
+
+**`src/components/analytics/contextual/EventDayComparison.tsx`:**
+- Line 75: `text-warning` to `text-[hsl(var(--chart-4))]`
+
+### Fix 3: Add ErrorBoundary to Performance page
+
+Import `ErrorBoundary` from `@/components/ui/error-boundary`. Add `retryKey` state. Wrap the main content with `ErrorBoundary` using the standard retry pattern.
