@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CandlestickChart, FlaskConical, MoreHorizontal, Trash2, ChevronRight, Pencil } from "lucide-react";
+import { CandlestickChart, FlaskConical, MoreHorizontal, Trash2, ChevronRight, Pencil, Activity } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,6 +25,8 @@ import { useAccounts, useDeleteAccount } from "@/hooks/use-accounts";
 import { ACCOUNT_TYPE_LABELS, type AccountType, type Account } from "@/types/account";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { isPaperAccount } from "@/lib/account-utils";
+import { useBinanceConnectionStatus, useBinanceBalance, useBinancePositions } from "@/features/binance";
+import { useModeVisibility } from "@/hooks/use-mode-visibility";
 import { toast } from "sonner";
 
 const ACCOUNT_TYPE_ICONS: Record<AccountType, React.ElementType> = {
@@ -56,6 +58,13 @@ export function AccountCardList({
   const deleteAccount = useDeleteAccount();
   const { format } = useCurrencyConversion();
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const { showPaperData } = useModeVisibility();
+  const { data: connectionStatus } = useBinanceConnectionStatus();
+  const { data: binanceBalance } = useBinanceBalance();
+  const { data: binancePositions } = useBinancePositions();
+  
+  const isConnected = !showPaperData && (connectionStatus?.isConnected ?? false);
+  const activePositions = isConnected ? (binancePositions?.filter(p => p.positionAmt !== 0) || []) : [];
   
   // Filter accounts based on type and backtest status
   const accounts = allAccounts?.filter(a => {
@@ -106,7 +115,9 @@ export function AccountCardList({
     );
   }
 
-  if (!accounts?.length) {
+  const hasContent = (accounts?.length ?? 0) > 0 || isConnected;
+
+  if (!hasContent) {
     return (
       <Card>
         <CardContent className="flex flex-col items-center justify-center py-12">
@@ -123,7 +134,41 @@ export function AccountCardList({
   return (
     <>
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-      {accounts.map((account) => {
+      {/* Binance Virtual Card - Live mode only */}
+      {isConnected && (
+        <Card className="cursor-pointer hover:shadow-md transition-shadow group border-primary/20">
+          <CardHeader className="flex flex-row items-start justify-between pb-2">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Activity className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <CardTitle className="text-base">Binance Futures</CardTitle>
+                <CardDescription>Connected Exchange</CardDescription>
+              </div>
+            </div>
+            <Badge variant="outline" className="text-profit border-profit/30">Live</Badge>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-baseline justify-between">
+              <span className="text-2xl font-bold font-mono-numbers">
+                {format(Number(binanceBalance?.totalWalletBalance) || 0)}
+              </span>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline">USDT</Badge>
+              </div>
+            </div>
+            {activePositions.length > 0 && (
+              <p className="text-xs text-muted-foreground mt-2">
+                {activePositions.length} open position{activePositions.length !== 1 ? 's' : ''}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* DB Accounts */}
+      {accounts?.map((account) => {
         const isBacktest = isPaperAccount(account);
         const Icon = isBacktest ? FlaskConical : ACCOUNT_TYPE_ICONS[account.account_type] || CandlestickChart;
         const balance = Number(account.balance);
