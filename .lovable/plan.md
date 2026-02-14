@@ -1,118 +1,142 @@
 
 
-# Accounts Page - Comprehensive Functional Audit
+# Market Data Page - Functional Correctness Audit
 
 ## Audit Scope
 
-Reviewed 17 files across the Accounts domain: pages (Accounts.tsx, AccountDetail.tsx), components (AccountCardList, AccountTransactionDialog, AddAccountForm, EditAccountDialog, AccountComparisonTable, AccountTransactionsTable, AccountSelect, FinancialSummaryCard), detail sub-components (Header, Metrics, Overview, Transactions, Financial), hooks (use-accounts, use-account-analytics, use-exchange-analytics, use-mode-filtered-trades), types, and utilities.
+Reviewed 15+ files across pages, components, hooks, edge functions, contexts, constants, types, and utilities that compose the Market Data domain.
 
 ---
 
 ## Issues Found
 
-### 1. Open Trades Count Includes Soft-Deleted Trades (Accuracy - HIGH)
+### 1. MarketSentimentWidget ErrorBoundary Uses `window.location.reload()` (Code Quality / Consistency - MEDIUM)
 
-**File:** `src/pages/Accounts.tsx` lines 101-106
+**File:** `src/components/market/MarketSentimentWidget.tsx` (line 407)
 
-The query counting open positions does not exclude soft-deleted trades:
-
+The MarketSentimentWidget's ErrorBoundary uses `window.location.reload()` as its retry mechanism:
 ```typescript
-const { count } = await supabase
-  .from('trade_entries')
-  .select('id', { count: 'exact', head: true })
-  .eq('user_id', user.id)
-  .eq('status', 'open')
-  .in('trading_account_id', modeAccountIds);
+<ErrorBoundary 
+  title="Market Sentiment"
+  onRetry={() => window.location.reload()}
+>
 ```
 
-A soft-deleted trade that was still "open" when deleted will be counted toward "Open Positions" in the summary card, inflating the displayed number.
+The VolatilityMeterWidget uses a key-based remount pattern (`setRetryKey(k => k + 1)`) which is the established best practice in this codebase -- it avoids full page reload, preserves state of other widgets, and only remounts the failed component. The WhaleTrackingWidget and TradingOpportunitiesWidget correctly pass `props.onRetry` (which triggers `refetch()`).
 
-**Fix:** Add `.is('deleted_at', null)` to the query, consistent with every other trade query in the codebase.
+**Fix:** Adopt the key-based remount pattern matching VolatilityMeterWidget:
+```typescript
+export function MarketSentimentWidget(props: MarketSentimentWidgetProps) {
+  const [retryKey, setRetryKey] = useState(0);
+  return (
+    <ErrorBoundary 
+      title="Market Sentiment"
+      onRetry={() => setRetryKey(k => k + 1)}
+    >
+      <MarketSentimentContent key={retryKey} {...props} />
+    </ErrorBoundary>
+  );
+}
+```
 
 ---
 
-### 2. Balance Summary Card Missing Loading State for DB Accounts (Accuracy - MEDIUM)
+### 2. `useBinanceMarketSentiment` Recalculates on Every Render (Accuracy / Code Quality - MEDIUM)
 
-**File:** `src/pages/Accounts.tsx` lines 172-174
+**File:** `src/features/binance/useBinanceMarketData.ts` (lines 368-442)
 
-The Balance summary card only shows a loading skeleton when `balanceLoading` is true (Binance balance loading). In Paper mode, the balance comes entirely from DB accounts via `useAccounts()`, but the accounts loading state is never checked for the skeleton. This means:
+The `calculateSentiment()` function is defined inline and called on every render when `!isLoading && !isError` (line 445). It does not use `useMemo`, meaning sentiment scores, factors, and raw data are recomputed on every unrelated re-render of a parent component. While functionally correct, this is wasteful and violates the memoization pattern used everywhere else in the project.
 
-- User navigates to Accounts page in Paper mode
-- `useAccounts()` is still fetching
-- `totalDbBalance` is `0` (from empty array)
-- The card displays `$0.00` briefly before jumping to the real balance
-
-**Fix:** Destructure `isLoading: accountsLoading` from `useAccounts()` and combine with `balanceLoading`:
-
+**Fix:** Wrap with `useMemo` keyed on the five query data values:
 ```typescript
-const { data: accounts, isLoading: accountsLoading } = useAccounts();
-// ...
-const summaryLoading = balanceLoading || accountsLoading;
+const data = useMemo(() => {
+  if (isLoading || isError) return null;
+  return calculateSentiment();
+}, [
+  isLoading, isError,
+  topTraderQuery.data, globalRatioQuery.data,
+  takerVolumeQuery.data, openInterestQuery.data,
+  markPriceQuery.data, symbol
+]);
 ```
 
-Then use `summaryLoading` instead of `balanceLoading` for the skeleton condition.
+This requires importing `useMemo` at the top of the file and moving `calculateSentiment` logic into the memo callback.
+
+---
+
+### 3. Funding Rate Color Missing Zero-Value Case (Accuracy - LOW)
+
+**File:** `src/components/market/MarketSentimentWidget.tsx` (line 370)
+
+The funding rate display uses:
+```typescript
+sentiment.rawData.markPrice.lastFundingRate > 0 ? "text-profit" : "text-loss"
+```
+
+When `lastFundingRate` is exactly `0`, it will incorrectly render as `text-loss` (red). A zero funding rate is neutral, not bearish.
+
+**Fix:** Add the zero case:
+```typescript
+sentiment.rawData.markPrice.lastFundingRate > 0 
+  ? "text-profit" 
+  : sentiment.rawData.markPrice.lastFundingRate < 0 
+    ? "text-loss" 
+    : "text-muted-foreground"
+```
 
 ---
 
 ## Verified Correct (No Issues)
 
-The following areas were explicitly verified and found to be functioning correctly:
+The following were explicitly verified and found functionally sound:
 
-- **PnL Fallback Chain**: `trade.realized_pnl ?? trade.pnl ?? 0` used consistently in equity curve (AccountDetail.tsx line 100)
-- **Tab URL Persistence**: `useSearchParams` for AccountDetail tab state
-- **Nullish Coalescing for initialBalance**: `account?.metadata?.initial_balance ?? Number(account?.balance)` (already fixed)
-- **Mode Isolation**: `modeAccounts`, `modeAccountIds`, mode-filtered transaction dialog dropdowns all filter by `isPaperAccount` correctly
-- **Soft-Delete Architecture**: 30-day recovery messaging in both AccountCardList and AccountDetailHeader delete dialogs
-- **Database Trigger for Balance**: `on_account_transaction_insert` trigger handles balance updates on deposit/withdraw
-- **Withdrawal Validation**: Client-side `amount > balance` check in AccountTransactionDialog
-- **Financial Audit Trail**: Insert-only `account_transactions` with RLS (no UPDATE/DELETE policies)
-- **User-ID Scoping**: All queries scope by `user_id` via `supabase.auth.getUser()`
-- **Semantic Colors**: `text-profit` / `text-loss` used consistently across all financial indicators
-- **Loading Skeletons**: Present in AccountCardList, AccountDetail, AccountDetailTransactions, FinancialSummaryCard
-- **Empty States**: Present in AccountCardList, AccountTransactionsTable, AccountDetailOverview, AccountDetailTransactions, AccountComparisonTable
-- **AccountComparisonTable**: Shows empty Card (not null) when no data, correct
-- **Zod Validation**: Descriptive error messages in AddAccountForm schema
-- **Currency from Settings**: `useUserSettings().default_currency` used in AddAccountForm
-- **Equity Curve & Drawdown**: Correct cumulative PnL and peak-to-trough drawdown calculation
-- **Binance Virtual Account**: Proper routing, data isolation, read-only actions
-- **Account Comparison Table Mode Filtering**: Correctly filters by `isPaperAccount` logic
+- **Edge function auth**: JWT validation via `getClaims` with proper 401 responses
+- **Input validation**: `SYMBOL_REGEX` + `.slice(0, MAX_SYMBOLS_PER_REQUEST)` prevents injection and abuse
+- **Symbol validation pipeline**: `filterValidSymbols()` validates against DB with 1-hour cache + fallback list
+- **MarketContext persistence**: localStorage read/write with JSON parse error handling
+- **useMarketContext guard**: Throws if used outside provider (fail-fast)
+- **Query configuration**: staleTime, refetchInterval, retry, retryDelay all properly configured
+- **normalizeError utility**: Handles Error, string, unknown, and null correctly
+- **Sentiment calculation logic**: RSI, MA, volatility formulas are mathematically correct
+- **Whale detection**: Volume spike + price direction cross-analysis with confidence capping
+- **Fear & Greed fallback**: Returns neutral (50) on API failure instead of crashing
+- **CoinGecko fallback**: Returns neutral defaults on failure
+- **Data quality metric**: Correctly reflects kline data completeness
+- **Confidence scoring**: Agreement bonus, distance-from-neutral, data quality all properly weighted
+- **ErrorBoundary coverage**: All 4 widgets wrapped
+- **ARIA attributes**: All 4 widgets have `role="region"` and `aria-label`
+- **Loading skeletons**: Present in all 4 widgets
+- **Empty states**: Present in WhaleTracking, TradingOpportunities, Volatility, Sentiment
+- **Error states with retry**: Present in all 4 widgets
+- **Semantic colors**: `text-profit`/`text-loss` used consistently (fixed in prior audit)
+- **Centralized constants**: All thresholds, limits, and config in `src/lib/constants/`
+- **Shared constants in edge function**: `_shared/constants/market-config.ts` ensures sync
+- **React keys**: Stable keys used (fixed in prior audit)
+- **Symbol selector**: Combobox with search, popular group, all pairs group
 
 ---
 
-## Summary Table
+## Summary
 
 | # | File | Issue | Criteria | Severity |
 |---|------|-------|----------|----------|
-| 1 | `src/pages/Accounts.tsx` line 105 | Open trades query missing `.is('deleted_at', null)` | Accuracy | High |
-| 2 | `src/pages/Accounts.tsx` lines 56, 172 | Balance card missing loading state for DB accounts | Accuracy | Medium |
+| 1 | MarketSentimentWidget.tsx | ErrorBoundary uses `window.location.reload()` instead of key-based remount | Code Quality | Medium |
+| 2 | useBinanceMarketData.ts | `calculateSentiment()` not memoized, recalculates every render | Code Quality | Medium |
+| 3 | MarketSentimentWidget.tsx | Funding rate zero value renders as loss (red) instead of neutral | Accuracy | Low |
 
-Total: 1 file, 2 fixes.
+Total: 2 files, 3 fixes.
 
 ## Technical Details
 
-### Fix 1: Add soft-delete filter to open trades query
+### Fix 1: Key-based remount for MarketSentimentWidget
 
-In `src/pages/Accounts.tsx`, add `.is('deleted_at', null)` after the `.eq('status', 'open')` line:
+Add `useState` import (already imported), wrap with key-based retry pattern matching VolatilityMeterWidget.
 
-```typescript
-const { count } = await supabase
-  .from('trade_entries')
-  .select('id', { count: 'exact', head: true })
-  .eq('user_id', user.id)
-  .eq('status', 'open')
-  .is('deleted_at', null)          // <-- add this line
-  .in('trading_account_id', modeAccountIds);
-```
+### Fix 2: Memoize calculateSentiment
 
-### Fix 2: Add accounts loading state to balance skeleton
+Add `useMemo` import to `useBinanceMarketData.ts`, wrap the sentiment calculation in a `useMemo` hook with proper dependency array.
 
-Change:
-```typescript
-const { data: accounts } = useAccounts();
-```
-To:
-```typescript
-const { data: accounts, isLoading: accountsLoading } = useAccounts();
-```
+### Fix 3: Funding rate zero handling
 
-And change the skeleton condition from `balanceLoading` to `(balanceLoading || accountsLoading)`.
+Add ternary for the `=== 0` case to render `text-muted-foreground` instead of `text-loss`.
+
