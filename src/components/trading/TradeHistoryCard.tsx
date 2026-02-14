@@ -16,9 +16,8 @@ import { TradeRatingBadge } from "@/components/ui/trade-rating-badge";
 import { format } from "date-fns";
 import { TradeEntry } from "@/hooks/use-trade-entries";
 import { cn } from "@/lib/utils";
-import { RiskRewardTooltip, ConfluenceScoreTooltip, InfoTooltip } from "@/components/ui/info-tooltip";
+import { RiskRewardTooltip, ConfluenceScoreTooltip } from "@/components/ui/info-tooltip";
 import { FearGreedBadge, EventDayBadge } from "@/components/market/MarketContextBadge";
-import { formatFee } from "@/lib/formatters";
 import { CONFLUENCE_SCALE } from "@/lib/constants/trade-history";
 import { tradeHasScreenshots, getScreenshotCount, tradeHasNotes, getNotesLineCount, hasMultipleNotes as checkMultipleNotes, hasRecentNoteTimestamp } from "@/lib/trade-utils";
 import type { UnifiedMarketContext } from "@/types/market-context";
@@ -221,9 +220,11 @@ export function TradeHistoryCard({
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-4 text-sm">
             <div><span className="text-muted-foreground">Entry:</span> {formatCurrency(entry.entry_price)}</div>
             <div><span className="text-muted-foreground">Exit:</span> {entry.exit_price ? formatCurrency(entry.exit_price) : '-'}</div>
+            <div><span className="text-muted-foreground">SL:</span> {entry.stop_loss ? formatCurrency(entry.stop_loss) : '-'}</div>
+            <div><span className="text-muted-foreground">TP:</span> {entry.take_profit ? formatCurrency(entry.take_profit) : '-'}</div>
             <div className="flex items-center gap-1">
               <span className="text-muted-foreground">R:R:</span> 
               <RiskRewardTooltip />
@@ -244,20 +245,6 @@ export function TradeHistoryCard({
                 <Badge variant="outline" className="text-xs">{CONFLUENCE_SCALE.format(entry.confluence_score)}</Badge>
               ) : '-'}
             </div>
-            {/* Fee Display - Improved handling for missing data */}
-            {isBinance && (
-              <div className="flex items-center gap-1">
-                <span className="text-muted-foreground">Fee:</span>
-                {entry.commission && entry.commission > 0 ? (
-                  <span className="font-mono">{formatFee(entry.commission, entry.commission_asset || 'USDT')}</span>
-                ) : (
-                  <span className="text-muted-foreground text-xs italic flex items-center gap-1">
-                    See Summary
-                    <InfoTooltip content="Trading fees are aggregated in the Accounts page Financial Summary. Individual trade fees from income sync are not available per-trade." />
-                  </span>
-                )}
-              </div>
-            )}
           </div>
           
           {entry.strategies && entry.strategies.length > 0 && (

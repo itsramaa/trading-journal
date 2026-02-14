@@ -534,8 +534,6 @@ export default function TradingJournal() {
 
                 {/* Toolbar */}
                 <TradeHistoryToolbar
-                  viewMode={viewMode}
-                  onViewModeChange={setViewMode}
                   isFullSyncing={isFullSyncing}
                   isBinanceConnected={isBinanceConnected}
                   tradesNeedingEnrichment={tradesNeedingEnrichment}
