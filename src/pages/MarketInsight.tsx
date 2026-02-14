@@ -4,12 +4,10 @@
  */
 import { useMemo } from "react";
 import { PageHeader } from "@/components/ui/page-header";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { 
   TrendingUp, 
-  RefreshCw, 
-  AlertTriangle
+  RefreshCw
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { 
@@ -69,7 +67,6 @@ const MarketInsight = () => {
   }, [sentimentData, tradingStyle]);
 
   const isLoading = sentimentLoading || macroLoading;
-  const hasError = sentimentError || macroError;
 
   return (
     <div className="space-y-6">
@@ -99,26 +96,13 @@ const MarketInsight = () => {
         />
       )}
 
-      {/* Error State */}
-      {hasError && (
-        <Card className="border-destructive/50 bg-destructive/5">
-          <CardContent className="py-4">
-            <div className="flex items-center gap-2 text-destructive">
-              <AlertTriangle className="h-5 w-5" />
-              <p className="text-sm">
-                Failed to load market data. Please try refreshing.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* AI Analysis Content - No tabs, direct display */}
       <AIAnalysisTab 
         sentimentData={sentimentData}
         macroData={macroData}
         isLoading={isLoading}
         onRefresh={handleRefresh}
+        error={sentimentError || macroError || null}
       />
 
       {/* Combined Crypto + Macro Analysis */}
