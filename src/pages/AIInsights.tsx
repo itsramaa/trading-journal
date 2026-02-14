@@ -32,13 +32,12 @@ import {
 } from "lucide-react";
 import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import { useContextualAnalytics } from "@/hooks/use-contextual-analytics";
-import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { ContextualPerformance } from "@/components/analytics/contextual/ContextualPerformance";
 import { EmotionalPatternAnalysis } from "@/components/analytics/EmotionalPatternAnalysis";
 import { SessionInsights } from "@/components/analytics/session/SessionInsights";
 import { PredictiveInsights } from "@/components/analytics/PredictiveInsights";
 import { cn } from "@/lib/utils";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { MetricsGridSkeleton, ChartSkeleton } from "@/components/ui/loading-skeleton";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { format as formatDate, subDays, isWithinInterval } from "date-fns";
@@ -74,8 +73,9 @@ interface TimeSlotAnalysis {
 }
 
 export default function AIInsights() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'patterns';
   const { data: trades = [], isLoading } = useModeFilteredTrades();
-  const { data: strategies = [] } = useTradingStrategies();
   const { data: contextualData } = useContextualAnalytics();
   const { formatPnl } = useCurrencyConversion();
 
@@ -389,7 +389,7 @@ export default function AIInsights() {
         </PageHeader>
 
         {/* Tabs */}
-        <Tabs defaultValue="patterns" className="space-y-6">
+        <Tabs value={activeTab} onValueChange={(val) => setSearchParams({ tab: val })} className="space-y-6">
           <TabsList>
             <TabsTrigger value="patterns" className="gap-2">
               <Lightbulb className="h-4 w-4" />
@@ -506,9 +506,7 @@ export default function AIInsights() {
         </div>
 
         {/* Session Insights */}
-        {contextualData?.bySession && (
-          <SessionInsights bySession={contextualData.bySession} />
-        )}
+        <SessionInsights bySession={contextualData?.bySession as any ?? {}} />
 
         {/* Pair Rankings */}
         <Card>
