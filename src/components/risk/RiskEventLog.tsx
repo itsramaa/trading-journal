@@ -10,6 +10,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { AlertTriangle, Shield, XCircle, CheckCircle, Clock, Skull, TrendingDown, Wallet, Wifi } from "lucide-react";
 import { useRiskEvents } from "@/hooks/use-risk-events";
 import { useBinanceForceOrders, useBinanceConnectionStatus } from "@/features/binance";
+import { useModeVisibility } from "@/hooks/use-mode-visibility";
 import { format, formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { MarginHistoryTab } from "./MarginHistoryTab";
@@ -18,47 +19,47 @@ import { Link } from "react-router-dom";
 const eventTypeConfig: Record<string, { icon: typeof AlertTriangle; color: string; label: string }> = {
   warning_70: {
     icon: AlertTriangle,
-    color: 'text-yellow-500',
+    color: 'text-[hsl(var(--chart-4))]',
     label: 'Warning (70%)',
   },
   warning_90: {
     icon: AlertTriangle,
-    color: 'text-orange-500',
+    color: 'text-[hsl(var(--chart-5))]',
     label: 'Danger (90%)',
   },
   limit_reached: {
     icon: XCircle,
-    color: 'text-red-500',
+    color: 'text-loss',
     label: 'Limit Reached',
   },
   trading_disabled: {
     icon: XCircle,
-    color: 'text-red-500',
+    color: 'text-loss',
     label: 'Trading Disabled',
   },
   trading_enabled: {
     icon: CheckCircle,
-    color: 'text-green-500',
+    color: 'text-profit',
     label: 'Trading Enabled',
   },
   position_limit_warning: {
     icon: AlertTriangle,
-    color: 'text-yellow-500',
+    color: 'text-[hsl(var(--chart-4))]',
     label: 'Position Limit',
   },
   correlation_warning: {
     icon: AlertTriangle,
-    color: 'text-yellow-500',
+    color: 'text-[hsl(var(--chart-4))]',
     label: 'Correlation Warning',
   },
   liquidation: {
     icon: Skull,
-    color: 'text-red-500',
+    color: 'text-loss',
     label: 'Liquidation',
   },
   adl: {
     icon: TrendingDown,
-    color: 'text-orange-500',
+    color: 'text-[hsl(var(--chart-5))]',
     label: 'ADL',
   },
 };
@@ -66,7 +67,12 @@ const eventTypeConfig: Record<string, { icon: typeof AlertTriangle; color: strin
 export function RiskEventLog() {
   const { events, isLoading } = useRiskEvents();
   const { data: connectionStatus } = useBinanceConnectionStatus();
+  const { showExchangeData } = useModeVisibility();
   const isConfigured = connectionStatus?.isConfigured ?? false;
+  const isExchangeTabDisabled = !isConfigured || !showExchangeData;
+  const exchangeTabTooltip = !showExchangeData 
+    ? "Available in Live mode" 
+    : "Connect Binance to view";
   
   // Only fetch Binance data when configured
   const { data: forceOrders, isLoading: liquidationsLoading } = useBinanceForceOrders(
@@ -119,34 +125,34 @@ export function RiskEventLog() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <span>
-                  <TabsTrigger value="liquidations" disabled={!isConfigured}>
+                  <TabsTrigger value="liquidations" disabled={isExchangeTabDisabled}>
                     Liquidations
                     {hasLiquidations && (
                       <Badge variant="destructive" className="ml-2">{forceOrders.length}</Badge>
                     )}
-                    {!isConfigured && <Wifi className="h-3 w-3 ml-1 opacity-50" />}
+                    {isExchangeTabDisabled && <Wifi className="h-3 w-3 ml-1 opacity-50" />}
                   </TabsTrigger>
                 </span>
               </TooltipTrigger>
-              {!isConfigured && (
+              {isExchangeTabDisabled && (
                 <TooltipContent>
-                  <p>Connect Binance to view liquidation history</p>
+                  <p>{exchangeTabTooltip}</p>
                 </TooltipContent>
               )}
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
                 <span>
-                  <TabsTrigger value="margin" className="gap-1" disabled={!isConfigured}>
+                  <TabsTrigger value="margin" className="gap-1" disabled={isExchangeTabDisabled}>
                     <Wallet className="h-3 w-3" />
                     Margin
-                    {!isConfigured && <Wifi className="h-3 w-3 ml-1 opacity-50" />}
+                    {isExchangeTabDisabled && <Wifi className="h-3 w-3 ml-1 opacity-50" />}
                   </TabsTrigger>
                 </span>
               </TooltipTrigger>
-              {!isConfigured && (
+              {isExchangeTabDisabled && (
                 <TooltipContent>
-                  <p>Connect Binance to view margin history</p>
+                  <p>{exchangeTabTooltip}</p>
                 </TooltipContent>
               )}
             </Tooltip>
@@ -155,7 +161,7 @@ export function RiskEventLog() {
           <TabsContent value="events" className="mt-4">
             {!events || events.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                <CheckCircle className="h-12 w-12 mx-auto mb-4 text-green-500/50" />
+                <CheckCircle className="h-12 w-12 mx-auto mb-4 text-profit/50" />
                 <p>No risk events recorded</p>
                 <p className="text-sm">Your trading has been within safe limits</p>
               </div>
@@ -224,7 +230,7 @@ export function RiskEventLog() {
               </div>
             ) : !hasLiquidations ? (
               <div className="text-center py-8 text-muted-foreground">
-                <CheckCircle className="h-12 w-12 mx-auto mb-4 text-green-500/50" />
+                <CheckCircle className="h-12 w-12 mx-auto mb-4 text-profit/50" />
                 <p>No liquidations recorded</p>
                 <p className="text-sm">Great job managing your risk!</p>
               </div>
@@ -234,9 +240,9 @@ export function RiskEventLog() {
                   {forceOrders.map((order) => (
                     <div 
                       key={order.orderId} 
-                      className="flex items-start gap-3 p-3 rounded-lg border border-red-500/30 bg-red-500/5"
+                      className="flex items-start gap-3 p-3 rounded-lg border border-loss/30 bg-loss/5"
                     >
-                      <div className="mt-0.5 text-red-500">
+                      <div className="mt-0.5 text-loss">
                         <Skull className="h-5 w-5" />
                       </div>
                       <div className="flex-1 min-w-0">
@@ -244,7 +250,7 @@ export function RiskEventLog() {
                           <Badge variant="destructive">
                             {order.symbol}
                           </Badge>
-                          <Badge variant="outline" className={order.side === 'BUY' ? 'text-green-500' : 'text-red-500'}>
+                          <Badge variant="outline" className={order.side === 'BUY' ? 'text-profit' : 'text-loss'}>
                             {order.side} (Close {order.positionSide})
                           </Badge>
                           <span className="text-xs text-muted-foreground flex items-center gap-1">

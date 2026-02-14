@@ -88,13 +88,11 @@ export function RiskSummaryCard() {
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex items-center gap-2">
-            <CheckCircle className="h-4 w-4 text-green-500" />
+            <CheckCircle className="h-4 w-4 text-profit" />
             <span className="text-sm">No trading activity today</span>
           </div>
           <div className="text-xs text-muted-foreground">
-            Daily loss limit: {formatCurrency(
-              (riskProfile.max_daily_loss_percent ?? 5) / 100 * 10000
-            )}
+            Daily loss limit: {riskProfile.max_daily_loss_percent ?? 5}% of capital
           </div>
         </CardContent>
       </Card>
@@ -104,22 +102,22 @@ export function RiskSummaryCard() {
   const getStatusIcon = () => {
     switch (riskStatus.status) {
       case 'ok':
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
+        return <CheckCircle className="h-4 w-4 text-profit" />;
       case 'warning':
-        return <AlertTriangle className="h-4 w-4 text-yellow-500" />;
+        return <AlertTriangle className="h-4 w-4 text-[hsl(var(--chart-4))]" />;
       case 'disabled':
-        return <XCircle className="h-4 w-4 text-red-500" />;
+        return <XCircle className="h-4 w-4 text-loss" />;
     }
   };
 
   const getStatusBadge = () => {
     switch (riskStatus.status) {
       case 'ok':
-        return <Badge className="bg-green-500/20 text-green-500 border-green-500/30">Normal</Badge>;
+        return <Badge className="bg-profit/20 text-profit border-profit/30">Normal</Badge>;
       case 'warning':
-        return <Badge className="bg-yellow-500/20 text-yellow-500 border-yellow-500/30">Warning</Badge>;
+        return <Badge className="bg-[hsl(var(--chart-4))]/20 text-[hsl(var(--chart-4))] border-[hsl(var(--chart-4))]/30">Warning</Badge>;
       case 'disabled':
-        return <Badge className="bg-red-500/20 text-red-500 border-red-500/30">Limit Reached</Badge>;
+        return <Badge className="bg-loss/20 text-loss border-loss/30">Limit Reached</Badge>;
     }
   };
 
