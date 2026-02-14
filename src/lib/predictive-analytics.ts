@@ -178,15 +178,26 @@ export function getSessionOutlook(trades: TradeData[]): PredictionResult | null 
 
   // Determine current session (rough estimate based on UTC hour)
   const hour = new Date().getUTCHours();
-  let currentSession: string;
-  if (hour >= 20 || hour < 5) currentSession = 'Asia';
-  else if (hour >= 8 && hour < 17) currentSession = 'London';
-  else if (hour >= 13 && hour < 22) currentSession = 'New York';
-  else currentSession = 'Off-hours';
+  let currentSessionKeys: string;
+  let currentSessionLabel: string;
+  if (hour >= 20 || hour < 5) {
+    currentSessionKeys = 'sydney|tokyo';
+    currentSessionLabel = 'Asia';
+  } else if (hour >= 7 && hour < 16) {
+    currentSessionKeys = 'london';
+    currentSessionLabel = 'London';
+  } else if (hour >= 13 && hour < 22) {
+    currentSessionKeys = 'new_york';
+    currentSessionLabel = 'New York';
+  } else {
+    currentSessionKeys = 'other';
+    currentSessionLabel = 'Off-hours';
+  }
 
-  const sessionTrades = closed.filter(t =>
-    t.session?.toLowerCase().includes(currentSession.toLowerCase())
-  );
+  const sessionTrades = closed.filter(t => {
+    const s = t.session?.toLowerCase() || '';
+    return currentSessionKeys.split('|').some(cs => s === cs);
+  });
 
   if (sessionTrades.length < 3) return null;
 
@@ -199,7 +210,7 @@ export function getSessionOutlook(trades: TradeData[]): PredictionResult | null 
 
   return {
     value: sessionWR,
-    description: `${currentSession} Session: ${sessionWR.toFixed(0)}% win rate (${diff > 0 ? '+' : ''}${diff.toFixed(0)}% vs average).`,
+    description: `${currentSessionLabel} Session: ${sessionWR.toFixed(0)}% win rate (${diff > 0 ? '+' : ''}${diff.toFixed(0)}% vs average).`,
     confidence: getConfidence(sessionTrades.length),
     sampleSize: sessionTrades.length,
   };
