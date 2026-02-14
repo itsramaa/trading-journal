@@ -1,7 +1,8 @@
 /**
- * AccountComparisonTable - Side-by-side comparison of all trading accounts
- * Uses get_account_level_stats RPC for server-side aggregation
+ * AccountComparisonTable - Side-by-side comparison of trading accounts
+ * Mode-aware: filters accounts based on active trade mode (Paper/Live)
  */
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -17,10 +18,21 @@ import {
 import { TrendingUp, TrendingDown, BarChart3, ExternalLink } from "lucide-react";
 import { useAccountLevelStats } from "@/hooks/use-exchange-analytics";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
+import { useModeVisibility } from "@/hooks/use-mode-visibility";
 
 export function AccountComparisonTable() {
   const { data: accountStats, isLoading } = useAccountLevelStats({});
   const { formatPnl, format: formatCurrency } = useCurrencyConversion();
+  const { showPaperData } = useModeVisibility();
+
+  // Filter by mode: paper accounts have exchange = 'manual' or empty
+  const activeStats = useMemo(() => {
+    const all = accountStats?.filter(a => a.totalTrades > 0) || [];
+    return all.filter(a => {
+      const isPaper = !a.exchange || a.exchange === 'manual';
+      return showPaperData ? isPaper : !isPaper;
+    });
+  }, [accountStats, showPaperData]);
 
   if (isLoading) {
     return (
@@ -37,11 +49,8 @@ export function AccountComparisonTable() {
     );
   }
 
-  // Only show accounts that have trades
-  const activeStats = accountStats?.filter(a => a.totalTrades > 0) || [];
-
   if (activeStats.length === 0) {
-    return null; // Don't show comparison if no accounts have trades
+    return null;
   }
 
   return (
@@ -52,7 +61,7 @@ export function AccountComparisonTable() {
           Account Comparison
         </CardTitle>
         <CardDescription>
-          Performance comparison across all accounts
+          Performance comparison across {showPaperData ? 'paper' : 'exchange'} accounts
         </CardDescription>
       </CardHeader>
       <CardContent>

@@ -199,10 +199,14 @@ export default function Accounts() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Open Positions</CardTitle>
-              {(balance?.totalUnrealizedProfit || 0) >= 0 ? (
-                <TrendingUp className="h-4 w-4 text-profit" />
+              {displayPositions > 0 ? (
+                showExchangeData && (balance?.totalUnrealizedProfit || 0) < 0 ? (
+                  <TrendingDown className="h-4 w-4 text-loss" />
+                ) : (
+                  <TrendingUp className="h-4 w-4 text-profit" />
+                )
               ) : (
-                <TrendingDown className="h-4 w-4 text-loss" />
+                <TrendingUp className="h-4 w-4 text-muted-foreground" />
               )}
             </CardHeader>
             <CardContent>
