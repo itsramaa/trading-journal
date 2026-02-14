@@ -68,7 +68,7 @@ export function AccountDetailOverview({
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey="date" className="text-xs" tick={{ fill: 'hsl(var(--muted-foreground))' }} />
                   <YAxis
-                    tickFormatter={(v) => `$${v.toFixed(0)}`}
+                    tickFormatter={(v) => formatCurrency(v)}
                     className="text-xs"
                     tick={{ fill: 'hsl(var(--muted-foreground))' }}
                   />

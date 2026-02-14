@@ -50,7 +50,21 @@ export function AccountComparisonTable() {
   }
 
   if (activeStats.length === 0) {
-    return null;
+    return (
+      <Card role="region" aria-label="Account performance comparison">
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <BarChart3 className="h-5 w-5 text-primary" />
+            Account Comparison
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            Complete trades across your accounts to unlock side-by-side performance comparison
+          </p>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
