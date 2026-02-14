@@ -28,6 +28,7 @@ import { getSessionForTime, SESSION_LABELS, type TradingSession } from "@/lib/se
 interface TradeWithTime {
   id: string;
   pnl: number | null;
+  realized_pnl?: number | null;
   result: string | null;
   entry_datetime?: string | null;
   trade_date: string;
@@ -90,8 +91,8 @@ export function TradingHeatmapChart({ trades }: TradingHeatmapChartProps) {
         const date = parseISO(dateStr);
         const hour = getHours(date);
         const day = getDay(date);
-        const isWin = trade.result === 'win' || (trade.pnl && trade.pnl > 0);
-        const pnl = trade.pnl || 0;
+        const pnl = trade.realized_pnl ?? trade.pnl ?? 0;
+        const isWin = trade.result === 'win' || pnl > 0;
 
         // Hourly
         hourlyBuckets[hour].total++;

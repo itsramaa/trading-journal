@@ -126,7 +126,7 @@ export function CombinedContextualScore({ trades }: CombinedContextualScoreProps
           ? (contextBuckets.optimal.wins / contextBuckets.optimal.total) * 100 : 0,
         tradeCount: contextBuckets.optimal.total,
         totalPnl: contextBuckets.optimal.pnl,
-        color: 'text-green-500',
+        color: 'text-profit',
         icon: TrendingUp,
       },
       {
@@ -136,7 +136,7 @@ export function CombinedContextualScore({ trades }: CombinedContextualScoreProps
           ? (contextBuckets.favorable.wins / contextBuckets.favorable.total) * 100 : 0,
         tradeCount: contextBuckets.favorable.total,
         totalPnl: contextBuckets.favorable.pnl,
-        color: 'text-emerald-400',
+        color: 'text-chart-2',
         icon: TrendingUp,
       },
       {
@@ -146,7 +146,7 @@ export function CombinedContextualScore({ trades }: CombinedContextualScoreProps
           ? (contextBuckets.moderate.wins / contextBuckets.moderate.total) * 100 : 0,
         tradeCount: contextBuckets.moderate.total,
         totalPnl: contextBuckets.moderate.pnl,
-        color: 'text-yellow-500',
+        color: 'text-chart-3',
         icon: Activity,
       },
       {
@@ -156,7 +156,7 @@ export function CombinedContextualScore({ trades }: CombinedContextualScoreProps
           ? (contextBuckets.risky.wins / contextBuckets.risky.total) * 100 : 0,
         tradeCount: contextBuckets.risky.total,
         totalPnl: contextBuckets.risky.pnl,
-        color: 'text-orange-500',
+        color: 'text-chart-4',
         icon: TrendingDown,
       },
       {
@@ -166,7 +166,7 @@ export function CombinedContextualScore({ trades }: CombinedContextualScoreProps
           ? (contextBuckets.extreme.wins / contextBuckets.extreme.total) * 100 : 0,
         tradeCount: contextBuckets.extreme.total,
         totalPnl: contextBuckets.extreme.pnl,
-        color: 'text-red-500',
+        color: 'text-loss',
         icon: TrendingDown,
       },
     ];
@@ -197,11 +197,11 @@ export function CombinedContextualScore({ trades }: CombinedContextualScoreProps
 
   const getScoreColor = (score: number) => {
     const { BUCKET_THRESHOLDS } = CONTEXTUAL_SCORE_CONFIG;
-    if (score >= BUCKET_THRESHOLDS.OPTIMAL) return 'text-green-500';
-    if (score >= BUCKET_THRESHOLDS.FAVORABLE) return 'text-emerald-400';
-    if (score >= BUCKET_THRESHOLDS.MODERATE) return 'text-yellow-500';
-    if (score >= BUCKET_THRESHOLDS.RISKY) return 'text-orange-500';
-    return 'text-red-500';
+    if (score >= BUCKET_THRESHOLDS.OPTIMAL) return 'text-profit';
+    if (score >= BUCKET_THRESHOLDS.FAVORABLE) return 'text-chart-2';
+    if (score >= BUCKET_THRESHOLDS.MODERATE) return 'text-chart-3';
+    if (score >= BUCKET_THRESHOLDS.RISKY) return 'text-chart-4';
+    return 'text-loss';
   };
 
   return (
@@ -247,12 +247,12 @@ export function CombinedContextualScore({ trades }: CombinedContextualScoreProps
             <p className="text-sm font-medium">Sentiment</p>
           </div>
           <div className="p-3 rounded-lg border text-center">
-            <Zap className="h-4 w-4 mx-auto mb-1 text-yellow-500" />
+            <Zap className="h-4 w-4 mx-auto mb-1 text-chart-3" />
             <p className="text-xs text-muted-foreground">Volatility</p>
             <p className="text-sm font-medium">ATR Level</p>
           </div>
           <div className="p-3 rounded-lg border text-center">
-            <Calendar className="h-4 w-4 mx-auto mb-1 text-blue-500" />
+            <Calendar className="h-4 w-4 mx-auto mb-1 text-chart-5" />
             <p className="text-xs text-muted-foreground">Events</p>
             <p className="text-sm font-medium">Macro Risk</p>
           </div>
@@ -280,7 +280,7 @@ export function CombinedContextualScore({ trades }: CombinedContextualScoreProps
                 <div className="w-16 text-right">
                   <span className={cn(
                     "text-xs font-medium",
-                    zone.winRate >= 50 ? 'text-green-500' : 'text-red-500'
+                    zone.winRate >= 50 ? 'text-profit' : 'text-loss'
                   )}>
                     {zone.tradeCount > 0 ? formatWinRate(zone.winRate) : 'N/A'}
                   </span>
@@ -297,8 +297,8 @@ export function CombinedContextualScore({ trades }: CombinedContextualScoreProps
 
         {/* Best Zone Insight */}
         {metrics.bestZone && (
-          <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/30">
-            <p className="text-sm text-green-600">
+          <div className="p-3 rounded-lg bg-profit/10 border border-profit/30">
+            <p className="text-sm text-profit">
               <span className="font-medium">Best Performance:</span>{' '}
               {metrics.bestZone.zone} conditions ({formatWinRate(metrics.bestZone.winRate)} win rate, {metrics.bestZone.tradeCount} trades)
             </p>

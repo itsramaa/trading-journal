@@ -40,8 +40,9 @@ export interface MonthlyPnlResult {
   isLoading: boolean;
 }
 
-export function useMonthlyPnl(): MonthlyPnlResult {
-  const { data: trades = [], isLoading } = useModeFilteredTrades();
+export function useMonthlyPnl(externalTrades?: Array<{ status: string; trade_date: string; pair: string; realized_pnl: number | null; pnl: number | null }>): MonthlyPnlResult {
+  const { data: rawTrades = [], isLoading } = useModeFilteredTrades();
+  const trades = externalTrades ?? rawTrades;
   
   return useMemo(() => {
     const now = new Date();
