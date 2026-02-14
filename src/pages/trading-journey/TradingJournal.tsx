@@ -20,13 +20,17 @@ import { QuickTip } from "@/components/ui/onboarding-tooltip";
 import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { 
   BookOpen, 
   Wand2, 
   Wifi, 
   Circle, 
   Clock, 
+  LayoutGrid,
+  List,
 } from "lucide-react";
+import type { ViewMode } from "@/lib/constants/trade-history";
 import { useTradeEntries, useDeleteTradeEntry, useClosePosition, useUpdateTradeEntry, TradeEntry } from "@/hooks/use-trade-entries";
 import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import { useBinancePositions, useBinanceBalance, useBinanceConnectionStatus, useBinanceOpenOrders } from "@/features/binance";
@@ -67,6 +71,7 @@ export default function TradingJournal() {
   const [closingPosition, setClosingPosition] = useState<TradeEntry | null>(null);
   const [editingPosition, setEditingPosition] = useState<TradeEntry | null>(null);
   const [enrichingPosition, setEnrichingPosition] = useState<UnifiedPosition | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>('gallery');
 
   const queryClient = useQueryClient();
   const { format: formatCurrency } = useCurrencyConversion();
@@ -237,16 +242,31 @@ export default function TradingJournal() {
         {/* Trade Management Card */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BookOpen className="h-5 w-5" aria-hidden="true" />
-              Trade Management
-              {isBinanceConnected && (
-                <Badge variant="outline" className="text-xs gap-1 ml-2">
-                  <Wifi className="h-3 w-3 text-profit" aria-hidden="true" />
-                  Binance Connected
-                </Badge>
-              )}
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <BookOpen className="h-5 w-5" aria-hidden="true" />
+                Trade Management
+                {isBinanceConnected && (
+                  <Badge variant="outline" className="text-xs gap-1 ml-2">
+                    <Wifi className="h-3 w-3 text-profit" aria-hidden="true" />
+                    Binance Connected
+                  </Badge>
+                )}
+              </CardTitle>
+              <ToggleGroup
+                type="single"
+                value={viewMode}
+                onValueChange={(v) => v && setViewMode(v as ViewMode)}
+                size="sm"
+              >
+                <ToggleGroupItem value="gallery" aria-label="Gallery view">
+                  <LayoutGrid className="h-4 w-4" />
+                </ToggleGroupItem>
+                <ToggleGroupItem value="list" aria-label="List view">
+                  <List className="h-4 w-4" />
+                </ToggleGroupItem>
+              </ToggleGroup>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <Tabs defaultValue="active">
@@ -326,6 +346,7 @@ export default function TradingJournal() {
                   }}
                   onDelete={setDeletingTrade}
                   formatCurrency={formatCurrency}
+                  viewMode={viewMode}
                 />
               </TabsContent>
             </Tabs>

@@ -8,6 +8,7 @@ import { useState, useEffect, startTransition } from "react";
 import { CryptoIcon } from "@/components/ui/crypto-icon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { TradeStateBadge } from "@/components/ui/trade-state-badge";
 import { TradeRatingBadge } from "@/components/ui/trade-rating-badge";
 import {
@@ -36,6 +37,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import type { TradeEntry } from "@/hooks/use-trade-entries";
 import type { BinancePosition } from "@/features/binance/types";
+import type { ViewMode } from "@/lib/constants/trade-history";
 
 export interface UnifiedPosition {
   id: string;
@@ -70,6 +72,7 @@ interface AllPositionsTableProps {
   onClose?: (position: TradeEntry) => void;
   onDelete?: (position: TradeEntry) => void;
   formatCurrency: (value: number) => string;
+  viewMode?: ViewMode;
 }
 
 function formatDuration(entryDatetime: string | null | undefined): string {
@@ -151,6 +154,71 @@ function TimeInTrade({ entryDatetime }: { entryDatetime: string | null | undefin
   return <span>{display}</span>;
 }
 
+// --- Gallery Card ---
+function PositionGalleryCard({
+  position,
+  formatCurrency,
+  onClick,
+}: {
+  position: UnifiedPosition;
+  formatCurrency: (v: number) => string;
+  onClick: () => void;
+}) {
+  const isPaper = position.source === 'paper';
+  const pnlColor = position.unrealizedPnL >= 0 ? 'text-profit' : 'text-loss';
+
+  return (
+    <Card
+      className="cursor-pointer hover:ring-2 hover:ring-primary/30 transition-all p-4 flex flex-col gap-3"
+      onClick={onClick}
+    >
+      {/* Top: direction + P&L */}
+      <div className="flex items-center justify-between">
+        <Badge
+          variant="outline"
+          className={position.direction === 'LONG' ? 'text-profit border-profit/30' : 'text-loss border-loss/30'}
+        >
+          {position.direction === 'LONG' ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
+          {position.direction}
+        </Badge>
+        <span className={`text-sm font-bold font-mono ${pnlColor}`}>
+          {formatCurrency(position.unrealizedPnL)}
+        </span>
+      </div>
+
+      {/* Symbol row */}
+      <div className="flex items-center gap-2">
+        <CryptoIcon symbol={position.symbol} size={24} />
+        <span className="font-semibold">{position.symbol}</span>
+        {position.leverage && (
+          <Badge variant="outline" className="text-xs">{position.leverage}x</Badge>
+        )}
+      </div>
+
+      {/* Entry + time */}
+      <div className="text-sm text-muted-foreground space-y-1">
+        <div className="flex justify-between">
+          <span>Entry</span>
+          <span className="font-mono">{position.entryPrice.toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>Time</span>
+          <TimeInTrade entryDatetime={position.entryDatetime} />
+        </div>
+      </div>
+
+      {/* Bottom: source + state */}
+      <div className="flex items-center gap-2 pt-1">
+        <Badge variant={isPaper ? "secondary" : "default"} className="gap-1 text-xs">
+          {isPaper ? <><FileText className="h-3 w-3" /> Paper</> : <><Wifi className="h-3 w-3" /> Live</>}
+        </Badge>
+        <TradeStateBadge state={position.tradeState} />
+        <TradeRatingBadge rating={position.tradeRating} />
+      </div>
+    </Card>
+  );
+}
+
 export function AllPositionsTable({
   paperPositions,
   binancePositions,
@@ -161,6 +229,7 @@ export function AllPositionsTable({
   onClose,
   onDelete,
   formatCurrency,
+  viewMode = 'gallery',
 }: AllPositionsTableProps) {
   const navigate = useNavigate();
   const unifiedPositions = mapToUnifiedPositions(paperPositions, binancePositions);
@@ -186,6 +255,22 @@ export function AllPositionsTable({
             : "Start a new trade using the wizard or connect Binance for live positions."
         }
       />
+    );
+  }
+
+  // Gallery view
+  if (viewMode === 'gallery') {
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {unifiedPositions.map((position) => (
+          <PositionGalleryCard
+            key={position.id}
+            position={position}
+            formatCurrency={formatCurrency}
+            onClick={() => startTransition(() => navigate(`/trading/${position.id}`))}
+          />
+        ))}
+      </div>
     );
   }
 
