@@ -1,170 +1,175 @@
 
 
-# Performance Page: Deep UX Analysis & Fixes
+# Dashboard Page: Deep UX Analysis & Fixes
 
 ## Scope & Coverage (100%)
 
 All files read in full:
 
-**Page**: `src/pages/Performance.tsx` (278 lines)
+**Page**: `src/pages/Dashboard.tsx` (221 lines)
 
-**Sub-Components**: `PerformanceFilters.tsx` (131 lines), `PerformanceKeyMetrics.tsx` (197 lines), `PerformanceMonthlyTab.tsx` (110 lines), `PerformanceStrategiesTab.tsx` (162 lines), `PerformanceContextTab.tsx` (67 lines)
+**Dashboard Widgets (11 files)**: `PortfolioOverviewCard.tsx` (268 lines), `DashboardAnalyticsSummary.tsx` (234 lines), `AIInsightsWidget.tsx` (496 lines), `RiskMetricsCards.tsx` (177 lines), `GoalTrackingWidget.tsx` (235 lines), `MarketScoreWidget.tsx` (306 lines), `SystemStatusIndicator.tsx` (173 lines), `ADLRiskWidget.tsx` (253 lines), `SmartQuickActions.tsx` (137 lines), `MarketSessionsWidget.tsx` (220 lines), `StrategyCloneStatsWidget.tsx` (172 lines)
 
-**Analytics Components**: `TradingBehaviorAnalytics.tsx` (297 lines), `SevenDayStatsCard.tsx` (127 lines), `EquityCurveWithEvents.tsx` (285 lines), `DrawdownChart.tsx` (134 lines), `TradingHeatmapChart.tsx` (348 lines), `SessionPerformanceChart.tsx` (246 lines), `CombinedContextualScore.tsx` (310 lines), `EventDayComparison.tsx` (239 lines), `FearGreedZoneChart.tsx` (215 lines), `VolatilityLevelChart.tsx` (246 lines)
+**Cross-domain Components**: `RiskSummaryCard.tsx` (207 lines), `EquityCurveChart.tsx` (245 lines), `ErrorBoundary.tsx` (WidgetErrorBoundary)
 
-**Hooks**: `use-contextual-analytics.ts` (413 lines), `use-monthly-pnl.ts` (147 lines), `use-strategy-performance.ts` (137 lines), `use-mode-filtered-trades`, `use-mode-visibility`, `use-binance-daily-pnl`
+**Hooks Traced**: `use-unified-portfolio-data.ts` (299 lines), `use-mode-filtered-trades`, `use-mode-visibility`, `use-trade-entries`, `use-positions`, `use-trading-gate`, `use-currency-conversion`, `use-realtime`, `use-binance-connection-status`, `use-binance-daily-pnl`, `use-ai-settings-enforcement`, `use-unified-market-score`, `use-risk-events`, `use-risk-profile`
 
-**Shared UI**: `AnalyticsLevelSelector.tsx` (151 lines), `FilterActiveIndicator.tsx` (122 lines)
-
-**Calculations**: `src/lib/trading-calculations.ts` (335 lines)
+**Route verification**: App.tsx route definitions cross-referenced
 
 ---
 
 ## Issues Found
 
-### 1. Contextual Analytics Not Filtered by Page Filters (Data Integrity)
+### 1. `RiskSummaryCard` Links to Non-Existent Route (Broken Navigation)
 
-`useContextualAnalytics()` always calls `useModeFilteredTrades()` internally and computes its own segmentation. It does NOT receive the page-level filtered trades. This means when a user applies date range, strategy, account, or exchange filters on the Performance page:
+`src/components/risk/RiskSummaryCard.tsx` line 61: `<Link to="/risk-management">` -- this route does not exist. The actual route defined in `App.tsx` is `/risk`. When a user without a risk profile clicks "Set Up Risk Profile", they navigate to a 404 page.
 
-- **Overview tab**: `SessionPerformanceChart` shows unfiltered session data
-- **Context tab**: `EventDayComparison`, `FearGreedZoneChart`, and `VolatilityLevelChart` all show unfiltered data
+**Fix**: Change `/risk-management` to `/risk`.
 
-Only `CombinedContextualScore` and `TradingHeatmapChart` correctly receive `filteredTrades` from the parent.
+### 2. `AIInsightsWidget` Uses Wrong PnL Field (Calculation Standard Violation)
 
-**Impact**: User sees filtered Key Metrics and Equity Curve, but unfiltered Session and Context charts on the same page. This creates misleading mixed-filter analytics.
+`src/components/dashboard/AIInsightsWidget.tsx` line 55: `pairStats[pair].pnl += trade.pnl || 0;`
 
-**Fix**: Refactor `useContextualAnalytics` to accept an optional `trades` parameter (same pattern as `SevenDayStatsCard` and `DrawdownChart`). When provided, use it instead of fetching internally. The Performance page already has `filteredTrades` -- pass it through.
+The `calculatePairStats` function uses `trade.pnl` directly, bypassing the standardized `realized_pnl ?? pnl ?? 0` fallback chain. For Binance-synced trades, `realized_pnl` is the authoritative value. This produces inaccurate pair win rate recommendations for live mode users.
 
-### 2. Monthly Tab Not Filtered by Page Filters (Data Integrity)
+**Fix**: Change to `pairStats[pair].pnl += trade.realized_pnl ?? trade.pnl ?? 0;`
 
-`useMonthlyPnl()` calls `useModeFilteredTrades()` internally and ignores all page-level filters (date range, strategy, account, exchange). The Monthly tab always shows full-mode data regardless of what the user selected in the filter bar.
+### 3. `MarketScoreWidget` Uses 28 Hardcoded Color Instances (UX Standard Violation)
 
-**Fix**: Refactor `useMonthlyPnl` to accept an optional `trades` parameter. When provided, compute monthly stats from that dataset instead of fetching its own.
+`src/components/dashboard/MarketScoreWidget.tsx` contains extensive hardcoded Tailwind colors instead of semantic tokens:
 
-### 3. TradingHeatmapChart Uses Wrong PnL Field (Calculation Standard Violation)
+- `getBiasConfig()` (lines 60-93): Uses `text-green-500`, `bg-green-500/10`, `border-green-500/30`, `text-red-500`, `bg-red-500/10`, `border-red-500/30`, `text-red-600`, `bg-red-600/10`, `border-red-600/30`, `text-yellow-500`, `bg-yellow-500/10`, `border-yellow-500/30`
+- `getScoreColor()` (lines 95-101): Uses `text-green-500`, `text-green-400`, `text-yellow-500`, `text-orange-500`, `text-red-500`
+- `getProgressColor()` (lines 103-107): Uses `bg-green-500`, `bg-yellow-500`, `bg-red-500`
+- Compact event warning (line 136): `text-yellow-500`
 
-`TradingHeatmapChart.tsx` lines 93-94:
-```typescript
-const isWin = trade.result === 'win' || (trade.pnl && trade.pnl > 0);
-const pnl = trade.pnl || 0;
-```
+Per UX Consistency Standard #2, these should use semantic tokens: `text-profit`/`text-loss` for favorable/unfavorable bias, and chart tokens for intermediate levels.
 
-The interface `TradeWithTime` only declares `pnl`, dropping `realized_pnl`. For Binance-synced trades, `realized_pnl` is the authoritative P&L value. The standardized calculation chain is `realized_pnl ?? pnl ?? 0`. This component uses the estimated `pnl` field instead, producing inaccurate heatmap data for synced trades.
+**Fix**: Replace all hardcoded colors with semantic token equivalents:
+- Long Favorable: `text-profit`, `bg-profit/10`, `border-profit/30`
+- Short Favorable: `text-loss`, `bg-loss/10`, `border-loss/30`
+- Avoid: `text-destructive`, `bg-destructive/10`, `border-destructive/30`
+- Neutral: `text-[hsl(var(--chart-4))]`, `bg-[hsl(var(--chart-4))]/10`, `border-[hsl(var(--chart-4))]/30`
+- Score colors: `text-profit` (>=70), `text-chart-2` (>=55), `text-chart-3` (>=45), `text-chart-4` (>=30), `text-loss` (<30)
 
-**Fix**: Add `realized_pnl` to the `TradeWithTime` interface and use the standard fallback chain.
+### 4. `DashboardAnalyticsSummary` Has One Hardcoded Color (UX Standard Violation)
 
-### 4. Hardcoded Tailwind Colors in CombinedContextualScore (UX Standard Violation)
+`src/components/dashboard/DashboardAnalyticsSummary.tsx` line 111: `text-yellow-500` for profit factor between 1.0-1.5.
 
-`CombinedContextualScore.tsx` uses 11 instances of hardcoded Tailwind color classes (`text-green-500`, `text-red-500`, `text-emerald-400`, `text-orange-500`, `text-yellow-500`) instead of semantic tokens.
+**Fix**: Replace with `text-[hsl(var(--chart-4))]` (warning-level chart token).
 
-Per the UX Consistency Standard #2, financial win/loss indicators must use `text-profit` and `text-loss`. Non-financial zone indicators (Optimal, Favorable, etc.) should use chart tokens (`chart-1` through `chart-5`) for theme consistency.
+### 5. `DashboardAnalyticsSummary` Returns `null` When < 3 Trades (Layout Stability Violation)
 
-**Fix**: Replace hardcoded colors with semantic chart tokens. Win rate comparisons (`>= 50%`) should use `text-profit`/`text-loss`. Zone indicators should use `hsl(var(--chart-N))` tokens.
+`DashboardAnalyticsSummary.tsx` line 106: `if (analyticsData.trades30d < 3) return null;`
 
-### 5. No Issues Found (Verified Correct)
+Per UX Consistency Standard #4, components must provide fallback empty states instead of returning `null`, preventing layout shifts. When a new user has 1-2 trades, this row completely disappears, causing the layout to jump.
 
-- **Tab URL persistence**: `activeTab` uses `useSearchParams` correctly
-- **Mode-as-context parity**: Identical structure in Paper and Live -- correct
-- **Data isolation**: `useModeFilteredTrades` + analytics level selector correctly filters base trades
-- **Loading state**: Full-page `MetricsGridSkeleton` during load -- correct
-- **Empty state**: `EmptyState` component when no trades -- correct
-- **Error states**: React Query handles errors with retry -- correct
-- **SevenDayStatsCard**: Accepts external trades prop, respects filters -- correct
-- **DrawdownChart**: Accepts external trades prop, respects filters -- correct
-- **EquityCurveWithEvents**: Receives pre-computed `equityData` from filtered trades -- correct
-- **TradingBehaviorAnalytics**: Receives `filteredTrades` directly -- correct
-- **PerformanceKeyMetrics**: Receives pre-computed `stats` from filtered trades -- correct
-- **PerformanceStrategiesTab**: Inline `calculateStrategyPerformance` uses filtered trades -- correct
-- **Analytics Level Selector**: Properly drives trade filtering with account/exchange/type scopes -- correct
-- **FilterActiveIndicator**: Shows clear scope label with Clear button -- correct
-- **Color tokens (other components)**: All other components use `text-profit`/`text-loss` correctly
-- **ARIA**: Charts have `role="region"`, `role="img"`, proper `aria-label` -- correct
-- **PnL standard (other components)**: All other components use `realized_pnl ?? pnl ?? 0` -- correct
-- **Binance daily stats**: Today-only data, not filter-dependent by design -- correct
+**Fix**: Return a minimal card with an informative message instead of null (e.g., "Log 3+ trades this month to see performance analytics").
+
+### 6. `RiskMetricsCards` Returns `null` When < 3 Trades (Layout Stability Violation)
+
+`RiskMetricsCards.tsx` line 49: `if (closedTrades.length < 3) return null;`
+
+Same issue as #5. The entire "Advanced Risk Metrics" row disappears, causing layout shift.
+
+**Fix**: Return a minimal card with context instead of null.
+
+### 7. No Issues Found (Verified Correct)
+
+- **Mode-as-context parity**: Dashboard layout is 100% identical between Paper and Live. The only mode-driven differences are data-level: `showExchangeData` controls visibility of live positions section (Row 5), ADL widget shows "Live Only" placeholder in Paper mode. Both are structural parity compliant -- same cards, same rows.
+- **Data isolation**: `useModeFilteredTrades` used consistently across widgets. `useUnifiedPortfolioData` correctly switches between Binance and paper sources based on mode. `useTradeEntries` (unfiltered) used only for global empty-state check -- intentionally mode-agnostic.
+- **PnL standard (other components)**: `PortfolioOverviewCard` delegates to `useUnifiedPortfolioData` which uses correct chain. `GoalTrackingWidget` uses `t.realized_pnl ?? t.pnl ?? 0`. `RiskMetricsCards` passes `realized_pnl` to calculation. `EquityCurveChart` uses `trade.realized_pnl ?? trade.pnl ?? 0`. `DashboardAnalyticsSummary` uses `t.realized_pnl ?? t.pnl ?? 0`. All correct.
+- **Loading states**: `PortfolioOverviewCard` has skeleton, `SystemStatusIndicator` has spinner, `ADLRiskWidget` has skeleton, `AIInsightsWidget` has skeleton, `MarketScoreWidget` shows '--'. All correct.
+- **Empty states**: `PortfolioOverviewCard` has onboarding CTA, `ADLRiskWidget` has "No Active Positions" state, `AIInsightsWidget` has "Generate Insights" CTA + disabled state, `EquityCurveChart` has empty message. All correct.
+- **Error handling**: `EquityCurveChart` and `GoalTrackingWidget` wrapped in `WidgetErrorBoundary`. `MarketScoreWidget` has its own `ErrorBoundary`. `AIInsightsWidget` has internal error state with retry. `SystemStatusIndicator` has loading state.
+- **Color tokens (other components)**: `PortfolioOverviewCard` uses `text-profit`/`text-loss` exclusively. `SystemStatusIndicator` uses `text-profit`, `text-loss`, and chart tokens for warning. `RiskSummaryCard` uses `text-profit`, `text-loss`, chart tokens. `GoalTrackingWidget` uses `text-profit`/`text-loss`. All correct.
+- **ARIA**: `SystemStatusIndicator` has `role="status"`, `aria-live="polite"`. `ADLRiskWidget` positions have proper labels. `RiskMetricsCards` has `role="group"` and `aria-label`. `EquityCurveChart` has `role="img"` with descriptive `aria-label`. Correct.
+- **Realtime**: Dashboard subscribes to `accounts`, `account_transactions`, `trade_entries` for live updates. Correct.
+- **Dead components**: `MarketSessionsWidget` is not used on Dashboard (verified unused on any page -- but not raising as issue since it may be planned for future use). `StrategyCloneStatsWidget` correctly moved to StrategyManagement page.
+- **Navigation links**: All other widget links (`/performance`, `/risk`, `/settings?tab=exchange`, `/settings?tab=ai`, `/accounts`, `/market`, `/trading`, `/strategies`) verified against App.tsx routes. All valid except #1.
 
 ---
 
 ## Implementation Plan
 
-### File 1: `src/hooks/analytics/use-contextual-analytics.ts`
+### File 1: `src/components/risk/RiskSummaryCard.tsx`
 
-**Accept optional trades parameter**: Change the hook signature to accept an optional pre-filtered trades array. When provided, use it instead of calling `useModeFilteredTrades()`:
+**Fix broken route** (line 61): Change `/risk-management` to `/risk`.
 
-```typescript
-export function useContextualAnalytics(externalTrades?: TradeEntry[]): { ... } {
-  const { data: internalTrades, isLoading } = useModeFilteredTrades();
-  const trades = externalTrades ?? internalTrades;
-  // ... rest of computation uses `trades`
-}
-```
+### File 2: `src/components/dashboard/AIInsightsWidget.tsx`
 
-This follows the same established pattern used by `SevenDayStatsCard`, `DrawdownChart`, and other components.
+**Fix PnL calculation** (line 55): Change `trade.pnl || 0` to `(trade.realized_pnl ?? trade.pnl ?? 0)`.
 
-### File 2: `src/hooks/analytics/use-monthly-pnl.ts`
+### File 3: `src/components/dashboard/MarketScoreWidget.tsx`
 
-**Accept optional trades parameter**: Same pattern -- accept external trades:
+**Replace all hardcoded colors with semantic tokens**:
 
-```typescript
-export function useMonthlyPnl(externalTrades?: TradeEntry[]): MonthlyPnlResult {
-  const { data: rawTrades = [], isLoading } = useModeFilteredTrades();
-  const trades = externalTrades ?? rawTrades;
-  // ... rest uses `trades`
-}
-```
+`getBiasConfig()` (lines 58-93):
+- LONG_FAVORABLE: `text-green-500` -> `text-profit`, `bg-green-500/10` -> `bg-profit/10`, `border-green-500/30` -> `border-profit/30`
+- SHORT_FAVORABLE: `text-red-500` -> `text-loss`, `bg-red-500/10` -> `bg-loss/10`, `border-red-500/30` -> `border-loss/30`
+- AVOID: `text-red-600` -> `text-destructive`, `bg-red-600/10` -> `bg-destructive/10`, `border-red-600/30` -> `border-destructive/30`
+- NEUTRAL: `text-yellow-500` -> `text-[hsl(var(--chart-4))]`, `bg-yellow-500/10` -> `bg-[hsl(var(--chart-4))]/10`, `border-yellow-500/30` -> `border-[hsl(var(--chart-4))]/30`
 
-### File 3: `src/pages/Performance.tsx`
-
-**Pass filtered trades to hooks**: Update the hook calls to pass `filteredTrades`:
-
-```typescript
-const { data: contextualData } = useContextualAnalytics(filteredTrades);
-const monthlyStats = useMonthlyPnl(filteredTrades);
-```
-
-Note: Since hooks must be called unconditionally, and `filteredTrades` is derived from `useMemo`, this is safe. The hooks will recompute when `filteredTrades` changes.
-
-### File 4: `src/components/analytics/charts/TradingHeatmapChart.tsx`
-
-**Fix PnL calculation**: Update the `TradeWithTime` interface and usage:
-
-```typescript
-interface TradeWithTime {
-  id: string;
-  pnl: number | null;
-  realized_pnl?: number | null;  // ADD
-  result: string | null;
-  entry_datetime?: string | null;
-  trade_date: string;
-}
-```
-
-Update P&L usage (lines 93-94, 99, 104, 111):
-```typescript
-const pnl = trade.realized_pnl ?? trade.pnl ?? 0;
-const isWin = trade.result === 'win' || pnl > 0;
-```
-
-### File 5: `src/components/analytics/contextual/CombinedContextualScore.tsx`
-
-**Replace hardcoded colors with semantic tokens**: Replace all 11 instances:
-
-Zone colors in metrics array and `getScoreColor`:
-- `text-green-500` -> `text-profit` (for Optimal / Excellent)
-- `text-emerald-400` -> `text-chart-2` (for Favorable / Good)
-- `text-yellow-500` -> `text-chart-3` (for Moderate)
-- `text-orange-500` -> `text-chart-4` (for Risky / Poor)
-- `text-red-500` -> `text-loss` (for Extreme / Critical)
-
-Win rate comparison (line 283):
+`getScoreColor()` (lines 95-101):
 - `text-green-500` -> `text-profit`
+- `text-green-400` -> `text-chart-2`
+- `text-yellow-500` -> `text-[hsl(var(--chart-3))]`
+- `text-orange-500` -> `text-[hsl(var(--chart-4))]`
 - `text-red-500` -> `text-loss`
 
-Factor indicator icon (line 250):
-- `text-yellow-500` -> `text-chart-3`
+`getProgressColor()` (lines 103-107):
+- `bg-green-500` -> `bg-profit`
+- `bg-yellow-500` -> `bg-[hsl(var(--chart-4))]`
+- `bg-red-500` -> `bg-loss`
 
-Best Zone insight (lines 300-301):
-- `bg-green-500/10 border-green-500/30` -> `bg-profit/10 border-profit/30`
-- `text-green-600` -> `text-profit`
+Compact event warning (line 136): `text-yellow-500` -> `text-[hsl(var(--chart-4))]`
+
+Non-compact event warning (line 211): `bg-yellow-500/10 border-yellow-500/30 text-yellow-600` -> `bg-[hsl(var(--chart-4))]/10 border-[hsl(var(--chart-4))]/30 text-[hsl(var(--chart-4))]`
+
+Also line 220: `border-yellow-500 text-yellow-600` -> `border-[hsl(var(--chart-4))] text-[hsl(var(--chart-4))]`
+
+### File 4: `src/components/dashboard/DashboardAnalyticsSummary.tsx`
+
+**Fix hardcoded color** (line 111): Change `text-yellow-500` to `text-[hsl(var(--chart-4))]`.
+
+**Fix layout stability** (line 106): Replace `return null` with a minimal empty-state card:
+```tsx
+if (analyticsData.trades30d < 3) {
+  return (
+    <Card>
+      <CardContent className="py-4">
+        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+          <BarChart3 className="h-5 w-5 text-primary" />
+          <span>Log 3+ trades this month to unlock 30-day performance analytics</span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+```
+
+### File 5: `src/components/dashboard/RiskMetricsCards.tsx`
+
+**Fix layout stability** (line 49): Replace `return null` with a minimal empty-state card:
+```tsx
+if (closedTrades.length < 3) {
+  return (
+    <Card className={className}>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Shield className="h-5 w-5 text-primary" />
+          Advanced Risk Metrics
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="text-sm text-muted-foreground">
+          Close 3+ trades to unlock advanced risk metrics (Sharpe, Sortino, VaR, and more)
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+```
 
 ---
 
@@ -172,11 +177,10 @@ Best Zone insight (lines 300-301):
 
 | File | Change |
 |------|--------|
-| `src/hooks/analytics/use-contextual-analytics.ts` | Accept optional trades param for filter passthrough |
-| `src/hooks/analytics/use-monthly-pnl.ts` | Accept optional trades param for filter passthrough |
-| `src/pages/Performance.tsx` | Pass filteredTrades to contextual and monthly hooks |
-| `src/components/analytics/charts/TradingHeatmapChart.tsx` | Fix PnL field to use `realized_pnl ?? pnl ?? 0` |
-| `src/components/analytics/contextual/CombinedContextualScore.tsx` | Replace 11 hardcoded colors with semantic tokens |
+| `src/components/risk/RiskSummaryCard.tsx` | Fix broken route `/risk-management` to `/risk` |
+| `src/components/dashboard/AIInsightsWidget.tsx` | Fix PnL calculation to use `realized_pnl ?? pnl ?? 0` |
+| `src/components/dashboard/MarketScoreWidget.tsx` | Replace 28 hardcoded colors with semantic tokens |
+| `src/components/dashboard/DashboardAnalyticsSummary.tsx` | Fix 1 hardcoded color + replace `null` return with empty state |
+| `src/components/dashboard/RiskMetricsCards.tsx` | Replace `null` return with empty state card |
 
-Total: 5 files modified. Fixes cover 2 data integrity issues (filters not propagated), 1 calculation standard violation (wrong PnL field), and 1 UX standard violation (hardcoded colors).
-
+Total: 5 files modified. Fixes cover 1 broken navigation, 1 PnL calculation violation, 2 layout stability violations, and 29 hardcoded color instances across 2 components.
