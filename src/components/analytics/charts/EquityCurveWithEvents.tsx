@@ -158,7 +158,7 @@ export function EquityCurveWithEvents({ equityData, formatCurrency }: EquityCurv
         </p>
         {dataPoint?.hasEvent && (
           <div className="mt-2 pt-2 border-t">
-            <div className="flex items-center gap-1 text-xs text-warning">
+            <div className="flex items-center gap-1 text-xs text-[hsl(var(--chart-4))]">
               <Calendar className="h-3 w-3" />
               <span className="font-medium">Event Day</span>
             </div>
@@ -240,7 +240,7 @@ export function EquityCurveWithEvents({ equityData, formatCurrency }: EquityCurv
                   x={annotation.displayDate}
                   y={annotation.cumulative}
                   r={6}
-                  fill="hsl(var(--warning))"
+                  fill="hsl(var(--chart-4))"
                   stroke="hsl(var(--background))"
                   strokeWidth={2}
                   isFront
@@ -254,7 +254,7 @@ export function EquityCurveWithEvents({ equityData, formatCurrency }: EquityCurv
         {eventAnnotations.length > 0 && (
           <div className="mt-4 pt-4 border-t">
             <p className="text-sm font-medium mb-2 flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-warning" />
+              <Calendar className="h-4 w-4 text-[hsl(var(--chart-4))]" />
               High-Impact Events on Trading Days
             </p>
             <div className="flex flex-wrap gap-2">

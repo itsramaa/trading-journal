@@ -95,7 +95,7 @@ export default function TradingHeatmapPage() {
     
     filteredTrades.forEach(trade => {
       const session = getTradeSession(trade);
-      const pnl = trade.realized_pnl || trade.pnl || 0;
+      const pnl = trade.realized_pnl ?? trade.pnl ?? 0;
       
       sessions[session].trades++;
       sessions[session].pnl += pnl;
@@ -127,7 +127,7 @@ export default function TradingHeatmapPage() {
     let currentLoss = 0;
     
     sorted.forEach(trade => {
-      const pnl = trade.realized_pnl || trade.pnl || 0;
+      const pnl = trade.realized_pnl ?? trade.pnl ?? 0;
       if (pnl > 0) {
         currentWin++;
         currentLoss = 0;
@@ -153,7 +153,7 @@ export default function TradingHeatmapPage() {
     
     filteredTrades.forEach(trade => {
       const hour = new Date(trade.trade_date).getHours();
-      const pnl = trade.realized_pnl || trade.pnl || 0;
+      const pnl = trade.realized_pnl ?? trade.pnl ?? 0;
       const existing = hourMap.get(hour) || { trades: 0, pnl: 0, wins: 0 };
       
       existing.trades++;
@@ -369,8 +369,8 @@ export default function TradingHeatmapPage() {
                 {dateRange !== 'all' && ` in last ${dateRange.replace('d', ' days')}`}
               </span>
               <span>
-                Total P&L: <span className={filteredTrades.reduce((sum, t) => sum + (t.realized_pnl || t.pnl || 0), 0) >= 0 ? 'text-profit' : 'text-loss'}>
-                  {formatPnl(filteredTrades.reduce((sum, t) => sum + (t.realized_pnl || t.pnl || 0), 0))}
+                Total P&L: <span className={filteredTrades.reduce((sum, t) => sum + (t.realized_pnl ?? t.pnl ?? 0), 0) >= 0 ? 'text-profit' : 'text-loss'}>
+                  {formatPnl(filteredTrades.reduce((sum, t) => sum + (t.realized_pnl ?? t.pnl ?? 0), 0))}
                 </span>
               </span>
             </div>
