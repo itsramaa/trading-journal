@@ -70,8 +70,6 @@ export function useExchangeRate() {
     staleTime: 60 * 60 * 1000, // 1 hour
     refetchInterval: 60 * 60 * 1000, // Refresh hourly
     refetchOnWindowFocus: false,
-    // Use stored rate as initial data
-    initialData: storedRate || DEFAULT_USD_IDR_RATE,
   });
   
   return {

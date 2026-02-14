@@ -191,20 +191,11 @@ export function DashboardLayout() {
             
             {/* Command Palette Button */}
             <Button
-              variant="outline"
-              size="sm"
-              className="hidden md:flex items-center gap-2 text-muted-foreground h-8 px-2"
-              onClick={() => setCommandOpen(true)}
-            >
-              <Search className="h-4 w-4" />
-              <span className="text-sm">Search...</span>
-              <Kbd keys={["⌘", "K"]} />
-            </Button>
-            <Button
               variant="ghost"
               size="icon"
-              className="md:hidden h-8 w-8"
+              className="h-9 w-9"
               onClick={() => setCommandOpen(true)}
+              aria-label="Search"
             >
               <Search className="h-4 w-4" />
             </Button>

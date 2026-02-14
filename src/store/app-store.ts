@@ -68,7 +68,7 @@ export const useAppStore = create<AppState>()(
       setCurrency: (currency) => set({ currency }),
       
       // Exchange rate
-      exchangeRate: 15800, // Default USD to IDR
+      exchangeRate: 0, // No default — wait for API fetch
       setExchangeRate: (rate) => set({ exchangeRate: rate }),
       
       // Notifications
