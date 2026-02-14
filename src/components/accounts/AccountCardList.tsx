@@ -136,7 +136,9 @@ export function AccountCardList({
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {/* Binance Virtual Card - Live mode only */}
       {isConnected && (
-        <Card className="cursor-pointer hover:shadow-md transition-shadow group border-primary/20">
+        <Card className="cursor-pointer hover:shadow-md transition-shadow group border-primary/20"
+          onClick={() => navigate('/accounts/binance')}
+        >
           <CardHeader className="flex flex-row items-start justify-between pb-2">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-primary/10">
