@@ -48,7 +48,7 @@ export default function AccountDetail() {
 
   // Analytics: for Binance virtual, fetch live trade stats (no specific account_id)
   const { data: stats, isLoading: statsLoading } = useAccountAnalytics({
-    accountId: isBinanceVirtual ? '' : (accountId || ''),
+    accountId: isBinanceVirtual ? null : (accountId || null),
     tradeMode: isBinanceVirtual ? 'live' : undefined,
   });
 

@@ -11,7 +11,8 @@ import { useAuth } from "@/hooks/use-auth";
 import type { TradeStats } from "../trading/use-trade-stats";
 
 export interface UseAccountAnalyticsOptions {
-  accountId: string;
+  /** Account ID to filter by. Pass null/undefined to fetch all accounts (e.g. Binance virtual). */
+  accountId?: string | null;
   status?: string;
   tradeMode?: 'paper' | 'live' | null;
   enabled?: boolean;
@@ -38,17 +39,17 @@ function getEmptyStats(): TradeStats {
 
 export function useAccountAnalytics(options: UseAccountAnalyticsOptions) {
   const { user } = useAuth();
-  const { accountId, status = 'closed', tradeMode, enabled = true } = options;
+  const { accountId = null, status = 'closed', tradeMode, enabled = true } = options;
 
   return useQuery({
     queryKey: ["account-analytics", user?.id, accountId, status, tradeMode],
     queryFn: async (): Promise<TradeStats> => {
-      if (!user?.id || !accountId) return getEmptyStats();
+      if (!user?.id) return getEmptyStats();
 
       const { data, error } = await supabase.rpc('get_trade_stats', {
         p_user_id: user.id,
         p_status: status === 'all' ? null : status,
-        p_account_id: accountId,
+        p_account_id: accountId || undefined,
         p_trade_mode: tradeMode || null,
       });
 
@@ -77,7 +78,7 @@ export function useAccountAnalytics(options: UseAccountAnalyticsOptions) {
         profitFactor: Number(row.profit_factor) || 0,
       };
     },
-    enabled: !!user?.id && !!accountId && enabled,
+    enabled: !!user?.id && enabled,
     staleTime: 30_000,
   });
 }
