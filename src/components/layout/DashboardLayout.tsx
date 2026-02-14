@@ -184,10 +184,12 @@ export function DashboardLayout() {
             {/* Global Trading Mode Selector */}
             <TradeModeSelector />
             
-            <div className="hidden sm:block h-4 w-px bg-border" />
-            
             {/* Global Sync Progress Indicator */}
             <GlobalSyncIndicator />
+            
+            <CurrencyDisplay />
+            
+            <div className="hidden sm:block h-4 w-px bg-border" />
             
             {/* Command Palette Button */}
             <Button
@@ -199,8 +201,6 @@ export function DashboardLayout() {
             >
               <Search className="h-4 w-4" />
             </Button>
-            
-            <CurrencyDisplay />
             <NotificationToggle />
             <ThemeToggle />
           </div>
