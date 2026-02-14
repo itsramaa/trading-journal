@@ -290,37 +290,42 @@ export function TradeEnrichmentDrawer({
   // Load existing data when position changes
   useEffect(() => {
     const loadData = async () => {
-      if (position && position.source === "paper") {
-        const trade = position.originalData as TradeEntry;
-        setNotes(trade.notes || "");
-        setEmotionalState(trade.emotional_state || "");
-        setScreenshots((trade as any).screenshots || []);
-        setChartTimeframe((trade as any).chart_timeframe || "");
-        setCustomTags(trade.tags?.join(", ") || "");
-        setBiasTimeframe((trade as any).bias_timeframe || "");
-        setExecutionTimeframe((trade as any).execution_timeframe || "");
-        setPrecisionTimeframe((trade as any).precision_timeframe || "");
-        setTradeRating((trade as any).trade_rating || "");
-        setLessonLearned((trade as any).lesson_learned || "");
-        setRuleCompliance((trade as any).rule_compliance || {});
+      if (position) {
+        const originalData = position.originalData as any;
+        const hasTradeEntryFields = originalData && ('notes' in originalData || 'emotional_state' in originalData || 'id' in originalData);
         
-        // Load linked strategies using hook
-        const strategyIds = await loadLinkedStrategies(trade.id);
-        setSelectedStrategies(strategyIds);
-      } else {
-        // Reset for Binance positions (no existing local data)
-        setNotes("");
-        setEmotionalState("");
-        setScreenshots([]);
-        setChartTimeframe("");
-        setCustomTags("");
-        setBiasTimeframe("");
-        setExecutionTimeframe("");
-        setPrecisionTimeframe("");
-        setTradeRating("");
-        setLessonLearned("");
-        setRuleCompliance({});
-        setSelectedStrategies([]);
+        if (hasTradeEntryFields) {
+          const trade = originalData as TradeEntry;
+          setNotes(trade.notes || "");
+          setEmotionalState(trade.emotional_state || "");
+          setScreenshots((trade as any).screenshots || []);
+          setChartTimeframe((trade as any).chart_timeframe || "");
+          setCustomTags(trade.tags?.join(", ") || "");
+          setBiasTimeframe((trade as any).bias_timeframe || "");
+          setExecutionTimeframe((trade as any).execution_timeframe || "");
+          setPrecisionTimeframe((trade as any).precision_timeframe || "");
+          setTradeRating((trade as any).trade_rating || "");
+          setLessonLearned((trade as any).lesson_learned || "");
+          setRuleCompliance((trade as any).rule_compliance || {});
+          
+          // Load linked strategies using hook
+          const strategyIds = await loadLinkedStrategies(trade.id);
+          setSelectedStrategies(strategyIds);
+        } else {
+          // No existing data — reset all fields
+          setNotes("");
+          setEmotionalState("");
+          setScreenshots([]);
+          setChartTimeframe("");
+          setCustomTags("");
+          setBiasTimeframe("");
+          setExecutionTimeframe("");
+          setPrecisionTimeframe("");
+          setTradeRating("");
+          setLessonLearned("");
+          setRuleCompliance({});
+          setSelectedStrategies([]);
+        }
       }
     };
     
