@@ -1,10 +1,9 @@
 
+# Deep UX Analysis: Economic Calendar Page
 
-# Deep UX Analysis: Market Data Page
+## Status: Solid Core, 3 Issues Found (1 Bug, 1 Dead Logic, 1 Stale Copy)
 
-## Status: Solid — 2 Minor Issues Found
-
-The Market Data page (`/market-data`) is architecturally sound. It is correctly **mode-agnostic** — all data comes from public Binance/CoinGecko/Alternative.me APIs, making it identical in both Paper and Live modes. This is the correct design since market data is external and has no dependency on user trading mode.
+The Economic Calendar page (`/calendar`) is correctly **mode-agnostic** -- all data comes from public Forex Factory API via edge function. Layout, flow, and components are identical across Paper and Live modes, which is the correct design.
 
 ---
 
@@ -12,65 +11,89 @@ The Market Data page (`/market-data`) is architecturally sound. It is correctly 
 
 | Aspect | Status | Detail |
 |--------|--------|--------|
-| Mode independence | OK | No `useTradeMode`, `useModeVisibility`, or mode branching — correct for public market data |
-| Global symbol sync | OK | Uses `MarketContext` for cross-page symbol persistence (shared with Calculator, Trade Entry) |
-| Data flow | OK | `useMultiSymbolMarketInsight` -> edge function `market-insight` -> Binance/CoinGecko APIs |
-| Error handling | OK | `normalizeError` utility + `ErrorBoundary` wrappers on all widgets |
-| Loading states | OK | Skeleton loaders on all 4 widgets |
-| Empty states | OK | All widgets handle zero-data gracefully |
-| Symbol selector | OK | Combobox with `useTradingPairs` for full pair list + quick access shortcuts |
-| Refresh mechanism | OK | Global refresh button + per-widget retry on error |
-| Constants centralization | OK | `market-config.ts` centralizes symbols, limits, periods, sources |
+| Mode independence | OK | No `useTradeMode`, no mode branching -- correct for public economic data |
+| Data flow | OK | `useEconomicCalendar` -> edge function `economic-calendar` -> Forex Factory JSON |
+| AI predictions | OK | Lovable AI (Gemini 2.5 Flash) generates crypto impact for high-impact events |
+| Error handling | OK | Graceful fallback with empty events array + retry button |
+| Loading states | OK | Skeleton loaders for all sections |
+| Empty states | OK | "No high-impact events" and "No upcoming events" messages |
+| Refresh mechanism | OK | Manual refresh button + 30-minute auto-refresh |
+| Constants centralization | OK | Both frontend (`lib/constants/economic-calendar.ts`) and backend (`_shared/constants/economic-calendar.ts`) |
+| Cross-feature integration | OK | Used by `ContextWarnings`, `EquityCurveWithEvents`, `useCaptureMarketContext` |
 
 ### Component Tree (verified correct)
 
 ```text
-MarketData (page)
-  +-- PageHeader (with Refresh button)
-  +-- MarketSentimentWidget (symbol selector, sentiment gauge, factors)
-  +-- Grid 2-col:
-  |   +-- VolatilityMeterWidget (annualized volatility bars)
-  |   +-- WhaleTrackingWidget (volume-based whale detection)
-  +-- TradingOpportunitiesWidget (AI-ranked setups)
-  +-- Data quality footer
+EconomicCalendar (page)
+  +-- PageHeader
+  +-- CalendarTab (hideTitle=true)
+       +-- Refresh button
+       +-- Impact Alert Banner (conditional: high-impact risk days)
+       +-- Today's Key Release card (with AI prediction + crypto impact badge)
+       +-- Upcoming Events list (collapsible AI predictions per event)
+       +-- Footer disclaimer + last updated timestamp
 ```
 
 ---
 
 ## Issues Found
 
-### ISSUE 1: Dead Code — `MarketDataTab.tsx` (Cleanup)
+### BUG 1: `useEconomicEvents` Date Params Are Silently Ignored (Medium)
 
-**File:** `src/components/market-insight/MarketDataTab.tsx`
+**Files:**
+- `src/hooks/use-economic-events.ts` (lines 42-46)
+- `supabase/functions/economic-calendar/index.ts` (line 171+)
 
-This component (204 lines) is **not imported anywhere**. It was the original tab content before the Market Data page was extracted into standalone widgets (`WhaleTrackingWidget`, `TradingOpportunitiesWidget`, `VolatilityMeterWidget`).
+`useEconomicEvents` sends `{ from, to }` in the request body to the edge function:
+```typescript
+const { data, error } = await supabase.functions.invoke('economic-calendar', {
+  body: { from: fromDate, to: toDate },
+});
+```
 
-It duplicates the same data rendering (volatility, opportunities, whale tracking) but with an older, non-reusable inline format.
+But the edge function **never reads** `req.body` -- it always fetches `ff_calendar_thisweek.json` (current week only). The date range parameters are completely ignored.
 
-**Fix:** Delete `src/components/market-insight/MarketDataTab.tsx`. It is dead code that creates maintenance confusion.
+This means `TradingHeatmap` (which uses `useHighImpactEventDates` with a 90-day lookback) thinks it's getting 90 days of data but actually only receives the current week's events. The heatmap event overlay is therefore incomplete.
+
+**Fix:** This is an API contract mismatch. Two options:
+1. **Quick fix**: Remove the `body` params from `useEconomicEvents` and document that the endpoint only returns this-week data. Update `CALENDAR_DATE_RANGE.LOOKBACK_DAYS` usage accordingly.
+2. **Proper fix**: Update the edge function to read date params and fetch multiple weeks from Forex Factory (they offer `ff_calendar_thisweek.json` and `ff_calendar_nextweek.json`). However, historical data beyond 1-2 weeks is not available from this free endpoint.
+
+**Recommendation:** Quick fix -- remove the misleading date params, and ensure callers know the data scope is "this week only."
 
 ---
 
-### ISSUE 2: `VolatilityMeterWidget` Domain Location (Minor)
+### ISSUE 2: Stale Footer Copy (Cosmetic)
 
-**File:** `src/components/dashboard/VolatilityMeterWidget.tsx`
+**File:** `src/components/market-insight/CalendarTab.tsx` (line 319)
 
-This component is located in `src/components/dashboard/` but is primarily used on the Market Data page, not the Dashboard. Its domain is market data, not dashboard.
+Footer says:
+> "Data from Trading Economics API"
 
-**Fix:** Move to `src/components/market/VolatilityMeterWidget.tsx` and update the import in `MarketData.tsx` and the barrel export in `src/components/market/index.ts`. This aligns with single responsibility — all market widgets live in `src/components/market/`.
+But the actual data source was changed to **Forex Factory** (`nfs.faireconomy.media`). This is misleading to the user.
+
+**Fix:** Update to "Data from Forex Factory. AI analysis is for informational purposes only."
+
+---
+
+### ISSUE 3: Duplicate Hook Pattern (Cleanup)
+
+**Files:**
+- `src/features/calendar/useEconomicCalendar.ts` -- Used by CalendarTab, ContextWarnings, EquityCurveWithEvents, useCaptureMarketContext
+- `src/hooks/use-economic-events.ts` -- Used only by TradingHeatmap
+
+Both hooks call the same edge function `economic-calendar`. The second hook (`useEconomicEvents`) adds date filtering logic that doesn't actually work (see Bug 1). After fixing Bug 1, `useEconomicEvents` becomes a thin wrapper around the same data.
+
+**Fix:** After Bug 1 fix, refactor `useHighImpactEventDates` and `isHighImpactEventDay` to consume data from `useEconomicCalendar` instead. Then delete `use-economic-events.ts` to eliminate the duplicate data-fetching path.
 
 ---
 
 ## No Mode-Related Issues
 
-The Market Data page has **zero mode-related inconsistencies** because:
-
-1. All data is from public APIs (Binance spot/futures, CoinGecko, Alternative.me) — no user trade data
-2. No account-specific queries
-3. No `trade_entries` reads
-4. The `MarketContext` (symbol selection) is mode-independent by design
-
-This is the correct architecture. Market intelligence data should be identical regardless of whether the user is in Paper or Live mode.
+The Economic Calendar has **zero mode-related inconsistencies** because:
+1. All data is from public Forex Factory API -- no user trade data
+2. No account-specific queries or `trade_entries` reads
+3. AI predictions are generic market analysis, not user-specific
 
 ---
 
@@ -78,10 +101,8 @@ This is the correct architecture. Market intelligence data should be identical r
 
 | File | Action | Detail |
 |------|--------|--------|
-| `src/components/market-insight/MarketDataTab.tsx` | Delete | Dead code, not imported anywhere |
-| `src/components/dashboard/VolatilityMeterWidget.tsx` | Move | Relocate to `src/components/market/VolatilityMeterWidget.tsx` |
-| `src/components/market/index.ts` | Update | Add `VolatilityMeterWidget` export |
-| `src/pages/MarketData.tsx` | Update import | Change import path for `VolatilityMeterWidget` |
+| `src/hooks/use-economic-events.ts` | Refactor | Remove body params from edge function call; make `useHighImpactEventDates` consume `useEconomicCalendar` data instead of separate fetch |
+| `src/components/market-insight/CalendarTab.tsx` | Fix line 319 | Update "Trading Economics API" to "Forex Factory" |
+| `src/components/analytics/charts/TradingHeatmap.tsx` | Update import | Use refactored hook |
 
-Total: 2 cleanup changes, 0 bug fixes. The page is functionally complete and correct.
-
+Total: 1 bug fix (silent param ignore), 1 copy fix, 1 cleanup refactor. No structural changes needed.
