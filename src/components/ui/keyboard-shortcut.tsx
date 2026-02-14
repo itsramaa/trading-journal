@@ -40,8 +40,7 @@ const NAVIGATION_SHORTCUTS: Record<string, { path: string; label: string; domain
   'v': { path: '/market-data', label: 'Market Data', domain: 'Market' },
   
   // Journal domain  
-  't': { path: '/trading', label: 'Trade Entry', domain: 'Journal' },
-  'h': { path: '/history', label: 'Trade History', domain: 'Journal' },
+  't': { path: '/trading', label: 'Trading Journal', domain: 'Journal' },
   
   // Risk domain
   'r': { path: '/risk', label: 'Risk Overview', domain: 'Risk' },

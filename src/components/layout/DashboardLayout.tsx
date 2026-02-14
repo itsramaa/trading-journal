@@ -49,8 +49,7 @@ const routeHierarchy: Record<string, RouteInfo> = {
   "/market": { title: "AI Analysis", domain: "Market", domainPath: "/market-data" },
   
   // Journal domain
-  "/trading": { title: "Trade Entry", domain: "Journal", domainPath: "/trading" },
-  "/history": { title: "Trade History", domain: "Journal", domainPath: "/trading" },
+  "/trading": { title: "Trading Journal", domain: "Journal", domainPath: "/trading" },
   
   // Risk domain
   "/risk": { title: "Risk Overview", domain: "Risk", domainPath: "/risk" },

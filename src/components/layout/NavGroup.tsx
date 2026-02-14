@@ -51,7 +51,6 @@ const ROUTE_SHORTCUTS: Record<string, string> = {
   "/calendar": "C",
   "/market-data": "V",
   "/trading": "T",
-  "/history": "H",
   "/risk": "R",
   "/calculator": "X",
   "/strategies": "S",

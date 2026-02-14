@@ -21,7 +21,6 @@ import {
   Building2,
   Settings,
   CandlestickChart,
-  History,
   Flame,
   Download,
 } from "lucide-react";
@@ -57,7 +56,6 @@ const navigationGroups = [
     title: "Journal",
     items: [
       { title: "Trading Journal", url: "/trading", icon: Notebook },
-      { title: "Trade History", url: "/history", icon: History },
       { title: "Import & Sync", url: "/import", icon: Download },
     ],
   },
