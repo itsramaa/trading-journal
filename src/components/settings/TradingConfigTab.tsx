@@ -163,7 +163,7 @@ export function TradingConfigTab() {
               aria-label={`Max daily loss: ${maxDailyLoss}%`}
             />
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <AlertTriangle className="h-3 w-3 text-warning" />
+              <AlertTriangle className="h-3 w-3 text-[hsl(var(--chart-4))]" />
               <span>Warning at {RISK_THRESHOLDS.warning_percent}% • Trading disabled at 100%</span>
             </div>
           </div>

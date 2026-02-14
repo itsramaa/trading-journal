@@ -20,8 +20,9 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 
 const Settings = () => {
-  const [searchParams] = useSearchParams();
-  const defaultTab = searchParams.get('tab') || 'trading';
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'trading';
+  const setActiveTab = (tab: string) => setSearchParams({ tab });
   
   const { data: settings, isLoading: settingsLoading } = useUserSettings();
   const updateSettings = useUpdateUserSettings();
@@ -71,7 +72,7 @@ const Settings = () => {
           description="Manage your app preferences."
         />
 
-        <Tabs defaultValue={defaultTab} className="space-y-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList className="grid w-full grid-cols-5 lg:w-[500px]">
             <TabsTrigger value="trading" className="gap-2">
               <TrendingUp className="h-4 w-4" />
