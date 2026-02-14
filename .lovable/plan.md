@@ -1,34 +1,62 @@
 
-
-# Fix: React Suspense Warning on Trade Detail Navigation
+# Fix: Trade Detail Page Crashes for Binance Positions
 
 ## Problem
 
-Clicking the Eye icon in the Trading Journal table calls `navigate('/trading/:tradeId')` synchronously. Since `TradeDetail` is loaded via `React.lazy()`, this triggers a component suspend during a synchronous input event, causing React to flash a loading fallback and emit the warning:
-
-> "A component suspended while responding to synchronous input..."
+Navigating to `/trading/binance-DUSKUSDT` causes a database error because the `TradeDetail` page queries `trade_entries.id` (a UUID column) with a non-UUID string like `binance-DUSKUSDT`. Binance positions are not stored in `trade_entries` -- they exist only as live API data mapped into `UnifiedPosition`.
 
 ## Root Cause
 
-`useNavigate()` from React Router triggers a synchronous state update. When the target route renders a lazy-loaded component, React suspends the render tree. React 18 expects suspending transitions to be wrapped in `startTransition` to avoid replacing visible UI with a fallback.
+The `AllPositionsTable` generates IDs for Binance positions as `binance-{symbol}` (line ~108 in the table component). When the Eye icon navigates to `/trading/binance-DUSKUSDT`, the detail page tries to fetch from the database using this synthetic ID, which fails because PostgreSQL expects a UUID.
 
 ## Fix
 
-Wrap the `navigate()` call in `startTransition` so React treats it as a non-urgent update and keeps the current UI visible while the lazy chunk loads.
+The `TradeDetail` page needs to handle two cases:
 
-## Changes
+1. **Paper trades** (UUID IDs) -- fetch from `trade_entries` as currently implemented
+2. **Binance positions** (IDs starting with `binance-`) -- display available data from Binance API, not from database
 
-### File: `src/components/journal/AllPositionsTable.tsx`
+### Changes
 
-1. Add `startTransition` to imports:
-   ```typescript
-   import { useState, useEffect, startTransition } from "react";
-   ```
+**File: `src/pages/trading-journey/TradeDetail.tsx`**
 
-2. Wrap the navigate call (line 311):
-   ```typescript
-   onClick={() => startTransition(() => navigate(`/trading/${position.id}`))}
-   ```
+1. Detect if `tradeId` starts with `binance-` to determine the source
+2. For Binance positions:
+   - Extract the symbol from the ID (`binance-DUSKUSDT` -> `DUSKUSDT`)
+   - Fetch live position data using the existing `useBinancePositions` hook (or `useBinanceAccount`)
+   - Find the matching position by symbol
+   - Render the detail page with available Binance fields (symbol, direction, entry price, mark price, unrealized P&L, leverage, quantity)
+   - Sections not available from Binance API (journal enrichment, screenshots, strategies) show empty/dash states
+3. For Paper trades:
+   - Keep the existing UUID-based database fetch unchanged
 
-That's the entire fix -- one import addition, one line change.
+### Technical Detail
 
+```typescript
+const isBinancePosition = tradeId?.startsWith('binance-');
+const binanceSymbol = isBinancePosition ? tradeId.replace('binance-', '') : null;
+
+// Conditional query: only fetch from DB for paper trades
+const { data: trade, isLoading, error } = useQuery({
+  queryKey: ["trade-detail", tradeId],
+  queryFn: async () => {
+    // ... existing DB fetch logic
+  },
+  enabled: !!user?.id && !!tradeId && !isBinancePosition,
+});
+
+// For Binance: use existing positions hook
+const { positions: binancePositions } = useBinancePositions();
+const binanceTrade = isBinancePosition
+  ? binancePositions?.find(p => p.symbol === binanceSymbol)
+  : null;
+
+// Merge into a common display object
+const displayData = isBinancePosition ? mapBinanceToDisplay(binanceTrade) : trade;
+```
+
+This ensures:
+- No invalid UUID query is ever sent to the database
+- Binance positions render with all available real-time data
+- The page layout remains identical for both sources -- only the data differs
+- The "Enrich" button still works (it already handles Binance positions via `UnifiedPosition`)
