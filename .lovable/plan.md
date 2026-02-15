@@ -1,188 +1,116 @@
 
 
-# Unified Risk Orchestration & Calendar Engine Fixes
+# Style-Aware Risk Engine: Adaptive Outputs by Trading Timeframe
 
-This plan addresses 7 interconnected issues to create a coherent risk system where calendar, regime, and volatility engines produce unified outputs.
+Make the regime engine and risk orchestrator produce timeframe-appropriate outputs based on the user's active trading style (Scalping / Short Trade / Swing).
 
 ---
 
-## Problem Root Causes
+## Core Concept
 
-| Issue | Root Cause | Location |
-|-------|-----------|----------|
-| Calendar probability 0% | `calculateVolatilityEngine()` filters `isToday(e.date)` only -- upcoming FOMC/GDP within 24h are excluded | `economic-calendar/index.ts` line 135 |
-| "6 events" vs "no events" UX conflict | Impact summary counts all week events, but volatility engine only processes today | Same function, two different scopes |
-| Volume "8 samples" | `KLINES_LIMIT: 200` in `market-config.ts` = 200 hourly candles = 8 days. Rolling window yields ~177 samples, but 200h is still too small for robust P95 | `_shared/constants/market-config.ts` line 21 |
-| Calendar ignores realized volatility | Calendar expected range is purely event-driven. No ATR/vol floor | `economic-calendar/index.ts` `calculateVolatilityEngine()` |
-| 3 independent position sizes | Calendar, Regime, and useContextAwareRisk each compute their own multiplier independently | Multiple files |
-| Fear and Greed linear | F&G = 8 (extreme fear) treated with flat 20% weight, no asymmetric behavior | `regime-classification.ts` `calculateComposite()` |
-| Regime not aware of calendar | RegimeCard does not receive `eventRiskLevel` from calendar data | `RegimeCard.tsx` line 41 |
+One engine, three context views. The same data sources feed different weight profiles and range horizons depending on the selected trading style.
 
 ---
 
 ## Changes
 
-### 1. Fix Calendar: Rolling 24h Window Instead of "Today Only"
+### 1. Create Trading Style Context Configuration
 
-**File:** `supabase/functions/economic-calendar/index.ts`
+**New file:** `src/lib/constants/trading-style-context.ts`
 
-Replace `isToday()` filter in `calculateVolatilityEngine()` with a rolling 24h window:
+Centralized weight profiles per style:
 
-```typescript
-function isWithin24h(dateString: string): boolean {
-  const eventTime = new Date(dateString).getTime();
-  const now = Date.now();
-  // Events in the past 2h (still affecting vol) or next 22h
-  return eventTime >= now - (2 * 60 * 60 * 1000) && eventTime <= now + (22 * 60 * 60 * 1000);
-}
+```
+                Macro   Momentum   Volatility   Event
+SCALPING         5%      50%        35%          10%
+SHORT_TRADE     20%      35%        25%          20%
+SWING           40%      20%        15%          25%
 ```
 
-Update `calculateVolatilityEngine()`:
-- Replace `events.filter(e => isToday(e.date))` with `events.filter(e => isWithin24h(e.date))`
-- This ensures FOMC in 6h, GDP tomorrow morning, etc. are included in probability calculations
-- The "6 high-impact events detected" vs "no events today" UX conflict resolves naturally: window shows what is actionable
+Also defines per-style:
+- `rangeHorizonLabel`: "2h" / "8h" / "24h"
+- `rangeBaseMultiplier`: how much of the 24h ATR-based range to show (0.12 for 2h, 0.4 for 8h, 1.0 for 24h)
+- `eventSensitivityWindowHours`: 3 / 6 / 48
+- `directionLabel`: "Direction (2h)" / "Direction (8h)" / "Direction (24h)"
+- `regimeRelevance`: 'low' / 'medium' / 'high' -- controls whether regime overrides are strict or relaxed
 
-Also update `calculateRiskAdjustment()` to use the same rolling window for `todayHighImpact`.
+### 2. Update Regime Classification to Accept Style Context
 
-### 2. Add Realized Volatility Floor to Calendar Range
+**File:** `src/lib/regime-classification.ts`
 
-**File:** `supabase/functions/economic-calendar/index.ts`
+Add optional `tradingStyle` to `RegimeInput`. When provided:
 
-When volatility engine returns LOW regime with tiny ranges, but realized volatility is extreme, the range should have a floor.
+- **Composite weights shift**: For scalping, technical/momentum dominate (macro nearly irrelevant). For swing, macro weight increases significantly.
+- **Expected range scales**: Instead of always outputting 24h range, multiply by `rangeBaseMultiplier` from style config. Scalping sees a 2h expected range (~0.3-0.8%), swing sees the full 24h range.
+- **Direction probability label**: Output includes the horizon context so UI can show "Direction (2h)" vs "Direction (24h)".
+- **Regime override sensitivity**: For scalping, HIGH event risk within 3h triggers RISK_OFF, but events 12h+ away are ignored. For swing, the full 48h window applies.
 
-The calendar edge function does not currently have access to realized volatility. Two options:
+Add `styleContext` to `RegimeOutput` containing `horizonLabel`, `rangeHorizon`, and applied weights for transparency.
 
-**Option chosen: Accept a `realizedVolPct` parameter from the client.**
+### 3. Update Unified Risk Orchestrator for Style
 
-The client already has volatility data from the market-insight response. Pass it when calling the calendar:
-- In `useEconomicCalendar.ts`, pass the BTC annualized volatility (if available) as a query param
-- In the edge function, use it as a floor:
+**File:** `src/lib/unified-risk-orchestrator.ts`
 
-```typescript
-// After calculating event-based range
-const volFloor = realizedVolPct ? realizedVolPct / Math.sqrt(365) : 0; // daily vol approx
-const finalRange24h = {
-  low: Math.min(expectedRange24h.low, -volFloor),
-  high: Math.max(expectedRange24h.high, volFloor),
-};
-```
+Add optional `tradingStyle` to `RiskInputs`. When provided:
 
-This ensures the calendar never shows +/-1% when realized daily vol is 4%+.
+- **Scalping**: Volatility multiplier dominance. Calendar multiplier is almost ignored (events 12h+ away are irrelevant for a 5-minute scalp). Regime multiplier has reduced weight.
+- **Swing**: Calendar and regime multipliers dominate. Volatility gets lower weight since swing positions can absorb short-term spikes.
+- **Short Trade**: Current balanced behavior (no change needed).
 
-### 3. Increase Klines Limit for Volume Percentile
+Instead of pure `Math.min()`, apply style-weighted blend for the non-dominant factors while keeping `min()` for the dominant risk source per style.
 
-**File:** `supabase/functions/_shared/constants/market-config.ts`
-
-Change `KLINES_LIMIT` from `200` to `720` (30 days of hourly data).
-
-This gives `720 - 24 + 1 = 697` rolling windows for percentile calculation -- statistically robust for P95.
-
-Going higher (e.g., 2160 for 90d) risks Binance API rate limits and response size. 720 is a practical balance: sufficient for reliable percentiles without excessive API load.
-
-### 4. Non-Linear Fear and Greed in Composite
-
-**File:** `src/lib/regime-classification.ts` -- `calculateComposite()`
-
-Replace linear F&G weight with asymmetric scaling:
-
-```typescript
-// Fear & Greed non-linear transformation
-// Extreme fear (<20) and extreme greed (>80) should have outsized influence
-function transformFearGreed(fg: number): number {
-  if (fg <= 20) {
-    // Extreme fear: amplify signal (historically = bottoming zone)
-    // Map 0-20 to 0-15 (compressed low range, strong bearish signal)
-    return fg * 0.75;
-  }
-  if (fg >= 80) {
-    // Extreme greed: amplify signal (historically = topping zone)
-    // Map 80-100 to 85-100 (compressed high range, strong bullish but risky)
-    return 85 + (fg - 80) * 0.75;
-  }
-  // Normal range: linear pass-through
-  return fg;
-}
-```
-
-Use `transformFearGreed(input.fearGreedValue)` instead of raw `input.fearGreedValue` in the composite calculation.
-
-This means F&G = 8 becomes ~6 (stronger bearish pull), while F&G = 50 stays 50. The divergence penalty then catches the conflict between Tech 76 and transformed F&G 6 more aggressively.
-
-### 5. Feed Calendar Event Risk into Regime Engine
+### 4. Pass Trading Style Through to RegimeCard
 
 **File:** `src/components/market-insight/RegimeCard.tsx`
 
-Currently RegimeCard does not pass `eventRiskLevel` to `classifyMarketRegime()`. It needs calendar data.
+- Accept `tradingStyle` prop
+- Pass it to `classifyMarketRegime()` and `calculateUnifiedPositionSize()`
+- Update labels: "Direction (24h)" becomes dynamic based on style
+- Show the style-specific range horizon in the Expected Range row
 
-- Accept optional `calendarData` prop (from `useEconomicCalendar`)
-- Map `impactSummary.riskLevel` to `eventRiskLevel` in the regime input
-- This connects the calendar engine to the regime engine, so RISK_OFF triggers correctly
+**File:** `src/pages/MarketInsight.tsx`
 
-```typescript
-interface RegimeCardProps {
-  sentimentData?: MarketInsightResponse;
-  macroData?: MacroAnalysisResponse;
-  calendarData?: EconomicCalendarResponse; // NEW
-  isLoading: boolean;
-  onRefresh: () => void;
-  error?: Error | null;
-}
+- Pass `tradingStyle` from the existing `useTradeMode()` hook to `RegimeCard`
+
+### 5. Style Badge in RegimeCard Footer
+
+Show the active style context in the breakdown footer so the user knows which timeframe lens is active:
+
+```
+Score 51 | Tech 76 | Macro 29 | F&G 8 | Scalping context
+Cal 0.1x · Reg 0.3x · Vol 0.8x (dominant)
 ```
 
-In the `classifyMarketRegime()` call, add:
-```typescript
-eventRiskLevel: calendarData?.impactSummary?.riskLevel ?? 'LOW',
+---
+
+## Technical Details
+
+### Style Weight Profiles (exact values)
+
+```text
+                    Composite Weights               Orchestrator Behavior
+Style        Tech   OnChain  Macro   F&G     CalWeight  RegWeight  VolWeight
+-----------  -----  ------   -----   ----    ---------  ---------  ---------
+scalping     0.50   0.15     0.10    0.25    0.1        0.3        0.6
+short_trade  0.35   0.20     0.25    0.20    0.33       0.34       0.33
+swing        0.25   0.20     0.35    0.20    0.35       0.35       0.30
 ```
 
-Update `MarketInsight.tsx` to pass calendar data to RegimeCard.
+### Range Horizon Scaling
 
-### 6. Create Unified Risk Orchestrator
+The 24h ATR-based range is the base calculation. Per-style multipliers approximate the fraction:
+- Scalping (2h): baseRange * 0.12 (sqrt(2/24) approximation)
+- Short Trade (8h): baseRange * 0.40 (sqrt(8/24) approximation)  
+- Swing (24h): baseRange * 1.0
 
-**New file:** `src/lib/unified-risk-orchestrator.ts`
+### Event Sensitivity Window
 
-A single function that combines all three risk signals into one final multiplier:
+Each style defines how far ahead events matter:
+- Scalping: only events within 3h affect risk
+- Short Trade: events within 6h
+- Swing: events within 48h
 
-```typescript
-interface RiskInputs {
-  calendarMultiplier: number;    // from volatility engine positionSizeMultiplier
-  regimeMultiplier: number;      // from regime sizePercent / 100
-  volatilityMultiplier: number;  // from useContextAwareRisk volatilityMultiplier
-}
-
-function calculateFinalPositionMultiplier(inputs: RiskInputs): {
-  finalMultiplier: number;
-  dominantFactor: string;
-  breakdown: RiskInputs;
-} {
-  // Take the MINIMUM (most conservative) as the final multiplier
-  // This ensures no single engine can override the others' caution
-  const finalMultiplier = Math.min(
-    inputs.calendarMultiplier,
-    inputs.regimeMultiplier,
-    inputs.volatilityMultiplier
-  );
-
-  // Identify which factor is most restrictive
-  let dominantFactor = 'regime';
-  if (finalMultiplier === inputs.calendarMultiplier) dominantFactor = 'calendar';
-  if (finalMultiplier === inputs.volatilityMultiplier) dominantFactor = 'volatility';
-
-  return { finalMultiplier, dominantFactor, breakdown: inputs };
-}
-```
-
-### 7. Display Unified Position Size in RegimeCard
-
-**File:** `src/components/market-insight/RegimeCard.tsx`
-
-Update to use the orchestrator's unified multiplier instead of the regime-only size.
-
-Show the breakdown in the footer:
-```
-Size: Reduce 50% | Calendar 1.0x | Regime 0.7x | Vol 0.5x (dominant)
-```
-
-This makes it transparent which engine is driving the position sizing.
+This is used to filter/weight the calendar multiplier before it reaches the orchestrator.
 
 ---
 
@@ -190,24 +118,20 @@ This makes it transparent which engine is driving the position sizing.
 
 | File | Change |
 |------|--------|
-| `supabase/functions/economic-calendar/index.ts` | Rolling 24h window, realized vol floor, fix probability 0% bug |
-| `supabase/functions/_shared/constants/market-config.ts` | `KLINES_LIMIT: 200` to `720` |
-| `src/lib/regime-classification.ts` | Non-linear F&G transform in composite |
-| `src/lib/unified-risk-orchestrator.ts` | **NEW** -- min(calendar, regime, vol) position sizing |
-| `src/components/market-insight/RegimeCard.tsx` | Accept calendar data, use unified orchestrator, show breakdown |
-| `src/pages/MarketInsight.tsx` | Pass calendar data to RegimeCard |
-| `src/features/calendar/useEconomicCalendar.ts` | (Optional) Pass realized vol to calendar endpoint |
+| `src/lib/constants/trading-style-context.ts` | **NEW** -- weight profiles, range multipliers, event windows per style |
+| `src/lib/regime-classification.ts` | Accept `tradingStyle`, adjust composite weights and range scaling |
+| `src/lib/unified-risk-orchestrator.ts` | Accept `tradingStyle`, apply style-weighted orchestration |
+| `src/components/market-insight/RegimeCard.tsx` | Accept and pass `tradingStyle`, dynamic labels |
+| `src/pages/MarketInsight.tsx` | Pass `tradingStyle` to RegimeCard |
 
 ---
 
-## Fix Verification Matrix
+## What This Solves
 
-| Bug | Fix | Expected Result |
-|-----|-----|----------------|
-| Probability 0% with 6 events | Rolling 24h window replaces `isToday()` | Events within 24h contribute to probability |
-| Calendar LOW + Volatility EXTREME | Realized vol floor on calendar range | Calendar range >= daily realized vol |
-| Volume P95 with 8 samples | `KLINES_LIMIT: 720` = 697 rolling windows | Statistically robust percentile |
-| 3 independent position sizes | `min(calendar, regime, vol)` orchestrator | Single unified output |
-| F&G 8 barely affects composite | Non-linear transform amplifies extremes | F&G 8 becomes ~6, larger divergence penalty |
-| Regime unaware of calendar events | Pass `calendarData` to RegimeCard | RISK_OFF triggers on event days |
-
+| Before | After |
+|--------|-------|
+| Scalper sees "Direction 24h: 50%" -- irrelevant | Scalper sees "Direction 2h: 55%" -- actionable |
+| Scalper reduced 50% for FOMC in 18h | FOMC 18h away is ignored for scalp sizing |
+| Swing trader reacts to 15min vol spike | Vol spike weight is low for swing context |
+| All styles see same expected range | Scalp: 0.3%, Short: 1.2%, Swing: 3.5% |
+| Position size identical across styles | Scalp: vol-dominant, Swing: macro-dominant |
