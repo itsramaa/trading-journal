@@ -2,7 +2,8 @@
  * Top Movers Page - Shows top gainers, losers, and volume leaders
  * Uses Phase 3 useBinanceTopMovers hook
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, memo } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
@@ -12,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -36,17 +38,43 @@ interface MoverCardProps {
   rank: number;
   type: 'gainer' | 'loser' | 'volume';
   sortBy: SortBy;
+  format: (v: number) => string;
 }
 
-function MoverCard({ ticker, rank, type, sortBy }: MoverCardProps) {
-  const { format } = useCurrencyConversion();
+const MoverCard = memo(function MoverCard({ ticker, rank, type, sortBy, format }: MoverCardProps) {
   const isPositive = ticker.priceChangePercent >= 0;
   const symbol = getBaseSymbol(ticker.symbol);
   const showVolume = type === 'volume' || sortBy === 'volume';
-  
-  // Volume quality: flag thin liquidity
   const isLowVolume = ticker.quoteVolume < 100_000;
-  
+
+  // Determine right-side display content
+  const rightContent = useMemo(() => {
+    if (showVolume) {
+      return {
+        primary: format(ticker.quoteVolume),
+        secondary: "24h Volume",
+        colorClass: undefined,
+        icon: undefined,
+      };
+    }
+    if (sortBy === 'priceChange') {
+      return {
+        primary: format(Math.abs(ticker.priceChange)),
+        secondary: `${isPositive ? '+' : ''}${ticker.priceChangePercent.toFixed(2)}%`,
+        colorClass: isPositive ? "text-profit" : "text-loss",
+        icon: isPositive ? ArrowUpRight : ArrowDownRight,
+      };
+    }
+    return {
+      primary: `${isPositive ? '+' : ''}${ticker.priceChangePercent.toFixed(2)}%`,
+      secondary: format(Math.abs(ticker.priceChange)),
+      colorClass: isPositive ? "text-profit" : "text-loss",
+      icon: isPositive ? ArrowUpRight : ArrowDownRight,
+    };
+  }, [ticker, sortBy, showVolume, isPositive, format]);
+
+  const IconComp = rightContent.icon;
+
   return (
     <div className="flex items-center gap-4 p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
       <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-sm font-bold">
@@ -57,9 +85,11 @@ function MoverCard({ ticker, rank, type, sortBy }: MoverCardProps) {
         <div className="flex items-center gap-2">
           <CryptoIcon symbol={ticker.symbol} size={24} />
           <span className="font-semibold">{symbol}</span>
-          <Badge variant="outline" className="text-xs">USDT</Badge>
+          <Badge variant="outline" className="text-xs cursor-help" title="Only USDT-denominated trading pairs are shown for consistent comparison.">
+            USDT
+          </Badge>
           {isLowVolume && (
-            <Badge variant="outline" className="text-[10px] h-4 px-1 border-[hsl(var(--chart-4))]/50 text-[hsl(var(--chart-4))]">
+            <Badge variant="outline" className="text-[10px] h-4 px-1 border-[hsl(var(--chart-4))]/50 text-[hsl(var(--chart-4))] cursor-help" title="Volume below $100K. Low liquidity means wider spreads and higher slippage risk.">
               <AlertTriangle className="h-2.5 w-2.5 mr-0.5" />
               Low Liq
             </Badge>
@@ -67,49 +97,27 @@ function MoverCard({ ticker, rank, type, sortBy }: MoverCardProps) {
         </div>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <span className="font-mono-numbers">{format(ticker.lastPrice)}</span>
-          <span className="text-xs">Vol: {format(ticker.quoteVolume)}</span>
+          <span className="text-xs cursor-help" title="24-hour trading volume denominated in USDT.">Vol: {format(ticker.quoteVolume)}</span>
         </div>
       </div>
       
-      {showVolume ? (
-        <div className="text-right">
-          <div className="text-sm font-medium">{format(ticker.quoteVolume)}</div>
-          <div className="text-xs text-muted-foreground">24h Volume</div>
+      <div className={cn("flex items-center gap-1 text-right", rightContent.colorClass)}>
+        {IconComp && <IconComp className="h-4 w-4" />}
+        <div>
+          <div className="font-semibold font-mono-numbers">{rightContent.primary}</div>
+          <div className="text-xs opacity-80">{rightContent.secondary}</div>
         </div>
-      ) : sortBy === 'priceChange' ? (
-        <div className={cn("flex items-center gap-1 text-right", isPositive ? "text-profit" : "text-loss")}>
-          {isPositive ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
-          <div>
-            <div className="font-semibold font-mono-numbers">
-              {isPositive ? '+' : ''}${Math.abs(ticker.priceChange).toFixed(4)}
-            </div>
-            <div className="text-xs opacity-80">
-              {isPositive ? '+' : ''}{ticker.priceChangePercent.toFixed(2)}%
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className={cn("flex items-center gap-1 text-right", isPositive ? "text-profit" : "text-loss")}>
-          {isPositive ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
-          <div>
-            <div className="font-semibold font-mono-numbers">
-              {isPositive ? '+' : ''}{ticker.priceChangePercent.toFixed(2)}%
-            </div>
-            <div className="text-xs opacity-80">
-              {isPositive ? '+' : ''}{ticker.priceChange.toFixed(4)}
-            </div>
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
-}
+});
 
-function MoversList({ tickers, type, isLoading, sortBy }: { 
+function MoversList({ tickers, type, isLoading, sortBy, format }: { 
   tickers: Ticker24h[];
   type: 'gainer' | 'loser' | 'volume';
   isLoading: boolean;
   sortBy: SortBy;
+  format: (v: number) => string;
 }) {
   if (isLoading) {
     return (
@@ -126,7 +134,7 @@ function MoversList({ tickers, type, isLoading, sortBy }: {
       <EmptyState
         icon={BarChart3}
         title="No data available"
-        description="Unable to fetch market data at this time."
+        description="No coins match the current filters, or market data is unavailable."
       />
     );
   }
@@ -140,6 +148,7 @@ function MoversList({ tickers, type, isLoading, sortBy }: {
           rank={index + 1}
           type={type}
           sortBy={sortBy}
+          format={format}
         />
       ))}
     </div>
@@ -151,6 +160,17 @@ export default function TopMovers() {
   const [limit, setLimit] = useState(10);
   const [sortBy, setSortBy] = useState<SortBy>('percentage');
   const [minVolume, setMinVolume] = useState<MinVolume>('100k');
+  const [searchParams, setSearchParams] = useSearchParams();
+  
+  // Tab URL persistence
+  const activeTab = searchParams.get('tab') || 'gainers';
+  const handleTabChange = (tab: string) => {
+    setSearchParams(prev => {
+      prev.set('tab', tab);
+      return prev;
+    }, { replace: true });
+  };
+
   const { data, isLoading, refetch, isFetching, dataUpdatedAt } = useBinanceTopMovers(limit);
   const { topGainers = [], topLosers = [], topVolume = [], allTickers = [] } = data || {};
   
@@ -164,7 +184,7 @@ export default function TopMovers() {
     }
   }, [minVolume]);
   
-  // Apply volume filter
+  // Apply volume filter — return empty if none match (no silent fallback)
   const filteredTickers = useMemo(() => {
     if (volumeThreshold === 0) return allTickers;
     return allTickers.filter(t => t.quoteVolume >= volumeThreshold);
@@ -176,8 +196,9 @@ export default function TopMovers() {
     : null;
   
   // Dynamic sorting based on user selection + volume filter
+  // Gainers: always positive priceChangePercent coins
   const sortedGainers = useMemo(() => {
-    const source = filteredTickers.length ? filteredTickers : topGainers;
+    const source = filteredTickers.filter(t => t.priceChangePercent > 0);
     if (sortBy === 'volume') {
       return [...source].sort((a, b) => b.quoteVolume - a.quoteVolume).slice(0, limit);
     }
@@ -185,21 +206,33 @@ export default function TopMovers() {
       return [...source].sort((a, b) => b.priceChange - a.priceChange).slice(0, limit);
     }
     return [...source].sort((a, b) => b.priceChangePercent - a.priceChangePercent).slice(0, limit);
-  }, [filteredTickers, topGainers, sortBy, limit]);
+  }, [filteredTickers, sortBy, limit]);
 
+  // Losers: always negative priceChangePercent coins, sorted by most negative first
   const sortedLosers = useMemo(() => {
-    const source = filteredTickers.length ? filteredTickers : topLosers;
+    const source = filteredTickers.filter(t => t.priceChangePercent < 0);
     if (sortBy === 'volume') {
-      return [...source].sort((a, b) => a.quoteVolume - b.quoteVolume).slice(0, limit);
+      // Highest volume losers (most significant declines)
+      return [...source].sort((a, b) => b.quoteVolume - a.quoteVolume).slice(0, limit);
     }
     if (sortBy === 'priceChange') {
       return [...source].sort((a, b) => a.priceChange - b.priceChange).slice(0, limit);
     }
     return [...source].sort((a, b) => a.priceChangePercent - b.priceChangePercent).slice(0, limit);
-  }, [filteredTickers, topLosers, sortBy, limit]);
+  }, [filteredTickers, sortBy, limit]);
+
+  // Volume tab: top volume from filtered pool
+  const sortedVolume = useMemo(() => {
+    return [...filteredTickers].sort((a, b) => b.quoteVolume - a.quoteVolume).slice(0, limit);
+  }, [filteredTickers, limit]);
+
+  // Summary cards derived from filtered data
+  const summaryGainer = sortedGainers[0] ?? null;
+  const summaryLoser = sortedLosers[0] ?? null;
+  const summaryVolume = sortedVolume[0] ?? null;
   
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" role="region" aria-label="Top Movers">
       {/* Page Header */}
         <PageHeader
           icon={BarChart3}
@@ -210,31 +243,38 @@ export default function TopMovers() {
           {lastUpdated && (
             <span className="text-xs text-muted-foreground">Updated: {lastUpdated}</span>
           )}
-          <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortBy)}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue placeholder="Sort by..." />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="percentage">% Change</SelectItem>
-              <SelectItem value="priceChange">Price Change</SelectItem>
-              <SelectItem value="volume">Volume</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={minVolume} onValueChange={(v) => setMinVolume(v as MinVolume)}>
-            <SelectTrigger className="w-[130px]">
-              <SelectValue placeholder="Min Volume" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Coins</SelectItem>
-              <SelectItem value="100k">Vol &gt;$100K</SelectItem>
-              <SelectItem value="1m">Vol &gt;$1M</SelectItem>
-              <SelectItem value="10m">Vol &gt;$10M</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-1">
+            <InfoTooltip content="Sort coins by percentage change, absolute price change, or 24h trading volume." />
+            <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortBy)}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="Sort by..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="percentage">% Change</SelectItem>
+                <SelectItem value="priceChange">Price Change</SelectItem>
+                <SelectItem value="volume">Volume</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-1">
+            <InfoTooltip content="Filter out low-volume coins to focus on actively traded assets. Higher thresholds reduce noise from illiquid pairs." />
+            <Select value={minVolume} onValueChange={(v) => setMinVolume(v as MinVolume)}>
+              <SelectTrigger className="w-[130px]">
+                <SelectValue placeholder="Min Volume" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Coins</SelectItem>
+                <SelectItem value="100k">Vol &gt;$100K</SelectItem>
+                <SelectItem value="1m">Vol &gt;$1M</SelectItem>
+                <SelectItem value="10m">Vol &gt;$10M</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <Button 
             variant="outline" 
             size="sm"
             onClick={() => setLimit(limit === 10 ? 20 : 10)}
+            title="Toggle between showing top 10 or top 20 results."
           >
             Show {limit === 10 ? '20' : '10'}
           </Button>
@@ -257,18 +297,19 @@ export default function TopMovers() {
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-profit" />
                 Top Gainer
+                <InfoTooltip content="Largest 24h percentage increase across all USDT pairs on Binance, respecting current volume filter." />
               </CardTitle>
             </CardHeader>
             <CardContent>
               {isLoading ? (
                 <Skeleton className="h-8 w-32" />
-              ) : topGainers[0] ? (
+              ) : summaryGainer ? (
                 <>
                   <div className="text-2xl font-bold">
-                    {getBaseSymbol(topGainers[0].symbol)}
+                    {getBaseSymbol(summaryGainer.symbol)}
                   </div>
                   <p className="text-profit font-semibold">
-                    +{topGainers[0].priceChangePercent.toFixed(2)}%
+                    +{summaryGainer.priceChangePercent.toFixed(2)}%
                   </p>
                 </>
               ) : (
@@ -282,18 +323,19 @@ export default function TopMovers() {
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <TrendingDown className="h-4 w-4 text-loss" />
                 Top Loser
+                <InfoTooltip content="Largest 24h percentage decrease across all USDT pairs on Binance, respecting current volume filter." />
               </CardTitle>
             </CardHeader>
             <CardContent>
               {isLoading ? (
                 <Skeleton className="h-8 w-32" />
-              ) : topLosers[0] ? (
+              ) : summaryLoser ? (
                 <>
                   <div className="text-2xl font-bold">
-                    {getBaseSymbol(topLosers[0].symbol)}
+                    {getBaseSymbol(summaryLoser.symbol)}
                   </div>
                   <p className="text-loss font-semibold">
-                    {topLosers[0].priceChangePercent.toFixed(2)}%
+                    {summaryLoser.priceChangePercent.toFixed(2)}%
                   </p>
                 </>
               ) : (
@@ -307,18 +349,19 @@ export default function TopMovers() {
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <Volume2 className="h-4 w-4" />
                 Highest Volume
+                <InfoTooltip content="Highest 24-hour USDT trading volume on Binance, respecting current volume filter." />
               </CardTitle>
             </CardHeader>
             <CardContent>
               {isLoading ? (
                 <Skeleton className="h-8 w-32" />
-              ) : topVolume[0] ? (
+              ) : summaryVolume ? (
                 <>
                   <div className="text-2xl font-bold">
-                    {getBaseSymbol(topVolume[0].symbol)}
+                    {getBaseSymbol(summaryVolume.symbol)}
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    {format(topVolume[0].quoteVolume)}
+                    {format(summaryVolume.quoteVolume)}
                   </p>
                 </>
               ) : (
@@ -329,7 +372,7 @@ export default function TopMovers() {
         </div>
 
         {/* Tabbed Lists */}
-        <Tabs defaultValue="gainers" className="space-y-4">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="gainers" className="gap-2">
               <TrendingUp className="h-4 w-4" />
@@ -362,6 +405,7 @@ export default function TopMovers() {
                   type="gainer" 
                   isLoading={isLoading}
                   sortBy={sortBy}
+                  format={format}
                 />
               </CardContent>
             </Card>
@@ -384,6 +428,7 @@ export default function TopMovers() {
                   type="loser" 
                   isLoading={isLoading}
                   sortBy={sortBy}
+                  format={format}
                 />
               </CardContent>
             </Card>
@@ -395,6 +440,7 @@ export default function TopMovers() {
                 <CardTitle className="flex items-center gap-2">
                   <Volume2 className="h-5 w-5" />
                   Volume Leaders
+                  <InfoTooltip content="Total quote (USDT) volume traded in the last 24 hours." />
                 </CardTitle>
                 <CardDescription>
                   Coins with the highest trading volume in the last 24 hours
@@ -402,10 +448,11 @@ export default function TopMovers() {
               </CardHeader>
               <CardContent>
                 <MoversList 
-                  tickers={topVolume} 
+                  tickers={sortedVolume} 
                   type="volume" 
                   isLoading={isLoading}
                   sortBy={sortBy}
+                  format={format}
                 />
               </CardContent>
             </Card>
