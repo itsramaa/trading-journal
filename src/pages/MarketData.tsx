@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { useMultiSymbolMarketInsight } from "@/features/market-insight";
 import { cn } from "@/lib/utils";
 import { useMarketContext } from "@/contexts/MarketContext";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { normalizeError } from "@/lib/error-utils";
 import { 
   DEFAULT_WATCHLIST_SYMBOLS, 
@@ -20,7 +21,7 @@ import {
 } from "@/lib/constants/market-config";
 
 export default function MarketData() {
-  const { selectedSymbol, setSelectedSymbol } = useMarketContext();
+  const { selectedSymbol } = useMarketContext();
   
   const symbolsToFetch = useMemo(() => {
     const watchlist = [...DEFAULT_WATCHLIST_SYMBOLS];
@@ -90,9 +91,10 @@ export default function MarketData() {
       <PortfolioImpactCard />
 
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-        <span>
-          Data quality: {marketData?.dataQuality ?? '-'}% • 
-          Last updated: {marketData?.lastUpdated 
+        <span className="flex items-center gap-1">
+          Data quality: {marketData?.dataQuality ?? '-'}%
+          <InfoTooltip content="Percentage of requested data points successfully retrieved from the API. 100% = all endpoints responded. Lower values indicate partial data due to rate limits or timeouts." />
+          {' '}• Last updated: {marketData?.lastUpdated 
             ? new Date(marketData.lastUpdated).toLocaleTimeString() 
             : '-'}
         </span>

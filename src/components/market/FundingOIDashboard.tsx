@@ -3,10 +3,12 @@
  * Extracted from MarketSentimentWidget for the Flow & Liquidity page
  * Displays: Funding rates, OI changes, divergence alerts per symbol
  */
+import { useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { 
   Activity, 
   TrendingUp, 
@@ -15,6 +17,12 @@ import {
   Percent 
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { 
   FundingRateContext, 
   OIChangeData, 
@@ -36,6 +44,21 @@ function FundingOIContent({
   isLoading, 
   className 
 }: FundingOIDashboardProps) {
+  // Hooks must be called before any early returns
+  const combinedData = useMemo(() => 
+    fundingRates.map(fr => {
+      const oi = oiChanges.find(o => o.symbol === fr.symbol);
+      const div = divergences.find(d => d.symbol === fr.symbol);
+      return { ...fr, oi, divergence: div };
+    }),
+    [fundingRates, oiChanges, divergences]
+  );
+
+  const activeDivergences = useMemo(() => 
+    divergences.filter(d => d.hasDivergence),
+    [divergences]
+  );
+
   if (isLoading) {
     return (
       <Card className={className} role="region" aria-label="Funding & OI Dashboard">
@@ -52,22 +75,21 @@ function FundingOIContent({
     );
   }
 
-  // Match funding rates with OI and divergence data by symbol
-  const combinedData = fundingRates.map(fr => {
-    const oi = oiChanges.find(o => o.symbol === fr.symbol);
-    const div = divergences.find(d => d.symbol === fr.symbol);
-    return { ...fr, oi, divergence: div };
-  });
-
-  const activeDivergences = divergences.filter(d => d.hasDivergence);
-
   return (
     <Card className={className} role="region" aria-label="Funding & OI Dashboard">
       <CardHeader className="pb-3">
         <div className="flex items-center gap-2">
           <Percent className="h-5 w-5 text-primary" />
           <CardTitle className="text-lg">Funding & OI</CardTitle>
-          <Badge variant="outline" className="text-xs">Derivatives</Badge>
+          <InfoTooltip content="Real-time derivatives data showing funding rates, open interest changes, and funding/price divergence alerts for watchlist symbols." />
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div><Badge variant="outline" className="text-xs">Derivatives</Badge></div>
+              </TooltipTrigger>
+              <TooltipContent><p className="text-sm">Data sourced from Binance Futures perpetual contracts.</p></TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
         <CardDescription>
           Funding rates, open interest changes, and divergence alerts
@@ -97,6 +119,7 @@ function FundingOIContent({
                   )}>
                     {div.symbol.replace('USDT', '')} — Funding/Price Divergence
                   </span>
+                  <InfoTooltip content="When funding rate direction contradicts price direction, it signals potential mean-reversion. Bullish divergence = negative funding while price rises. Bearish = positive funding while price falls." />
                 </div>
                 <p className="text-xs text-muted-foreground mt-1 ml-5.5">
                   {div.description}
@@ -125,20 +148,35 @@ function FundingOIContent({
                   </Badge>
                   <div className="space-y-0.5">
                     <div className="flex items-center gap-2 text-xs">
-                      <span className="text-muted-foreground">Funding:</span>
+                      <span className="text-muted-foreground flex items-center gap-1">
+                        Funding:
+                        <InfoTooltip content="Periodic fee between longs and shorts. Positive = longs pay shorts (bullish crowding). Negative = shorts pay longs (bearish crowding)." />
+                      </span>
                       <span className={cn(
                         "font-mono font-medium",
                         item.rate > 0 ? "text-profit" : item.rate < 0 ? "text-loss" : "text-muted-foreground"
                       )}>
                         {item.rate > 0 ? '+' : ''}{item.rate.toFixed(4)}%
                       </span>
-                      <Badge variant="outline" className="text-[10px] px-1">
-                        P{item.percentile90d}
-                      </Badge>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div>
+                              <Badge variant="outline" className="text-[10px] px-1">
+                                P{item.percentile90d}
+                              </Badge>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent><p className="text-sm">Funding rate percentile over the last 90 days. P90+ indicates extreme crowding.</p></TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </div>
                     {item.oi && item.oi.oiChange24hPct !== 0 && (
                       <div className="flex items-center gap-2 text-xs">
-                        <span className="text-muted-foreground">OI 24h:</span>
+                        <span className="text-muted-foreground flex items-center gap-1">
+                          OI 24h:
+                          <InfoTooltip content="24-hour change in open interest (total outstanding derivative contracts). Rising OI with rising price = new money entering; falling OI = positions closing." />
+                        </span>
                         <span className={cn(
                           "font-mono font-medium",
                           item.oi.oiChange24hPct > 0 ? "text-profit" : "text-loss"
@@ -150,13 +188,30 @@ function FundingOIContent({
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  {item.oi && item.oi.oiChange24hPct > 5 ? (
-                    <TrendingUp className="h-3.5 w-3.5 text-profit" />
-                  ) : item.oi && item.oi.oiChange24hPct < -5 ? (
-                    <TrendingDown className="h-3.5 w-3.5 text-loss" />
-                  ) : (
-                    <Activity className="h-3.5 w-3.5 text-muted-foreground" />
-                  )}
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div>
+                          {item.oi && item.oi.oiChange24hPct > 5 ? (
+                            <TrendingUp className="h-3.5 w-3.5 text-profit" />
+                          ) : item.oi && item.oi.oiChange24hPct < -5 ? (
+                            <TrendingDown className="h-3.5 w-3.5 text-loss" />
+                          ) : (
+                            <Activity className="h-3.5 w-3.5 text-muted-foreground" />
+                          )}
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="text-sm">
+                          {item.oi && item.oi.oiChange24hPct > 5
+                            ? "OI surging >5% — significant new positions opening"
+                            : item.oi && item.oi.oiChange24hPct < -5
+                            ? "OI dropping >5% — significant positions closing"
+                            : "OI change within normal range (±5%)"}
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
               </div>
             ))}
