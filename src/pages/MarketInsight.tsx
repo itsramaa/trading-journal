@@ -22,6 +22,7 @@ import {
   useMacroAnalysis, 
   useMarketAlerts 
 } from "@/features/market-insight";
+import { useEconomicCalendar } from "@/features/calendar";
 import { 
   BiasExpiryIndicator
 } from "@/components/market-insight";
@@ -45,6 +46,13 @@ const MarketInsight = () => {
     error: macroError,
     refetch: refetchMacro 
   } = useMacroAnalysis();
+
+  // Pass BTC realized vol to calendar for range floor
+  const btcRealizedVol = sentimentData?.volatility?.[0]?.annualizedVolatility;
+  const {
+    data: calendarData,
+    isLoading: calendarLoading,
+  } = useEconomicCalendar(btcRealizedVol);
 
   // Enable market alerts for extreme conditions
   useMarketAlerts({ 
@@ -105,6 +113,7 @@ const MarketInsight = () => {
           <RegimeCard 
             sentimentData={sentimentData}
             macroData={macroData}
+            calendarData={calendarData}
             isLoading={isLoading}
             onRefresh={handleRefresh}
             error={sentimentError || macroError || null}

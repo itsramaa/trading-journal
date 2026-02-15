@@ -83,11 +83,22 @@ function isToday(dateString: string): boolean {
   return eventDate === today;
 }
 
+/**
+ * Rolling 24h window: events in the past 2h (still affecting vol) or next 22h.
+ * This ensures FOMC in 6h, GDP tomorrow morning, etc. are included in probability calculations.
+ */
+function isWithin24h(dateString: string): boolean {
+  const eventTime = new Date(dateString).getTime();
+  const now = Date.now();
+  return eventTime >= now - (2 * 60 * 60 * 1000) && eventTime <= now + (22 * 60 * 60 * 1000);
+}
+
 function calculateRiskAdjustment(events: ProcessedEvent[]) {
-  const todayHighImpact = events.filter(e => isToday(e.date) && e.importance === 'high').length;
+  // Use rolling 24h window instead of today-only for risk assessment
+  const windowHighImpact = events.filter(e => isWithin24h(e.date) && e.importance === 'high').length;
   const weekHighImpact = events.filter(e => e.importance === 'high').length;
   
-  return calculateRiskLevel(todayHighImpact, weekHighImpact);
+  return calculateRiskLevel(windowHighImpact, weekHighImpact);
 }
 
 // Check if two event names belong to the same correlation group
@@ -131,41 +142,48 @@ function assignCorrelationWeights(events: { name: string; prob: number; sampleSi
   });
 }
 
-function calculateVolatilityEngine(events: ProcessedEvent[]) {
-  const todayEvents = events.filter(e => isToday(e.date));
-  const highImpactToday = todayEvents.filter(e => e.importance === 'high');
+function calculateVolatilityEngine(events: ProcessedEvent[], realizedVolPct?: number) {
+  // Use rolling 24h window instead of today-only — fixes 0% probability bug
+  const windowEvents = events.filter(e => isWithin24h(e.date));
+  const highImpactWindow = windowEvents.filter(e => e.importance === 'high');
   
-  // Collect stats from today's events with historical data
-  const todayStatsRaw = todayEvents
+  // Collect stats from 24h-window events with historical data
+  const windowStatsRaw = windowEvents
     .filter(e => e.historicalStats !== null)
     .map(e => ({ name: e.event, prob: e.historicalStats!.probMoveGt2Pct, sampleSize: e.historicalStats!.sampleSize, stats: e.historicalStats! }));
 
-  if (todayStatsRaw.length === 0) {
+  if (windowStatsRaw.length === 0) {
+    // Even with no events, apply realized volatility floor if available
+    const volFloor = realizedVolPct ? Math.round((realizedVolPct / Math.sqrt(365)) * 10) / 10 : 0;
+    const baseRange24h = { low: -1.0, high: 1.0 };
     return {
       riskRegime: 'LOW' as const,
       regimeScore: 0,
       expectedRange2h: { low: -0.5, high: 0.5 },
-      expectedRange24h: { low: -1.0, high: 1.0 },
+      expectedRange24h: {
+        low: Math.min(baseRange24h.low, -volFloor),
+        high: Math.max(baseRange24h.high, volFloor),
+      },
       compositeMoveProbability: 0,
       positionSizeMultiplier: VOLATILITY_ENGINE.POSITION_MULTIPLIERS.LOW,
-      positionSizeReason: 'No significant events today',
+      positionSizeReason: 'No significant events within 24h',
       eventCluster: { count: 0, within24h: false, amplificationFactor: 1.0 },
     };
   }
 
-  const todayStats = todayStatsRaw.map(r => r.stats);
+  const windowStats = windowStatsRaw.map(r => r.stats);
 
   // Correlation-dampened composite move probability
   // effectiveP = 1 - Π(1 - P_i * weight_i)
   const weighted = assignCorrelationWeights(
-    todayStatsRaw.map(r => ({ name: r.name, prob: r.prob, sampleSize: r.sampleSize }))
+    windowStatsRaw.map(r => ({ name: r.name, prob: r.prob, sampleSize: r.sampleSize }))
   );
   const compositeMoveProbability = Math.round(
     (1 - weighted.reduce((acc, w) => acc * (1 - (w.prob / 100) * w.weight), 1)) * 100
   );
 
   // Event clustering
-  const clusterCount = highImpactToday.length;
+  const clusterCount = highImpactWindow.length;
   const amplificationFactor = clusterCount >= 3 
     ? VOLATILITY_ENGINE.CLUSTER_AMPLIFICATION.THREE_PLUS
     : clusterCount >= 2 
@@ -173,41 +191,45 @@ function calculateVolatilityEngine(events: ProcessedEvent[]) {
       : 1.0;
 
   // Robust range calculation using median + 90th percentile approach
-  // For small samples (n < 30), compress the range to avoid overstating tail risk
   const clusterFactor = clusterCount > 1 ? VOLATILITY_ENGINE.RANGE_EXPANSION.CLUSTER_FACTOR : 1.0;
   
-  // Use median for central tendency, average of max and worst for tails
-  const medians = todayStats.map(s => s.medianBtcMove2h);
-  const maxMoves = todayStats.map(s => s.maxBtcMove2h);
-  const worstCases = todayStats.map(s => s.worstCase2h);
-  const sampleSizes = todayStats.map(s => s.sampleSize);
+  const medians = windowStats.map(s => s.medianBtcMove2h);
+  const maxMoves = windowStats.map(s => s.maxBtcMove2h);
+  const worstCases = windowStats.map(s => s.worstCase2h);
+  const sampleSizes = windowStats.map(s => s.sampleSize);
   const minSample = Math.min(...sampleSizes);
 
-  // Blend median and max/worst: use 70% weight on median-derived range, 30% on extremes
-  // This prevents small-sample worst-case outliers from dominating
   const medianUp = Math.max(...medians);
   const extremeUp = Math.max(...maxMoves);
-  const medianDown = -Math.max(...medians); // symmetric assumption for median
+  const medianDown = -Math.max(...medians);
   const extremeDown = Math.min(...worstCases);
 
   let rangeUp = medianUp * 0.7 + extremeUp * 0.3;
   let rangeDown = medianDown * 0.7 + extremeDown * 0.3;
 
-  // Small sample compression: if min sample < 30, compress range
   if (minSample < VOLATILITY_ENGINE.SMALL_SAMPLE_THRESHOLD) {
     const compression = VOLATILITY_ENGINE.SMALL_SAMPLE_COMPRESSION;
     rangeUp *= compression;
-    rangeDown *= compression; // rangeDown is negative, compression makes it less extreme
+    rangeDown *= compression;
   }
 
   const expectedRange2h = {
     low: Math.round(rangeDown * clusterFactor * 10) / 10,
     high: Math.round(rangeUp * clusterFactor * 10) / 10,
   };
-  const expectedRange24h = {
+  let expectedRange24h = {
     low: Math.round(expectedRange2h.low * VOLATILITY_ENGINE.RANGE_EXPANSION.BASE_24H_MULTIPLIER * 10) / 10,
     high: Math.round(expectedRange2h.high * VOLATILITY_ENGINE.RANGE_EXPANSION.BASE_24H_MULTIPLIER * 10) / 10,
   };
+
+  // Apply realized volatility floor: calendar range must not be narrower than daily realized vol
+  if (realizedVolPct) {
+    const volFloor = Math.round((realizedVolPct / Math.sqrt(365)) * 10) / 10;
+    expectedRange24h = {
+      low: Math.min(expectedRange24h.low, -volFloor),
+      high: Math.max(expectedRange24h.high, volFloor),
+    };
+  }
 
   // Risk regime: pure function of composite probability + high event count
   let riskRegime: 'EXTREME' | 'HIGH' | 'ELEVATED' | 'NORMAL' | 'LOW';
@@ -218,19 +240,16 @@ function calculateVolatilityEngine(events: ProcessedEvent[]) {
     riskRegime = 'HIGH';
   } else if (compositeMoveProbability >= VOLATILITY_ENGINE.REGIME_THRESHOLDS.ELEVATED.minProbability) {
     riskRegime = 'ELEVATED';
-  } else if (todayStats.length > 0) {
+  } else if (windowStats.length > 0) {
     riskRegime = 'NORMAL';
   } else {
     riskRegime = 'LOW';
   }
 
-  // regimeScore = compositeMoveProbability (single source of truth, no separate scoring)
   const regimeScore = compositeMoveProbability;
-
   const positionSizeMultiplier = VOLATILITY_ENGINE.POSITION_MULTIPLIERS[riskRegime];
 
-  // Build reason string
-  const eventNames = highImpactToday.map(e => e.event).join(' + ');
+  const eventNames = highImpactWindow.map(e => e.event).join(' + ');
   const reductionPct = Math.round((1 - positionSizeMultiplier) * 100);
   const positionSizeReason = reductionPct > 0
     ? `${eventNames || 'Events'} = reduce ${reductionPct}%`
@@ -386,6 +405,16 @@ serve(async (req) => {
       });
     }
     // === END AUTH CHECK ===
+    
+    // Parse optional realizedVolPct from request body (POST) or default to 0
+    let realizedVolPct = 0;
+    try {
+      if (req.method === 'POST') {
+        const body = await req.json();
+        realizedVolPct = typeof body.realizedVolPct === 'number' ? body.realizedVolPct : 0;
+      }
+    } catch { /* GET request or no body — use default */ }
+
     // Fetch from Forex Factory free JSON endpoint (no API key required)
     const ffResponse = await fetch('https://nfs.faireconomy.media/ff_calendar_thisweek.json', {
       headers: {
@@ -476,7 +505,7 @@ serve(async (req) => {
         timeUntil
       },
       impactSummary: calculateRiskAdjustment(processedEvents),
-      volatilityEngine: calculateVolatilityEngine(processedEvents),
+      volatilityEngine: calculateVolatilityEngine(processedEvents, realizedVolPct),
       lastUpdated: new Date().toISOString()
     };
 
