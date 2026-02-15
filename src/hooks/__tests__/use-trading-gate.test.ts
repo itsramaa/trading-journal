@@ -68,8 +68,8 @@ vi.mock('@/hooks/use-unified-daily-pnl', () => ({
   useUnifiedDailyPnl: () => mockDailyPnl,
 }));
 
-vi.mock('@/hooks/use-trade-entries', () => ({
-  useTradeEntries: () => ({ data: mockTradeEntries, isLoading: false }),
+vi.mock('@/hooks/use-mode-filtered-trades', () => ({
+  useModeFilteredTrades: () => ({ data: mockTradeEntries, isLoading: false }),
 }));
 
 // Import after mocks
@@ -260,9 +260,9 @@ describe('useTradingGate', () => {
       const { result } = renderHook(() => useTradingGate());
       
       expect(result.current.thresholds).toEqual({
-        warning: 70,
-        danger: 90,
-        disabled: 100,
+        WARNING: 70,
+        DANGER: 90,
+        DISABLED: 100,
       });
     });
   });
