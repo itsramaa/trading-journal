@@ -121,7 +121,7 @@ export function useSymbolBreakdown(): SymbolBreakdownResult {
     // Binance connected - use bySymbol data
     if (tradeMode === 'live' && isConnected && binancePnl.bySymbol) {
       const binanceBreakdown: SymbolBreakdownItem[] = Object.entries(binancePnl.bySymbol)
-        .filter(([symbol]) => symbol !== 'N/A')
+        .filter(([symbol, data]) => symbol !== 'N/A' && (data as any).count > 0)
         .map(([symbol, data]) => ({
           symbol,
           pnl: data.pnl,

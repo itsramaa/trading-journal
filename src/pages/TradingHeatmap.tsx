@@ -272,6 +272,9 @@ export default function TradingHeatmapPage() {
                       </div>
                       <p className="text-sm text-muted-foreground">
                         {s.trades} trades • {formatWinRate(s.winRate)} win rate
+                        {s.trades > 0 && s.trades < 10 && (
+                          <span className="text-xs opacity-60 ml-1">(low sample)</span>
+                        )}
                       </p>
                     </CardContent>
                   </Card>
@@ -285,48 +288,64 @@ export default function TradingHeatmapPage() {
             {/* Stats Cards Grid */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               {/* Best Hour */}
-              <Card className="border-profit/20">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <TrendingUp className="h-4 w-4 text-profit" />
-                    Best Hour
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {hourlyStats.best ? (
-                    <>
-                      <div className="text-lg font-bold">{formatHour(hourlyStats.best.hour)}</div>
-                      <p className="text-sm text-profit">
-                        {formatPnl(hourlyStats.best.pnl)} ({hourlyStats.best.trades} trades)
-                      </p>
-                    </>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">Not enough data</p>
-                  )}
-                </CardContent>
-              </Card>
+              {(() => {
+                const bestLabel = hourlyStats.best
+                  ? (hourlyStats.best.pnl < 0 ? 'Least Loss Hour' : 'Best Hour')
+                  : 'Best Hour';
+                const worstLabel = hourlyStats.worst
+                  ? (hourlyStats.worst.pnl > 0 ? 'Smallest Gain Hour' : 'Worst Hour')
+                  : 'Worst Hour';
+                const showWorst = !hourlyStats.best || !hourlyStats.worst
+                  || hourlyStats.best.hour !== hourlyStats.worst.hour;
+                
+                return (
+                  <>
+                    <Card className="border-profit/20">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium flex items-center gap-2">
+                          <TrendingUp className="h-4 w-4 text-profit" />
+                          {bestLabel}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {hourlyStats.best ? (
+                          <>
+                            <div className="text-lg font-bold">{formatHour(hourlyStats.best.hour)}</div>
+                            <p className={`text-sm ${hourlyStats.best.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                              {formatPnl(hourlyStats.best.pnl)} ({hourlyStats.best.trades} trades)
+                            </p>
+                          </>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">Not enough data</p>
+                        )}
+                      </CardContent>
+                    </Card>
 
-              {/* Worst Hour */}
-              <Card className="border-loss/20">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <TrendingDown className="h-4 w-4 text-loss" />
-                    Worst Hour
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {hourlyStats.worst ? (
-                    <>
-                      <div className="text-lg font-bold">{formatHour(hourlyStats.worst.hour)}</div>
-                      <p className="text-sm text-loss">
-                        {formatPnl(hourlyStats.worst.pnl)} ({hourlyStats.worst.trades} trades)
-                      </p>
-                    </>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">Not enough data</p>
-                  )}
-                </CardContent>
-              </Card>
+                    <Card className="border-loss/20">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium flex items-center gap-2">
+                          <TrendingDown className="h-4 w-4 text-loss" />
+                          {worstLabel}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {showWorst && hourlyStats.worst ? (
+                          <>
+                            <div className="text-lg font-bold">{formatHour(hourlyStats.worst.hour)}</div>
+                            <p className={`text-sm ${hourlyStats.worst.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                              {formatPnl(hourlyStats.worst.pnl)} ({hourlyStats.worst.trades} trades)
+                            </p>
+                          </>
+                        ) : !showWorst ? (
+                          <p className="text-sm text-muted-foreground">Same as {bestLabel.toLowerCase()}</p>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">Not enough data</p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </>
+                );
+              })()}
 
               {/* Longest Win Streak */}
               <Card>
@@ -337,10 +356,19 @@ export default function TradingHeatmapPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-lg font-bold">{streakData.longestWin} {streakData.longestWin === 1 ? 'trade' : 'trades'}</div>
-                  <p className="text-sm text-muted-foreground">
-                    Current: {streakData.currentStreak > 0 ? `${streakData.currentStreak} ${streakData.currentStreak === 1 ? 'win' : 'wins'}` : 'N/A'}
-                  </p>
+                  {streakData.longestWin === 0 ? (
+                    <>
+                      <div className="text-lg font-bold text-muted-foreground">--</div>
+                      <p className="text-sm text-muted-foreground">No winning trades in selected period</p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-lg font-bold">{streakData.longestWin} {streakData.longestWin === 1 ? 'trade' : 'trades'}</div>
+                      <p className="text-sm text-muted-foreground">
+                        Current: {streakData.currentStreak > 0 ? `${streakData.currentStreak} ${streakData.currentStreak === 1 ? 'win' : 'wins'}` : 'N/A'}
+                      </p>
+                    </>
+                  )}
                 </CardContent>
               </Card>
 
@@ -353,10 +381,19 @@ export default function TradingHeatmapPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-lg font-bold">{streakData.longestLoss} {streakData.longestLoss === 1 ? 'trade' : 'trades'}</div>
-                  <p className="text-sm text-muted-foreground">
-                    Current: {streakData.currentStreak < 0 ? `${Math.abs(streakData.currentStreak)} ${Math.abs(streakData.currentStreak) === 1 ? 'loss' : 'losses'}` : 'N/A'}
-                  </p>
+                  {streakData.longestLoss === 0 ? (
+                    <>
+                      <div className="text-lg font-bold text-muted-foreground">--</div>
+                      <p className="text-sm text-muted-foreground">No losing trades in selected period</p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-lg font-bold">{streakData.longestLoss} {streakData.longestLoss === 1 ? 'trade' : 'trades'}</div>
+                      <p className="text-sm text-muted-foreground">
+                        Current: {streakData.currentStreak < 0 ? `${Math.abs(streakData.currentStreak)} ${Math.abs(streakData.currentStreak) === 1 ? 'loss' : 'losses'}` : 'N/A'}
+                      </p>
+                    </>
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -367,6 +404,9 @@ export default function TradingHeatmapPage() {
                 Showing {filteredTrades.length} closed trades
                 {selectedPair !== 'all' && ` for ${selectedPair}`}
                 {dateRange !== 'all' && ` in last ${dateRange.replace('d', ' days')}`}
+                {filteredTrades.length < 20 && filteredTrades.length > 0 && (
+                  <span className="ml-1 opacity-60">— Sample size is limited</span>
+                )}
               </span>
               <span>
                 Total P&L: <span className={filteredTrades.reduce((sum, t) => sum + (t.realized_pnl ?? t.pnl ?? 0), 0) >= 0 ? 'text-profit' : 'text-loss'}>
