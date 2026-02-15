@@ -18,7 +18,7 @@ export const DEFAULT_WATCHLIST_SYMBOLS = [
 export const API_LIMITS = {
   MAX_SYMBOLS_PER_REQUEST: 10,
   MAX_EVENTS_PER_REQUEST: 15,
-  KLINES_LIMIT: 200,
+  KLINES_LIMIT: 720, // 30 days hourly = 697 rolling windows for robust P95
 } as const;
 
 // Technical analysis periods

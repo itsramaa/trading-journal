@@ -67,23 +67,31 @@ export function classifyMarketRegime(input: RegimeInput): RegimeOutput {
   };
 }
 
+/**
+ * Non-linear Fear & Greed transformation.
+ * Extreme fear (<20) and extreme greed (>80) have outsized influence.
+ * Historically, F&G < 15 = bottoming zone, > 85 = topping zone.
+ */
+function transformFearGreed(fg: number): number {
+  if (fg <= 20) return fg * 0.75; // 8 → 6, stronger bearish pull
+  if (fg >= 80) return 85 + (fg - 80) * 0.75; // 90 → 92.5, amplified greed
+  return fg; // normal range: pass-through
+}
+
 function calculateComposite(input: RegimeInput): number {
   // Pure signal composite — event risk and volatility are NOT included here.
   // They act as regime overrides only (determineRegime), preventing double-counting.
   const technical = input.technicalScore * 0.35;
   const onChain = input.onChainScore * 0.20;
   const macro = input.macroScore * 0.25;
-  const fearGreed = input.fearGreedValue * 0.20;
+  const fearGreed = transformFearGreed(input.fearGreedValue) * 0.20;
   const linearScore = technical + onChain + macro + fearGreed;
 
   // Divergence penalty: disagreement among components = uncertainty
-  // High variance → reduce composite toward neutral (50)
-  const components = [input.technicalScore, input.onChainScore, input.macroScore, input.fearGreedValue];
+  const components = [input.technicalScore, input.onChainScore, input.macroScore, transformFearGreed(input.fearGreedValue)];
   const mean = components.reduce((a, b) => a + b, 0) / components.length;
   const variance = components.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / components.length;
-  // Normalize: max possible variance for 0-100 scores ≈ 2500, penalty capped at ~5 points
   const divergencePenalty = Math.min(5, (variance / 500));
-  // Pull toward neutral when components disagree
   const adjusted = linearScore > 50
     ? linearScore - divergencePenalty
     : linearScore + divergencePenalty;
