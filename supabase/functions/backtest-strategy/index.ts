@@ -14,6 +14,9 @@ interface BacktestConfig {
   initialCapital: number;
   commissionRate: number;
   slippage?: number;
+  riskPerTrade?: number;
+  compounding?: boolean;
+  leverage?: number;
 }
 
 interface Candle {
@@ -315,9 +318,12 @@ function runBacktest(
       if ((entryLong || entryShort) && Math.random() > 0.7) {
         const direction = entryLong ? 'long' : 'short';
         const entryPrice = candle.close * (1 + (config.slippage || 0.001) * (direction === 'long' ? 1 : -1));
-        const riskAmount = balance * 0.02; // 2% risk per trade
+        const riskBase = config.compounding ? balance : config.initialCapital;
+        const riskPercent = config.riskPerTrade || 0.02;
+        const riskAmount = riskBase * riskPercent;
         const stopDistance = entryPrice * (slPercent / 100);
-        const quantity = riskAmount / stopDistance;
+        const leverageMultiplier = config.leverage || 1;
+        const quantity = (riskAmount / stopDistance) * leverageMultiplier;
         
         position = {
           direction,
@@ -387,12 +393,12 @@ function runBacktest(
   }
   
   // Calculate metrics
-  const metrics = calculateMetrics(trades, config.initialCapital);
+  const metrics = calculateMetrics(trades, config.initialCapital, config.periodStart, config.periodEnd);
   
   return { trades, equityCurve, metrics };
 }
 
-function calculateMetrics(trades: Trade[], initialCapital: number) {
+function calculateMetrics(trades: Trade[], initialCapital: number, periodStart?: string, periodEnd?: string) {
   if (trades.length === 0) {
     return {
       totalReturn: 0,
@@ -413,6 +419,13 @@ function calculateMetrics(trades: Trade[], initialCapital: number) {
       consecutiveLosses: 0,
       avgRiskReward: 0,
       holdingPeriodAvg: 0,
+      expectancy: 0,
+      expectancyPerR: 0,
+      calmarRatio: 0,
+      grossPnl: 0,
+      totalCommissions: 0,
+      netPnl: 0,
+      exposurePercent: 0,
     };
   }
 
@@ -421,6 +434,19 @@ function calculateMetrics(trades: Trade[], initialCapital: number) {
   
   const totalPnl = trades.reduce((sum, t) => sum + t.pnl, 0);
   const grossProfit = winningTrades.reduce((sum, t) => sum + t.pnl, 0);
+  const grossLoss = Math.abs(losingTrades.reduce((sum, t) => sum + t.pnl, 0));
+  const totalCommissions = trades.reduce((sum, t) => sum + t.commission, 0);
+  const grossPnl = totalPnl + totalCommissions;
+
+  // Market exposure
+  let exposurePercent = 0;
+  if (periodStart && periodEnd && trades.length > 0) {
+    const totalPeriodMs = new Date(periodEnd).getTime() - new Date(periodStart).getTime();
+    const totalInMarketMs = trades.reduce((sum, t) => {
+      return sum + (new Date(t.exitTime).getTime() - new Date(t.entryTime).getTime());
+    }, 0);
+    exposurePercent = totalPeriodMs > 0 ? (totalInMarketMs / totalPeriodMs) * 100 : 0;
+  }
   const grossLoss = Math.abs(losingTrades.reduce((sum, t) => sum + t.pnl, 0));
   
   // Calculate max drawdown
@@ -466,15 +492,21 @@ function calculateMetrics(trades: Trade[], initialCapital: number) {
   const stdDev = Math.sqrt(returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / returns.length);
   const sharpe = stdDev > 0 ? (avgReturn / stdDev) * Math.sqrt(252) : 0;
 
+  const winRate = trades.length > 0 ? winningTrades.length / trades.length : 0;
+  const avgWin = winningTrades.length > 0 ? grossProfit / winningTrades.length : 0;
+  const avgLoss = losingTrades.length > 0 ? grossLoss / losingTrades.length : 0;
+  const avgRiskReward = losingTrades.length > 0 && winningTrades.length > 0
+    ? avgWin / avgLoss : 0;
+
   return {
     totalReturn: (totalPnl / initialCapital) * 100,
     totalReturnAmount: totalPnl,
-    winRate: trades.length > 0 ? winningTrades.length / trades.length : 0,
+    winRate,
     totalTrades: trades.length,
     winningTrades: winningTrades.length,
     losingTrades: losingTrades.length,
-    avgWin: winningTrades.length > 0 ? grossProfit / winningTrades.length : 0,
-    avgLoss: losingTrades.length > 0 ? grossLoss / losingTrades.length : 0,
+    avgWin,
+    avgLoss,
     avgWinPercent: winningTrades.length > 0 
       ? winningTrades.reduce((sum, t) => sum + t.pnlPercent, 0) / winningTrades.length 
       : 0,
@@ -487,9 +519,14 @@ function calculateMetrics(trades: Trade[], initialCapital: number) {
     sharpeRatio: sharpe,
     consecutiveWins: maxConsecWins,
     consecutiveLosses: maxConsecLosses,
-    avgRiskReward: losingTrades.length > 0 && winningTrades.length > 0
-      ? (grossProfit / winningTrades.length) / (grossLoss / losingTrades.length)
-      : 0,
+    avgRiskReward,
     holdingPeriodAvg: avgHolding,
+    expectancy: winRate * avgWin - ((1 - winRate) * Math.abs(avgLoss)),
+    expectancyPerR: avgRiskReward > 0 ? (winRate * avgRiskReward) - (1 - winRate) : 0,
+    calmarRatio: maxDD > 0 ? ((totalPnl / initialCapital) * 100) / (maxDD * 100) : 0,
+    grossPnl,
+    totalCommissions,
+    netPnl: totalPnl,
+    exposurePercent,
   };
 }
