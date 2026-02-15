@@ -29,7 +29,9 @@ import { useNotificationsRealtime } from "@/hooks/use-notifications";
 import { useNotificationTriggers } from "@/hooks/use-notification-triggers";
 import { useBinanceBackgroundSync } from "@/hooks/use-binance-background-sync";
 import { GlobalSyncIndicator } from "./GlobalSyncIndicator";
+import { ExchangeOnboardingModal, useExchangeOnboarding } from "./ExchangeOnboardingModal";
 import { useUserSettings } from "@/hooks/use-user-settings";
+import { useExchangeCredentials } from "@/hooks/use-exchange-credentials";
 import { Button } from "@/components/ui/button";
 import { Search } from "lucide-react";
 
@@ -107,16 +109,26 @@ export function DashboardLayout() {
   const { data: userSettings, isLoading: settingsLoading } = useUserSettings();
   const [showSessionModal, setShowSessionModal] = useState(false);
   const [sessionDismissed, setSessionDismissed] = useState(false);
+  
+  // Exchange onboarding - show after session modal
+  const { shouldShow: shouldShowExchangeOnboarding } = useExchangeOnboarding();
+  const { credential } = useExchangeCredentials();
+  const [showExchangeOnboarding, setShowExchangeOnboarding] = useState(false);
 
   useEffect(() => {
     if (settingsLoading || sessionDismissed) return;
-    // Show modal if settings exist but mode was never explicitly set
-    // We detect this via localStorage flag set after first explicit selection
     const hasExplicitlySelected = localStorage.getItem('session_context_selected');
     if (userSettings && !hasExplicitlySelected) {
       setShowSessionModal(true);
     }
   }, [userSettings, settingsLoading, sessionDismissed]);
+
+  // Show exchange onboarding after session modal is dismissed, if no credentials exist
+  useEffect(() => {
+    if (sessionDismissed && shouldShowExchangeOnboarding && !credential?.id) {
+      setShowExchangeOnboarding(true);
+    }
+  }, [sessionDismissed, shouldShowExchangeOnboarding, credential?.id]);
 
   const handleSessionComplete = () => {
     localStorage.setItem('session_context_selected', 'true');
@@ -220,6 +232,12 @@ export function DashboardLayout() {
       <SessionContextModal
         open={showSessionModal}
         onComplete={handleSessionComplete}
+      />
+
+      {/* Exchange Onboarding (after session modal, if no credentials) */}
+      <ExchangeOnboardingModal
+        open={showExchangeOnboarding}
+        onComplete={() => setShowExchangeOnboarding(false)}
       />
     </SidebarProvider>
   );
