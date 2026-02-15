@@ -35,7 +35,7 @@ const NAVIGATION_SHORTCUTS: Record<string, { path: string; label: string; domain
   'd': { path: '/', label: 'Dashboard', domain: '' },
   
   // Market domain
-  'm': { path: '/market', label: 'AI Analysis', domain: 'Market' },
+  'm': { path: '/market', label: 'Market Bias', domain: 'Market' },
   'c': { path: '/calendar', label: 'Economic Calendar', domain: 'Market' },
   'v': { path: '/market-data', label: 'Market Data', domain: 'Market' },
   'o': { path: '/top-movers', label: 'Top Movers', domain: 'Market' },

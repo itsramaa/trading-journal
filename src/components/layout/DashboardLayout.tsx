@@ -46,7 +46,7 @@ const routeHierarchy: Record<string, RouteInfo> = {
   // Market domain - Market Data is primary entry point
   "/market-data": { title: "Market Data", domain: "Market", domainPath: "/market-data" },
   "/calendar": { title: "Economic Calendar", domain: "Market", domainPath: "/market-data" },
-  "/market": { title: "AI Analysis", domain: "Market", domainPath: "/market-data" },
+  "/market": { title: "Market Bias", domain: "Market", domainPath: "/market-data" },
   
   // Journal domain
   "/trading": { title: "Trading Journal", domain: "Journal", domainPath: "/trading" },
