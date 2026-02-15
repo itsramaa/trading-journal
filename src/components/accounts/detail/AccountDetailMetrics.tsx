@@ -45,6 +45,17 @@ export function AccountDetailMetrics({
   const totalTrades = stats?.totalTrades || 0;
   const hasTrades = totalTrades > 0;
 
+  // Derive status subtitle outside JSX for readability
+  const getStatusSubtitle = (): string => {
+    if (isBinanceVirtual && activePositionsCount > 0) {
+      return `${activePositionsCount} open position${activePositionsCount > 1 ? 's' : ''} active. Metrics update after first close.`;
+    }
+    if (isBinanceVirtual) {
+      return 'Open a position to start tracking performance.';
+    }
+    return 'Start trading or import history.';
+  };
+
   // When no closed trades, show condensed 2-card layout
   if (!hasTrades && !statsLoading) {
     return (
@@ -78,11 +89,7 @@ export function AccountDetailMetrics({
               <Info className="h-8 w-8 text-muted-foreground/50" />
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              {isBinanceVirtual && activePositionsCount > 0
-                ? `${activePositionsCount} open position${activePositionsCount > 1 ? 's' : ''} active. Metrics update after first close.`
-                : isBinanceVirtual
-                  ? 'Open a position to start tracking performance.'
-                  : 'Start trading or import history.'}
+              {getStatusSubtitle()}
             </p>
           </CardContent>
         </Card>
