@@ -40,17 +40,26 @@ export function TradeHistoryStats({
 
   return (
     <div className="flex gap-4 text-sm">
-      <div className="text-center">
-        <div className="text-2xl font-bold">
-          {displayedCount}
-          {serverTotalTrades > displayedCount && (
-            <span className="text-sm text-muted-foreground font-normal">/{serverTotalTrades}</span>
-          )}
-        </div>
-        <div className="text-muted-foreground">
-          {hasActiveFilters ? 'Filtered' : 'Trades'}
-        </div>
-      </div>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="text-center cursor-help">
+              <div className="text-2xl font-bold">
+                {displayedCount}
+                {serverTotalTrades > displayedCount && (
+                  <span className="text-sm text-muted-foreground font-normal">/{serverTotalTrades}</span>
+                )}
+              </div>
+              <div className="text-muted-foreground">
+                {hasActiveFilters ? 'Filtered' : 'Trades'}
+              </div>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>{hasActiveFilters ? `Showing ${displayedCount} of ${serverTotalTrades} total trades matching current filters.` : `Total number of closed trades loaded.`}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
 
       <TooltipProvider>
         <Tooltip>
@@ -75,10 +84,19 @@ export function TradeHistoryStats({
         </Tooltip>
       </TooltipProvider>
 
-      <div className="text-center">
-        <div className="text-2xl font-bold">{winRate.toFixed(1)}%</div>
-        <div className="text-muted-foreground">Win Rate</div>
-      </div>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="text-center cursor-help">
+              <div className="text-2xl font-bold">{winRate.toFixed(1)}%</div>
+              <div className="text-muted-foreground">Win Rate</div>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Percentage of closed trades that resulted in profit. Calculated server-side from all filtered trades.</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
 
       {tradesNeedingEnrichment > 0 && (
         <TooltipProvider>

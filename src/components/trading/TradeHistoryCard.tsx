@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Calendar, Tag, Target, MoreVertical, Trash2, Brain, Wifi, Edit3, ImageIcon, MessageSquarePlus, MessageSquare, Loader2, ExternalLink, Eye } from "lucide-react";
 import { TradeStateBadge } from "@/components/ui/trade-state-badge";
 import { TradeRatingBadge } from "@/components/ui/trade-rating-badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format } from "date-fns";
 import { TradeEntry } from "@/hooks/use-trade-entries";
 import { cn } from "@/lib/utils";
@@ -131,18 +132,29 @@ export const TradeHistoryCard = React.forwardRef<HTMLDivElement, TradeHistoryCar
               <TradeRatingBadge rating={entry.trade_rating} />
               {/* AI Quality Score Badge */}
               {entry.ai_quality_score !== null && entry.ai_quality_score !== undefined && (
-                <Badge 
-                  variant="outline" 
-                  className={cn(
-                    "gap-1",
-                    entry.ai_quality_score >= 80 && "border-green-500 text-green-500",
-                    entry.ai_quality_score >= 60 && entry.ai_quality_score < 80 && "border-yellow-500 text-yellow-500",
-                    entry.ai_quality_score < 60 && "border-red-500 text-red-500"
-                  )}
-                >
-                  <Brain className="h-3 w-3" />
-                  AI: {entry.ai_quality_score}%
-                </Badge>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span>
+                        <Badge 
+                          variant="outline" 
+                          className={cn(
+                            "gap-1",
+                            entry.ai_quality_score >= 80 && "border-green-500 text-green-500",
+                            entry.ai_quality_score >= 60 && entry.ai_quality_score < 80 && "border-yellow-500 text-yellow-500",
+                            entry.ai_quality_score < 60 && "border-red-500 text-red-500"
+                          )}
+                        >
+                          <Brain className="h-3 w-3" />
+                          AI: {entry.ai_quality_score}%
+                        </Badge>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>AI-assessed trade quality. Excellent (≥80), Good (≥60), Fair (≥40), Poor (&lt;40).</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               )}
               {/* Screenshot indicator */}
               {hasScreenshots && (
@@ -167,8 +179,8 @@ export const TradeHistoryCard = React.forwardRef<HTMLDivElement, TradeHistoryCar
               )}
             </div>
             <div className="flex items-center gap-2">
-              <span className={`font-bold text-lg ${(entry.realized_pnl || 0) >= 0 ? "text-profit" : "text-loss"}`}>
-                {(entry.realized_pnl || 0) >= 0 ? "+" : ""}{formatCurrency(entry.realized_pnl || 0)}
+              <span className={`font-bold text-lg ${(entry.realized_pnl ?? entry.pnl ?? 0) >= 0 ? "text-profit" : "text-loss"}`}>
+                {(entry.realized_pnl ?? entry.pnl ?? 0) >= 0 ? "+" : ""}{formatCurrency(entry.realized_pnl ?? entry.pnl ?? 0)}
               </span>
               
               {/* Enrich Button */}

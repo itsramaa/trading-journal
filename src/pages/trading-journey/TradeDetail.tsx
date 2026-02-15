@@ -26,6 +26,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { TradeEnrichmentDrawer } from "@/components/journal";
 import type { UnifiedPosition } from "@/components/journal";
 import type { TradeEntry, TradeScreenshot } from "@/hooks/use-trade-entries";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   ArrowLeft,
   TrendingUp,
@@ -89,32 +90,58 @@ function unrealizedR(
   return (reward / risk).toFixed(2);
 }
 
-function KeyMetric({ label, value, subtitle, className }: { label: string; value: React.ReactNode; subtitle?: string; className?: string }) {
-  return (
+function KeyMetric({ label, value, subtitle, className, tooltip }: { label: string; value: React.ReactNode; subtitle?: string; className?: string; tooltip?: string }) {
+  const content = (
     <div className="text-center space-y-1">
       <p className="text-xs text-muted-foreground uppercase tracking-wider">{label}</p>
       <p className={`text-sm font-semibold font-mono ${className || ''}`}>{value ?? '-'}</p>
       {subtitle && <p className="text-[10px] text-muted-foreground/70">{subtitle}</p>}
     </div>
   );
+  if (!tooltip) return content;
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild><div className="cursor-help">{content}</div></TooltipTrigger>
+        <TooltipContent className="max-w-xs"><p>{tooltip}</p></TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
 }
 
-function DetailRow({ label, value, className }: { label: string; value: React.ReactNode; className?: string }) {
+function DetailRow({ label, value, className, tooltip }: { label: string; value: React.ReactNode; className?: string; tooltip?: string }) {
   return (
     <div className="flex justify-between items-start py-1.5">
-      <span className="text-sm text-muted-foreground">{label}</span>
+      {tooltip ? (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild><span className="text-sm text-muted-foreground cursor-help">{label}</span></TooltipTrigger>
+            <TooltipContent className="max-w-xs"><p>{tooltip}</p></TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      ) : (
+        <span className="text-sm text-muted-foreground">{label}</span>
+      )}
       <span className={`text-sm font-medium text-right max-w-[60%] ${className || ''}`}>{value ?? '-'}</span>
     </div>
   );
 }
 
-function SectionCard({ title, icon: Icon, children, className }: { title: string; icon: React.ElementType; children: React.ReactNode; className?: string }) {
+function SectionCard({ title, icon: Icon, children, className, tooltip }: { title: string; icon: React.ElementType; children: React.ReactNode; className?: string; tooltip?: string }) {
   return (
     <Card className={className}>
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <Icon className="h-4 w-4 text-primary" />
           {title}
+          {tooltip && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild><span className="text-muted-foreground cursor-help text-xs">ⓘ</span></TooltipTrigger>
+                <TooltipContent className="max-w-xs"><p>{tooltip}</p></TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-0.5">{children}</CardContent>
@@ -357,15 +384,26 @@ export default function TradeDetail() {
   const isLive = trade.status !== 'closed';
   const journalMode: 'operational' | 'reflective' = isLive ? 'operational' : 'reflective';
   const pnlValue = trade.realized_pnl ?? trade.pnl ?? 0;
-  const totalFees = (trade.commission || 0) + (trade.fees || 0) + ((trade as any).funding_fees || 0);
+  const fundingFees = (trade as any).funding_fees || 0;
+  const totalFees = (trade.commission || 0) + (trade.fees || 0) + fundingFees;
   const netPnl = pnlValue - totalFees;
   const isPaper = trade.source !== 'binance' && trade.trade_mode !== 'live';
   const postAnalysis = trade.post_trade_analysis as Record<string, any> | null;
   const ruleCompliance = trade.rule_compliance as Record<string, boolean> | null;
   const screenshots = trade.screenshots || [];
+  const tradeLeverage = (trade as any).leverage;
+  const tradeHoldTime = (trade as any).hold_time_minutes;
+  const tradeSession = (trade as any).session;
+  const tradeEntryDatetime = (trade as any).entry_datetime;
+  const tradeExitDatetime = (trade as any).exit_datetime;
+  const tradePrecisionTf = (trade as any).precision_timeframe;
+  const tradeRMultiple = (trade as any).r_multiple;
+  const tradeMAE = (trade as any).max_adverse_excursion;
+  const tradeMarginType = (trade as any).margin_type;
+  const tradeStyle = (trade as any).trade_style;
 
-  const hasTimingData = hasContent(trade.entry_datetime, trade.exit_datetime, (trade as any).hold_time_minutes, (trade as any).session);
-  const hasTimeframeData = hasContent(trade.bias_timeframe, trade.execution_timeframe, (trade as any).precision_timeframe);
+  const hasTimingData = hasContent(tradeEntryDatetime, tradeExitDatetime, tradeHoldTime, tradeSession);
+  const hasTimeframeData = hasContent(trade.bias_timeframe, trade.execution_timeframe, tradePrecisionTf);
   const hasStrategyData = hasContent(trade.entry_signal, trade.market_condition, trade.confluence_score) || (trade.strategies?.length > 0);
   const hasJournalData = hasContent(trade.emotional_state, trade.notes, trade.lesson_learned) || (trade.tags?.length > 0) || (ruleCompliance && Object.keys(ruleCompliance).length > 0);
   // For live trades, only operational journal data matters (not reflective emotion/compliance)
@@ -375,7 +413,7 @@ export default function TradeDetail() {
   // Live-specific data
   const markPrice = trade._markPrice;
   const liqPrice = trade._liquidationPrice;
-  const liqMetrics = liqDistanceMetrics(markPrice, liqPrice, (trade as any).leverage);
+  const liqMetrics = liqDistanceMetrics(markPrice, liqPrice, tradeLeverage);
   const liveUnrealizedR = unrealizedR(trade.entry_price, markPrice, trade.stop_loss, trade.direction);
 
   // Risk context for closed trades
@@ -386,7 +424,7 @@ export default function TradeDetail() {
   // --- Shared Render Helpers (DRY) ---
   function renderStrategyContent(t: any) {
     return (
-      <SectionCard title="Strategy & Setup" icon={Target}>
+      <SectionCard title="Strategy & Setup" icon={Target} tooltip="Trading strategy, entry signal, and market conditions that justified this trade.">
         {t.strategies && t.strategies.length > 0 && (
           <div className="pb-2">
             <p className="text-xs text-muted-foreground mb-1.5">Strategies</p>
@@ -399,7 +437,7 @@ export default function TradeDetail() {
         )}
         <DetailRow label="Entry Signal" value={t.entry_signal} />
         <DetailRow label="Market Condition" value={t.market_condition} />
-        <DetailRow label="Confluence" value={t.confluence_score?.toString()} />
+        <DetailRow label="Confluence" value={t.confluence_score?.toString()} tooltip="Number of confirming factors aligned for this setup (1-5 scale). Higher confluence suggests stronger conviction." />
         <DetailRow label="Entry Order" value={t.entry_order_type} />
         {!isLive && <DetailRow label="Exit Order" value={t.exit_order_type} />}
         {hasContent(t.ai_quality_score, t.ai_confidence) && (
@@ -415,7 +453,7 @@ export default function TradeDetail() {
   function renderJournalContent(t: any, mode: 'operational' | 'reflective', rc: Record<string, boolean> | null) {
     const showReflective = mode === 'reflective';
     return (
-      <SectionCard title="Journal" icon={MessageSquare}>
+      <SectionCard title="Journal" icon={MessageSquare} tooltip="Qualitative analysis including emotional state, lessons learned, and rule compliance review.">
         {showReflective && t.emotional_state && <DetailRow label="Emotion" value={t.emotional_state} />}
         {t.notes && (
           <div className="pt-2">
@@ -456,7 +494,7 @@ export default function TradeDetail() {
 
   return (
     <ErrorBoundary title="Trade Detail" onRetry={() => setRetryKey(k => k + 1)}>
-    <div key={retryKey} className="space-y-6 max-w-5xl mx-auto">
+    <div key={retryKey} className="space-y-6 max-w-5xl mx-auto" role="region" aria-label="Trade Detail">
       {/* ===== HEADER ===== */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div className="flex items-start gap-3">
@@ -481,21 +519,30 @@ export default function TradeDetail() {
             <div className="flex items-center gap-2 mt-1.5 flex-wrap">
               <TradeStateBadge state={trade.trade_state} />
               {!isLive && <TradeRatingBadge rating={trade.trade_rating} />}
-              {(trade as any).trade_style && <Badge variant="outline" className="text-xs">{(trade as any).trade_style}</Badge>}
+              {tradeStyle && <Badge variant="outline" className="text-xs">{tradeStyle}</Badge>}
             </div>
           </div>
         </div>
 
         {/* P&L + Actions */}
         <div className="flex flex-col items-end gap-2">
-          <div className="text-right">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider">
-              {isLive ? 'Unrealized P&L' : 'Net P&L'}
-            </p>
-            <p className={`text-2xl font-bold font-mono ${(isLive ? pnlValue : netPnl) >= 0 ? 'text-profit' : 'text-loss'}`}>
-              {formatPnl(isLive ? pnlValue : netPnl)}
-            </p>
-          </div>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="text-right cursor-help">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider">
+                    {isLive ? 'Unrealized P&L' : 'Net P&L'}
+                  </p>
+                  <p className={`text-2xl font-bold font-mono ${(isLive ? pnlValue : netPnl) >= 0 ? 'text-profit' : 'text-loss'}`}>
+                    {formatPnl(isLive ? pnlValue : netPnl)}
+                  </p>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                <p>{isLive ? 'Current profit/loss on open position, changes with market price.' : 'Final profit/loss after all fees (commission + funding).'}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => setEnrichDrawerOpen(true)}>
               <BookOpen className="h-4 w-4 mr-1" /> {isReadOnly ? 'Enrich' : 'Edit / Enrich'}
@@ -510,24 +557,26 @@ export default function TradeDetail() {
           <div className="flex flex-wrap gap-6 justify-center">
             {isLive ? (
               <>
-                <KeyMetric label="Entry" value={safeFixed(trade.entry_price, 2)} />
-                <KeyMetric label="Mark Price" value={safeFixed(markPrice, 2)} />
-                <KeyMetric label="Size" value={safeFixed(trade.quantity, 4)} />
-                <KeyMetric label="Leverage" value={(trade as any).leverage ? `${(trade as any).leverage}x` : undefined} />
-                {liqMetrics && <KeyMetric label="Risk Metric" value={`${liqMetrics.pricePct.toFixed(2)}%`} subtitle="Liq. Distance (Price)" />}
-                {liqMetrics?.equityPct !== undefined && <KeyMetric label="Risk Metric" value={`${liqMetrics.equityPct.toFixed(2)}%`} subtitle="Liq. Distance (Equity)" />}
+                <KeyMetric label="Entry" value={safeFixed(trade.entry_price, 2)} tooltip="Price at which the position was opened." />
+                <KeyMetric label="Mark Price" value={safeFixed(markPrice, 2)} tooltip="Current market price used for P&L and liquidation calculations. Updated in real-time from exchange." />
+                <KeyMetric label="Size" value={safeFixed(trade.quantity, 4)} tooltip="Position quantity in base asset units." />
+                <KeyMetric label="Leverage" value={tradeLeverage ? `${tradeLeverage}x` : undefined} tooltip="Multiplier applied to margin. Higher leverage amplifies both gains and losses." />
+                {liqMetrics && <KeyMetric label="Risk Metric" value={`${liqMetrics.pricePct.toFixed(2)}%`} subtitle="Liq. Distance (Price)" tooltip="Price distance to liquidation as a percentage. Larger = safer." />}
+                {liqMetrics?.equityPct !== undefined && <KeyMetric label="Risk Metric" value={`${liqMetrics.equityPct.toFixed(2)}%`} subtitle="Liq. Distance (Equity)" tooltip="Estimated equity impact at liquidation. Equals price distance × leverage. This is an approximation." />}
                 {liveUnrealizedR && (
                   <KeyMetric
                     label="Unrealized R"
                     value={`${parseFloat(liveUnrealizedR) >= 0 ? '+' : ''}${liveUnrealizedR}R`}
                     className={parseFloat(liveUnrealizedR) >= 0 ? 'text-profit' : 'text-loss'}
                     subtitle={parseFloat(liveUnrealizedR) >= 1 ? '≥1R — Risk-Free Zone Candidate' : undefined}
+                    tooltip="Current reward as a multiple of initial risk (distance to stop loss). Negative = underwater. ≥1.0R suggests the position could be moved to breakeven."
                   />
                 )}
                 <KeyMetric
                   label="Unrealized P&L"
                   value={formatPnl(pnlValue)}
                   className={pnlValue >= 0 ? 'text-profit' : 'text-loss'}
+                  tooltip="Current profit/loss on this open position, changes with market price."
                 />
               </>
             ) : (
@@ -536,25 +585,27 @@ export default function TradeDetail() {
                   label="Net P&L"
                   value={formatPnl(netPnl)}
                   className={netPnl >= 0 ? 'text-profit' : 'text-loss'}
+                  tooltip="Final profit or loss after deducting all fees (commission, trading fees, funding fees)."
                 />
                 {trade.result && (
                   <KeyMetric
                     label="Result"
                     value={trade.result.toUpperCase()}
                     className={trade.result.toLowerCase() === 'win' ? 'text-profit' : trade.result.toLowerCase() === 'loss' ? 'text-loss' : 'text-muted-foreground'}
+                    tooltip="Trade outcome classification: Win (positive P&L), Loss (negative P&L), or Breakeven."
                   />
                 )}
-                {hasContent((trade as any).r_multiple) && (
-                  <KeyMetric label="Risk Metric" value={`${safeFixed((trade as any).r_multiple, 2)}R`} subtitle="Realized R-Multiple" />
+                {hasContent(tradeRMultiple) && (
+                  <KeyMetric label="Risk Metric" value={`${safeFixed(tradeRMultiple, 2)}R`} subtitle="Realized R-Multiple" tooltip="Realized reward as a multiple of initial risk. R > 1 means reward exceeded risk. R < 0 means a loss." />
                 )}
-                {hasContent((trade as any).hold_time_minutes) && (
-                  <KeyMetric label="Hold Time" value={formatHoldTime((trade as any).hold_time_minutes)} />
+                {hasContent(tradeHoldTime) && (
+                  <KeyMetric label="Hold Time" value={formatHoldTime(tradeHoldTime)} tooltip="Total duration from entry to exit." />
                 )}
-                {hasContent((trade as any).max_adverse_excursion) && (
-                  <KeyMetric label="MAE" value={safeFixed((trade as any).max_adverse_excursion, 4)} />
+                {hasContent(tradeMAE) && (
+                  <KeyMetric label="MAE" value={safeFixed(tradeMAE, 4)} tooltip="Maximum Adverse Excursion: The largest unrealized drawdown during the trade. Lower values indicate better entry timing." />
                 )}
-                <KeyMetric label="Entry" value={safeFixed(trade.entry_price, 2)} />
-                {hasContent(trade.exit_price) && <KeyMetric label="Exit" value={safeFixed(trade.exit_price, 2)} />}
+                <KeyMetric label="Entry" value={safeFixed(trade.entry_price, 2)} tooltip="Price at which the position was opened." />
+                {hasContent(trade.exit_price) && <KeyMetric label="Exit" value={safeFixed(trade.exit_price, 2)} tooltip="Price at which the position was closed." />}
               </>
             )}
           </div>
@@ -582,22 +633,23 @@ export default function TradeDetail() {
       {/* ===== UNIFIED CONTENT GRID ===== */}
       <div className="grid gap-4 md:grid-cols-2">
         {/* Card 1: Primary Outcome — always present */}
-        <SectionCard title="Outcome" icon={Activity}>
+        <SectionCard title="Outcome" icon={Activity} tooltip="Financial result of the trade including P&L breakdown and fee impact.">
           {isLive ? (
             <div className="grid grid-cols-2 gap-x-6">
               <DetailRow
                 label="Unrealized P&L"
                 value={formatPnl(pnlValue)}
                 className={pnlValue >= 0 ? 'text-profit' : 'text-loss'}
+                tooltip="Current profit/loss on open position, changes with market."
               />
-              <DetailRow label="Commission" value={hasContent(trade.commission) ? formatCurrency(trade.commission!) : undefined} />
+              <DetailRow label="Commission" value={hasContent(trade.commission) ? formatCurrency(trade.commission!) : undefined} tooltip="Trading commission charged by the exchange per transaction." />
               <DetailRow label="Fees" value={hasContent(trade.fees) ? formatCurrency(trade.fees!) : undefined} />
-              <DetailRow label="Funding Fees" value={hasContent((trade as any).funding_fees) ? formatCurrency((trade as any).funding_fees) : undefined} />
+              <DetailRow label="Funding Fees" value={hasContent(fundingFees) ? formatCurrency(fundingFees) : undefined} tooltip="Periodic funding rate fees for perpetual futures. Positive = paid, negative = received." />
             </div>
           ) : (
             <>
               <div className="grid grid-cols-2 gap-x-6">
-                <DetailRow label="Net P&L" value={formatPnl(netPnl)} className={netPnl >= 0 ? 'text-profit' : 'text-loss'} />
+                <DetailRow label="Net P&L" value={formatPnl(netPnl)} className={netPnl >= 0 ? 'text-profit' : 'text-loss'} tooltip="Final profit or loss after deducting all fees." />
                 <DetailRow label="Gross P&L" value={formatPnl(pnlValue)} className={pnlValue >= 0 ? 'text-profit' : 'text-loss'} />
               </div>
               {trade.result && (
@@ -611,11 +663,11 @@ export default function TradeDetail() {
               )}
               <div className="border-t border-border mt-3 pt-3">
                 <div className="grid grid-cols-2 gap-x-6">
-                  <DetailRow label="Commission" value={hasContent(trade.commission) ? formatCurrency(trade.commission!) : undefined} />
+                  <DetailRow label="Commission" value={hasContent(trade.commission) ? formatCurrency(trade.commission!) : undefined} tooltip="Trading commission charged by the exchange per transaction." />
                   <DetailRow label="Fees" value={hasContent(trade.fees) ? formatCurrency(trade.fees!) : undefined} />
-                  <DetailRow label="Funding Fees" value={hasContent((trade as any).funding_fees) ? formatCurrency((trade as any).funding_fees) : undefined} />
-                  {hasContent((trade as any).max_adverse_excursion) && (
-                    <DetailRow label="MAE" value={safeFixed((trade as any).max_adverse_excursion, 4)} />
+                  <DetailRow label="Funding Fees" value={hasContent(fundingFees) ? formatCurrency(fundingFees) : undefined} tooltip="Periodic funding rate fees for perpetual futures. Positive = paid, negative = received." />
+                  {hasContent(tradeMAE) && (
+                    <DetailRow label="MAE" value={safeFixed(tradeMAE, 4)} tooltip="Maximum Adverse Excursion: The largest unrealized drawdown during the trade." />
                   )}
                 </div>
               </div>
@@ -624,20 +676,19 @@ export default function TradeDetail() {
         </SectionCard>
 
         {/* Card 2: Risk & Execution — always present */}
-        <SectionCard title="Risk & Execution" icon={Shield}>
+        <SectionCard title="Risk & Execution" icon={Shield} tooltip="Entry/exit prices, stop loss, take profit, leverage, and risk metrics for this position.">
           <div className="grid grid-cols-2 gap-x-6">
-            {/* Live-only fields */}
-            {isLive && <DetailRow label="Mark Price" value={safeFixed(markPrice, 4)} />}
+            {isLive && <DetailRow label="Mark Price" value={safeFixed(markPrice, 4)} tooltip="Current market price used for P&L and liquidation calculations." />}
             <DetailRow label="Entry Price" value={safeFixed(trade.entry_price, 4)} />
             {!isLive && <DetailRow label="Exit Price" value={safeFixed(trade.exit_price, 4)} />}
-            {isLive && hasContent(liqPrice) && liqPrice > 0 && <DetailRow label="Liq. Price" value={safeFixed(liqPrice, 4)} />}
+            {isLive && hasContent(liqPrice) && liqPrice > 0 && <DetailRow label="Liq. Price" value={safeFixed(liqPrice, 4)} tooltip="Estimated price at which the position would be liquidated by the exchange." />}
             {isLive && liqMetrics && (
-              <DetailRow label="Liq. Distance (Price)" value={`${liqMetrics.pricePct.toFixed(2)}%`} />
+              <DetailRow label="Liq. Distance (Price)" value={`${liqMetrics.pricePct.toFixed(2)}%`} tooltip="Price distance to liquidation as a percentage. Larger = safer." />
             )}
             {isLive && liqMetrics?.equityPct !== undefined && (
               <DetailRow label="Liq. Distance (Equity)" value={
                 <span>{liqMetrics.equityPct.toFixed(2)}% <span className="text-[10px] text-muted-foreground/60 ml-1">est. via leverage</span></span>
-              } />
+              } tooltip="Estimated equity impact at liquidation. Equals price distance × leverage. This is an approximation." />
             )}
             {isLive && liveUnrealizedR && (
               <DetailRow
@@ -649,43 +700,44 @@ export default function TradeDetail() {
                   </span>
                 }
                 className={parseFloat(liveUnrealizedR) >= 0 ? 'text-profit' : 'text-loss'}
+                tooltip="Current reward as a multiple of initial risk. Negative = underwater. ≥1.0R suggests the position could be moved to breakeven."
               />
             )}
             {!isLive && initialRisk !== null && (
-              <DetailRow label="Initial Risk" value={safeFixed(initialRisk, 4)} />
+              <DetailRow label="Initial Risk" value={safeFixed(initialRisk, 4)} tooltip="Price distance between entry and stop loss. Used as the denominator for R-multiple calculation." />
             )}
-            {!isLive && hasContent((trade as any).r_multiple) && (
-              <DetailRow label="Realized R" value={`${safeFixed((trade as any).r_multiple, 2)}R`} />
+            {!isLive && hasContent(tradeRMultiple) && (
+              <DetailRow label="Realized R" value={`${safeFixed(tradeRMultiple, 2)}R`} tooltip="Realized reward as a multiple of initial risk. R > 1 means reward exceeded risk." />
             )}
             {hasContent(trade.stop_loss) && <DetailRow label="Stop Loss" value={safeFixed(trade.stop_loss, 4)} />}
             {hasContent(trade.take_profit) && <DetailRow label="Take Profit" value={safeFixed(trade.take_profit, 4)} />}
-            {hasContent((trade as any).margin_type) && <DetailRow label="Margin Type" value={(trade as any).margin_type} />}
-            <DetailRow label="Leverage" value={(trade as any).leverage ? `${(trade as any).leverage}x` : undefined} />
-            <DetailRow label="Size" value={safeFixed(trade.quantity, 4)} />
+            {hasContent(tradeMarginType) && <DetailRow label="Margin Type" value={tradeMarginType} tooltip="Cross: shares margin across all positions. Isolated: margin is dedicated to this position only." />}
+            <DetailRow label="Leverage" value={tradeLeverage ? `${tradeLeverage}x` : undefined} tooltip="Multiplier applied to margin. Higher leverage amplifies both gains and losses." />
+            <DetailRow label="Size" value={safeFixed(trade.quantity, 4)} tooltip="Position quantity in base asset units." />
             <DetailRow label="Direction" value={trade.direction} />
           </div>
         </SectionCard>
 
         {/* Card 3: Timing — closed only */}
         {!isLive && hasTimingData && (
-          <SectionCard title="Timing" icon={Clock}>
+          <SectionCard title="Timing" icon={Clock} tooltip="Chronological details of trade execution, including session context.">
             <div className="grid grid-cols-2 gap-x-6">
               <DetailRow label="Trade Date" value={formatDatetime(trade.trade_date)} />
-              <DetailRow label="Session" value={(trade as any).session} />
-              <DetailRow label="Entry Time" value={formatDatetime((trade as any).entry_datetime)} />
-              <DetailRow label="Exit Time" value={formatDatetime((trade as any).exit_datetime)} />
-              <DetailRow label="Hold Time" value={formatHoldTime((trade as any).hold_time_minutes)} />
+              <DetailRow label="Session" value={tradeSession} />
+              <DetailRow label="Entry Time" value={formatDatetime(tradeEntryDatetime)} />
+              <DetailRow label="Exit Time" value={formatDatetime(tradeExitDatetime)} />
+              <DetailRow label="Hold Time" value={formatHoldTime(tradeHoldTime)} tooltip="Total duration from entry to exit." />
             </div>
           </SectionCard>
         )}
 
         {/* Timeframe Analysis — if enriched */}
         {hasTimeframeData && (
-          <SectionCard title="Timeframe Analysis" icon={Layers}>
+          <SectionCard title="Timeframe Analysis" icon={Layers} tooltip="Multi-timeframe approach: Bias (higher TF for direction), Execution (entry TF), Precision (lower TF for timing).">
             <div className="grid grid-cols-2 gap-x-6">
               <DetailRow label="Bias (HTF)" value={trade.bias_timeframe} />
               <DetailRow label="Execution" value={trade.execution_timeframe} />
-              <DetailRow label="Precision (LTF)" value={(trade as any).precision_timeframe} />
+              <DetailRow label="Precision (LTF)" value={tradePrecisionTf} />
               <DetailRow label="Chart TF" value={trade.chart_timeframe} />
             </div>
           </SectionCard>
@@ -736,7 +788,7 @@ export default function TradeDetail() {
 
       {/* AI Post-Trade Analysis (closed only) */}
       {!isLive && postAnalysis && (
-        <SectionCard title="AI Post-Trade Analysis" icon={Brain}>
+        <SectionCard title="AI Post-Trade Analysis" icon={Brain} tooltip="AI-generated review evaluating entry timing, exit efficiency, stop loss placement, and strategy adherence.">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6">
             {postAnalysis.entry_timing && <DetailRow label="Entry Timing" value={postAnalysis.entry_timing} />}
             {postAnalysis.exit_efficiency && <DetailRow label="Exit Efficiency" value={postAnalysis.exit_efficiency} />}

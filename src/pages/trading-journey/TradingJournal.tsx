@@ -21,6 +21,7 @@ import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { FilterActiveIndicator } from "@/components/ui/filter-active-indicator";
 import { 
   BookOpen, 
@@ -140,9 +141,7 @@ export default function TradingJournal() {
   const openPositions = useMemo(() => trades?.filter(t => t.status === 'open') || [], [trades]);
   const closedTrades = useMemo(() => trades?.filter(t => t.status === 'closed') || [], [trades]);
 
-  // Calculate P&L summaries
-  const totalUnrealizedPnL = useMemo(() => openPositions.reduce((sum, t) => sum + (t.pnl || 0), 0), [openPositions]);
-  const totalRealizedPnL = useMemo(() => closedTrades.reduce((sum, t) => sum + (t.realized_pnl || 0), 0), [closedTrades]);
+  // Dead P&L summaries removed (were computed but never rendered)
 
   // ===== Closed Tab (Trade History) hooks =====
   const {
@@ -313,14 +312,21 @@ export default function TradingJournal() {
 
   return (
     <ErrorBoundary title="Trading Journal" onRetry={() => setRetryKey(k => k + 1)}>
-    <div key={retryKey} className="space-y-6">
+    <div key={retryKey} className="space-y-6" role="region" aria-label="Trading Journal">
       <div className="space-y-6">
         <PageHeader
           icon={BookOpen}
           title="Trading Journal"
           description="Document every trade for continuous improvement"
         >
-          <Badge variant="outline" className="text-xs font-normal">Basic Mode</Badge>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span><Badge variant="outline" className="text-xs font-normal cursor-help">Basic Mode</Badge></span>
+              </TooltipTrigger>
+              <TooltipContent><p>Simplified journal mode. Advanced features like multi-timeframe analysis are available through the Enrich drawer.</p></TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           {canCreateManualTrade ? (
             <Button variant="default" onClick={() => setIsWizardOpen(true)} aria-label="Open trade entry wizard">
               <Wand2 className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -367,10 +373,19 @@ export default function TradingJournal() {
                 <BookOpen className="h-5 w-5" aria-hidden="true" />
                 Trade Management
                 {isBinanceConnected && (
-                  <Badge variant="outline" className="text-xs gap-1 ml-2">
-                    <Wifi className="h-3 w-3 text-profit" aria-hidden="true" />
-                    Binance Connected
-                  </Badge>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span>
+                          <Badge variant="outline" className="text-xs gap-1 ml-2 cursor-help">
+                            <Wifi className="h-3 w-3 text-profit" aria-hidden="true" />
+                            Binance Connected
+                          </Badge>
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent><p>Live data from Binance Futures is active. Positions, orders, and balances are synced in real-time.</p></TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 )}
               </CardTitle>
               <ToggleGroup
@@ -391,33 +406,54 @@ export default function TradingJournal() {
           <CardContent className="space-y-4">
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <TabsList className="grid w-full grid-cols-3 max-w-md">
-                <TabsTrigger value="pending" className="gap-2">
-                  <Clock className="h-4 w-4" aria-hidden="true" />
-                  <span className="hidden sm:inline">Pending</span>
-                  {(() => {
-                    const paperPending = showPaperData ? openPositions.filter(p => !p.entry_price || p.entry_price === 0).length : 0;
-                    const exchangePending = showExchangeOrders ? binanceOpenOrders.length : 0;
-                    const total = paperPending + exchangePending;
-                    return total > 0 ? <Badge variant="secondary" className="ml-1 h-5 px-1.5">{total}</Badge> : null;
-                  })()}
-                </TabsTrigger>
-                <TabsTrigger value="active" className="gap-2">
-                  <Circle className="h-4 w-4" aria-hidden="true" />
-                  <span className="hidden sm:inline">Active</span>
-                  {(() => {
-                    const paperActive = showPaperData ? openPositions.filter(p => p.entry_price && p.entry_price > 0).length : 0;
-                    const exchangeActive = showExchangeData ? binancePositions.filter(p => p.positionAmt !== 0).length : 0;
-                    const total = paperActive + exchangeActive;
-                    return total > 0 ? <Badge variant="secondary" className="ml-1 h-5 px-1.5">{total}</Badge> : null;
-                  })()}
-                </TabsTrigger>
-                <TabsTrigger value="closed" className="gap-2">
-                  <History className="h-4 w-4" aria-hidden="true" />
-                  <span className="hidden sm:inline">Closed</span>
-                  {closedTotalCount > 0 && (
-                    <Badge variant="secondary" className="ml-1 h-5 px-1.5">{closedTotalCount}</Badge>
-                  )}
-                </TabsTrigger>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <TabsTrigger value="pending" className="gap-2">
+                        <Clock className="h-4 w-4" aria-hidden="true" />
+                        <span className="hidden sm:inline">Pending</span>
+                        {(() => {
+                          const paperPending = showPaperData ? openPositions.filter(p => !p.entry_price || p.entry_price === 0).length : 0;
+                          const exchangePending = showExchangeOrders ? binanceOpenOrders.length : 0;
+                          const total = paperPending + exchangePending;
+                          return total > 0 ? <Badge variant="secondary" className="ml-1 h-5 px-1.5">{total}</Badge> : null;
+                        })()}
+                      </TabsTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent><p>Trades awaiting execution: draft paper trades and live exchange limit/stop orders.</p></TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <TabsTrigger value="active" className="gap-2">
+                        <Circle className="h-4 w-4" aria-hidden="true" />
+                        <span className="hidden sm:inline">Active</span>
+                        {(() => {
+                          const paperActive = showPaperData ? openPositions.filter(p => p.entry_price && p.entry_price > 0).length : 0;
+                          const exchangeActive = showExchangeData ? binancePositions.filter(p => p.positionAmt !== 0).length : 0;
+                          const total = paperActive + exchangeActive;
+                          return total > 0 ? <Badge variant="secondary" className="ml-1 h-5 px-1.5">{total}</Badge> : null;
+                        })()}
+                      </TabsTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent><p>Currently open positions with confirmed entry prices. Includes paper and live exchange positions.</p></TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <TabsTrigger value="closed" className="gap-2">
+                        <History className="h-4 w-4" aria-hidden="true" />
+                        <span className="hidden sm:inline">Closed</span>
+                        {closedTotalCount > 0 && (
+                          <Badge variant="secondary" className="ml-1 h-5 px-1.5">{closedTotalCount}</Badge>
+                        )}
+                      </TabsTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent><p>Completed trades with realized P&L. Supports filtering, sorting, and infinite scroll pagination.</p></TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </TabsList>
               
               {/* Pending Orders Tab */}
