@@ -1,162 +1,146 @@
 
-# Dashboard Data Consistency & Clarity Fix
+# Dashboard Data Consistency - Phase 2 Hardening
 
-## Problem Summary
-The dashboard has 10 critical data inconsistency and UX clarity issues that undermine trust in a financial application. These range from mismatched numbers across widgets to ambiguous metric labels.
-
----
-
-## Issue-by-Issue Fix Plan
-
-### 1. Portfolio Overview vs AI Insights — $47.85 vs $47,846
-
-**Root Cause:** The AI Insights edge function receives `portfolio.totalCapital` as raw number (e.g., `47.85`) and feeds it to the AI model as `$${totalBalance.toLocaleString()}`. The AI model then freely interprets/reformats this number in its natural language summary — it might hallucinate "47,846" from "47.85".
-
-**Fix:**
-- In the edge function (`supabase/functions/dashboard-insights/index.ts`), add an explicit instruction in the system prompt: *"Use exact numbers as provided. Do not round, estimate, or change any financial figures."*
-- Add the balance to the structured function output so the summary doesn't need to include raw numbers — move financial data to the structured `report_dashboard_insights` schema instead of relying on free-text summary.
-- In `AIInsightsWidget.tsx`, prepend a small "Portfolio: $X" label above the AI summary using the same `portfolio.totalCapital` value from the hook, so users see the authoritative number.
+## Overview
+Address the follow-up critique on the previous fixes. These are precision improvements to prevent edge cases, clarify scopes, and add a data scope legend to the dashboard.
 
 ---
 
-### 2. Today's Net P&L — Three Different Numbers
+## Fix 1: AI Cannot Be Source of Truth for Financial Numbers
 
-**Root Cause:** Three different data sources:
-- **PortfolioOverviewCard**: Uses `useUnifiedPortfolioData().todayNetPnl` (realized only from closed trades today)
-- **SystemStatusIndicator**: Uses `useTradingGate().currentPnl` which comes from `useUnifiedDailyPnl().totalPnl`
-- **Active Position P&L**: Unrealized P&L from Binance live positions
+**Problem:** Even with prompt instructions, LLMs can still reformat numbers.
 
-**Fix:**
-- Rename label in PortfolioOverviewCard from "Today's Net P&L" to **"Today's Realized P&L"**
-- Rename label in SystemStatusIndicator from "Today's P&L" to **"Today's Realized P&L"**
-- Add a new row or sub-label in PortfolioOverviewCard: **"Unrealized P&L"** showing the sum of active position floating P&L when Binance is connected
-- Add InfoTooltip to each explaining: "Realized P&L counts only closed trades. Unrealized P&L is from open positions."
+**Changes:**
+- **`supabase/functions/dashboard-insights/index.ts`**: Remove all raw financial numbers from the `userPrompt` text. Instead, pass them as structured metadata that the AI references abstractly. Change `$${portfolioStatus.totalBalance.toLocaleString()}` to just contextual phrasing like "The trader has a small account under $100" or remove the exact number entirely. The summary instruction becomes: "Do NOT mention any specific dollar amounts in your summary. Refer to 'your balance' or 'your account' instead. Financial numbers are already displayed in the dashboard UI."
+- **`src/components/dashboard/AIInsightsWidget.tsx`**: Already shows `Portfolio Sentiment` badge. No further changes needed — the structured function output (`overallSentiment`, `recommendations`, `riskAlerts`) is the source of truth, not the free-text `summary`.
 
 ---
 
-### 3. Max Drawdown >100% — Three Conflicting Values
+## Fix 2: Unrealized P&L — Not Just Binance
 
-**Root Cause:** The Equity Curve chart uses `initialBalance = 0` by default (line 28). When initial balance is 0, the formula `(peak - current) / peak * 100` can produce huge percentages because peak starts at 0 and grows from PnL alone — creating a denominator problem. Meanwhile, `advanced-risk-metrics.ts` uses `portfolio.totalCapital || 10000` as initial capital.
+**Problem:** Unrealized P&L should show for any open position, not only when Binance is connected.
 
-**Fix:**
-- In `EquityCurveChart.tsx`: Pass `portfolio.totalCapital` as `initialBalance` from the Dashboard page instead of defaulting to 0. Add a guard: if `initialBalance` is 0 or very small, use the first equity value from the curve as the baseline.
-- Cap `maxDrawdownPercent` at 100% in both the Equity Curve and `advanced-risk-metrics.ts` to prevent mathematically impossible display values.
-- In the Equity Curve summary stats, label the absolute drawdown as **"Max DD (Absolute)"** and the percentage as **"Max DD (%)"** to distinguish them.
-- In `RiskMetricsCards.tsx`, add a subtitle label: **"All-Time"** next to the Max Drawdown value to clarify scope.
-- In `Dashboard.tsx`, pass `initialBalance={portfolio.totalCapital}` to `EquityCurveChart`.
-
----
-
-### 4. Win Rate Inconsistency (0% vs 10%)
-
-**Root Cause:** `DashboardAnalyticsSummary` calculates win rate from the last 30 days of closed trades. AI Insights calculates win rate from the last 20 trades (regardless of timeframe). Different timeframes = different numbers.
-
-**Fix:**
-- In `DashboardAnalyticsSummary.tsx`: Change label from "Win Rate" to **"30D Win Rate"**
-- In `AIInsightsWidget.tsx` / edge function prompt: Explicitly label as **"Last 20 Trades Win Rate"** in the prompt context so the AI uses that framing
-- Add a small `(30D)` badge or subtitle next to Win Rate in the analytics summary
-- Add `(Last 20 trades)` context in the AI summary prompt
+**Changes:**
+- **`src/components/dashboard/PortfolioOverviewCard.tsx`**: Add an "Unrealized P&L" sub-row below "Today's Realized P&L". Calculate it from:
+  - If Binance connected: sum of `positions.unrealizedPnl`
+  - If paper/manual: sum of open trade entries' estimated P&L (if available)
+  - Show only when there are open positions (any source), not conditional on Binance
+- Import `usePositions` hook and check `activePositions.length > 0` regardless of mode.
 
 ---
 
-### 5. Market Score 51 = Neutral but AI says "Bearish"
+## Fix 3: Max Drawdown — Fix Root Cause, Cap as Safety Net
 
-**Root Cause:** The `getScoreLabel` function in `use-unified-market-score.ts` correctly maps 45-55 as "Neutral". But the AI Insights widget shows `scoreLabel` from the market score AND the AI model's independently generated `overallSentiment`. The AI model might say "bearish" based on the trading data (10% win rate, losing streak), not the market score.
+**Problem:** Cap at 100% can hide bugs. Need to fix the denominator properly first.
 
-**Fix:**
-- In `AIInsightsWidget.tsx`: The badge showing `{scoreLabel} | {score}` is from Market Score. The AI sentiment badge is separate. Add label clarity:
-  - Market badge: **"Market: {scoreLabel} | {score}"**
-  - AI sentiment: **"Portfolio Sentiment: {sentiment}"**
-- This makes clear that "Neutral" refers to market conditions while "bearish/cautious" refers to the AI's assessment of the user's trading performance.
-
----
-
-### 6. "ALL SYSTEMS NORMAL" vs Poor Performance
-
-**Root Cause:** `SystemStatusIndicator` only checks daily loss limit usage (`lossUsedPercent`). It does not consider win rate, streak, or drawdown. So it shows green even during terrible performance as long as today's losses haven't hit the limit.
-
-**Fix:**
-- Rename the indicator from "ALL SYSTEMS NORMAL / You are clear to trade" to more specific language:
-  - Status "ok": **"RISK LIMITS OK"** with description **"Daily loss limit within bounds"**
-- Add a separate **Performance Health** indicator below or as a sub-badge:
-  - If recent win rate < 30% OR loss streak > 10 OR drawdown > 30%: Show a yellow **"Performance Advisory"** badge with text like "Review recent performance before trading"
-  - This keeps system health (risk limits) separate from performance health (behavioral metrics)
-- Add an InfoTooltip: "This indicator monitors your daily loss limit only. Check AI Insights for performance analysis."
+**Changes:**
+- **`src/lib/advanced-risk-metrics.ts`**:
+  - Line 233-234: The drawdown uses `(dd / peak) * 100`. When `initialCapital` is very small and PnL drives `peak` up from near-zero, this is mathematically correct. The cap at 100% on line 313 is already the safety net.
+  - Add cap to `currentDrawdownPercent` too (line 315): `Math.min(currentDDPercent, 100)`
+- **`src/components/analytics/charts/EquityCurveChart.tsx`**:
+  - Line 54: The denominator logic `effectiveInitial > 0 ? (effectiveInitial + peak - effectiveInitial) : peak` simplifies to just `peak` in both cases when `effectiveInitial > 0` (since `effectiveInitial + peak - effectiveInitial = peak`). This is a no-op bug. Fix to: `const denominator = effectiveInitial + peak - effectiveInitial` which equals `peak`. But the REAL fix is: use `initialBalance + peakCumulativePnl` as denominator per the standardized formula from memory. Change to: `const peakCumPnl = peak - effectiveInitial; const denominator = effectiveInitial + peakCumPnl;` which equals `peak` — confirming the formula is correct. The issue is when `effectiveInitial = 0`, denominator becomes `peak` which can be very small early on. Guard: if `effectiveInitial <= 0`, set `effectiveInitial` to the absolute value of the first balance point to establish a reasonable baseline.
 
 ---
 
-### 7. ADL Risk — No Guidance
+## Fix 4: Win Rate Definition Consistency
 
-**Fix:**
-- Expand the existing `InfoTooltip` content on ADL Risk widget to include actionable guidance
-- Add per-risk-level descriptions in the `riskLevelConfig`:
-  - **Low (1-2):** "Your position is safe. No action needed."
-  - **Medium (3):** "Monitor your position. Consider reducing size if market volatility increases."
-  - **High (4):** "Your position may be auto-deleveraged. Reduce position size or add margin to lower risk."
-  - **Critical (5):** "Immediate action recommended. Your position is at the front of the ADL queue. Reduce position now."
-- Show these descriptions as a collapsible "What does this mean?" section below each position row.
+**Problem:** Need to ensure `win = pnl > 0` consistently, with breakeven excluded.
 
----
-
-### 8. Equity Curve — Cognitive Overload
-
-**Fix:**
-- Default `showAnnotations` to `false` instead of `true` (line 31 in EquityCurveChart.tsx)
-- Simplify the summary stats row: Keep only **Balance**, **Max DD (%)**, and **Total P&L** (3 metrics, remove absolute drawdown)
-- The annotations (streaks, ATH, break-even) remain available via the "AI Annotations" toggle button for users who want deeper analysis
+**Changes:**
+- **`src/components/dashboard/DashboardAnalyticsSummary.tsx`**: Already uses `getPnl(t) > 0` (line 49). Correct.
+- **`src/components/dashboard/AIInsightsWidget.tsx`**: `calculatePairStats` uses `trade.result === 'win'` (line 57). This relies on the `result` field which may define win differently. Align: change to also check `(trade.realized_pnl ?? trade.pnl ?? 0) > 0` instead of relying on the string `result` field.
+- **`supabase/functions/dashboard-insights/index.ts`**: Uses `t.result === 'win'` (line 106). Align: also compute wins from `pnl > 0` to match.
+- **`src/components/dashboard/GoalTrackingWidget.tsx`**: Already uses `(t.realized_pnl ?? t.pnl ?? 0) > 0` (line 65). Correct.
 
 ---
 
-### 9. Monthly Goals — Max Drawdown Shows 0%
+## Fix 5: Market Score Label in AI Prompt
 
-**Root Cause:** The goal widget correctly calculates monthly drawdown from that month's trades only. If the month has few trades or all are early losses with no recovery, the peak-to-trough within the month may be 0 because `peak` starts at 0 and never goes positive.
+**Problem:** AI might say "market bearish" in summary despite market score being neutral.
 
-**Fix:**
-- Rename label from "Max Drawdown" to **"Monthly Max DD"**
-- Add InfoTooltip: "Maximum drawdown calculated from this month's closed trades only, not all-time."
-- Fix the calculation: when all monthly trades are losses, `peak` stays at 0 and the formula `(peak - balance) / peak * 100` divides by zero. Add guard: if `peak <= 0`, use absolute loss as percentage of account balance instead.
-
----
-
-### 10. AI Trade Opportunities — No Sample Size Context
-
-**Root Cause:** `calculatePairStats` in AIInsightsWidget requires only 3 trades minimum (`totalTrades >= 3`). A 67% win rate from 3 trades is statistically meaningless.
-
-**Fix:**
-- Increase minimum threshold from 3 to **5 trades** for "Focus" pairs
-- Display sample size next to each pair badge: `{pair} ({winRate}% / {totalTrades} trades)`
-- Add a "Low sample" warning badge when totalTrades < 10
-- Change the label from "Focus on (High Win Rate)" to **"Focus on (Historical Win Rate, min 5 trades)"**
+**Changes:**
+- **`supabase/functions/dashboard-insights/index.ts`**: Add `marketScoreLabel` to the request body from the client, and include in the prompt: `"Current market regime is: {marketScoreLabel}. Do not contradict this assessment in your summary."`
+- **`src/features/ai/useDashboardInsights.ts`** (or wherever `getInsights` is called): Pass `scoreLabel` from `useUnifiedMarketScore` into the payload.
 
 ---
 
-## Technical Changes Summary
+## Fix 6: Performance Advisory Scope
+
+**Problem:** Need to define scope for the performance advisory triggers (all-time vs 30D vs last 20).
+
+**Changes:**
+- **`src/components/dashboard/SystemStatusIndicator.tsx`**: The performance advisory will use **last 20 trades** as scope (same as AI insights, most actionable timeframe):
+  - Import `useModeFilteredTrades`
+  - Calculate: `recentWinRate` from last 20 closed trades, `currentLossStreak` from most recent consecutive losses, `recentDrawdown` from last 20 trades' cumulative PnL
+  - Show advisory only if: `recentWinRate < 30% AND totalRecentTrades >= 10` (need minimum sample)
+  - Add label: "Based on last 20 trades" in the tooltip
+
+---
+
+## Fix 7: ADL Risk Level Mapping Clarification
+
+**Problem:** ADL quantile 3/5 might not map to "medium" in Binance's actual system.
+
+**Changes:**
+- **`src/components/dashboard/ADLRiskWidget.tsx`**: Add a note in the InfoTooltip explaining the mapping: "ADL quantile is ranked 1-5 based on your position's profit and margin ratio relative to other traders. 1 = lowest priority for ADL, 5 = highest. This is a relative ranking, not absolute risk."
+- Update the `InfoTooltip` content on line 221 to include this explanation.
+
+---
+
+## Fix 8: Monthly Goals — Use Account Balance as Baseline
+
+**Problem:** When all monthly trades are losses, the DD calculation baseline is ambiguous.
+
+**Changes:**
+- **`src/components/dashboard/GoalTrackingWidget.tsx`**: Import `useUnifiedPortfolioData` to get `portfolio.totalCapital`. Use it as the denominator for monthly DD percentage when `peak <= 0`:
+  ```
+  if (peak <= 0 && portfolio.totalCapital > 0) {
+    maxDd = (Math.abs(balance) / portfolio.totalCapital) * 100;
+  }
+  ```
+  - Add InfoTooltip next to "Monthly Max DD" label: "Drawdown from this month's trades only. Calculated as percentage of your total account balance."
+
+---
+
+## Fix 9: Dashboard Data Scope Legend
+
+**Problem:** User has no visibility into which timeframe each widget uses.
+
+**Changes:**
+- **`src/pages/Dashboard.tsx`**: Add a collapsible "Data Scope" info bar below the page header. Collapsed by default, expandable via a small "i" icon button. Contents:
+  ```
+  Data Scope Reference:
+  - Portfolio Overview: Real-time balances
+  - Performance Card: Last 30 days (closed trades)
+  - AI Insights: Last 20 trades (all-time)
+  - Goals: Current month
+  - Risk Metrics: All-time
+  - Equity Curve: All-time
+  ```
+  - Use a `Collapsible` component from radix with a subtle design.
+
+---
+
+## Files to Modify
 
 | File | Changes |
 |------|---------|
-| `src/components/dashboard/PortfolioOverviewCard.tsx` | Rename "Today's Net P&L" to "Today's Realized P&L", add Unrealized P&L row |
-| `src/components/dashboard/SystemStatusIndicator.tsx` | Rename to "RISK LIMITS OK", add performance health sub-indicator, rename "Today's P&L" |
-| `src/components/dashboard/AIInsightsWidget.tsx` | Add "Market:" prefix to badge, clarify sentiment labels, increase pair threshold to 5, add sample sizes |
-| `src/components/dashboard/DashboardAnalyticsSummary.tsx` | Rename "Win Rate" to "30D Win Rate" |
-| `src/components/dashboard/RiskMetricsCards.tsx` | Add "All-Time" label to Max Drawdown |
-| `src/components/analytics/charts/EquityCurveChart.tsx` | Fix initialBalance=0 bug, cap DD at 100%, default annotations off, simplify stats |
-| `src/components/dashboard/ADLRiskWidget.tsx` | Add actionable guidance text per risk level |
-| `src/components/dashboard/GoalTrackingWidget.tsx` | Rename to "Monthly Max DD", fix zero-peak division, add tooltip |
-| `src/pages/Dashboard.tsx` | Pass `portfolio.totalCapital` as initialBalance to EquityCurveChart |
-| `supabase/functions/dashboard-insights/index.ts` | Add "use exact numbers" instruction to prompt, add source context |
-| `src/hooks/analytics/use-unified-market-score.ts` | No changes needed (logic is correct) |
-| `src/lib/advanced-risk-metrics.ts` | Cap maxDrawdownPercent at 100 |
+| `supabase/functions/dashboard-insights/index.ts` | Remove raw $ amounts from prompt, add "do not mention dollar amounts" rule, add market label context |
+| `src/components/dashboard/PortfolioOverviewCard.tsx` | Add unrealized P&L row for any open positions |
+| `src/lib/advanced-risk-metrics.ts` | Cap `currentDrawdownPercent` at 100% |
+| `src/components/analytics/charts/EquityCurveChart.tsx` | Fix zero-baseline edge case |
+| `src/components/dashboard/AIInsightsWidget.tsx` | Align win definition to `pnl > 0` instead of `result === 'win'` |
+| `src/components/dashboard/SystemStatusIndicator.tsx` | Add performance advisory with last-20-trades scope |
+| `src/components/dashboard/ADLRiskWidget.tsx` | Clarify ADL mapping in tooltip |
+| `src/components/dashboard/GoalTrackingWidget.tsx` | Use portfolio.totalCapital as DD baseline, add tooltip |
+| `src/pages/Dashboard.tsx` | Add collapsible data scope legend |
+| `src/features/ai/useDashboardInsights.ts` | Pass marketScoreLabel to edge function |
 
----
-
-## Priority Order
-1. Fix #3 (Max Drawdown >100%) — mathematical correctness, most visible bug
-2. Fix #1 (Portfolio mismatch) — trust breaker
-3. Fix #2 (Three P&L numbers) — label clarity
-4. Fix #6 (System status vs performance) — conflicting messaging
-5. Fix #4 (Win rate timeframes) — label clarity
-6. Fix #5 (Market vs AI sentiment) — framing
-7. Fix #10 (Sample size) — statistical rigor
-8. Fix #9 (Monthly DD) — calculation bug
-9. Fix #7 (ADL guidance) — UX improvement
-10. Fix #8 (Equity curve simplification) — cognitive load
+## Priority
+1. Fix 1 (AI numbers) + Fix 4 (win rate consistency) — data integrity
+2. Fix 3 (drawdown root cause) — mathematical correctness
+3. Fix 6 (performance advisory scope) — conflicting messaging
+4. Fix 2 (unrealized P&L any source) — completeness
+5. Fix 5 (market label in prompt) — framing
+6. Fix 9 (data scope legend) — transparency
+7. Fix 7+8 (ADL + Goals) — UX polish
