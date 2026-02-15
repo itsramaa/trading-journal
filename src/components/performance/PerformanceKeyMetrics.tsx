@@ -8,6 +8,7 @@ import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { 
   TrendingUp, TrendingDown, Target, BarChart3, AlertTriangle 
 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatWinRate, formatRatio, formatPercentUnsigned } from "@/lib/formatters";
 
 interface BinanceStatsSlice {
@@ -175,7 +176,12 @@ export function PerformanceKeyMetrics({ stats, formatCurrency, binanceStats, sho
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Total Trades</CardTitle></CardHeader>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-1">
+              Total Trades
+              <InfoTooltip content="Number of closed trades in the filtered dataset. More trades improve statistical reliability." />
+            </CardTitle>
+          </CardHeader>
           <CardContent><div className="text-xl font-bold">{stats.totalTrades}</div></CardContent>
         </Card>
         <Card>
@@ -192,13 +198,17 @@ export function PerformanceKeyMetrics({ stats, formatCurrency, binanceStats, sho
             {showExchangeData && binanceStats.isConnected && binanceStats.grossPnl !== 0 && (
               <div className="mt-2 pt-2 border-t space-y-1">
                 <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">Gross (Today)</span>
+                  <TooltipProvider><Tooltip><TooltipTrigger asChild>
+                    <span className="text-muted-foreground cursor-help">Gross (Today)</span>
+                  </TooltipTrigger><TooltipContent>Today's gross realized PnL from Binance Futures before fees.</TooltipContent></Tooltip></TooltipProvider>
                   <span className={binanceStats.grossPnl >= 0 ? 'text-profit' : 'text-loss'}>
                     {formatCurrency(binanceStats.grossPnl)}
                   </span>
                 </div>
                 <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">Fees</span>
+                  <TooltipProvider><Tooltip><TooltipTrigger asChild>
+                    <span className="text-muted-foreground cursor-help">Fees</span>
+                  </TooltipTrigger><TooltipContent>Total trading fees (commission + maker/taker fees) deducted from gross PnL.</TooltipContent></Tooltip></TooltipProvider>
                   <span className="text-muted-foreground">-{formatCurrency(binanceStats.totalCommission)}</span>
                 </div>
                 <div className="flex justify-between text-xs font-medium">

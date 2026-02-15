@@ -19,6 +19,7 @@ import { type DateRange } from "@/components/trading/DateRangeFilter";
 import { 
   BarChart3, Calendar, Activity, Trophy, FileText, Download 
 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // Sub-components
 import { PerformanceFilters } from "@/components/performance/PerformanceFilters";
@@ -150,7 +151,7 @@ export default function Performance() {
   const stats = useMemo(() => calculateTradingStats(filteredTrades, initialBalance), [filteredTrades, initialBalance]);
   const strategyPerformance = useMemo(() => calculateStrategyPerformance(filteredTrades, strategies), [filteredTrades, strategies]);
   const equityData = useMemo(() => generateEquityCurve(filteredTrades), [filteredTrades]);
-  const chartFormatCurrency = (v: number) => formatCompact(v);
+  const chartFormatCurrency = formatCompact;
 
   if (tradesLoading) {
     return (
@@ -163,21 +164,35 @@ export default function Performance() {
 
   return (
     <ErrorBoundary title="Performance Analytics" onRetry={() => setRetryKey(k => k + 1)}>
-    <div key={retryKey} className="space-y-6">
+    <div key={retryKey} className="space-y-6" role="region" aria-label="Performance Analytics">
       <PageHeader icon={BarChart3} title="Performance Analytics" description="Deep dive into your trading performance metrics">
         {analyticsSelection.level !== 'overall' && (
-          <Badge variant="secondary" className="text-xs">
-            {analyticsSelection.level === 'account' && `Account`}
-            {analyticsSelection.level === 'exchange' && `Exchange: ${analyticsSelection.exchange}`}
-            {analyticsSelection.level === 'type' && `${analyticsSelection.tradeType === 'paper' ? 'Paper' : 'Live'}`}
-          </Badge>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge variant="secondary" className="text-xs">
+                  {analyticsSelection.level === 'account' && `Account`}
+                  {analyticsSelection.level === 'exchange' && `Exchange: ${analyticsSelection.exchange}`}
+                  {analyticsSelection.level === 'type' && `${analyticsSelection.tradeType === 'paper' ? 'Paper' : 'Live'}`}
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent>Metrics are filtered to this analytics scope. Clear via the indicator below.</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         )}
-        <Button variant="outline" size="sm" asChild>
-          <Link to="/export?tab=analytics">
-            <Download className="h-4 w-4 mr-2" />
-            Export
-          </Link>
-        </Button>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline" size="sm" asChild>
+                <Link to="/export?tab=analytics">
+                  <Download className="h-4 w-4 mr-2" />
+                  Export
+                </Link>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Export analytics data to CSV or PDF from the Export page.</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </PageHeader>
 
       <PerformanceFilters
@@ -214,22 +229,50 @@ export default function Performance() {
       ) : (
         <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-8">
           <TabsList className="flex-wrap">
-            <TabsTrigger value="overview" className="gap-2">
-              <BarChart3 className="h-4 w-4" />
-              <span className="hidden sm:inline">Overview</span>
-            </TabsTrigger>
-            <TabsTrigger value="monthly" className="gap-2">
-              <Calendar className="h-4 w-4" />
-              <span className="hidden sm:inline">Monthly</span>
-            </TabsTrigger>
-            <TabsTrigger value="context" className="gap-2">
-              <Activity className="h-4 w-4" />
-              <span className="hidden sm:inline">Context</span>
-            </TabsTrigger>
-            <TabsTrigger value="strategies" className="gap-2">
-              <Trophy className="h-4 w-4" />
-              <span className="hidden sm:inline">Strategies</span>
-            </TabsTrigger>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <TabsTrigger value="overview" className="gap-2">
+                    <BarChart3 className="h-4 w-4" />
+                    <span className="hidden sm:inline">Overview</span>
+                  </TabsTrigger>
+                </TooltipTrigger>
+                <TooltipContent>Key metrics, equity curve, session analysis, and drawdown chart.</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <TabsTrigger value="monthly" className="gap-2">
+                    <Calendar className="h-4 w-4" />
+                    <span className="hidden sm:inline">Monthly</span>
+                  </TabsTrigger>
+                </TooltipTrigger>
+                <TooltipContent>Month-over-month comparison and rolling 30-day P&L trend.</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <TabsTrigger value="context" className="gap-2">
+                    <Activity className="h-4 w-4" />
+                    <span className="hidden sm:inline">Context</span>
+                  </TabsTrigger>
+                </TooltipTrigger>
+                <TooltipContent>Performance segmented by market sentiment, volatility, and economic events.</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <TabsTrigger value="strategies" className="gap-2">
+                    <Trophy className="h-4 w-4" />
+                    <span className="hidden sm:inline">Strategies</span>
+                  </TabsTrigger>
+                </TooltipTrigger>
+                <TooltipContent>Performance breakdown by trading strategy with AI quality scoring.</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </TabsList>
 
           {/* Overview Tab */}

@@ -146,8 +146,25 @@ export function TradingBehaviorAnalytics({ trades }: Props) {
     return stats.sort((a, b) => b.count - a.count);
   }, [closedTrades]);
 
-  // Don't render if no meaningful data
-  if (!durationStats && !directionStats && !orderTypeStats) return null;
+  // Show empty state card if no meaningful data
+  if (!durationStats && !directionStats && !orderTypeStats) {
+    return (
+      <div className="space-y-4" role="region" aria-label="Trading behavior analytics">
+        <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+          Trading Behavior
+        </h3>
+        <Card>
+          <CardContent className="py-8">
+            <div className="text-center text-muted-foreground">
+              <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p>No behavior data available</p>
+              <p className="text-sm">Trade duration, direction ratio, and order type stats appear after closing trades.</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4" role="region" aria-label="Trading behavior analytics including duration, direction ratio, and order type performance">

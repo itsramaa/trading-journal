@@ -16,6 +16,8 @@ import {
   Calendar,
   Brain
 } from "lucide-react";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { formatWinRate } from "@/lib/formatters";
 import { CONTEXTUAL_SCORE_CONFIG, DATA_QUALITY } from "@/lib/constants/ai-analytics";
@@ -109,10 +111,11 @@ export function CombinedContextualScore({ trades }: CombinedContextualScoreProps
       else if (normalizedScore >= BUCKET_THRESHOLDS.RISKY) bucket = 'risky';
       else bucket = 'extreme';
 
-      const isWin = trade.result === 'win' || (trade.pnl && trade.pnl > 0);
+      const tradePnl = (trade as any).realized_pnl ?? trade.pnl ?? 0;
+      const isWin = trade.result === 'win' || tradePnl > 0;
       contextBuckets[bucket].total++;
       if (isWin) contextBuckets[bucket].wins++;
-      contextBuckets[bucket].pnl += trade.pnl || 0;
+      contextBuckets[bucket].pnl += tradePnl;
     });
 
     const avgScore = scoredTrades > 0 ? totalContextualScore / scoredTrades : 50;
@@ -211,6 +214,7 @@ export function CombinedContextualScore({ trades }: CombinedContextualScoreProps
           <CardTitle className="flex items-center gap-2 text-base">
             <Gauge className="h-5 w-5 text-primary" />
             Combined Contextual Score
+            <InfoTooltip content="Composite score (0-100) evaluating market conditions when you trade: Fear/Greed sentiment, volatility level, and macro event proximity." />
           </CardTitle>
           <Badge variant="secondary" className="text-xs">
             {metrics.contextualTrades} trades analyzed
@@ -269,7 +273,15 @@ export function CombinedContextualScore({ trades }: CombinedContextualScoreProps
               <div key={zone.zone} className="flex items-center gap-3">
                 <div className="w-20 flex items-center gap-1.5">
                   <Icon className={cn("h-3.5 w-3.5", zone.color)} />
-                  <span className="text-xs font-medium">{zone.zone}</span>
+                  <TooltipProvider><Tooltip><TooltipTrigger asChild>
+                    <span className="text-xs font-medium cursor-help">{zone.zone}</span>
+                  </TooltipTrigger><TooltipContent>
+                    {zone.zone === 'Optimal' && 'Score 80-100: Neutral sentiment, low volatility, no events.'}
+                    {zone.zone === 'Favorable' && 'Score 60-79: Good conditions with 2 of 3 factors positive.'}
+                    {zone.zone === 'Moderate' && 'Score 40-59: Mixed conditions.'}
+                    {zone.zone === 'Risky' && 'Score 20-39: Poor conditions with only 1 positive factor.'}
+                    {zone.zone === 'Extreme' && 'Score 0-19: All factors negative — extreme sentiment, high volatility, events.'}
+                  </TooltipContent></Tooltip></TooltipProvider>
                 </div>
                 <div className="flex-1">
                   <Progress 

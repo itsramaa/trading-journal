@@ -7,9 +7,11 @@ import { Progress } from "@/components/ui/progress";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Trophy } from "lucide-react";
 import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell 
 } from "recharts";
 import { formatWinRate, formatRatio } from "@/lib/formatters";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { getQualityScoreLabel } from "@/hooks/use-strategy-performance";
 
 interface StrategyPerf {
@@ -57,6 +59,7 @@ export function PerformanceStrategiesTab({
           <CardTitle className="flex items-center gap-2">
             <Trophy className="h-5 w-5" />
             Strategy Performance
+            <InfoTooltip content="Performance breakdown by trading strategy showing PnL, win rate, and AI quality score." />
           </CardTitle>
           <CardDescription>Performance breakdown by trading strategy with AI Quality Score</CardDescription>
         </CardHeader>
@@ -74,9 +77,11 @@ export function PerformanceStrategiesTab({
                         {sp.strategy.name}
                       </Badge>
                       {qualityLabel && (
-                        <Badge className={qualityLabel.colorClass}>
-                          AI: {aiPerf?.aiQualityScore ?? 0} - {qualityLabel.label}
-                        </Badge>
+                        <TooltipProvider><Tooltip><TooltipTrigger asChild>
+                          <Badge className={qualityLabel.colorClass}>
+                            AI: {aiPerf?.aiQualityScore ?? 0} - {qualityLabel.label}
+                          </Badge>
+                        </TooltipTrigger><TooltipContent>AI Quality Score: Excellent (≥80), Good (≥60), Fair (≥40), Poor (&lt;40).</TooltipContent></Tooltip></TooltipProvider>
                       )}
                       <span className="text-sm text-muted-foreground">
                         {sp.totalTrades} trades
@@ -105,7 +110,9 @@ export function PerformanceStrategiesTab({
                       <div className="font-medium">{sp.wins}/{sp.losses}</div>
                     </div>
                     <div>
-                      <span className="text-muted-foreground">Contribution</span>
+                      <TooltipProvider><Tooltip><TooltipTrigger asChild>
+                        <span className="text-muted-foreground cursor-help">Contribution</span>
+                      </TooltipTrigger><TooltipContent>This strategy's share of total portfolio PnL as a percentage.</TooltipContent></Tooltip></TooltipProvider>
                       <div className="font-medium">{formatWinRate(sp.contribution)}</div>
                     </div>
                   </div>
@@ -127,7 +134,7 @@ export function PerformanceStrategiesTab({
       {/* Strategy Comparison Chart */}
       <Card>
         <CardHeader>
-          <CardTitle>Strategy Comparison</CardTitle>
+          <CardTitle className="flex items-center gap-2">Strategy Comparison <InfoTooltip content="Visual comparison of absolute PnL contribution by each strategy." /></CardTitle>
           <CardDescription>P&L contribution by strategy</CardDescription>
         </CardHeader>
         <CardContent>
@@ -138,7 +145,7 @@ export function PerformanceStrategiesTab({
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis type="number" tickFormatter={(v) => formatCurrency(v)} />
                   <YAxis type="category" dataKey="strategy.name" width={100} className="text-xs" />
-                  <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                  <RechartsTooltip formatter={(v: number) => formatCurrency(v)} />
                   <Bar dataKey="totalPnl" radius={4}>
                     {activeStrategies.map((entry, index) => (
                       <Cell 

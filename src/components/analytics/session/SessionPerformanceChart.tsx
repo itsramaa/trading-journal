@@ -13,11 +13,12 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
+  Tooltip as RechartsTooltip,
   ResponsiveContainer,
   Cell,
 } from "recharts";
 import { Clock, TrendingUp, TrendingDown, Trophy, AlertTriangle } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { 
   TradingSession, 
   SESSION_LABELS, 
@@ -156,7 +157,7 @@ export function SessionPerformanceChart({ bySession }: SessionPerformanceChartPr
                 width={80}
                 className="text-xs"
               />
-              <Tooltip 
+              <RechartsTooltip 
                 formatter={(value: number, name: string) => [
                   `${value.toFixed(1)}%`,
                   'Win Rate'
@@ -201,7 +202,9 @@ export function SessionPerformanceChart({ bySession }: SessionPerformanceChartPr
               
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Time (Local)</span>
+                  <TooltipProvider><Tooltip><TooltipTrigger asChild>
+                    <span className="text-muted-foreground cursor-help">Time (Local)</span>
+                  </TooltipTrigger><TooltipContent>Trading session hours converted to your local timezone from UTC.</TooltipContent></Tooltip></TooltipProvider>
                   <span className="font-medium">{data.localTimeRange}</span>
                 </div>
                 <div className="flex justify-between text-sm">

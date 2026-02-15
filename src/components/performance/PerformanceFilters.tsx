@@ -12,6 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Calendar, ChevronDown } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { AnalyticsLevelSelector, type AnalyticsSelection } from "@/components/analytics/AnalyticsLevelSelector";
 import { DateRangeFilter, type DateRange } from "@/components/trading/DateRangeFilter";
 
@@ -56,18 +57,25 @@ export function PerformanceFilters({
             <DateRangeFilter value={dateRange} onChange={onDateRangeChange} />
             {strategies.length > 0 && (
               <Popover open={strategyDropdownOpen} onOpenChange={setStrategyDropdownOpen}>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="min-w-[180px] justify-between">
-                    <span className="truncate">
-                      {selectedStrategyIds.length === 0 
-                        ? "All Strategies" 
-                        : selectedStrategyIds.length === 1 
-                          ? strategies.find(s => s.id === selectedStrategyIds[0])?.name || "1 selected"
-                          : `${selectedStrategyIds.length} strategies`}
-                    </span>
-                    <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className="min-w-[180px] justify-between">
+                          <span className="truncate">
+                            {selectedStrategyIds.length === 0 
+                              ? "All Strategies" 
+                              : selectedStrategyIds.length === 1 
+                                ? strategies.find(s => s.id === selectedStrategyIds[0])?.name || "1 selected"
+                                : `${selectedStrategyIds.length} strategies`}
+                          </span>
+                          <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent>Filter performance metrics to specific trading strategies.</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 <PopoverContent className="w-[220px] p-0" align="start">
                   <Command>
                     <CommandInput placeholder="Search strategies..." />
@@ -112,16 +120,23 @@ export function PerformanceFilters({
                 checked={eventDaysOnly}
                 onCheckedChange={onEventDaysOnlyChange}
               />
-              <Label 
-                htmlFor="event-days-filter" 
-                className="flex items-center gap-1.5 cursor-pointer text-sm"
-              >
-                <Calendar className="h-4 w-4 text-warning" />
-                Event Days Only
-                <Badge variant="secondary" className="ml-1">
-                  {eventDayTradeCount}
-                </Badge>
-              </Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Label 
+                      htmlFor="event-days-filter" 
+                      className="flex items-center gap-1.5 cursor-pointer text-sm"
+                    >
+                      <Calendar className="h-4 w-4 text-warning" />
+                      Event Days Only
+                      <Badge variant="secondary" className="ml-1">
+                        {eventDayTradeCount}
+                      </Badge>
+                    </Label>
+                  </TooltipTrigger>
+                  <TooltipContent>Show only trades on days with high-impact economic events (FOMC, CPI, NFP, etc.).</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
           )}
         </div>

@@ -19,7 +19,8 @@ import {
 } from "recharts";
 import type { PerformanceMetrics, VolatilityLevel } from "@/hooks/use-contextual-analytics";
 import { cn } from "@/lib/utils";
-import { formatWinRate, formatCurrency } from "@/lib/formatters";
+import { formatWinRate } from "@/lib/formatters";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 
 interface VolatilityLevelChartProps {
   byVolatility: Record<VolatilityLevel, PerformanceMetrics>;
@@ -54,6 +55,7 @@ const VOLATILITY_CONFIG: Record<VolatilityLevel, {
 const LEVELS_ORDER: VolatilityLevel[] = ['low', 'medium', 'high'];
 
 export function VolatilityLevelChart({ byVolatility }: VolatilityLevelChartProps) {
+  const { format: formatCurrency } = useCurrencyConversion();
   // Transform data for chart
   const chartData = LEVELS_ORDER.map(level => ({
     level,
