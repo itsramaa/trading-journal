@@ -377,6 +377,76 @@ export default function TradeDetail() {
   const liqMetrics = liqDistanceMetrics(markPrice, liqPrice, (trade as any).leverage);
   const liveUnrealizedR = unrealizedR(trade.entry_price, markPrice, trade.stop_loss, trade.direction);
 
+  // --- Shared Render Helpers (DRY) ---
+  function renderStrategyContent(t: any) {
+    return (
+      <SectionCard title="Strategy & Setup" icon={Target}>
+        {t.strategies && t.strategies.length > 0 && (
+          <div className="pb-2">
+            <p className="text-xs text-muted-foreground mb-1.5">Strategies</p>
+            <div className="flex flex-wrap gap-1">
+              {t.strategies.map((s: any) => (
+                <Badge key={s.id} variant="outline" className="text-xs" style={{ borderColor: s.color || undefined }}>{s.name}</Badge>
+              ))}
+            </div>
+          </div>
+        )}
+        <DetailRow label="Entry Signal" value={t.entry_signal} />
+        <DetailRow label="Market Condition" value={t.market_condition} />
+        <DetailRow label="Confluence" value={t.confluence_score?.toString()} />
+        <DetailRow label="Entry Order" value={t.entry_order_type} />
+        {!isLive && <DetailRow label="Exit Order" value={t.exit_order_type} />}
+        {hasContent(t.ai_quality_score, t.ai_confidence) && (
+          <div className="border-t border-border mt-2 pt-2">
+            <DetailRow label="AI Quality" value={safeFixed(t.ai_quality_score, 0)} />
+            <DetailRow label="AI Confidence" value={t.ai_confidence ? `${safeFixed(t.ai_confidence, 0)}%` : undefined} />
+          </div>
+        )}
+      </SectionCard>
+    );
+  }
+
+  function renderJournalContent(t: any, live: boolean, rc: Record<string, boolean> | null) {
+    return (
+      <SectionCard title="Journal" icon={MessageSquare}>
+        {!live && t.emotional_state && <DetailRow label="Emotion" value={t.emotional_state} />}
+        {t.notes && (
+          <div className="pt-2">
+            <p className="text-xs text-muted-foreground mb-1">Notes</p>
+            <p className="text-sm bg-muted/50 rounded-md p-2 whitespace-pre-wrap">{t.notes}</p>
+          </div>
+        )}
+        {t.lesson_learned && (
+          <div className="pt-2">
+            <p className="text-xs text-muted-foreground mb-1">Lesson Learned</p>
+            <p className="text-sm bg-muted/50 rounded-md p-2 whitespace-pre-wrap">{t.lesson_learned}</p>
+          </div>
+        )}
+        {!live && rc && Object.keys(rc).length > 0 && (
+          <div className="pt-2">
+            <p className="text-xs text-muted-foreground mb-1">Rule Compliance</p>
+            <div className="space-y-1">
+              {Object.entries(rc).map(([rule, passed]) => (
+                <div key={rule} className="flex items-center gap-2 text-sm">
+                  {passed ? <CheckCircle2 className="h-3.5 w-3.5 text-profit" /> : <XCircle className="h-3.5 w-3.5 text-loss" />}
+                  <span>{rule}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {t.tags && t.tags.length > 0 && (
+          <div className="pt-2">
+            <p className="text-xs text-muted-foreground mb-1">Tags</p>
+            <div className="flex flex-wrap gap-1">
+              {t.tags.map((tag: string) => <Badge key={tag} variant="secondary" className="text-xs"><Tag className="h-3 w-3 mr-1" />{tag}</Badge>)}
+            </div>
+          </div>
+        )}
+      </SectionCard>
+    );
+  }
+
   return (
     <ErrorBoundary title="Trade Detail" onRetry={() => setRetryKey(k => k + 1)}>
     <div key={retryKey} className="space-y-6 max-w-5xl mx-auto">
@@ -490,9 +560,9 @@ export default function TradeDetail() {
           <CardContent className="py-6 text-center space-y-3">
             <BookOpen className="h-8 w-8 text-primary mx-auto" />
             <div>
-              <p className="font-medium">This position hasn't been enriched yet</p>
+              <p className="font-medium">Strengthen your trading record</p>
               <p className="text-sm text-muted-foreground mt-1">
-                Add journal notes, strategies, and screenshots to improve your analysis.
+                Add journal notes, strategies, and analysis to strengthen your trading record.
               </p>
             </div>
             <Button onClick={() => setEnrichDrawerOpen(true)} className="gap-2">
@@ -502,237 +572,142 @@ export default function TradeDetail() {
         </Card>
       )}
 
-      {/* ===== MAIN CONTENT GRID ===== */}
-      {isLive ? (
-        /* ---------- COCKPIT MODE (Live) ---------- */
-        <div className="grid gap-4 md:grid-cols-2">
-          {/* Risk Overview */}
-          <SectionCard title="Risk Overview" icon={Shield}>
+      {/* ===== UNIFIED CONTENT GRID ===== */}
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* Card 1: Primary Outcome — always present */}
+        <SectionCard title={isLive ? "Live P&L" : "Performance"} icon={Activity}>
+          {isLive ? (
             <div className="grid grid-cols-2 gap-x-6">
-              <DetailRow label="Mark Price" value={safeFixed(markPrice, 4)} />
-              <DetailRow label="Entry Price" value={safeFixed(trade.entry_price, 4)} />
-              <DetailRow label="Liq. Price" value={safeFixed(liqPrice, 4)} />
-              <DetailRow label="Liq. Distance (Price)" value={liqMetrics ? `${liqMetrics.pricePct.toFixed(2)}%` : undefined} />
-              {liqMetrics?.equityPct !== undefined && (
-                <DetailRow label="Liq. Distance (Equity)" value={
-                  <span>{liqMetrics.equityPct.toFixed(2)}% <span className="text-[10px] text-muted-foreground/60 ml-1">est. via leverage</span></span>
-                } />
-              )}
-              {liveUnrealizedR && (
-                <DetailRow
-                  label="Unrealized R"
-                  value={
-                    <span>
-                      {parseFloat(liveUnrealizedR) >= 0 ? '+' : ''}{liveUnrealizedR}R
-                      {parseFloat(liveUnrealizedR) >= 1 && <span className="text-[10px] text-profit/70 ml-1">≥1R</span>}
-                    </span>
-                  }
-                  className={parseFloat(liveUnrealizedR) >= 0 ? 'text-profit' : 'text-loss'}
-                />
-              )}
-              <DetailRow label="Margin Type" value={(trade as any).margin_type} />
-              <DetailRow label="Leverage" value={(trade as any).leverage ? `${(trade as any).leverage}x` : undefined} />
-              {hasContent(trade.stop_loss) && <DetailRow label="Stop Loss" value={safeFixed(trade.stop_loss, 4)} />}
-              {hasContent(trade.take_profit) && <DetailRow label="Take Profit" value={safeFixed(trade.take_profit, 4)} />}
-            </div>
-          </SectionCard>
-
-          {/* Price & Position */}
-          <SectionCard title="Price & Position" icon={DollarSign}>
-            <div className="grid grid-cols-2 gap-x-6">
-              <DetailRow label="Entry Price" value={safeFixed(trade.entry_price, 4)} />
-              <DetailRow label="Size" value={safeFixed(trade.quantity, 4)} />
-              <DetailRow label="Direction" value={trade.direction} />
+              <DetailRow
+                label="Unrealized P&L"
+                value={formatPnl(pnlValue)}
+                className={pnlValue >= 0 ? 'text-profit' : 'text-loss'}
+              />
               <DetailRow label="Commission" value={hasContent(trade.commission) ? formatCurrency(trade.commission!) : undefined} />
               <DetailRow label="Fees" value={hasContent(trade.fees) ? formatCurrency(trade.fees!) : undefined} />
               <DetailRow label="Funding Fees" value={hasContent((trade as any).funding_fees) ? formatCurrency((trade as any).funding_fees) : undefined} />
             </div>
-          </SectionCard>
-        </div>
-      ) : (
-        /* ---------- FORENSIC LAB MODE (Closed) ---------- */
-        <div className="grid gap-4 md:grid-cols-3">
-          {/* Left column (2/3) */}
-          <div className="md:col-span-2 space-y-4">
-            {/* Price & Performance */}
-            <SectionCard title="Price & Performance" icon={DollarSign}>
+          ) : (
+            <>
               <div className="grid grid-cols-2 gap-x-6">
-                <DetailRow label="Entry Price" value={safeFixed(trade.entry_price, 4)} />
-                <DetailRow label="Exit Price" value={safeFixed(trade.exit_price, 4)} />
-                <DetailRow label="Stop Loss" value={safeFixed(trade.stop_loss, 4)} />
-                <DetailRow label="Take Profit" value={safeFixed(trade.take_profit, 4)} />
-              </div>
-              <div className="border-t border-border mt-3 pt-3">
-                <div className="grid grid-cols-2 gap-x-6">
-                  <DetailRow label="Gross P&L" value={formatPnl(pnlValue)} className={pnlValue >= 0 ? 'text-profit' : 'text-loss'} />
-                  <DetailRow label="Net P&L" value={formatPnl(netPnl)} className={netPnl >= 0 ? 'text-profit' : 'text-loss'} />
-                  <DetailRow label="Commission" value={hasContent(trade.commission) ? formatCurrency(trade.commission!) : undefined} />
-                  <DetailRow label="Fees" value={hasContent(trade.fees) ? formatCurrency(trade.fees!) : undefined} />
-                  <DetailRow label="Funding Fees" value={hasContent((trade as any).funding_fees) ? formatCurrency((trade as any).funding_fees) : undefined} />
-                  <DetailRow label="MAE" value={safeFixed((trade as any).max_adverse_excursion, 4)} />
-                </div>
+                <DetailRow label="Net P&L" value={formatPnl(netPnl)} className={netPnl >= 0 ? 'text-profit' : 'text-loss'} />
+                <DetailRow label="Gross P&L" value={formatPnl(pnlValue)} className={pnlValue >= 0 ? 'text-profit' : 'text-loss'} />
               </div>
               {trade.result && (
                 <div className="border-t border-border mt-3 pt-3">
-                  <DetailRow label="Result" value={<Badge variant="outline" className="text-xs">{trade.result}</Badge>} />
+                  <DetailRow label="Result" value={
+                    <Badge variant="outline" className={`text-xs ${trade.result.toLowerCase() === 'win' ? 'text-profit border-profit/30' : trade.result.toLowerCase() === 'loss' ? 'text-loss border-loss/30' : 'text-muted-foreground'}`}>
+                      {trade.result.toUpperCase()}
+                    </Badge>
+                  } />
                 </div>
               )}
-            </SectionCard>
-
-            {/* Timing (closed only) */}
-            {hasTimingData && (
-              <SectionCard title="Timing" icon={Clock}>
+              <div className="border-t border-border mt-3 pt-3">
                 <div className="grid grid-cols-2 gap-x-6">
-                  <DetailRow label="Trade Date" value={formatDatetime(trade.trade_date)} />
-                  <DetailRow label="Session" value={(trade as any).session} />
-                  <DetailRow label="Entry Time" value={formatDatetime((trade as any).entry_datetime)} />
-                  <DetailRow label="Exit Time" value={formatDatetime((trade as any).exit_datetime)} />
-                  <DetailRow label="Hold Time" value={formatHoldTime((trade as any).hold_time_minutes)} />
+                  <DetailRow label="Commission" value={hasContent(trade.commission) ? formatCurrency(trade.commission!) : undefined} />
+                  <DetailRow label="Fees" value={hasContent(trade.fees) ? formatCurrency(trade.fees!) : undefined} />
+                  <DetailRow label="Funding Fees" value={hasContent((trade as any).funding_fees) ? formatCurrency((trade as any).funding_fees) : undefined} />
+                  {hasContent((trade as any).max_adverse_excursion) && (
+                    <DetailRow label="MAE" value={safeFixed((trade as any).max_adverse_excursion, 4)} />
+                  )}
                 </div>
-              </SectionCard>
-            )}
+              </div>
+            </>
+          )}
+        </SectionCard>
 
-            {/* Timeframe Analysis */}
-            {hasTimeframeData && (
-              <SectionCard title="Timeframe Analysis" icon={Layers}>
-                <div className="grid grid-cols-2 gap-x-6">
-                  <DetailRow label="Bias (HTF)" value={trade.bias_timeframe} />
-                  <DetailRow label="Execution" value={trade.execution_timeframe} />
-                  <DetailRow label="Precision (LTF)" value={(trade as any).precision_timeframe} />
-                  <DetailRow label="Chart TF" value={trade.chart_timeframe} />
-                </div>
-              </SectionCard>
+        {/* Card 2: Risk & Execution — always present */}
+        <SectionCard title="Risk & Execution" icon={Shield}>
+          <div className="grid grid-cols-2 gap-x-6">
+            {/* Live-only fields */}
+            {isLive && <DetailRow label="Mark Price" value={safeFixed(markPrice, 4)} />}
+            <DetailRow label="Entry Price" value={safeFixed(trade.entry_price, 4)} />
+            {!isLive && <DetailRow label="Exit Price" value={safeFixed(trade.exit_price, 4)} />}
+            {isLive && <DetailRow label="Liq. Price" value={safeFixed(liqPrice, 4)} />}
+            {isLive && liqMetrics && (
+              <DetailRow label="Liq. Distance (Price)" value={`${liqMetrics.pricePct.toFixed(2)}%`} />
             )}
+            {isLive && liqMetrics?.equityPct !== undefined && (
+              <DetailRow label="Liq. Distance (Equity)" value={
+                <span>{liqMetrics.equityPct.toFixed(2)}% <span className="text-[10px] text-muted-foreground/60 ml-1">est. via leverage</span></span>
+              } />
+            )}
+            {isLive && liveUnrealizedR && (
+              <DetailRow
+                label="Unrealized R"
+                value={
+                  <span>
+                    {parseFloat(liveUnrealizedR) >= 0 ? '+' : ''}{liveUnrealizedR}R
+                    {parseFloat(liveUnrealizedR) >= 1 && <span className="text-[10px] text-profit/70 ml-1">≥1R</span>}
+                  </span>
+                }
+                className={parseFloat(liveUnrealizedR) >= 0 ? 'text-profit' : 'text-loss'}
+              />
+            )}
+            {!isLive && hasContent((trade as any).r_multiple) && (
+              <DetailRow label="R-Multiple" value={safeFixed((trade as any).r_multiple, 2)} />
+            )}
+            {hasContent(trade.stop_loss) && <DetailRow label="Stop Loss" value={safeFixed(trade.stop_loss, 4)} />}
+            {hasContent(trade.take_profit) && <DetailRow label="Take Profit" value={safeFixed(trade.take_profit, 4)} />}
+            {hasContent((trade as any).margin_type) && <DetailRow label="Margin Type" value={(trade as any).margin_type} />}
+            <DetailRow label="Leverage" value={(trade as any).leverage ? `${(trade as any).leverage}x` : undefined} />
+            <DetailRow label="Size" value={safeFixed(trade.quantity, 4)} />
+            <DetailRow label="Direction" value={trade.direction} />
           </div>
+        </SectionCard>
 
-          {/* Right column (1/3) — Strategy & Journal visible for closed */}
-          <div className="space-y-4">
-            {hasStrategyData && (
-              <SectionCard title="Strategy & Setup" icon={Target}>
-                {trade.strategies && trade.strategies.length > 0 && (
-                  <div className="pb-2">
-                    <p className="text-xs text-muted-foreground mb-1.5">Strategies</p>
-                    <div className="flex flex-wrap gap-1">
-                      {trade.strategies.map((s: any) => (
-                        <Badge key={s.id} variant="outline" className="text-xs" style={{ borderColor: s.color || undefined }}>{s.name}</Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <DetailRow label="Entry Signal" value={trade.entry_signal} />
-                <DetailRow label="Market Condition" value={trade.market_condition} />
-                <DetailRow label="Confluence" value={trade.confluence_score?.toString()} />
-                <DetailRow label="Entry Order" value={(trade as any).entry_order_type} />
-                <DetailRow label="Exit Order" value={(trade as any).exit_order_type} />
-                {hasContent(trade.ai_quality_score, trade.ai_confidence) && (
-                  <div className="border-t border-border mt-2 pt-2">
-                    <DetailRow label="AI Quality" value={safeFixed(trade.ai_quality_score, 0)} />
-                    <DetailRow label="AI Confidence" value={trade.ai_confidence ? `${safeFixed(trade.ai_confidence, 0)}%` : undefined} />
-                  </div>
-                )}
-              </SectionCard>
-            )}
-
-            {hasJournalData && (
-              <SectionCard title="Journal" icon={MessageSquare}>
-                {trade.emotional_state && <DetailRow label="Emotion" value={trade.emotional_state} />}
-                {trade.notes && (
-                  <div className="pt-2">
-                    <p className="text-xs text-muted-foreground mb-1">Notes</p>
-                    <p className="text-sm bg-muted/50 rounded-md p-2 whitespace-pre-wrap">{trade.notes}</p>
-                  </div>
-                )}
-                {trade.lesson_learned && (
-                  <div className="pt-2">
-                    <p className="text-xs text-muted-foreground mb-1">Lesson Learned</p>
-                    <p className="text-sm bg-muted/50 rounded-md p-2 whitespace-pre-wrap">{trade.lesson_learned}</p>
-                  </div>
-                )}
-                {ruleCompliance && Object.keys(ruleCompliance).length > 0 && (
-                  <div className="pt-2">
-                    <p className="text-xs text-muted-foreground mb-1">Rule Compliance</p>
-                    <div className="space-y-1">
-                      {Object.entries(ruleCompliance).map(([rule, passed]) => (
-                        <div key={rule} className="flex items-center gap-2 text-sm">
-                          {passed ? <CheckCircle2 className="h-3.5 w-3.5 text-profit" /> : <XCircle className="h-3.5 w-3.5 text-loss" />}
-                          <span>{rule}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {trade.tags && trade.tags.length > 0 && (
-                  <div className="pt-2">
-                    <p className="text-xs text-muted-foreground mb-1">Tags</p>
-                    <div className="flex flex-wrap gap-1">
-                      {trade.tags.map((tag: string) => <Badge key={tag} variant="secondary" className="text-xs"><Tag className="h-3 w-3 mr-1" />{tag}</Badge>)}
-                    </div>
-                  </div>
-                )}
-              </SectionCard>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ===== PROGRESSIVE DISCLOSURE: Analysis & Journal for LIVE trades ===== */}
-      {isLive && (hasStrategyData || hasLiveJournalData) && (
-        <Collapsible>
-          <CollapsibleTrigger asChild>
-            <Button variant="ghost" className="w-full justify-between text-muted-foreground hover:text-foreground">
-              <span className="text-sm font-medium">Analysis & Journal</span>
-              <ChevronDown className="h-4 w-4" />
-            </Button>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <div className="grid gap-4 md:grid-cols-2 mt-2">
-              {hasStrategyData && (
-                <SectionCard title="Strategy & Setup" icon={Target}>
-                  {trade.strategies && trade.strategies.length > 0 && (
-                    <div className="pb-2">
-                      <p className="text-xs text-muted-foreground mb-1.5">Strategies</p>
-                      <div className="flex flex-wrap gap-1">
-                        {trade.strategies.map((s: any) => (
-                          <Badge key={s.id} variant="outline" className="text-xs" style={{ borderColor: s.color || undefined }}>{s.name}</Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  <DetailRow label="Entry Signal" value={trade.entry_signal} />
-                  <DetailRow label="Market Condition" value={trade.market_condition} />
-                  <DetailRow label="Confluence" value={trade.confluence_score?.toString()} />
-                  <DetailRow label="Entry Order" value={(trade as any).entry_order_type} />
-                </SectionCard>
-              )}
-
-              {hasLiveJournalData && (
-                <SectionCard title="Journal" icon={MessageSquare}>
-                  {trade.notes && (
-                    <div className="pt-2">
-                      <p className="text-xs text-muted-foreground mb-1">Notes</p>
-                      <p className="text-sm bg-muted/50 rounded-md p-2 whitespace-pre-wrap">{trade.notes}</p>
-                    </div>
-                  )}
-                  {trade.lesson_learned && (
-                    <div className="pt-2">
-                      <p className="text-xs text-muted-foreground mb-1">Lesson Learned</p>
-                      <p className="text-sm bg-muted/50 rounded-md p-2 whitespace-pre-wrap">{trade.lesson_learned}</p>
-                    </div>
-                  )}
-                  {trade.tags && trade.tags.length > 0 && (
-                    <div className="pt-2">
-                      <p className="text-xs text-muted-foreground mb-1">Tags</p>
-                      <div className="flex flex-wrap gap-1">
-                        {trade.tags.map((tag: string) => <Badge key={tag} variant="secondary" className="text-xs"><Tag className="h-3 w-3 mr-1" />{tag}</Badge>)}
-                      </div>
-                    </div>
-                  )}
-                </SectionCard>
-              )}
+        {/* Card 3: Timing — closed only */}
+        {!isLive && hasTimingData && (
+          <SectionCard title="Timing" icon={Clock}>
+            <div className="grid grid-cols-2 gap-x-6">
+              <DetailRow label="Trade Date" value={formatDatetime(trade.trade_date)} />
+              <DetailRow label="Session" value={(trade as any).session} />
+              <DetailRow label="Entry Time" value={formatDatetime((trade as any).entry_datetime)} />
+              <DetailRow label="Exit Time" value={formatDatetime((trade as any).exit_datetime)} />
+              <DetailRow label="Hold Time" value={formatHoldTime((trade as any).hold_time_minutes)} />
             </div>
-          </CollapsibleContent>
-        </Collapsible>
-      )}
+          </SectionCard>
+        )}
+
+        {/* Timeframe Analysis — if enriched */}
+        {hasTimeframeData && (
+          <SectionCard title="Timeframe Analysis" icon={Layers}>
+            <div className="grid grid-cols-2 gap-x-6">
+              <DetailRow label="Bias (HTF)" value={trade.bias_timeframe} />
+              <DetailRow label="Execution" value={trade.execution_timeframe} />
+              <DetailRow label="Precision (LTF)" value={(trade as any).precision_timeframe} />
+              <DetailRow label="Chart TF" value={trade.chart_timeframe} />
+            </div>
+          </SectionCard>
+        )}
+
+        {/* Card 4: Strategy & Journal — shared render, different wrapper */}
+        {isLive ? (
+          (hasStrategyData || hasLiveJournalData) ? (
+            <div className="md:col-span-2">
+              <Collapsible>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" className="w-full justify-between text-muted-foreground hover:text-foreground">
+                    <span className="text-sm font-medium">Analysis & Journal</span>
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="grid gap-4 md:grid-cols-2 mt-2">
+                    {hasStrategyData && renderStrategyContent(trade)}
+                    {hasLiveJournalData && renderJournalContent(trade, true, null)}
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            </div>
+          ) : null
+        ) : (
+          <>
+            {hasStrategyData && renderStrategyContent(trade)}
+            {hasJournalData && renderJournalContent(trade, false, ruleCompliance)}
+          </>
+        )}
+      </div>
 
       {/* ===== FULL-WIDTH SECTIONS ===== */}
 
