@@ -77,7 +77,7 @@ export function useDashboardInsights() {
           body: { 
             ...params, 
             language: settings?.language || 'en',
-            marketScoreLabel: marketScoreLabel || 'Unknown',
+            marketScoreLabel: marketScoreLabel || 'Unavailable',
           }
         }
       );
