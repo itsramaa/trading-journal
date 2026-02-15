@@ -114,6 +114,7 @@ const MarketInsight = () => {
             sentimentData={sentimentData}
             macroData={macroData}
             calendarData={calendarData}
+            tradingStyle={tradingStyle}
             isLoading={isLoading}
             onRefresh={handleRefresh}
             error={sentimentError || macroError || null}

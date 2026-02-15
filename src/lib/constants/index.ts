@@ -32,3 +32,6 @@ export * from './risk-thresholds';
 
 // Risk multipliers for context-aware adjustments
 export * from './risk-multipliers';
+
+// Trading style context configuration
+export * from './trading-style-context';
