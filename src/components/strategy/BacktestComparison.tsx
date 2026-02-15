@@ -309,7 +309,11 @@ export function BacktestComparison() {
                       className="text-muted-foreground"
                     />
                     <YAxis 
-                      tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
+                      tickFormatter={(v) => {
+                        if (v >= 1000) return `$${(v / 1000).toFixed(1)}k`;
+                        return `$${v.toFixed(0)}`;
+                      }}
+                      domain={['dataMin', 'dataMax']}
                       className="text-muted-foreground"
                     />
                     <Tooltip 

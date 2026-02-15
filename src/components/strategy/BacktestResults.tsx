@@ -1,6 +1,8 @@
+import { useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
@@ -14,7 +16,9 @@ import {
   ArrowDown,
   Download,
   FileText,
-  FileSpreadsheet
+  FileSpreadsheet,
+  AlertTriangle,
+  CheckCircle2
 } from "lucide-react";
 import { useBacktestExport } from "@/hooks/use-backtest-export";
 import { format as formatDate } from "date-fns";
@@ -36,6 +40,20 @@ export function BacktestResults({ result }: BacktestResultsProps) {
   const { exportToCSV, exportToPDF } = useBacktestExport();
   const { format, formatCompact } = useCurrencyConversion();
 
+  // Compute CAGR
+  const cagr = useMemo(() => {
+    const periodDays = (new Date(result.periodEnd).getTime() - new Date(result.periodStart).getTime()) / (1000 * 60 * 60 * 24);
+    const periodYears = periodDays / 365;
+    if (periodYears <= 0 || result.initialCapital <= 0) return metrics.totalReturn;
+    return (Math.pow(result.finalCapital / result.initialCapital, 1 / periodYears) - 1) * 100;
+  }, [result]);
+
+  // Break-even analysis
+  const breakevenWR = metrics.avgRiskReward > 0 ? 1 / (1 + metrics.avgRiskReward) : null;
+  const isBelowBreakeven = breakevenWR !== null && metrics.winRate < breakevenWR;
+  const isAboveBreakeven = breakevenWR !== null && metrics.winRate > breakevenWR;
+  const breakevenMargin = breakevenWR !== null ? (metrics.winRate - breakevenWR) * 100 : null;
+
   // Format equity curve for chart
   const chartData = equityCurve.map((point, i) => ({
     ...point,
@@ -52,6 +70,29 @@ export function BacktestResults({ result }: BacktestResultsProps) {
         simulationVersion={result.simulationVersion}
         variant="compact"
       />
+
+      {/* Break-Even Insight Banner */}
+      {metrics.avgRiskReward > 0 && isBelowBreakeven && breakevenWR !== null && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            <strong>Below break-even threshold.</strong> Win rate ({(metrics.winRate * 100).toFixed(1)}%) 
+            is below the break-even requirement ({(breakevenWR * 100).toFixed(1)}%) for the observed{' '}
+            {metrics.avgRiskReward.toFixed(2)} R:R. Expectancy: {format(metrics.expectancy)}/trade.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {metrics.avgRiskReward > 0 && isAboveBreakeven && breakevenMargin !== null && breakevenMargin > 5 && (
+        <Alert className="border-profit/30 bg-profit-muted/30">
+          <CheckCircle2 className="h-4 w-4 text-profit" />
+          <AlertDescription className="text-profit">
+            <strong>Above break-even.</strong> Win rate ({(metrics.winRate * 100).toFixed(1)}%) exceeds 
+            break-even ({(breakevenWR! * 100).toFixed(1)}%) by {breakevenMargin.toFixed(1)}pp. 
+            Expectancy: {format(metrics.expectancy)}/trade.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Summary Card */}
       <Card>
@@ -110,7 +151,7 @@ export function BacktestResults({ result }: BacktestResultsProps) {
         </CardHeader>
       </Card>
 
-      {/* Metrics Grid - Using design system tokens */}
+      {/* Metrics Grid */}
       <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
         <Card className="hover:shadow-md transition-shadow">
           <CardContent className="pt-6">
@@ -122,6 +163,9 @@ export function BacktestResults({ result }: BacktestResultsProps) {
                   isProfit ? "text-profit" : "text-loss"
                 )}>
                   {format(metrics.totalReturnAmount)}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  CAGR: {cagr >= 0 ? '+' : ''}{cagr.toFixed(1)}%
                 </p>
               </div>
               <div className={cn(
@@ -176,9 +220,12 @@ export function BacktestResults({ result }: BacktestResultsProps) {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Sharpe Ratio</p>
-                <p className="text-2xl font-bold font-mono">
-                  {formatNumber(metrics.sharpeRatio, 2)}
+                <p className="text-sm text-muted-foreground">Expectancy</p>
+                <p className={cn(
+                  "text-2xl font-bold font-mono",
+                  metrics.expectancy >= 0 ? "text-profit" : "text-loss"
+                )}>
+                  {format(metrics.expectancy)}
                 </p>
               </div>
               <div className="p-2 rounded-full bg-primary/10">
@@ -186,7 +233,7 @@ export function BacktestResults({ result }: BacktestResultsProps) {
               </div>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Risk-adjusted return
+              Per trade
             </p>
           </CardContent>
         </Card>
@@ -212,6 +259,10 @@ export function BacktestResults({ result }: BacktestResultsProps) {
                 <span className="text-muted-foreground text-sm">Avg Loss</span>
                 <span className="font-medium font-mono text-loss">-{format(metrics.avgLoss)}</span>
               </div>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground text-sm">Avg R:R</span>
+                <span className="font-medium font-mono">{formatNumber(metrics.avgRiskReward, 2)}</span>
+              </div>
             </div>
             <div className="space-y-3">
               <div className="flex justify-between items-center">
@@ -219,12 +270,18 @@ export function BacktestResults({ result }: BacktestResultsProps) {
                 <span className="font-medium font-mono">{metrics.profitFactor === Infinity ? '∞' : formatNumber(metrics.profitFactor, 2)}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-muted-foreground text-sm">Avg Win %</span>
-                <span className="font-medium font-mono text-profit">{formatPercent(metrics.avgWinPercent)}</span>
+                <span className="text-muted-foreground text-sm">Sharpe Ratio</span>
+                <span className="font-medium font-mono">{formatNumber(metrics.sharpeRatio, 2)}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-muted-foreground text-sm">Avg Loss %</span>
-                <span className="font-medium font-mono text-loss">-{formatNumber(metrics.avgLossPercent, 2)}%</span>
+                <span className="text-muted-foreground text-sm">Calmar Ratio</span>
+                <span className="font-medium font-mono">{formatNumber(metrics.calmarRatio, 2)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground text-sm">Expectancy/R</span>
+                <span className={cn("font-medium font-mono", metrics.expectancyPerR >= 0 ? "text-profit" : "text-loss")}>
+                  {metrics.expectancyPerR >= 0 ? '+' : ''}{metrics.expectancyPerR.toFixed(2)}R
+                </span>
               </div>
             </div>
             <div className="space-y-3">
@@ -240,6 +297,12 @@ export function BacktestResults({ result }: BacktestResultsProps) {
                 <span className="text-muted-foreground text-sm">Avg Holding</span>
                 <span className="font-medium font-mono">{formatNumber(metrics.holdingPeriodAvg, 1)}h</span>
               </div>
+              {breakevenWR !== null && (
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground text-sm">Break-even WR</span>
+                  <span className="font-medium font-mono">{(breakevenWR * 100).toFixed(1)}%</span>
+                </div>
+              )}
             </div>
           </div>
         </CardContent>

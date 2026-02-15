@@ -12,6 +12,7 @@ export const BACKTEST_DEFAULTS = {
   INITIAL_CAPITAL: 10000,
   COMMISSION_RATE: 0.0004,    // 0.04% (Binance taker fee)
   SLIPPAGE: 0.001,            // 0.1%
+  RISK_PER_TRADE: 0.02,       // 2%
   
   // Period
   PERIOD_MONTHS: 3,
@@ -23,6 +24,13 @@ export const BACKTEST_DEFAULTS = {
   MIN_COMMISSION: 0,
   MAX_COMMISSION: 1,
   COMMISSION_STEP: 0.01,
+  MIN_SLIPPAGE: 0,
+  MAX_SLIPPAGE: 2,
+  SLIPPAGE_STEP: 0.01,
+  MIN_RISK_PER_TRADE: 0.5,
+  MAX_RISK_PER_TRADE: 10,
+  RISK_PER_TRADE_STEP: 0.5,
+  MAX_LEVERAGE: 125,
 } as const;
 
 // Exchange-specific commission rates for reference
@@ -119,6 +127,8 @@ export const METRICS_CONFIG: MetricConfig[] = [
   { key: 'maxDrawdown', label: 'Max Drawdown', format: (v) => `-${v.toFixed(2)}%`, higherIsBetter: false },
   { key: 'sharpeRatio', label: 'Sharpe Ratio', format: (v) => v.toFixed(2), higherIsBetter: true },
   { key: 'profitFactor', label: 'Profit Factor', format: (v) => v === Infinity ? '∞' : v.toFixed(2), higherIsBetter: true },
+  { key: 'expectancy', label: 'Expectancy', format: (v) => `$${v.toFixed(2)}`, higherIsBetter: true },
+  { key: 'calmarRatio', label: 'Calmar Ratio', format: (v) => v.toFixed(2), higherIsBetter: true },
   { key: 'totalTrades', label: 'Total Trades', format: (v) => v.toString(), higherIsBetter: true },
   { key: 'avgWin', label: 'Avg Win', format: (v) => `$${v.toFixed(2)}`, higherIsBetter: true },
   { key: 'avgLoss', label: 'Avg Loss', format: (v) => `-$${v.toFixed(2)}`, higherIsBetter: false },

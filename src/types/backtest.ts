@@ -19,6 +19,9 @@ export interface BacktestConfig {
   initialCapital: number;
   commissionRate: number; // e.g., 0.0004 for 0.04%
   slippage?: number; // e.g., 0.001 for 0.1%
+  riskPerTrade?: number;   // e.g., 0.02 for 2%
+  compounding?: boolean;   // recalculate from running equity
+  leverage?: number;       // default 1, max 125
   // Enhanced filters
   eventFilter?: BacktestEventFilter;
   sessionFilter?: BacktestSessionFilter;
@@ -58,6 +61,9 @@ export interface BacktestMetrics {
   consecutiveLosses: number;   // Maximum consecutive losses
   avgRiskReward: number;       // Average risk-reward ratio
   holdingPeriodAvg: number;    // Average holding period in hours
+  expectancy: number;          // (WR * avgWin) - (LR * avgLoss)
+  expectancyPerR: number;      // WR * R - (1 - WR)
+  calmarRatio: number;         // annualized return / max drawdown
 }
 
 export interface EquityCurvePoint {
@@ -351,6 +357,9 @@ export function calculateMetrics(trades: BacktestTrade[], initialCapital: number
       consecutiveLosses: 0,
       avgRiskReward: 0,
       holdingPeriodAvg: 0,
+      expectancy: 0,
+      expectancyPerR: 0,
+      calmarRatio: 0,
     };
   }
 
@@ -408,15 +417,21 @@ export function calculateMetrics(trades: BacktestTrade[], initialCapital: number
   const stdDev = Math.sqrt(returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / returns.length);
   const sharpe = stdDev > 0 ? (avgReturn / stdDev) * Math.sqrt(252) : 0; // Annualized
 
+  const winRate = trades.length > 0 ? winningTrades.length / trades.length : 0;
+  const avgWin = winningTrades.length > 0 ? grossProfit / winningTrades.length : 0;
+  const avgLoss = losingTrades.length > 0 ? grossLoss / losingTrades.length : 0;
+  const avgRiskReward = losingTrades.length > 0 && winningTrades.length > 0
+    ? avgWin / avgLoss : 0;
+
   return {
     totalReturn: (totalPnl / initialCapital) * 100,
     totalReturnAmount: totalPnl,
-    winRate: trades.length > 0 ? winningTrades.length / trades.length : 0,
+    winRate,
     totalTrades: trades.length,
     winningTrades: winningTrades.length,
     losingTrades: losingTrades.length,
-    avgWin: winningTrades.length > 0 ? grossProfit / winningTrades.length : 0,
-    avgLoss: losingTrades.length > 0 ? grossLoss / losingTrades.length : 0,
+    avgWin,
+    avgLoss,
     avgWinPercent: winningTrades.length > 0 
       ? winningTrades.reduce((sum, t) => sum + t.pnlPercent, 0) / winningTrades.length 
       : 0,
@@ -429,9 +444,10 @@ export function calculateMetrics(trades: BacktestTrade[], initialCapital: number
     sharpeRatio: sharpe,
     consecutiveWins: maxConsecWins,
     consecutiveLosses: maxConsecLosses,
-    avgRiskReward: losingTrades.length > 0 && winningTrades.length > 0
-      ? (grossProfit / winningTrades.length) / (grossLoss / losingTrades.length)
-      : 0,
+    avgRiskReward,
     holdingPeriodAvg: avgHolding,
+    expectancy: winRate * avgWin - ((1 - winRate) * avgLoss),
+    expectancyPerR: avgRiskReward > 0 ? (winRate * avgRiskReward) - (1 - winRate) : 0,
+    calmarRatio: maxDD > 0 ? ((totalPnl / initialCapital) * 100) / (maxDD * 100) : 0,
   };
 }
