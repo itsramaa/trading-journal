@@ -1,5 +1,5 @@
 /**
- * RegimeCard - Unified regime classification display with orchestrated risk output
+ * RegimeCard - Unified regime classification display with style-aware orchestrated risk output
  */
 import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,6 +17,7 @@ import {
 import { 
   calculateUnifiedPositionSize, deriveVolatilityMultiplier, type UnifiedRiskOutput 
 } from "@/lib/unified-risk-orchestrator";
+import { TRADING_STYLE_LABELS, type TradingStyle } from "@/hooks/trading/use-trade-mode";
 import type { MarketInsightResponse, MacroAnalysisResponse } from "@/features/market-insight/types";
 import type { EconomicCalendarResponse } from "@/features/calendar/types";
 
@@ -24,12 +25,13 @@ interface RegimeCardProps {
   sentimentData?: MarketInsightResponse;
   macroData?: MacroAnalysisResponse;
   calendarData?: EconomicCalendarResponse;
+  tradingStyle?: TradingStyle;
   isLoading: boolean;
   onRefresh: () => void;
   error?: Error | null;
 }
 
-function RegimeCardContent({ sentimentData, macroData, calendarData, isLoading, onRefresh, error }: RegimeCardProps) {
+function RegimeCardContent({ sentimentData, macroData, calendarData, tradingStyle, isLoading, onRefresh, error }: RegimeCardProps) {
   const { regime, unified } = useMemo<{ regime: RegimeOutput | null; unified: UnifiedRiskOutput | null }>(() => {
     if (!sentimentData?.sentiment || !macroData?.macro) return { regime: null, unified: null };
 
@@ -42,14 +44,12 @@ function RegimeCardContent({ sentimentData, macroData, calendarData, isLoading, 
       macroSentiment: macroData.macro.overallSentiment,
       volatilityLevel: sentimentData.volatility?.[0]?.level as 'low' | 'medium' | 'high',
       momentum24h: sentimentData.sentiment.signals?.[0]?.change24h,
-      // Feed calendar event risk into regime engine
       eventRiskLevel: (calendarData?.impactSummary?.riskLevel as 'LOW' | 'MODERATE' | 'HIGH' | 'VERY_HIGH') ?? 'LOW',
+      tradingStyle,
     });
 
-    // Derive volatility multiplier from BTC annualized vol
     const btcVol = sentimentData.volatility?.[0]?.annualizedVolatility ?? 50;
     const volMultiplier = deriveVolatilityMultiplier(btcVol);
-
     const isTrending = regimeResult.regime === 'TRENDING_BULL' || regimeResult.regime === 'TRENDING_BEAR';
     const eventRisk = (calendarData?.impactSummary?.riskLevel as 'LOW' | 'MODERATE' | 'HIGH' | 'VERY_HIGH') ?? 'LOW';
 
@@ -59,10 +59,11 @@ function RegimeCardContent({ sentimentData, macroData, calendarData, isLoading, 
       volatilityMultiplier: volMultiplier,
       regimeIsTrending: isTrending,
       eventRiskLevel: eventRisk,
+      tradingStyle,
     });
 
     return { regime: regimeResult, unified: unifiedResult };
-  }, [sentimentData, macroData, calendarData]);
+  }, [sentimentData, macroData, calendarData, tradingStyle]);
 
   if (error) {
     return <AsyncErrorFallback error={error} onRetry={onRefresh} title="Failed to load regime analysis" />;
@@ -98,6 +99,9 @@ function RegimeCardContent({ sentimentData, macroData, calendarData, isLoading, 
 
   const regimeStyle = REGIME_CONFIG[regime.regime];
   const riskModeStyle = RISK_MODE_CONFIG[regime.riskMode];
+  const directionLabel = regime.styleContext?.directionLabel ?? 'Direction (24h)';
+  const rangeLabel = regime.styleContext?.horizonLabel ? `Expected Range (${regime.styleContext.horizonLabel})` : 'Expected Range';
+  const styleLabel = tradingStyle ? TRADING_STYLE_LABELS[tradingStyle] : undefined;
 
   return (
     <Card className={cn("border-2", regimeStyle.bgClass)}>
@@ -124,7 +128,7 @@ function RegimeCardContent({ sentimentData, macroData, calendarData, isLoading, 
               ) : (
                 <Minus className="h-4 w-4 text-muted-foreground" />
               )}
-              <span className="text-sm font-medium">Direction (24h)</span>
+              <span className="text-sm font-medium">{directionLabel}</span>
             </div>
             <div className="flex items-center gap-3">
               <Progress 
@@ -145,7 +149,7 @@ function RegimeCardContent({ sentimentData, macroData, calendarData, isLoading, 
           <div className="flex items-center justify-between p-3 rounded-lg bg-background/60">
             <div className="flex items-center gap-2">
               <Activity className="h-4 w-4 text-primary" />
-              <span className="text-sm font-medium">Expected Range</span>
+              <span className="text-sm font-medium">{rangeLabel}</span>
             </div>
             <div className="flex items-center gap-2 font-mono text-sm">
               <span className="text-loss">{regime.expectedRange.low}%</span>
@@ -184,6 +188,7 @@ function RegimeCardContent({ sentimentData, macroData, calendarData, isLoading, 
         <div className="flex flex-wrap items-center justify-between text-xs text-muted-foreground pt-2 border-t border-border/50 gap-1">
           <span>
             Score {regime.regimeScore} | Tech {regime.breakdown.technical} | Macro {regime.breakdown.macro} | F&G {regime.breakdown.fearGreed}
+            {styleLabel && ` | ${styleLabel} context`}
           </span>
           <span className="font-mono">
             Cal {unified.breakdown.calendarMultiplier.toFixed(1)}x · Reg {unified.breakdown.regimeMultiplier.toFixed(1)}x · Vol {unified.breakdown.volatilityMultiplier.toFixed(1)}x

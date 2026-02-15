@@ -1,54 +1,77 @@
 /**
  * Regime Classification Engine
- * Replaces overlapping scores with a single decisional output
- * Uses existing calculateCompositeScore and calculateTradingBias as inputs
+ * Replaces overlapping scores with a single decisional output.
+ * Supports style-aware composite weights and range scaling.
  */
+import type { TradingStyle } from '@/hooks/trading/use-trade-mode';
+import { TRADING_STYLE_CONTEXT, type StyleContextConfig } from '@/lib/constants/trading-style-context';
 
 export type MarketRegime = 'TRENDING_BULL' | 'TRENDING_BEAR' | 'RANGING' | 'HIGH_VOL' | 'RISK_OFF';
 export type RiskMode = 'AGGRESSIVE' | 'NEUTRAL' | 'DEFENSIVE';
+
+export interface RegimeStyleContext {
+  horizonLabel: string;
+  rangeHorizon: string;
+  directionLabel: string;
+  appliedWeights: { technical: number; onChain: number; macro: number; fearGreed: number };
+}
 
 export interface RegimeOutput {
   regime: MarketRegime;
   /** The ONLY score the system exposes. All others are breakdown components. */
   regimeScore: number;
-  directionProbability: number; // % upside probability (30-70 range)
-  expectedRange: { low: number; high: number }; // % expected move
+  directionProbability: number;
+  expectedRange: { low: number; high: number };
   riskMode: RiskMode;
-  sizePercent: number; // 25-100
+  sizePercent: number;
   sizeLabel: string;
-  /** Breakdown scores used for transparency — NOT independent scores */
   breakdown: {
     technical: number;
     macro: number;
     fearGreed: number;
   };
   alignment: 'ALIGNED' | 'CONFLICT' | 'NEUTRAL';
+  /** Style context metadata — present when tradingStyle is provided */
+  styleContext?: RegimeStyleContext;
 }
 
 interface RegimeInput {
-  technicalScore: number; // 0-100
-  onChainScore: number; // 0-100
-  macroScore: number; // 0-100
-  fearGreedValue: number; // 0-100
+  technicalScore: number;
+  onChainScore: number;
+  macroScore: number;
+  fearGreedValue: number;
   overallSentiment: 'bullish' | 'bearish' | 'neutral' | 'cautious';
   macroSentiment: 'bullish' | 'bearish' | 'cautious';
   volatilityLevel?: 'low' | 'medium' | 'high';
-  momentum24h?: number; // price change %
+  momentum24h?: number;
   eventRiskLevel?: 'LOW' | 'MODERATE' | 'HIGH' | 'VERY_HIGH';
-  positionSizeAdjustment?: number; // from combined analysis
+  positionSizeAdjustment?: number;
+  /** Active trading style — shifts composite weights and range horizon */
+  tradingStyle?: TradingStyle;
 }
 
 /**
  * Main classification function — single source of truth
  */
 export function classifyMarketRegime(input: RegimeInput): RegimeOutput {
-  const compositeScore = calculateComposite(input);
+  const styleConfig = input.tradingStyle ? TRADING_STYLE_CONTEXT[input.tradingStyle] : undefined;
+  const compositeScore = calculateComposite(input, styleConfig);
   const alignment = determineAlignment(input);
-  const regime = determineRegime(compositeScore, input, alignment);
+  const regime = determineRegime(compositeScore, input, alignment, styleConfig);
   const riskMode = determineRiskMode(regime, alignment, input);
   const directionProbability = calculateDirectionProbability(compositeScore);
-  const expectedRange = calculateExpectedRange(input, regime);
+  const expectedRange24h = calculateExpectedRange(input, regime);
+
+  // Scale range by style multiplier
+  const rangeMultiplier = styleConfig?.rangeBaseMultiplier ?? 1.0;
+  const expectedRange = {
+    low: Math.round(expectedRange24h.low * rangeMultiplier * 10) / 10,
+    high: Math.round(expectedRange24h.high * rangeMultiplier * 10) / 10,
+  };
+
   const { sizePercent, sizeLabel } = calculateSizeAdjustment(riskMode, input);
+
+  const weights = styleConfig?.weights.composite ?? { technical: 0.35, onChain: 0.20, macro: 0.25, fearGreed: 0.20 };
 
   return {
     regime,
@@ -64,44 +87,40 @@ export function classifyMarketRegime(input: RegimeInput): RegimeOutput {
       fearGreed: input.fearGreedValue,
     },
     alignment,
+    ...(styleConfig && {
+      styleContext: {
+        horizonLabel: styleConfig.rangeHorizonLabel,
+        rangeHorizon: styleConfig.rangeHorizonLabel,
+        directionLabel: styleConfig.directionLabel,
+        appliedWeights: weights,
+      },
+    }),
   };
 }
 
 /**
  * Non-linear Fear & Greed transformation with contrarian asymmetry.
- * 
- * Extreme fear (<20): Contrarian bullish signal — pulls composite toward neutral (50),
- * not deeper bearish. Historically, F&G < 15 is a bottoming zone.
- * 
- * Extreme greed (>80): Contrarian bearish signal — pulls composite toward neutral,
- * not higher. Historically, F&G > 85 is a topping zone.
- * 
- * Normal range (20-80): Linear pass-through.
  */
 function transformFearGreed(fg: number): number {
   if (fg <= 20) {
-    // Extreme fear → contrarian bullish: compress toward 35-50 instead of 0-15
-    // fg=0 → 35, fg=10 → 42.5, fg=20 → 50 (meets normal range boundary)
     return 35 + (fg / 20) * 15;
   }
   if (fg >= 80) {
-    // Extreme greed → contrarian bearish: compress toward 50-65 instead of 80-100
-    // fg=80 → 50, fg=90 → 57.5, fg=100 → 65
     return 50 + ((fg - 80) / 20) * 15;
   }
-  return fg; // normal range: pass-through
+  return fg;
 }
 
-function calculateComposite(input: RegimeInput): number {
-  // Pure signal composite — event risk and volatility are NOT included here.
-  // They act as regime overrides only (determineRegime), preventing double-counting.
-  const technical = input.technicalScore * 0.35;
-  const onChain = input.onChainScore * 0.20;
-  const macro = input.macroScore * 0.25;
-  const fearGreed = transformFearGreed(input.fearGreedValue) * 0.20;
+function calculateComposite(input: RegimeInput, styleConfig?: StyleContextConfig): number {
+  const w = styleConfig?.weights.composite ?? { technical: 0.35, onChain: 0.20, macro: 0.25, fearGreed: 0.20 };
+
+  const technical = input.technicalScore * w.technical;
+  const onChain = input.onChainScore * w.onChain;
+  const macro = input.macroScore * w.macro;
+  const fearGreed = transformFearGreed(input.fearGreedValue) * w.fearGreed;
   const linearScore = technical + onChain + macro + fearGreed;
 
-  // Divergence penalty: disagreement among components = uncertainty
+  // Divergence penalty
   const components = [input.technicalScore, input.onChainScore, input.macroScore, transformFearGreed(input.fearGreedValue)];
   const mean = components.reduce((a, b) => a + b, 0) / components.length;
   const variance = components.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / components.length;
@@ -127,18 +146,30 @@ function determineAlignment(input: RegimeInput): 'ALIGNED' | 'CONFLICT' | 'NEUTR
 function determineRegime(
   compositeScore: number,
   input: RegimeInput,
-  alignment: 'ALIGNED' | 'CONFLICT' | 'NEUTRAL'
+  alignment: 'ALIGNED' | 'CONFLICT' | 'NEUTRAL',
+  styleConfig?: StyleContextConfig
 ): MarketRegime {
-  // Priority 1: Event risk override (highest priority)
-  if (input.eventRiskLevel === 'VERY_HIGH' || input.eventRiskLevel === 'HIGH') {
+  const regimeRelevance = styleConfig?.regimeRelevance ?? 'high';
+
+  // Priority 1: Event risk override — sensitivity varies by style
+  if (input.eventRiskLevel === 'VERY_HIGH') {
     return 'RISK_OFF';
   }
-  // Priority 2: Extreme volatility override — NO alignment exception.
-  // A trending bull with FOMC in 6h + 3x vol should NOT be TRENDING_BULL.
-  if (input.volatilityLevel === 'high') {
-    return 'HIGH_VOL';
+  if (input.eventRiskLevel === 'HIGH') {
+    // For scalping (low regime relevance), only VERY_HIGH triggers RISK_OFF
+    if (regimeRelevance !== 'low') return 'RISK_OFF';
   }
-  // Priority 3: Trending (requires conviction + momentum + no conflict)
+
+  // Priority 2: Extreme volatility — relaxed for scalping (vol IS their domain)
+  if (input.volatilityLevel === 'high') {
+    if (regimeRelevance === 'low') {
+      // Scalping: high vol is opportunity, not override — only override if RISK_OFF already
+    } else {
+      return 'HIGH_VOL';
+    }
+  }
+
+  // Priority 3: Trending
   const momentum = input.momentum24h ?? 0;
   if (compositeScore >= 65 && momentum > 0 && alignment !== 'CONFLICT') {
     return 'TRENDING_BULL';
@@ -146,7 +177,7 @@ function determineRegime(
   if (compositeScore <= 35 && momentum < 0 && alignment !== 'CONFLICT') {
     return 'TRENDING_BEAR';
   }
-  // Default
+
   return 'RANGING';
 }
 
@@ -157,41 +188,28 @@ function determineRiskMode(
 ): RiskMode {
   if (regime === 'RISK_OFF' || regime === 'HIGH_VOL') return 'DEFENSIVE';
   if (alignment === 'CONFLICT') return 'DEFENSIVE';
-  // Guard: even if trending+aligned, extreme vol or high events force defensive
   if (input.volatilityLevel === 'high') return 'DEFENSIVE';
   if (input.eventRiskLevel === 'HIGH' || input.eventRiskLevel === 'VERY_HIGH') return 'DEFENSIVE';
   if ((regime === 'TRENDING_BULL' || regime === 'TRENDING_BEAR') && alignment === 'ALIGNED') return 'AGGRESSIVE';
   return 'NEUTRAL';
 }
 
-/**
- * Maps composite score to upside probability
- * Clamped to 30-70% range — never extreme
- */
 function calculateDirectionProbability(compositeScore: number): number {
-  // Linear map: score 0 → 30%, score 50 → 50%, score 100 → 70%
   return Math.round(30 + (compositeScore / 100) * 40);
 }
 
-/**
- * Expected range based on volatility + momentum + regime
- */
 function calculateExpectedRange(
   input: RegimeInput,
   regime: MarketRegime
 ): { low: number; high: number } {
-  // Fixed ATR-based range — volatility level sets the base,
-  // regime multiplier is SMALL to avoid double-amplifying volatility.
-  // Historical BTC: median 24h ≈ 2-3%, P95 ≈ 6-8%
-  let baseRange = 2.5; // default medium
+  // Base 24h range — always computed at 24h horizon, style scaling applied externally
+  let baseRange = 2.5;
   if (input.volatilityLevel === 'low') baseRange = 1.5;
   if (input.volatilityLevel === 'high') baseRange = 4.0;
 
-  // Small regime multipliers — NOT double-counting volatility
-  // HIGH_VOL already has elevated baseRange, so multiplier is modest
   const regimeMultipliers: Record<string, number> = {
-    HIGH_VOL: 1.3,    // Was 2.0 — 4.0 * 1.3 = 5.2% (realistic P90)
-    RISK_OFF: 1.2,    // Slightly wider for uncertainty
+    HIGH_VOL: 1.3,
+    RISK_OFF: 1.2,
     TRENDING_BULL: 1.1,
     TRENDING_BEAR: 1.1,
     RANGING: 0.8,
@@ -199,9 +217,8 @@ function calculateExpectedRange(
   const multiplier = regimeMultipliers[regime] ?? 1.0;
   const range = baseRange * multiplier;
 
-  // Momentum shifts center (skew), does NOT expand total range
   const momentum = input.momentum24h ?? 0;
-  const skew = Math.max(-0.5, Math.min(0.5, momentum * 0.05)); // Capped skew
+  const skew = Math.max(-0.5, Math.min(0.5, momentum * 0.05));
 
   return {
     low: Math.round((-range + skew) * 10) / 10,
@@ -219,7 +236,6 @@ function calculateSizeAdjustment(
     case 'NEUTRAL':
       return { sizePercent: 70, sizeLabel: 'Reduce 30%' };
     case 'DEFENSIVE':
-      // Further reduce for extreme events
       if (input.eventRiskLevel === 'VERY_HIGH') {
         return { sizePercent: 25, sizeLabel: 'Reduce 75% (extreme event risk)' };
       }

@@ -2,10 +2,16 @@
  * Unified Risk Orchestrator
  * Combines calendar, regime, and volatility risk signals into a single position multiplier.
  * 
- * ADAPTIVE logic: Event risk can be directional opportunity (e.g., dovish FOMC = bullish explosive).
- * Only reduces size when event risk is genuinely uncertain or regime confirms caution.
+ * Style-aware: Applies different weight profiles per trading style.
+ * ADAPTIVE logic: Event risk can be directional opportunity when regime is trending.
  * Uses min() only when signals agree on caution; otherwise applies weighted blend.
+ * 
+ * NOTE: Assumes annualized vol = sqrt(365) * std(daily returns).
+ * If the source computes sqrt(365*24) * std(hourly returns), the daily conversion
+ * in calendar's volFloor (realizedVolPct / sqrt(365)) will be slightly off.
  */
+import type { TradingStyle } from '@/hooks/trading/use-trade-mode';
+import { TRADING_STYLE_CONTEXT } from '@/lib/constants/trading-style-context';
 
 export interface RiskInputs {
   /** From calendar volatility engine positionSizeMultiplier (0.25-1.0) */
@@ -18,6 +24,8 @@ export interface RiskInputs {
   regimeIsTrending?: boolean;
   /** Calendar event risk level for context */
   eventRiskLevel?: 'LOW' | 'MODERATE' | 'HIGH' | 'VERY_HIGH';
+  /** Active trading style — shifts orchestrator weights */
+  tradingStyle?: TradingStyle;
 }
 
 export interface UnifiedRiskOutput {
@@ -30,11 +38,12 @@ export interface UnifiedRiskOutput {
 }
 
 export function calculateUnifiedPositionSize(inputs: RiskInputs): UnifiedRiskOutput {
-  const { calendarMultiplier, regimeMultiplier, volatilityMultiplier, regimeIsTrending, eventRiskLevel } = inputs;
+  const { calendarMultiplier, regimeMultiplier, volatilityMultiplier, regimeIsTrending, eventRiskLevel, tradingStyle } = inputs;
 
-  // Determine if we should be purely defensive or adaptive
-  // DEFENSIVE: when regime confirms caution OR event risk is extreme
-  // ADAPTIVE: when regime is trending and event risk is only elevated (directional opportunity)
+  const styleConfig = tradingStyle ? TRADING_STYLE_CONTEXT[tradingStyle] : undefined;
+  const ow = styleConfig?.weights.orchestrator ?? { calendar: 0.33, regime: 0.34, volatility: 0.33 };
+
+  // Determine defensive vs adaptive mode
   const isDefensiveMode =
     !regimeIsTrending ||
     eventRiskLevel === 'VERY_HIGH' ||
@@ -44,24 +53,31 @@ export function calculateUnifiedPositionSize(inputs: RiskInputs): UnifiedRiskOut
   let mode: UnifiedRiskOutput['mode'];
 
   if (isDefensiveMode) {
-    // Pure defensive: most conservative signal wins
-    finalMultiplier = Math.min(calendarMultiplier, regimeMultiplier, volatilityMultiplier);
+    // Defensive: style-weighted blend, floored by min of all three
+    // This is more nuanced than pure min() — dominant risk source has more pull
+    const weightedBlend = calendarMultiplier * ow.calendar + regimeMultiplier * ow.regime + volatilityMultiplier * ow.volatility;
+    const hardFloor = Math.min(calendarMultiplier, regimeMultiplier, volatilityMultiplier);
+    // Blend toward the floor: never more optimistic than weighted, never below hard floor
+    finalMultiplier = Math.min(weightedBlend, Math.max(hardFloor, weightedBlend * 0.85));
     mode = 'defensive';
   } else {
     // Adaptive: trending regime + event risk = potential directional opportunity
-    // Calendar risk is softened (weighted 0.4) since event may catalyze the trend
-    // Regime and vol still apply normally
-    const adaptiveCalendar = 1.0 - (1.0 - calendarMultiplier) * 0.4; // Soften calendar reduction
-    finalMultiplier = Math.min(adaptiveCalendar, regimeMultiplier, volatilityMultiplier);
+    // Calendar risk is softened based on style weight (scalpers ignore distant events)
+    const calSoftening = 1.0 - ow.calendar; // Higher cal weight = less softening
+    const adaptiveCalendar = 1.0 - (1.0 - calendarMultiplier) * (1.0 - calSoftening * 0.5);
+    const weightedBlend = adaptiveCalendar * ow.calendar + regimeMultiplier * ow.regime + volatilityMultiplier * ow.volatility;
+    finalMultiplier = weightedBlend;
     mode = 'adaptive';
   }
 
   // Never go below 0.25 regardless of mode
-  finalMultiplier = Math.max(0.25, finalMultiplier);
+  finalMultiplier = Math.max(0.25, Math.min(1.0, finalMultiplier));
 
+  // Determine dominant factor
   let dominantFactor: UnifiedRiskOutput['dominantFactor'] = 'regime';
-  if (finalMultiplier === Math.min(calendarMultiplier, mode === 'adaptive' ? Infinity : calendarMultiplier)) dominantFactor = 'calendar';
-  else if (finalMultiplier <= volatilityMultiplier && volatilityMultiplier <= regimeMultiplier) dominantFactor = 'volatility';
+  const minVal = Math.min(calendarMultiplier, regimeMultiplier, volatilityMultiplier);
+  if (calendarMultiplier === minVal) dominantFactor = 'calendar';
+  else if (volatilityMultiplier === minVal) dominantFactor = 'volatility';
 
   const finalSizePercent = Math.round(finalMultiplier * 100);
 
@@ -89,10 +105,6 @@ export function calculateUnifiedPositionSize(inputs: RiskInputs): UnifiedRiskOut
 /**
  * Derive a volatility multiplier from realized annualized volatility.
  * BTC annualized vol: <40% = calm, 40-80% = normal, >80% = elevated, >120% = extreme
- * 
- * NOTE: Assumes annualized vol = sqrt(365) * std(daily returns).
- * If the source computes sqrt(365*24) * std(hourly returns), the daily conversion
- * in calendar's volFloor (realizedVolPct / sqrt(365)) will be slightly off.
  */
 export function deriveVolatilityMultiplier(annualizedVolPct: number): number {
   if (annualizedVolPct > 120) return 0.5;
