@@ -104,6 +104,9 @@ export function AISettingsTab() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <p className="text-xs text-muted-foreground pb-2">
+            Disabling core features (Confluence Detection, Pattern Recognition) may reduce the accuracy of AI Confidence scores and Risk Monitoring alerts.
+          </p>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Sparkles className="h-4 w-4 text-primary" />
@@ -234,7 +237,7 @@ export function AISettingsTab() {
             step={5}
           />
           <p className="text-xs text-muted-foreground">
-            Confidence is based on historical pattern similarity and statistical edge strength. Suggestions below this threshold are shown with a low-confidence warning.
+            Confidence is a model-derived score based on historical pattern similarity and statistical edge strength. It is not a calibrated probability. Suggestions below this threshold are shown with a low-confidence warning.
           </p>
         </CardContent>
       </Card>
