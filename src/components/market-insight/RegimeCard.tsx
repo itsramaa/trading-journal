@@ -119,9 +119,11 @@ function RegimeCardContent({ sentimentData, macroData, calendarData, tradingStyl
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Badge className={cn("text-sm font-bold cursor-default", regimeStyle.colorClass, "bg-background/80 border")}>
-                  {regimeStyle.label}
-                </Badge>
+                <span>
+                  <Badge className={cn("text-sm font-bold cursor-default", regimeStyle.colorClass, "bg-background/80 border")}>
+                    {regimeStyle.label}
+                  </Badge>
+                </span>
               </TooltipTrigger>
               <TooltipContent side="left" className="max-w-xs">
                 <p className="text-sm">Trending Bullish: Score &gt;65, positive momentum. Trending Bearish: Score &lt;35. Ranging: 35-65 or no clear momentum. High Volatility: Elevated vol override. Risk Off: Extreme event risk override.</p>
