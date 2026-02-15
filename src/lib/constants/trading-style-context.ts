@@ -59,7 +59,7 @@ export const TRADING_STYLE_CONTEXT: Record<TradingStyle, StyleContextConfig> = {
       orchestrator: { calendar: 0.10, regime: 0.30, volatility: 0.60 },
     },
     rangeHorizonLabel: '2h',
-    rangeBaseMultiplier: 0.12, // sqrt(2/24) approximation
+    rangeBaseMultiplier: 0.289, // sqrt(2/24) = 0.289
     eventSensitivityWindowHours: 3,
     directionLabel: 'Direction (2h)',
     regimeRelevance: 'low',
@@ -70,7 +70,7 @@ export const TRADING_STYLE_CONTEXT: Record<TradingStyle, StyleContextConfig> = {
       orchestrator: { calendar: 0.33, regime: 0.34, volatility: 0.33 },
     },
     rangeHorizonLabel: '8h',
-    rangeBaseMultiplier: 0.40, // sqrt(8/24) approximation
+    rangeBaseMultiplier: 0.577, // sqrt(8/24) = 0.577
     eventSensitivityWindowHours: 6,
     directionLabel: 'Direction (8h)',
     regimeRelevance: 'medium',
