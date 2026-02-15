@@ -164,7 +164,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             key={group.title}
             title={group.title}
             items={group.items}
-            defaultOpen={group.title !== "Strategy"}
+            defaultOpen={group.title !== "Strategy" && group.title !== "Research"}
           />
         ))}
 
