@@ -322,14 +322,21 @@ function runBacktest(
         const riskPercent = config.riskPerTrade || 0.02;
         const riskAmount = riskBase * riskPercent;
         const stopDistance = entryPrice * (slPercent / 100);
+        const quantity = riskAmount / stopDistance;  // Leverage does NOT scale risk
+
+        // Margin check: cap position if margin exceeds available balance
         const leverageMultiplier = config.leverage || 1;
-        const quantity = (riskAmount / stopDistance) * leverageMultiplier;
+        const notionalValue = quantity * entryPrice;
+        const marginRequired = notionalValue / leverageMultiplier;
+        const finalQuantity = marginRequired > balance
+          ? (balance * leverageMultiplier) / entryPrice
+          : quantity;
         
         position = {
           direction,
           entryPrice,
           entryTime: new Date(candle.openTime).toISOString(),
-          quantity,
+          quantity: finalQuantity,
           tp: direction === 'long' 
             ? entryPrice * (1 + tpPercent / 100)
             : entryPrice * (1 - tpPercent / 100),
@@ -434,7 +441,7 @@ function calculateMetrics(trades: Trade[], initialCapital: number, periodStart?:
   
   const totalPnl = trades.reduce((sum, t) => sum + t.pnl, 0);
   const grossProfit = winningTrades.reduce((sum, t) => sum + t.pnl, 0);
-  const grossLoss = Math.abs(losingTrades.reduce((sum, t) => sum + t.pnl, 0));
+  // grossLoss already declared above
   const totalCommissions = trades.reduce((sum, t) => sum + t.commission, 0);
   const grossPnl = totalPnl + totalCommissions;
 
