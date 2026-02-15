@@ -16,6 +16,16 @@ import {
   useExchangeCredentials,
 } from '@/hooks/use-exchange-credentials';
 
+// Mock auth
+vi.mock('@/hooks/use-auth', () => ({
+  useAuth: () => ({ user: { id: 'test-user-id' } }),
+}));
+
+// Mock audit logger
+vi.mock('@/lib/audit-logger', () => ({
+  logAuditEvent: vi.fn(),
+}));
+
 // Mock Supabase client
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
@@ -30,6 +40,9 @@ vi.mock('@/integrations/supabase/client', () => ({
       }),
     },
     rpc: vi.fn(),
+    functions: {
+      invoke: vi.fn(),
+    },
   },
 }));
 
@@ -263,7 +276,7 @@ describe('Credential Rotation Flow', () => {
 
       const deleteResult = await result.current.mutateAsync('cred-to-delete');
 
-      expect(deleteResult).toBe(true);
+      expect(deleteResult).toBe('cred-to-delete');
       expect(supabase.rpc).toHaveBeenCalledWith('delete_exchange_credential', {
         p_credential_id: 'cred-to-delete',
       });
@@ -389,7 +402,7 @@ describe('Credential Rotation Flow', () => {
       );
 
       const deleted = await deleteResult.current.mutateAsync('second-cred-id');
-      expect(deleted).toBe(true);
+      expect(deleted).toBe('second-cred-id');
     });
   });
 

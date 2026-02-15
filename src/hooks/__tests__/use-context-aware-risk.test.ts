@@ -43,8 +43,8 @@ vi.mock('@/features/binance/useBinanceAdvancedAnalytics', () => ({
   useBinanceVolatility: () => mockVolatilityData,
 }));
 
-vi.mock('@/hooks/use-trade-entries', () => ({
-  useTradeEntries: () => ({ data: mockTradeEntries, isLoading: false }),
+vi.mock('@/hooks/use-mode-filtered-trades', () => ({
+  useModeFilteredTrades: () => ({ data: mockTradeEntries, isLoading: false }),
 }));
 
 // Import after mocks
