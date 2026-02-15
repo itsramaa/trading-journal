@@ -2,12 +2,15 @@
  * Whale Tracking Widget - Volume-based whale activity detection
  * Extracted from MarketData.tsx for reusability
  * Wrapped with ErrorBoundary for graceful API failure handling
+ * Phase 2A: Shows detection methodology for transparency
  */
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ErrorBoundary, AsyncErrorFallback } from "@/components/ui/error-boundary";
-import { Activity } from "lucide-react";
+import { Activity, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { WhaleActivity, WhaleSignal } from "@/features/market-insight/types";
 import { DISPLAY_LIMITS, BADGE_LABELS } from "@/lib/constants/market-config";
@@ -93,43 +96,66 @@ function WhaleTrackingContent({
           </div>
         ) : (
           whaleData.map((whale) => (
-            <div 
-              key={`${whale.asset}-${whale.signal}`} 
-              className="flex items-center justify-between p-3 rounded-lg border"
-            >
-              <div className="flex items-center gap-3">
-                <div className={cn(
-                  "w-2 h-2 rounded-full",
-                  getWhaleSignalColor(whale.signal)
-                )} />
-                <div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-xs">{whale.asset}</Badge>
-                    <Badge 
-                      variant="secondary" 
-                      className={cn(
-                        "text-xs",
-                        whale.signal === 'ACCUMULATION' && "bg-profit/20 text-profit",
-                        whale.signal === 'DISTRIBUTION' && "bg-loss/20 text-loss"
-                      )}
-                    >
-                      {whale.signal}
-                    </Badge>
+            <Collapsible key={`${whale.asset}-${whale.signal}`}>
+              <div className="rounded-lg border overflow-hidden">
+                <CollapsibleTrigger className="flex items-center justify-between p-3 w-full hover:bg-muted/50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className={cn(
+                      "w-2 h-2 rounded-full",
+                      getWhaleSignalColor(whale.signal)
+                    )} />
+                    <div className="text-left">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">{whale.asset}</Badge>
+                        <Badge 
+                          variant="secondary" 
+                          className={cn(
+                            "text-xs",
+                            whale.signal === 'ACCUMULATION' && "bg-profit/20 text-profit",
+                            whale.signal === 'DISTRIBUTION' && "bg-loss/20 text-loss"
+                          )}
+                        >
+                          {whale.signal}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
+                        {whale.description}
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
-                    {whale.description}
-                  </p>
-                </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div className="text-right">
+                      <span className="text-sm font-medium">
+                        {whale.volumeChange24h > 0 ? '+' : ''}{whale.volumeChange24h.toFixed(1)}%
+                      </span>
+                      <p className="text-xs text-muted-foreground">
+                        {whale.confidence}% conf.
+                      </p>
+                    </div>
+                    <ChevronDown className="h-3 w-3 text-muted-foreground transition-transform duration-200" />
+                  </div>
+                </CollapsibleTrigger>
+                {/* Method transparency - Phase 2A */}
+                {(whale.method || whale.thresholds) && (
+                  <CollapsibleContent>
+                    <div className="px-3 pb-3 pt-1 border-t bg-muted/30 space-y-1">
+                      {whale.method && (
+                        <div className="flex items-start gap-2 text-xs">
+                          <span className="text-muted-foreground shrink-0">Method:</span>
+                          <span className="font-mono text-foreground">{whale.method}</span>
+                        </div>
+                      )}
+                      {whale.thresholds && (
+                        <div className="flex items-start gap-2 text-xs">
+                          <span className="text-muted-foreground shrink-0">Threshold:</span>
+                          <span className="font-mono text-foreground">{whale.thresholds}</span>
+                        </div>
+                      )}
+                    </div>
+                  </CollapsibleContent>
+                )}
               </div>
-              <div className="text-right shrink-0">
-                <span className="text-sm font-medium">
-                  {whale.volumeChange24h > 0 ? '+' : ''}{whale.volumeChange24h.toFixed(1)}%
-                </span>
-                <p className="text-xs text-muted-foreground">
-                  {whale.confidence}% conf.
-                </p>
-              </div>
-            </div>
+            </Collapsible>
           ))
         )}
       </CardContent>

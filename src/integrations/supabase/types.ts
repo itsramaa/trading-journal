@@ -507,6 +507,30 @@ export type Database = {
         }
         Relationships: []
       }
+      funding_rate_history: {
+        Row: {
+          created_at: string
+          funding_rate: number
+          id: string
+          snapshot_date: string
+          symbol: string
+        }
+        Insert: {
+          created_at?: string
+          funding_rate: number
+          id?: string
+          snapshot_date?: string
+          symbol: string
+        }
+        Update: {
+          created_at?: string
+          funding_rate?: number
+          id?: string
+          snapshot_date?: string
+          symbol?: string
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           asset_symbol: string | null
@@ -1216,6 +1240,30 @@ export type Database = {
           preferred_currency?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      volatility_history: {
+        Row: {
+          annualized_volatility: number
+          created_at: string
+          id: string
+          snapshot_date: string
+          symbol: string
+        }
+        Insert: {
+          annualized_volatility: number
+          created_at?: string
+          id?: string
+          snapshot_date?: string
+          symbol: string
+        }
+        Update: {
+          annualized_volatility?: number
+          created_at?: string
+          id?: string
+          snapshot_date?: string
+          symbol?: string
         }
         Relationships: []
       }

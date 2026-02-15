@@ -47,14 +47,37 @@ async function fetchBinanceFundingRates(): Promise<{ btc: number; eth: number }>
   }
 }
 
-async function fetchFearGreedIndex(): Promise<number> {
+/** Fetch Fear & Greed with historical data for percentile */
+async function fetchFearGreedWithHistory(): Promise<{ 
+  current: number; 
+  percentile365d: number; 
+  dataPoints: number;
+}> {
   try {
-    const response = await fetch('https://api.alternative.me/fng/');
+    // Fetch up to 365 days of history
+    const response = await fetch('https://api.alternative.me/fng/?limit=365');
     const data = await response.json();
-    return parseInt(data.data?.[0]?.value || '50');
+    const entries = data.data || [];
+    
+    if (entries.length === 0) {
+      return { current: 50, percentile365d: 50, dataPoints: 0 };
+    }
+    
+    const currentValue = parseInt(entries[0]?.value || '50');
+    const historicalValues = entries.map((e: any) => parseInt(e.value || '50'));
+    
+    // Compute percentile: what % of historical values are below current
+    const below = historicalValues.filter((v: number) => v < currentValue).length;
+    const percentile = Math.round((below / historicalValues.length) * 100);
+    
+    return {
+      current: currentValue,
+      percentile365d: percentile,
+      dataPoints: historicalValues.length,
+    };
   } catch (error) {
-    console.error('Fear & Greed fetch error:', error);
-    return 50;
+    console.error('Fear & Greed historical fetch error:', error);
+    return { current: 50, percentile365d: 50, dataPoints: 0 };
   }
 }
 
@@ -63,13 +86,13 @@ async function generateAISummary(
     btcDominance: number;
     marketCapChange: number;
     fearGreed: number;
+    fearGreedPercentile: number;
     fundingRates: { btc: number; eth: number };
   }
 ): Promise<string> {
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   
   if (!LOVABLE_API_KEY) {
-    // Fallback to rule-based summary
     return generateRuleBasedSummary(macroData);
   }
 
@@ -78,11 +101,11 @@ async function generateAISummary(
 
 BTC Dominance: ${macroData.btcDominance.toFixed(1)}%
 Market Cap Change 24h: ${macroData.marketCapChange > 0 ? '+' : ''}${macroData.marketCapChange.toFixed(2)}%
-Fear & Greed Index: ${macroData.fearGreed}
+Fear & Greed Index: ${macroData.fearGreed} (${macroData.fearGreedPercentile <= 10 ? 'Bottom' : macroData.fearGreedPercentile >= 90 ? 'Top' : 'P'}${macroData.fearGreedPercentile}% in 365 days)
 BTC Funding Rate: ${macroData.fundingRates.btc.toFixed(4)}%
 ETH Funding Rate: ${macroData.fundingRates.eth.toFixed(4)}%
 
-Focus on actionable insights for traders. Be specific about market conditions.`;
+Focus on actionable insights for traders. Include the percentile context when it's extreme (<10% or >90%). Be specific about market conditions.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -116,11 +139,11 @@ function generateRuleBasedSummary(macroData: {
   btcDominance: number;
   marketCapChange: number;
   fearGreed: number;
+  fearGreedPercentile: number;
   fundingRates: { btc: number; eth: number };
 }): string {
   const parts: string[] = [];
 
-  // Market cap trend
   if (macroData.marketCapChange > 3) {
     parts.push('Market cap rising significantly, indicating capital inflow into crypto.');
   } else if (macroData.marketCapChange < -3) {
@@ -129,21 +152,20 @@ function generateRuleBasedSummary(macroData: {
     parts.push('Market in consolidation phase with sideways movement.');
   }
 
-  // BTC Dominance
   if (macroData.btcDominance > 55) {
     parts.push('BTC dominance high, altcoins may underperform.');
   } else if (macroData.btcDominance < 45) {
     parts.push('BTC dominance low, potential altseason ahead.');
   }
 
-  // Fear & Greed
   if (macroData.fearGreed > 75) {
-    parts.push('Extreme greed — consider taking profits.');
+    const pctContext = macroData.fearGreedPercentile >= 90 ? ` (Top ${100 - macroData.fearGreedPercentile}% in 365d)` : '';
+    parts.push(`Extreme greed${pctContext} — consider taking profits.`);
   } else if (macroData.fearGreed < 25) {
-    parts.push('Extreme fear — potential accumulation opportunity for long-term.');
+    const pctContext = macroData.fearGreedPercentile <= 10 ? ` (Bottom ${macroData.fearGreedPercentile}% in 365d)` : '';
+    parts.push(`Extreme fear${pctContext} — potential accumulation opportunity for long-term.`);
   }
 
-  // Funding rates
   if (macroData.fundingRates.btc > 0.03) {
     parts.push('Funding rate high, long positions crowded — watch for pullback.');
   } else if (macroData.fundingRates.btc < -0.01) {
@@ -160,20 +182,16 @@ function calculateMacroSentiment(
 ): 'bullish' | 'bearish' | 'cautious' {
   let score = 0;
 
-  // Market cap trend (weight: 35%)
   if (marketCapChange > 2) score += 0.35;
   else if (marketCapChange < -2) score -= 0.35;
   else score += (marketCapChange / 10) * 0.35;
 
-  // Fear & Greed (weight: 35%)
-  const fgNormalized = (fearGreed - 50) / 50; // -1 to 1
+  const fgNormalized = (fearGreed - 50) / 50;
   score += fgNormalized * 0.35;
 
-  // Funding rate sentiment (weight: 30%)
-  // Moderate positive funding = healthy, extreme = cautious
   if (fundingBtc > 0 && fundingBtc < 0.02) score += 0.20;
-  else if (fundingBtc > 0.05) score -= 0.15; // Crowded longs
-  else if (fundingBtc < -0.02) score += 0.15; // Potential squeeze
+  else if (fundingBtc > 0.05) score -= 0.15;
+  else if (fundingBtc < -0.02) score += 0.15;
 
   if (score > 0.2) return 'bullish';
   if (score < -0.2) return 'bearish';
@@ -213,28 +231,23 @@ serve(async (req) => {
 
     console.log('Fetching macro analysis data...');
 
-    // Fetch all data in parallel
-    const [globalData, fundingRates, fearGreed] = await Promise.all([
+    const [globalData, fundingRates, fearGreedData] = await Promise.all([
       fetchCoinGeckoGlobal(),
       fetchBinanceFundingRates(),
-      fetchFearGreedIndex(),
+      fetchFearGreedWithHistory(),
     ]);
 
-    // Calculate overall sentiment
     const overallSentiment = calculateMacroSentiment(
       globalData.marketCapChange,
-      fearGreed,
+      fearGreedData.current,
       fundingRates.btc
     );
 
-    // Generate correlations data
-    // Note: DXY, S&P 500, Treasury, VIX require paid APIs or proxies
-    // Using crypto-native indicators as proxies
     const correlations = [
       {
         name: 'BTC Dominance',
         value: globalData.btcDominance,
-        change: 0, // Would need historical data
+        change: 0,
         impact: globalData.btcDominance > 55 
           ? 'High dominance, capital flowing to BTC over alts'
           : globalData.btcDominance < 45
@@ -243,7 +256,7 @@ serve(async (req) => {
       },
       {
         name: 'Total Market Cap',
-        value: globalData.totalMarketCap / 1e12, // In trillions
+        value: globalData.totalMarketCap / 1e12,
         change: globalData.marketCapChange,
         impact: globalData.marketCapChange > 0
           ? 'Capital inflow, risk-on sentiment'
@@ -261,21 +274,21 @@ serve(async (req) => {
       },
       {
         name: 'Fear & Greed',
-        value: fearGreed,
+        value: fearGreedData.current,
         change: 0,
-        impact: fearGreed > 70
+        impact: fearGreedData.current > 70
           ? 'Greed zone - consider profit taking'
-          : fearGreed < 30
+          : fearGreedData.current < 30
           ? 'Fear zone - accumulation opportunity'
           : 'Neutral sentiment',
       },
     ];
 
-    // Generate AI summary
     const aiSummary = await generateAISummary({
       btcDominance: globalData.btcDominance,
       marketCapChange: globalData.marketCapChange,
-      fearGreed,
+      fearGreed: fearGreedData.current,
+      fearGreedPercentile: fearGreedData.percentile365d,
       fundingRates,
     });
 
@@ -287,6 +300,17 @@ serve(async (req) => {
         lastUpdated: new Date().toISOString(),
         marketCapTrend: globalData.marketCapChange > 1 ? 'up' : globalData.marketCapChange < -1 ? 'down' : 'stable',
         btcDominance: globalData.btcDominance,
+        // New: Fear & Greed percentile context
+        fearGreedPercentile: {
+          value: fearGreedData.current,
+          percentile365d: fearGreedData.percentile365d,
+          dataPoints: fearGreedData.dataPoints,
+          label: fearGreedData.percentile365d <= 10
+            ? `Bottom ${fearGreedData.percentile365d}% in 365d`
+            : fearGreedData.percentile365d >= 90
+            ? `Top ${100 - fearGreedData.percentile365d}% in 365d`
+            : `P${fearGreedData.percentile365d} in 365d`,
+        },
       },
       lastUpdated: new Date().toISOString(),
     };

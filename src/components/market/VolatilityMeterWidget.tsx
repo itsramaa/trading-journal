@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { Activity, TrendingUp, AlertTriangle, Flame, Snowflake } from "lucide-react";
 import { useMultiSymbolVolatility } from "@/features/binance";
+import { useVolatilityPercentiles } from "@/features/market-insight";
 import { cn } from "@/lib/utils";
 import { CryptoIcon } from "@/components/ui/crypto-icon";
 import { DEFAULT_WATCHLIST_SYMBOLS, DISPLAY_LIMITS } from "@/lib/constants/market-config";
@@ -64,6 +65,7 @@ function VolatilityMeterContent({
   className 
 }: VolatilityMeterWidgetProps) {
   const { data: volatilityData, isLoading, isError } = useMultiSymbolVolatility(symbols);
+  const { data: percentiles } = useVolatilityPercentiles(symbols);
   
   const avgVolatility = volatilityData && volatilityData.length > 0
     ? volatilityData.reduce((sum, v) => sum + v.annualizedVolatility, 0) / volatilityData.length
@@ -143,6 +145,8 @@ function VolatilityMeterContent({
           {volatilityData.map((data) => {
             const Icon = getVolatilityIcon(data.risk.level);
             const symbolName = data.symbol.replace('USDT', '');
+            const pctData = percentiles?.[data.symbol];
+            const showPercentile = pctData && pctData.dataPoints >= 7;
             
             return (
               <div 
@@ -160,6 +164,18 @@ function VolatilityMeterContent({
                     >
                       {data.risk.level}
                     </Badge>
+                    {showPercentile && (
+                      <Badge 
+                        variant="outline" 
+                        className={cn(
+                          "text-xs h-5 font-mono",
+                          pctData.percentile180d >= 90 && "border-loss/50 text-loss",
+                          pctData.percentile180d <= 10 && "border-profit/50 text-profit"
+                        )}
+                      >
+                        P{pctData.percentile180d}
+                      </Badge>
+                    )}
                   </div>
                   <div className="mt-1">
                     <VolatilityBar value={data.annualizedVolatility} />
@@ -171,7 +187,10 @@ function VolatilityMeterContent({
                     {data.annualizedVolatility.toFixed(1)}%
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    ATR: {data.atrPercent.toFixed(2)}%
+                    {showPercentile 
+                      ? `Top ${100 - pctData.percentile180d}% (180d)`
+                      : `ATR: ${data.atrPercent.toFixed(2)}%`
+                    }
                   </div>
                 </div>
               </div>

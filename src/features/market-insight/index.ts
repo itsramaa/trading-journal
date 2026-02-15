@@ -6,3 +6,5 @@ export { useMacroAnalysis } from "./useMacroAnalysis";
 export { useCombinedAnalysis } from "./useCombinedAnalysis";
 export type { CombinedAnalysis, CombinedRecommendation, AlignmentStatus } from "./useCombinedAnalysis";
 export { useMarketAlerts } from "./useMarketAlerts";
+export { useVolatilityPercentiles } from "./useVolatilityPercentiles";
+export type { VolatilityPercentile } from "./useVolatilityPercentiles";
