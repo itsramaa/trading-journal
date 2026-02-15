@@ -1,6 +1,6 @@
 
 
-# Deep-Dive Analysis: My Strategies Page
+# Deep-Dive Analysis: Backtest Page
 
 ---
 
@@ -8,228 +8,226 @@
 
 | File | Role |
 |------|------|
-| `src/pages/trading-journey/StrategyManagement.tsx` | Page orchestrator |
-| `src/components/strategy/StrategyCard.tsx` | Individual strategy card |
-| `src/components/strategy/StrategyStats.tsx` | Summary stats cards |
-| `src/components/strategy/StrategyFormDialog.tsx` | Create/Edit form (986 lines) |
-| `src/components/strategy/StrategyDetailDrawer.tsx` | Detail drawer (488 lines) |
-| `src/components/strategy/StrategyShareDialog.tsx` | Share via link/QR |
-| `src/components/strategy/StrategyLeaderboard.tsx` | Global leaderboard |
-| `src/components/strategy/StrategyValidationBadge.tsx` | Validation badge |
-| `src/components/strategy/EntryRulesBuilder.tsx` | Entry rules builder |
-| `src/components/strategy/ExitRulesBuilder.tsx` | Exit rules builder |
-| `src/components/strategy/ExpectancyPreview.tsx` | Expectancy table |
-| `src/components/strategy/MarketFitSection.tsx` | Market fit analysis |
-| `src/components/strategy/PairRecommendations.tsx` | Pair recommendations |
-| `src/components/dashboard/StrategyCloneStatsWidget.tsx` | Clone stats widget |
-| `src/hooks/analytics/use-strategy-performance.ts` | AI Quality Score hook |
-| `src/hooks/use-strategy-context.ts` | Market fit + pair intelligence |
-| `src/hooks/trading/use-trading-strategies.ts` | CRUD hook |
+| `src/pages/Backtest.tsx` | Page orchestrator |
+| `src/components/strategy/BacktestRunner.tsx` | Configuration form (601 lines) |
+| `src/components/strategy/BacktestResults.tsx` | Results display (488 lines) |
+| `src/components/strategy/BacktestComparison.tsx` | Side-by-side comparison (401 lines) |
+| `src/components/strategy/BacktestSessionBreakdown.tsx` | Session analytics (381 lines) |
+| `src/components/strategy/BacktestDisclaimer.tsx` | Simulation caveats (168 lines) |
+| `src/hooks/use-backtest.ts` | Run/History/Delete hooks |
+| `src/hooks/use-backtest-export.ts` | CSV/PDF export |
+| `src/types/backtest.ts` | Types + `calculateMetrics()` |
+| `src/lib/constants/backtest-config.ts` | Centralized defaults |
 
 ---
 
-## 1. Page Orchestrator (`StrategyManagement.tsx`)
+## 1. Page Orchestrator (`src/pages/Backtest.tsx`)
 
 ### A. Comprehensiveness
 
 | Feature | Status |
 |---------|--------|
 | PageHeader with icon/description | Done |
-| New Strategy button (Library tab only) | Done |
+| "Basic Mode" badge | Done |
 | URL-driven tabs via `useSearchParams` | Done |
-| Tab: Library (clone stats + stats + card grid) | Done |
-| Tab: Leaderboard (global ranking) | Done |
-| Tab: Import (YouTube importer) | Done |
-| Loading skeleton | Done |
-| Empty state with CTA | Done |
-| Strategy Form Dialog (create/edit) | Done |
-| Strategy Detail Drawer (click to view) | Done |
-| Strategy Share Dialog | Done |
-| Delete confirmation dialog | Done |
-| Dynamic base assets from DB | Done |
+| Tab: Run Backtest (BacktestRunner) | Done |
+| Tab: Compare Results (BacktestComparison) | Done |
 | ErrorBoundary wrapper | **Missing** |
 | `role="region"` + `aria-label` | **Missing** |
 
 **Gaps:**
 
-1. **No `role="region"` on root container** -- inconsistent with the ARIA standard applied to 11+ other pages.
+1. **No `role="region"` on root container** -- inconsistent with the ARIA standard applied to 11+ other pages (Performance, Risk, Daily P&L, Heatmap, AI Insights).
 
-2. **No ErrorBoundary wrapper** -- every other analytics/management page has a top-level `ErrorBoundary` with `retryKey`.
+2. **No ErrorBoundary wrapper** -- every other analytics page has a top-level `ErrorBoundary` with `retryKey`. This page has none.
 
-### B. Accuracy
+3. **No tooltip on "Basic Mode" badge** -- Should say: "Single-strategy backtesting for trading journal analysis. Walk-forward optimization is not included."
 
-| Check | Result |
-|-------|--------|
-| Strategy CRUD operations via hooks | Correct |
-| Soft delete (is_active = false) | Correct |
-| Performance map passed to cards/drawer | Correct |
-| Base assets fallback to COMMON_PAIRS | Correct |
-| Edit propagates all fields correctly | Correct |
+4. **No tooltips on tab titles** ("Run Backtest", "Compare Results") -- Should say:
+   - Run Backtest: "Configure and run a backtest against simulated historical data for a selected strategy."
+   - Compare Results: "Compare 2-4 backtest results side-by-side with overlaid equity curves."
 
-3. **`as any` casts on timeframe/market_type** (lines 103-106, 128-131): `values.timeframe as any`, `values.higherTimeframe as any`, `values.lowerTimeframe as any`, `values.marketType as any` bypass type safety. These should use proper `TimeframeType` and `MarketType` casts.
+---
 
-4. **Duplicate mutation object shape** (lines 97-121 vs 123-146): The create and update branches construct nearly identical objects. This should be extracted into a shared `buildStrategyPayload()` helper to follow DRY.
+## 2. BacktestRunner (`BacktestRunner.tsx`)
+
+### A. Comprehensiveness -- Complete
+
+Strategy selection with context badges, trading pair selector, date range pickers, initial capital with quick-fill buttons (Binance + accounts), risk per trade, compounding toggle, commission rate, slippage, leverage slider (futures only), leverage >10x warning, advanced filters (event/session/volatility), strategy config preview, run button with loading state, results display.
+
+### B. Accuracy -- Correct
+
+Config construction, commission/slippage conversion (% to decimal), leverage gating by market type, session auto-populate from strategy, filter state management all verified.
 
 ### C. Clarity -- Missing Tooltips
 
-5. **Tab titles** ("Library", "Leaderboard", "Import") -- No tooltips. Should say:
-   - Library: "Your personal strategy collection. Create, edit, and manage trading strategies."
-   - Leaderboard: "Top shared strategies ranked by clone count from the community."
-   - Import: "Import trading strategies from YouTube tutorial videos using AI extraction."
+5. **"Backtest Configuration" card title** -- No tooltip. Should say: "Configure simulation parameters. Results are based on simplified modeling and may differ from real trading."
 
-6. **"New Strategy" button** (line 186) -- No tooltip. Should say: "Create a new trading strategy with entry/exit rules, position sizing, and trade management."
+6. **"Select Strategy" label** -- No tooltip. Should say: "Choose a strategy to test. The strategy's entry/exit rules, timeframe, and position sizing will be used."
+
+7. **"Trading Pair" label** -- No tooltip. Should say: "The asset to simulate trading on. Prices are sourced from historical OHLCV data."
+
+8. **"Initial Capital" label** -- No tooltip. Should say: "Starting balance for the simulation. Use quick-fill buttons to match your actual account balance."
+
+9. **"Risk Per Trade" label** -- No tooltip. Should say: "Percentage of capital risked per trade. Used to calculate position size based on stop-loss distance."
+
+10. **"Compounding" toggle** -- No tooltip. Should say: "When enabled, position size recalculates from running equity after each trade. When disabled, always uses initial capital."
+
+11. **"Commission Rate" label** -- No tooltip. Should say: "Trading fee applied per trade (entry + exit). Binance Futures: 0.02% maker, 0.04% taker."
+
+12. **"Slippage" label** -- No tooltip. Should say: "Estimated price deviation between expected and actual fill price. Typically 0.05-0.2% for major pairs."
+
+13. **"Leverage" label** -- No tooltip. Should say: "Leverage only affects margin requirements (position size constraint). It does not multiply risk per trade."
+
+14. **"Economic Event Filter" section** -- No tooltip. Should say: "Exclude trades near high-impact news events (FOMC, CPI, NFP). Buffer hours define the exclusion window."
+
+15. **"Trading Session Filter" section** -- No tooltip. Should say: "Restrict backtest to trades during specific market sessions. Useful for session-specific strategies."
+
+16. **"Volatility Filter" section** -- No tooltip. Should say: "Filter trades by market volatility at entry, based on ATR percentile classification."
 
 ---
 
-## 2. Strategy Stats (`StrategyStats.tsx`)
+## 3. BacktestResults (`BacktestResults.tsx`)
 
-### A. Comprehensiveness -- Complete
+### A. Comprehensiveness
 
-All 4 cards (Total, Active, Spot, Futures) with InfoTooltips already present.
+| Feature | Status |
+|---------|--------|
+| Disclaimer (collapsible) | Done |
+| Break-even insight banner (above/below) | Done |
+| Summary card with strategy name + return badge | Done |
+| Export buttons (CSV + PDF) | Done |
+| 4 metric cards (Return, Win Rate, Max DD, Expectancy) | Done |
+| Detailed metrics grid (3 columns, 15+ metrics) | Done |
+| Fee Impact breakdown (Gross/Fees/Net) | Done |
+| Equity curve chart (balance + drawdown) | Done |
+| Session breakdown tab | Done |
+| Trade list tab with direction/P&L/exit type | Done |
+| CAGR calculation | Done |
+| Trade density (per week) | Done |
+| `role="region"` + `aria-label` | **Missing** |
 
 ### B. Accuracy
 
-7. **"Active" count includes all strategies** (line 15): `strategies?.filter(s => s.is_active).length` -- but the query in `useTradingStrategies` already filters `.eq("is_active", true)`, so `activeStrategies` will always equal `totalStrategies`. This metric is redundant and always shows the same number.
+17. **Trade list P&L uses `formatPercent(trade.pnl)`** (line 467): `trade.pnl` is a currency amount (e.g., 150.25), not a percentage. Using `formatPercent()` will display it incorrectly (e.g., "150.25%" instead of "$150.25"). Should use `format(trade.pnl)` from the currency conversion hook.
 
-   **Fix**: Either remove the "Active" card (since soft-deleted strategies are never fetched), or change it to count strategies with `status === 'active'` (vs `'paused'`/`'killed'`) which is the meaningful distinction.
+18. **Calmar Ratio uses non-annualized return** (line 476 in `calculateMetrics`): The formula is `(totalPnl / initialCapital * 100) / (maxDD * 100)` which is the raw return divided by max drawdown. The standard Calmar Ratio uses annualized return / max drawdown. For periods shorter than 1 year, this overstates the ratio; for periods longer, it understates it.
 
----
+   **Fix**: Use `CAGR / maxDrawdown` instead of `totalReturn / maxDrawdown`.
 
-## 3. Strategy Card (`StrategyCard.tsx`)
+### C. Clarity -- Missing Tooltips
 
-### A. Comprehensiveness -- Complete
+19. **"Total Return" metric card** -- No tooltip. Should say: "Net profit/loss as a percentage of initial capital, after all fees."
 
-Color indicator, name, description, methodology/style badges, timeframe chain, market type, confluences, R:R, performance stats (W/L, WR), tags, created date, YouTube source badge, Market Fit badge, AI Quality Score badge with rich tooltips.
+20. **"Win Rate" metric card** -- No tooltip. Should say: "Percentage of trades that closed in profit. Combined with R:R ratio to determine edge."
 
-### B. Accuracy -- Correct
+21. **"Max Drawdown" metric card** -- No tooltip. Should say: "Largest peak-to-trough decline in portfolio value during the backtest period."
 
-All data flows verified. Performance and market fit data properly consumed.
+22. **"Expectancy" metric card** -- No tooltip. Should say: "Average expected profit per trade. Formula: (Win Rate x Avg Win) - (Loss Rate x Avg Loss)."
 
-### C. Clarity
+23. **"Trade Density"** -- No tooltip. Should say: "Average number of trades per week during the backtest period."
 
-8. **Confluences badge** (line 181-184) -- No tooltip. Should say: "Minimum number of entry rule confirmations required before taking a trade."
+24. **"Profit Factor"** -- No tooltip. Should say: "Gross Profit / Gross Loss. Values above 1.5 indicate a robust edge."
 
-9. **R:R badge** (line 185-188) -- No tooltip. Should say: "Minimum Risk:Reward ratio required. Trades below this ratio are rejected."
+25. **"Sharpe Ratio"** -- No tooltip. Should say: "Risk-adjusted return. Annualized using sqrt(252). Values above 1.0 are good, above 2.0 are excellent."
 
-10. **Performance stats bar** (lines 192-203) -- No tooltip on the W/L and WR display. Should say: "Win/Loss record and win rate based on closed trades assigned to this strategy."
+26. **"Calmar Ratio"** -- No tooltip. Should say: "Annualized return divided by maximum drawdown. Higher = better risk-adjusted performance."
+
+27. **"Expectancy/R"** -- No tooltip. Should say: "Expected return per unit of risk (R). Positive values indicate an edge."
+
+28. **"Market Exposure"** -- No tooltip. Should say: "Percentage of total backtest period spent in an open position."
+
+29. **"Break-even WR"** -- No tooltip. Should say: "Minimum win rate needed to break even at the observed R:R ratio. Formula: 1 / (1 + R:R)."
+
+30. **"Gross P&L" / "Fees Paid" / "Net P&L" section** -- No tooltip on the section heading. Should say: "Fee impact analysis showing how trading costs affect your edge."
+
+31. **"Equity Curve" chart title** -- No tooltip. Should say: "Portfolio balance over time (left axis) with drawdown percentage (right axis, shaded red)."
+
+32. **"Sessions" tab** -- No tooltip. Should say: "Performance breakdown by trading session (Sydney, Tokyo, London, New York)."
+
+33. **"Trade List" tab** -- No tooltip. Should say: "Chronological list of all simulated trades with entry/exit details."
 
 ### D. Code Quality
 
-11. **`strategy.methodology !== 'price_action'` filter** (line 153): Hides the default methodology badge. This is an undocumented business rule that could confuse users who explicitly chose "Price Action". Should either always show the badge or add a comment explaining the design decision.
+34. **No `role="region"` on results root** -- Should add `role="region" aria-label="Backtest Results"` to the root `div`.
 
 ---
 
-## 4. Strategy Form Dialog (`StrategyFormDialog.tsx`)
+## 4. BacktestComparison (`BacktestComparison.tsx`)
 
 ### A. Comprehensiveness -- Complete
 
-5-tab form (Basic, Method, Entry, Exit, Manage) with all professional fields: methodology, trading style, multi-timeframe analysis, session preference, difficulty level, position sizing models, trade management (partial TP, SL-to-BE, kill switches), futures settings, structural validation warnings, expectancy preview.
+Selection panel with checkboxes (max 4), strategy legend, metrics comparison table with trophy winners, equity curves overlay chart, performance summary cards.
 
 ### B. Accuracy
 
-12. **Partial TP levels do not validate total percentage** (lines 806-858): Users can add partial TP levels that sum to more than 100% (e.g., close 80% at 1R + close 50% at 2R = 130%). No validation prevents this.
+35. **Equity curve `find()` lookup** (line 104): For each timestamp, each strategy does a linear `.find()` scan of its equity curve. With N timestamps and M strategies, this is O(N * M * K) where K is curve length. Should use a Map or index lookup.
 
-   **Fix**: Add a validation warning when the sum of partial TP `percent` values exceeds 100%.
+36. **Hardcoded `$` in comparison chart Y-axis** (lines 313-314): `$${(v / 1000).toFixed(1)}k` and `$${v.toFixed(0)}` bypass the user's currency preference. Should use the `formatCompact` function from `useCurrencyConversion`.
 
-### C. Clarity
+37. **Hardcoded `$` in comparison chart tooltip** (line 323): `$${value.toFixed(2)}` should use the currency format function.
 
-13. **"Basic" tab** -- No label tooltip for "Valid Trading Pairs" explaining: "Assets this strategy is designed for. Used for filtering and recommendations."
+### C. Clarity -- Missing Tooltips
 
-14. **"Method" tab -- "Trading Methodology"** -- Has description text but no InfoTooltip on the label itself explaining the field's purpose: "The analytical framework this strategy uses to identify trade setups."
+38. **"Compare Backtest Results" card title** -- No tooltip. Should say: "Select 2-4 backtest results to compare performance metrics and equity curves side-by-side."
 
-15. **"Entry" tab -- "Min. Confluences"** -- Has inline description but no InfoTooltip: "Minimum number of entry rules that must be satisfied before a trade is valid."
+39. **"Metrics Comparison" table title** -- No tooltip. Should say: "Side-by-side metric comparison. Trophy icon indicates the best-performing strategy for each metric."
 
-16. **"Exit" tab -- "Min. Risk:Reward"** -- Has inline description but no InfoTooltip: "Minimum ratio between potential profit and potential loss. Acts as a validation gate."
+40. **"Equity Curves Comparison" chart title** -- No tooltip. Should say: "Overlaid portfolio balance curves to visually compare strategy performance over time."
 
-17. **"Manage" tab -- "Partial Take Profit"** -- No tooltip. Should say: "Close portions of your position at different profit targets to lock in gains."
-
-18. **"Manage" tab -- "Move SL to Breakeven"** -- No tooltip. Should say: "Automatically move your stop loss to entry price when trade reaches the specified R multiple."
-
-19. **"Manage" tab -- "Kill Switch / Limits"** -- No tooltip. Should say: "Automatic circuit breakers that stop trading when risk limits are hit."
-
----
-
-## 5. Strategy Detail Drawer (`StrategyDetailDrawer.tsx`)
-
-### A. Comprehensiveness -- Complete
-
-Full detail view with action buttons (Edit, Backtest, Share, Export PDF), metadata badges, multi-timeframe display, session preferences, core settings, position sizing, trade management rules, validation score with tooltip, tags, AI Quality Score card with progress bar, Market Fit section, validity reasons, pair recommendations, historical insights.
-
-### B. Accuracy -- Correct
-
-All data flows verified. PnL chain uses `realized_pnl ?? pnl ?? 0` via hook.
-
-### C. Clarity
-
-20. **"Strategy Details" card title** (line 148) -- No tooltip. Should say: "Configuration and rules for this trading strategy."
-
-21. **"Multi-Timeframe Analysis" section** (line 178) -- No tooltip. Should say: "Three-timeframe system: Higher TF for directional bias, Primary TF for trade decisions, Lower TF for precise entries."
-
-22. **"AI Quality Score" card title** (line 344) -- No tooltip. Should say: "Composite score (0-100) based on Win Rate (40%), Profit Factor (30%), Consistency (20%), and Sample Size (10%)."
-
-23. **"Historical Insights" card title** (line 455) -- No tooltip. Should say: "Performance metrics derived from your actual trades using this strategy."
+41. **"Performance Summary" card title** -- No tooltip. Should say: "Best strategy for each key metric: Return, Win Rate, Sharpe Ratio, and Max Drawdown."
 
 ### D. Code Quality
 
-24. **Missing `font-mono-numbers`** on performance metric values (lines 359, 363, 367): Win Rate, Total Trades, and Profit Factor values lack tabular number formatting for alignment consistency.
+42. **Missing `font-mono-numbers`** on performance summary values (line 381): The winner value display lacks tabular number formatting.
 
 ---
 
-## 6. Strategy Leaderboard (`StrategyLeaderboard.tsx`)
-
-### A. Comprehensiveness -- Complete
-
-Search, filters (timeframe, market type), sorting, pagination, rank icons (Crown/Trophy/Medal), clone count, "Yours" badge, view link. Empty states for both no-data and no-filter-match.
+## 5. BacktestExport (`use-backtest-export.ts`)
 
 ### B. Accuracy
 
-25. **`color` field used as raw CSS** (line 385): `style={{ backgroundColor: strategy.color || "#6b7280" }}` assumes `strategy.color` is a valid CSS color. But the system stores color as semantic names (e.g., "blue", "green") per `STRATEGY_COLORS`. Semantic names like "blue" happen to be valid CSS color keywords, but the system-defined colors ("teal", "pink") may not render as expected.
+43. **Hardcoded `$` throughout CSV export** (lines 22, 23, 29, 34-35, 39-40, 44): All currency values use `$` prefix (e.g., `$${result.initialCapital.toFixed(2)}`). This bypasses the user's currency preference. Should remove `$` prefix and use raw numbers, or accept a currency symbol parameter.
 
-   **Fix**: Use the same `STRATEGY_CARD_COLOR_CLASSES` mapping from `strategy-config.ts` to convert semantic names to proper CSS classes, or render a div with Tailwind classes instead of inline `backgroundColor`.
+44. **Hardcoded `$` throughout PDF export** (lines 95-96, 113-114, 133-134): Same issue as CSV. All `$` prefixes should be removed or dynamically resolved.
 
-26. **`TIMEFRAME_OPTIONS` duplicated** (lines 64-74): The leaderboard defines its own `TIMEFRAME_OPTIONS` array with different values (includes "30m") that don't match the canonical `TIMEFRAME_OPTIONS` from `src/types/strategy.ts` (which doesn't include "30m"). This could lead to filter mismatches.
-
-   **Fix**: Import and extend the canonical `TIMEFRAME_OPTIONS` from `src/types/strategy.ts`.
-
-27. **`MARKET_TYPE_OPTIONS` includes "margin"** (line 81): The system only supports "spot" and "futures" as `MarketType`. Including "margin" in the filter options creates a dead filter that will never match any strategy.
-
-   **Fix**: Remove "margin" from the options or align with the actual `MarketType` type.
-
-### C. Clarity
-
-28. **"Strategy Leaderboard" card title** -- No tooltip. Should say: "Community-ranked strategies sorted by clone count. Share your strategies to appear here."
-
-29. **Clone count display** -- No tooltip. Should say: "Number of times this strategy has been cloned by other traders."
+45. **Price formatting uses `.toFixed(2)`** (lines 56-57 in CSV, 133 in PDF): For low-cap assets (e.g., PEPEUSDT), entry/exit prices may need dynamic precision (4+ decimals) per the financial precision standard.
 
 ---
 
-## 7. Strategy Context Hook (`use-strategy-context.ts`)
+## 6. BacktestSessionBreakdown (`BacktestSessionBreakdown.tsx`)
+
+### A. Comprehensiveness -- Complete (already analyzed and improved in prior session)
+
+Summary cards (Best/Most Active/Highest WR), P&L bar chart, trade distribution pie chart, detailed stats per session with progress bars. ARIA and tooltips were not part of prior analysis scope.
+
+### C. Clarity -- Missing Tooltips
+
+46. **"P&L by Session" chart title** -- No tooltip. Should say: "Total profit/loss for each trading session. Green = profit, Red = loss."
+
+47. **"Trade Distribution" chart title** -- No tooltip. Should say: "Percentage of total trades executed during each session."
+
+48. **"Session Performance Details" card title** -- No tooltip. Should say: "Detailed win/loss statistics, average P&L, and profit factor for each trading session."
+
+49. **"Profit Factor" in session details** -- No tooltip. Should say: "Gross Profit / Gross Loss for trades in this session. Infinity (inf) means no losing trades."
+
+---
+
+## 7. `calculateMetrics()` in `types/backtest.ts`
 
 ### B. Accuracy
 
-30. **PnL uses only `trade.pnl`** (line 155): The per-pair performance calculation uses `trade.pnl || 0` instead of the standardized `realized_pnl ?? pnl ?? 0` chain. This is inconsistent with the platform-wide PnL standard and will produce inaccurate pair-level analytics for Binance-synced trades that have `realized_pnl` but different `pnl`.
+50. **Calmar Ratio uses raw return instead of annualized** (line 476): As noted in #18, the formula `(totalReturn) / (maxDD)` is not annualized. This is the authoritative calculation function used by the edge function results. Fix here to fix everywhere.
 
-   **Fix**: Change line 155 to `existing.totalPnl += (trade as any).realized_pnl ?? trade.pnl ?? 0;`. Additionally, the query at line 112 should include `realized_pnl` in the select fields.
-
-31. **Session match logic is overly simplified** (lines 235-238): The current check uses arbitrary UTC hour ranges that don't properly map to standard trading sessions (Sydney 21:00-06:00, Tokyo 00:00-09:00, London 07:00-16:00, New York 13:00-22:00 UTC). A strategy with `session_preference: ['london']` should check against actual London hours, but the current code ignores the strategy's session preference entirely.
-
-   This is a known limitation noted in the code comment "simplified - could be enhanced". Recommend adding a comment-level note but not fixing in this scope since it requires integrating `session-utils.ts`.
+   **Fix**: Add period parameters to calculate CAGR internally, then use `cagr / (maxDD * 100)`.
 
 ---
 
-## 8. Strategy Performance Hook (`use-strategy-performance.ts`)
+## 8. Backtest Config Constants (`backtest-config.ts`)
 
-### B. Accuracy -- Correct
+### B. Accuracy
 
-| Check | Result |
-|-------|--------|
-| PnL chain `realized_pnl ?? pnl ?? 0` | Correct (lines 85-86, 89-90, 101) |
-| Closed trade filter via `trade.status` | Correct (line 67) |
-| Win rate `wins / totalTrades` | Correct (line 81) |
-| Profit factor with infinity fallback | Correct (lines 92-96) |
-| AI Quality Score weighted formula | Correct (lines 36-50) |
-
-No issues found.
+51. **`METRICS_CONFIG` uses hardcoded `$` in format functions** (lines 130, 133-134): The `Expectancy`, `Avg Win`, and `Avg Loss` formatters use `$${v.toFixed(2)}` and `-$${v.toFixed(2)}`. These should use a neutral format or accept a currency formatter parameter.
 
 ---
 
@@ -239,33 +237,32 @@ No issues found.
 
 | # | Issue | File | Fix |
 |---|-------|------|-----|
-| 7 | "Active" count always equals "Total" (redundant) | StrategyStats.tsx | Change to count `status === 'active'` vs paused/killed |
-| 12 | Partial TP levels can exceed 100% total | StrategyFormDialog.tsx | Add validation warning |
-| 25 | Color field used as raw CSS for semantic names | StrategyLeaderboard.tsx | Use color class mapping |
-| 26 | Duplicated TIMEFRAME_OPTIONS with extra "30m" | StrategyLeaderboard.tsx | Import canonical options |
-| 27 | "margin" market type in filter doesn't match schema | StrategyLeaderboard.tsx | Remove "margin" option |
-| 30 | PnL uses `trade.pnl` instead of standardized chain | use-strategy-context.ts | Use `realized_pnl ?? pnl ?? 0` |
+| 17 | Trade P&L uses `formatPercent()` on currency amount | BacktestResults.tsx | Change to `format(trade.pnl)` |
+| 18/50 | Calmar Ratio uses raw return, not annualized | types/backtest.ts | Use CAGR / maxDD |
+| 35 | Equity curve overlay uses O(N*M*K) `.find()` | BacktestComparison.tsx | Use Map lookup |
+| 36-37 | Hardcoded `$` in comparison chart | BacktestComparison.tsx | Use `useCurrencyConversion` |
+| 43-44 | Hardcoded `$` in CSV/PDF export | use-backtest-export.ts | Remove `$` or use dynamic symbol |
+| 45 | Price `.toFixed(2)` insufficient for low-cap | use-backtest-export.ts | Use `.toFixed(4)` min |
+| 51 | Hardcoded `$` in METRICS_CONFIG formatters | backtest-config.ts | Remove `$` prefix |
 
 ### Priority 2 -- Missing Tooltips (Clarity)
 
 | # | Elements | File |
 |---|----------|------|
-| 5 | Tab titles (Library, Leaderboard, Import) | StrategyManagement.tsx |
-| 6 | New Strategy button | StrategyManagement.tsx |
-| 8-10 | Confluences badge, R:R badge, performance stats | StrategyCard.tsx |
-| 13-19 | Form field labels across 5 tabs | StrategyFormDialog.tsx |
-| 20-23 | Drawer section titles | StrategyDetailDrawer.tsx |
-| 28-29 | Leaderboard title, clone count | StrategyLeaderboard.tsx |
+| 3-4 | "Basic Mode" badge, tab titles | Backtest.tsx |
+| 5-16 | All configuration labels and filter sections | BacktestRunner.tsx |
+| 19-33 | All metric cards, detailed metrics, chart/tab titles | BacktestResults.tsx |
+| 38-41 | Comparison card/chart/summary titles | BacktestComparison.tsx |
+| 46-49 | Session chart/detail titles, profit factor | BacktestSessionBreakdown.tsx |
 
 ### Priority 3 -- Code Quality and Accessibility
 
 | # | Issue | Fix |
 |---|-------|-----|
-| 1 | Missing `role="region"` on page root | StrategyManagement.tsx |
-| 2 | No ErrorBoundary wrapper | StrategyManagement.tsx |
-| 3 | `as any` casts on timeframe/market_type | StrategyManagement.tsx |
-| 4 | Duplicate mutation payload shape (DRY) | StrategyManagement.tsx |
-| 24 | Missing `font-mono-numbers` on drawer metrics | StrategyDetailDrawer.tsx |
+| 1 | Missing `role="region"` on page root | Backtest.tsx |
+| 2 | No ErrorBoundary wrapper | Backtest.tsx |
+| 34 | Missing `role="region"` on results root | BacktestResults.tsx |
+| 42 | Missing `font-mono-numbers` on summary values | BacktestComparison.tsx |
 
 ---
 
@@ -273,11 +270,12 @@ No issues found.
 
 | File | Changes |
 |------|---------|
-| `src/pages/trading-journey/StrategyManagement.tsx` | Add `role="region"` and `aria-label` (#1), wrap with ErrorBoundary (#2), fix `as any` casts (#3), extract shared payload builder (#4), add tooltips to tabs (#5) and button (#6) |
-| `src/components/strategy/StrategyStats.tsx` | Fix "Active" count to use `status` field instead of `is_active` (#7) |
-| `src/components/strategy/StrategyCard.tsx` | Add tooltips to confluences (#8), R:R (#9), and performance stats (#10) |
-| `src/components/strategy/StrategyFormDialog.tsx` | Add partial TP sum validation (#12), add tooltips to form labels (#13-19) |
-| `src/components/strategy/StrategyDetailDrawer.tsx` | Add tooltips to section titles (#20-23), add `font-mono-numbers` to metrics (#24) |
-| `src/components/strategy/StrategyLeaderboard.tsx` | Fix color rendering (#25), import canonical timeframe options (#26), remove "margin" filter (#27), add tooltips (#28-29) |
-| `src/hooks/use-strategy-context.ts` | Fix PnL chain to use `realized_pnl ?? pnl ?? 0` and add `realized_pnl` to query select (#30) |
+| `src/pages/Backtest.tsx` | Add `role="region"` and `aria-label` (#1), wrap with ErrorBoundary (#2), add tooltip to "Basic Mode" badge (#3) and tab titles (#4) |
+| `src/components/strategy/BacktestRunner.tsx` | Add tooltips to all 12 config labels and filter sections (#5-16) |
+| `src/components/strategy/BacktestResults.tsx` | Fix trade P&L display from `formatPercent` to `format` (#17), add `role="region"` (#34), add tooltips to all metric cards, detailed metrics, and tab titles (#19-33) |
+| `src/components/strategy/BacktestComparison.tsx` | Optimize equity curve lookup to Map (#35), replace hardcoded `$` with currency hook (#36-37), add tooltips to card/chart titles (#38-41), add `font-mono-numbers` (#42) |
+| `src/components/strategy/BacktestSessionBreakdown.tsx` | Add tooltips to chart and detail card titles (#46-49) |
+| `src/hooks/use-backtest-export.ts` | Remove hardcoded `$` from CSV (#43) and PDF (#44), use `.toFixed(4)` for prices (#45) |
+| `src/lib/constants/backtest-config.ts` | Remove hardcoded `$` from METRICS_CONFIG format functions (#51) |
+| `src/types/backtest.ts` | Fix Calmar Ratio in `calculateMetrics()` to use annualized return (#50) |
 
