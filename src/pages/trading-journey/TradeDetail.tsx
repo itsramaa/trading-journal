@@ -355,6 +355,7 @@ export default function TradeDetail() {
   }
 
   const isLive = trade.status !== 'closed';
+  const journalMode: 'operational' | 'reflective' = isLive ? 'operational' : 'reflective';
   const pnlValue = trade.realized_pnl ?? trade.pnl ?? 0;
   const totalFees = (trade.commission || 0) + (trade.fees || 0) + ((trade as any).funding_fees || 0);
   const netPnl = pnlValue - totalFees;
@@ -376,6 +377,11 @@ export default function TradeDetail() {
   const liqPrice = trade._liquidationPrice;
   const liqMetrics = liqDistanceMetrics(markPrice, liqPrice, (trade as any).leverage);
   const liveUnrealizedR = unrealizedR(trade.entry_price, markPrice, trade.stop_loss, trade.direction);
+
+  // Risk context for closed trades
+  const initialRisk = trade.stop_loss && trade.entry_price
+    ? Math.abs(trade.entry_price - trade.stop_loss)
+    : null;
 
   // --- Shared Render Helpers (DRY) ---
   function renderStrategyContent(t: any) {
@@ -406,10 +412,11 @@ export default function TradeDetail() {
     );
   }
 
-  function renderJournalContent(t: any, live: boolean, rc: Record<string, boolean> | null) {
+  function renderJournalContent(t: any, mode: 'operational' | 'reflective', rc: Record<string, boolean> | null) {
+    const showReflective = mode === 'reflective';
     return (
       <SectionCard title="Journal" icon={MessageSquare}>
-        {!live && t.emotional_state && <DetailRow label="Emotion" value={t.emotional_state} />}
+        {showReflective && t.emotional_state && <DetailRow label="Emotion" value={t.emotional_state} />}
         {t.notes && (
           <div className="pt-2">
             <p className="text-xs text-muted-foreground mb-1">Notes</p>
@@ -422,7 +429,7 @@ export default function TradeDetail() {
             <p className="text-sm bg-muted/50 rounded-md p-2 whitespace-pre-wrap">{t.lesson_learned}</p>
           </div>
         )}
-        {!live && rc && Object.keys(rc).length > 0 && (
+        {showReflective && rc && Object.keys(rc).length > 0 && (
           <div className="pt-2">
             <p className="text-xs text-muted-foreground mb-1">Rule Compliance</p>
             <div className="space-y-1">
@@ -507,8 +514,8 @@ export default function TradeDetail() {
                 <KeyMetric label="Mark Price" value={safeFixed(markPrice, 2)} />
                 <KeyMetric label="Size" value={safeFixed(trade.quantity, 4)} />
                 <KeyMetric label="Leverage" value={(trade as any).leverage ? `${(trade as any).leverage}x` : undefined} />
-                {liqMetrics && <KeyMetric label="Liq. Distance (Price)" value={`${liqMetrics.pricePct.toFixed(2)}%`} />}
-                {liqMetrics?.equityPct !== undefined && <KeyMetric label="Liq. Distance (Equity)" value={`${liqMetrics.equityPct.toFixed(2)}%`} subtitle="Estimated via leverage" />}
+                {liqMetrics && <KeyMetric label="Risk Metric" value={`${liqMetrics.pricePct.toFixed(2)}%`} subtitle="Liq. Distance (Price)" />}
+                {liqMetrics?.equityPct !== undefined && <KeyMetric label="Risk Metric" value={`${liqMetrics.equityPct.toFixed(2)}%`} subtitle="Liq. Distance (Equity)" />}
                 {liveUnrealizedR && (
                   <KeyMetric
                     label="Unrealized R"
@@ -538,7 +545,7 @@ export default function TradeDetail() {
                   />
                 )}
                 {hasContent((trade as any).r_multiple) && (
-                  <KeyMetric label="R-Multiple" value={safeFixed((trade as any).r_multiple, 2)} />
+                  <KeyMetric label="Risk Metric" value={`${safeFixed((trade as any).r_multiple, 2)}R`} subtitle="Realized R-Multiple" />
                 )}
                 {hasContent((trade as any).hold_time_minutes) && (
                   <KeyMetric label="Hold Time" value={formatHoldTime((trade as any).hold_time_minutes)} />
@@ -547,7 +554,7 @@ export default function TradeDetail() {
                   <KeyMetric label="MAE" value={safeFixed((trade as any).max_adverse_excursion, 4)} />
                 )}
                 <KeyMetric label="Entry" value={safeFixed(trade.entry_price, 2)} />
-                <KeyMetric label="Exit" value={safeFixed(trade.exit_price, 2)} />
+                {hasContent(trade.exit_price) && <KeyMetric label="Exit" value={safeFixed(trade.exit_price, 2)} />}
               </>
             )}
           </div>
@@ -575,7 +582,7 @@ export default function TradeDetail() {
       {/* ===== UNIFIED CONTENT GRID ===== */}
       <div className="grid gap-4 md:grid-cols-2">
         {/* Card 1: Primary Outcome — always present */}
-        <SectionCard title={isLive ? "Live P&L" : "Performance"} icon={Activity}>
+        <SectionCard title="Outcome" icon={Activity}>
           {isLive ? (
             <div className="grid grid-cols-2 gap-x-6">
               <DetailRow
@@ -623,7 +630,7 @@ export default function TradeDetail() {
             {isLive && <DetailRow label="Mark Price" value={safeFixed(markPrice, 4)} />}
             <DetailRow label="Entry Price" value={safeFixed(trade.entry_price, 4)} />
             {!isLive && <DetailRow label="Exit Price" value={safeFixed(trade.exit_price, 4)} />}
-            {isLive && <DetailRow label="Liq. Price" value={safeFixed(liqPrice, 4)} />}
+            {isLive && hasContent(liqPrice) && liqPrice > 0 && <DetailRow label="Liq. Price" value={safeFixed(liqPrice, 4)} />}
             {isLive && liqMetrics && (
               <DetailRow label="Liq. Distance (Price)" value={`${liqMetrics.pricePct.toFixed(2)}%`} />
             )}
@@ -644,8 +651,11 @@ export default function TradeDetail() {
                 className={parseFloat(liveUnrealizedR) >= 0 ? 'text-profit' : 'text-loss'}
               />
             )}
+            {!isLive && initialRisk !== null && (
+              <DetailRow label="Initial Risk" value={safeFixed(initialRisk, 4)} />
+            )}
             {!isLive && hasContent((trade as any).r_multiple) && (
-              <DetailRow label="R-Multiple" value={safeFixed((trade as any).r_multiple, 2)} />
+              <DetailRow label="Realized R" value={`${safeFixed((trade as any).r_multiple, 2)}R`} />
             )}
             {hasContent(trade.stop_loss) && <DetailRow label="Stop Loss" value={safeFixed(trade.stop_loss, 4)} />}
             {hasContent(trade.take_profit) && <DetailRow label="Take Profit" value={safeFixed(trade.take_profit, 4)} />}
@@ -695,7 +705,7 @@ export default function TradeDetail() {
                 <CollapsibleContent>
                   <div className="grid gap-4 md:grid-cols-2 mt-2">
                     {hasStrategyData && renderStrategyContent(trade)}
-                    {hasLiveJournalData && renderJournalContent(trade, true, null)}
+                    {hasLiveJournalData && renderJournalContent(trade, 'operational', null)}
                   </div>
                 </CollapsibleContent>
               </Collapsible>
@@ -704,7 +714,7 @@ export default function TradeDetail() {
         ) : (
           <>
             {hasStrategyData && renderStrategyContent(trade)}
-            {hasJournalData && renderJournalContent(trade, false, ruleCompliance)}
+            {hasJournalData && renderJournalContent(trade, 'reflective', ruleCompliance)}
           </>
         )}
       </div>
