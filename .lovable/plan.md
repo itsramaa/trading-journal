@@ -1,248 +1,324 @@
 
 
-# Deep-Dive Analysis: Risk Calculator Page
+# Deep-Dive Analysis: Performance Page
 
 ---
 
-## 1. Page Structure (`PositionCalculator.tsx`)
+## 1. Page Orchestrator (`Performance.tsx`)
 
 ### A. Comprehensiveness
 
 | Feature | Status |
 |---------|--------|
-| PageHeader with icon/description | Done |
-| URL-driven tab state (calculator/volatility) | Done |
-| Symbol selector via MarketContext | Done |
-| MarketScoreWidget (compact) | Done |
-| ContextWarnings (events, volatility, correlation) | Done |
-| CalculatorInputs (6 fields with tooltips) | Done |
-| CalculatorResults (4 metrics with tooltips) | Done |
-| Commission rate display (Binance Phase 2) | Done |
-| Max leverage bracket info | Done |
-| QuickReferenceR (1R/2R/3R badges with tooltips) | Done |
-| RiskAdjustmentBreakdown (context-aware multipliers) | Done |
-| VolatilityStopLoss tab (ATR-based suggestions) | Done |
+| URL-driven tab state (overview/monthly/context/strategies) | Done |
+| Analytics Level Selector (Overall/Type/Exchange/Account) | Done |
+| Date Range filter | Done |
+| Strategy multi-select filter | Done |
+| Event Days Only toggle | Done |
+| FilterActiveIndicator for non-overall scopes | Done |
+| Export link to /export | Done |
+| ErrorBoundary with retryKey | Done |
 | Loading skeleton | Done |
-| Balance auto-sync (Binance or Paper) | Done |
-| Risk profile auto-sync | Done |
-| Analytics tracking (debounced) | Done |
+| Empty state when 0 trades | Done |
+| Badge showing active scope in header | Done |
+| Balance-aware drawdown (initialBalance from accounts) | Done |
 
 **Gaps:**
 
-1. **No `role="region"` on root container** -- inconsistent with ARIA standard applied to 11+ other pages.
+1. **No `role="region"` on root container** -- inconsistent with the ARIA standard applied to 11+ other pages (DrawdownChart, TradingHeatmapChart, EquityCurveWithEvents all have it, but the page itself does not).
 
-2. **Hardcoded `$` in Max Leverage info** (line 254): `~${Math.round(estimatedNotional).toLocaleString()} notional` bypasses the global currency conversion utility.
+2. **No tooltips on tab triggers** -- "Overview", "Monthly", "Context", "Strategies" tabs have no contextual guidance explaining what each tab contains.
 
-3. **No `ErrorBoundary` wrapping the page content**: Other complex pages (TradingJournal, MarketInsight) wrap their content in an ErrorBoundary with retry. This page only has ErrorBoundary on the MarketScoreWidget child, but not on the page itself. If `useRiskProfile` or `useBestAvailableBalance` throws, the page crashes entirely.
+3. **No tooltip on "Export" button** -- Should explain: "Export analytics data to CSV or PDF from the Export page."
 
-### B. Accuracy
-
-| Check | Result |
-|-------|--------|
-| `calculatePositionSize` formula: riskAmount / stopDistance | Correct |
-| Stop distance: abs(entry - stopLoss) / entry * 100 | Correct |
-| Position value: positionSize * entryPrice | Correct |
-| Capital deployment: positionValue / (balance * leverage) * 100 | Correct |
-| Potential outcomes: 1R/2R/3R multiples of riskAmount | Correct |
-| Commission estimate: positionValue * commissionRate | Correct |
-| Max leverage: bracket lookup by estimated notional | Correct |
-| Estimated notional formula (line 63) | Correct -- derived from risk amount / stop% * entry |
-| Balance fallback: combined > 0 ? combined : 10000 | Correct |
-| Risk profile sync via useEffect | Correct |
-
-4. **Leverage is NOT clamped to `maxAllowedLeverage`**: The slider allows up to `LEVERAGE_SLIDER_CONFIG.MAX` (20x) regardless of the bracket limit. If `maxAllowedLeverage` is 10x for a large notional, the user can still set 20x without any warning. The `maxAllowedLeverage` info is displayed but not enforced.
-
-### C. Clarity -- Missing Tooltips
-
-5. **"Trading Pair" label** (line 148) -- No tooltip. Should say: "Select the asset pair for position sizing. Changes are synchronized with the Market Data page."
-
-6. **"Position Size Calculator" tab trigger** -- No tooltip. Should say: "Calculate how many units to trade based on your account size, risk percent, and stop loss distance."
-
-7. **"Volatility-Based Stop Loss" tab trigger** -- No tooltip. Should say: "ATR-based stop loss suggestions that adapt to current market volatility for the selected pair."
-
-8. **"Commission Rates" section header** (line 221) -- No tooltip. Should say: "Real-time fee rates from Binance. Maker fees apply to limit orders, taker fees to market orders."
-
-9. **"Max Leverage" badge** (line 253) -- No tooltip. Should say: "Maximum leverage allowed by the exchange for the estimated position notional value. Based on Binance tier brackets."
-
-10. **"Calculation Results" header** (CalculatorResults.tsx line 28) -- No tooltip. Should say: "Derived from your inputs above. Position size ensures your stop loss equals your risk amount."
-
-11. **"% of capital" sub-label** (CalculatorResults.tsx line 49) -- No tooltip. Should say: "Percentage of your total account balance deployed in this position. Keep below 40% for safety."
-
-12. **"stop distance" sub-label** (CalculatorResults.tsx line 66) -- No tooltip. Should say: "Price distance between entry and stop loss as a percentage. Wider stops require smaller position sizes."
-
----
-
-## 2. ContextWarnings
-
-### A. Comprehensiveness & Accuracy
-
-| Feature | Status |
-|---------|--------|
-| High-impact event detection (today) | Done |
-| Volatility level warnings (low/high/extreme) | Done |
-| Correlated open position detection | Done |
-| All-clear state with green check | Done |
-| Loading state | Done |
-| Centralized correlation utils | Done |
-| Semantic warning colors | Done |
-| Quick volatility stats footer | Done |
-
-**No accuracy issues found.**
-
-### C. Clarity -- Missing Tooltips
-
-13. **"Context Warnings" card title** -- No tooltip. Should say: "Real-time market conditions that affect position sizing: upcoming events, volatility level, and correlated open positions."
-
-14. **"14-day ATR" footer stat** -- No tooltip. Should say: "Average True Range over 14 days, expressed as a percentage of price. Measures typical daily price movement."
-
-15. **"Annual Vol" footer stat** -- No tooltip. Should say: "Annualized volatility extrapolated from daily returns. Higher values indicate greater expected price swings over a year."
-
-16. **"All Clear" state** -- No tooltip. Should say: "No high-impact events, no elevated volatility, and no correlated open positions detected for this pair."
-
----
-
-## 3. VolatilityStopLoss
-
-### A. Comprehensiveness
-
-| Feature | Status |
-|---------|--------|
-| ATR-based stop loss suggestions (4 tiers) | Done |
-| Direction-aware calculation | Done |
-| Volatility stats grid (4 metrics) | Done |
-| Risk level badge with semantic icon | Done |
-| Recommendation message | Done |
-| Apply button to transfer SL to calculator | Done |
-| Loading skeleton | Done |
-| Empty state when data unavailable | Done |
-| Volatility adjustment info | Done |
-| Centralized ATR config | Done |
+4. **No tooltip on analytics scope badge** -- The badge in the header (e.g., "Account", "Exchange: Binance") has no tooltip explaining what scope filtering means.
 
 ### B. Accuracy
 
 | Check | Result |
 |-------|--------|
-| SL price for long: entry * (1 - percent/100) | Correct |
-| SL price for short: entry * (1 + percent/100) | Correct |
-| ATR multiplier tiers from centralized config | Correct |
-| Adjusted risk display | Correct |
+| `calculateTradingStats` uses standardized PnL chain | Correct (via `getTradeNetPnl`) |
+| `initialBalance` derivation for drawdown | Correct -- per-account or aggregate |
+| `filterTradesByDateRange` and `filterTradesByStrategies` | Correct |
+| Event day filter using `market_context.events.hasHighImpactToday` | Correct |
+| Analytics level filtering (type/account/exchange/overall) | Correct |
+| `tradesLoading` conditional on analytics level | Correct |
 
-17. **Hardcoded `$` in ATR Value display** (line 161): `${volatility.atr.toFixed(2)}` bypasses global currency conversion. ATR is a price-denominated value.
+No accuracy issues found in the orchestrator.
 
-18. **Hardcoded `$` in stop loss suggestion prices** (line 204): `${suggestion.price.toFixed(2)}` bypasses currency formatting. For low-cap assets, `.toFixed(2)` may also show `0.00`.
+### C. Code Quality
 
-19. **Stop loss price uses `.toFixed(2)`** (line 204): Same precision issue as AllPositionsTable -- low-cap assets (e.g., PEPEUSDT) will display as `$0.00`. Should use dynamic precision or `.toFixed(4)`.
-
-### C. Clarity -- Missing Tooltips
-
-20. **"Volatility-Based Stop Loss" card title** -- No tooltip. Should say: "ATR-derived stop loss levels that respect current market volatility. Wider stops in volatile markets, tighter in calm markets."
-
-21. **"Daily Volatility" stat** -- No tooltip. Should say: "Standard deviation of daily returns. A 2% daily volatility means the price typically moves +/-2% per day."
-
-22. **"ATR (14d)" stat** -- No tooltip. Should say: "Average True Range over 14 periods, as a percentage of price. Captures typical price range including gaps."
-
-23. **"Annualized" stat** -- No tooltip. Should say: "Daily volatility scaled to annual using sqrt(365). Comparable to traditional finance volatility metrics."
-
-24. **"ATR Value" stat** -- No tooltip. Should say: "Absolute ATR value in the quote currency. Represents the average daily price range in dollar terms."
-
-25. **Stop loss tier labels** ("Tight", "Standard", "Recommended", "Wide") -- No tooltips explaining the ATR multiplier for each. Should say, e.g.: "Tight: 0.75x ATR. Aggressive stop with higher chance of being hit. Standard: 1.0x ATR. Wide: 2.0x ATR. More room for price fluctuation."
-
-26. **"Best" badge on recommended tier** -- No tooltip. Should say: "Recommended based on your risk profile and current volatility conditions."
-
-27. **Apply button (ArrowRight)** -- No tooltip. Should say: "Apply this stop loss price to the Position Size Calculator tab."
+5. **`chartFormatCurrency` wrapper** (line 153): `const chartFormatCurrency = (v: number) => formatCompact(v)` is an unnecessary wrapper -- it just re-delegates. Could pass `formatCompact` directly. Minor.
 
 ---
 
-## 4. RiskAdjustmentBreakdown
+## 2. PerformanceFilters
 
-### A. Comprehensiveness
+### A. Comprehensiveness -- Complete
 
-| Feature | Status |
-|---------|--------|
-| Base risk display (from profile) | Done |
-| 5 adjustment factors with multipliers | Done |
-| Level-based styling (positive/warning/danger/neutral) | Done |
-| Calculation formula visualization | Done |
-| Final adjusted risk with prominent display | Done |
-| Recommendation badge | Done |
-| Visual progress bar (0-5% scale) | Done |
-| Loading state | Done |
-| InfoTooltip on card title | Done |
+All four filter types (analytics level, date range, strategy, event day) are properly implemented.
+
+### C. Clarity -- Missing Tooltips
+
+6. **"Event Days Only" switch label** -- No tooltip. Should say: "Show only trades executed on days with high-impact economic events (FOMC, CPI, NFP, etc.)."
+
+7. **"All Strategies" dropdown button** -- No tooltip. Should say: "Filter performance metrics to specific trading strategies. Select one or more to compare."
+
+---
+
+## 3. PerformanceSummaryCard
+
+### A. Comprehensiveness -- Complete
+
+Rule-based verdict, edge label, trade count badge, and 4 key stats (Net PnL, Win Rate, Expectancy, Profit Factor) are all present.
+
+### C. Clarity -- Missing Tooltips
+
+8. **"Performance Summary" title** -- No tooltip. Should say: "Rule-based assessment of your overall trading edge based on PnL, win rate, expectancy, and profit factor."
+
+9. **"Edge" badge** -- No tooltip. Should say: "Edge quality rating: Strong (WR>=50%, PF>=1.5), Moderate (profitable), Low (thin edge), Negative (unprofitable)."
+
+---
+
+## 4. SevenDayStatsCard
+
+### A. Comprehensiveness -- Complete
+
+Current streak, trades count, best/worst day with adaptive labeling.
+
+### C. Clarity -- Missing Tooltips
+
+10. **"7-Day Stats" heading** -- No tooltip. Should say: "Quick snapshot of your last 7 days of trading activity based on closed trades."
+
+11. **"Current Streak" label** -- No tooltip. Should say: "Consecutive wins (W) or losses (L) from your most recent trade backward."
+
+12. **"Trades (7D)" label** -- No tooltip. Should say: "Total number of closed trades in the last 7 calendar days."
+
+13. **"Best Day" / "Least Loss Day" label** -- No tooltip. Should say: "Day with the highest cumulative PnL in the last 7 days. Labeled 'Least Loss Day' if all days were negative."
+
+14. **"Worst Day" / "Smallest Gain Day" label** -- No tooltip. Should say: "Day with the lowest cumulative PnL in the last 7 days. Labeled 'Smallest Gain Day' if all days were positive."
+
+### D. Code Quality
+
+15. **Returns `null` when no closed trades** (line 66-68): Per the UX Consistency Standard, components should render an empty state card instead of `null` to prevent layout shifts.
+
+---
+
+## 5. PerformanceKeyMetrics
+
+### A. Comprehensiveness -- Complete
+
+Win Rate, Profit Factor, Expectancy, Max Drawdown, Largest Gain/Loss, Sharpe Ratio, Avg R:R, Total Trades, Total P&L with Binance breakdown.
 
 ### B. Accuracy
 
-All calculation logic is delegated to `useContextAwareRisk` hook -- the component is purely presentational. Display logic is correct.
+All values are sourced from `stats` (calculated by `calculateTradingStats`) and displayed with correct formatting. Sharpe shows "N/A" when null, Avg R:R shows "N/A" with guidance when null.
+
+### C. Clarity
+
+All 10 metric cards already have `InfoTooltip` components. Well implemented.
+
+16. **"Total Trades" card** (line 178) -- Only card without a tooltip. Should say: "Number of closed trades in the filtered dataset. More trades improve statistical reliability."
+
+17. **"Gross (Today)" sub-label in Binance section** -- No tooltip. Should say: "Today's gross realized PnL from Binance Futures before fees."
+
+18. **"Fees" sub-label** -- No tooltip. Should say: "Total trading fees (commission + maker/taker fees) deducted from gross PnL."
+
+---
+
+## 6. TradingBehaviorAnalytics
+
+### A. Comprehensiveness -- Complete
+
+Avg Trade Duration, Long/Short Ratio, Order Type Performance all implemented with proper empty states.
+
+### B. Accuracy
+
+- P&L uses `realized_pnl ?? pnl ?? 0` -- Correct.
+- `hold_time_minutes` accessed via `asExtended()` -- Correct pattern for DB fields not in TS type.
+- Win determination uses `result === 'win'` -- Correct.
+
+### C. Clarity
+
+All three cards have `InfoTooltip`. No gaps.
+
+### D. Code Quality
+
+19. **Returns `null` when no data** (line 150): Per UX standard, should show an empty state card instead of disappearing.
+
+---
+
+## 7. EquityCurveWithEvents
+
+### A. Comprehensiveness -- Complete
+
+Equity curve, event annotations (ReferenceDot), custom tooltip with event info, event legend. ARIA attributes present.
+
+### C. Clarity
+
+Has InfoTooltip on title. No gaps.
+
+---
+
+## 8. DrawdownChart
+
+### A. Comprehensiveness -- Complete
+
+Drawdown area chart, max drawdown display, ARIA attributes, empty state.
+
+### B. Accuracy
+
+- Uses `realized_pnl ?? pnl ?? 0` -- Correct.
+- Drawdown formula: `(peak - cumulative) / (initialBalance + peak) * 100` -- Correct per standardized formula.
+- Capped at 100 -- Correct.
 
 ### C. Clarity -- Missing Tooltips
 
-28. **"Base Risk (from profile)" label** -- No tooltip. Should say: "Your configured risk per trade from Risk Profile Settings. This is the starting point before market adjustments."
+20. **"Max Drawdown" label in chart header** -- No tooltip. Should say: "Largest peak-to-trough equity decline. Calculated as percentage of total equity at peak."
 
-29. **Individual factor multiplier values** (e.g., "x0.85") -- No tooltip on the multiplier number. Should say: "Multiplier applied to base risk. Values below 1.0 reduce risk, above 1.0 increase it."
-
-30. **"Adjusted Risk Per Trade" final label** -- No tooltip. Should say: "Final risk percentage after all market condition adjustments are applied. Use this value for your next position sizing."
-
-31. **"Recommendation" label** -- No tooltip. Should say: "Action guidance based on the total adjustment. E.g., 'Proceed with caution' when multiplier is 0.5-0.7, 'Avoid trading' below 0.5."
-
-32. **Visual progress bar** -- No tooltip explaining the 0-5% scale. Should say: "Visual comparison: the bar shows adjusted risk relative to a 5% maximum. The vertical line marks your base risk."
+21. **"Drawdown Chart" title** -- No tooltip. Should say: "Visual representation of equity decline from peak values over time. Deeper troughs indicate larger capital drawdowns."
 
 ---
 
-## 5. CalculatorInputs & CalculatorResults
+## 9. SessionPerformanceChart
 
-### A. Comprehensiveness & Clarity
+### A. Comprehensiveness -- Complete
 
-These two components are well-implemented with 10 existing tooltips covering all input fields and result metrics. No structural gaps found.
+Session breakdown (Sydney/Tokyo/London/NY/Other), win rate chart, session cards, best/worst badges, local time display.
 
-### B. Code Quality Notes
+### C. Clarity
 
-33. **Account Balance label shows hardcoded `($)`**: The label says "Account Balance ($)" regardless of user's currency setting. Should use dynamic currency symbol or remove.
+Has InfoTooltip on title. Session cards have sufficient labels.
 
-34. **Entry Price and Stop Loss labels also show hardcoded `($)`**: Same issue on lines 104 and 123 of CalculatorInputs.tsx.
-
----
-
-## 6. Page-Level Code Quality
-
-35. **No `role="region"` on root container**: Add `role="region" aria-label="Risk Calculator"` for ARIA compliance.
-
-36. **No top-level ErrorBoundary**: The page should wrap its content (below the loading check) in an ErrorBoundary with a retryKey pattern, consistent with MarketInsight and TradingJournal pages.
-
-37. **`estimatedNotional` calculation at component body level** (line 63): This is a derived value that depends on state. It's recalculated every render without memoization. While not a performance issue (cheap math), wrapping it in `useMemo` would be consistent with `result` and `estimatedFees`.
-
-38. **`formatCurrency` import** (line 26) is from `@/lib/formatters` but the rest of the page uses `useCurrencyConversion` (via CalculatorResults). This inconsistency means commission fees are formatted without the user's currency preference. Should use `format()` from `useCurrencyConversion` or at least be consistent.
+22. **Session card "Time (Local)" row** -- No tooltip. Should say: "Trading session hours converted to your local timezone from UTC."
 
 ---
 
-## 7. Summary of Recommendations
+## 10. TradingHeatmapChart
+
+### A. Comprehensiveness -- Complete
+
+Daily/Hourly/Session tabs, bar chart with color-coded win rates, best/worst insights, color legend.
+
+### C. Clarity -- Missing Tooltips
+
+23. **"Time-Based Win Rate" title** -- No tooltip. Should say: "Analyzes when you trade best by showing win rate by day of week, hour of day, and trading session."
+
+24. **Tab triggers ("By Day", "By Hour", "Session")** -- No tooltips explaining the granularity of each view.
+
+25. **Color legend** -- No tooltip. Should say: "Win rate bands: Green (60%+) = strong, Yellow (50-59%) = edge, Orange (40-49%) = weak, Red (<40%) = avoid."
+
+---
+
+## 11. PerformanceMonthlyTab
+
+### A. Comprehensiveness -- Complete
+
+This Month PnL, Monthly Trades, Monthly Win Rate, Avg Win/Loss, Rolling 30-Day chart.
+
+### C. Clarity -- Missing Tooltips
+
+26. **"This Month P&L"** -- No tooltip. Should say: "Net PnL from all closed trades in the current calendar month."
+
+27. **"Monthly Trades"** -- No tooltip. Should say: "Number of closed trades this month vs last month."
+
+28. **"Monthly Win Rate"** -- No tooltip. Should say: "Win rate for the current month. 'pp' = percentage points difference from last month."
+
+29. **"Avg Win/Loss"** -- No tooltip. Should say: "Average profit on winning trades and average loss on losing trades this month."
+
+30. **"Rolling 30-Day P&L" chart title** -- No tooltip. Should say: "Cumulative PnL over the last 30 days showing trend direction and momentum."
+
+---
+
+## 12. PerformanceContextTab
+
+### A. Comprehensiveness -- Complete
+
+Market Conditions Overview (CombinedContextualScore), Event Impact Analysis (EventDayComparison + FearGreedZoneChart), Volatility Analysis (VolatilityLevelChart). Conditional rendering based on data availability.
+
+### C. Clarity
+
+Has InfoTooltips on section headings. Sub-components (FearGreedZoneChart, VolatilityLevelChart) also have tooltips.
+
+---
+
+## 13. PerformanceStrategiesTab
+
+### A. Comprehensiveness -- Complete
+
+Strategy performance table with AI Quality Score, win rate progress bar, strategy comparison bar chart, empty state.
+
+### C. Clarity -- Missing Tooltips
+
+31. **"Strategy Performance" title** -- No tooltip. Should say: "Performance breakdown by trading strategy showing PnL, win rate, and AI quality score."
+
+32. **"AI: [score]" badge** -- No tooltip. Should say: "AI Quality Score rates strategy effectiveness. Excellent (>=80), Good (>=60), Fair (>=40), Poor (<40)."
+
+33. **"Contribution" column** -- No tooltip. Should say: "This strategy's share of total portfolio PnL as a percentage."
+
+34. **"Strategy Comparison" chart title** -- No tooltip. Should say: "Visual comparison of absolute PnL contribution by each strategy."
+
+---
+
+## 14. Contextual Sub-Components
+
+### EventDayComparison
+
+35. **Hardcoded `$` in DiffBadge** (line 159): `prefix="$"` is hardcoded. Should use the currency formatter or remove the prefix.
+
+36. **No tooltip on "Event Days" column header** -- Should say: "Trades executed on days with high-impact economic events (FOMC, CPI, NFP, GDP, etc.)."
+
+37. **No tooltip on "Normal Days" column header** -- Should say: "Trades executed on days without major economic event releases."
+
+### FearGreedZoneChart & VolatilityLevelChart
+
+38. **Both use `formatCurrency` from `@/lib/formatters` (static)** instead of `useCurrencyConversion` hook: This means tooltips showing PnL values bypass user currency preferences.
+
+### CombinedContextualScore
+
+39. **P&L calculation uses `trade.pnl || 0`** (line 115): Uses `||` instead of `??`. If `pnl` is exactly `0`, this is fine, but it skips `realized_pnl` entirely. Should use `(trade as any).realized_pnl ?? trade.pnl ?? 0` per the standardized chain.
+
+40. **No tooltip on "Combined Contextual Score" title** -- Should say: "Composite score (0-100) evaluating market conditions when you trade: Fear/Greed sentiment, volatility level, and macro event proximity."
+
+41. **No tooltip on zone labels (Optimal/Favorable/Moderate/Risky/Extreme)** -- Should explain each zone's score range and what market conditions it represents.
+
+---
+
+## 15. Summary of Recommendations
 
 ### Priority 1 -- Bugs & Accuracy
 
 | # | Issue | File | Fix |
 |---|-------|------|-----|
-| 4 | Leverage not clamped to `maxAllowedLeverage` | PositionCalculator.tsx | Add warning when `leverage > maxAllowedLeverage`, or clamp slider max dynamically |
-| 17 | Hardcoded `$` in ATR Value | VolatilityStopLoss.tsx | Use `useCurrencyConversion` format |
-| 18-19 | Hardcoded `$` + `.toFixed(2)` in SL prices | VolatilityStopLoss.tsx | Use currency formatter + dynamic precision |
-| 2 | Hardcoded `$` in Max Leverage notional | PositionCalculator.tsx | Use currency formatter |
-| 38 | `formatCurrency` inconsistent with `useCurrencyConversion` | PositionCalculator.tsx | Unify to `useCurrencyConversion` |
+| 35 | Hardcoded `$` prefix in DiffBadge | EventDayComparison.tsx | Remove `prefix="$"` or use dynamic currency |
+| 38 | Static `formatCurrency` bypasses currency preferences | FearGreedZoneChart.tsx, VolatilityLevelChart.tsx | Replace with `useCurrencyConversion` hook |
+| 39 | CombinedContextualScore uses `trade.pnl \|\| 0` instead of fallback chain | CombinedContextualScore.tsx | Change to `(trade as any).realized_pnl ?? trade.pnl ?? 0` |
 
 ### Priority 2 -- Missing Tooltips (Clarity)
 
 | # | Elements | Component |
 |---|----------|-----------|
-| 5-9 | Trading Pair, tab triggers, Commission header, Max Leverage | PositionCalculator.tsx |
-| 10-12 | Calculation Results header, % of capital, stop distance | CalculatorResults.tsx |
-| 13-16 | Context Warnings title, ATR/Vol stats, All Clear state | ContextWarnings.tsx |
-| 20-27 | Vol Stop Loss title, 4 stats, tier labels, Best badge, Apply button | VolatilityStopLoss.tsx |
-| 28-32 | Base Risk, multipliers, Adjusted Risk, Recommendation, progress bar | RiskAdjustmentBreakdown.tsx |
+| 2-4 | Tab triggers, Export button, scope badge | Performance.tsx |
+| 6-7 | Event Days toggle, Strategy dropdown | PerformanceFilters.tsx |
+| 8-9 | Summary title, Edge badge | PerformanceSummaryCard.tsx |
+| 10-14 | 7-Day Stats heading, streak, trades, best/worst day | SevenDayStatsCard.tsx |
+| 16-18 | Total Trades card, Binance gross/fees sub-labels | PerformanceKeyMetrics.tsx |
+| 20-21 | Drawdown chart title and max DD label | DrawdownChart.tsx |
+| 22 | Session card "Time (Local)" | SessionPerformanceChart.tsx |
+| 23-25 | Heatmap title, tab triggers, color legend | TradingHeatmapChart.tsx |
+| 26-30 | Monthly tab 4 cards + rolling chart | PerformanceMonthlyTab.tsx |
+| 31-34 | Strategy table title, AI badge, contribution, comparison chart | PerformanceStrategiesTab.tsx |
+| 36-37 | Event/Normal day column headers | EventDayComparison.tsx |
+| 40-41 | Combined Contextual Score title and zone labels | CombinedContextualScore.tsx |
 
-### Priority 3 -- Code Quality & Accessibility
+### Priority 3 -- Code Quality & UX
 
 | # | Issue | Fix |
 |---|-------|-----|
-| 1, 35 | Missing `role="region"` | PositionCalculator.tsx |
-| 3, 36 | No top-level ErrorBoundary | PositionCalculator.tsx |
-| 33-34 | Hardcoded `($)` in input labels | CalculatorInputs.tsx |
-| 37 | `estimatedNotional` not memoized | PositionCalculator.tsx (minor) |
+| 1 | Missing `role="region"` on page root | Performance.tsx |
+| 5 | Unnecessary `chartFormatCurrency` wrapper | Performance.tsx (minor) |
+| 15 | SevenDayStatsCard returns `null` instead of empty state | SevenDayStatsCard.tsx |
+| 19 | TradingBehaviorAnalytics returns `null` instead of empty state | TradingBehaviorAnalytics.tsx |
 
 ---
 
@@ -250,9 +326,18 @@ These two components are well-implemented with 10 existing tooltips covering all
 
 | File | Changes |
 |------|---------|
-| `src/pages/PositionCalculator.tsx` | Add `role="region"` (P3), wrap content in ErrorBoundary (P3), replace hardcoded `$` in max leverage with currency formatter (P1), add leverage clamping warning (P1), unify currency formatting to `useCurrencyConversion` (P1), add tooltips to Trading Pair, tab triggers, Commission header, Max Leverage badge (P2) |
-| `src/components/risk/calculator/CalculatorResults.tsx` | Add tooltips to "Calculation Results" header, "% of capital", and "stop distance" sub-labels (P2) |
-| `src/components/risk/calculator/CalculatorInputs.tsx` | Replace hardcoded `($)` in label text with dynamic currency symbol or remove (P3) |
-| `src/components/risk/calculator/ContextWarnings.tsx` | Add tooltips to card title, ATR/Vol footer stats, and All Clear state (P2) |
-| `src/components/risk/calculator/VolatilityStopLoss.tsx` | Replace hardcoded `$` and `.toFixed(2)` with currency formatter + dynamic precision (P1), add tooltips to all 4 stats, tier labels, Best badge, and Apply button (P2) |
-| `src/components/risk/calculator/RiskAdjustmentBreakdown.tsx` | Add tooltips to Base Risk, multiplier values, Adjusted Risk label, Recommendation label, and progress bar scale (P2) |
+| `src/pages/Performance.tsx` | Add `role="region"` (P3), add tooltips to tab triggers (P2), simplify `chartFormatCurrency` (P3) |
+| `src/components/performance/PerformanceFilters.tsx` | Add tooltips to Event Days toggle and Strategy dropdown (P2) |
+| `src/components/performance/PerformanceSummaryCard.tsx` | Add tooltips to title and Edge badge (P2) |
+| `src/components/performance/PerformanceMonthlyTab.tsx` | Add tooltips to all 4 metric cards and rolling chart title (P2) |
+| `src/components/performance/PerformanceStrategiesTab.tsx` | Add tooltips to Strategy table title, AI badge, Contribution, comparison chart (P2) |
+| `src/components/analytics/SevenDayStatsCard.tsx` | Add tooltips to heading and 4 stat labels (P2), replace `null` return with empty state card (P3) |
+| `src/components/analytics/TradingBehaviorAnalytics.tsx` | Replace `null` return with empty state card (P3) |
+| `src/components/analytics/charts/DrawdownChart.tsx` | Add tooltips to title and Max Drawdown label (P2) |
+| `src/components/analytics/charts/TradingHeatmapChart.tsx` | Add tooltips to title, tab triggers, color legend (P2) |
+| `src/components/analytics/session/SessionPerformanceChart.tsx` | Add tooltip to "Time (Local)" row (P2) |
+| `src/components/analytics/contextual/EventDayComparison.tsx` | Remove hardcoded `$` prefix (P1), add tooltips to column headers (P2) |
+| `src/components/analytics/contextual/FearGreedZoneChart.tsx` | Replace static `formatCurrency` with `useCurrencyConversion` (P1) |
+| `src/components/analytics/contextual/VolatilityLevelChart.tsx` | Replace static `formatCurrency` with `useCurrencyConversion` (P1) |
+| `src/components/analytics/contextual/CombinedContextualScore.tsx` | Fix PnL fallback chain (P1), add tooltips to title and zone labels (P2) |
+
