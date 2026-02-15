@@ -9,12 +9,14 @@ export type RiskMode = 'AGGRESSIVE' | 'NEUTRAL' | 'DEFENSIVE';
 
 export interface RegimeOutput {
   regime: MarketRegime;
+  /** The ONLY score the system exposes. All others are breakdown components. */
+  regimeScore: number;
   directionProbability: number; // % upside probability (30-70 range)
   expectedRange: { low: number; high: number }; // % expected move
   riskMode: RiskMode;
   sizePercent: number; // 25-100
   sizeLabel: string;
-  /** Breakdown scores used for transparency */
+  /** Breakdown scores used for transparency — NOT independent scores */
   breakdown: {
     technical: number;
     macro: number;
@@ -50,6 +52,7 @@ export function classifyMarketRegime(input: RegimeInput): RegimeOutput {
 
   return {
     regime,
+    regimeScore: compositeScore,
     directionProbability,
     expectedRange,
     riskMode,
@@ -65,7 +68,9 @@ export function classifyMarketRegime(input: RegimeInput): RegimeOutput {
 }
 
 function calculateComposite(input: RegimeInput): number {
-  // Weighted composite — same weights as market-scoring.ts
+  // Pure signal composite — event risk and volatility are NOT included here.
+  // They act as regime overrides only (determineRegime), preventing double-counting.
+  // See plan.md "Double-Counting Audit Summary" for rationale.
   const technical = input.technicalScore * 0.35;
   const onChain = input.onChainScore * 0.20;
   const macro = input.macroScore * 0.25;
@@ -89,15 +94,16 @@ function determineRegime(
   input: RegimeInput,
   alignment: 'ALIGNED' | 'CONFLICT' | 'NEUTRAL'
 ): MarketRegime {
-  // RISK_OFF takes priority when event risk is extreme
+  // Priority 1: Event risk override (highest priority)
   if (input.eventRiskLevel === 'VERY_HIGH' || input.eventRiskLevel === 'HIGH') {
     return 'RISK_OFF';
   }
-  // HIGH_VOL overrides trending when volatility is extreme
-  if (input.volatilityLevel === 'high' && alignment !== 'ALIGNED') {
+  // Priority 2: Extreme volatility override — NO alignment exception.
+  // A trending bull with FOMC in 6h + 3x vol should NOT be TRENDING_BULL.
+  if (input.volatilityLevel === 'high') {
     return 'HIGH_VOL';
   }
-  // Trending requires score conviction + alignment
+  // Priority 3: Trending (requires conviction + momentum + no conflict)
   const momentum = input.momentum24h ?? 0;
   if (compositeScore >= 65 && momentum > 0 && alignment !== 'CONFLICT') {
     return 'TRENDING_BULL';
@@ -105,6 +111,7 @@ function determineRegime(
   if (compositeScore <= 35 && momentum < 0 && alignment !== 'CONFLICT') {
     return 'TRENDING_BEAR';
   }
+  // Default
   return 'RANGING';
 }
 
@@ -115,6 +122,9 @@ function determineRiskMode(
 ): RiskMode {
   if (regime === 'RISK_OFF' || regime === 'HIGH_VOL') return 'DEFENSIVE';
   if (alignment === 'CONFLICT') return 'DEFENSIVE';
+  // Guard: even if trending+aligned, extreme vol or high events force defensive
+  if (input.volatilityLevel === 'high') return 'DEFENSIVE';
+  if (input.eventRiskLevel === 'HIGH' || input.eventRiskLevel === 'VERY_HIGH') return 'DEFENSIVE';
   if ((regime === 'TRENDING_BULL' || regime === 'TRENDING_BEAR') && alignment === 'ALIGNED') return 'AGGRESSIVE';
   return 'NEUTRAL';
 }
@@ -135,18 +145,26 @@ function calculateExpectedRange(
   input: RegimeInput,
   regime: MarketRegime
 ): { low: number; high: number } {
-  // Base range from volatility level
+  // ATR-based range (normalized %)
   let baseRange = 2.0; // default medium
   if (input.volatilityLevel === 'low') baseRange = 1.2;
   if (input.volatilityLevel === 'high') baseRange = 4.5;
 
-  // Regime multiplier
-  const regimeMultiplier = regime === 'HIGH_VOL' ? 1.5 : regime === 'RISK_OFF' ? 1.3 : 1.0;
-  const range = baseRange * regimeMultiplier;
+  // Regime multiplier — volatility is used here for range width only,
+  // NOT in composite score (no double-counting)
+  const regimeMultipliers: Record<string, number> = {
+    HIGH_VOL: 2.0,
+    RISK_OFF: 1.3,
+    TRENDING_BULL: 1.4,
+    TRENDING_BEAR: 1.4,
+    RANGING: 0.8,
+  };
+  const multiplier = regimeMultipliers[regime] ?? 1.0;
+  const range = baseRange * multiplier;
 
-  // Momentum skews the range
+  // Momentum shifts center (skew), does NOT expand total range
   const momentum = input.momentum24h ?? 0;
-  const skew = momentum > 0 ? 0.3 : momentum < 0 ? -0.3 : 0;
+  const skew = Math.max(-0.5, Math.min(0.5, momentum * 0.05)); // Capped skew
 
   return {
     low: Math.round((-range + skew) * 10) / 10,

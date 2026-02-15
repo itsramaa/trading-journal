@@ -136,7 +136,7 @@ function WhaleTrackingContent({
                         {whale.volumeChange24h > 0 ? '+' : ''}{whale.volumeChange24h.toFixed(1)}%
                       </span>
                       <p className="text-xs text-muted-foreground">
-                        {whale.confidence}% conf.
+                        {whale.percentileRank !== undefined ? `P${whale.percentileRank}` : `${whale.confidence}%`} conf.
                       </p>
                     </div>
                     <ChevronDown className="h-3 w-3 text-muted-foreground transition-transform duration-200" />

@@ -105,6 +105,8 @@ export interface WhaleActivity {
   method?: string;
   /** Threshold criteria used for detection */
   thresholds?: string;
+  /** Volume percentile rank vs rolling historical windows (0-100) */
+  percentileRank?: number;
 }
 
 /** Funding rate with historical percentile context */
