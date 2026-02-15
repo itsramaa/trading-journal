@@ -7,6 +7,8 @@
 import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { AlertTriangle, Calendar, Activity, Link2, CheckCircle, Info } from "lucide-react";
 import { useEconomicCalendar } from "@/features/calendar/useEconomicCalendar";
 import { useBinanceVolatility } from "@/features/binance/useBinanceAdvancedAnalytics";
@@ -57,7 +59,6 @@ export function ContextWarnings({ symbol = 'BTCUSDT' }: ContextWarningsProps) {
         const posAsset = getBaseSymbol(pos.pair);
         if (posAsset === baseAsset) return false;
         
-        // Use centralized getCorrelation (expects full symbol format)
         const symbol1 = `${baseAsset}USDT`;
         const symbol2 = `${posAsset}USDT`;
         const correlation = getCorrelation(symbol1, symbol2);
@@ -78,7 +79,6 @@ export function ContextWarnings({ symbol = 'BTCUSDT' }: ContextWarningsProps) {
   const warnings = useMemo<Warning[]>(() => {
     const result: Warning[] = [];
 
-    // High-impact event warnings
     if (highImpactEvents.length > 0) {
       const topEvent = highImpactEvents[0];
       result.push({
@@ -90,9 +90,8 @@ export function ContextWarnings({ symbol = 'BTCUSDT' }: ContextWarningsProps) {
       });
     }
 
-    // Volatility warnings
     if (volatilityData?.risk) {
-      const { level, suggestedStopLossPercent } = volatilityData.risk;
+      const { level } = volatilityData.risk;
       
       if (level === 'extreme') {
         result.push({
@@ -120,7 +119,6 @@ export function ContextWarnings({ symbol = 'BTCUSDT' }: ContextWarningsProps) {
       }
     }
 
-    // Correlated positions warnings using centralized thresholds
     if (correlatedPositions.length > 0) {
       const highestCorr = correlatedPositions[0];
       result.push({
@@ -177,17 +175,26 @@ export function ContextWarnings({ symbol = 'BTCUSDT' }: ContextWarningsProps) {
     return (
       <Card className="border-profit/30 bg-profit/5">
         <CardContent className="py-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-full bg-profit/10">
-              <CheckCircle className="h-5 w-5 text-profit" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-profit">All Clear</p>
-              <p className="text-xs text-muted-foreground">
-                No significant market warnings for {symbol}
-              </p>
-            </div>
-          </div>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-full bg-profit/10">
+                    <CheckCircle className="h-5 w-5 text-profit" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-profit">All Clear</p>
+                    <p className="text-xs text-muted-foreground">
+                      No significant market warnings for {symbol}
+                    </p>
+                  </div>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="max-w-xs text-xs">No high-impact events, no elevated volatility, and no correlated open positions detected for this pair.</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </CardContent>
       </Card>
     );
@@ -199,6 +206,10 @@ export function ContextWarnings({ symbol = 'BTCUSDT' }: ContextWarningsProps) {
         <CardTitle className="flex items-center gap-2 text-base">
           <AlertTriangle className="h-5 w-5 text-[hsl(var(--chart-4))]" />
           Context Warnings
+          <InfoTooltip
+            content="Real-time market conditions that affect position sizing: upcoming events, volatility level, and correlated open positions."
+            variant="help"
+          />
           {warnings.length > 0 && (
             <Badge variant="secondary" className="ml-2 text-xs">
               {warnings.length} active
@@ -253,14 +264,32 @@ export function ContextWarnings({ symbol = 'BTCUSDT' }: ContextWarningsProps) {
         {/* Quick Volatility Stats */}
         {volatilityData && (
           <div className="flex items-center gap-4 pt-2 border-t text-xs text-muted-foreground">
-            <div className="flex items-center gap-1">
-              <Info className="h-3 w-3" />
-              <span>14-day ATR: {volatilityData.atrPercent.toFixed(2)}%</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <Activity className="h-3 w-3" />
-              <span>Annual Vol: {volatilityData.annualizedVolatility.toFixed(1)}%</span>
-            </div>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-1 cursor-help">
+                    <Info className="h-3 w-3" />
+                    <span>14-day ATR: {volatilityData.atrPercent.toFixed(2)}%</span>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="max-w-xs text-xs">Average True Range over 14 days, expressed as a percentage of price. Measures typical daily price movement.</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-1 cursor-help">
+                    <Activity className="h-3 w-3" />
+                    <span>Annual Vol: {volatilityData.annualizedVolatility.toFixed(1)}%</span>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="max-w-xs text-xs">Annualized volatility extrapolated from daily returns. Higher values indicate greater expected price swings over a year.</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         )}
       </CardContent>

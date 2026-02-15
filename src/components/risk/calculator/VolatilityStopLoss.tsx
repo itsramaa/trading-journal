@@ -7,10 +7,28 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Activity, TrendingUp, AlertTriangle, Flame, Snowflake, Target, ArrowRight } from "lucide-react";
 import { useVolatilityBasedSizing, useBinanceVolatility } from "@/features/binance";
 import { cn } from "@/lib/utils";
 import { ATR_STOP_LOSS_CONFIG, ATR_PERIOD, VOLATILITY_LEVEL_LABELS } from "@/lib/constants/risk-multipliers";
+
+/** Format price with dynamic precision based on magnitude */
+function formatPrice(price: number): string {
+  if (price === 0) return '$0.00';
+  if (price < 0.01) return `$${price.toPrecision(4)}`;
+  if (price < 1) return `$${price.toFixed(4)}`;
+  return `$${price.toFixed(2)}`;
+}
+
+/** ATR multiplier descriptions for tooltips */
+const TIER_TOOLTIPS: Record<string, string> = {
+  tight: "Tight: Aggressive stop with higher chance of being hit. Uses a lower ATR multiplier.",
+  standard: "Standard: Balanced stop at 1× ATR. Good default for trending markets.",
+  recommended: "Recommended based on your risk profile and current volatility conditions.",
+  wide: "Wide: More room for price fluctuation. Uses a higher ATR multiplier. Lower chance of being stopped out.",
+};
 
 interface VolatilityStopLossProps {
   symbol: string;
@@ -57,7 +75,6 @@ export function VolatilityStopLoss({
     const { atrPercent } = volatility;
     const { suggestedStopLoss, atrBasedStopLoss } = sizing;
     
-    // Calculate stop-loss prices based on direction using centralized multipliers
     const multipliers = {
       [ATR_STOP_LOSS_CONFIG.TIGHT.key]: suggestedStopLoss,
       [ATR_STOP_LOSS_CONFIG.STANDARD.key]: atrPercent * ATR_STOP_LOSS_CONFIG.STANDARD.factor,
@@ -73,7 +90,6 @@ export function VolatilityStopLoss({
       }
     };
     
-    // Build suggestions from centralized config
     const suggestions: Record<string, { percent: number; price: number; label: string; isRecommended: boolean }> = {};
     
     Object.values(ATR_STOP_LOSS_CONFIG).forEach(config => {
@@ -125,6 +141,10 @@ export function VolatilityStopLoss({
         <div className="flex items-center gap-2">
           <Target className="h-4 w-4" />
           <span className="text-sm font-medium">Volatility-Based Stop Loss</span>
+          <InfoTooltip
+            content="ATR-derived stop loss levels that respect current market volatility. Wider stops in volatile markets, tighter in calm markets."
+            variant="help"
+          />
         </div>
         <Badge 
           variant={volatility.risk.level === 'extreme' ? 'destructive' : 'outline'}
@@ -137,30 +157,60 @@ export function VolatilityStopLoss({
       
       {/* Volatility Stats */}
       <div className="grid grid-cols-2 gap-4 p-3 rounded-lg bg-muted/50 text-sm">
-        <div>
-          <span className="text-muted-foreground">Daily Volatility</span>
-          <div className="font-semibold font-mono-numbers">
-            {volatility.dailyVolatility.toFixed(2)}%
+        <TooltipProvider>
+          <div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="text-muted-foreground cursor-help">Daily Volatility</span>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="max-w-xs text-xs">Standard deviation of daily returns. A 2% daily volatility means the price typically moves ±2% per day.</p>
+              </TooltipContent>
+            </Tooltip>
+            <div className="font-semibold font-mono-numbers">
+              {volatility.dailyVolatility.toFixed(2)}%
+            </div>
           </div>
-        </div>
-        <div>
-          <span className="text-muted-foreground">ATR ({ATR_PERIOD}d)</span>
-          <div className="font-semibold font-mono-numbers">
-            {volatility.atrPercent.toFixed(2)}%
+          <div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="text-muted-foreground cursor-help">ATR ({ATR_PERIOD}d)</span>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="max-w-xs text-xs">Average True Range over 14 periods, as a percentage of price. Captures typical price range including gaps.</p>
+              </TooltipContent>
+            </Tooltip>
+            <div className="font-semibold font-mono-numbers">
+              {volatility.atrPercent.toFixed(2)}%
+            </div>
           </div>
-        </div>
-        <div>
-          <span className="text-muted-foreground">Annualized</span>
-          <div className="font-semibold font-mono-numbers">
-            {volatility.annualizedVolatility.toFixed(1)}%
+          <div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="text-muted-foreground cursor-help">Annualized</span>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="max-w-xs text-xs">Daily volatility scaled to annual using √365. Comparable to traditional finance volatility metrics.</p>
+              </TooltipContent>
+            </Tooltip>
+            <div className="font-semibold font-mono-numbers">
+              {volatility.annualizedVolatility.toFixed(1)}%
+            </div>
           </div>
-        </div>
-        <div>
-          <span className="text-muted-foreground">ATR Value</span>
-          <div className="font-semibold font-mono-numbers">
-            ${volatility.atr.toFixed(2)}
+          <div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="text-muted-foreground cursor-help">ATR Value</span>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="max-w-xs text-xs">Absolute ATR value in the quote currency (USD). Represents the average daily price range in dollar terms.</p>
+              </TooltipContent>
+            </Tooltip>
+            <div className="font-semibold font-mono-numbers">
+              {formatPrice(volatility.atr)}
+            </div>
           </div>
-        </div>
+        </TooltipProvider>
       </div>
       
       {/* Recommendation Message */}
@@ -191,9 +241,27 @@ export function VolatilityStopLoss({
               )}
             >
               <div className="flex items-center gap-2">
-                <span className="text-sm">{suggestion.label}</span>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="text-sm cursor-help">{suggestion.label}</span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="max-w-xs text-xs">{TIER_TOOLTIPS[key] || suggestion.label}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 {suggestion.isRecommended && (
-                  <Badge variant="secondary" className="text-xs">Best</Badge>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Badge variant="secondary" className="text-xs cursor-help">Best</Badge>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="max-w-xs text-xs">Recommended based on your risk profile and current volatility conditions.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 )}
               </div>
               <div className="flex items-center gap-2">
@@ -201,17 +269,26 @@ export function VolatilityStopLoss({
                   -{suggestion.percent.toFixed(2)}%
                 </span>
                 <span className="text-sm font-mono-numbers font-medium">
-                  ${suggestion.price.toFixed(2)}
+                  {formatPrice(suggestion.price)}
                 </span>
                 {onApplyStopLoss && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 px-2"
-                    onClick={() => onApplyStopLoss(suggestion.price)}
-                  >
-                    <ArrowRight className="h-3 w-3" />
-                  </Button>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2"
+                          onClick={() => onApplyStopLoss(suggestion.price)}
+                        >
+                          <ArrowRight className="h-3 w-3" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="text-xs">Apply this stop loss to the Position Size Calculator tab</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 )}
               </div>
             </div>

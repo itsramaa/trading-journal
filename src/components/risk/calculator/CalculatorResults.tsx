@@ -25,7 +25,10 @@ export function CalculatorResults({ result }: CalculatorResultsProps) {
 
   return (
     <div className="space-y-4">
-      <h4 className="font-semibold">Calculation Results</h4>
+      <h4 className="font-semibold flex items-center gap-1">
+        Calculation Results
+        <InfoTooltip content="Derived from your inputs above. Position size ensures your stop loss equals your risk amount." />
+      </h4>
       
       <div className="grid gap-3 md:grid-cols-2">
         {/* Position Size */}
@@ -45,8 +48,9 @@ export function CalculatorResults({ result }: CalculatorResultsProps) {
             <InfoTooltip content="Total dollar value of the position (units × entry price). Shows how much capital is deployed in this trade." />
           </p>
           <p className="text-2xl font-bold">{formatCompact(result.position_value)}</p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground flex items-center gap-1">
             {result.capital_deployment_percent.toFixed(1)}% of capital
+            <InfoTooltip content="Percentage of your total account balance deployed in this position. Keep below 40% for safety." variant="info" />
           </p>
         </div>
         
@@ -62,8 +66,9 @@ export function CalculatorResults({ result }: CalculatorResultsProps) {
           <p className="text-2xl font-bold text-loss">
             -{formatCompact(result.potential_loss)}
           </p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground flex items-center gap-1">
             {result.stop_distance_percent.toFixed(2)}% stop distance
+            <InfoTooltip content="Price distance between entry and stop loss as a percentage. Wider stops require smaller position sizes." variant="info" />
           </p>
         </div>
         
