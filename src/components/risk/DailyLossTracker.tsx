@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TrendingDown, AlertTriangle, CheckCircle, XCircle, Wifi, Settings } from "lucide-react";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { useDailyRiskStatus, useRiskProfile } from "@/hooks/use-risk-profile";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { RISK_THRESHOLDS } from "@/types/risk";
@@ -128,15 +129,30 @@ export function DailyLossTracker() {
             <CardTitle className="flex items-center gap-2">
               <TrendingDown className="h-5 w-5" />
               Daily Loss Tracker
+              <InfoTooltip content="Tracks your realized losses against your configured daily loss limit. Trading is blocked when 100% is consumed." />
               {isBinanceConnected ? (
-                <Badge variant="outline" className="text-xs gap-1 ml-1 border-profit/30 text-profit">
-                  <Wifi className="h-3 w-3" />
-                  Live
-                </Badge>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge variant="outline" className="text-xs gap-1 ml-1 border-profit/30 text-profit">
+                        <Wifi className="h-3 w-3" />
+                        Live
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent><p className="text-sm">Data source: real-time exchange data</p></TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               ) : (
-                <Badge variant="outline" className="text-xs ml-1">
-                  Paper
-                </Badge>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge variant="outline" className="text-xs ml-1">
+                        Paper
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent><p className="text-sm">Data source: simulated account data</p></TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               )}
             </CardTitle>
             <CardDescription>
@@ -162,12 +178,29 @@ export function DailyLossTracker() {
             value={Math.min(100, riskStatus.loss_used_percent)} 
             className="h-4"
           />
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>0%</span>
-            <span className="text-[hsl(var(--chart-4))]">{RISK_THRESHOLDS.warning_percent}%</span>
-            <span className="text-loss">{RISK_THRESHOLDS.danger_percent}%</span>
-            <span>100%</span>
-          </div>
+          <TooltipProvider>
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>0%</span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="text-[hsl(var(--chart-4))] cursor-help">{RISK_THRESHOLDS.warning_percent}%</span>
+                </TooltipTrigger>
+                <TooltipContent><p className="text-sm">Warning level — consider slowing down</p></TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="text-loss cursor-help">{RISK_THRESHOLDS.danger_percent}%</span>
+                </TooltipTrigger>
+                <TooltipContent><p className="text-sm">Danger level — stop trading soon</p></TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="cursor-help">100%</span>
+                </TooltipTrigger>
+                <TooltipContent><p className="text-sm">Trading disabled — daily limit reached</p></TooltipContent>
+              </Tooltip>
+            </div>
+          </TooltipProvider>
         </div>
 
         {/* Stats Grid */}
@@ -212,17 +245,24 @@ export function DailyLossTracker() {
 
         {/* Status Badge */}
         <div className="flex items-center justify-center pt-4 border-t">
-          {riskStatus.trading_allowed ? (
-            <Badge className="bg-profit-muted text-profit border-profit/30 px-4 py-2">
-              <CheckCircle className="h-4 w-4 mr-2" />
-              Trading Allowed
-            </Badge>
-          ) : (
-            <Badge className="bg-loss-muted text-loss border-loss/30 px-4 py-2">
-              <XCircle className="h-4 w-4 mr-2" />
-              Trading Disabled - Limit Reached
-            </Badge>
-          )}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                {riskStatus.trading_allowed ? (
+                  <Badge className="bg-profit-muted text-profit border-profit/30 px-4 py-2">
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Trading Allowed
+                  </Badge>
+                ) : (
+                  <Badge className="bg-loss-muted text-loss border-loss/30 px-4 py-2">
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Trading Disabled - Limit Reached
+                  </Badge>
+                )}
+              </TooltipTrigger>
+              <TooltipContent><p className="text-sm">Current trading permission based on your daily loss consumption</p></TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
 
         {/* Enhancement CTA for non-Binance users */}
