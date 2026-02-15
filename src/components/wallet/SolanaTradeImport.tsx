@@ -162,21 +162,23 @@ export function SolanaTradeImport() {
         {/* Results */}
         {status === 'parsed' && result && (
           <div className="space-y-4">
-            {/* Summary */}
-            <div className="grid grid-cols-3 gap-3">
-              <div className="p-3 rounded-lg bg-muted/50 text-center">
-                <p className="text-2xl font-bold">{result.totalTransactions}</p>
-                <p className="text-xs text-muted-foreground">Scanned</p>
+            {/* Summary — only show after a real scan with results */}
+            {result.totalTransactions > 0 && (
+              <div className="grid grid-cols-3 gap-3">
+                <div className="p-3 rounded-lg bg-muted/50 text-center">
+                  <p className="text-2xl font-bold">{result.totalTransactions}</p>
+                  <p className="text-xs text-muted-foreground">Scanned</p>
+                </div>
+                <div className="p-3 rounded-lg bg-muted/50 text-center">
+                  <p className="text-2xl font-bold text-primary">{result.parsedCount}</p>
+                  <p className="text-xs text-muted-foreground">Trades Found</p>
+                </div>
+                <div className="p-3 rounded-lg bg-muted/50 text-center">
+                  <p className="text-2xl font-bold">{selectedTrades.size}</p>
+                  <p className="text-xs text-muted-foreground">Selected</p>
+                </div>
               </div>
-              <div className="p-3 rounded-lg bg-muted/50 text-center">
-                <p className="text-2xl font-bold text-primary">{result.parsedCount}</p>
-                <p className="text-xs text-muted-foreground">Trades Found</p>
-              </div>
-              <div className="p-3 rounded-lg bg-muted/50 text-center">
-                <p className="text-2xl font-bold">{selectedTrades.size}</p>
-                <p className="text-xs text-muted-foreground">Selected</p>
-              </div>
-            </div>
+            )}
 
             {result.trades.length > 0 ? (
               <>
