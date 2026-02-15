@@ -1,5 +1,5 @@
 import { useSearchParams } from "react-router-dom";
-import { Bell, Palette, Bot, Link, Settings as SettingsIcon, TrendingUp } from "lucide-react";
+import { Bell, Bot, Link, Settings as SettingsIcon, TrendingUp } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { AISettingsTab } from "@/components/settings/AISettingsTab";
 import { BinanceApiSettings } from "@/components/settings/BinanceApiSettings";
@@ -27,22 +27,6 @@ const Settings = () => {
   const { data: settings, isLoading: settingsLoading } = useUserSettings();
   const updateSettings = useUpdateUserSettings();
 
-  const handleThemeChange = async (theme: 'light' | 'dark' | 'system') => {
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else if (theme === 'light') {
-      document.documentElement.classList.remove('dark');
-    } else {
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      if (prefersDark) {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
-    }
-    await updateSettings.mutateAsync({ theme });
-    toast.success(`Theme changed to ${theme}`);
-  };
 
   const handleNotificationChange = async (key: string, value: boolean) => {
     await updateSettings.mutateAsync({ [key]: value });
@@ -73,7 +57,7 @@ const Settings = () => {
         />
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-5 lg:w-[500px]">
+          <TabsList className="grid w-full grid-cols-4 lg:w-[400px]">
             <TabsTrigger value="trading" className="gap-2">
               <TrendingUp className="h-4 w-4" />
               <span className="hidden sm:inline">Trading</span>
@@ -81,10 +65,6 @@ const Settings = () => {
             <TabsTrigger value="notifications" className="gap-2">
               <Bell className="h-4 w-4" />
               <span className="hidden sm:inline">Alerts</span>
-            </TabsTrigger>
-            <TabsTrigger value="appearance" className="gap-2">
-              <Palette className="h-4 w-4" />
-              <span className="hidden sm:inline">Theme</span>
             </TabsTrigger>
             <TabsTrigger value="exchange" className="gap-2">
               <Link className="h-4 w-4" />
@@ -143,7 +123,7 @@ const Settings = () => {
                   <div className="flex items-center justify-between">
                     <div className="space-y-0.5">
                       <Label>Portfolio Updates</Label>
-                      <p className="text-sm text-muted-foreground">Daily summary of your portfolio.</p>
+                      <p className="text-sm text-muted-foreground">Daily summary of your portfolio. Sent at 00:00 UTC.</p>
                     </div>
                     <Switch
                       checked={settings?.notify_portfolio_updates ?? true}
@@ -153,7 +133,7 @@ const Settings = () => {
                   <div className="flex items-center justify-between">
                     <div className="space-y-0.5">
                       <Label>Weekly Report</Label>
-                      <p className="text-sm text-muted-foreground">Weekly performance report.</p>
+                      <p className="text-sm text-muted-foreground">Weekly performance report. Sent every Monday at 00:00 UTC.</p>
                     </div>
                     <Switch
                       checked={settings?.notify_weekly_report ?? false}
@@ -180,7 +160,7 @@ const Settings = () => {
                   <div className="flex items-center justify-between">
                     <div className="space-y-0.5">
                       <Label>Push Notifications</Label>
-                      <p className="text-sm text-muted-foreground">Receive push notifications on this device.</p>
+                      <p className="text-sm text-muted-foreground">Enabled for this browser/device only. Other devices require separate activation.</p>
                     </div>
                     <Switch
                       checked={settings?.notify_push_enabled ?? false}
@@ -192,45 +172,7 @@ const Settings = () => {
             </Card>
           </TabsContent>
 
-          <TabsContent value="appearance" className="space-y-4">
-            <Card className="border-border/50">
-              <CardHeader>
-                <CardTitle>Appearance</CardTitle>
-                <CardDescription>Customize how the app looks.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-4">
-                  <Label>Theme</Label>
-                  <div className="grid grid-cols-3 gap-4">
-                    <Button
-                      variant={settings?.theme === 'light' ? "default" : "outline"}
-                      className="h-auto flex-col gap-2 p-4"
-                      onClick={() => handleThemeChange('light')}
-                    >
-                      <div className="h-12 w-full rounded-md bg-muted border" />
-                      <span className="text-sm">Light</span>
-                    </Button>
-                    <Button
-                      variant={settings?.theme === 'dark' ? "default" : "outline"}
-                      className="h-auto flex-col gap-2 p-4"
-                      onClick={() => handleThemeChange('dark')}
-                    >
-                      <div className="h-12 w-full rounded-md bg-primary" />
-                      <span className="text-sm">Dark</span>
-                    </Button>
-                    <Button
-                      variant={settings?.theme === 'system' ? "default" : "outline"}
-                      className="h-auto flex-col gap-2 p-4"
-                      onClick={() => handleThemeChange('system')}
-                    >
-                      <div className="h-12 w-full rounded-md bg-gradient-to-r from-muted to-primary" />
-                      <span className="text-sm">System</span>
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
+
 
           <TabsContent value="exchange" className="space-y-4">
             <BinanceApiSettings />
