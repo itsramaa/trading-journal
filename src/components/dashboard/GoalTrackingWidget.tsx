@@ -16,6 +16,8 @@ import {
 import { Target, TrendingUp, Shield, Pencil, Trophy, AlertTriangle } from "lucide-react";
 import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
+import { useUnifiedPortfolioData } from "@/hooks/use-unified-portfolio-data";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
 
 interface Goals {
@@ -49,6 +51,7 @@ export function GoalTrackingWidget({ className }: { className?: string }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const { data: trades = [] } = useModeFilteredTrades();
   const { format: formatCurrency } = useCurrencyConversion();
+  const portfolio = useUnifiedPortfolioData();
 
   const stats = useMemo(() => {
     const now = new Date();
@@ -77,15 +80,15 @@ export function GoalTrackingWidget({ className }: { className?: string }) {
         if (peak > 0) {
           const dd = ((peak - balance) / peak) * 100;
           if (dd > maxDd) maxDd = dd;
-        } else if (balance < 0) {
-          // All losses, no peak — approximate DD as % of account
-          // This will be capped below
-          maxDd = Math.min(Math.abs(balance), 100);
+        } else if (balance < 0 && portfolio.totalCapital > 0) {
+          // All losses, no peak — use account balance as denominator
+          const dd = (Math.abs(balance) / portfolio.totalCapital) * 100;
+          if (dd > maxDd) maxDd = Math.min(dd, 100);
         }
       });
 
     return { totalPnl, winRate, maxDrawdown: maxDd, totalTrades: monthTrades.length };
-  }, [trades]);
+  }, [trades, portfolio.totalCapital]);
 
   const saveGoals = () => {
     setGoals(editGoals);
@@ -211,6 +214,9 @@ export function GoalTrackingWidget({ className }: { className?: string }) {
                   <div className="flex items-center gap-2">
                     <Icon className="h-4 w-4 text-muted-foreground" />
                     <span>{item.label}</span>
+                    {item.label === 'Monthly Max DD' && (
+                      <InfoTooltip content="Drawdown from this month's closed trades only, calculated as percentage of your total account balance." />
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <span className={`font-mono-numbers text-xs ${item.hit ? "text-profit" : "text-muted-foreground"}`}>

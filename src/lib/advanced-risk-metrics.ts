@@ -312,7 +312,7 @@ export function calculateAdvancedRiskMetrics(
     maxDrawdown: Number(maxDD.toFixed(2)),
     maxDrawdownPercent: Number(Math.min(maxDDPercent, 100).toFixed(2)),
     currentDrawdown: Number(currentDD.toFixed(2)),
-    currentDrawdownPercent: Number(currentDDPercent.toFixed(2)),
+    currentDrawdownPercent: Number(Math.min(currentDDPercent, 100).toFixed(2)),
     avgDrawdownDuration: Number(avgDDDuration.toFixed(1)),
     maxDrawdownDuration: maxDDDuration,
     recoveryFactor: Number(recoveryFactor.toFixed(2)),

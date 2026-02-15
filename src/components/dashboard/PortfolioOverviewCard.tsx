@@ -22,6 +22,7 @@ import {
   ArrowDownRight,
 } from "lucide-react";
 import { useUnifiedPortfolioData } from "@/hooks/use-unified-portfolio-data";
+import { usePositions } from "@/hooks/use-positions";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { formatPercent, formatWinRate } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
@@ -33,7 +34,12 @@ interface PortfolioOverviewCardProps {
 
 export function PortfolioOverviewCard({ className }: PortfolioOverviewCardProps) {
   const portfolio = useUnifiedPortfolioData();
+  const { positions: activePositions } = usePositions();
   const { format, formatPnl, currency } = useCurrencyConversion();
+
+  // Calculate unrealized P&L from any open positions
+  const unrealizedPnl = activePositions.reduce((sum, p) => sum + p.unrealizedPnl, 0);
+  const hasUnrealized = activePositions.length > 0;
 
   // Loading state
   if (portfolio.isLoading) {
@@ -188,6 +194,14 @@ export function PortfolioOverviewCard({ className }: PortfolioOverviewCardProps)
             <p className="text-xs text-muted-foreground">
               {portfolio.todayTrades} trade{portfolio.todayTrades !== 1 ? 's' : ''} today
             </p>
+            {hasUnrealized && (
+              <div className="flex items-center gap-1 mt-1">
+                <p className="text-xs text-muted-foreground">Unrealized:</p>
+                <p className={cn("text-xs font-medium", unrealizedPnl >= 0 ? 'text-profit' : 'text-loss')}>
+                  {formatPnl(unrealizedPnl)}
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Weekly P&L */}

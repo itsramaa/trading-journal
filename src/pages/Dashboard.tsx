@@ -27,11 +27,13 @@ import { useBinanceConnectionStatus } from "@/features/binance";
 import { usePositions } from "@/hooks/use-positions";
 import { useModeVisibility } from "@/hooks/use-mode-visibility";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { 
   ChevronRight,
   LineChart,
   Activity,
   ExternalLink,
+  Info,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -84,6 +86,26 @@ const Dashboard = () => {
           title="Dashboard"
           description="Your trading overview at a glance"
         />
+
+        {/* Data Scope Legend */}
+        <Collapsible>
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" size="sm" className="gap-1.5 text-xs text-muted-foreground h-7 px-2">
+              <Info className="h-3.5 w-3.5" />
+              Data Scope Reference
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-1 text-xs text-muted-foreground p-3 rounded-lg bg-muted/30 border mt-1">
+              <span>• Portfolio Overview: <strong>Real-time</strong></span>
+              <span>• Performance Card: <strong>Last 30 days</strong></span>
+              <span>• AI Insights: <strong>Last 20 trades</strong></span>
+              <span>• Goals: <strong>Current month</strong></span>
+              <span>• Risk Metrics: <strong>All-time</strong></span>
+              <span>• Equity Curve: <strong>All-time</strong></span>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
 
         {/* Row 1: Portfolio Overview */}
         <PortfolioOverviewCard />

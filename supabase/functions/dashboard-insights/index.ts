@@ -85,13 +85,14 @@ serve(async (req) => {
     // === END VALIDATION ===
 
     // Always output in English per project language standard
+    const marketScoreLabel = sanitizeString(body.marketScoreLabel || 'Unknown', 50);
+
     const systemPrompt = `You are an AI trading assistant helping traders analyze their portfolio. Provide concise, actionable, and constructive insights in English.
 
 CRITICAL RULES:
-- Use EXACT numbers as provided. Do NOT round, estimate, multiply, or change any financial figures.
-- If the balance is $47.85, write "$47.85" — never "$47,850" or "$47,846".
-- All monetary values in the data are already in their correct denomination.
+- Do NOT mention any specific dollar amounts in your summary. Refer to "your balance" or "your account" instead. Financial numbers are already displayed in the dashboard UI.
 - When mentioning win rates, always specify the sample size (e.g., "10% win rate over last 20 trades").
+- The current market regime is: ${marketScoreLabel}. Do not contradict this assessment in your summary.
 
 Focus on:
 1. Current portfolio status and deployment
@@ -99,11 +100,11 @@ Focus on:
 3. Recommendations based on trading patterns
 4. Best setups based on historical performance
 
-Use the provided function to return structured analysis. Do NOT include raw financial numbers in the summary text — they are already shown in the dashboard UI.`;
+Use the provided function to return structured analysis.`;
 
     // Calculate some metrics
     const totalPnl = recentTrades.reduce((sum: number, t: any) => sum + t.pnl, 0);
-    const wins = recentTrades.filter((t: any) => t.result === 'win').length;
+    const wins = recentTrades.filter((t: any) => t.pnl > 0).length;
     const winRate = recentTrades.length > 0 ? (wins / recentTrades.length * 100).toFixed(1) : 0;
     const deploymentPercent = portfolioStatus.totalBalance > 0 
       ? (portfolioStatus.deployedCapital / portfolioStatus.totalBalance * 100).toFixed(1)
@@ -113,21 +114,23 @@ Use the provided function to return structured analysis. Do NOT include raw fina
       ? strategies.reduce((best: any, s: any) => s.winRate > best.winRate ? s : best, strategies[0])
       : null;
 
-    const userPrompt = `Analyze this trading dashboard data:
+    const userPrompt = `Analyze this trading dashboard data. Do NOT include any dollar amounts in your summary.
 
-PORTFOLIO STATUS:
-- Total Balance: $${portfolioStatus.totalBalance.toLocaleString()}
-- Deployed Capital: $${portfolioStatus.deployedCapital.toLocaleString()} (${deploymentPercent}%)
+PORTFOLIO CONTEXT:
+- Account size category: ${portfolioStatus.totalBalance < 100 ? 'Small (under $100)' : portfolioStatus.totalBalance < 1000 ? 'Small' : portfolioStatus.totalBalance < 10000 ? 'Medium' : 'Large'}
+- Capital deployment: ${deploymentPercent}%
 - Open Positions: ${portfolioStatus.openPositions}
 
 RISK STATUS:
-- Daily Loss: $${riskStatus.currentDailyLoss.toFixed(2)} / $${riskStatus.maxDailyLoss.toFixed(2)} limit
+- Daily loss limit usage: ${riskStatus.maxDailyLoss > 0 ? ((Math.abs(riskStatus.currentDailyLoss) / riskStatus.maxDailyLoss) * 100).toFixed(0) : 0}%
 - Trading Allowed: ${riskStatus.tradingAllowed ? 'Yes' : 'NO - LIMIT REACHED'}
 
 RECENT PERFORMANCE (last ${recentTrades.length} trades):
-- Win Rate: ${winRate}%
-- Total P&L: $${totalPnl.toFixed(2)}
-${recentTrades.slice(0, 5).map((t: any) => `- ${t.pair} ${t.direction}: ${t.result} ($${t.pnl.toFixed(2)})`).join('\n')}
+- Win Rate: ${winRate}% (${wins} wins out of ${recentTrades.length})
+- Net result: ${totalPnl >= 0 ? 'Positive' : 'Negative'}
+${recentTrades.slice(0, 5).map((t: any) => `- ${t.pair} ${t.direction}: ${t.pnl > 0 ? 'win' : t.pnl < 0 ? 'loss' : 'breakeven'}`).join('\n')}
+
+MARKET REGIME: ${marketScoreLabel}
 
 STRATEGIES:
 ${strategies.length > 0 
@@ -136,7 +139,7 @@ ${strategies.length > 0
 
 Best performing strategy: ${bestStrategy ? `${bestStrategy.name} (${bestStrategy.winRate.toFixed(1)}%)` : 'N/A'}
 
-Provide dashboard insights in English.`;
+Provide dashboard insights in English. Remember: no dollar amounts in summary.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",

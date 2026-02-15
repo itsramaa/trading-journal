@@ -218,7 +218,7 @@ export function ADLRiskWidget() {
           <CardTitle className="text-lg flex items-center gap-2">
             <Shield className="h-5 w-5 text-primary" />
             ADL Risk
-            <InfoTooltip content="Auto-Deleveraging (ADL) quantile indicates how likely your position is to be automatically closed if the insurance fund is depleted. Higher values = higher risk." />
+            <InfoTooltip content="ADL quantile is ranked 1-5 based on your position's profit and margin ratio relative to other traders. 1 = lowest priority for ADL (safest), 5 = highest priority (most likely to be auto-deleveraged). This is a relative ranking in the queue, not an absolute risk measure." />
           </CardTitle>
           {positionsWithADL.length > 0 && (
             <Badge variant="outline" className={cn("gap-1", overallConfig.color)}>
