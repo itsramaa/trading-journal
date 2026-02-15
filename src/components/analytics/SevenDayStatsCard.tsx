@@ -10,7 +10,10 @@ import {
   Activity,
   Trophy,
   AlertTriangle,
+  BarChart3,
 } from "lucide-react";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import type { TradeEntry } from "@/hooks/use-trade-entries";
@@ -64,18 +67,37 @@ export function SevenDayStatsCard({ trades: externalTrades }: SevenDayStatsCardP
   const hasTrades = trades.filter(t => t.status === 'closed').length > 0;
 
   if (!hasTrades) {
-    return null;
+    return (
+      <div className="space-y-4">
+        <h2 className="text-lg font-semibold flex items-center gap-2">
+          7-Day Stats
+          <InfoTooltip content="Quick snapshot of your last 7 days of trading activity based on closed trades." />
+        </h2>
+        <Card>
+          <CardContent className="py-8">
+            <div className="text-center text-muted-foreground">
+              <BarChart3 className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p>No closed trades yet</p>
+              <p className="text-sm">Close some trades to see 7-day stats here.</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold">7-Day Stats</h2>
+      <h2 className="text-lg font-semibold flex items-center gap-2">
+        7-Day Stats
+        <InfoTooltip content="Quick snapshot of your last 7 days of trading activity based on closed trades." />
+      </h2>
       <div className="grid gap-4 grid-cols-2 md:grid-cols-4" role="group" aria-label="7-day trading statistics summary">
         <Card>
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Current Streak</p>
+                <TooltipProvider><Tooltip><TooltipTrigger asChild><p className="text-sm text-muted-foreground cursor-help">Current Streak</p></TooltipTrigger><TooltipContent>Consecutive wins (W) or losses (L) from your most recent trade backward.</TooltipContent></Tooltip></TooltipProvider>
                 <p className={`text-2xl font-bold ${sevenDayStats.streak.type === 'win' ? 'text-profit' : 'text-loss'}`}>
                   {sevenDayStats.streak.count} {sevenDayStats.streak.type === 'win' ? 'W' : 'L'}
                 </p>
@@ -88,7 +110,7 @@ export function SevenDayStatsCard({ trades: externalTrades }: SevenDayStatsCardP
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Trades (7D)</p>
+                <TooltipProvider><Tooltip><TooltipTrigger asChild><p className="text-sm text-muted-foreground cursor-help">Trades (7D)</p></TooltipTrigger><TooltipContent>Total number of closed trades in the last 7 calendar days.</TooltipContent></Tooltip></TooltipProvider>
                 <p className="text-2xl font-bold">{sevenDayStats.trades7d}</p>
               </div>
               <Activity className="h-8 w-8 text-muted-foreground" />
@@ -99,9 +121,9 @@ export function SevenDayStatsCard({ trades: externalTrades }: SevenDayStatsCardP
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">
+                <TooltipProvider><Tooltip><TooltipTrigger asChild><p className="text-sm text-muted-foreground cursor-help">
                   {sevenDayStats.bestDay.pnl < 0 ? 'Least Loss Day' : 'Best Day'}
-                </p>
+                </p></TooltipTrigger><TooltipContent>Day with the highest cumulative PnL in the last 7 days.{sevenDayStats.bestDay.pnl < 0 ? " Labeled 'Least Loss Day' because all days were negative." : ""}</TooltipContent></Tooltip></TooltipProvider>
                 <p className={`text-2xl font-bold ${sevenDayStats.bestDay.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
                   {formatPnl(sevenDayStats.bestDay.pnl)}
                 </p>
@@ -117,9 +139,9 @@ export function SevenDayStatsCard({ trades: externalTrades }: SevenDayStatsCardP
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">
+                <TooltipProvider><Tooltip><TooltipTrigger asChild><p className="text-sm text-muted-foreground cursor-help">
                   {sevenDayStats.worstDay.pnl > 0 ? 'Smallest Gain Day' : 'Worst Day'}
-                </p>
+                </p></TooltipTrigger><TooltipContent>Day with the lowest cumulative PnL in the last 7 days.{sevenDayStats.worstDay.pnl > 0 ? " Labeled 'Smallest Gain Day' because all days were positive." : ""}</TooltipContent></Tooltip></TooltipProvider>
                 <p className={`text-2xl font-bold ${sevenDayStats.worstDay.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
                   {formatPnl(sevenDayStats.worstDay.pnl)}
                 </p>

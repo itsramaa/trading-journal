@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Calendar, CalendarOff, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import type { PerformanceMetrics } from "@/hooks/use-contextual-analytics";
@@ -15,7 +16,7 @@ interface EventDayComparisonProps {
 }
 
 export function EventDayComparison({ eventDayMetrics, normalDayMetrics }: EventDayComparisonProps) {
-  const { format: formatCurrency } = useCurrencyConversion();
+  const { format: formatCurrency, currency } = useCurrencyConversion();
   const totalTrades = eventDayMetrics.trades + normalDayMetrics.trades;
   
   // Calculate differences
@@ -73,7 +74,9 @@ export function EventDayComparison({ eventDayMetrics, normalDayMetrics }: EventD
           <div className="space-y-4">
             <div className="flex items-center gap-2 pb-2 border-b">
               <Calendar className="h-4 w-4 text-[hsl(var(--chart-4))]" />
-              <span className="font-semibold">Event Days</span>
+              <TooltipProvider><Tooltip><TooltipTrigger asChild>
+                <span className="font-semibold cursor-help">Event Days</span>
+              </TooltipTrigger><TooltipContent>Trades on days with high-impact economic events (FOMC, CPI, NFP, GDP, etc.).</TooltipContent></Tooltip></TooltipProvider>
               <Badge variant="secondary" className="ml-auto">
                 {eventDayMetrics.trades} trades
               </Badge>
@@ -109,7 +112,9 @@ export function EventDayComparison({ eventDayMetrics, normalDayMetrics }: EventD
           <div className="space-y-4">
             <div className="flex items-center gap-2 pb-2 border-b">
               <CalendarOff className="h-4 w-4 text-muted-foreground" />
-              <span className="font-semibold">Normal Days</span>
+              <TooltipProvider><Tooltip><TooltipTrigger asChild>
+                <span className="font-semibold cursor-help">Normal Days</span>
+              </TooltipTrigger><TooltipContent>Trades on days without major economic event releases.</TooltipContent></Tooltip></TooltipProvider>
               <Badge variant="secondary" className="ml-auto">
                 {normalDayMetrics.trades} trades
               </Badge>
@@ -156,7 +161,7 @@ export function EventDayComparison({ eventDayMetrics, normalDayMetrics }: EventD
               <DiffBadge 
                 label="Avg P&L" 
                 value={avgPnlDiff} 
-                prefix="$" 
+                prefix={currency === 'IDR' ? 'Rp' : '$'} 
                 positiveIsGood 
               />
               <DiffBadge 

@@ -2,6 +2,7 @@
  * Performance Monthly Tab - Monthly comparison metrics and rolling 30-day chart
  */
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
 } from "recharts";
@@ -36,7 +37,7 @@ export function PerformanceMonthlyTab({ monthlyStats, formatCurrency }: Performa
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">This Month P&L</CardTitle>
+            <CardTitle className="text-sm font-medium flex items-center gap-1">This Month P&L <InfoTooltip content="Net PnL from all closed trades in the current calendar month." /></CardTitle>
           </CardHeader>
           <CardContent>
             <div className={`text-2xl font-bold ${monthlyStats.currentMonth.netPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
@@ -49,7 +50,7 @@ export function PerformanceMonthlyTab({ monthlyStats, formatCurrency }: Performa
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Monthly Trades</CardTitle>
+            <CardTitle className="text-sm font-medium flex items-center gap-1">Monthly Trades <InfoTooltip content="Number of closed trades this month vs last month." /></CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{monthlyStats.currentMonth.trades}</div>
@@ -58,7 +59,7 @@ export function PerformanceMonthlyTab({ monthlyStats, formatCurrency }: Performa
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Monthly Win Rate</CardTitle>
+            <CardTitle className="text-sm font-medium flex items-center gap-1">Monthly Win Rate <InfoTooltip content="Win rate for the current month. 'pp' = percentage points difference from last month." /></CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{monthlyStats.currentMonth.winRate.toFixed(1)}%</div>
@@ -69,7 +70,7 @@ export function PerformanceMonthlyTab({ monthlyStats, formatCurrency }: Performa
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Avg Win/Loss</CardTitle>
+            <CardTitle className="text-sm font-medium flex items-center gap-1">Avg Win/Loss <InfoTooltip content="Average profit on winning trades and average loss on losing trades this month." /></CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-lg font-bold">
@@ -83,7 +84,7 @@ export function PerformanceMonthlyTab({ monthlyStats, formatCurrency }: Performa
 
       <Card>
         <CardHeader>
-          <CardTitle>Rolling 30-Day P&L</CardTitle>
+          <CardTitle className="flex items-center gap-2">Rolling 30-Day P&L <InfoTooltip content="Cumulative PnL over the last 30 days showing trend direction and momentum." /></CardTitle>
           <CardDescription>Cumulative performance over the last 30 days</CardDescription>
         </CardHeader>
         <CardContent>

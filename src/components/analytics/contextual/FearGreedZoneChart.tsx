@@ -19,7 +19,8 @@ import {
 } from "recharts";
 import type { PerformanceMetrics, FearGreedZone } from "@/hooks/use-contextual-analytics";
 import { cn } from "@/lib/utils";
-import { formatWinRate, formatCurrency } from "@/lib/formatters";
+import { formatWinRate } from "@/lib/formatters";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 
 interface FearGreedZoneChartProps {
   byFearGreed: Record<FearGreedZone, PerformanceMetrics>;
@@ -36,6 +37,7 @@ const ZONE_CONFIG: Record<FearGreedZone, { label: string; shortLabel: string; co
 const ZONES_ORDER: FearGreedZone[] = ['extremeFear', 'fear', 'neutral', 'greed', 'extremeGreed'];
 
 export function FearGreedZoneChart({ byFearGreed }: FearGreedZoneChartProps) {
+  const { format: formatCurrency } = useCurrencyConversion();
   // Transform data for chart
   const chartData = ZONES_ORDER.map(zone => ({
     zone,

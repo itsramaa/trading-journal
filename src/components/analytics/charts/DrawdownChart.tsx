@@ -5,10 +5,12 @@
  */
 import { useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import { format } from "date-fns";
 import { formatPercentUnsigned } from "@/lib/formatters";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { TradeEntry } from "@/hooks/use-trade-entries";
 
 interface DrawdownChartProps {
@@ -88,11 +90,21 @@ export function DrawdownChart({ trades: externalTrades, initialBalance = 0 }: Dr
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>Drawdown Chart</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              Drawdown Chart
+              <InfoTooltip content="Visual representation of equity decline from peak values over time. Deeper troughs indicate larger capital drawdowns." />
+            </CardTitle>
             <CardDescription>Track your equity drawdown over time</CardDescription>
           </div>
           <div className="text-right">
-            <p className="text-sm text-muted-foreground">Max Drawdown</p>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <p className="text-sm text-muted-foreground cursor-help">Max Drawdown</p>
+                </TooltipTrigger>
+                <TooltipContent>Largest peak-to-trough equity decline. Calculated as percentage of total equity at peak.</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <p className="text-xl font-bold text-loss">-{formatPercentUnsigned(maxDrawdown)}</p>
           </div>
         </div>
@@ -113,7 +125,7 @@ export function DrawdownChart({ trades: externalTrades, initialBalance = 0 }: Dr
                 tick={{ fill: 'hsl(var(--muted-foreground))' }}
                 domain={['auto', 0]}
               />
-              <Tooltip 
+              <RechartsTooltip 
                 formatter={(value: number) => [`${Math.abs(value).toFixed(2)}%`, 'Drawdown']}
                 labelFormatter={(label) => `Date: ${label}`}
                 contentStyle={{

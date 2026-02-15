@@ -3,7 +3,9 @@
  */
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { BarChart3 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { TradingStats } from "@/lib/trading-calculations";
 
 interface PerformanceSummaryCardProps {
@@ -62,10 +64,18 @@ export function PerformanceSummaryCard({ stats, formatCurrency }: PerformanceSum
         <CardTitle className="text-sm font-medium flex items-center gap-2">
           <BarChart3 className="h-4 w-4" />
           Performance Summary
+          <InfoTooltip content="Rule-based assessment of your trading edge based on PnL, win rate, expectancy, and profit factor." />
         </CardTitle>
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="text-xs">{stats.totalTrades} trades</Badge>
-          <Badge variant={edge.variant} className={`text-xs ${getEdgeBadgeClass(edge.label)}`}>Edge: {edge.label}</Badge>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge variant={edge.variant} className={`text-xs ${getEdgeBadgeClass(edge.label)}`}>Edge: {edge.label}</Badge>
+              </TooltipTrigger>
+              <TooltipContent>Strong (WR≥50%, PF≥1.5), Moderate (profitable), Low (thin edge), Negative (unprofitable).</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">

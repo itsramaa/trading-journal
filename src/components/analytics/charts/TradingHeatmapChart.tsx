@@ -13,12 +13,14 @@ import {
   XAxis, 
   YAxis, 
   CartesianGrid, 
-  Tooltip, 
+  Tooltip as RechartsTooltip, 
   ResponsiveContainer,
   ReferenceLine,
   Cell
 } from "recharts";
 import { Clock, Calendar, TrendingUp, TrendingDown } from "lucide-react";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { formatWinRate } from "@/lib/formatters";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
@@ -232,7 +234,7 @@ export function TradingHeatmapChart({ trades }: TradingHeatmapChartProps) {
           className="text-muted-foreground"
           tickFormatter={(v) => `${v}%`}
         />
-        <Tooltip content={<CustomTooltip />} />
+        <RechartsTooltip content={<CustomTooltip />} />
         <ReferenceLine 
           y={50} 
           stroke="hsl(var(--muted-foreground))" 
@@ -286,6 +288,7 @@ export function TradingHeatmapChart({ trades }: TradingHeatmapChartProps) {
           <CardTitle className="flex items-center gap-2 text-base">
             <Clock className="h-5 w-5 text-primary" />
             Time-Based Win Rate
+            <InfoTooltip content="Analyzes when you trade best by showing win rate by day of week, hour of day, and trading session." />
           </CardTitle>
           <Badge variant="secondary" className="text-xs">
             {trades.length} trades
@@ -295,17 +298,23 @@ export function TradingHeatmapChart({ trades }: TradingHeatmapChartProps) {
       <CardContent className="space-y-4">
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
           <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="daily" className="text-xs">
-              <Calendar className="h-3.5 w-3.5 mr-1" />
-              By Day
-            </TabsTrigger>
-            <TabsTrigger value="hourly" className="text-xs">
-              <Clock className="h-3.5 w-3.5 mr-1" />
-              By Hour
-            </TabsTrigger>
-            <TabsTrigger value="session" className="text-xs">
-              Session
-            </TabsTrigger>
+            <TooltipProvider><Tooltip><TooltipTrigger asChild>
+              <TabsTrigger value="daily" className="text-xs">
+                <Calendar className="h-3.5 w-3.5 mr-1" />
+                By Day
+              </TabsTrigger>
+            </TooltipTrigger><TooltipContent>Win rate grouped by day of the week (Mon–Sun).</TooltipContent></Tooltip></TooltipProvider>
+            <TooltipProvider><Tooltip><TooltipTrigger asChild>
+              <TabsTrigger value="hourly" className="text-xs">
+                <Clock className="h-3.5 w-3.5 mr-1" />
+                By Hour
+              </TabsTrigger>
+            </TooltipTrigger><TooltipContent>Win rate grouped by hour of the day (00:00–23:00).</TooltipContent></Tooltip></TooltipProvider>
+            <TooltipProvider><Tooltip><TooltipTrigger asChild>
+              <TabsTrigger value="session" className="text-xs">
+                Session
+              </TabsTrigger>
+            </TooltipTrigger><TooltipContent>Win rate grouped by market session (Sydney, Tokyo, London, NY).</TooltipContent></Tooltip></TooltipProvider>
           </TabsList>
 
           <TabsContent value="daily" className="space-y-3 mt-4">
@@ -325,24 +334,31 @@ export function TradingHeatmapChart({ trades }: TradingHeatmapChartProps) {
         </Tabs>
 
         {/* Legend */}
-        <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground pt-2 border-t">
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: 'hsl(var(--chart-2))' }} />
-            <span>≥60%</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: 'hsl(var(--chart-3))' }} />
-            <span>50-59%</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: 'hsl(var(--chart-4))' }} />
-            <span>40-49%</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: 'hsl(var(--chart-5))' }} />
-            <span>&lt;40%</span>
-          </div>
-        </div>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground pt-2 border-t cursor-help">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded" style={{ backgroundColor: 'hsl(var(--chart-2))' }} />
+                  <span>≥60%</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded" style={{ backgroundColor: 'hsl(var(--chart-3))' }} />
+                  <span>50-59%</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded" style={{ backgroundColor: 'hsl(var(--chart-4))' }} />
+                  <span>40-49%</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded" style={{ backgroundColor: 'hsl(var(--chart-5))' }} />
+                  <span>&lt;40%</span>
+                </div>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>Green (60%+) = strong edge, Yellow (50-59%) = edge, Orange (40-49%) = weak, Red (&lt;40%) = avoid.</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </CardContent>
     </Card>
   );
