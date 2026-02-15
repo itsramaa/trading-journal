@@ -8,13 +8,13 @@ import { useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import { useHighImpactEventDates, isHighImpactEventDay, getEventLabel } from "@/hooks/use-economic-events";
 import { cn } from "@/lib/utils";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
-import { format, subDays, parseISO, startOfWeek, addDays } from "date-fns";
+import { format } from "date-fns";
 import { Calendar } from "lucide-react";
-import type { Tables } from "@/integrations/supabase/types";
 
 // Generic trade type for the heatmap - only needs these fields
 interface HeatmapTrade {
@@ -31,7 +31,7 @@ interface HeatmapCell {
   wins: number;
   winRate: number;
   totalPnl: number;
-  dateKey?: string; // For event matching
+  dateKey?: string;
   hasEvent?: boolean;
   eventLabels?: string[];
 }
@@ -53,8 +53,9 @@ export function TradingHeatmap({ trades: externalTrades, className, showEventOve
   // Use external trades if provided, otherwise use fetched
   const trades = externalTrades || fetchedTrades;
 
-  const heatmapData = useMemo(() => {
-    if (!trades || trades.length === 0) return [];
+  // Build heatmap data as a Map for O(1) lookups
+  const { heatmapData, heatmapMap } = useMemo(() => {
+    if (!trades || trades.length === 0) return { heatmapData: [], heatmapMap: new Map<string, HeatmapCell>() };
 
     // Only process closed trades if using fetched data
     const closedTrades = externalTrades 
@@ -64,9 +65,6 @@ export function TradingHeatmap({ trades: externalTrades, className, showEventOve
     // Initialize grid
     const grid: Map<string, HeatmapCell> = new Map();
 
-    // Track unique dates for event matching
-    const tradeDates = new Set<string>();
-
     // Process each trade
     closedTrades.forEach((trade) => {
       const tradeDate = new Date(trade.trade_date);
@@ -74,8 +72,6 @@ export function TradingHeatmap({ trades: externalTrades, className, showEventOve
       // Round hour to nearest 4-hour block
       const hour = Math.floor(tradeDate.getHours() / 4) * 4;
       const dateKey = format(tradeDate, 'yyyy-MM-dd');
-      
-      tradeDates.add(dateKey);
       
       const key = `${dayOfWeek}-${hour}`;
       const existing = grid.get(key) || {
@@ -114,7 +110,7 @@ export function TradingHeatmap({ trades: externalTrades, className, showEventOve
       grid.set(key, existing);
     });
 
-    return Array.from(grid.values());
+    return { heatmapData: Array.from(grid.values()), heatmapMap: grid };
   }, [trades, externalTrades, showEventOverlay, eventDateMap]);
 
   // Calculate dynamic color thresholds based on data
@@ -139,20 +135,20 @@ export function TradingHeatmap({ trades: externalTrades, className, showEventOve
     return 'bg-loss/70';
   };
 
-  const getCellData = (day: number, hour: number) => {
-    return heatmapData.find(c => c.dayOfWeek === day && c.hour === hour);
+  // O(1) Map lookup instead of linear .find()
+  const getCellData = (day: number, hour: number): HeatmapCell | undefined => {
+    return heatmapMap.get(`${day}-${hour}`);
   };
 
   const formatPnlDisplay = (pnl: number) => {
-    // Use compact format for display in cells
     return formatCompact(pnl);
   };
 
   // Session labels for rows
   const getSessionLabel = (hour: number) => {
-    if (hour < 8) return 'Asia';
+    if (hour < 8) return 'Sydney/Tokyo';
     if (hour < 16) return 'London';
-    return 'NY';
+    return 'New York';
   };
 
   if (!trades || trades.length === 0) {
@@ -175,7 +171,10 @@ export function TradingHeatmap({ trades: externalTrades, className, showEventOve
   return (
     <Card className={className} role="region" aria-label="Trading performance heatmap by day and hour">
       <CardHeader>
-        <CardTitle>Trading Heatmap</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          Trading Heatmap
+          <InfoTooltip content="Aggregated P&L across day-of-week and 4-hour time blocks. Hover cells for detailed breakdown." />
+        </CardTitle>
         <CardDescription>Total P&L by time of day and day of week</CardDescription>
       </CardHeader>
       <CardContent>
@@ -196,7 +195,7 @@ export function TradingHeatmap({ trades: externalTrades, className, showEventOve
               {HOURS.map((hour, hourIdx) => (
                 <div key={hour} className="flex items-center gap-1.5 mb-1.5">
                   <div className="w-20 flex-shrink-0 text-xs text-muted-foreground pr-2 flex items-center gap-1">
-                    <span className="w-10">{hour.toString().padStart(2, '0')}:00</span>
+                    <span className="w-10 font-mono-numbers">{hour.toString().padStart(2, '0')}:00</span>
                     {(hourIdx === 0 || hour === 8 || hour === 16) && (
                       <span className="text-[9px] text-muted-foreground/60">
                         {getSessionLabel(hour)}
@@ -230,7 +229,7 @@ export function TradingHeatmap({ trades: externalTrades, className, showEventOve
                               
                               {cell && cell.trades > 0 ? (
                                 <span className={cn(
-                                  "text-[10px] font-semibold",
+                                  "text-[10px] font-semibold font-mono-numbers",
                                   cell.totalPnl >= 0 ? "text-profit" : "text-loss"
                                 )}>
                                   {formatPnlDisplay(cell.totalPnl)}
@@ -260,13 +259,13 @@ export function TradingHeatmap({ trades: externalTrades, className, showEventOve
                                   </div>
                                 )}
                                 
-                                <div className={cn("font-medium", cell.totalPnl >= 0 ? "text-profit" : "text-loss")}>
+                                <div className={cn("font-medium font-mono-numbers", cell.totalPnl >= 0 ? "text-profit" : "text-loss")}>
                                   Total P&L: {formatPnl(cell.totalPnl)}
                                 </div>
-                                <div>Trades: {cell.trades}</div>
-                                <div>Wins: {cell.wins} ({cell.winRate.toFixed(0)}%)</div>
+                                <div>Trades: <span className="font-mono-numbers">{cell.trades}</span></div>
+                                <div>Wins: <span className="font-mono-numbers">{cell.wins} ({cell.winRate.toFixed(0)}%)</span></div>
                                 <div className="text-muted-foreground pt-1 border-t">
-                                  Avg: {formatCurrency(cell.totalPnl / cell.trades)}/trade
+                                  Avg: <span className="font-mono-numbers">{formatCurrency(cell.totalPnl / cell.trades)}</span>/trade
                                 </div>
                               </div>
                             ) : (
@@ -285,33 +284,58 @@ export function TradingHeatmap({ trades: externalTrades, className, showEventOve
         
         {/* Legend */}
         <div className="flex flex-wrap items-center justify-center gap-4 mt-6 text-xs text-muted-foreground">
-          <div className="flex items-center gap-1">
-            <div className="w-4 h-4 rounded bg-loss/70" />
-            <span>High Loss</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-4 h-4 rounded bg-loss/35" />
-            <span>Low Loss</span>
-          </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center gap-1 cursor-help">
+                <div className="w-4 h-4 rounded bg-loss/70" />
+                <span>High Loss</span>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>P&L exceeds 50% of the maximum observed loss in the dataset.</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center gap-1 cursor-help">
+                <div className="w-4 h-4 rounded bg-loss/35" />
+                <span>Low Loss</span>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>P&L is negative but within 50% of the maximum observed loss.</TooltipContent>
+          </Tooltip>
           <div className="flex items-center gap-1">
             <div className="w-4 h-4 rounded bg-muted/30" />
             <span>No Data</span>
           </div>
-          <div className="flex items-center gap-1">
-            <div className="w-4 h-4 rounded bg-profit/35" />
-            <span>Low Profit</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-4 h-4 rounded bg-profit/70" />
-            <span>High Profit</span>
-          </div>
-          {showEventOverlay && (
-            <div className="flex items-center gap-1 ml-2 pl-2 border-l">
-              <div className="w-4 h-4 rounded ring-2 ring-[hsl(var(--chart-4))] ring-offset-1 ring-offset-background flex items-center justify-center">
-                <Calendar className="w-2.5 h-2.5 text-[hsl(var(--chart-4))]" />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center gap-1 cursor-help">
+                <div className="w-4 h-4 rounded bg-profit/35" />
+                <span>Low Profit</span>
               </div>
-              <span>High-Impact Event</span>
-            </div>
+            </TooltipTrigger>
+            <TooltipContent>P&L is positive but within 50% of the maximum observed profit.</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center gap-1 cursor-help">
+                <div className="w-4 h-4 rounded bg-profit/70" />
+                <span>High Profit</span>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>P&L exceeds 50% of the maximum observed profit in the dataset.</TooltipContent>
+          </Tooltip>
+          {showEventOverlay && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-1 ml-2 pl-2 border-l cursor-help">
+                  <div className="w-4 h-4 rounded ring-2 ring-[hsl(var(--chart-4))] ring-offset-1 ring-offset-background flex items-center justify-center">
+                    <Calendar className="w-2.5 h-2.5 text-[hsl(var(--chart-4))]" />
+                  </div>
+                  <span>High-Impact Event</span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>Cells with high-impact economic events (FOMC, CPI, NFP). Data limited to the current week.</TooltipContent>
+            </Tooltip>
           )}
         </div>
       </CardContent>

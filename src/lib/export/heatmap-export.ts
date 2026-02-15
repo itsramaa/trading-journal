@@ -37,7 +37,7 @@ export function exportHeatmapCSV(trades: HeatmapTrade[], options?: { dateRange?:
       const wins = data?.wins || 0;
       const winRate = tradeCount > 0 ? ((wins / tradeCount) * 100).toFixed(1) : '0.0';
       const pnl = data?.pnl?.toFixed(2) || '0.00';
-      rows.push(`${dayName},${hour.toString().padStart(2, '0')}:00,${tradeCount},${wins},${winRate}%,$${pnl}`);
+      rows.push(`${dayName},${hour.toString().padStart(2, '0')}:00,${tradeCount},${wins},${winRate}%,${pnl}`);
     });
   });
 
