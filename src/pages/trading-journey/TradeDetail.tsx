@@ -60,34 +60,41 @@ function safeFixed(val: unknown, digits = 2): string | undefined {
   return n.toFixed(digits);
 }
 
+/** Normalize direction to uppercase for safe comparison */
+function normalizeDirection(dir: string): 'LONG' | 'SHORT' {
+  return dir.toUpperCase() === 'LONG' ? 'LONG' : 'SHORT';
+}
+
 /** Calculate leverage-aware liquidation distance metrics */
 function liqDistanceMetrics(
   markPrice: number | null | undefined,
   liqPrice: number | null | undefined,
   leverage: number | null | undefined
 ) {
-  if (!markPrice || !liqPrice || liqPrice === 0) return undefined;
+  if (!markPrice || !liqPrice || liqPrice <= 0 || markPrice <= 0) return undefined;
   const pricePct = Math.abs(markPrice - liqPrice) / markPrice * 100;
-  const equityPct = leverage ? pricePct * leverage : undefined;
+  const equityPct = leverage && leverage > 0 ? pricePct * leverage : undefined;
   return { pricePct, equityPct };
 }
 
-/** Calculate unrealized R for live positions with SL */
+/** Calculate unrealized R for live positions with SL. Negative = underwater. */
 function unrealizedR(
   entry: number | null | undefined, mark: number | null | undefined, sl: number | null | undefined, direction: string
 ): string | undefined {
-  if (!entry || !mark || !sl) return undefined;
+  if (!entry || !mark || !sl || entry <= 0) return undefined;
   const risk = Math.abs(entry - sl);
   if (risk === 0) return undefined;
-  const reward = direction === 'LONG' ? mark - entry : entry - mark;
+  const dir = normalizeDirection(direction);
+  const reward = dir === 'LONG' ? mark - entry : entry - mark;
   return (reward / risk).toFixed(2);
 }
 
-function KeyMetric({ label, value, className }: { label: string; value: React.ReactNode; className?: string }) {
+function KeyMetric({ label, value, subtitle, className }: { label: string; value: React.ReactNode; subtitle?: string; className?: string }) {
   return (
     <div className="text-center space-y-1">
       <p className="text-xs text-muted-foreground uppercase tracking-wider">{label}</p>
       <p className={`text-sm font-semibold font-mono ${className || ''}`}>{value ?? '-'}</p>
+      {subtitle && <p className="text-[10px] text-muted-foreground/70">{subtitle}</p>}
     </div>
   );
 }
@@ -431,8 +438,15 @@ export default function TradeDetail() {
                 <KeyMetric label="Size" value={safeFixed(trade.quantity, 4)} />
                 <KeyMetric label="Leverage" value={(trade as any).leverage ? `${(trade as any).leverage}x` : undefined} />
                 {liqMetrics && <KeyMetric label="Liq. Distance (Price)" value={`${liqMetrics.pricePct.toFixed(2)}%`} />}
-                {liqMetrics?.equityPct !== undefined && <KeyMetric label="Liq. Distance (Equity)" value={`${liqMetrics.equityPct.toFixed(2)}%`} />}
-                {liveUnrealizedR && <KeyMetric label="Unrealized R" value={`${parseFloat(liveUnrealizedR) >= 0 ? '+' : ''}${liveUnrealizedR}R`} className={parseFloat(liveUnrealizedR) >= 0 ? 'text-profit' : 'text-loss'} />}
+                {liqMetrics?.equityPct !== undefined && <KeyMetric label="Liq. Distance (Equity)" value={`${liqMetrics.equityPct.toFixed(2)}%`} subtitle="Estimated via leverage" />}
+                {liveUnrealizedR && (
+                  <KeyMetric
+                    label="Unrealized R"
+                    value={`${parseFloat(liveUnrealizedR) >= 0 ? '+' : ''}${liveUnrealizedR}R`}
+                    className={parseFloat(liveUnrealizedR) >= 0 ? 'text-profit' : 'text-loss'}
+                    subtitle={parseFloat(liveUnrealizedR) >= 1 ? '≥1R — Risk-Free Zone Candidate' : undefined}
+                  />
+                )}
                 <KeyMetric
                   label="Unrealized P&L"
                   value={formatPnl(pnlValue)}
@@ -450,7 +464,7 @@ export default function TradeDetail() {
                   <KeyMetric
                     label="Result"
                     value={trade.result.toUpperCase()}
-                    className={trade.result === 'win' ? 'text-profit' : trade.result === 'loss' ? 'text-loss' : 'text-muted-foreground'}
+                    className={trade.result.toLowerCase() === 'win' ? 'text-profit' : trade.result.toLowerCase() === 'loss' ? 'text-loss' : 'text-muted-foreground'}
                   />
                 )}
                 {hasContent((trade as any).r_multiple) && (
@@ -499,8 +513,23 @@ export default function TradeDetail() {
               <DetailRow label="Entry Price" value={safeFixed(trade.entry_price, 4)} />
               <DetailRow label="Liq. Price" value={safeFixed(liqPrice, 4)} />
               <DetailRow label="Liq. Distance (Price)" value={liqMetrics ? `${liqMetrics.pricePct.toFixed(2)}%` : undefined} />
-              {liqMetrics?.equityPct !== undefined && <DetailRow label="Liq. Distance (Equity)" value={`${liqMetrics.equityPct.toFixed(2)}%`} />}
-              {liveUnrealizedR && <DetailRow label="Unrealized R" value={`${parseFloat(liveUnrealizedR) >= 0 ? '+' : ''}${liveUnrealizedR}R`} className={parseFloat(liveUnrealizedR) >= 0 ? 'text-profit' : 'text-loss'} />}
+              {liqMetrics?.equityPct !== undefined && (
+                <DetailRow label="Liq. Distance (Equity)" value={
+                  <span>{liqMetrics.equityPct.toFixed(2)}% <span className="text-[10px] text-muted-foreground/60 ml-1">est. via leverage</span></span>
+                } />
+              )}
+              {liveUnrealizedR && (
+                <DetailRow
+                  label="Unrealized R"
+                  value={
+                    <span>
+                      {parseFloat(liveUnrealizedR) >= 0 ? '+' : ''}{liveUnrealizedR}R
+                      {parseFloat(liveUnrealizedR) >= 1 && <span className="text-[10px] text-profit/70 ml-1">≥1R</span>}
+                    </span>
+                  }
+                  className={parseFloat(liveUnrealizedR) >= 0 ? 'text-profit' : 'text-loss'}
+                />
+              )}
               <DetailRow label="Margin Type" value={(trade as any).margin_type} />
               <DetailRow label="Leverage" value={(trade as any).leverage ? `${(trade as any).leverage}x` : undefined} />
               {hasContent(trade.stop_loss) && <DetailRow label="Stop Loss" value={safeFixed(trade.stop_loss, 4)} />}
