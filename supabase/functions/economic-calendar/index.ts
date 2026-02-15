@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 import {
   DISPLAY_LIMITS,
   TIME_WINDOWS,
+  VOLATILITY_ENGINE,
   mapImportance,
   isRelevantEvent,
   calculateRiskLevel,
@@ -87,6 +88,101 @@ function calculateRiskAdjustment(events: ProcessedEvent[]) {
   const weekHighImpact = events.filter(e => e.importance === 'high').length;
   
   return calculateRiskLevel(todayHighImpact, weekHighImpact);
+}
+
+function calculateVolatilityEngine(events: ProcessedEvent[]) {
+  const todayEvents = events.filter(e => isToday(e.date));
+  const highImpactToday = todayEvents.filter(e => e.importance === 'high');
+  
+  // Collect stats from today's events with historical data
+  const todayStats = todayEvents
+    .map(e => e.historicalStats)
+    .filter((s): s is NonNullable<typeof s> => s !== null);
+
+  if (todayStats.length === 0) {
+    return {
+      riskRegime: 'LOW' as const,
+      regimeScore: 0,
+      expectedRange2h: { low: -0.5, high: 0.5 },
+      expectedRange24h: { low: -1.0, high: 1.0 },
+      compositeMoveProbability: 0,
+      positionSizeMultiplier: VOLATILITY_ENGINE.POSITION_MULTIPLIERS.LOW,
+      positionSizeReason: 'No significant events today',
+      eventCluster: { count: 0, within24h: false, amplificationFactor: 1.0 },
+    };
+  }
+
+  // Composite move probability using union formula: 1 - product(1 - P_i)
+  const compositeMoveProbability = Math.round(
+    (1 - todayStats.reduce((acc, s) => acc * (1 - s.probMoveGt2Pct / 100), 1)) * 100
+  );
+
+  // Event clustering
+  const clusterCount = highImpactToday.length;
+  const amplificationFactor = clusterCount >= 3 
+    ? VOLATILITY_ENGINE.CLUSTER_AMPLIFICATION.THREE_PLUS
+    : clusterCount >= 2 
+      ? VOLATILITY_ENGINE.CLUSTER_AMPLIFICATION.TWO_EVENTS 
+      : 1.0;
+
+  // Expected range (use worst downside and best upside across events, amplified by cluster)
+  const worstDown = Math.min(...todayStats.map(s => s.worstCase2h));
+  const bestUp = Math.max(...todayStats.map(s => s.maxBtcMove2h));
+  const clusterFactor = clusterCount > 1 ? VOLATILITY_ENGINE.RANGE_EXPANSION.CLUSTER_FACTOR : 1.0;
+
+  const expectedRange2h = {
+    low: Math.round(worstDown * clusterFactor * 10) / 10,
+    high: Math.round(bestUp * clusterFactor * 10) / 10,
+  };
+  const expectedRange24h = {
+    low: Math.round(expectedRange2h.low * VOLATILITY_ENGINE.RANGE_EXPANSION.BASE_24H_MULTIPLIER * 10) / 10,
+    high: Math.round(expectedRange2h.high * VOLATILITY_ENGINE.RANGE_EXPANSION.BASE_24H_MULTIPLIER * 10) / 10,
+  };
+
+  // Risk regime classification
+  let riskRegime: 'EXTREME' | 'HIGH' | 'ELEVATED' | 'NORMAL' | 'LOW';
+  let regimeScore: number;
+
+  if (compositeMoveProbability >= VOLATILITY_ENGINE.REGIME_THRESHOLDS.EXTREME.minProbability && clusterCount >= VOLATILITY_ENGINE.REGIME_THRESHOLDS.EXTREME.minHighEvents) {
+    riskRegime = 'EXTREME';
+    regimeScore = Math.min(100, compositeMoveProbability + clusterCount * 5);
+  } else if (compositeMoveProbability >= VOLATILITY_ENGINE.REGIME_THRESHOLDS.HIGH.minProbability && clusterCount >= VOLATILITY_ENGINE.REGIME_THRESHOLDS.HIGH.minHighEvents) {
+    riskRegime = 'HIGH';
+    regimeScore = compositeMoveProbability;
+  } else if (compositeMoveProbability >= VOLATILITY_ENGINE.REGIME_THRESHOLDS.ELEVATED.minProbability) {
+    riskRegime = 'ELEVATED';
+    regimeScore = compositeMoveProbability;
+  } else if (todayStats.length > 0) {
+    riskRegime = 'NORMAL';
+    regimeScore = compositeMoveProbability;
+  } else {
+    riskRegime = 'LOW';
+    regimeScore = 0;
+  }
+
+  const positionSizeMultiplier = VOLATILITY_ENGINE.POSITION_MULTIPLIERS[riskRegime];
+
+  // Build reason string
+  const eventNames = highImpactToday.map(e => e.event).join(' + ');
+  const reductionPct = Math.round((1 - positionSizeMultiplier) * 100);
+  const positionSizeReason = reductionPct > 0
+    ? `${eventNames || 'Events'} = reduce ${reductionPct}%`
+    : 'Normal positioning';
+
+  return {
+    riskRegime,
+    regimeScore,
+    expectedRange2h,
+    expectedRange24h,
+    compositeMoveProbability,
+    positionSizeMultiplier,
+    positionSizeReason,
+    eventCluster: {
+      count: clusterCount,
+      within24h: clusterCount > 1,
+      amplificationFactor,
+    },
+  };
 }
 
 async function generateAIPredictions(events: ProcessedEvent[]): Promise<ProcessedEvent[]> {
@@ -313,6 +409,7 @@ serve(async (req) => {
         timeUntil
       },
       impactSummary: calculateRiskAdjustment(processedEvents),
+      volatilityEngine: calculateVolatilityEngine(processedEvents),
       lastUpdated: new Date().toISOString()
     };
 
@@ -331,6 +428,7 @@ serve(async (req) => {
         riskLevel: 'LOW',
         positionAdjustment: 'normal'
       },
+      volatilityEngine: null,
       lastUpdated: new Date().toISOString(),
       error: error instanceof Error ? error.message : 'Failed to fetch calendar data'
     }), {
