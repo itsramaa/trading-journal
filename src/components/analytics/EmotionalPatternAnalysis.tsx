@@ -12,6 +12,7 @@ import {
   Sparkles
 } from "lucide-react";
 import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { cn } from "@/lib/utils";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { 
@@ -156,6 +157,7 @@ export function EmotionalPatternAnalysis() {
         <CardTitle className="flex items-center gap-2">
           <Brain className="h-5 w-5 text-primary" />
           Emotional Pattern Analysis
+          <InfoTooltip content="Win rate and P&L breakdown by the emotional state you logged at trade entry. Requires logging emotions for at least 10 trades." />
         </CardTitle>
         <CardDescription>
           Track emotional states to discover their impact on performance
@@ -179,6 +181,7 @@ export function EmotionalPatternAnalysis() {
         <CardTitle className="flex items-center gap-2">
           <Brain className="h-5 w-5 text-primary" />
           Emotional Pattern Analysis
+          <InfoTooltip content="Win rate and P&L breakdown by the emotional state you logged at trade entry. Requires logging emotions for at least 10 trades." />
         </CardTitle>
         <CardDescription>
           Win rate and P&L breakdown by emotional state
@@ -203,13 +206,13 @@ export function EmotionalPatternAnalysis() {
                   </div>
                   <div className="flex items-center gap-4 text-sm">
                     <span className={cn(
-                      "font-mono",
+                      "font-mono-numbers",
                       stats.winRate >= 50 ? "text-profit" : "text-loss"
                     )}>
                       {stats.winRate.toFixed(0)}% WR
                     </span>
                     <span className={cn(
-                      "font-mono",
+                      "font-mono-numbers",
                       stats.totalPnl >= 0 ? "text-profit" : "text-loss"
                     )}>
                       {formatCurrency(stats.totalPnl)}

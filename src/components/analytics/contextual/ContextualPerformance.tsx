@@ -26,6 +26,7 @@ import {
   Target,
   Info,
 } from "lucide-react";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { ContextualOnboardingGuide } from "./ContextualOnboardingGuide";
 import { 
   FEAR_GREED_ZONES, 
@@ -107,7 +108,7 @@ function MetricRow({
           className="h-2 flex-1" 
         />
         <span className={cn(
-          "text-sm font-medium w-20 text-right",
+          "text-sm font-medium font-mono-numbers w-20 text-right",
           metrics.totalPnl >= 0 ? "text-profit" : "text-loss"
         )}>
           {formatCurrency(metrics.totalPnl)}
@@ -214,6 +215,7 @@ export function ContextualPerformance() {
             <CardTitle className="flex items-center gap-2 text-lg">
               <TrendingUp className="h-5 w-5 text-primary" />
               Performance by Fear & Greed
+              <InfoTooltip content="Your win rate segmented by the Fear & Greed Index value at the time of each trade. Helps identify which sentiment environments suit your strategy." />
             </CardTitle>
             <CardDescription>
               Win rates across different market sentiment zones
@@ -239,6 +241,7 @@ export function ContextualPerformance() {
             <CardTitle className="flex items-center gap-2 text-lg">
               <Activity className="h-5 w-5 text-primary" />
               Performance by Volatility
+              <InfoTooltip content="Win rate in low, medium, and high volatility conditions. Captured from market context at trade entry." />
             </CardTitle>
             <CardDescription>
               Win rates across different volatility levels
@@ -262,6 +265,7 @@ export function ContextualPerformance() {
             <CardTitle className="flex items-center gap-2 text-lg">
               <Calendar className="h-5 w-5 text-primary" />
               Performance by Event Days
+              <InfoTooltip content="Compares your performance on high-impact economic event days vs. normal trading days." />
             </CardTitle>
             <CardDescription>
               Win rates on high-impact economic event days
@@ -286,6 +290,7 @@ export function ContextualPerformance() {
             <CardTitle className="flex items-center gap-2 text-lg">
               <Target className="h-5 w-5 text-primary" />
               Correlation Analysis
+              <InfoTooltip content="Statistical correlation (-1 to +1) between market conditions and your performance. Values near 0 = no relationship, near +/-1 = strong relationship." />
             </CardTitle>
             <CardDescription>
               How market conditions correlate with your performance
@@ -345,7 +350,7 @@ export function ContextualPerformance() {
   );
 }
 
-// Correlation row component
+// Correlation row component (#27 — font-mono-numbers on correlation values)
 function CorrelationRow({ 
   label, 
   value, 
@@ -381,7 +386,7 @@ function CorrelationRow({
       </div>
       <div className="text-right">
         <p className={cn(
-          "font-mono font-medium",
+          "font-mono-numbers font-medium",
           value > CORRELATION_STRENGTH.WEAK_THRESHOLD ? "text-profit" : value < -CORRELATION_STRENGTH.WEAK_THRESHOLD ? "text-loss" : "text-muted-foreground"
         )}>
           {value > 0 ? '+' : ''}{value.toFixed(2)}

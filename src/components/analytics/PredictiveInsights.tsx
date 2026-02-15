@@ -17,6 +17,7 @@ import {
   getSessionOutlook,
   type Confidence,
 } from "@/lib/predictive-analytics";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { cn } from "@/lib/utils";
 
 const confidenceColors: Record<Confidence, string> = {
@@ -29,6 +30,13 @@ const confidenceLabels: Record<Confidence, string> = {
   low: 'Low',
   medium: 'Medium',
   high: 'High',
+};
+
+const CARD_TOOLTIPS: Record<string, string> = {
+  'Streak Continuation': 'Probability of your current streak continuing, based on historical pattern matching of similar streak lengths.',
+  "Today's Edge": 'Your historical win rate on this day of the week compared to your overall average.',
+  'Session Outlook': 'Your historical performance during the currently active trading session.',
+  'Pair Momentum': 'Recent performance trend per pair based on last 5 trades. Bullish = 60%+ win rate, Bearish = 40% or less.',
 };
 
 export function PredictiveInsights() {
@@ -102,6 +110,7 @@ export function PredictiveInsights() {
             <CardTitle className="flex items-center gap-2 text-base">
               <BarChart3 className="h-5 w-5 text-primary" />
               Pair Momentum
+              <InfoTooltip content={CARD_TOOLTIPS['Pair Momentum']} />
             </CardTitle>
             <CardDescription>Recent performance trend per pair</CardDescription>
           </CardHeader>
@@ -149,6 +158,7 @@ function PredictionCard({
           <CardTitle className="flex items-center gap-2 text-base">
             <Icon className="h-5 w-5 text-primary" />
             {title}
+            <InfoTooltip content={CARD_TOOLTIPS[title] || title} />
           </CardTitle>
           <Badge variant="outline" className={cn("text-xs", confidenceColors[confidence])}>
             {confidenceLabels[confidence]} confidence
