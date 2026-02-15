@@ -121,17 +121,19 @@ export interface MetricConfig {
   higherIsBetter: boolean;
 }
 
+// Note: Currency-denominated metrics use raw numbers without $ prefix.
+// The UI layer should apply the user's currency preference via useCurrencyConversion.
 export const METRICS_CONFIG: MetricConfig[] = [
   { key: 'totalReturn', label: 'Total Return', format: (v) => `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`, higherIsBetter: true },
   { key: 'winRate', label: 'Win Rate', format: (v) => `${(v * 100).toFixed(1)}%`, higherIsBetter: true },
   { key: 'maxDrawdown', label: 'Max Drawdown', format: (v) => `-${v.toFixed(2)}%`, higherIsBetter: false },
   { key: 'sharpeRatio', label: 'Sharpe Ratio', format: (v) => v.toFixed(2), higherIsBetter: true },
   { key: 'profitFactor', label: 'Profit Factor', format: (v) => v === Infinity ? '∞' : v.toFixed(2), higherIsBetter: true },
-  { key: 'expectancy', label: 'Expectancy', format: (v) => `$${v.toFixed(2)}`, higherIsBetter: true },
+  { key: 'expectancy', label: 'Expectancy', format: (v) => v.toFixed(2), higherIsBetter: true },
   { key: 'calmarRatio', label: 'Calmar Ratio', format: (v) => v.toFixed(2), higherIsBetter: true },
   { key: 'totalTrades', label: 'Total Trades', format: (v) => v.toString(), higherIsBetter: true },
-  { key: 'avgWin', label: 'Avg Win', format: (v) => `$${v.toFixed(2)}`, higherIsBetter: true },
-  { key: 'avgLoss', label: 'Avg Loss', format: (v) => `-$${v.toFixed(2)}`, higherIsBetter: false },
+  { key: 'avgWin', label: 'Avg Win', format: (v) => v.toFixed(2), higherIsBetter: true },
+  { key: 'avgLoss', label: 'Avg Loss', format: (v) => `-${v.toFixed(2)}`, higherIsBetter: false },
   { key: 'avgRiskReward', label: 'Avg R:R', format: (v) => v.toFixed(2), higherIsBetter: true },
   { key: 'consecutiveWins', label: 'Max Consec. Wins', format: (v) => v.toString(), higherIsBetter: true },
   { key: 'consecutiveLosses', label: 'Max Consec. Losses', format: (v) => v.toString(), higherIsBetter: false },

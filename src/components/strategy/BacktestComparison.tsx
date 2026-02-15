@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { EmptyState } from '@/components/ui/empty-state';
+import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { cn } from '@/lib/utils';
 import {
   Table,
@@ -33,6 +34,7 @@ import { Trophy, BarChart3, FileDown, Check, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { useBacktestHistory } from '@/hooks/use-backtest';
 import { useBacktestExport } from '@/hooks/use-backtest-export';
+import { useCurrencyConversion } from '@/hooks/use-currency-conversion';
 import type { BacktestResult } from '@/types/backtest';
 import { COMPARISON_CONFIG, METRICS_CONFIG, type MetricConfig } from '@/lib/constants/backtest-config';
 
@@ -43,6 +45,7 @@ export function BacktestComparison() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const { data: backtestHistory, isLoading } = useBacktestHistory();
   const { exportComparisonToPDF } = useBacktestExport();
+  const { format: formatCurrency, formatCompact } = useCurrencyConversion();
 
   const selectedResults = useMemo(() => {
     return (backtestHistory || []).filter((r) => selectedIds.includes(r.id));
@@ -86,24 +89,30 @@ export function BacktestComparison() {
     return bestIdx;
   };
 
-  // Build overlay equity curve data
+  // Build overlay equity curve data with Map-based lookup for O(N*M) instead of O(N*M*K)
   const equityCurveData = useMemo(() => {
     if (selectedResults.length === 0) return [];
     
     // Get all unique timestamps
     const allTimestamps = new Set<string>();
-    selectedResults.forEach((r) => {
-      r.equityCurve.forEach((p) => allTimestamps.add(p.timestamp));
+    // Build Map indexes for each strategy's equity curve
+    const curveIndexes: Map<string, number>[] = selectedResults.map((r) => {
+      const map = new Map<string, number>();
+      r.equityCurve.forEach((p) => {
+        allTimestamps.add(p.timestamp);
+        map.set(p.timestamp, p.balance);
+      });
+      return map;
     });
     
     const sortedTimestamps = Array.from(allTimestamps).sort();
     
     return sortedTimestamps.map((ts) => {
       const point: Record<string, number | string> = { timestamp: ts };
-      selectedResults.forEach((r, idx) => {
-        const match = r.equityCurve.find((p) => p.timestamp === ts);
-        if (match) {
-          point[`strategy${idx}`] = match.balance;
+      curveIndexes.forEach((map, idx) => {
+        const balance = map.get(ts);
+        if (balance !== undefined) {
+          point[`strategy${idx}`] = balance;
         }
       });
       return point;
@@ -148,6 +157,7 @@ export function BacktestComparison() {
           <CardTitle className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5" />
             Compare Backtest Results
+            <InfoTooltip content="Select 2-4 backtest results to compare performance metrics and equity curves side-by-side." />
           </CardTitle>
           <CardDescription>
             Select 2-4 backtest results to compare their performance metrics side-by-side
@@ -226,10 +236,13 @@ export function BacktestComparison() {
             ))}
           </div>
 
-          {/* Metrics Comparison Table - Enhanced with better styling */}
+          {/* Metrics Comparison Table */}
           <Card>
             <CardHeader className="pb-4">
-              <CardTitle className="text-lg">Metrics Comparison</CardTitle>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                Metrics Comparison
+                <InfoTooltip content="Side-by-side metric comparison. Trophy icon indicates the best-performing strategy for each metric." />
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto -mx-6 px-6">
@@ -293,7 +306,10 @@ export function BacktestComparison() {
           {/* Equity Curves Overlay Chart */}
           <Card>
             <CardHeader>
-              <CardTitle>Equity Curves Comparison</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                Equity Curves Comparison
+                <InfoTooltip content="Overlaid portfolio balance curves to visually compare strategy performance over time." />
+              </CardTitle>
               <CardDescription>
                 Overlay of portfolio balance over time for each strategy
               </CardDescription>
@@ -309,10 +325,7 @@ export function BacktestComparison() {
                       className="text-muted-foreground"
                     />
                     <YAxis 
-                      tickFormatter={(v) => {
-                        if (v >= 1000) return `$${(v / 1000).toFixed(1)}k`;
-                        return `$${v.toFixed(0)}`;
-                      }}
+                      tickFormatter={(v) => formatCompact(v)}
                       domain={['dataMin', 'dataMax']}
                       className="text-muted-foreground"
                     />
@@ -320,7 +333,7 @@ export function BacktestComparison() {
                       formatter={(value: number, name: string) => {
                         const idx = parseInt(name.replace('strategy', ''));
                         const strategyName = selectedResults[idx]?.strategyName || `Strategy ${idx + 1}`;
-                        return [`$${value.toFixed(2)}`, strategyName];
+                        return [formatCurrency(value), strategyName];
                       }}
                       labelFormatter={(ts) => format(new Date(ts as string), 'MMM d, yyyy')}
                       contentStyle={{ 
@@ -352,12 +365,13 @@ export function BacktestComparison() {
             </CardContent>
           </Card>
 
-          {/* Winner Summary - Enhanced with design tokens */}
+          {/* Winner Summary */}
           <Card>
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Trophy className="h-5 w-5 text-[hsl(var(--chart-4))]" />
                 Performance Summary
+                <InfoTooltip content="Best strategy for each key metric: Return, Win Rate, Sharpe Ratio, and Max Drawdown." />
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -378,7 +392,7 @@ export function BacktestComparison() {
                         />
                         <span className="font-bold">{winner?.strategyName}</span>
                       </div>
-                      <div className="text-xl font-bold">{metric.format(value)}</div>
+                      <div className="text-xl font-bold font-mono">{metric.format(value)}</div>
                     </div>
                   );
                 })}

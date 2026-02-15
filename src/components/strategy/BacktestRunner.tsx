@@ -13,6 +13,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { 
   Play, 
   Loader2, 
@@ -159,6 +160,7 @@ export function BacktestRunner() {
           <CardTitle className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-primary" />
             Backtest Configuration
+            <InfoTooltip content="Configure simulation parameters. Results are based on simplified modeling and may differ from real trading." />
           </CardTitle>
           <CardDescription>
             Test your strategy against historical data
@@ -167,7 +169,10 @@ export function BacktestRunner() {
         <CardContent className="space-y-6">
           {/* Strategy Selection */}
           <div className="space-y-2">
-            <Label>Select Strategy</Label>
+            <div className="flex items-center gap-1">
+              <Label>Select Strategy</Label>
+              <InfoTooltip content="Choose a strategy to test. The strategy's entry/exit rules, timeframe, and position sizing will be used." />
+            </div>
             <Select
               value={selectedStrategyId}
               onValueChange={setSelectedStrategyId}
@@ -224,7 +229,10 @@ export function BacktestRunner() {
 
           {/* Trading Pair */}
           <div className="space-y-2">
-            <Label>Trading Pair</Label>
+            <div className="flex items-center gap-1">
+              <Label>Trading Pair</Label>
+              <InfoTooltip content="The asset to simulate trading on. Prices are sourced from historical OHLCV data." />
+            </div>
             <Select value={selectedPair} onValueChange={setSelectedPair}>
               <SelectTrigger>
                 <SelectValue />
@@ -296,7 +304,10 @@ export function BacktestRunner() {
           {/* Capital & Risk */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="capital">Initial Capital (USDT)</Label>
+              <div className="flex items-center gap-1">
+                <Label htmlFor="capital">Initial Capital (USDT)</Label>
+                <InfoTooltip content="Starting balance for the simulation. Use quick-fill buttons to match your actual account balance." />
+              </div>
               <Input
                 id="capital"
                 type="number"
@@ -337,7 +348,10 @@ export function BacktestRunner() {
             </div>
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="riskPerTrade">Risk Per Trade (%)</Label>
+                <div className="flex items-center gap-1">
+                  <Label htmlFor="riskPerTrade">Risk Per Trade (%)</Label>
+                  <InfoTooltip content="Percentage of capital risked per trade. Used to calculate position size based on stop-loss distance." />
+                </div>
                 <Input
                   id="riskPerTrade"
                   type="number"
@@ -349,7 +363,10 @@ export function BacktestRunner() {
                 />
               </div>
               <div className="flex items-center justify-between">
-                <Label htmlFor="compounding" className="text-sm">Compounding</Label>
+                <div className="flex items-center gap-1">
+                  <Label htmlFor="compounding" className="text-sm">Compounding</Label>
+                  <InfoTooltip content="When enabled, position size recalculates from running equity after each trade. When disabled, always uses initial capital." />
+                </div>
                 <Switch
                   id="compounding"
                   checked={compounding}
@@ -367,7 +384,10 @@ export function BacktestRunner() {
           {/* Commission, Slippage & Leverage */}
           <div className={cn("grid grid-cols-1 gap-4", isFutures ? "md:grid-cols-3" : "md:grid-cols-2")}>
             <div className="space-y-2">
-              <Label htmlFor="commission">Commission Rate (%)</Label>
+              <div className="flex items-center gap-1">
+                <Label htmlFor="commission">Commission Rate (%)</Label>
+                <InfoTooltip content="Trading fee applied per trade (entry + exit). Binance Futures: 0.02% maker, 0.04% taker." />
+              </div>
               <Input
                 id="commission"
                 type="number"
@@ -382,7 +402,10 @@ export function BacktestRunner() {
               </p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="slippage">Slippage (%)</Label>
+              <div className="flex items-center gap-1">
+                <Label htmlFor="slippage">Slippage (%)</Label>
+                <InfoTooltip content="Estimated price deviation between expected and actual fill price. Typically 0.05-0.2% for major pairs." />
+              </div>
               <Input
                 id="slippage"
                 type="number"
@@ -399,7 +422,10 @@ export function BacktestRunner() {
             {isFutures && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label>Leverage</Label>
+                  <div className="flex items-center gap-1">
+                    <Label>Leverage</Label>
+                    <InfoTooltip content="Leverage only affects margin requirements (position size constraint). It does not multiply risk per trade." variant="warning" />
+                  </div>
                   <span className="text-sm font-mono font-medium">{leverage}x</span>
                 </div>
                 <Slider
@@ -447,6 +473,7 @@ export function BacktestRunner() {
                 <div className="flex items-center gap-2">
                   <Zap className="h-4 w-4 text-primary" />
                   <Label className="font-medium">Economic Event Filter</Label>
+                  <InfoTooltip content="Exclude trades near high-impact news events (FOMC, CPI, NFP). Buffer hours define the exclusion window." />
                 </div>
                 <div className="flex items-center gap-2">
                   <Checkbox
@@ -485,6 +512,7 @@ export function BacktestRunner() {
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-primary" />
                   <Label className="font-medium">Trading Session Filter</Label>
+                  <InfoTooltip content="Restrict backtest to trades during specific market sessions. Useful for session-specific strategies." />
                 </div>
                 <Select value={sessionFilter} onValueChange={(v) => setSessionFilter(v as BacktestSessionFilter)}>
                   <SelectTrigger>
@@ -507,6 +535,7 @@ export function BacktestRunner() {
                 <div className="flex items-center gap-2">
                   <Activity className="h-4 w-4 text-primary" />
                   <Label className="font-medium">Volatility Filter</Label>
+                  <InfoTooltip content="Filter trades by market volatility at entry, based on ATR percentile classification." />
                 </div>
                 <Select value={volatilityFilter} onValueChange={(v) => setVolatilityFilter(v as BacktestVolatilityFilter)}>
                   <SelectTrigger>
