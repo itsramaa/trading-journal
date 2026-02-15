@@ -70,12 +70,25 @@ export function classifyMarketRegime(input: RegimeInput): RegimeOutput {
 function calculateComposite(input: RegimeInput): number {
   // Pure signal composite — event risk and volatility are NOT included here.
   // They act as regime overrides only (determineRegime), preventing double-counting.
-  // See plan.md "Double-Counting Audit Summary" for rationale.
   const technical = input.technicalScore * 0.35;
   const onChain = input.onChainScore * 0.20;
   const macro = input.macroScore * 0.25;
   const fearGreed = input.fearGreedValue * 0.20;
-  return Math.round(technical + onChain + macro + fearGreed);
+  const linearScore = technical + onChain + macro + fearGreed;
+
+  // Divergence penalty: disagreement among components = uncertainty
+  // High variance → reduce composite toward neutral (50)
+  const components = [input.technicalScore, input.onChainScore, input.macroScore, input.fearGreedValue];
+  const mean = components.reduce((a, b) => a + b, 0) / components.length;
+  const variance = components.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / components.length;
+  // Normalize: max possible variance for 0-100 scores ≈ 2500, penalty capped at ~5 points
+  const divergencePenalty = Math.min(5, (variance / 500));
+  // Pull toward neutral when components disagree
+  const adjusted = linearScore > 50
+    ? linearScore - divergencePenalty
+    : linearScore + divergencePenalty;
+
+  return Math.round(Math.max(0, Math.min(100, adjusted)));
 }
 
 function determineAlignment(input: RegimeInput): 'ALIGNED' | 'CONFLICT' | 'NEUTRAL' {
@@ -145,18 +158,20 @@ function calculateExpectedRange(
   input: RegimeInput,
   regime: MarketRegime
 ): { low: number; high: number } {
-  // ATR-based range (normalized %)
-  let baseRange = 2.0; // default medium
-  if (input.volatilityLevel === 'low') baseRange = 1.2;
-  if (input.volatilityLevel === 'high') baseRange = 4.5;
+  // Fixed ATR-based range — volatility level sets the base,
+  // regime multiplier is SMALL to avoid double-amplifying volatility.
+  // Historical BTC: median 24h ≈ 2-3%, P95 ≈ 6-8%
+  let baseRange = 2.5; // default medium
+  if (input.volatilityLevel === 'low') baseRange = 1.5;
+  if (input.volatilityLevel === 'high') baseRange = 4.0;
 
-  // Regime multiplier — volatility is used here for range width only,
-  // NOT in composite score (no double-counting)
+  // Small regime multipliers — NOT double-counting volatility
+  // HIGH_VOL already has elevated baseRange, so multiplier is modest
   const regimeMultipliers: Record<string, number> = {
-    HIGH_VOL: 2.0,
-    RISK_OFF: 1.3,
-    TRENDING_BULL: 1.4,
-    TRENDING_BEAR: 1.4,
+    HIGH_VOL: 1.3,    // Was 2.0 — 4.0 * 1.3 = 5.2% (realistic P90)
+    RISK_OFF: 1.2,    // Slightly wider for uncertainty
+    TRENDING_BULL: 1.1,
+    TRENDING_BEAR: 1.1,
     RANGING: 0.8,
   };
   const multiplier = regimeMultipliers[regime] ?? 1.0;

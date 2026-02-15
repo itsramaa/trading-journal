@@ -177,9 +177,10 @@ function calculateWhaleSignal(klines: (string | number)[][], change24h: number) 
 
   const recentVolume = klines.slice(0, 24).reduce((sum, k) => sum + parseFloat(String(k[5] || '0')), 0);
 
-  // Build rolling 24h volume windows for percentile calculation
+  // Rolling 24h volume windows — overlapping for maximum precision
+  // With 2160 hourly klines (90d), this yields ~2136 samples vs 90 with non-overlapping
   const windowVolumes: number[] = [];
-  for (let i = 0; i + 24 <= klines.length; i += 24) {
+  for (let i = 0; i + 24 <= klines.length; i++) {
     const windowVol = klines.slice(i, i + 24).reduce((sum, k) => sum + parseFloat(String(k[5] || '0')), 0);
     windowVolumes.push(windowVol);
   }
