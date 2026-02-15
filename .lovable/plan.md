@@ -1,168 +1,199 @@
 
 
-# Unified Layout Skeleton: Same Structure, Different Content
+# Import Page Restructure: From Dev Console to Professional Data Hub
 
-Replace the current `isLive ? (cockpit JSX) : (forensic JSX)` branching with a single 5-layer skeleton that both modes share. Each layer adapts its content based on trade state, but the page structure stays consistent.
+The current `/import` page mixes three fundamentally different workflows (auto sync, full recovery, on-chain scanner) on one flat surface with inconsistent state feedback and no clear primary path. This plan restructures it into a layered, mode-switched interface.
+
+---
+
+## Problem Summary
+
+1. Three distinct products (Auto Sync, Full Recovery, On-Chain Scanner) share one flat page
+2. No clear "what am I doing right now?" context
+3. Logs, progress, and controls are mixed on the same visual level
+4. Solana scanner shows confusing "0 scanned, 0 found" in idle state (state machine ambiguity)
+5. Feature highlight cards at the top add noise without guiding action
 
 ---
 
 ## Architecture
 
-The page body (below header + strip) becomes a single flow of layers:
+The page becomes a clean mode-switched interface with 3 explicit tabs:
 
 ```text
-TradeDetail
-  +-- Header (shared)
-  +-- Key Metrics Strip (shared container, content varies)
-  +-- Enrichment CTA (shared, same tone)
-  +-- Layer 1: Primary Outcome
-  +-- Layer 2: Risk & Execution
-  +-- Layer 3: Timing (closed only, hidden for live)
-  +-- Layer 4: Reflection (collapsible for live, visible for closed)
-  +-- Layer 5: Full-Width (Screenshots, AI Analysis, Metadata)
+ImportTrades
+  +-- PageHeader (same)
+  +-- Mode Tabs: [ Incremental Sync | Full Recovery | On-Chain Scanner ]
+  +-- Active Mode Content:
+       +-- Action Layer (controls)
+       +-- Status Layer (progress, separate card)
+       +-- Diagnostic Layer (logs, collapsed by default)
 ```
 
-No more `isLive ? <TwoColGrid> : <ThreeColGrid>`. One grid, same card slots.
+Each tab owns its entire vertical space. No cross-tab visual bleed.
 
 ---
 
 ## Changes
 
-### 1. Unified Content Grid (replaces lines 506-675)
+### 1. Replace Feature Highlight Cards with Mode Tabs
 
-Replace the entire `isLive ? (...) : (...)` block with a single 2-column grid containing 4 cards that adapt internally:
+**File:** `src/pages/ImportTrades.tsx`
+
+Remove the 3 feature highlight cards (lines 84-128). They describe capabilities but do not guide action.
+
+Replace with 3 explicit mode tabs:
+
+| Tab | Label | Icon | When Disabled |
+|-----|-------|------|---------------|
+| `incremental` | Incremental Sync | Zap | Paper mode or not connected |
+| `full-recovery` | Full Recovery | Database | Paper mode or not connected |
+| `solana` | On-Chain Scanner | Globe | Never (works in both modes) |
+
+The current "Binance Sync" tab conflates incremental + full sync. Splitting them makes each mode's purpose clear.
+
+URL persistence stays via `useSearchParams` (existing pattern).
+
+Default tab logic:
+- Paper mode: `solana`
+- Live + connected: `incremental`
+- Live + not connected: `solana`
+
+### 2. Incremental Sync Tab -- Clean Action-First Layout
+
+Extract the current "Quick Actions" card content into its own tab. Structure:
 
 ```text
-+-------------------------------+-------------------------------+
-| Primary Outcome               | Risk & Execution              |
-| (Card 1)                      | (Card 2)                      |
-+-------------------------------+-------------------------------+
-| Timing (Card 3, closed only)  | Strategy & Journal (Card 4)   |
-+-------------------------------+-------------------------------+
+[Connection Status Banner -- if not connected]
+[Action Card]
+  - Sync button (primary CTA)
+  - Last sync time
+  - Stale indicator
+[Enrichment Card -- only if trades need enrichment]
+  - Count + Enrich button
+  - Progress bar when running
 ```
 
-**Card 1 -- Primary Outcome** (icon: Activity)
+No logs. No recovery options. Just "sync latest trades."
 
-| Field | Live | Closed |
-|-------|------|--------|
-| Unrealized P&L | shown (large) | hidden |
-| Net P&L | hidden | shown (large) |
-| Gross P&L | hidden | shown (secondary) |
-| Result badge | hidden | shown |
-| Fees breakdown | shown | shown |
-| MAE | hidden | shown if exists |
+### 3. Full Recovery Tab -- Power Tool with Clear Layers
 
-**Card 2 -- Risk & Execution** (icon: Shield)
+Move `BinanceFullSyncPanel` into its own tab. Add visual separation between layers:
 
-| Field | Live | Closed |
-|-------|------|--------|
-| Mark Price | shown | hidden |
-| Entry Price | shown | shown |
-| Exit Price | hidden | shown |
-| Liq. Price | shown | hidden |
-| Liq. Distance (Price/Equity) | shown | hidden |
-| Unrealized R | shown if SL | hidden |
-| R-Multiple | hidden | shown if exists |
-| Stop Loss / Take Profit | shown if enriched | shown |
-| Margin Type | shown | shown if exists |
-| Leverage | shown | shown |
-| Size | shown | shown |
-| Direction | shown | shown |
-
-**Card 3 -- Timing** (icon: Clock)
-- Only renders when `hasTimingData` is true (same as current).
-- For live: hidden (no exit time).
-- For closed: Trade Date, Session, Entry/Exit Time, Hold Time.
-
-**Card 4 -- Strategy & Journal** (icon: Target/MessageSquare)
-- For live: rendered inside a `Collapsible` (collapsed by default). Excludes emotion and rule compliance.
-- For closed: rendered directly (visible). Full journal including emotion, rule compliance.
-- When no data exists: hidden entirely (no empty card).
-
-### 2. Consistent Metric Strip Labels
-
-Normalize naming so the strip feels like the same instrument panel:
-
-| Live Label | Closed Label | Rationale |
-|------------|-------------|-----------|
-| Unrealized P&L | Net P&L | Primary outcome metric |
-| Mark Price | Exit | Current vs final price |
-| Liq. Distance | R-Multiple | Primary risk metric |
-| Unrealized R | Hold Time | Secondary context metric |
-
-The strip always has 5-7 items. Both modes start with the primary outcome and end with contextual detail.
-
-### 3. Enrichment CTA -- Consistent Tone
-
-Update the CTA copy to be state-neutral:
-- "Add journal notes, strategies, and analysis to strengthen your trading record."
-- Same wording whether live or closed. No "missing requirement" framing.
-
-### 4. Remove Duplicate Code
-
-Currently Strategy and Journal cards are duplicated: once in the closed 3-col grid (lines 610-673), once in the live collapsible (lines 688-731). Refactor into shared render functions:
-
-```typescript
-function renderStrategyCard(trade, hasStrategyData) { ... }
-function renderJournalCard(trade, isLive, ruleCompliance) { ... }
+```text
+[Quota Display]
+[Action Card]
+  - Range selector
+  - Force re-fetch toggle
+  - Start button
+[Status Card -- only when running or has result]
+  - Progress indicator
+  - ETA
+  - Reconciliation report
+[Diagnostic Logs -- collapsed by default, unchanged]
 ```
 
-Both modes call the same functions. The `isLive` flag controls whether emotion/compliance rows appear.
+The key change: BinanceFullSyncPanel stays as-is internally, but it now owns the full tab width without competing with incremental sync controls.
+
+### 4. Solana Scanner -- Fix State Machine Display
+
+**File:** `src/components/wallet/SolanaTradeImport.tsx`
+
+Fix the confusing idle state. Currently when `status === 'parsed'` and `result.totalTransactions === 0`, it shows "No DEX trades found in recent 0 transactions." This happens because the summary grid renders even before a real scan.
+
+Add explicit state handling:
+
+| State | What Shows |
+|-------|-----------|
+| `idle` | Scan controls only. No summary grid. No "0 Scanned" counters. |
+| `fetching` | Spinner + "Scanning X transactions..." |
+| `parsed` (trades > 0) | Summary grid + trade list + import button |
+| `parsed` (trades = 0) | "No trades found" message with "Scan More" option |
+| `importing` | Progress indicator |
+| `done` | Success + actions |
+| `error` | Error message + retry |
+
+The summary grid (Scanned / Trades Found / Selected) only appears after a successful parse with `totalTransactions > 0`.
+
+### 5. Remove "Experimental" Badge from Solana Tab
+
+The tab label changes from:
+```
+Solana Import [Experimental]
+```
+to:
+```
+On-Chain Scanner
+```
+
+"Experimental" creates low confidence. The scanner works -- just label it by function.
+
+### 6. Consistent Not-Connected State
+
+When Binance is not connected:
+- Incremental Sync tab: Shows connection CTA (link to Settings)
+- Full Recovery tab: Shows same connection CTA
+- On-Chain Scanner: Unaffected
+
+Both Binance tabs share the same `NotConnectedBanner` component (extracted, DRY).
 
 ---
 
 ## Technical Details
 
-### Shared Grid Structure
+### Tab Configuration
 
 ```typescript
-<div className="grid gap-4 md:grid-cols-2">
-  {/* Card 1: Primary Outcome -- always present */}
-  <SectionCard title={isLive ? "Live P&L" : "Performance"} icon={Activity}>
-    {isLive ? (
-      <LiveOutcomeContent ... />
-    ) : (
-      <ClosedOutcomeContent ... />
-    )}
-  </SectionCard>
+type ImportMode = 'incremental' | 'full-recovery' | 'solana';
 
-  {/* Card 2: Risk & Execution -- always present */}
-  <SectionCard title="Risk & Execution" icon={Shield}>
-    {/* Shared fields + conditional rows */}
-  </SectionCard>
-
-  {/* Card 3: Timing -- closed only */}
-  {!isLive && hasTimingData && (
-    <SectionCard title="Timing" icon={Clock}>...</SectionCard>
-  )}
-
-  {/* Card 4: Strategy & Journal */}
-  {isLive ? (
-    /* Collapsible wrapper */
-    (hasStrategyData || hasLiveJournalData) && <CollapsibleAnalysis ... />
-  ) : (
-    /* Direct render */
-    (hasStrategyData || hasJournalData) && <DirectAnalysis ... />
-  )}
-</div>
+const tabs: Array<{ value: ImportMode; label: string; icon: LucideIcon; disabled: boolean }> = [
+  { value: 'incremental', label: 'Incremental Sync', icon: Zap, disabled: isBinanceDisabled },
+  { value: 'full-recovery', label: 'Full Recovery', icon: Database, disabled: isBinanceDisabled },
+  { value: 'solana', label: 'On-Chain Scanner', icon: Globe, disabled: false },
+];
 ```
 
-The key difference from current: one `<div className="grid">` instead of two entirely different JSX trees. The branching happens inside each card, not at the grid level.
-
-### Extracted Render Helpers
+### Default Tab Selection
 
 ```typescript
-function renderStrategyContent(trade: any) {
-  // Shared strategy card body (strategies list, entry signal, market condition, etc.)
-}
-
-function renderJournalContent(trade: any, isLive: boolean, ruleCompliance: Record<string, boolean> | null) {
-  // Notes, lesson_learned, tags always shown
-  // emotion, rule_compliance only when !isLive
-}
+const defaultTab: ImportMode = isPaperMode
+  ? 'solana'
+  : isBinanceConnected
+    ? 'incremental'
+    : 'solana';
 ```
 
-This eliminates ~60 lines of duplicated JSX.
+### Solana State Guard
+
+In `SolanaTradeImport.tsx`, wrap the summary grid:
+
+```typescript
+{status === 'parsed' && result && result.totalTransactions > 0 && (
+  <div className="grid grid-cols-3 gap-3">
+    {/* Summary counters */}
+  </div>
+)}
+```
+
+This prevents showing "0 Scanned / 0 Found / 0 Selected" in any state.
+
+### NotConnectedBanner (shared)
+
+```typescript
+function NotConnectedBanner() {
+  return (
+    <Alert>
+      <Wifi className="h-4 w-4" />
+      <AlertDescription className="flex items-center justify-between">
+        <span>Connect your Binance API credentials in Settings to use this feature.</span>
+        <Button asChild variant="outline" size="sm">
+          <Link to="/settings">Go to Settings</Link>
+        </Button>
+      </AlertDescription>
+    </Alert>
+  );
+}
+```
 
 ---
 
@@ -170,7 +201,8 @@ This eliminates ~60 lines of duplicated JSX.
 
 | File | Change |
 |------|--------|
-| `src/pages/trading-journey/TradeDetail.tsx` | Unified grid skeleton; extracted render helpers; consistent strip labels; state-neutral CTA copy |
+| `src/pages/ImportTrades.tsx` | Replace feature cards with 3 mode tabs; split Binance into Incremental + Full Recovery; extract NotConnectedBanner |
+| `src/components/wallet/SolanaTradeImport.tsx` | Fix idle state display; guard summary grid behind successful parse |
 
 ---
 
@@ -178,9 +210,20 @@ This eliminates ~60 lines of duplicated JSX.
 
 | Before | After |
 |--------|-------|
-| Two completely different grid layouts (2-col vs 3-col) | Single 2-col grid, content varies per card |
-| Strategy/Journal JSX duplicated twice | Shared render functions, DRY |
-| Strip labels feel like different pages | Consistent instrument panel with contextual labels |
-| Enrichment CTA tone differs per mode | Same neutral tone for both |
-| Layout shift when switching between live/closed trades | Same skeleton, smooth cognitive transition |
+| 2 tabs (Binance Sync, Solana Import) | 3 tabs (Incremental Sync, Full Recovery, On-Chain Scanner) |
+| Feature highlight cards at top | Removed (tabs self-describe) |
+| Incremental + Full Sync in same tab | Separated into distinct modes |
+| "0 Scanned / 0 Found" shown before scan | Only summary grid after actual scan |
+| "Experimental" badge on Solana | Clean "On-Chain Scanner" label |
+| Different not-connected banners | Shared NotConnectedBanner component |
+
+---
+
+## What Does NOT Change
+
+- `BinanceFullSyncPanel` internal logic (sync engine, logs, reconciliation)
+- `SolanaTradeImport` scan/import logic
+- URL persistence pattern (`useSearchParams`)
+- All hook integrations (sync store, enrichment, quota)
+- Supported DEX protocols card (stays in Solana tab)
 
