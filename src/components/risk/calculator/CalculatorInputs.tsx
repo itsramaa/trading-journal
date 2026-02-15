@@ -8,6 +8,12 @@ import { Slider } from "@/components/ui/slider";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { TrendingUp, TrendingDown, Wifi } from "lucide-react";
 import { RISK_SLIDER_CONFIG, LEVERAGE_SLIDER_CONFIG } from "@/lib/constants/risk-thresholds";
+import type { SupportedCurrency } from "@/hooks/use-currency-conversion";
+
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  USD: '$',
+  IDR: 'Rp',
+};
 
 interface CalculatorInputsProps {
   accountBalance: number;
@@ -24,6 +30,7 @@ interface CalculatorInputsProps {
   setLeverage: (value: number) => void;
   source: 'binance' | 'paper' | 'manual';
   riskProfileDefault?: number;
+  currency?: SupportedCurrency;
 }
 
 export function CalculatorInputs({
@@ -41,13 +48,16 @@ export function CalculatorInputs({
   setLeverage,
   source,
   riskProfileDefault,
+  currency = 'USD',
 }: CalculatorInputsProps) {
+  const sym = CURRENCY_SYMBOLS[currency] || '$';
+
   return (
     <div className="grid gap-4 md:grid-cols-2">
       {/* Account Balance */}
       <div className="space-y-2">
         <Label className="flex items-center gap-2">
-          Account Balance ($)
+          Account Balance ({sym})
           {source === 'binance' && (
             <Badge variant="outline" className="text-xs gap-1">
               <Wifi className="h-3 w-3" aria-hidden="true" />
@@ -64,7 +74,7 @@ export function CalculatorInputs({
           value={accountBalance}
           onChange={(e) => setAccountBalance(Number(e.target.value))}
           min={0}
-          aria-label="Account balance in USD"
+          aria-label={`Account balance in ${currency}`}
         />
         <p className="text-xs text-muted-foreground">
           {source === 'binance' ? 'From Binance wallet' : 'From paper trading account(s)'}
@@ -99,12 +109,12 @@ export function CalculatorInputs({
         )}
       </div>
 
-      {/* Entry Price */}
+      {/* Entry Price - prices are always in USD (exchange base) */}
       <div className="space-y-2">
         <Label className="flex items-center gap-2">
           Entry Price ($)
           <InfoTooltip 
-            content="The price at which you plan to enter the trade."
+            content="The price at which you plan to enter the trade. Always in USD (exchange quote currency)."
             variant="info"
           />
         </Label>
@@ -118,12 +128,12 @@ export function CalculatorInputs({
         />
       </div>
 
-      {/* Stop Loss */}
+      {/* Stop Loss - prices are always in USD (exchange base) */}
       <div className="space-y-2">
         <Label className="flex items-center gap-2">
           Stop Loss Price ($)
           <InfoTooltip 
-            content="The price at which you will exit the trade to limit losses. Must be below entry for longs, above for shorts."
+            content="The price at which you will exit the trade to limit losses. Must be below entry for longs, above for shorts. Always in USD (exchange quote currency)."
             variant="warning"
           />
         </Label>

@@ -9,6 +9,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Separator } from "@/components/ui/separator";
 import { 
   Scale, 
@@ -112,6 +113,10 @@ export function RiskAdjustmentBreakdown({
           <div className="flex items-center gap-2">
             <Scale className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm font-medium">Base Risk (from profile)</span>
+            <InfoTooltip
+              content="Your configured risk per trade from Risk Profile Settings. This is the starting point before market adjustments."
+              variant="info"
+            />
           </div>
           <Badge variant="secondary" className="text-base font-bold">
             {baseRisk}%
@@ -156,9 +161,18 @@ export function RiskAdjustmentBreakdown({
                       </div>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
-                      <span className={cn("text-sm font-bold", getMultiplierColor(factor.multiplier))}>
-                        ×{factor.multiplier.toFixed(2)}
-                      </span>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className={cn("text-sm font-bold cursor-help", getMultiplierColor(factor.multiplier))}>
+                              ×{factor.multiplier.toFixed(2)}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="max-w-xs text-xs">Multiplier applied to base risk. Values below 1.0 reduce risk, above 1.0 increase it.</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                       <LevelIcon className={cn("h-4 w-4", getLevelIconColor(factor.level))} />
                     </div>
                   </div>
@@ -197,7 +211,13 @@ export function RiskAdjustmentBreakdown({
           )}>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Adjusted Risk Per Trade</p>
+                <p className="text-sm text-muted-foreground flex items-center gap-1">
+                  Adjusted Risk Per Trade
+                  <InfoTooltip
+                    content="Final risk percentage after all market condition adjustments are applied. Use this value for your next position sizing."
+                    variant="info"
+                  />
+                </p>
                 <div className="flex items-baseline gap-2 mt-1">
                   <span className={cn(
                     "text-3xl font-bold",
@@ -214,7 +234,13 @@ export function RiskAdjustmentBreakdown({
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-xs text-muted-foreground">Recommendation</p>
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  Recommendation
+                  <InfoTooltip
+                    content="Action guidance based on the total adjustment. E.g., 'Proceed with caution' when multiplier is 0.5-0.7, 'Avoid trading' below 0.5."
+                    variant="help"
+                  />
+                </p>
                 <Badge 
                   variant={totalMultiplier < 0.7 ? "destructive" : totalMultiplier < 1 ? "secondary" : "default"}
                   className="mt-1"
@@ -225,31 +251,40 @@ export function RiskAdjustmentBreakdown({
             </div>
 
             {/* Visual Progress */}
-            <div className="mt-3 space-y-1">
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span>0%</span>
-                <span>Base ({baseRisk}%)</span>
-                <span>5%</span>
-              </div>
-              <div className="relative h-2 bg-muted rounded-full overflow-hidden">
-                {/* Base risk marker */}
-                <div 
-                  className="absolute top-0 bottom-0 w-0.5 bg-border z-10"
-                  style={{ left: `${(baseRisk / 5) * 100}%` }}
-                />
-                {/* Adjusted risk bar */}
-                <div 
-                  className={cn(
-                    "h-full rounded-full transition-all",
-                    totalMultiplier < 0.7 ? "bg-destructive" :
-                    totalMultiplier < 1 ? "bg-[hsl(var(--chart-4))]" :
-                    totalMultiplier > 1 ? "bg-profit" :
-                    "bg-primary"
-                  )}
-                  style={{ width: `${Math.min((adjustedRisk / 5) * 100, 100)}%` }}
-                />
-              </div>
-            </div>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="mt-3 space-y-1 cursor-help">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>0%</span>
+                      <span>Base ({baseRisk}%)</span>
+                      <span>5%</span>
+                    </div>
+                    <div className="relative h-2 bg-muted rounded-full overflow-hidden">
+                      {/* Base risk marker */}
+                      <div 
+                        className="absolute top-0 bottom-0 w-0.5 bg-border z-10"
+                        style={{ left: `${(baseRisk / 5) * 100}%` }}
+                      />
+                      {/* Adjusted risk bar */}
+                      <div 
+                        className={cn(
+                          "h-full rounded-full transition-all",
+                          totalMultiplier < 0.7 ? "bg-destructive" :
+                          totalMultiplier < 1 ? "bg-[hsl(var(--chart-4))]" :
+                          totalMultiplier > 1 ? "bg-profit" :
+                          "bg-primary"
+                        )}
+                        style={{ width: `${Math.min((adjustedRisk / 5) * 100, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="max-w-xs text-xs">Visual comparison: the bar shows adjusted risk relative to a 5% maximum. The vertical line marks your base risk.</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </div>
       </CardContent>
