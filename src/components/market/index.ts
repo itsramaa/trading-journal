@@ -7,3 +7,4 @@ export * from './WhaleTrackingWidget';
 export * from './TradingOpportunitiesWidget';
 export * from './VolatilityMeterWidget';
 export * from './PortfolioImpactCard';
+export * from './FundingOIDashboard';
