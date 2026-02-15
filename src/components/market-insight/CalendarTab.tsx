@@ -69,6 +69,7 @@ function VolatilityEngineCard({ engine }: { engine: VolatilityEngine }) {
             <span className="text-muted-foreground flex items-center gap-1">
               <Gauge className="h-3.5 w-3.5" />
               Composite Move Probability
+              <span className="text-[10px] opacity-60">(correlation-adjusted)</span>
             </span>
             <span className={cn("font-mono font-bold", 
               engine.compositeMoveProbability >= 70 ? 'text-destructive' : 
@@ -95,6 +96,7 @@ function VolatilityEngineCard({ engine }: { engine: VolatilityEngine }) {
               <span className="text-xs text-muted-foreground">to</span>
               <span className="font-mono text-sm font-medium text-profit">+{engine.expectedRange2h.high}%</span>
             </div>
+            <p className="text-[10px] text-muted-foreground mt-0.5">median + 90th pct blend</p>
           </div>
           <div className="p-2.5 rounded-md bg-background/60 border">
             <p className="text-xs text-muted-foreground mb-1">Expected Range (24h)</p>

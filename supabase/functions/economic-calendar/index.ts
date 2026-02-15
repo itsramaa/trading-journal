@@ -90,16 +90,57 @@ function calculateRiskAdjustment(events: ProcessedEvent[]) {
   return calculateRiskLevel(todayHighImpact, weekHighImpact);
 }
 
+// Check if two event names belong to the same correlation group
+function areCorrelated(eventA: string, eventB: string): boolean {
+  const aLower = eventA.toLowerCase();
+  const bLower = eventB.toLowerCase();
+  for (const group of VOLATILITY_ENGINE.CORRELATION_GROUPS) {
+    const aMatch = group.some(k => aLower.includes(k.toLowerCase()));
+    const bMatch = group.some(k => bLower.includes(k.toLowerCase()));
+    if (aMatch && bMatch) return true;
+  }
+  return false;
+}
+
+// Assign correlation weights: first event in a correlated group gets 1.0, subsequent get dampened
+function assignCorrelationWeights(events: { name: string; prob: number; sampleSize: number }[]): { prob: number; weight: number; sampleSize: number }[] {
+  const seenGroups: string[][] = [];
+  return events.map(e => {
+    let isDuplicate = false;
+    for (const group of seenGroups) {
+      if (group.some(seen => areCorrelated(seen, e.name))) {
+        isDuplicate = true;
+        group.push(e.name);
+        break;
+      }
+    }
+    if (!isDuplicate) {
+      // Check if this event belongs to a known correlation group
+      const belongsToGroup = VOLATILITY_ENGINE.CORRELATION_GROUPS.some(
+        g => g.some(k => e.name.toLowerCase().includes(k.toLowerCase()))
+      );
+      if (belongsToGroup) {
+        seenGroups.push([e.name]);
+      }
+    }
+    return {
+      prob: e.prob,
+      weight: isDuplicate ? VOLATILITY_ENGINE.CORRELATION_DAMPENER : 1.0,
+      sampleSize: e.sampleSize,
+    };
+  });
+}
+
 function calculateVolatilityEngine(events: ProcessedEvent[]) {
   const todayEvents = events.filter(e => isToday(e.date));
   const highImpactToday = todayEvents.filter(e => e.importance === 'high');
   
   // Collect stats from today's events with historical data
-  const todayStats = todayEvents
-    .map(e => e.historicalStats)
-    .filter((s): s is NonNullable<typeof s> => s !== null);
+  const todayStatsRaw = todayEvents
+    .filter(e => e.historicalStats !== null)
+    .map(e => ({ name: e.event, prob: e.historicalStats!.probMoveGt2Pct, sampleSize: e.historicalStats!.sampleSize, stats: e.historicalStats! }));
 
-  if (todayStats.length === 0) {
+  if (todayStatsRaw.length === 0) {
     return {
       riskRegime: 'LOW' as const,
       regimeScore: 0,
@@ -112,9 +153,15 @@ function calculateVolatilityEngine(events: ProcessedEvent[]) {
     };
   }
 
-  // Composite move probability using union formula: 1 - product(1 - P_i)
+  const todayStats = todayStatsRaw.map(r => r.stats);
+
+  // Correlation-dampened composite move probability
+  // effectiveP = 1 - Π(1 - P_i * weight_i)
+  const weighted = assignCorrelationWeights(
+    todayStatsRaw.map(r => ({ name: r.name, prob: r.prob, sampleSize: r.sampleSize }))
+  );
   const compositeMoveProbability = Math.round(
-    (1 - todayStats.reduce((acc, s) => acc * (1 - s.probMoveGt2Pct / 100), 1)) * 100
+    (1 - weighted.reduce((acc, w) => acc * (1 - (w.prob / 100) * w.weight), 1)) * 100
   );
 
   // Event clustering
@@ -125,40 +172,60 @@ function calculateVolatilityEngine(events: ProcessedEvent[]) {
       ? VOLATILITY_ENGINE.CLUSTER_AMPLIFICATION.TWO_EVENTS 
       : 1.0;
 
-  // Expected range (use worst downside and best upside across events, amplified by cluster)
-  const worstDown = Math.min(...todayStats.map(s => s.worstCase2h));
-  const bestUp = Math.max(...todayStats.map(s => s.maxBtcMove2h));
+  // Robust range calculation using median + 90th percentile approach
+  // For small samples (n < 30), compress the range to avoid overstating tail risk
   const clusterFactor = clusterCount > 1 ? VOLATILITY_ENGINE.RANGE_EXPANSION.CLUSTER_FACTOR : 1.0;
+  
+  // Use median for central tendency, average of max and worst for tails
+  const medians = todayStats.map(s => s.medianBtcMove2h);
+  const maxMoves = todayStats.map(s => s.maxBtcMove2h);
+  const worstCases = todayStats.map(s => s.worstCase2h);
+  const sampleSizes = todayStats.map(s => s.sampleSize);
+  const minSample = Math.min(...sampleSizes);
+
+  // Blend median and max/worst: use 70% weight on median-derived range, 30% on extremes
+  // This prevents small-sample worst-case outliers from dominating
+  const medianUp = Math.max(...medians);
+  const extremeUp = Math.max(...maxMoves);
+  const medianDown = -Math.max(...medians); // symmetric assumption for median
+  const extremeDown = Math.min(...worstCases);
+
+  let rangeUp = medianUp * 0.7 + extremeUp * 0.3;
+  let rangeDown = medianDown * 0.7 + extremeDown * 0.3;
+
+  // Small sample compression: if min sample < 30, compress range
+  if (minSample < VOLATILITY_ENGINE.SMALL_SAMPLE_THRESHOLD) {
+    const compression = VOLATILITY_ENGINE.SMALL_SAMPLE_COMPRESSION;
+    rangeUp *= compression;
+    rangeDown *= compression; // rangeDown is negative, compression makes it less extreme
+  }
 
   const expectedRange2h = {
-    low: Math.round(worstDown * clusterFactor * 10) / 10,
-    high: Math.round(bestUp * clusterFactor * 10) / 10,
+    low: Math.round(rangeDown * clusterFactor * 10) / 10,
+    high: Math.round(rangeUp * clusterFactor * 10) / 10,
   };
   const expectedRange24h = {
     low: Math.round(expectedRange2h.low * VOLATILITY_ENGINE.RANGE_EXPANSION.BASE_24H_MULTIPLIER * 10) / 10,
     high: Math.round(expectedRange2h.high * VOLATILITY_ENGINE.RANGE_EXPANSION.BASE_24H_MULTIPLIER * 10) / 10,
   };
 
-  // Risk regime classification
+  // Risk regime: pure function of composite probability + high event count
   let riskRegime: 'EXTREME' | 'HIGH' | 'ELEVATED' | 'NORMAL' | 'LOW';
-  let regimeScore: number;
 
   if (compositeMoveProbability >= VOLATILITY_ENGINE.REGIME_THRESHOLDS.EXTREME.minProbability && clusterCount >= VOLATILITY_ENGINE.REGIME_THRESHOLDS.EXTREME.minHighEvents) {
     riskRegime = 'EXTREME';
-    regimeScore = Math.min(100, compositeMoveProbability + clusterCount * 5);
   } else if (compositeMoveProbability >= VOLATILITY_ENGINE.REGIME_THRESHOLDS.HIGH.minProbability && clusterCount >= VOLATILITY_ENGINE.REGIME_THRESHOLDS.HIGH.minHighEvents) {
     riskRegime = 'HIGH';
-    regimeScore = compositeMoveProbability;
   } else if (compositeMoveProbability >= VOLATILITY_ENGINE.REGIME_THRESHOLDS.ELEVATED.minProbability) {
     riskRegime = 'ELEVATED';
-    regimeScore = compositeMoveProbability;
   } else if (todayStats.length > 0) {
     riskRegime = 'NORMAL';
-    regimeScore = compositeMoveProbability;
   } else {
     riskRegime = 'LOW';
-    regimeScore = 0;
   }
+
+  // regimeScore = compositeMoveProbability (single source of truth, no separate scoring)
+  const regimeScore = compositeMoveProbability;
 
   const positionSizeMultiplier = VOLATILITY_ENGINE.POSITION_MULTIPLIERS[riskRegime];
 
