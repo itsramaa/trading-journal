@@ -14,6 +14,12 @@ export interface EconomicEvent {
   actual: string | null;
   aiPrediction: string | null;
   cryptoImpact: 'bullish' | 'bearish' | 'neutral' | null;
+  /** Historical crypto correlation stats */
+  historicalStats?: {
+    avgBtcMove2h: number;
+    sampleSize: number;
+    volatilitySpikeProb: number;
+  } | null;
 }
 
 export interface TodayHighlight {
