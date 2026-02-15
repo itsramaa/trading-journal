@@ -1,229 +1,271 @@
 
-# Strategy System: Structural Integrity & Completeness Upgrade
 
-Addresses 9 issues: R:R redundancy, confluence logic, confidence transparency, position sizing, trade management rules, leaderboard empty state, timeframe labels, futures-specific fields, and validation scoring.
+# Strategy System: Statistical Depth & Integration Layer
 
----
-
-## Scope & Priority
-
-Issues are grouped into 3 tiers:
-
-**Tier 1 -- Logic Fixes (prevent conflicts)**
-1. R:R single source of truth
-2. Min Confluences vs mandatory rules decoupling
-3. Confidence score transparency
-
-**Tier 2 -- Feature Completions (strategy engine gaps)**
-4. Position sizing model
-5. Trade management rules
-6. Futures-specific fields (leverage, margin mode)
-
-**Tier 3 -- UX Polish**
-7. Leaderboard empty state
-8. Timeframe hierarchy labels
-9. Validation score explainability (tooltip)
+Addresses 4 remaining gaps: Kelly safety, expectancy preview, validation logic, and strategy-performance integration.
 
 ---
 
-## 1. R:R Single Source of Truth
+## 1. Kelly Fraction Safety Guard + ATR Parameter Fields
 
-**Problem:** `min_rr` in Entry tab and TP/SL R values in Exit tab are independent. A user sets min_rr=1.5 but exit TP=2R/SL=1R (implied R:R=2:1). Which is authoritative?
+**Problem:** Kelly sizing without verified win rate can overfit. ATR-based sizing has no configurable parameters.
 
-**Solution:** Make `min_rr` a **validation gate** only. It validates that the exit rules produce an R:R >= min_rr. Remove it from the Entry tab and move it to the Exit tab as a derived/validated field.
+### Kelly Guard
 
-**Files:**
-- `src/components/strategy/StrategyFormDialog.tsx`: Move `min_rr` input from Entry tab to Exit tab. Add a computed R:R display derived from exit rules (TP value / SL value when both are in `rr` unit). Show a warning badge if derived R:R < min_rr.
-- `src/components/strategy/ExitRulesBuilder.tsx`: Add a computed "Effective R:R" display at the top showing TP/SL ratio when both exist in the rules.
+**File:** `src/components/strategy/StrategyFormDialog.tsx`
 
----
+When `positionSizingModel === 'kelly'`:
+- Force value to max 25% of full Kelly (Fractional Kelly 0.25x) via clamping
+- Show a warning badge below the selector: "Kelly requires a reliable win-rate estimate from 50+ trades. Using 1/4 Kelly to limit risk."
+- Change the value label from raw input to a display: "Fraction: 0.25x (max)"
 
-## 2. Decouple Min Confluences from Mandatory Count
+**File:** `src/lib/constants/strategy-config.ts`
 
-**Problem:** 4 mandatory rules + min_confluences=4 makes the setting redundant.
+Add `KELLY_FRACTION_CAP: 0.25` and `KELLY_MIN_TRADES_WARNING: 50` constants.
 
-**Solution:** Change the default to 2 mandatory, 2 optional (out of the 4 default rules). Update the default `min_confluences` to 3.
+### ATR Parameters
 
-**Files:**
-- `src/types/strategy.ts`: Update `DEFAULT_ENTRY_RULES` -- set `on_chain` and `sentiment` as `is_mandatory: false` (already done), and also set `indicator_confirmation` to `is_mandatory: false`.
-- `src/lib/constants/strategy-config.ts`: Change `MIN_CONFLUENCES: 3` (from 4), `DEFAULT_ENTRY_RULES_COUNT: 4` stays.
-- `src/lib/constants/strategy-rules.ts`: Change `DEFAULT_MANDATORY_THRESHOLD: 2` (from 4).
-- `src/components/strategy/EntryRulesBuilder.tsx`: Update description text to reflect the new threshold.
+**File:** `src/components/strategy/StrategyFormDialog.tsx`
 
----
+When `positionSizingModel === 'atr_based'`, show two additional inputs:
+- ATR Period (default 14, range 5-50)
+- ATR Multiplier (default 1.5, range 0.5-5.0)
 
-## 3. Confidence Score Transparency
+**File:** `src/types/strategy.ts`
 
-**Problem:** YouTube-imported strategies show "Confidence: 91%" without explaining the formula.
-
-**Solution:** Add a tooltip/hover explanation on any confidence or validation_score display.
-
-**Files:**
-- `src/components/strategy/StrategyCard.tsx`: Where validation_score is potentially shown (via YouTube badge area), add a tooltip: "Confidence score is based on: completeness of entry/exit rules, specificity of conditions, and backtest-readiness. Not a win rate prediction."
-- `src/components/strategy/StrategyDetailDrawer.tsx`: If `strategy.validation_score` exists, render it with the same tooltip.
-- `src/hooks/use-youtube-strategy-import.ts`: Add a comment documenting the confidence formula for developer clarity.
-
----
-
-## 4. Position Sizing Model Field
-
-**Problem:** Strategies have no position sizing model. Backtest uses flat risk.
-
-**Solution:** Add a `position_sizing_model` field to strategies with options: Fixed % Risk (default), Fixed USD, Kelly Fraction, Volatility-Adjusted (ATR).
-
-**Database Migration:**
-```sql
-ALTER TABLE trading_strategies
-  ADD COLUMN position_sizing_model text DEFAULT 'fixed_percent',
-  ADD COLUMN position_sizing_value numeric DEFAULT 2;
-```
-
-**Files:**
-- `src/types/strategy.ts`: Add `PositionSizingModel` type and fields to `TradingStrategyEnhanced`.
-- `src/lib/constants/strategy-config.ts`: Add `POSITION_SIZING_MODELS` array with label/description/default for each model.
-- `src/components/strategy/StrategyFormDialog.tsx`: Add a "Risk & Sizing" section in the Exit tab with model selector and value input.
-- `src/hooks/trading/use-trading-strategies.ts`: Map the new columns.
-- `src/components/strategy/StrategyDetailDrawer.tsx`: Display the sizing model in Strategy Details card.
-
----
-
-## 5. Trade Management Rules
-
-**Problem:** Only TP/SL exist. No partial TP, move SL to BE, max trades per day, or kill switch.
-
-**Solution:** Add a `trade_management` JSONB field to store structured management rules.
-
-**Database Migration:**
-```sql
-ALTER TABLE trading_strategies
-  ADD COLUMN trade_management jsonb DEFAULT '{}';
-```
-
-**New type:**
+Extend `TradeManagement` or add to strategy type:
 ```typescript
-interface TradeManagement {
-  partial_tp_enabled: boolean;
-  partial_tp_levels: { percent: number; at_rr: number }[];  // e.g., close 50% at 1R
-  move_sl_to_be: boolean;
-  move_sl_to_be_at_rr: number;  // e.g., move SL to BE at 1R
-  max_trades_per_day: number | null;
-  max_daily_loss_percent: number | null;  // kill switch
-  max_consecutive_losses: number | null;  // streak kill switch
+atr_period?: number;      // default 14
+atr_multiplier?: number;  // default 1.5
+```
+
+**Database:** Add two nullable columns (no migration needed if stored inside `trade_management` JSONB).
+
+Store ATR params inside `trade_management` JSONB to avoid schema change:
+```typescript
+trade_management: {
+  ...existing,
+  atr_period: 14,
+  atr_multiplier: 1.5,
 }
 ```
 
-**Files:**
-- `src/types/strategy.ts`: Add `TradeManagement` interface and default.
-- `src/components/strategy/StrategyFormDialog.tsx`: Add a 5th tab "Manage" with toggles and inputs for partial TP, SL-to-BE, max trades, kill switch.
-- `src/components/strategy/StrategyDetailDrawer.tsx`: Display management rules.
-- `src/hooks/trading/use-trading-strategies.ts`: Map the new column.
-
 ---
 
-## 6. Futures-Specific Fields
+## 2. Expectancy Preview Table (Pre-Save)
 
-**Problem:** Futures strategies have no leverage or margin mode settings.
+**Problem:** Users create strategies with R:R settings but have no preview of expected outcomes across different win rates.
 
-**Solution:** Conditionally show leverage and margin mode fields when `market_type === 'futures'`.
+### Implementation
 
-**Database Migration:**
-```sql
-ALTER TABLE trading_strategies
-  ADD COLUMN default_leverage integer DEFAULT 1,
-  ADD COLUMN margin_mode text DEFAULT 'cross';
+**File:** New component `src/components/strategy/ExpectancyPreview.tsx`
+
+A small card shown in the Exit tab of `StrategyFormDialog`, below the Effective R:R display.
+
+Props: `effectiveRR: number | null`
+
+When `effectiveRR` is available, render a sensitivity table:
+
+```
+Win Rate | Expectancy (per R risked)
+20%      | -0.40R
+25%      | -0.25R
+30%      | -0.10R
+35%      | +0.05R  <-- breakeven zone
+40%      | +0.20R
+50%      | +0.50R
 ```
 
-**Files:**
-- `src/types/strategy.ts`: Add fields to enhanced type.
-- `src/components/strategy/StrategyFormDialog.tsx`: In Method tab, conditionally render leverage slider (1-125x) and margin mode toggle (Cross/Isolated) when market type is "futures".
-- `src/components/strategy/StrategyDetailDrawer.tsx`: Show leverage and margin mode badges for futures strategies.
-- `src/hooks/trading/use-trading-strategies.ts`: Map columns.
+Formula: `Expectancy = WR * R - (1 - WR)`
+
+Where R = effectiveRR.
+
+Highlight the breakeven row (where expectancy crosses zero) with a subtle accent.
+
+If `effectiveRR` is null, show a muted message: "Define TP and SL in R:R units to see expectancy projections."
+
+**File:** `src/components/strategy/StrategyFormDialog.tsx`
+
+Import and render `ExpectancyPreview` in the Exit tab, after the Effective R:R badge and min_rr validation warning.
 
 ---
 
-## 7. Leaderboard Empty State
+## 3. Structural Validation Layer (Pre-Save)
 
-**Problem:** Shows "Top 0 cloned strategies globally" when empty.
+**Problem:** No logical contradiction detection. User can set min_confluences=3 with only 2 entry rules defined.
 
-**Solution:** Already partially handled (lines 349-352 of StrategyLeaderboard.tsx have an empty message), but the `CardDescription` on line 238 still shows "Top 0 cloned strategies globally".
+### Implementation
 
-**File:** `src/components/strategy/StrategyLeaderboard.tsx`
+**File:** `src/components/strategy/StrategyFormDialog.tsx`
 
-Fix the description:
+Add a `validationWarnings` useMemo that checks for logical issues before save:
+
 ```typescript
-<CardDescription>
-  {allFilteredStrategies.length === 0
-    ? "Be the first to share and get cloned!"
-    : hasActiveFilters
-    ? `Showing ${allFilteredStrategies.length} filtered strategies`
-    : `Top ${allFilteredStrategies.length} cloned strategies globally`
+const validationWarnings = useMemo(() => {
+  const warnings: string[] = [];
+  
+  // 1. Min confluences > total entry rules
+  if (form.getValues('min_confluences') > entryRules.length) {
+    warnings.push(`Min confluences (${form.getValues('min_confluences')}) exceeds total entry rules (${entryRules.length}).`);
   }
-</CardDescription>
+  
+  // 2. Min confluences > mandatory rules count (impossible to fail)
+  const mandatoryCount = entryRules.filter(r => r.is_mandatory).length;
+  if (mandatoryCount >= form.getValues('min_confluences') && entryRules.length === mandatoryCount) {
+    warnings.push('All rules are mandatory — min confluences has no effect.');
+  }
+  
+  // 3. No exit rules defined
+  if (exitRules.length === 0) {
+    warnings.push('No exit rules defined. Strategy is incomplete without TP/SL.');
+  }
+  
+  // 4. Effective R:R below min_rr
+  if (effectiveRR !== null && effectiveRR < form.getValues('min_rr')) {
+    warnings.push(`Effective R:R (${effectiveRR.toFixed(1)}) is below minimum (${form.getValues('min_rr')}).`);
+  }
+  
+  // 5. Kelly without enough historical trades (informational)
+  if (positionSizingModel === 'kelly') {
+    warnings.push('Kelly sizing requires verified win-rate data. Using fractional Kelly (0.25x) until validated.');
+  }
+
+  // 6. Futures without leverage set
+  if (selectedMarketType === 'futures' && defaultLeverage <= 1) {
+    warnings.push('Futures strategy with 1x leverage — consider setting appropriate leverage.');
+  }
+  
+  return warnings;
+}, [entryRules, exitRules, effectiveRR, positionSizingModel, selectedMarketType, defaultLeverage, form]);
 ```
 
+Render warnings as a collapsible alert section above the Save button:
+
+```typescript
+{validationWarnings.length > 0 && (
+  <div className="space-y-1 p-3 rounded-lg bg-[hsl(var(--chart-4))]/10 border border-[hsl(var(--chart-4))]/30">
+    <div className="flex items-center gap-2 text-sm font-medium text-[hsl(var(--chart-4))]">
+      <AlertTriangle className="h-4 w-4" />
+      {validationWarnings.length} validation warning{validationWarnings.length > 1 ? 's' : ''}
+    </div>
+    {validationWarnings.map((w, i) => (
+      <p key={i} className="text-xs text-muted-foreground ml-6">{w}</p>
+    ))}
+  </div>
+)}
+```
+
+These are warnings, not blockers. User can still save.
+
 ---
 
-## 8. Timeframe Hierarchy Labels
+## 4. Strategy Adherence Tracking in AI Insights
 
-**Problem:** Timeframe display shows "not_specified" and labels are unclear.
+**Problem:** AI Insights analyzes trades globally but does not show per-strategy adherence or performance breakdown.
 
-**Solution:** Update the detail drawer and card to use clear hierarchy labels.
+### Data Source
 
-**Files:**
-- `src/components/strategy/StrategyDetailDrawer.tsx`: Change the MTFA display labels:
-  - "Higher TF (Bias)" with value or "Not set"
-  - "Primary TF (Trade)" with value or "Not set"
-  - "Lower TF (Entry)" with value or "Not set"
-  - Never show raw "not_specified" -- treat empty/null as "Not set".
+The `strategy_adherence` field already exists in trade post-analysis (confirmed in `TradeDetail.tsx` and `TradeEnrichmentDrawer.tsx`). The `useStrategyPerformance` hook already groups trades by strategy and calculates win rate, profit factor, and quality score.
 
-- `src/components/strategy/StrategyFormDialog.tsx`: Already uses "Higher TF (Bias)", "Primary TF", "Lower TF (Entry)" labels (lines 396, 413, 429). No changes needed here.
+### Integration into AI Insights
 
----
+**File:** `src/pages/AIInsights.tsx`
 
-## 9. Validation Score Explainability
+Import `useStrategyPerformance` and `useTradingStrategies`.
 
-**Problem:** validation_score (from YouTube imports) has no visible formula.
+Add a new insight generation block in the insights useMemo:
 
-**Solution:** Covered by item #3 above. Additionally, in `StrategyValidationBadge.tsx`, add a `title` attribute showing the score breakdown basis.
+```typescript
+// Strategy adherence insights
+const strategyPerformance = strategyPerfMap; // from hook
+const strategies = strategiesData; // from hook
 
-**File:** `src/components/strategy/StrategyValidationBadge.tsx`: Wrap the badge in a Tooltip explaining: "Score based on: entry rule count, exit rule presence, timeframe defined, pair specificity."
+if (strategies && strategies.length > 0) {
+  strategies.forEach(strategy => {
+    const perf = strategyPerformance.get(strategy.id);
+    if (!perf || perf.totalTrades < DATA_QUALITY.MIN_TRADES_FOR_RANKING) return;
+    
+    // Compare strategy performance vs overall
+    const stratWR = perf.winRate * 100;
+    const overallWR = stats.winRate;
+    const delta = stratWR - overallWR;
+    
+    if (Math.abs(delta) > 10) {
+      insights.push({
+        type: delta > 0 ? 'positive' : 'negative',
+        title: `${strategy.name}: ${delta > 0 ? 'Outperforming' : 'Underperforming'}`,
+        description: `${stratWR.toFixed(0)}% win rate vs ${overallWR.toFixed(0)}% overall (${perf.totalTrades} trades). ${delta > 0 ? 'This strategy shows edge.' : 'Review setup quality or consider pausing.'}`,
+        metric: `${delta > 0 ? '+' : ''}${delta.toFixed(0)}%`,
+        icon: delta > 0 ? TrendingUp : TrendingDown,
+        sampleSize: perf.totalTrades,
+        confidence: perf.totalTrades >= 30 ? 'high' : perf.totalTrades >= 15 ? 'medium' : 'low',
+      });
+    }
+  });
+}
+```
+
+### Strategy Adherence Aggregation
+
+For trades that have `post_analysis.strategy_adherence` values (text like "Good", "Partial", "Poor"), aggregate per strategy:
+
+```typescript
+// Count adherence ratings per strategy
+const adherenceStats = new Map<string, { good: number; partial: number; poor: number; total: number }>();
+
+closedTrades.forEach(trade => {
+  if (!trade.strategies || !trade.post_analysis?.strategy_adherence) return;
+  const rating = trade.post_analysis.strategy_adherence.toLowerCase();
+  trade.strategies.forEach(s => {
+    const stat = adherenceStats.get(s.id) || { good: 0, partial: 0, poor: 0, total: 0 };
+    if (rating.includes('good') || rating.includes('high')) stat.good++;
+    else if (rating.includes('partial') || rating.includes('medium')) stat.partial++;
+    else stat.poor++;
+    stat.total++;
+    adherenceStats.set(s.id, stat);
+  });
+});
+```
+
+Generate an insight if a strategy has low adherence rate:
+
+```typescript
+adherenceStats.forEach((stat, stratId) => {
+  if (stat.total < 10) return;
+  const adherenceRate = (stat.good / stat.total) * 100;
+  const stratName = strategies?.find(s => s.id === stratId)?.name || 'Unknown';
+  
+  if (adherenceRate < 50) {
+    insights.push({
+      type: 'negative',
+      title: `Low Strategy Adherence: ${stratName}`,
+      description: `Only ${adherenceRate.toFixed(0)}% of trades followed the strategy rules closely (${stat.total} trades). Discipline may be impacting results.`,
+      metric: `${adherenceRate.toFixed(0)}%`,
+      icon: AlertTriangle,
+      sampleSize: stat.total,
+      confidence: stat.total >= 20 ? 'medium' : 'low',
+    });
+  }
+});
+```
 
 ---
 
 ## Technical Summary
 
-### Database Migrations (single migration)
+| File | Change |
+|------|--------|
+| `src/components/strategy/ExpectancyPreview.tsx` | New component: sensitivity table showing expectancy across win rates for given R:R |
+| `src/components/strategy/StrategyFormDialog.tsx` | Kelly warning + cap; ATR params; validation warnings; ExpectancyPreview integration |
+| `src/lib/constants/strategy-config.ts` | Add KELLY_FRACTION_CAP, KELLY_MIN_TRADES_WARNING constants |
+| `src/types/strategy.ts` | Add optional atr_period/atr_multiplier to TradeManagement interface |
+| `src/pages/AIInsights.tsx` | Import strategy hooks; generate per-strategy performance + adherence insights |
 
-```sql
-ALTER TABLE trading_strategies
-  ADD COLUMN IF NOT EXISTS position_sizing_model text DEFAULT 'fixed_percent',
-  ADD COLUMN IF NOT EXISTS position_sizing_value numeric DEFAULT 2,
-  ADD COLUMN IF NOT EXISTS trade_management jsonb DEFAULT '{}',
-  ADD COLUMN IF NOT EXISTS default_leverage integer DEFAULT 1,
-  ADD COLUMN IF NOT EXISTS margin_mode text DEFAULT 'cross';
-```
+## What Does NOT Change
 
-### Files Modified
-
-| File | Changes |
-|------|---------|
-| `src/types/strategy.ts` | Add PositionSizingModel, TradeManagement types; update defaults; add new fields to TradingStrategyEnhanced |
-| `src/lib/constants/strategy-config.ts` | MIN_CONFLUENCES to 3; add POSITION_SIZING_MODELS array |
-| `src/lib/constants/strategy-rules.ts` | DEFAULT_MANDATORY_THRESHOLD to 2 |
-| `src/components/strategy/StrategyFormDialog.tsx` | Move min_rr to Exit tab; add 5th "Manage" tab; futures fields; position sizing selector; derived R:R display |
-| `src/components/strategy/ExitRulesBuilder.tsx` | Add computed Effective R:R display |
-| `src/components/strategy/EntryRulesBuilder.tsx` | Update description text for new threshold |
-| `src/components/strategy/StrategyDetailDrawer.tsx` | Display sizing model, management rules, leverage/margin, confidence tooltip, clean MTFA labels |
-| `src/components/strategy/StrategyCard.tsx` | Confidence tooltip on validation_score |
-| `src/components/strategy/StrategyLeaderboard.tsx` | Fix empty state description |
-| `src/components/strategy/StrategyValidationBadge.tsx` | Add explanatory tooltip |
-| `src/hooks/trading/use-trading-strategies.ts` | Map new DB columns |
-| `src/pages/trading-journey/StrategyManagement.tsx` | Pass new fields through form submit handler |
-
-### What Does NOT Change
-
-- Backtest engine logic (will consume new fields in a separate iteration)
-- AI Quality Score calculation
+- Database schema (ATR params stored in existing trade_management JSONB)
+- Backtest engine (separate iteration)
+- Monte Carlo simulation (out of scope -- requires dedicated engine)
+- Risk of Ruin calculation (requires Monte Carlo, deferred)
+- YouTube import scoring logic
 - Strategy sharing/cloning flow
-- YouTube import flow (scores remain as-is, just made transparent)
-- Position calculator page (separate tool, not strategy-embedded)
