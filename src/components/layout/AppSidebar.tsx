@@ -44,7 +44,7 @@ import { Kbd } from "@/components/ui/keyboard-shortcut";
 // Navigation structure: Dashboard & Accounts standalone at top, then domain groups
 const navigationGroups = [
   {
-    title: "Market",
+    title: "Research",
     items: [
       { title: "Economic Calendar", url: "/calendar", icon: Calendar },
       { title: "Top Movers", url: "/top-movers", icon: Flame },
@@ -53,29 +53,28 @@ const navigationGroups = [
     ],
   },
   {
-    title: "Journal",
+    title: "Trade",
     items: [
       { title: "Trading Journal", url: "/trading", icon: Notebook },
       { title: "Import & Sync", url: "/import", icon: Download },
+      { title: "Risk Calculator", url: "/calculator", icon: Calculator },
     ],
   },
   {
-    title: "Analytics",
+    title: "Analyze",
     items: [
-      { title: "Risk Overview", url: "/risk", icon: Shield },
       { title: "Performance", url: "/performance", icon: LineChart },
+      { title: "Risk Analytics", url: "/risk", icon: Shield },
       { title: "Daily P&L", url: "/daily-pnl", icon: DollarSign },
       { title: "Heatmap", url: "/heatmap", icon: Grid3X3 },
       { title: "AI Insights", url: "/ai-insights", icon: Brain },
     ],
   },
   {
-    title: "Tools",
+    title: "Strategy",
     items: [
-      { title: "Risk Calculator", url: "/calculator", icon: Calculator },
       { title: "My Strategies", url: "/strategies", icon: Lightbulb },
       { title: "Backtest", url: "/backtest", icon: Play },
-      { title: "Bulk Export", url: "/export", icon: Download },
     ],
   },
 ];
@@ -134,7 +133,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
 
       <SidebarContent>
-        {/* Dashboard & Accounts - Standalone at top with shortcut indicators */}
+        {/* Dashboard - Standalone at top */}
         <SidebarMenu className="px-2 pt-2">
           <SidebarMenuItem>
             <SidebarMenuButton
@@ -157,6 +156,20 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
+        </SidebarMenu>
+
+        {/* Domain Groups */}
+        {navigationGroups.map((group) => (
+          <NavGroup
+            key={group.title}
+            title={group.title}
+            items={group.items}
+            defaultOpen={group.title !== "Strategy"}
+          />
+        ))}
+
+        {/* Bottom standalone: Accounts, Export, Settings */}
+        <SidebarMenu className="px-2">
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
@@ -183,20 +196,32 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
-        </SidebarMenu>
-
-        {/* Domain Groups */}
-        {navigationGroups.map((group) => (
-          <NavGroup
-            key={group.title}
-            title={group.title}
-            items={group.items}
-            defaultOpen={true}
-          />
-        ))}
-
-        {/* Settings - Standalone at bottom */}
-        <SidebarMenu className="px-2">
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              isActive={location.pathname === "/export"}
+              tooltip={isCollapsed ? { children: (
+                <div className="flex items-center gap-2">
+                  <span>Bulk Export</span>
+                  <Kbd keys={["G", "W"]} className="ml-1" />
+                </div>
+              ) } : undefined}
+              size="default"
+              className="group/nav-item"
+            >
+              <Link to="/export" onClick={handleNavClick} className="flex items-center justify-between w-full">
+                <div className="flex items-center gap-2">
+                  <Download className="h-4 w-4" />
+                  <span>Bulk Export</span>
+                </div>
+                {!isCollapsed && (
+                  <span className="ml-auto text-[10px] font-mono text-muted-foreground opacity-0 group-hover/nav-item:opacity-100 transition-opacity">
+                    G W
+                  </span>
+                )}
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
