@@ -45,10 +45,11 @@ export function DashboardAnalyticsSummary() {
     
     const getPnl = (t: typeof closedTrades[0]) => t.realized_pnl ?? t.pnl ?? 0;
     
-    // Win Rate
-    const wins = last30DayTrades.filter(t => getPnl(t) > 0);
-    const winRate = last30DayTrades.length > 0 
-      ? (wins.length / last30DayTrades.length) * 100 
+    // Win Rate — exclude breakeven (pnl === 0) from denominator
+    const decisiveTrades = last30DayTrades.filter(t => getPnl(t) !== 0);
+    const wins = decisiveTrades.filter(t => getPnl(t) > 0);
+    const winRate = decisiveTrades.length > 0 
+      ? (wins.length / decisiveTrades.length) * 100 
       : 0;
     
     // Win Rate Trend (compare to previous 30 days)
@@ -130,6 +131,7 @@ export function DashboardAnalyticsSummary() {
           <div className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5 text-primary" />
             <span className="font-semibold">30-Day Performance</span>
+            <Badge variant="outline" className="text-xs">30D</Badge>
           </div>
           <Button variant="ghost" size="sm" asChild>
             <Link to="/performance" className="flex items-center gap-1 text-xs">

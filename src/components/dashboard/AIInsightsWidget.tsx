@@ -43,27 +43,34 @@ interface AIInsightsWidgetProps {
 
 // Calculate win rate per pair from closed trades
 function calculatePairStats(trades: any[]) {
-  const closedTrades = trades.filter(t => t.status === 'closed' && t.result);
-  const pairStats: Record<string, { wins: number; total: number; pnl: number }> = {};
+  // Only count trades with non-zero PnL (exclude breakeven from denominator)
+  const closedTrades = trades.filter(t => t.status === 'closed');
+  const pairStats: Record<string, { wins: number; losses: number; pnl: number }> = {};
   
   closedTrades.forEach(trade => {
     const pair = trade.pair;
+    const pnl = trade.realized_pnl ?? trade.pnl ?? 0;
+    if (pnl === 0) return; // Exclude breakeven from win rate calculation
     if (!pairStats[pair]) {
-      pairStats[pair] = { wins: 0, total: 0, pnl: 0 };
+      pairStats[pair] = { wins: 0, losses: 0, pnl: 0 };
     }
-    pairStats[pair].total++;
-    pairStats[pair].pnl += (trade.realized_pnl ?? trade.pnl ?? 0);
-    if ((trade.realized_pnl ?? trade.pnl ?? 0) > 0) {
+    pairStats[pair].pnl += pnl;
+    if (pnl > 0) {
       pairStats[pair].wins++;
+    } else {
+      pairStats[pair].losses++;
     }
   });
   
-  return Object.entries(pairStats).map(([pair, stats]) => ({
-    pair,
-    winRate: stats.total > 0 ? (stats.wins / stats.total) * 100 : 0,
-    totalTrades: stats.total,
-    totalPnl: stats.pnl,
-  })).sort((a, b) => b.winRate - a.winRate);
+  return Object.entries(pairStats).map(([pair, stats]) => {
+    const decisive = stats.wins + stats.losses;
+    return {
+      pair,
+      winRate: decisive > 0 ? (stats.wins / decisive) * 100 : 0,
+      totalTrades: decisive,
+      totalPnl: stats.pnl,
+    };
+  }).sort((a, b) => b.winRate - a.winRate);
 }
 
 export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
@@ -233,6 +240,7 @@ export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
           <CardTitle className="flex items-center gap-2 text-base">
             <Sparkles className="h-5 w-5 text-primary" />
             AI Insights
+            <Badge variant="outline" className="text-xs">Last 20</Badge>
             <Badge variant="outline" className="text-xs">
               {portfolio.source === 'binance' ? '🔗 Live' : '📝 Paper'}
             </Badge>

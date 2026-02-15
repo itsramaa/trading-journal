@@ -65,8 +65,10 @@ export function GoalTrackingWidget({ className }: { className?: string }) {
     );
 
     const totalPnl = monthTrades.reduce((sum, t) => sum + (t.realized_pnl ?? t.pnl ?? 0), 0);
-    const wins = monthTrades.filter((t) => (t.realized_pnl ?? t.pnl ?? 0) > 0).length;
-    const winRate = monthTrades.length > 0 ? (wins / monthTrades.length) * 100 : 0;
+    // Exclude breakeven from win rate denominator
+    const decisiveTrades = monthTrades.filter(t => (t.realized_pnl ?? t.pnl ?? 0) !== 0);
+    const wins = decisiveTrades.filter((t) => (t.realized_pnl ?? t.pnl ?? 0) > 0).length;
+    const winRate = decisiveTrades.length > 0 ? (wins / decisiveTrades.length) * 100 : 0;
 
     // Monthly drawdown calc — uses absolute loss as % of total if peak stays at 0
     let peak = 0;
@@ -147,6 +149,7 @@ export function GoalTrackingWidget({ className }: { className?: string }) {
             <CardTitle className="flex items-center gap-2 text-base">
               <Target className="h-5 w-5" />
               Monthly Goals
+              <Badge variant="outline" className="text-xs ml-1">Monthly</Badge>
               <Badge variant={goalsHit === goalItems.length ? "default" : "secondary"} className="text-xs">
                 {goalsHit}/{goalItems.length}
               </Badge>
