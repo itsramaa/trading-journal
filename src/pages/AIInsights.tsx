@@ -28,12 +28,14 @@ import {
   Zap,
 } from "lucide-react";
 import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
+import { useTradeMode, TRADE_MODE_LABELS } from "@/hooks/use-trade-mode";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { useContextualAnalytics } from "@/hooks/use-contextual-analytics";
 import { ContextualPerformance } from "@/components/analytics/contextual/ContextualPerformance";
 import { EmotionalPatternAnalysis } from "@/components/analytics/EmotionalPatternAnalysis";
 import { SessionInsights } from "@/components/analytics/session/SessionInsights";
 import { PredictiveInsights } from "@/components/analytics/PredictiveInsights";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { cn } from "@/lib/utils";
 import { Link, useSearchParams } from "react-router-dom";
 import { MetricsGridSkeleton, ChartSkeleton } from "@/components/ui/loading-skeleton";
@@ -49,8 +51,15 @@ import {
 import { calculateAdvancedRiskMetrics } from "@/lib/advanced-risk-metrics";
 import { useStrategyPerformance } from "@/hooks/use-strategy-performance";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
+import type { TradingSession } from "@/lib/session-utils";
+import type { PerformanceMetrics } from "@/hooks/use-contextual-analytics";
 
 // Types
+interface PostTradeAnalysis {
+  strategy_adherence?: string;
+  [key: string]: unknown;
+}
+
 interface PerformanceInsight {
   type: 'positive' | 'negative' | 'neutral';
   title: string;
@@ -71,14 +80,23 @@ interface TimeSlotAnalysis {
   day: string;
   hour: number;
   winRate: number;
+  wins: number;
   trades: number;
   avgPnl: number;
+}
+
+// Type guard for post_trade_analysis
+function getStrategyAdherence(trade: { post_trade_analysis?: unknown }): string | null {
+  const pta = trade.post_trade_analysis as PostTradeAnalysis | null | undefined;
+  if (!pta || typeof pta !== 'object') return null;
+  return typeof pta.strategy_adherence === 'string' ? pta.strategy_adherence : null;
 }
 
 export default function AIInsights() {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'patterns';
   const { data: trades = [], isLoading } = useModeFilteredTrades();
+  const { tradeMode } = useTradeMode();
   const { data: contextualData } = useContextualAnalytics();
   const { formatPnl } = useCurrencyConversion();
   const [retryKey, setRetryKey] = useState(0);
@@ -110,6 +128,11 @@ export default function AIInsights() {
     const avgWin = wins.length > 0 ? wins.reduce((sum, t) => sum + getPnl(t), 0) / wins.length : 0;
     const avgLoss = losses.length > 0 ? Math.abs(losses.reduce((sum, t) => sum + getPnl(t), 0) / losses.length) : 0;
     const profitFactor = avgLoss > 0 ? (avgWin * wins.length) / (avgLoss * losses.length) : 0;
+
+    // Breakeven WR (computed once, shared across insights + actionItems)
+    const breakevenWR = avgLoss > 0 
+      ? (avgLoss / (avgWin + avgLoss)) * 100 
+      : 50;
     
     // Calculate streak
     let currentStreak = 0;
@@ -151,7 +174,7 @@ export default function AIInsights() {
       .filter(p => p.trades >= DATA_QUALITY.MIN_TRADES_FOR_RANKING)
       .sort((a, b) => b.expectancy - a.expectancy);
 
-    // Time analysis using centralized functions
+    // Time analysis using simple wins/trades counter (#6)
     const timeSlots: Record<string, TimeSlotAnalysis> = {};
     closedTrades.forEach(t => {
       const d = new Date(t.trade_date);
@@ -159,14 +182,14 @@ export default function AIInsights() {
       const hour = getTimeSlotHour(d);
       const key = `${day}-${hour}`;
       if (!timeSlots[key]) {
-        timeSlots[key] = { day, hour, winRate: 0, trades: 0, avgPnl: 0 };
+        timeSlots[key] = { day, hour, winRate: 0, wins: 0, trades: 0, avgPnl: 0 };
       }
       const pnl = getPnl(t);
       const slot = timeSlots[key];
       slot.avgPnl = (slot.avgPnl * slot.trades + pnl) / (slot.trades + 1);
       slot.trades++;
-      if (pnl > 0) slot.winRate = ((slot.winRate * (slot.trades - 1) / 100) + 1) / slot.trades * 100;
-      else slot.winRate = (slot.winRate * (slot.trades - 1) / 100) / slot.trades * 100;
+      if (pnl > 0) slot.wins++;
+      slot.winRate = (slot.wins / slot.trades) * 100;
     });
 
     const sortedSlots = Object.values(timeSlots).filter(s => s.trades >= DATA_QUALITY.MIN_TRADES_FOR_RANKING);
@@ -201,6 +224,7 @@ export default function AIInsights() {
       avgWin,
       avgLoss,
       profitFactor,
+      breakevenWR,
       currentStreak,
       streakType,
       bestPair: pairRankings[0],
@@ -222,10 +246,8 @@ export default function AIInsights() {
     
     const result: PerformanceInsight[] = [];
 
-    // Breakeven win rate based on R:R profile
-    const breakevenWR = stats.avgLoss > 0 
-      ? (stats.avgLoss / (stats.avgWin + stats.avgLoss)) * 100 
-      : 50;
+    // Use shared breakevenWR from stats (#18)
+    const breakevenWR = stats.breakevenWR;
 
     // Win rate insight with R:R context
     if (stats.winRate >= PERFORMANCE_THRESHOLDS.WIN_RATE_STRONG) {
@@ -393,15 +415,17 @@ export default function AIInsights() {
       });
     }
 
-    // Strategy adherence aggregation
+    // Strategy adherence aggregation (#4 — type-safe via getStrategyAdherence)
     const adherenceStats = new Map<string, { good: number; partial: number; poor: number; total: number }>();
     closedTrades.forEach(trade => {
-      if (!trade.strategies || !(trade as any).post_trade_analysis?.strategy_adherence) return;
-      const rating = String((trade as any).post_trade_analysis.strategy_adherence).toLowerCase();
-      (trade.strategies as any[]).forEach((s: any) => {
+      if (!trade.strategies) return;
+      const rating = getStrategyAdherence(trade as unknown as { post_trade_analysis?: unknown });
+      if (!rating) return;
+      const ratingLower = rating.toLowerCase();
+      (trade.strategies as { id: string }[]).forEach((s) => {
         const stat = adherenceStats.get(s.id) || { good: 0, partial: 0, poor: 0, total: 0 };
-        if (rating.includes('good') || rating.includes('high')) stat.good++;
-        else if (rating.includes('partial') || rating.includes('medium')) stat.partial++;
+        if (ratingLower.includes('good') || ratingLower.includes('high')) stat.good++;
+        else if (ratingLower.includes('partial') || ratingLower.includes('medium')) stat.partial++;
         else stat.poor++;
         stat.total++;
         adherenceStats.set(s.id, stat);
@@ -413,8 +437,6 @@ export default function AIInsights() {
       const adherenceRate = (stat.good / stat.total) * 100;
       const stratName = strategiesData?.find(s => s.id === stratId)?.name || 'Unknown';
       
-      // Only warn if adherence is low AND strategy is underperforming
-      // Low adherence + outperformance may indicate flexible execution, not a problem
       const perf = strategyPerfMap.get(stratId);
       const stratWR = perf ? perf.winRate * 100 : null;
       const isUnderperforming = stratWR !== null && stratWR < stats.winRate;
@@ -435,22 +457,17 @@ export default function AIInsights() {
     return result;
   }, [stats, formatPnl, strategiesData, strategyPerfMap, closedTrades]);
 
-  // Generate action items
+  // Generate action items (#18 — uses stats.breakevenWR instead of recomputing)
   const actionItems = useMemo((): ActionItem[] => {
     if (!stats) return [];
     
     const items: ActionItem[] = [];
 
-    // Breakeven WR for action context
-    const actionBreakevenWR = stats.avgLoss > 0 
-      ? (stats.avgLoss / (stats.avgWin + stats.avgLoss)) * 100 
-      : 50;
-
-    if (stats.winRate < actionBreakevenWR) {
+    if (stats.winRate < stats.breakevenWR) {
       items.push({
         priority: 'high',
         action: 'Review and refine entry criteria',
-        reason: `Win rate ${stats.winRate.toFixed(0)}% is below breakeven threshold of ${actionBreakevenWR.toFixed(0)}%`
+        reason: `Win rate ${stats.winRate.toFixed(0)}% is below breakeven threshold of ${stats.breakevenWR.toFixed(0)}%`
       });
     }
 
@@ -525,24 +542,36 @@ export default function AIInsights() {
     );
   }
 
+  // Typed session data (#5)
+  const typedSessionData: Record<TradingSession, PerformanceMetrics> | undefined = 
+    contextualData?.bySession as Record<TradingSession, PerformanceMetrics> | undefined;
+
   return (
     <ErrorBoundary title="AI Insights" onRetry={() => setRetryKey(k => k + 1)}>
-    <div key={retryKey} className="space-y-6">
+    <div key={retryKey} className="space-y-6" role="region" aria-label="AI Insights Analytics">
       <PageHeader
           icon={Brain}
           title="AI Insights"
           description="AI-powered analysis of your trading patterns and recommendations"
         >
-          <Button 
-            variant="outline" 
-            size="sm" 
-            asChild
-          >
-            <Link to="/export?tab=analytics">
-              <Download className="h-4 w-4 mr-2" />
-              Export
-            </Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className={cn(
+              tradeMode === 'live' ? "border-profit text-profit" : "border-chart-4 text-chart-4"
+            )}>
+              {TRADE_MODE_LABELS[tradeMode]}
+            </Badge>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              asChild
+            >
+              <Link to="/export?tab=analytics">
+                <Download className="h-4 w-4 mr-2" />
+                Export
+              </Link>
+            </Button>
+            <InfoTooltip content="Export analytics data to CSV or PDF from the Export page." />
+          </div>
         </PageHeader>
 
         {/* Tabs */}
@@ -572,6 +601,7 @@ export default function AIInsights() {
               <CardTitle className="flex items-center gap-2">
                 <Lightbulb className="h-5 w-5 text-primary" />
                 Pattern Analysis
+                <InfoTooltip content="Algorithmically detected patterns from your historical trades. Insights are generated from statistical analysis, not AI prediction." />
               </CardTitle>
               <CardDescription>AI-detected patterns in your trading behavior</CardDescription>
             </CardHeader>
@@ -604,6 +634,11 @@ export default function AIInsights() {
                     {insight.metric && (
                       <div className="flex items-center gap-1.5 shrink-0">
                         {insight.confidence && (
+                          <InfoTooltip 
+                            content={`Based on ${insight.sampleSize} trades. Color indicates confidence: green (high), yellow (medium), gray (low).`}
+                          />
+                        )}
+                        {insight.confidence && (
                           <Badge variant="secondary" className={cn(
                             "text-[10px] px-1.5",
                             insight.confidence === 'high' && "bg-profit/10 text-profit",
@@ -614,7 +649,7 @@ export default function AIInsights() {
                           </Badge>
                         )}
                         <Badge variant="outline" className={cn(
-                          "shrink-0",
+                          "shrink-0 font-mono-numbers",
                           insight.type === 'positive' && "border-profit text-profit",
                           insight.type === 'negative' && "border-loss text-loss"
                         )}>
@@ -634,6 +669,7 @@ export default function AIInsights() {
               <CardTitle className="flex items-center gap-2">
                 <Shield className="h-5 w-5 text-primary" />
                 Recommended Actions
+                <InfoTooltip content="Prioritized action items based on detected performance issues. High priority items should be addressed first." />
               </CardTitle>
               <CardDescription>Prioritized steps to improve performance</CardDescription>
             </CardHeader>
@@ -652,17 +688,19 @@ export default function AIInsights() {
                     key={index}
                     className="flex items-start gap-3 p-3 rounded-lg bg-muted/50"
                   >
-                    <Badge 
-                      variant="outline" 
-                      className={cn(
-                        "shrink-0 mt-0.5",
-                        item.priority === 'high' && "border-loss text-loss",
-                        item.priority === 'medium' && "border-chart-4 text-chart-4",
-                        item.priority === 'low' && "border-muted-foreground text-muted-foreground"
-                      )}
-                    >
-                      {item.priority}
-                    </Badge>
+                    <div className="flex items-center gap-1">
+                      <Badge 
+                        variant="outline" 
+                        className={cn(
+                          "shrink-0 mt-0.5",
+                          item.priority === 'high' && "border-loss text-loss",
+                          item.priority === 'medium' && "border-chart-4 text-chart-4",
+                          item.priority === 'low' && "border-muted-foreground text-muted-foreground"
+                        )}
+                      >
+                        {item.priority}
+                      </Badge>
+                    </div>
                     <div className="min-w-0">
                       <p className="font-medium">{item.action}</p>
                       <p className="text-sm text-muted-foreground mt-0.5">{item.reason}</p>
@@ -674,8 +712,8 @@ export default function AIInsights() {
           </Card>
         </div>
 
-        {/* Session Insights */}
-        <SessionInsights bySession={contextualData?.bySession as any ?? {}} />
+        {/* Session Insights (#5 — properly typed) */}
+        <SessionInsights bySession={typedSessionData ?? {} as Record<TradingSession, PerformanceMetrics>} />
 
         {/* Pair Rankings */}
         <Card>
@@ -683,6 +721,7 @@ export default function AIInsights() {
             <CardTitle className="flex items-center gap-2">
               <Trophy className="h-5 w-5 text-primary" />
               Pair Performance Ranking
+              <InfoTooltip content="Trading pairs ranked by per-trade expectancy (average P&L per trade). Minimum 10 trades required per pair." />
             </CardTitle>
             <CardDescription>Your most and least profitable trading pairs</CardDescription>
           </CardHeader>
@@ -706,13 +745,13 @@ export default function AIInsights() {
                     <div>
                       <p className="font-semibold">{pair.pair}</p>
                       <p className="text-sm text-muted-foreground">
-                        {pair.trades} trades • {pair.winRate.toFixed(0)}% WR • {formatPnl(pair.expectancy)}/trade
+                        {pair.trades} trades • {pair.winRate.toFixed(0)}% WR • <span className="font-mono-numbers">{formatPnl(pair.expectancy)}</span>/trade
                       </p>
                     </div>
                   </div>
                   <div className="text-right">
                     <p className={cn(
-                      "font-bold text-lg",
+                      "font-bold text-lg font-mono-numbers",
                       pair.pnl >= 0 ? "text-profit" : "text-loss"
                     )}>
                       {formatPnl(pair.pnl)}

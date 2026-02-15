@@ -4,6 +4,7 @@
  */
 import { useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { 
@@ -218,14 +219,17 @@ export function SessionInsights({ bySession }: SessionInsightsProps) {
                 <Badge variant="outline" className={cn("mb-2", SESSION_COLORS[session])}>
                   {SESSION_LABELS[session]}
                 </Badge>
-                <div className="text-lg font-bold">
+                <div className="text-lg font-bold font-mono-numbers">
                   {data.trades >= 3 ? formatWinRate(data.winRate) : 'N/A'}
                 </div>
                 <div className="text-xs text-muted-foreground">
                   {data.trades} trades
                 </div>
                 {data.trades > 0 && data.trades < 10 && (
-                  <div className="text-[10px] text-muted-foreground/60 mt-0.5">Low sample</div>
+                  <div className="flex items-center gap-0.5 justify-center text-[10px] text-muted-foreground/60 mt-0.5">
+                    Low sample
+                    <InfoTooltip content="Fewer than 10 trades in this session. Statistics may not be statistically significant." />
+                  </div>
                 )}
                 {data.trades >= 3 && (
                   <div className={cn(
