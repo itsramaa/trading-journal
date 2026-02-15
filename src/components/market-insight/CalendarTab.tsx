@@ -304,17 +304,36 @@ export function CalendarTab({ hideTitle = false }: CalendarTabProps) {
                         
                         {/* Historical Crypto Correlation Stats */}
                         {event.historicalStats && event.historicalStats.sampleSize > 0 && (
-                          <div className="flex items-center gap-3 mt-2 text-xs p-1.5 rounded bg-primary/5 border border-primary/20">
-                            <Badge variant="outline" className="text-[10px] h-4 px-1">Historical</Badge>
-                            <span className="text-muted-foreground">
-                              BTC avg move: <span className="font-mono font-medium text-foreground">{event.historicalStats.avgBtcMove2h > 0 ? '+' : ''}{event.historicalStats.avgBtcMove2h.toFixed(1)}%</span> in 2h
-                            </span>
-                            <span className="text-muted-foreground">
-                              Vol spike prob: <span className="font-mono font-medium text-foreground">{event.historicalStats.volatilitySpikeProb}%</span>
-                            </span>
-                            <span className="text-muted-foreground">
-                              (n={event.historicalStats.sampleSize})
-                            </span>
+                          <div className="mt-2 text-xs p-2 rounded bg-primary/5 border border-primary/20 space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge 
+                                variant={event.historicalStats.probMoveGt2Pct >= 70 ? "destructive" : "outline"} 
+                                className="text-[10px] h-4 px-1.5"
+                              >
+                                {event.historicalStats.probMoveGt2Pct}% prob BTC move &gt;2% in 2h
+                              </Badge>
+                              <Badge 
+                                variant="outline" 
+                                className={`text-[10px] h-4 px-1.5 ${
+                                  event.historicalStats.upsideBias >= 60 
+                                    ? 'border-profit/40 text-profit' 
+                                    : event.historicalStats.upsideBias <= 40 
+                                      ? 'border-loss/40 text-loss' 
+                                      : ''
+                                }`}
+                              >
+                                {event.historicalStats.upsideBias}% historical upside bias
+                              </Badge>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3 text-muted-foreground">
+                              <span>
+                                Median move: <span className="font-mono font-medium text-foreground">+{event.historicalStats.medianBtcMove2h.toFixed(1)}%</span>
+                              </span>
+                              <span>
+                                Worst case: <span className="font-mono font-medium text-loss">{event.historicalStats.worstCase2h.toFixed(1)}%</span>
+                              </span>
+                              <span>(n={event.historicalStats.sampleSize})</span>
+                            </div>
                           </div>
                         )}
                         

@@ -17,6 +17,11 @@ export interface EconomicEvent {
   /** Historical crypto correlation stats */
   historicalStats?: {
     avgBtcMove2h: number;
+    medianBtcMove2h: number;
+    maxBtcMove2h: number;
+    worstCase2h: number;
+    upsideBias: number;
+    probMoveGt2Pct: number;
     sampleSize: number;
     volatilitySpikeProb: number;
   } | null;

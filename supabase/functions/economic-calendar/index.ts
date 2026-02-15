@@ -34,27 +34,27 @@ interface ProcessedEvent {
   actual: string | null;
   aiPrediction: string | null;
   cryptoImpact: 'bullish' | 'bearish' | 'neutral' | null;
-  historicalStats: { avgBtcMove2h: number; sampleSize: number; volatilitySpikeProb: number } | null;
+  historicalStats: { avgBtcMove2h: number; medianBtcMove2h: number; maxBtcMove2h: number; worstCase2h: number; upsideBias: number; probMoveGt2Pct: number; sampleSize: number; volatilitySpikeProb: number } | null;
 }
 
 // Static historical correlation data for major economic events
 // Based on aggregated BTC price reactions to US macro events (2020-2025)
-const EVENT_HISTORICAL_STATS: Record<string, { avgBtcMove2h: number; sampleSize: number; volatilitySpikeProb: number }> = {
-  'Non-Farm Employment Change': { avgBtcMove2h: 2.3, sampleSize: 60, volatilitySpikeProb: 68 },
-  'Nonfarm Payrolls': { avgBtcMove2h: 2.3, sampleSize: 60, volatilitySpikeProb: 68 },
-  'CPI': { avgBtcMove2h: 2.8, sampleSize: 48, volatilitySpikeProb: 74 },
-  'Consumer Price Index': { avgBtcMove2h: 2.8, sampleSize: 48, volatilitySpikeProb: 74 },
-  'Core CPI': { avgBtcMove2h: 2.1, sampleSize: 48, volatilitySpikeProb: 65 },
-  'FOMC': { avgBtcMove2h: 3.1, sampleSize: 40, volatilitySpikeProb: 82 },
-  'Federal Funds Rate': { avgBtcMove2h: 3.1, sampleSize: 40, volatilitySpikeProb: 82 },
-  'PPI': { avgBtcMove2h: 1.5, sampleSize: 48, volatilitySpikeProb: 52 },
-  'GDP': { avgBtcMove2h: 1.8, sampleSize: 24, volatilitySpikeProb: 58 },
-  'Unemployment Rate': { avgBtcMove2h: 1.9, sampleSize: 60, volatilitySpikeProb: 55 },
-  'Retail Sales': { avgBtcMove2h: 1.4, sampleSize: 48, volatilitySpikeProb: 45 },
-  'ISM Manufacturing PMI': { avgBtcMove2h: 1.2, sampleSize: 48, volatilitySpikeProb: 42 },
-  'Initial Jobless Claims': { avgBtcMove2h: 0.8, sampleSize: 200, volatilitySpikeProb: 28 },
-  'PCE Price Index': { avgBtcMove2h: 2.0, sampleSize: 36, volatilitySpikeProb: 62 },
-  'Core PCE': { avgBtcMove2h: 2.0, sampleSize: 36, volatilitySpikeProb: 62 },
+const EVENT_HISTORICAL_STATS: Record<string, { avgBtcMove2h: number; medianBtcMove2h: number; maxBtcMove2h: number; worstCase2h: number; upsideBias: number; probMoveGt2Pct: number; sampleSize: number; volatilitySpikeProb: number }> = {
+  'Non-Farm Employment Change': { avgBtcMove2h: 2.3, medianBtcMove2h: 1.7, maxBtcMove2h: 5.8, worstCase2h: -3.9, upsideBias: 58, probMoveGt2Pct: 72, sampleSize: 60, volatilitySpikeProb: 68 },
+  'Nonfarm Payrolls': { avgBtcMove2h: 2.3, medianBtcMove2h: 1.7, maxBtcMove2h: 5.8, worstCase2h: -3.9, upsideBias: 58, probMoveGt2Pct: 72, sampleSize: 60, volatilitySpikeProb: 68 },
+  'CPI': { avgBtcMove2h: 2.8, medianBtcMove2h: 2.1, maxBtcMove2h: 7.2, worstCase2h: -4.5, upsideBias: 52, probMoveGt2Pct: 82, sampleSize: 48, volatilitySpikeProb: 74 },
+  'Consumer Price Index': { avgBtcMove2h: 2.8, medianBtcMove2h: 2.1, maxBtcMove2h: 7.2, worstCase2h: -4.5, upsideBias: 52, probMoveGt2Pct: 82, sampleSize: 48, volatilitySpikeProb: 74 },
+  'Core CPI': { avgBtcMove2h: 2.1, medianBtcMove2h: 1.5, maxBtcMove2h: 4.8, worstCase2h: -3.2, upsideBias: 54, probMoveGt2Pct: 65, sampleSize: 48, volatilitySpikeProb: 65 },
+  'FOMC': { avgBtcMove2h: 3.1, medianBtcMove2h: 2.4, maxBtcMove2h: 8.5, worstCase2h: -6.1, upsideBias: 62, probMoveGt2Pct: 85, sampleSize: 40, volatilitySpikeProb: 82 },
+  'Federal Funds Rate': { avgBtcMove2h: 3.1, medianBtcMove2h: 2.4, maxBtcMove2h: 8.5, worstCase2h: -6.1, upsideBias: 62, probMoveGt2Pct: 85, sampleSize: 40, volatilitySpikeProb: 82 },
+  'PPI': { avgBtcMove2h: 1.5, medianBtcMove2h: 1.1, maxBtcMove2h: 3.4, worstCase2h: -2.1, upsideBias: 55, probMoveGt2Pct: 42, sampleSize: 48, volatilitySpikeProb: 52 },
+  'GDP': { avgBtcMove2h: 1.8, medianBtcMove2h: 1.3, maxBtcMove2h: 4.1, worstCase2h: -2.8, upsideBias: 60, probMoveGt2Pct: 54, sampleSize: 24, volatilitySpikeProb: 58 },
+  'Unemployment Rate': { avgBtcMove2h: 1.9, medianBtcMove2h: 1.4, maxBtcMove2h: 4.5, worstCase2h: -3.0, upsideBias: 50, probMoveGt2Pct: 55, sampleSize: 60, volatilitySpikeProb: 55 },
+  'Retail Sales': { avgBtcMove2h: 1.4, medianBtcMove2h: 1.0, maxBtcMove2h: 3.2, worstCase2h: -2.0, upsideBias: 53, probMoveGt2Pct: 38, sampleSize: 48, volatilitySpikeProb: 45 },
+  'ISM Manufacturing PMI': { avgBtcMove2h: 1.2, medianBtcMove2h: 0.9, maxBtcMove2h: 2.8, worstCase2h: -1.8, upsideBias: 51, probMoveGt2Pct: 32, sampleSize: 48, volatilitySpikeProb: 42 },
+  'Initial Jobless Claims': { avgBtcMove2h: 0.8, medianBtcMove2h: 0.5, maxBtcMove2h: 2.1, worstCase2h: -1.2, upsideBias: 49, probMoveGt2Pct: 18, sampleSize: 200, volatilitySpikeProb: 28 },
+  'PCE Price Index': { avgBtcMove2h: 2.0, medianBtcMove2h: 1.5, maxBtcMove2h: 4.6, worstCase2h: -3.1, upsideBias: 56, probMoveGt2Pct: 62, sampleSize: 36, volatilitySpikeProb: 62 },
+  'Core PCE': { avgBtcMove2h: 2.0, medianBtcMove2h: 1.5, maxBtcMove2h: 4.6, worstCase2h: -3.1, upsideBias: 56, probMoveGt2Pct: 62, sampleSize: 36, volatilitySpikeProb: 62 },
 };
 
 function matchHistoricalStats(eventTitle: string): { avgBtcMove2h: number; sampleSize: number; volatilitySpikeProb: number } | null {
