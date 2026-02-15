@@ -54,7 +54,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { usePostTradeAnalysis } from "@/hooks/use-post-trade-analysis";
 import { calculateRiskReward } from "@/lib/trade-utils";
 import { 
-  TradeSummaryStats, 
+   
   ClosePositionDialog,
   EditPositionDialog,
   AllPositionsTable,
@@ -357,16 +357,7 @@ export default function TradingJournal() {
           </Dialog>
         )}
 
-        {/* P&L Summary Cards (Operational context - NOT analytics metrics) */}
-        <TradeSummaryStats
-          openPositionsCount={showPaperData ? openPositions.length : 0}
-          binancePositionsCount={showExchangeData ? binancePositions.filter(p => p.positionAmt !== 0).length : 0}
-          unrealizedPnL={showPaperData ? totalUnrealizedPnL : 0}
-          binanceUnrealizedPnL={showExchangeBalance ? binanceBalance?.totalUnrealizedProfit : undefined}
-          closedTradesCount={closedTrades.length}
-          realizedPnL={totalRealizedPnL}
-          isBinanceConnected={isBinanceConnected}
-        />
+        {/* Summary stats removed — Active tab shows positions directly, Closed tab has TradeHistoryStats */}
 
         {/* Trade Management Card */}
         <Card>

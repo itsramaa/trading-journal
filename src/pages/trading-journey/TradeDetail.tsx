@@ -1,7 +1,10 @@
 /**
  * TradeDetail - Comprehensive trade detail page with professional layout
  * Supports both DB trades (UUID) and live Binance positions (binance-SYMBOL)
- * Layout: Header → Key Metrics Strip → 3-col Grid → Full-width sections
+ * 
+ * Layout modes:
+ * - COCKPIT (live/active): Risk-focused, minimal, action-oriented
+ * - FORENSIC LAB (closed): Analysis-focused, full enrichment visible
  */
 import { useMemo, useState, useEffect, startTransition } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -43,6 +46,7 @@ import {
   CheckCircle2,
   XCircle,
   Activity,
+  Shield,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -54,6 +58,13 @@ function safeFixed(val: unknown, digits = 2): string | undefined {
   const n = typeof val === 'string' ? parseFloat(val) : val;
   if (typeof n !== 'number' || isNaN(n)) return undefined;
   return n.toFixed(digits);
+}
+
+/** Calculate distance to liquidation as percentage */
+function distanceToLiquidation(markPrice: number | null | undefined, liqPrice: number | null | undefined): string | undefined {
+  if (!markPrice || !liqPrice || liqPrice === 0) return undefined;
+  const pct = Math.abs(markPrice - liqPrice) / markPrice * 100;
+  return `${pct.toFixed(2)}%`;
 }
 
 function KeyMetric({ label, value, className }: { label: string; value: React.ReactNode; className?: string }) {
@@ -320,6 +331,7 @@ export default function TradeDetail() {
     );
   }
 
+  const isLive = trade.status !== 'closed';
   const pnlValue = trade.realized_pnl ?? trade.pnl ?? 0;
   const totalFees = (trade.commission || 0) + (trade.fees || 0) + ((trade as any).funding_fees || 0);
   const netPnl = pnlValue - totalFees;
@@ -333,6 +345,11 @@ export default function TradeDetail() {
   const hasStrategyData = hasContent(trade.entry_signal, trade.market_condition, trade.confluence_score) || (trade.strategies?.length > 0);
   const hasJournalData = hasContent(trade.emotional_state, trade.notes, trade.lesson_learned) || (trade.tags?.length > 0) || (ruleCompliance && Object.keys(ruleCompliance).length > 0);
   const hasAnyEnrichment = hasStrategyData || hasJournalData || hasTimeframeData || screenshots.length > 0;
+
+  // Live-specific data
+  const markPrice = trade._markPrice;
+  const liqPrice = trade._liquidationPrice;
+  const liqDistance = distanceToLiquidation(markPrice, liqPrice);
 
   return (
     <ErrorBoundary title="Trade Detail" onRetry={() => setRetryKey(k => k + 1)}>
@@ -360,7 +377,7 @@ export default function TradeDetail() {
             </div>
             <div className="flex items-center gap-2 mt-1.5 flex-wrap">
               <TradeStateBadge state={trade.trade_state} />
-              <TradeRatingBadge rating={trade.trade_rating} />
+              {!isLive && <TradeRatingBadge rating={trade.trade_rating} />}
               {(trade as any).trade_style && <Badge variant="outline" className="text-xs">{(trade as any).trade_style}</Badge>}
             </div>
           </div>
@@ -369,9 +386,11 @@ export default function TradeDetail() {
         {/* P&L + Actions */}
         <div className="flex flex-col items-end gap-2">
           <div className="text-right">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider">Net P&L</p>
-            <p className={`text-2xl font-bold font-mono ${netPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-              {formatPnl(netPnl)}
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">
+              {isLive ? 'Unrealized P&L' : 'Net P&L'}
+            </p>
+            <p className={`text-2xl font-bold font-mono ${(isLive ? pnlValue : netPnl) >= 0 ? 'text-profit' : 'text-loss'}`}>
+              {formatPnl(isLive ? pnlValue : netPnl)}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -385,17 +404,39 @@ export default function TradeDetail() {
       {/* ===== KEY METRICS STRIP ===== */}
       <Card className="bg-muted/30">
         <CardContent className="py-4">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
-            <KeyMetric label="Entry" value={safeFixed(trade.entry_price, 2)} />
-            <KeyMetric label="Exit" value={safeFixed(trade.exit_price, 2)} />
-            <KeyMetric label="Size" value={safeFixed(trade.quantity, 4)} />
-            <KeyMetric label="Leverage" value={(trade as any).leverage ? `${(trade as any).leverage}x` : undefined} />
-            <KeyMetric label="R-Multiple" value={safeFixed((trade as any).r_multiple, 2)} />
-            <KeyMetric
-              label="Gross P&L"
-              value={formatPnl(pnlValue)}
-              className={pnlValue >= 0 ? 'text-profit' : 'text-loss'}
-            />
+          <div className="flex flex-wrap gap-6 justify-center">
+            {isLive ? (
+              <>
+                <KeyMetric label="Entry" value={safeFixed(trade.entry_price, 2)} />
+                <KeyMetric label="Mark Price" value={safeFixed(markPrice, 2)} />
+                <KeyMetric label="Size" value={safeFixed(trade.quantity, 4)} />
+                <KeyMetric label="Leverage" value={(trade as any).leverage ? `${(trade as any).leverage}x` : undefined} />
+                {liqDistance && <KeyMetric label="Liq. Distance" value={liqDistance} />}
+                <KeyMetric
+                  label="Unrealized P&L"
+                  value={formatPnl(pnlValue)}
+                  className={pnlValue >= 0 ? 'text-profit' : 'text-loss'}
+                />
+              </>
+            ) : (
+              <>
+                <KeyMetric label="Entry" value={safeFixed(trade.entry_price, 2)} />
+                <KeyMetric label="Exit" value={safeFixed(trade.exit_price, 2)} />
+                <KeyMetric label="Size" value={safeFixed(trade.quantity, 4)} />
+                <KeyMetric label="Leverage" value={(trade as any).leverage ? `${(trade as any).leverage}x` : undefined} />
+                {hasContent((trade as any).r_multiple) && (
+                  <KeyMetric label="R-Multiple" value={safeFixed((trade as any).r_multiple, 2)} />
+                )}
+                {hasContent((trade as any).hold_time_minutes) && (
+                  <KeyMetric label="Hold Time" value={formatHoldTime((trade as any).hold_time_minutes)} />
+                )}
+                <KeyMetric
+                  label="Net P&L"
+                  value={formatPnl(netPnl)}
+                  className={netPnl >= 0 ? 'text-profit' : 'text-loss'}
+                />
+              </>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -419,142 +460,220 @@ export default function TradeDetail() {
       )}
 
       {/* ===== MAIN CONTENT GRID ===== */}
-      <div className="grid gap-4 md:grid-cols-3">
-        {/* Left column (2/3) */}
-        <div className="md:col-span-2 space-y-4">
-          {/* Price & Performance */}
-          <SectionCard title="Price & Performance" icon={DollarSign}>
+      {isLive ? (
+        /* ---------- COCKPIT MODE (Live) ---------- */
+        <div className="grid gap-4 md:grid-cols-2">
+          {/* Risk Overview */}
+          <SectionCard title="Risk Overview" icon={Shield}>
             <div className="grid grid-cols-2 gap-x-6">
+              <DetailRow label="Mark Price" value={safeFixed(markPrice, 4)} />
               <DetailRow label="Entry Price" value={safeFixed(trade.entry_price, 4)} />
-              <DetailRow label="Exit Price" value={safeFixed(trade.exit_price, 4)} />
-              <DetailRow label="Stop Loss" value={safeFixed(trade.stop_loss, 4)} />
-              <DetailRow label="Take Profit" value={safeFixed(trade.take_profit, 4)} />
+              <DetailRow label="Liq. Price" value={safeFixed(liqPrice, 4)} />
+              <DetailRow label="Liq. Distance" value={liqDistance} />
+              <DetailRow label="Margin Type" value={(trade as any).margin_type} />
+              <DetailRow label="Leverage" value={(trade as any).leverage ? `${(trade as any).leverage}x` : undefined} />
+              {hasContent(trade.stop_loss) && <DetailRow label="Stop Loss" value={safeFixed(trade.stop_loss, 4)} />}
+              {hasContent(trade.take_profit) && <DetailRow label="Take Profit" value={safeFixed(trade.take_profit, 4)} />}
             </div>
-            <div className="border-t border-border mt-3 pt-3">
-              <div className="grid grid-cols-2 gap-x-6">
-                <DetailRow label="Gross P&L" value={formatPnl(pnlValue)} className={pnlValue >= 0 ? 'text-profit' : 'text-loss'} />
-                <DetailRow label="Net P&L" value={formatPnl(netPnl)} className={netPnl >= 0 ? 'text-profit' : 'text-loss'} />
-                <DetailRow label="Commission" value={hasContent(trade.commission) ? formatCurrency(trade.commission!) : undefined} />
-                <DetailRow label="Fees" value={hasContent(trade.fees) ? formatCurrency(trade.fees!) : undefined} />
-                <DetailRow label="Funding Fees" value={hasContent((trade as any).funding_fees) ? formatCurrency((trade as any).funding_fees) : undefined} />
-                <DetailRow label="MAE" value={safeFixed((trade as any).max_adverse_excursion, 4)} />
-              </div>
-            </div>
-            {trade.result && (
-              <div className="border-t border-border mt-3 pt-3">
-                <DetailRow label="Result" value={<Badge variant="outline" className="text-xs">{trade.result}</Badge>} />
-              </div>
-            )}
           </SectionCard>
 
-          {/* Live Position Data (Binance only) */}
-          {isBinancePosition && (trade._markPrice || trade._liquidationPrice) && (
-            <SectionCard title="Live Position Data" icon={Activity}>
-              <div className="grid grid-cols-2 gap-x-6">
-                <DetailRow label="Mark Price" value={safeFixed(trade._markPrice, 4)} />
-                <DetailRow label="Liq. Price" value={safeFixed(trade._liquidationPrice, 4)} />
-                <DetailRow label="Margin Type" value={(trade as any).margin_type} />
-                <DetailRow label="Leverage" value={(trade as any).leverage ? `${(trade as any).leverage}x` : undefined} />
-              </div>
-            </SectionCard>
-          )}
-
-          {/* Timing */}
-          {hasTimingData && (
-            <SectionCard title="Timing" icon={Clock}>
-              <div className="grid grid-cols-2 gap-x-6">
-                <DetailRow label="Trade Date" value={formatDatetime(trade.trade_date)} />
-                <DetailRow label="Session" value={(trade as any).session} />
-                <DetailRow label="Entry Time" value={formatDatetime((trade as any).entry_datetime)} />
-                <DetailRow label="Exit Time" value={formatDatetime((trade as any).exit_datetime)} />
-                <DetailRow label="Hold Time" value={formatHoldTime((trade as any).hold_time_minutes)} />
-              </div>
-            </SectionCard>
-          )}
-
-          {/* Timeframe Analysis */}
-          {hasTimeframeData && (
-            <SectionCard title="Timeframe Analysis" icon={Layers}>
-              <div className="grid grid-cols-2 gap-x-6">
-                <DetailRow label="Bias (HTF)" value={trade.bias_timeframe} />
-                <DetailRow label="Execution" value={trade.execution_timeframe} />
-                <DetailRow label="Precision (LTF)" value={(trade as any).precision_timeframe} />
-                <DetailRow label="Chart TF" value={trade.chart_timeframe} />
-              </div>
-            </SectionCard>
-          )}
+          {/* Price & Position */}
+          <SectionCard title="Price & Position" icon={DollarSign}>
+            <div className="grid grid-cols-2 gap-x-6">
+              <DetailRow label="Entry Price" value={safeFixed(trade.entry_price, 4)} />
+              <DetailRow label="Size" value={safeFixed(trade.quantity, 4)} />
+              <DetailRow label="Direction" value={trade.direction} />
+              <DetailRow label="Commission" value={hasContent(trade.commission) ? formatCurrency(trade.commission!) : undefined} />
+              <DetailRow label="Fees" value={hasContent(trade.fees) ? formatCurrency(trade.fees!) : undefined} />
+              <DetailRow label="Funding Fees" value={hasContent((trade as any).funding_fees) ? formatCurrency((trade as any).funding_fees) : undefined} />
+            </div>
+          </SectionCard>
         </div>
-
-        {/* Right column (1/3) */}
-        <div className="space-y-4">
-          {/* Strategy & Setup */}
-          {hasStrategyData && (
-            <SectionCard title="Strategy & Setup" icon={Target}>
-              {trade.strategies && trade.strategies.length > 0 && (
-                <div className="pb-2">
-                  <p className="text-xs text-muted-foreground mb-1.5">Strategies</p>
-                  <div className="flex flex-wrap gap-1">
-                    {trade.strategies.map((s: any) => (
-                      <Badge key={s.id} variant="outline" className="text-xs" style={{ borderColor: s.color || undefined }}>{s.name}</Badge>
-                    ))}
-                  </div>
+      ) : (
+        /* ---------- FORENSIC LAB MODE (Closed) ---------- */
+        <div className="grid gap-4 md:grid-cols-3">
+          {/* Left column (2/3) */}
+          <div className="md:col-span-2 space-y-4">
+            {/* Price & Performance */}
+            <SectionCard title="Price & Performance" icon={DollarSign}>
+              <div className="grid grid-cols-2 gap-x-6">
+                <DetailRow label="Entry Price" value={safeFixed(trade.entry_price, 4)} />
+                <DetailRow label="Exit Price" value={safeFixed(trade.exit_price, 4)} />
+                <DetailRow label="Stop Loss" value={safeFixed(trade.stop_loss, 4)} />
+                <DetailRow label="Take Profit" value={safeFixed(trade.take_profit, 4)} />
+              </div>
+              <div className="border-t border-border mt-3 pt-3">
+                <div className="grid grid-cols-2 gap-x-6">
+                  <DetailRow label="Gross P&L" value={formatPnl(pnlValue)} className={pnlValue >= 0 ? 'text-profit' : 'text-loss'} />
+                  <DetailRow label="Net P&L" value={formatPnl(netPnl)} className={netPnl >= 0 ? 'text-profit' : 'text-loss'} />
+                  <DetailRow label="Commission" value={hasContent(trade.commission) ? formatCurrency(trade.commission!) : undefined} />
+                  <DetailRow label="Fees" value={hasContent(trade.fees) ? formatCurrency(trade.fees!) : undefined} />
+                  <DetailRow label="Funding Fees" value={hasContent((trade as any).funding_fees) ? formatCurrency((trade as any).funding_fees) : undefined} />
+                  <DetailRow label="MAE" value={safeFixed((trade as any).max_adverse_excursion, 4)} />
                 </div>
-              )}
-              <DetailRow label="Entry Signal" value={trade.entry_signal} />
-              <DetailRow label="Market Condition" value={trade.market_condition} />
-              <DetailRow label="Confluence" value={trade.confluence_score?.toString()} />
-              <DetailRow label="Entry Order" value={(trade as any).entry_order_type} />
-              <DetailRow label="Exit Order" value={(trade as any).exit_order_type} />
-              {hasContent(trade.ai_quality_score, trade.ai_confidence) && (
-                <div className="border-t border-border mt-2 pt-2">
-                  <DetailRow label="AI Quality" value={safeFixed(trade.ai_quality_score, 0)} />
-                  <DetailRow label="AI Confidence" value={trade.ai_confidence ? `${safeFixed(trade.ai_confidence, 0)}%` : undefined} />
+              </div>
+              {trade.result && (
+                <div className="border-t border-border mt-3 pt-3">
+                  <DetailRow label="Result" value={<Badge variant="outline" className="text-xs">{trade.result}</Badge>} />
                 </div>
               )}
             </SectionCard>
-          )}
 
-          {/* Journal Enrichment */}
-          {hasJournalData && (
-            <SectionCard title="Journal" icon={MessageSquare}>
-              {trade.emotional_state && <DetailRow label="Emotion" value={trade.emotional_state} />}
-              {trade.notes && (
-                <div className="pt-2">
-                  <p className="text-xs text-muted-foreground mb-1">Notes</p>
-                  <p className="text-sm bg-muted/50 rounded-md p-2 whitespace-pre-wrap">{trade.notes}</p>
+            {/* Timing (closed only) */}
+            {hasTimingData && (
+              <SectionCard title="Timing" icon={Clock}>
+                <div className="grid grid-cols-2 gap-x-6">
+                  <DetailRow label="Trade Date" value={formatDatetime(trade.trade_date)} />
+                  <DetailRow label="Session" value={(trade as any).session} />
+                  <DetailRow label="Entry Time" value={formatDatetime((trade as any).entry_datetime)} />
+                  <DetailRow label="Exit Time" value={formatDatetime((trade as any).exit_datetime)} />
+                  <DetailRow label="Hold Time" value={formatHoldTime((trade as any).hold_time_minutes)} />
                 </div>
-              )}
-              {trade.lesson_learned && (
-                <div className="pt-2">
-                  <p className="text-xs text-muted-foreground mb-1">Lesson Learned</p>
-                  <p className="text-sm bg-muted/50 rounded-md p-2 whitespace-pre-wrap">{trade.lesson_learned}</p>
+              </SectionCard>
+            )}
+
+            {/* Timeframe Analysis */}
+            {hasTimeframeData && (
+              <SectionCard title="Timeframe Analysis" icon={Layers}>
+                <div className="grid grid-cols-2 gap-x-6">
+                  <DetailRow label="Bias (HTF)" value={trade.bias_timeframe} />
+                  <DetailRow label="Execution" value={trade.execution_timeframe} />
+                  <DetailRow label="Precision (LTF)" value={(trade as any).precision_timeframe} />
+                  <DetailRow label="Chart TF" value={trade.chart_timeframe} />
                 </div>
-              )}
-              {ruleCompliance && Object.keys(ruleCompliance).length > 0 && (
-                <div className="pt-2">
-                  <p className="text-xs text-muted-foreground mb-1">Rule Compliance</p>
-                  <div className="space-y-1">
-                    {Object.entries(ruleCompliance).map(([rule, passed]) => (
-                      <div key={rule} className="flex items-center gap-2 text-sm">
-                        {passed ? <CheckCircle2 className="h-3.5 w-3.5 text-profit" /> : <XCircle className="h-3.5 w-3.5 text-loss" />}
-                        <span>{rule}</span>
+              </SectionCard>
+            )}
+          </div>
+
+          {/* Right column (1/3) — Strategy & Journal visible for closed */}
+          <div className="space-y-4">
+            {hasStrategyData && (
+              <SectionCard title="Strategy & Setup" icon={Target}>
+                {trade.strategies && trade.strategies.length > 0 && (
+                  <div className="pb-2">
+                    <p className="text-xs text-muted-foreground mb-1.5">Strategies</p>
+                    <div className="flex flex-wrap gap-1">
+                      {trade.strategies.map((s: any) => (
+                        <Badge key={s.id} variant="outline" className="text-xs" style={{ borderColor: s.color || undefined }}>{s.name}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <DetailRow label="Entry Signal" value={trade.entry_signal} />
+                <DetailRow label="Market Condition" value={trade.market_condition} />
+                <DetailRow label="Confluence" value={trade.confluence_score?.toString()} />
+                <DetailRow label="Entry Order" value={(trade as any).entry_order_type} />
+                <DetailRow label="Exit Order" value={(trade as any).exit_order_type} />
+                {hasContent(trade.ai_quality_score, trade.ai_confidence) && (
+                  <div className="border-t border-border mt-2 pt-2">
+                    <DetailRow label="AI Quality" value={safeFixed(trade.ai_quality_score, 0)} />
+                    <DetailRow label="AI Confidence" value={trade.ai_confidence ? `${safeFixed(trade.ai_confidence, 0)}%` : undefined} />
+                  </div>
+                )}
+              </SectionCard>
+            )}
+
+            {hasJournalData && (
+              <SectionCard title="Journal" icon={MessageSquare}>
+                {trade.emotional_state && <DetailRow label="Emotion" value={trade.emotional_state} />}
+                {trade.notes && (
+                  <div className="pt-2">
+                    <p className="text-xs text-muted-foreground mb-1">Notes</p>
+                    <p className="text-sm bg-muted/50 rounded-md p-2 whitespace-pre-wrap">{trade.notes}</p>
+                  </div>
+                )}
+                {trade.lesson_learned && (
+                  <div className="pt-2">
+                    <p className="text-xs text-muted-foreground mb-1">Lesson Learned</p>
+                    <p className="text-sm bg-muted/50 rounded-md p-2 whitespace-pre-wrap">{trade.lesson_learned}</p>
+                  </div>
+                )}
+                {ruleCompliance && Object.keys(ruleCompliance).length > 0 && (
+                  <div className="pt-2">
+                    <p className="text-xs text-muted-foreground mb-1">Rule Compliance</p>
+                    <div className="space-y-1">
+                      {Object.entries(ruleCompliance).map(([rule, passed]) => (
+                        <div key={rule} className="flex items-center gap-2 text-sm">
+                          {passed ? <CheckCircle2 className="h-3.5 w-3.5 text-profit" /> : <XCircle className="h-3.5 w-3.5 text-loss" />}
+                          <span>{rule}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {trade.tags && trade.tags.length > 0 && (
+                  <div className="pt-2">
+                    <p className="text-xs text-muted-foreground mb-1">Tags</p>
+                    <div className="flex flex-wrap gap-1">
+                      {trade.tags.map((tag: string) => <Badge key={tag} variant="secondary" className="text-xs"><Tag className="h-3 w-3 mr-1" />{tag}</Badge>)}
+                    </div>
+                  </div>
+                )}
+              </SectionCard>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ===== PROGRESSIVE DISCLOSURE: Analysis & Journal for LIVE trades ===== */}
+      {isLive && (hasStrategyData || hasJournalData) && (
+        <Collapsible>
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" className="w-full justify-between text-muted-foreground hover:text-foreground">
+              <span className="text-sm font-medium">Analysis & Journal</span>
+              <ChevronDown className="h-4 w-4" />
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="grid gap-4 md:grid-cols-2 mt-2">
+              {hasStrategyData && (
+                <SectionCard title="Strategy & Setup" icon={Target}>
+                  {trade.strategies && trade.strategies.length > 0 && (
+                    <div className="pb-2">
+                      <p className="text-xs text-muted-foreground mb-1.5">Strategies</p>
+                      <div className="flex flex-wrap gap-1">
+                        {trade.strategies.map((s: any) => (
+                          <Badge key={s.id} variant="outline" className="text-xs" style={{ borderColor: s.color || undefined }}>{s.name}</Badge>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                </div>
+                    </div>
+                  )}
+                  <DetailRow label="Entry Signal" value={trade.entry_signal} />
+                  <DetailRow label="Market Condition" value={trade.market_condition} />
+                  <DetailRow label="Confluence" value={trade.confluence_score?.toString()} />
+                  <DetailRow label="Entry Order" value={(trade as any).entry_order_type} />
+                </SectionCard>
               )}
-              {trade.tags && trade.tags.length > 0 && (
-                <div className="pt-2">
-                  <p className="text-xs text-muted-foreground mb-1">Tags</p>
-                  <div className="flex flex-wrap gap-1">
-                    {trade.tags.map((tag: string) => <Badge key={tag} variant="secondary" className="text-xs"><Tag className="h-3 w-3 mr-1" />{tag}</Badge>)}
-                  </div>
-                </div>
+
+              {hasJournalData && (
+                <SectionCard title="Journal" icon={MessageSquare}>
+                  {trade.emotional_state && <DetailRow label="Emotion" value={trade.emotional_state} />}
+                  {trade.notes && (
+                    <div className="pt-2">
+                      <p className="text-xs text-muted-foreground mb-1">Notes</p>
+                      <p className="text-sm bg-muted/50 rounded-md p-2 whitespace-pre-wrap">{trade.notes}</p>
+                    </div>
+                  )}
+                  {trade.lesson_learned && (
+                    <div className="pt-2">
+                      <p className="text-xs text-muted-foreground mb-1">Lesson Learned</p>
+                      <p className="text-sm bg-muted/50 rounded-md p-2 whitespace-pre-wrap">{trade.lesson_learned}</p>
+                    </div>
+                  )}
+                  {trade.tags && trade.tags.length > 0 && (
+                    <div className="pt-2">
+                      <p className="text-xs text-muted-foreground mb-1">Tags</p>
+                      <div className="flex flex-wrap gap-1">
+                        {trade.tags.map((tag: string) => <Badge key={tag} variant="secondary" className="text-xs"><Tag className="h-3 w-3 mr-1" />{tag}</Badge>)}
+                      </div>
+                    </div>
+                  )}
+                </SectionCard>
               )}
-            </SectionCard>
-          )}
-        </div>
-      </div>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      )}
 
       {/* ===== FULL-WIDTH SECTIONS ===== */}
 
@@ -571,8 +690,8 @@ export default function TradeDetail() {
         </SectionCard>
       )}
 
-      {/* AI Post-Trade Analysis */}
-      {postAnalysis && (
+      {/* AI Post-Trade Analysis (closed only) */}
+      {!isLive && postAnalysis && (
         <SectionCard title="AI Post-Trade Analysis" icon={Brain}>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6">
             {postAnalysis.entry_timing && <DetailRow label="Entry Timing" value={postAnalysis.entry_timing} />}
