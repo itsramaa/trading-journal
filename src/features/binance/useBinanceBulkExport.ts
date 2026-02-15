@@ -254,8 +254,8 @@ export function getExportTypeDescription(type: BulkExportType): string {
     case 'transaction':
       return 'Income, funding fees, commissions, and transfers';
     case 'order':
-      return 'All orders including cancelled and filled';
+      return 'All placed orders (instructions to buy/sell) including cancelled and filled';
     case 'trade':
-      return 'Executed trades with P&L and commission details';
+      return 'Executed fills with entry/exit prices, quantities, and commission details';
   }
 }

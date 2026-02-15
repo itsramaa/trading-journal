@@ -22,6 +22,7 @@ import {
 import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { useMemo } from "react";
 import type { UnifiedMarketContext } from "@/types/market-context";
 
 type ExportFormat = 'csv' | 'json';
@@ -42,6 +43,16 @@ export function JournalExportCard() {
     includeStrategyName: true,
     includeAIScores: true,
   });
+
+  const dateRangeLabel = useMemo(() => {
+    if (!trades || trades.length === 0) return '';
+    const sorted = [...trades].sort((a, b) => 
+      new Date(a.trade_date).getTime() - new Date(b.trade_date).getTime()
+    );
+    const from = format(new Date(sorted[0].trade_date), 'MMM d, yyyy');
+    const to = format(new Date(sorted[sorted.length - 1].trade_date), 'MMM d, yyyy');
+    return `${from} – ${to}`;
+  }, [trades]);
 
   const handleExport = async () => {
     if (!trades || trades.length === 0) {
@@ -301,7 +312,7 @@ export function JournalExportCard() {
           ) : (
             <Download className="h-4 w-4" />
           )}
-          Export {trades?.length || 0} Trades
+          Export {trades?.length || 0} Trades{dateRangeLabel ? ` (${dateRangeLabel})` : ''}
         </Button>
       </CardContent>
     </Card>

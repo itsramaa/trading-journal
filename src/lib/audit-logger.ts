@@ -18,7 +18,10 @@ export type AuditAction =
   | 'sync_started'
   | 'sync_completed'
   | 'sync_failed'
-  | 'trade_validation_failed';
+  | 'trade_validation_failed'
+  | 'export_completed'
+  | 'backup_exported'
+  | 'backup_restored';
 
 export type AuditEntityType =
   | 'exchange_credential'
