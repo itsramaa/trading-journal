@@ -448,8 +448,25 @@ export function calculateMetrics(
   const avgRiskReward = losingTrades.length > 0 && winningTrades.length > 0
     ? avgWin / avgLoss : 0;
 
+  const finalCapital = initialCapital + totalPnl;
+  const totalReturn = (totalPnl / initialCapital) * 100;
+
+  // Calmar Ratio: use annualized return (CAGR) / max drawdown
+  let calmarRatio = 0;
+  if (maxDD > 0 && periodStart && periodEnd) {
+    const periodDays = (new Date(periodEnd).getTime() - new Date(periodStart).getTime()) / (1000 * 60 * 60 * 24);
+    const periodYears = periodDays / 365;
+    const cagr = periodYears > 0 && initialCapital > 0
+      ? (Math.pow(finalCapital / initialCapital, 1 / periodYears) - 1) * 100
+      : totalReturn;
+    calmarRatio = cagr / (maxDD * 100);
+  } else if (maxDD > 0) {
+    // Fallback if no period info: use raw return
+    calmarRatio = totalReturn / (maxDD * 100);
+  }
+
   return {
-    totalReturn: (totalPnl / initialCapital) * 100,
+    totalReturn,
     totalReturnAmount: totalPnl,
     winRate,
     totalTrades: trades.length,
@@ -473,7 +490,7 @@ export function calculateMetrics(
     holdingPeriodAvg: avgHolding,
     expectancy: winRate * avgWin - ((1 - winRate) * Math.abs(avgLoss)),
     expectancyPerR: avgRiskReward > 0 ? (winRate * avgRiskReward) - (1 - winRate) : 0,
-    calmarRatio: maxDD > 0 ? ((totalPnl / initialCapital) * 100) / (maxDD * 100) : 0,
+    calmarRatio,
     grossPnl,
     totalCommissions,
     netPnl: totalPnl,

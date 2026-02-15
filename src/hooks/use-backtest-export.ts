@@ -4,7 +4,21 @@ import { format } from 'date-fns';
 import type { BacktestResult, BacktestTrade, BacktestMetrics } from '@/types/backtest';
 
 /**
+ * Helper for dynamic price precision (min 4 decimals for low-cap assets)
+ */
+function formatPrice(price: number): string {
+  if (price === 0) return '0';
+  // Use at least 4 decimal places; more if needed for small prices
+  const absPrice = Math.abs(price);
+  if (absPrice < 0.01) return price.toFixed(8);
+  if (absPrice < 1) return price.toFixed(6);
+  return price.toFixed(4);
+}
+
+/**
  * Hook for exporting backtest results to CSV and PDF
+ * Note: Currency symbols are intentionally omitted from exports.
+ * Values are exported as raw numbers for compatibility with spreadsheet software.
  */
 export function useBacktestExport() {
   
@@ -19,25 +33,25 @@ export function useBacktestExport() {
     csv += `Strategy,${result.strategyName}\n`;
     csv += `Pair,${result.pair}/USDT\n`;
     csv += `Period,${format(new Date(result.periodStart), 'yyyy-MM-dd')} to ${format(new Date(result.periodEnd), 'yyyy-MM-dd')}\n`;
-    csv += `Initial Capital,$${result.initialCapital.toFixed(2)}\n`;
-    csv += `Final Capital,$${result.finalCapital.toFixed(2)}\n`;
+    csv += `Initial Capital,${result.initialCapital.toFixed(2)}\n`;
+    csv += `Final Capital,${result.finalCapital.toFixed(2)}\n`;
     csv += '\n';
     
     // Metrics section
     csv += 'PERFORMANCE METRICS\n';
     csv += `Total Return,${metrics.totalReturn.toFixed(2)}%\n`;
-    csv += `Total Return Amount,$${metrics.totalReturnAmount.toFixed(2)}\n`;
+    csv += `Total Return Amount,${metrics.totalReturnAmount.toFixed(2)}\n`;
     csv += `Win Rate,${(metrics.winRate * 100).toFixed(1)}%\n`;
     csv += `Total Trades,${metrics.totalTrades}\n`;
     csv += `Winning Trades,${metrics.winningTrades}\n`;
     csv += `Losing Trades,${metrics.losingTrades}\n`;
-    csv += `Avg Win,$${metrics.avgWin.toFixed(2)}\n`;
-    csv += `Avg Loss,$${metrics.avgLoss.toFixed(2)}\n`;
+    csv += `Avg Win,${metrics.avgWin.toFixed(2)}\n`;
+    csv += `Avg Loss,${metrics.avgLoss.toFixed(2)}\n`;
     csv += `Avg Win %,${metrics.avgWinPercent.toFixed(2)}%\n`;
     csv += `Avg Loss %,${metrics.avgLossPercent.toFixed(2)}%\n`;
     csv += `Profit Factor,${metrics.profitFactor === Infinity ? 'Infinity' : metrics.profitFactor.toFixed(2)}\n`;
     csv += `Max Drawdown,${metrics.maxDrawdown.toFixed(2)}%\n`;
-    csv += `Max Drawdown Amount,$${metrics.maxDrawdownAmount.toFixed(2)}\n`;
+    csv += `Max Drawdown Amount,${metrics.maxDrawdownAmount.toFixed(2)}\n`;
     csv += `Sharpe Ratio,${metrics.sharpeRatio.toFixed(2)}\n`;
     csv += `Consecutive Wins,${metrics.consecutiveWins}\n`;
     csv += `Consecutive Losses,${metrics.consecutiveLosses}\n`;
@@ -47,14 +61,14 @@ export function useBacktestExport() {
     
     // Trades section
     csv += 'TRADE LIST\n';
-    csv += 'Entry Time,Exit Time,Direction,Entry Price,Exit Price,Quantity,P&L ($),P&L (%),Commission,Exit Type\n';
+    csv += 'Entry Time,Exit Time,Direction,Entry Price,Exit Price,Quantity,P&L,P&L (%),Commission,Exit Type\n';
     
     trades.forEach((trade) => {
       csv += `${format(new Date(trade.entryTime), 'yyyy-MM-dd HH:mm')},`;
       csv += `${format(new Date(trade.exitTime), 'yyyy-MM-dd HH:mm')},`;
       csv += `${trade.direction},`;
-      csv += `${trade.entryPrice.toFixed(2)},`;
-      csv += `${trade.exitPrice.toFixed(2)},`;
+      csv += `${formatPrice(trade.entryPrice)},`;
+      csv += `${formatPrice(trade.exitPrice)},`;
       csv += `${trade.quantity.toFixed(4)},`;
       csv += `${trade.pnl.toFixed(2)},`;
       csv += `${trade.pnlPercent.toFixed(2)}%,`;
@@ -92,8 +106,8 @@ export function useBacktestExport() {
     doc.text(`Period: ${format(new Date(result.periodStart), 'MMM d, yyyy')} - ${format(new Date(result.periodEnd), 'MMM d, yyyy')}`, 14, 49);
     
     // Capital info
-    doc.text(`Initial Capital: $${result.initialCapital.toFixed(2)}`, 120, 35);
-    doc.text(`Final Capital: $${result.finalCapital.toFixed(2)}`, 120, 42);
+    doc.text(`Initial Capital: ${result.initialCapital.toFixed(2)}`, 120, 35);
+    doc.text(`Final Capital: ${result.finalCapital.toFixed(2)}`, 120, 42);
     doc.setTextColor(isProfit ? 34 : 220, isProfit ? 139 : 53, isProfit ? 34 : 69);
     doc.text(`Total Return: ${isProfit ? '+' : ''}${metrics.totalReturn.toFixed(2)}%`, 120, 49);
     
@@ -109,9 +123,9 @@ export function useBacktestExport() {
         ['Win Rate', `${(metrics.winRate * 100).toFixed(1)}%`, 'Profit Factor', metrics.profitFactor === Infinity ? '∞' : metrics.profitFactor.toFixed(2)],
         ['Total Trades', metrics.totalTrades.toString(), 'Sharpe Ratio', metrics.sharpeRatio.toFixed(2)],
         ['Winning Trades', metrics.winningTrades.toString(), 'Max Drawdown', `${metrics.maxDrawdown.toFixed(2)}%`],
-        ['Losing Trades', metrics.losingTrades.toString(), 'Drawdown Amount', `$${metrics.maxDrawdownAmount.toFixed(2)}`],
-        ['Avg Win', `$${metrics.avgWin.toFixed(2)}`, 'Consec. Wins', metrics.consecutiveWins.toString()],
-        ['Avg Loss', `$${metrics.avgLoss.toFixed(2)}`, 'Consec. Losses', metrics.consecutiveLosses.toString()],
+        ['Losing Trades', metrics.losingTrades.toString(), 'Drawdown Amount', metrics.maxDrawdownAmount.toFixed(2)],
+        ['Avg Win', metrics.avgWin.toFixed(2), 'Consec. Wins', metrics.consecutiveWins.toString()],
+        ['Avg Loss', metrics.avgLoss.toFixed(2), 'Consec. Losses', metrics.consecutiveLosses.toString()],
         ['Avg Win %', `${metrics.avgWinPercent.toFixed(2)}%`, 'Avg R:R', metrics.avgRiskReward.toFixed(2)],
         ['Avg Loss %', `${metrics.avgLossPercent.toFixed(2)}%`, 'Avg Holding', `${metrics.holdingPeriodAvg.toFixed(1)}h`],
       ],
@@ -129,16 +143,16 @@ export function useBacktestExport() {
       (index + 1).toString(),
       format(new Date(trade.entryTime), 'MM/dd HH:mm'),
       trade.direction.toUpperCase(),
-      `$${trade.entryPrice.toFixed(2)}`,
-      `$${trade.exitPrice.toFixed(2)}`,
-      trade.pnl >= 0 ? `+$${trade.pnl.toFixed(2)}` : `-$${Math.abs(trade.pnl).toFixed(2)}`,
+      formatPrice(trade.entryPrice),
+      formatPrice(trade.exitPrice),
+      trade.pnl >= 0 ? `+${trade.pnl.toFixed(2)}` : `${trade.pnl.toFixed(2)}`,
       `${trade.pnlPercent >= 0 ? '+' : ''}${trade.pnlPercent.toFixed(2)}%`,
       trade.exitType.replace('_', ' '),
     ]);
     
     autoTable(doc, {
       startY: finalY + 20,
-      head: [['#', 'Entry', 'Dir', 'Entry $', 'Exit $', 'P&L', 'P&L %', 'Exit Type']],
+      head: [['#', 'Entry', 'Dir', 'Entry Price', 'Exit Price', 'P&L', 'P&L %', 'Exit Type']],
       body: tradeData,
       theme: 'striped',
       headStyles: { fillColor: [59, 130, 246] },
@@ -217,8 +231,8 @@ export function useBacktestExport() {
       ['Sharpe Ratio', ...results.map(r => r.metrics.sharpeRatio.toFixed(2))],
       ['Profit Factor', ...results.map(r => r.metrics.profitFactor === Infinity ? '∞' : r.metrics.profitFactor.toFixed(2))],
       ['Total Trades', ...results.map(r => r.metrics.totalTrades.toString())],
-      ['Avg Win', ...results.map(r => `$${r.metrics.avgWin.toFixed(2)}`)],
-      ['Avg Loss', ...results.map(r => `-$${r.metrics.avgLoss.toFixed(2)}`)],
+      ['Avg Win', ...results.map(r => r.metrics.avgWin.toFixed(2))],
+      ['Avg Loss', ...results.map(r => `-${r.metrics.avgLoss.toFixed(2)}`)],
       ['Avg R:R', ...results.map(r => r.metrics.avgRiskReward.toFixed(2))],
     ];
     

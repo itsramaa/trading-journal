@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -68,7 +69,7 @@ export function BacktestResults({ result }: BacktestResultsProps) {
   }));
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" role="region" aria-label="Backtest Results">
       {/* Backtest Disclaimer */}
       <BacktestDisclaimer 
         assumptions={result.assumptions}
@@ -163,7 +164,10 @@ export function BacktestResults({ result }: BacktestResultsProps) {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Total Return</p>
+                <div className="flex items-center gap-1">
+                  <p className="text-sm text-muted-foreground">Total Return</p>
+                  <InfoTooltip content="Net profit/loss as a percentage of initial capital, after all fees." />
+                </div>
                 <p className={cn(
                   "text-2xl font-bold font-mono",
                   isProfit ? "text-profit" : "text-loss"
@@ -188,7 +192,10 @@ export function BacktestResults({ result }: BacktestResultsProps) {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Win Rate</p>
+                <div className="flex items-center gap-1">
+                  <p className="text-sm text-muted-foreground">Win Rate</p>
+                  <InfoTooltip content="Percentage of trades that closed in profit. Combined with R:R ratio to determine edge." />
+                </div>
                 <p className="text-2xl font-bold font-mono">
                   {formatWinRate(metrics.winRate * 100)}
                 </p>
@@ -207,7 +214,10 @@ export function BacktestResults({ result }: BacktestResultsProps) {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Max Drawdown</p>
+                <div className="flex items-center gap-1">
+                  <p className="text-sm text-muted-foreground">Max Drawdown</p>
+                  <InfoTooltip content="Largest peak-to-trough decline in portfolio value during the backtest period." />
+                </div>
                 <p className="text-2xl font-bold font-mono text-loss">
                   {formatNumber(metrics.maxDrawdown, 2)}%
                 </p>
@@ -226,7 +236,10 @@ export function BacktestResults({ result }: BacktestResultsProps) {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Expectancy</p>
+                <div className="flex items-center gap-1">
+                  <p className="text-sm text-muted-foreground">Expectancy</p>
+                  <InfoTooltip content="Average expected profit per trade. Formula: (Win Rate × Avg Win) - (Loss Rate × Avg Loss)." />
+                </div>
                 <p className={cn(
                   "text-2xl font-bold font-mono",
                   metrics.expectancy >= 0 ? "text-profit" : "text-loss"
@@ -258,7 +271,10 @@ export function BacktestResults({ result }: BacktestResultsProps) {
                 <span className="font-medium font-mono">{metrics.totalTrades}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-muted-foreground text-sm">Trade Density</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-muted-foreground text-sm">Trade Density</span>
+                  <InfoTooltip content="Average number of trades per week during the backtest period." />
+                </div>
                 <span className="font-medium font-mono">{tradesPerWeek.toFixed(1)}/week</span>
               </div>
               <div className="flex justify-between items-center">
@@ -276,19 +292,31 @@ export function BacktestResults({ result }: BacktestResultsProps) {
             </div>
             <div className="space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-muted-foreground text-sm">Profit Factor</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-muted-foreground text-sm">Profit Factor</span>
+                  <InfoTooltip content="Gross Profit / Gross Loss. Values above 1.5 indicate a robust edge." />
+                </div>
                 <span className="font-medium font-mono">{metrics.profitFactor === Infinity ? '∞' : formatNumber(metrics.profitFactor, 2)}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-muted-foreground text-sm">Sharpe Ratio</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-muted-foreground text-sm">Sharpe Ratio</span>
+                  <InfoTooltip content="Risk-adjusted return. Annualized using √252. Values above 1.0 are good, above 2.0 are excellent." />
+                </div>
                 <span className="font-medium font-mono">{formatNumber(metrics.sharpeRatio, 2)}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-muted-foreground text-sm">Calmar Ratio</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-muted-foreground text-sm">Calmar Ratio</span>
+                  <InfoTooltip content="Annualized return divided by maximum drawdown. Higher = better risk-adjusted performance." />
+                </div>
                 <span className="font-medium font-mono">{formatNumber(metrics.calmarRatio, 2)}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-muted-foreground text-sm">Expectancy/R</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-muted-foreground text-sm">Expectancy/R</span>
+                  <InfoTooltip content="Expected return per unit of risk (R). Positive values indicate an edge." />
+                </div>
                 <span className={cn("font-medium font-mono", metrics.expectancyPerR >= 0 ? "text-profit" : "text-loss")}>
                   {metrics.expectancyPerR >= 0 ? '+' : ''}{metrics.expectancyPerR.toFixed(2)}R
                 </span>
@@ -308,19 +336,29 @@ export function BacktestResults({ result }: BacktestResultsProps) {
                 <span className="font-medium font-mono">{formatNumber(metrics.holdingPeriodAvg, 1)}h</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-muted-foreground text-sm">Market Exposure</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-muted-foreground text-sm">Market Exposure</span>
+                  <InfoTooltip content="Percentage of total backtest period spent in an open position." />
+                </div>
                 <span className="font-medium font-mono">{formatNumber(metrics.exposurePercent ?? 0, 1)}%</span>
               </div>
               {breakevenWR !== null && (
                 <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground text-sm">Break-even WR</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-muted-foreground text-sm">Break-even WR</span>
+                    <InfoTooltip content="Minimum win rate needed to break even at the observed R:R ratio. Formula: 1 / (1 + R:R)." />
+                  </div>
                   <span className="font-medium font-mono">{(breakevenWR * 100).toFixed(1)}%</span>
                 </div>
               )}
               {/* Fee Impact Breakdown */}
               <div className="pt-2 border-t border-border space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground text-sm">Gross P&L</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-muted-foreground text-sm">Gross P&L</span>
+                    {/* Tooltip on first fee item to explain the section */}
+                    <InfoTooltip content="Fee impact analysis showing how trading costs affect your edge." />
+                  </div>
                   <span className={cn("font-medium font-mono", (metrics.grossPnl ?? 0) >= 0 ? "text-profit" : "text-loss")}>
                     {format(metrics.grossPnl ?? metrics.totalReturnAmount)}
                   </span>
@@ -352,7 +390,10 @@ export function BacktestResults({ result }: BacktestResultsProps) {
         <TabsContent value="equity">
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Equity Curve</CardTitle>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                Equity Curve
+                <InfoTooltip content="Portfolio balance over time (left axis) with drawdown percentage (right axis, shaded red)." />
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-[300px]">
@@ -464,7 +505,7 @@ export function BacktestResults({ result }: BacktestResultsProps) {
                           "text-right font-mono text-sm font-medium",
                           trade.pnl >= 0 ? "text-profit" : "text-loss"
                         )}>
-                          {formatPercent(trade.pnl)}
+                          {format(trade.pnl)}
                           <span className="text-xs text-muted-foreground ml-1">
                             ({formatPercent(trade.pnlPercent)})
                           </span>

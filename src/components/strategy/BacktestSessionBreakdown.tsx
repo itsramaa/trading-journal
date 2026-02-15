@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { 
   BarChart, 
   Bar, 
@@ -215,7 +216,10 @@ export function BacktestSessionBreakdown({ trades }: BacktestSessionBreakdownPro
         {/* P&L by Session Bar Chart */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">P&L by Session</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-base">
+              P&L by Session
+              <InfoTooltip content="Total profit/loss for each trading session. Green = profit, Red = loss." />
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-[250px]">
@@ -225,7 +229,7 @@ export function BacktestSessionBreakdown({ trades }: BacktestSessionBreakdownPro
                   <XAxis 
                     type="number" 
                     tick={{ fontSize: 12 }}
-                    tickFormatter={(v) => `$${v.toFixed(0)}`}
+                    tickFormatter={(v) => `${v.toFixed(0)}`}
                   />
                   <YAxis 
                     type="category" 
@@ -258,7 +262,10 @@ export function BacktestSessionBreakdown({ trades }: BacktestSessionBreakdownPro
         {/* Trade Distribution Pie Chart */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Trade Distribution</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-base">
+              Trade Distribution
+              <InfoTooltip content="Percentage of total trades executed during each session." />
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-[250px]">
@@ -300,7 +307,10 @@ export function BacktestSessionBreakdown({ trades }: BacktestSessionBreakdownPro
       {/* Detailed Session Stats */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Session Performance Details</CardTitle>
+          <CardTitle className="flex items-center gap-2 text-base">
+            Session Performance Details
+            <InfoTooltip content="Detailed win/loss statistics, average P&L, and profit factor for each trading session." />
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -365,7 +375,10 @@ export function BacktestSessionBreakdown({ trades }: BacktestSessionBreakdownPro
                     <p className="font-mono text-profit">{format(stat.avgWin)}</p>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Profit Factor</span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-muted-foreground">Profit Factor</span>
+                      <InfoTooltip content="Gross Profit / Gross Loss for trades in this session. Infinity (∞) means no losing trades." />
+                    </div>
                     <p className="font-mono">
                       {stat.profitFactor === Infinity ? '∞' : formatNumber(stat.profitFactor, 2)}
                     </p>
