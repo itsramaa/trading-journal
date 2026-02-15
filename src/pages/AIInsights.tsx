@@ -46,6 +46,7 @@ import {
   getTimeSlotHour,
   getDayLabel
 } from "@/lib/constants/ai-analytics";
+import { calculateAdvancedRiskMetrics } from "@/lib/advanced-risk-metrics";
 
 // Types
 interface PerformanceInsight {
@@ -140,10 +141,11 @@ export default function AIInsights() {
         pair,
         ...s,
         winRate: (s.wins / (s.wins + s.losses)) * 100,
-        trades: s.wins + s.losses
+        trades: s.wins + s.losses,
+        expectancy: s.pnl / (s.wins + s.losses),
       }))
       .filter(p => p.trades >= DATA_QUALITY.MIN_TRADES_FOR_RANKING)
-      .sort((a, b) => b.pnl - a.pnl);
+      .sort((a, b) => b.expectancy - a.expectancy);
 
     // Time analysis using centralized functions
     const timeSlots: Record<string, TimeSlotAnalysis> = {};
@@ -167,6 +169,26 @@ export default function AIInsights() {
     const bestTimeSlot = sortedSlots.sort((a, b) => b.winRate - a.winRate)[0];
     const worstTimeSlot = [...sortedSlots].sort((a, b) => a.winRate - b.winRate)[0];
 
+    // Variance metrics
+    const pnls = closedTrades.map(t => getPnl(t));
+    const meanPnl = totalPnl / closedTrades.length;
+    const stdDev = Math.sqrt(pnls.reduce((s, p) => s + Math.pow(p - meanPnl, 2), 0) / pnls.length);
+
+    // Rolling 30-trade performance
+    const last30 = sortedTrades.slice(0, Math.min(30, sortedTrades.length));
+    const last30Pnl = last30.reduce((s, t) => s + getPnl(t), 0);
+    const last30WinRate = last30.length > 0 ? last30.filter(t => getPnl(t) > 0).length / last30.length * 100 : 0;
+
+    // Drawdown context via advanced risk metrics
+    const riskMetrics = calculateAdvancedRiskMetrics(
+      closedTrades.map(t => ({
+        pnl: getPnl(t),
+        realized_pnl: t.realized_pnl ?? undefined,
+        trade_date: t.trade_date,
+        result: t.result || '',
+      }))
+    );
+
     return {
       totalTrades: closedTrades.length,
       recentTrades: recentTrades.length,
@@ -182,6 +204,11 @@ export default function AIInsights() {
       pairRankings: pairRankings.slice(0, 5),
       bestTimeSlot,
       worstTimeSlot,
+      stdDev,
+      last30Pnl,
+      last30WinRate,
+      maxDrawdownPercent: riskMetrics.maxDrawdownPercent,
+      currentDrawdownPercent: riskMetrics.currentDrawdownPercent,
     };
   }, [closedTrades, recentTrades]);
 
@@ -259,7 +286,7 @@ export default function AIInsights() {
         result.push({
           type: 'negative',
           title: `${stats.currentStreak}-Trade Losing Streak`,
-          description: 'Statistically rare streak. Review recent trade quality and setup adherence rather than assuming tilt.',
+          description: `Statistically rare streak. Current drawdown: ${stats.currentDrawdownPercent.toFixed(1)}% from peak (max historical: ${stats.maxDrawdownPercent.toFixed(1)}%). Review recent trade quality and setup adherence.`,
           metric: `${stats.currentStreak} losses`,
           icon: AlertTriangle
         });
@@ -280,14 +307,14 @@ export default function AIInsights() {
       });
     }
 
-    // Best pair insight
+    // Best pair insight (expectancy-based)
     if (stats.bestPair) {
       const bpConfidence = stats.bestPair.trades >= 20 ? 'high' as const : stats.bestPair.trades >= 10 ? 'medium' as const : 'low' as const;
       result.push({
         type: 'positive',
         title: `Focus on ${stats.bestPair.pair}`,
-        description: `${stats.bestPair.trades} trades, ${stats.bestPair.winRate.toFixed(0)}% win rate, ${formatPnl(stats.bestPair.pnl)} total P&L.${bpConfidence === 'low' ? ' (low sample)' : ''}`,
-        metric: formatPnl(stats.bestPair.pnl),
+        description: `${stats.bestPair.trades} trades, ${stats.bestPair.winRate.toFixed(0)}% WR, ${formatPnl(stats.bestPair.expectancy)}/trade expectancy.${bpConfidence === 'low' ? ' (low sample)' : ''}`,
+        metric: `${formatPnl(stats.bestPair.expectancy)}/t`,
         icon: CheckCircle,
         sampleSize: stats.bestPair.trades,
         confidence: bpConfidence,
@@ -305,6 +332,33 @@ export default function AIInsights() {
         icon: XCircle,
         sampleSize: stats.worstPair.trades,
         confidence: wpConfidence,
+      });
+    }
+
+    // High variance warning
+    if (stats.stdDev > stats.avgWin * 1.5 && stats.avgWin > 0) {
+      result.push({
+        type: 'neutral',
+        title: 'High Return Variance',
+        description: `Per-trade P&L std dev (${formatPnl(stats.stdDev)}) is high relative to avg win (${formatPnl(stats.avgWin)}). Short-term results may not reflect true edge — evaluate over 100+ trades.`,
+        metric: formatPnl(stats.stdDev),
+        icon: Activity,
+        sampleSize: stats.totalTrades,
+        confidence: stats.totalTrades >= 100 ? 'high' : stats.totalTrades >= 50 ? 'medium' : 'low',
+      });
+    }
+
+    // Rolling 30 vs overall trend
+    const winRateDiff = stats.last30WinRate - stats.winRate;
+    if (Math.abs(winRateDiff) > 10 && stats.totalTrades >= 30) {
+      result.push({
+        type: winRateDiff > 0 ? 'positive' : 'negative',
+        title: winRateDiff > 0 ? 'Improving Recent Performance' : 'Declining Recent Performance',
+        description: `Last 30 trades: ${stats.last30WinRate.toFixed(0)}% win rate vs ${stats.winRate.toFixed(0)}% overall (${winRateDiff > 0 ? '+' : ''}${winRateDiff.toFixed(0)}pp).`,
+        metric: `${stats.last30WinRate.toFixed(0)}%`,
+        icon: winRateDiff > 0 ? TrendingUp : TrendingDown,
+        sampleSize: 30,
+        confidence: 'medium',
       });
     }
 
@@ -582,7 +636,7 @@ export default function AIInsights() {
                     <div>
                       <p className="font-semibold">{pair.pair}</p>
                       <p className="text-sm text-muted-foreground">
-                        {pair.trades} trades • {pair.winRate.toFixed(0)}% win rate
+                        {pair.trades} trades • {pair.winRate.toFixed(0)}% WR • {formatPnl(pair.expectancy)}/trade
                       </p>
                     </div>
                   </div>

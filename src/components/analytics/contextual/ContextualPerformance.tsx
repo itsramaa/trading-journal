@@ -292,23 +292,32 @@ export function ContextualPerformance() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-3">
-              <CorrelationRow
-                label="Volatility vs Win Rate"
-                value={data.correlations.volatilityVsWinRate}
-                description="Higher = you win more in volatile markets"
-              />
-              <CorrelationRow
-                label="Fear/Greed vs Win Rate"
-                value={data.correlations.fearGreedVsWinRate}
-                description="Higher = you win more in greedy markets"
-              />
-              <CorrelationRow
-                label="Event Day vs P&L"
-                value={data.correlations.eventDayVsPnl}
-                description="Higher = you profit more on event days"
-              />
-            </div>
+            {data.tradesWithContext < DATA_QUALITY.MIN_TRADES_FOR_CORRELATION ? (
+              <div className="text-center py-6 text-sm text-muted-foreground">
+                <p>Need at least {DATA_QUALITY.MIN_TRADES_FOR_CORRELATION} trades with market context for correlation analysis.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <CorrelationRow
+                  label="Volatility vs Win Rate"
+                  value={data.correlations.volatilityVsWinRate}
+                  description="Higher = you win more in volatile markets"
+                  hasData={data.tradesWithContext >= DATA_QUALITY.MIN_TRADES_FOR_CORRELATION}
+                />
+                <CorrelationRow
+                  label="Fear/Greed vs Win Rate"
+                  value={data.correlations.fearGreedVsWinRate}
+                  description="Higher = you win more in greedy markets"
+                  hasData={data.tradesWithContext >= DATA_QUALITY.MIN_TRADES_FOR_CORRELATION}
+                />
+                <CorrelationRow
+                  label="Event Day vs P&L"
+                  value={data.correlations.eventDayVsPnl}
+                  description="Higher = you profit more on event days"
+                  hasData={data.tradesWithContext >= DATA_QUALITY.MIN_TRADES_FOR_CORRELATION}
+                />
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -340,12 +349,28 @@ export function ContextualPerformance() {
 function CorrelationRow({ 
   label, 
   value, 
-  description 
+  description,
+  hasData,
 }: { 
   label: string; 
   value: number; 
   description: string;
+  hasData: boolean;
 }) {
+  if (!hasData) {
+    return (
+      <div className="flex items-center justify-between py-2 border-b last:border-0">
+        <div>
+          <p className="font-medium text-sm">{label}</p>
+          <p className="text-xs text-muted-foreground">{description}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-sm text-muted-foreground">Insufficient data</p>
+        </div>
+      </div>
+    );
+  }
+
   const { strength, direction } = classifyCorrelation(value);
   
   return (
