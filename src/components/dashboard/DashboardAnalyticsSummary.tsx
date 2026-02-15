@@ -143,7 +143,7 @@ export function DashboardAnalyticsSummary() {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <Target className="h-4 w-4 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">Win Rate</span>
+              <span className="text-xs text-muted-foreground">30D Win Rate</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-xl font-bold">{analyticsData.winRate.toFixed(0)}%</span>

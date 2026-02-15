@@ -54,8 +54,8 @@ export function SystemStatusIndicator({ compact = false }: SystemStatusIndicator
       color: 'text-profit',
       bg: 'bg-profit/10',
       border: 'border-profit/30',
-      label: 'ALL SYSTEMS NORMAL',
-      description: 'You are clear to trade',
+      label: 'RISK LIMITS OK',
+      description: 'Daily loss limit within bounds',
     },
     warning: {
       icon: AlertTriangle,
@@ -156,10 +156,10 @@ export function SystemStatusIndicator({ compact = false }: SystemStatusIndicator
           />
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
-              Today's P&L: <span className={currentPnl >= 0 ? 'text-profit' : 'text-loss'}>
+              Today's Realized P&L: <span className={currentPnl >= 0 ? 'text-profit' : 'text-loss'}>
                 {formatPnl(currentPnl)}
               </span>
-              <InfoTooltip content="Your realized profit or loss for today. Negative values count against your daily loss limit." />
+              <InfoTooltip content="Realized P&L from closed trades today. Unrealized P&L from open positions is not included. Negative values count against your daily loss limit." />
             </span>
             <span className="flex items-center gap-1">
               Remaining: {formatCurrency(remainingBudget)} of {formatCurrency(dailyLossLimit)}

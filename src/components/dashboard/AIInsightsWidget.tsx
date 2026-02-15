@@ -101,8 +101,8 @@ export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
   // Calculate pair-specific recommendations
   const pairRecommendations = useMemo(() => {
     const stats = calculatePairStats(trades);
-    const focus = stats.filter(s => s.winRate >= 60 && s.totalTrades >= 3);
-    const avoid = stats.filter(s => s.winRate < 50 && s.totalTrades >= 3);
+    const focus = stats.filter(s => s.winRate >= 60 && s.totalTrades >= 5);
+    const avoid = stats.filter(s => s.winRate < 50 && s.totalTrades >= 5);
     return { focus, avoid };
   }, [trades]);
 
@@ -267,7 +267,7 @@ export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
                 ) : (
                   <Minus className="h-3 w-3" />
                 )}
-                {scoreLabel} | {score}
+                Market: {scoreLabel} | {score}
               </Badge>
             )}
             <Button
@@ -337,7 +337,7 @@ export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
               getSentimentColor(insights.overallSentiment)
             )}>
               {getSentimentIcon(insights.overallSentiment)}
-              <span className="capitalize">{insights.overallSentiment}</span>
+              <span>Portfolio Sentiment: <span className="capitalize">{insights.overallSentiment}</span></span>
             </div>
 
             {/* Summary */}
@@ -452,16 +452,20 @@ export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
               <div className="space-y-1.5">
                 <div className="flex items-center gap-1.5 text-xs text-profit">
                   <ThumbsUp className="h-3 w-3" />
-                  <span>Focus on (High Win Rate)</span>
+                  <span>Focus on (Historical Win Rate, min 5 trades)</span>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {pairRecommendations.focus.slice(0, 4).map((item) => (
                     <Badge 
                       key={item.pair} 
                       variant="outline"
-                      className="text-xs bg-profit/10 text-profit border-profit/30"
+                      className={cn(
+                        "text-xs bg-profit/10 text-profit border-profit/30",
+                        item.totalTrades < 10 && "opacity-70"
+                      )}
                     >
-                      {item.pair} ({item.winRate.toFixed(0)}%)
+                      {item.pair} ({item.winRate.toFixed(0)}% / {item.totalTrades}t)
+                      {item.totalTrades < 10 && " ⚠️"}
                     </Badge>
                   ))}
                 </div>
@@ -482,7 +486,7 @@ export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
                       variant="outline"
                       className="text-xs bg-loss/10 text-loss border-loss/30"
                     >
-                      {item.pair} ({item.winRate.toFixed(0)}%)
+                      {item.pair} ({item.winRate.toFixed(0)}% / {item.totalTrades}t)
                     </Badge>
                   ))}
                 </div>

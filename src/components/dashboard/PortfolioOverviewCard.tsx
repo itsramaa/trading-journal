@@ -158,7 +158,7 @@ export function PortfolioOverviewCard({ className }: PortfolioOverviewCardProps)
 
           {/* Today's Net P&L */}
           <div className="space-y-1">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Today's Net P&L</p>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Today's Realized P&L</p>
             <div className="flex items-center gap-2">
               <p className={cn(
                 "text-2xl font-bold tracking-tight",
