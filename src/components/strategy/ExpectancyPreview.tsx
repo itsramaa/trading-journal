@@ -30,6 +30,12 @@ export function ExpectancyPreview({ effectiveRR }: ExpectancyPreviewProps) {
     return -1;
   }, [rows]);
 
+  // Exact breakeven win rate: WR_be = 1 / (1 + R)
+  const breakevenWinRate = useMemo(() => {
+    if (effectiveRR === null || effectiveRR <= 0) return null;
+    return (1 / (1 + effectiveRR)) * 100;
+  }, [effectiveRR]);
+
   if (effectiveRR === null) {
     return (
       <div className="p-3 rounded-lg bg-muted/30 border">
@@ -77,6 +83,11 @@ export function ExpectancyPreview({ effectiveRR }: ExpectancyPreviewProps) {
           })}
         </TableBody>
       </Table>
+      {breakevenWinRate !== null && (
+        <p className="text-xs font-medium text-primary">
+          Breakeven Win Rate: {breakevenWinRate.toFixed(1)}%
+        </p>
+      )}
       <p className="text-[10px] text-muted-foreground">
         Formula: Expectancy = WR × R − (1 − WR)
       </p>
