@@ -84,7 +84,7 @@ export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
   const { data: trades = [] } = useModeFilteredTrades();
   const { data: strategies = [] } = useTradingStrategies();
   const portfolio = useUnifiedPortfolioData();
-  const { data: positions = [] } = useBinancePositions();
+  const { data: positions = [], isLoading: positionsLoading } = useBinancePositions();
   const { data: connectionStatus } = useBinanceConnectionStatus();
   const { score, bias, scoreLabel, volatilityLabel, isLoading: marketLoading } = useUnifiedMarketScore({ symbol: 'BTCUSDT' });
   const { setChatbotOpen, setChatbotInitialPrompt } = useAppStore();
@@ -123,13 +123,14 @@ export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
   const portfolioData = useMemo(() => {
     // Use unified portfolio data (Binance if connected, Paper fallback)
     const totalBalance = portfolio.totalCapital;
+    const activePositions = positions.filter(p => p.positionAmt !== 0);
     const deployedCapital = portfolio.source === 'binance' 
-      ? 0 // Binance positions tracked separately
+      ? activePositions.reduce((sum, p) => sum + (Math.abs(p.notional) / (p.leverage || 1)), 0)
       : trades.filter(t => t.status === 'open').reduce((sum, t) => sum + (t.quantity * t.entry_price), 0);
     
     // Open positions count from appropriate source
     const openPositions = portfolio.source === 'binance'
-      ? positions.filter(p => p.positionAmt !== 0).length
+      ? activePositions.length
       : trades.filter(t => t.status === 'open').length;
     
     // Use unified daily P&L data
@@ -175,7 +176,8 @@ export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
 
   // Auto-load on mount if we have data and feature is enabled
   useEffect(() => {
-    if (!hasLoaded && (trades.length > 0 || portfolio.hasData) && isDailySuggestionsEnabled && !settingsLoading) {
+    const positionsReady = portfolio.source !== 'binance' || !positionsLoading;
+    if (!hasLoaded && (trades.length > 0 || portfolio.hasData) && isDailySuggestionsEnabled && !settingsLoading && positionsReady) {
       handleRefresh();
     }
   }, [trades.length, portfolio.hasData, hasLoaded, isDailySuggestionsEnabled, settingsLoading]);
