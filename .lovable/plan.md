@@ -1,202 +1,170 @@
 
 
-# Deep-Dive Analysis: Risk Analytics Page
+# Deep-Dive Analysis: Daily P&L Page
 
 ---
 
-## 1. Page Orchestrator (`RiskManagement.tsx`)
+## 1. Page Orchestrator (`src/pages/DailyPnL.tsx`)
 
 ### A. Comprehensiveness
 
 | Feature | Status |
 |---------|--------|
 | PageHeader with icon/description | Done |
-| URL-driven tab state (overview/history) | Done |
-| ErrorBoundary with retryKey | Done |
+| Live/Paper badge | Done |
+| Export button linking to /export | Done |
 | Loading skeleton | Done |
-| QuickTip onboarding | Done |
-| DailyLossTracker (overview) | Done |
-| RiskProfileSummaryCard (overview) | Done |
-| Risk Alerts card (overview) | Done |
-| CorrelationMatrix (overview) | Done |
-| RiskEventLog (history tab) | Done |
+| Empty state banner (0 trades) | Done |
+| Today's P&L summary (4 metrics) | Done |
+| Week comparison cards (4 cards) | Done |
+| Best/Worst trade cards (7 days) | Done |
+| 7-Day P&L Trend bar chart | Done |
+| Symbol Breakdown table (7 days) | Done |
+| ErrorBoundary wrapper | **Missing** |
+| `role="region"` + `aria-label` | **Missing** |
 
 **Gaps:**
 
-1. **No `role="region"` on root container** -- inconsistent with the ARIA standard applied to 11+ other pages.
+1. **No `role="region"` on root container** -- inconsistent with the ARIA standard applied to 11+ other pages (Performance, Risk, Dashboard all have it).
 
-2. **No tooltips on tab triggers** -- "Overview" and "History" tabs have no contextual guidance explaining what each tab contains.
+2. **No ErrorBoundary wrapper** -- every other analytics page (Performance, Risk, Flow & Liquidity) has a top-level `ErrorBoundary` with `retryKey`. This page has none. Must wrap the entire rendered output with `<ErrorBoundary>`.
 
-3. **No tooltip on "Risk Alerts" card title** -- Should say: "Recent threshold breaches and warnings from your daily loss tracker and correlation checks."
+3. **No tooltip on "Live" / "Paper" badge** (line 85-87) -- Should say: "Data source: Live uses real-time exchange data, Paper uses simulated account data."
 
-4. **No tooltip on "Risk Alerts" trigger badge** (the `%` badge on each event) -- Should say: "The loss limit percentage that triggered this alert."
-
-5. **Risk Alerts icon uses `text-primary`** instead of semantic `text-chart-4` (warning color). The `AlertTriangle` icon in the card header should use a warning-appropriate semantic token, not the generic primary color.
+4. **No tooltip on "Export" button** (line 88-93) -- Should say: "Export P&L analytics data to CSV or PDF from the Export page."
 
 ---
-
-## 2. DailyLossTracker
-
-### A. Comprehensiveness -- Complete
-
-Loading, no-profile, no-balance, and active states are all handled with proper CTAs. Live/Paper badge, progress bar with threshold markers, 4 stats grid, trading status badge, and upgrade CTA are all present.
-
-### B. Accuracy -- Correct
-
-Loss limit, P&L, remaining budget, and threshold coloring all use centralized constants and the `useCurrencyConversion` hook.
-
-### C. Clarity
-
-All 4 stats have `InfoTooltip` components. Well implemented.
-
-6. **"Daily Loss Tracker" card title** -- No tooltip. Should say: "Tracks your realized losses against your configured daily loss limit. Trading is blocked when 100% is consumed."
-
-7. **Progress bar threshold markers** (0%, 70%, 90%, 100%) -- No tooltips explaining what each threshold means. Should say: "70% = Warning level. 90% = Danger level. 100% = Trading disabled."
-
-8. **"Trading Allowed" / "Trading Disabled" badge** -- No tooltip. Should say: "Current trading permission status based on your daily loss consumption."
-
-9. **"Live" / "Paper" source badge** -- No tooltip. Should say: "Data source for loss tracking. Live uses real-time exchange data, Paper uses simulated account data."
-
----
-
-## 3. RiskProfileSummaryCard
-
-### A. Comprehensiveness -- Complete
-
-4 metric cards (Risk per Trade, Max Daily Loss, Max Position Size, Max Positions) with empty state CTA.
-
-### C. Clarity -- Missing Tooltips (All 4 metrics lack explanation)
-
-10. **"Risk per Trade" label** -- No tooltip. Should say: "Maximum percentage of your account balance to risk on any single trade. Recommended: 1-2%."
-
-11. **"Max Daily Loss" label** -- No tooltip. Should say: "Maximum cumulative loss allowed in a single trading day. Trading is disabled when this limit is reached."
-
-12. **"Max Position Size" label** -- No tooltip. Should say: "Maximum percentage of your capital that can be deployed in a single position."
-
-13. **"Max Positions" label** -- No tooltip. Should say: "Maximum number of open positions allowed simultaneously to limit concentration risk."
-
-14. **"Risk Profile" card title** -- No tooltip. Should say: "Your configured risk management parameters. Edit these in Settings > Trading."
-
----
-
-## 4. CorrelationMatrix
-
-### A. Comprehensiveness -- Complete
-
-Open position detection, pair correlation lookup (centralized), high-correlation warnings, collapsible UI, auto-expand on warnings, color-coded legend. Empty states for 0 and 1 positions.
-
-### B. Accuracy -- Correct
-
-Uses centralized `getCorrelation()` and `CORRELATION_COLOR_THRESHOLDS`.
-
-### C. Clarity -- Missing Tooltips
-
-15. **"Position Correlation" card title** -- No tooltip. Should say: "Measures how similarly your open positions move. High correlation (>70%) means positions amplify each other's risk."
-
-16. **"Advanced" badge** -- No tooltip. Should say: "This is an advanced risk metric. Requires 2+ open positions for analysis."
-
-17. **Correlation percentage value** (e.g., "85%") -- No tooltip. Should say: "Estimated correlation coefficient between these two assets. 100% = perfectly correlated, 0% = independent."
-
-18. **Legend items** -- No tooltips explaining correlation bands. Should say, e.g.: "Very High (>=80%): Positions behave almost identically. Consider closing one."
-
----
-
-## 5. RiskEventLog
-
-### A. Comprehensiveness -- Complete
-
-3-tab layout (Risk Events, Liquidations, Margin), disabled state for exchange tabs in Paper mode, scrollable lists, proper empty states, event type config with semantic colors.
 
 ### B. Accuracy
 
-19. **Hardcoded `$` in liquidation Avg Price** (line 268): `${order.avgPrice.toLocaleString()}` bypasses the global currency conversion utility. Should use `useCurrencyConversion`.
+| Check | Result |
+|-------|--------|
+| Daily P&L hook uses `realized_pnl ?? pnl ?? 0` | Correct |
+| Weekly P&L hook uses same fallback chain | Correct |
+| Week comparison uses Monday-based weeks (`weekStartsOn: 1`) | Correct |
+| Symbol breakdown mode filter (Paper/Live) | Correct |
+| Win rate calculation `(wins / total) * 100` | Correct |
+| `ChangeIndicator` null-safe for new activity | Correct |
+| `ChangeIndicator` sign-flip detection | Correct |
+
+5. **"Realized P&L" label displays `grossPnl`** (lines 117-120): The label says "Realized P&L" but renders `dailyStats.grossPnl`. Per the `useUnifiedDailyPnl` hook, `grossPnl = totalPnl + totalFees` (i.e., P&L before fee deductions). This is actually **Gross P&L**, not Net Realized P&L. The label is misleading.
+   - **Fix**: Rename the label to "Gross P&L" to accurately reflect the value being shown.
+
+6. **Symbol Breakdown label says "7 days" but Binance source only has today's data** (lines 303-304): The `useSymbolBreakdown` hook returns `weeklyBreakdown: binanceBreakdown` with a comment "Binance daily hook only fetches 1 day, so same for now" (line 138 of the hook). For Live/Binance users, the card says "7 days" but only shows today's data.
+   - **Fix**: Make the label dynamic based on source: show "(Today)" when source is `binance`, "(7 Days)" when source is `paper`.
+
+---
 
 ### C. Clarity -- Missing Tooltips
 
-20. **"Risk Event Log" card title** -- No tooltip. Should say: "Complete history of risk threshold breaches, trading gate events, and exchange liquidations."
+7. **"Today's P&L" card title** (line 111) -- No tooltip. Should say: "Summary of your realized trading activity for today (UTC). Resets daily at 00:00 UTC."
 
-21. **"Risk Events" tab trigger** -- No tooltip. Should say: "System-generated alerts when your daily loss approaches or reaches configured limits."
+8. **"Realized P&L" label** (line 117) -- After renaming to "Gross P&L", add tooltip: "Total profit/loss from closed trades today, before fee deductions."
 
-22. **"Liquidations" tab trigger** -- No tooltip (when enabled). Should say: "Exchange-initiated forced closures of positions due to insufficient margin."
+9. **"Commission" label** (line 123) -- No tooltip. Should say: "Total trading fees (maker/taker commission) deducted from your gross P&L today."
 
-23. **"Margin" tab trigger** -- No tooltip (when enabled). Should say: "History of margin additions and reductions for your active positions."
+10. **"Trades Today" label** (line 129) -- No tooltip. Should say: "Number of closed trades recorded today."
 
-24. **"Trigger" / "Threshold" labels in event detail** -- No tooltips. Trigger should say: "The actual loss percentage that caused this event." Threshold should say: "The configured limit that was breached."
+11. **"Win Rate" label** (line 133) -- No tooltip. Should say: "Percentage of today's trades that were profitable."
 
----
+12. **"This Week P&L" card** (line 152) -- Already has InfoTooltip. OK.
 
-## 6. MarginHistoryTab
+13. **"Net (After Fees)" card title** (line 175) -- No tooltip. Should say: "Week's P&L after deducting all fees (commission + funding). Gross amount shown below."
 
-### A. Comprehensiveness -- Complete
+14. **"Trades This Week" card title** (line 190) -- No tooltip. Should say: "Total closed trades this week compared to last week."
 
-Symbol selector, margin add/reduce entries with time, amount, asset, and position side. Proper empty/loading/not-configured states.
+15. **"Win Rate" (week) card title** (line 205) -- No tooltip. Should say: "Percentage of winning trades this week. 'pp' = percentage points change from last week."
 
-### B. Accuracy
+16. **"Best Trade (7 Days)" card title** (line 223) -- Already has InfoTooltip. OK.
 
-25. **Hardcoded `$` in margin amount** (line 153): `${Math.abs(change.amount).toFixed(2)}` bypasses global currency conversion. Should use `useCurrencyConversion`.
+17. **"Worst Trade (7 Days)" card title** (line 245) -- Already has InfoTooltip. OK.
 
-### C. Clarity -- Missing Tooltips
+18. **"7-Day P&L Trend" chart title** (line 267) -- No tooltip. Should say: "Daily net P&L bars for the last 7 days. Green = profitable day, Red = loss day."
 
-26. **Symbol selector** -- No tooltip. Should say: "Select a position symbol to view its margin adjustment history."
+19. **"Symbol Breakdown" card title** (line 303) -- No tooltip. Should say: "P&L breakdown by trading pair, sorted by absolute net impact."
 
-27. **"Add Margin" / "Reduce Margin" badge** -- No tooltip. Should say: "Add Margin: You deposited additional collateral. Reduce Margin: You withdrew excess collateral from this position."
+20. **"Fees" column in symbol breakdown** (line 316) -- No tooltip. Should say: "Total fees (commission + funding) for this symbol during the period."
 
----
-
-## 7. RiskSettingsForm
-
-### A. Comprehensiveness -- Complete
-
-5 sliders with ARIA labels, InfoTooltips on Risk per Trade and Max Daily Loss/Weekly Drawdown. Save button with loading state.
-
-### C. Clarity -- Missing Tooltips
-
-28. **"Max Position Size" label** -- No tooltip (unlike the other sliders which have InfoTooltip). Should say: "Maximum percentage of capital to deploy in a single position. Helps prevent overconcentration."
-
-29. **"Max Concurrent Positions" label** -- No tooltip. Should say: "Maximum open positions at once. Limits concentration risk and cognitive overload."
+21. **"Net P&L" column in symbol breakdown** (line 320) -- No tooltip. Should say: "Profit/loss after all fee deductions for this symbol."
 
 ---
 
-## 8. Supporting Components
+### D. Code Quality
 
-### RiskAlertBanner
+22. **No Recharts Tooltip alias** (line 33): `Tooltip` is imported from recharts directly. When adding `InfoTooltip` and potentially Radix `Tooltip` components for the tooltips above, a naming conflict will occur. Must alias the Recharts import as `RechartsTooltip` (same pattern used in the Performance page after its fix).
 
-Fully implemented with InfoTooltip, semantic colors, dismiss behavior, and link to Risk Analytics. No gaps.
+23. **`symbolBreakdown` typed as `any`** (line 308): `symbolBreakdown.map((item: any) => ...)` loses type safety. The hook exports `SymbolBreakdownItem` -- should use that type instead.
 
-### RiskSummaryCard (Dashboard widget)
-
-Fully implemented with InfoTooltips on Daily Loss Limit and Remaining Budget. Correlation warning section included. No gaps.
+24. **Missing `font-mono-numbers` class** on financial values: The Today's P&L card and week comparison cards don't use `font-mono-numbers` (or `tabular-nums`) for numerical values, unlike Account Detail and Performance pages where this is standard for alignment.
 
 ---
 
-## 9. Summary of Recommendations
+## 2. Hooks Analysis (All Correct -- No Changes Needed)
 
-### Priority 1 -- Bugs & Accuracy
+### `useUnifiedDailyPnl` (`src/hooks/analytics/use-unified-daily-pnl.ts`)
+- PnL chain: `realized_pnl ?? pnl ?? 0` -- Correct (line 81)
+- Mode isolation via `trade_mode` + fallback to `source` field -- Correct
+- Source detection from `useBinanceConnectionStatus` + `useTradeMode` -- Correct
+- No issues found.
 
-| # | Issue | File | Fix |
-|---|-------|------|-----|
-| 19 | Hardcoded `$` in liquidation Avg Price | RiskEventLog.tsx | Use `useCurrencyConversion` hook |
-| 25 | Hardcoded `$` in margin amount | MarginHistoryTab.tsx | Use `useCurrencyConversion` hook |
+### `useUnifiedWeeklyPnl` (`src/hooks/analytics/use-unified-weekly-pnl.ts`)
+- PnL chain: `realized_pnl ?? pnl ?? 0` (line 104) -- Correct
+- 7-day window: `subDays(today, 6)` including today -- Correct
+- Best/worst trade tracking with null initialization -- Correct
+- Mode filter identical to daily hook -- Correct
+- No issues found.
 
-### Priority 2 -- Missing Tooltips (Clarity)
+### `useUnifiedWeekComparison` (`src/hooks/analytics/use-unified-week-comparison.ts`)
+- Monday-based weeks (`weekStartsOn: 1`) -- Correct
+- Null-safe percent changes (returns `null` when baseline is 0) -- Correct
+- Sign-flip detection delegated to `ChangeIndicator` -- Correct
+- No issues found.
 
-| # | Elements | Component |
-|---|----------|-----------|
-| 2 | Tab triggers (Overview, History) | RiskManagement.tsx |
-| 3-4 | Risk Alerts title, trigger badge | RiskManagement.tsx |
-| 6-9 | DailyLossTracker title, threshold markers, status badge, source badge | DailyLossTracker.tsx |
-| 10-14 | All 4 profile metric labels, card title | RiskProfileSummaryCard.tsx |
-| 15-18 | Correlation title, Advanced badge, percentage value, legend | CorrelationMatrix.tsx |
-| 20-24 | Event Log title, 3 tab triggers, Trigger/Threshold labels | RiskEventLog.tsx |
-| 26-27 | Symbol selector, margin type badge | MarginHistoryTab.tsx |
-| 28-29 | Max Position Size slider, Max Concurrent Positions slider | RiskSettingsForm.tsx |
+### `useSymbolBreakdown` (`src/hooks/analytics/use-symbol-breakdown.ts`)
+- PnL chain: `realized_pnl ?? pnl ?? 0` (line 67) -- Correct
+- Mode filter consistent with other hooks -- Correct
+- Binance weekly = daily data (acknowledged limitation with comment) -- Known, addressed by dynamic label fix (#6)
+- No issues found.
 
-### Priority 3 -- Code Quality & Accessibility
+---
+
+## 3. Summary of All Recommendations
+
+### Priority 1 -- Accuracy Fixes
 
 | # | Issue | Fix |
 |---|-------|-----|
-| 1 | Missing `role="region"` on page root | RiskManagement.tsx |
-| 5 | Risk Alerts icon uses `text-primary` instead of semantic `text-chart-4` | RiskManagement.tsx |
+| 5 | "Realized P&L" label shows `grossPnl` (before fees) | Rename label to "Gross P&L" |
+| 6 | Symbol Breakdown says "7 days" but Binance source only has today's data | Make label dynamic: "(Today)" for binance, "(7 Days)" for paper |
+
+### Priority 2 -- Missing Tooltips (Clarity)
+
+| # | Elements | Location |
+|---|----------|----------|
+| 3 | Live/Paper badge | PageHeader area |
+| 4 | Export button | PageHeader area |
+| 7 | Today's P&L card title | Today's P&L section |
+| 8 | Gross P&L label (renamed) | Today's P&L section |
+| 9 | Commission label | Today's P&L section |
+| 10 | Trades Today label | Today's P&L section |
+| 11 | Win Rate (today) label | Today's P&L section |
+| 13 | Net (After Fees) card title | Week comparison cards |
+| 14 | Trades This Week card title | Week comparison cards |
+| 15 | Win Rate (week) card title | Week comparison cards |
+| 18 | 7-Day P&L Trend chart title | Chart section |
+| 19 | Symbol Breakdown card title | Symbol table |
+| 20 | Fees column header | Symbol table |
+| 21 | Net P&L column header | Symbol table |
+
+### Priority 3 -- Code Quality and Accessibility
+
+| # | Issue | Fix |
+|---|-------|-----|
+| 1 | Missing `role="region"` on page root | Add `role="region"` and `aria-label="Daily P&L Analytics"` to root div |
+| 2 | No ErrorBoundary wrapper | Wrap entire page content with `<ErrorBoundary>` component with `retryKey` |
+| 22 | Recharts `Tooltip` naming conflict risk | Alias import as `RechartsTooltip` |
+| 23 | `any` type on symbol breakdown map | Replace with `SymbolBreakdownItem` type from hook |
+| 24 | Missing `font-mono-numbers` on financial values | Add class to all `text-2xl font-bold` financial value elements |
 
 ---
 
@@ -204,11 +172,7 @@ Fully implemented with InfoTooltips on Daily Loss Limit and Remaining Budget. Co
 
 | File | Changes |
 |------|---------|
-| `src/pages/RiskManagement.tsx` | Add `role="region"` and `aria-label` (P3), add tooltips to tab triggers (P2), add tooltip to Risk Alerts title (P2), fix icon color to `text-chart-4` (P3) |
-| `src/components/risk/DailyLossTracker.tsx` | Add tooltips to card title, threshold markers, status badge, and source badge (P2) |
-| `src/components/risk/RiskProfileSummaryCard.tsx` | Add tooltips to card title and all 4 metric labels (P2) |
-| `src/components/risk/CorrelationMatrix.tsx` | Add tooltips to card title, Advanced badge, correlation value, and legend items (P2) |
-| `src/components/risk/RiskEventLog.tsx` | Replace hardcoded `$` with `useCurrencyConversion` (P1), add tooltips to card title, tab triggers, and Trigger/Threshold labels (P2) |
-| `src/components/risk/MarginHistoryTab.tsx` | Replace hardcoded `$` with `useCurrencyConversion` (P1), add tooltips to symbol selector and margin type badge (P2) |
-| `src/components/risk/RiskSettingsForm.tsx` | Add tooltips to Max Position Size and Max Concurrent Positions sliders (P2) |
+| `src/pages/DailyPnL.tsx` | All 24 items: add `role="region"` and `aria-label` (P3-#1), wrap with ErrorBoundary (P3-#2), rename "Realized P&L" to "Gross P&L" (P1-#5), dynamic symbol breakdown period label (P1-#6), add 14 tooltips (P2), alias Recharts Tooltip as `RechartsTooltip` (P3-#22), type symbolBreakdown with `SymbolBreakdownItem` (P3-#23), add `font-mono-numbers` to financial values (P3-#24), add tooltips to Live/Paper badge and Export button (P2-#3,#4) |
+
+This is a single-file change since the entire Daily P&L page is self-contained in one component. The 4 supporting hooks are all accurate and require no modifications.
 
