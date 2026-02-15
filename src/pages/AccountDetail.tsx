@@ -100,7 +100,12 @@ export default function AccountDetail() {
       const pnl = trade.realized_pnl ?? trade.pnl ?? 0;
       cumulative += pnl;
       if (cumulative > peak) peak = cumulative;
-      const drawdown = peak > 0 ? ((peak - cumulative) / peak) * 100 : 0;
+      // Use initialBalance + peak as denominator to get realistic drawdown %
+      const drawdownBase = initialBalance + peak;
+      const drawdown = Math.min(
+        drawdownBase > 0 ? ((peak - cumulative) / drawdownBase) * 100 : 0,
+        100
+      );
       return {
         date: format(new Date(trade.trade_date), 'MMM d'),
         pnl,
@@ -108,7 +113,7 @@ export default function AccountDetail() {
         drawdown: -drawdown,
       };
     });
-  }, [accountTrades]);
+  }, [accountTrades, initialBalance]);
 
 
   // Capital flow stats (DB accounts only)
@@ -175,6 +180,7 @@ export default function AccountDetail() {
           displaySubtitle={displaySubtitle}
           onRefresh={() => refreshBinance.mutate()}
           isRefreshing={refreshBinance.isPending}
+          unrealizedPnl={isBinanceVirtual ? unrealizedPnl : undefined}
         />
 
         {/* Metrics - identical 5 cards, same labels */}
@@ -219,6 +225,7 @@ export default function AccountDetail() {
               stats={stats}
               statsLoading={statsLoading}
               initialBalance={initialBalance}
+              totalTrades={stats?.totalTrades || 0}
             />
           </TabsContent>
         </Tabs>

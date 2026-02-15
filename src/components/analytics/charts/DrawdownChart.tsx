@@ -13,9 +13,10 @@ import type { TradeEntry } from "@/hooks/use-trade-entries";
 
 interface DrawdownChartProps {
   trades?: TradeEntry[];
+  initialBalance?: number;
 }
 
-export function DrawdownChart({ trades: externalTrades }: DrawdownChartProps = {}) {
+export function DrawdownChart({ trades: externalTrades, initialBalance = 0 }: DrawdownChartProps = {}) {
   const { data: internalTrades } = useModeFilteredTrades();
   const trades = externalTrades ?? internalTrades;
 
@@ -42,8 +43,12 @@ export function DrawdownChart({ trades: externalTrades }: DrawdownChartProps = {
         peak = cumulative;
       }
       
-      // Calculate drawdown
-      const drawdown = peak > 0 ? ((peak - cumulative) / peak) * 100 : 0;
+      // Calculate drawdown using initialBalance + peak as base for realistic %
+      const drawdownBase = initialBalance + peak;
+      const drawdown = Math.min(
+        drawdownBase > 0 ? ((peak - cumulative) / drawdownBase) * 100 : 0,
+        100
+      );
       
       return {
         date: format(new Date(trade.trade_date), 'MMM d'),

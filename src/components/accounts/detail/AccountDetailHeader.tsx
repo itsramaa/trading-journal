@@ -52,6 +52,7 @@ interface AccountDetailHeaderProps {
   displaySubtitle: string;
   onRefresh?: () => void;
   isRefreshing?: boolean;
+  unrealizedPnl?: number;
 }
 
 export function AccountDetailHeader({
@@ -62,6 +63,7 @@ export function AccountDetailHeader({
   displaySubtitle,
   onRefresh,
   isRefreshing,
+  unrealizedPnl = 0,
 }: AccountDetailHeaderProps) {
   const navigate = useNavigate();
   const deleteAccount = useDeleteAccount();
@@ -103,8 +105,20 @@ export function AccountDetailHeader({
         </div>
         <div className="flex items-center gap-3 sm:ml-auto">
           <div className="text-right">
-            <p className="text-sm text-muted-foreground">Balance</p>
+            <p className="text-sm text-muted-foreground">
+              {isBinanceVirtual && unrealizedPnl !== 0 ? 'Balance (Realized)' : 'Balance'}
+            </p>
             <p className="text-2xl font-bold">{formatCurrency(displayBalance)}</p>
+            {isBinanceVirtual && unrealizedPnl !== 0 && (
+              <div className="mt-1 space-y-0.5">
+                <p className="text-sm text-muted-foreground">
+                  Equity: <span className="font-semibold text-foreground">{formatCurrency(displayBalance + unrealizedPnl)}</span>
+                </p>
+                <p className={`text-sm font-medium ${unrealizedPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                  {unrealizedPnl >= 0 ? '+' : ''}{formatCurrency(Math.abs(unrealizedPnl))} unrealized
+                </p>
+              </div>
+            )}
           </div>
           {isBinanceVirtual ? (
             <DropdownMenu>
