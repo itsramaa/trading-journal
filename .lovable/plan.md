@@ -1,166 +1,310 @@
 
-# Performance Page - Functional Correctness Audit
 
-## Audit Scope
+# Upgrade: From Informational Dashboard to Actionable Trading Intelligence
 
-Reviewed: page (`Performance.tsx`), sub-components (`PerformanceKeyMetrics.tsx`, `PerformanceMonthlyTab.tsx`, `PerformanceContextTab.tsx`, `PerformanceStrategiesTab.tsx`, `PerformanceFilters.tsx`), analytics components (`DrawdownChart.tsx`, `EquityCurveWithEvents.tsx`, `TradingBehaviorAnalytics.tsx`, `SevenDayStatsCard.tsx`, `SessionPerformanceChart.tsx`, `TradingHeatmap.tsx`, `CryptoRanking.tsx`, `AIPatternInsights.tsx`), hooks (`use-monthly-pnl.ts`, `use-contextual-analytics.ts`, `use-strategy-performance.ts`, `use-mode-filtered-trades.ts`), utilities (`trading-calculations.ts`), and cross-domain dependencies.
+This plan transforms four Market domain pages from descriptive data displays into quantified, trigger-based decision tools aligned with professional trading needs.
+
+## Current State Summary
+
+The four pages (Market Data, AI Analysis, Economic Calendar, Top Movers) currently:
+- Aggregate and re-display publicly available data (Fear & Greed, funding rates, BTC dominance)
+- Show redundant sentiment across Market Data and AI Analysis
+- Label volume spikes as "whale detection" without methodology transparency
+- Generate generic AI recommendations ("wait for breakout", "accumulation opportunity")
+- Display Top Movers without liquidity context
+- Provide Economic Calendar events without historical crypto impact data
 
 ---
 
-## Issues Found
+## Phase 1: Historical Context Engine
 
-### 1. DrawdownChart Uses `||` Instead of `??` for PnL -- Breakeven Trades Silently Skipped (Accuracy - HIGH)
+**Goal:** Every metric gets a historical percentile so traders know if current values are unusual.
 
-**File:** `src/components/analytics/charts/DrawdownChart.tsx` (line 37)
+### 1A. Volatility Percentile Context
 
-```typescript
-const pnl = trade.realized_pnl || trade.pnl || 0;
+Add a `volatility_history` table to store daily snapshots of annualized volatility per symbol. The VolatilityMeterWidget will display:
+
+```
+Volatility 118% (Top 8% in 180 days)
 ```
 
-The `||` operator treats `0` as falsy. If `realized_pnl` is exactly `0` (breakeven trade), it falls through to `trade.pnl`, which may contain a stale estimate value. This violates the project's standardized PnL calculation policy which mandates `realized_pnl ?? pnl ?? 0`.
+Instead of just:
 
-The same bug exists in:
-- `src/components/analytics/charts/TradingHeatmap.tsx` (line 93)
-- `src/components/analytics/CryptoRanking.tsx` (line 48)
-- `src/components/analytics/AIPatternInsights.tsx` (lines 40-42)
-- `src/lib/export/heatmap-export.ts` (line 25)
-- `src/pages/TradingHeatmap.tsx` (lines 98, 130, 156, 372-373)
-
-**Fix:** Replace `||` with `??` in all affected files:
-```typescript
-const pnl = trade.realized_pnl ?? trade.pnl ?? 0;
+```
+Volatility 118%
 ```
 
-Total: 8 files, ~12 occurrences.
+- Store daily volatility snapshots via a scheduled edge function or on each market-insight call
+- Compute percentile rank against the last 180 entries
+- Display as a badge: "Pxx in 180d" next to each volatility value
 
----
+### 1B. Funding Rate Historical Context
 
-### 2. `text-warning` and `hsl(var(--warning))` Color Tokens Undefined in EquityCurveWithEvents (Clarity - HIGH)
+Enhance the MarketSentimentWidget to show funding rate with percentile context:
 
-**File:** `src/components/analytics/charts/EquityCurveWithEvents.tsx` (lines 161, 243, 257)
-
-The component uses `text-warning` (CSS class) and `hsl(var(--warning))` (inline style) which are NOT defined in the project's CSS theme. The `warning` token does not exist (confirmed by searching all CSS files). This means:
-- The tooltip "Event Day" label at line 161 is invisible/unstyled
-- Event annotation dots at line 243 have no fill color (renders as black or transparent)
-- Event legend icon at line 257 is invisible
-
-The same issue exists in:
-- `src/components/analytics/charts/TradingHeatmap.tsx` (lines 225-226, 252, 311)
-- `src/components/analytics/contextual/EventDayComparison.tsx` (line 75)
-
-**Fix:** Replace all `text-warning` with `text-[hsl(var(--chart-4))]` and `hsl(var(--warning))` with `hsl(var(--chart-4))` across these files, matching the project standard established in the Risk Overview fix.
-
----
-
-### 3. Performance Page Missing Top-Level ErrorBoundary (Comprehensiveness - MEDIUM)
-
-**File:** `src/pages/Performance.tsx`
-
-No ErrorBoundary wraps the page. The page renders complex chart components (`EquityCurveWithEvents`, `DrawdownChart`, `TradingHeatmapChart`, `SessionPerformanceChart`) that process live data and can throw on unexpected shapes. The RiskManagement page was just fixed with this same pattern.
-
-**Fix:** Add ErrorBoundary with `retryKey` pattern:
-```typescript
-import { ErrorBoundary } from "@/components/ui/error-boundary";
-
-const [retryKey, setRetryKey] = useState(0);
-
-<ErrorBoundary title="Performance Analytics" onRetry={() => setRetryKey(k => k + 1)}>
-  <div key={retryKey} className="space-y-6">
-    {/* existing content */}
-  </div>
-</ErrorBoundary>
+```
+Funding Rate: 0.0342% (Top 12% in 90 days)
 ```
 
----
+- Store funding rate snapshots in `funding_rate_history` table
+- Compute percentile on the edge function side
+- Return `percentile90d` alongside current funding rate
 
-## Verified Correct (No Issues)
+### 1C. Fear & Greed Percentile
 
-The following were explicitly verified and found functionally sound:
+In the AI Analysis page, add context:
 
-- **PnL calculation in `trading-calculations.ts`**: Uses `getTradeNetPnl(t)` helper with `t.realized_pnl ?? t.pnl ?? 0` -- correct standard
-- **Win rate formula**: `(wins / totalTrades) * 100` -- correct
-- **Profit factor**: `grossProfit / grossLoss` with Infinity guard when `grossLoss === 0` -- correct
-- **Expectancy**: `(winRate/100 * avgWin) - ((1 - winRate/100) * avgLoss)` -- correct
-- **Max drawdown**: Peak-to-trough on sorted equity curve with percentage relative to peak -- correct
-- **Sharpe ratio**: Annualized with `sqrt(252)` factor, 0% risk-free rate -- standard simplified approach
-- **Largest win/loss**: Uses `Math.max/min` on `getTradeNetPnl` -- correct (uses `??` not `||`)
-- **Strategy performance**: Contribution calculated as `strategyPnl / |totalPnl| * 100` -- correct, handles division by zero
-- **Monthly P&L hook**: Uses `realized_pnl ?? pnl ?? 0` throughout -- correct standard
-- **Monthly rolling 30-day**: Uses `eachDayOfInterval` with `subDays(now, 29)` for 30-day window -- correct
-- **Monthly change calculation**: `(current - last) / |last| * 100` with zero guard -- correct
-- **Contextual analytics**: Uses `realized_pnl ?? pnl ?? 0` throughout -- correct
-- **Fear/Greed segmentation**: Threshold-based zones from centralized constants -- correct
-- **Correlation calculation**: Pearson coefficient with minimum sample size guard -- correct
-- **Session segmentation**: Uses centralized `getTradeSession` utility -- single source of truth
-- **Mode isolation**: `useModeFilteredTrades` used for default data; `allTrades` only for `type` level -- correct separation
-- **Analytics level selector**: Account/Exchange/Type/Overall filtering with proper trade scoping -- correct
-- **Date range filtering**: Inclusive bounds check on `trade_date` -- correct
-- **Strategy filtering**: Empty array returns all trades; otherwise filters by strategy ID membership -- correct
-- **Event day filtering**: Checks `market_context.events.hasHighImpactToday` -- correct
-- **Equity curve generation**: Sorted by trade_date, cumulative PnL with `getTradeNetPnl` -- correct
-- **URL tab persistence**: `useSearchParams` for tab state -- correct
-- **Loading states**: `MetricsGridSkeleton` shown during loading -- correct
-- **Empty states**: `EmptyState` component when no trades -- correct
-- **Semantic colors**: `text-profit` / `text-loss` used consistently in key metrics, monthly tab, strategies tab -- correct
-- **Currency formatting**: `useCurrencyConversion` used in all monetary displays -- correct
-- **ARIA**: Behavior analytics has `role="region"` with `aria-label`; 7-day stats has `role="group"`; DrawdownChart and EquityCurve have both `role="region"` and `role="img"` -- correct
-- **InfoTooltips**: Present on all key metrics (Win Rate, Profit Factor, Expectancy, Max Drawdown, Sharpe, Avg R:R, Largest Gain/Loss) -- comprehensive
-- **Filter propagation**: `filteredTrades` passed to `useContextualAnalytics`, `useMonthlyPnl`, all sub-components -- consistent
-- **Strategy performance map**: Uses `useModeFilteredTrades` independently for AI quality scoring -- correct (mode-isolated)
-- **TradingBehaviorAnalytics**: Uses `realized_pnl ?? pnl ?? 0` -- correct; handles empty states with null returns
-- **SevenDayStatsCard**: Streak calculation from most recent trades -- correct logic
-- **SessionPerformanceChart**: Minimum 3 trades per session for best/worst, 5 total for display -- appropriate guards
+```
+Fear & Greed: 8 (Bottom 3% in 365 days)
+```
+
+- Use Alternative.me historical endpoint (supports `?limit=365`)
+- Calculate percentile rank and return it from the `macro-analysis` edge function
 
 ---
 
-## Summary
+## Phase 2: Whale Detection Transparency + Derivatives Data
 
-| # | Files | Issue | Criteria | Severity |
-|---|-------|-------|----------|----------|
-| 1 | `DrawdownChart.tsx`, `TradingHeatmap.tsx`, `CryptoRanking.tsx`, `AIPatternInsights.tsx`, `heatmap-export.ts`, `TradingHeatmap.tsx` (page) | `\|\|` instead of `??` for PnL extraction -- breakeven trades use wrong value | Accuracy | High |
-| 2 | `EquityCurveWithEvents.tsx`, `TradingHeatmap.tsx`, `EventDayComparison.tsx` | `text-warning` / `hsl(var(--warning))` undefined -- event indicators invisible | Clarity | High |
-| 3 | `Performance.tsx` | Missing top-level ErrorBoundary | Comprehensiveness | Medium |
+**Goal:** Replace opaque confidence scores with transparent methodology and add real derivatives signals.
 
-Total: ~10 files, 3 categories of fixes.
+### 2A. Whale Detection Method Disclosure
+
+Update WhaleTrackingWidget to show the detection formula:
+
+```
+BTC ACCUMULATION (78% conf.)
+Method: Vol +42% (24h) + Price +3.1% = Breakout pattern
+Threshold: Vol >30%, Price >2%
+```
+
+- Add `method` and `thresholds` fields to WhaleActivity type
+- Generate these from the existing `calculateWhaleSignal` logic (already uses WHALE_DETECTION constants)
+- Display in an expandable section per whale card
+
+### 2B. Add OI Change % (24h)
+
+Add Open Interest change percentage to the MarketSentimentWidget:
+
+```
+OI Change 24h: +5.2% (leveraged long buildup)
+```
+
+- Binance Futures API `fapi/v1/openInterest` already fetched -- add historical comparison
+- Compute OI change % from stored snapshots or by fetching 24h-ago OI
+- Add `oiChange24h` to sentiment data model
+
+### 2C. Funding Rate vs Price Divergence Alert
+
+Add a divergence detector:
+
+```
+ALERT: Funding +0.05% but Price -2.1% (24h) = Divergence
+```
+
+- Compare funding direction vs price direction from the same edge function
+- Surface as a new signal type in the MarketSentimentWidget factors section
+- When funding is positive but price is falling (or vice versa), flag it
+
+---
+
+## Phase 3: Trigger-Based Alerts
+
+**Goal:** Replace descriptive summaries with configurable, quantified alerts.
+
+### 3A. Market Condition Triggers
+
+Extend `useMarketAlerts` hook with new trigger types:
+
+| Trigger | Condition | Alert |
+|---------|-----------|-------|
+| OI Spike | OI change >5% in 1h, price change <1% | "OI building without price move -- breakout imminent" |
+| Funding Divergence | Funding positive + price down >2% (or inverse) | "Funding/Price divergence detected" |
+| Volatility Extreme | Current vol > 90th percentile (180d) | "Volatility at 92nd percentile -- reduce size" |
+| Volume Anomaly | Volume >3x 7-day average | "Abnormal volume spike on SYMBOL" |
+
+- Add a `market_alert_config` table for user-customizable thresholds
+- Store alert trigger history for audit
+- Fire toast notifications with specific numbers, not generic phrases
+
+### 3B. Make AI Recommendations Quantified
+
+Replace generic AI text like:
+
+> "accumulation opportunity"
+
+With structured, quantified output:
+
+> "BTC: RSI 28 (oversold zone hit 12 times in 180d, avg bounce +4.2% in 48h). Current funding -0.02% supports reversal. Suggested: LONG with 1.5% risk, target +3%, stop -1.5%."
+
+- Update the `market-insight` edge function AI prompt to require: trigger condition, historical frequency, probability estimate, and risk parameters
+- Return structured JSON instead of free-text recommendations
+
+---
+
+## Phase 4: Economic Calendar Correlation Engine
+
+**Goal:** Add statistical backing to calendar event predictions.
+
+### 4A. Event-Crypto Historical Correlation
+
+Add a `calendar_event_impact` table storing:
+
+```sql
+CREATE TABLE calendar_event_impact (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_type TEXT NOT NULL,        -- e.g., "Non-Farm Payroll"
+  event_date TIMESTAMPTZ NOT NULL,
+  btc_1h_change NUMERIC,          -- BTC % change 1h after
+  btc_2h_change NUMERIC,          -- BTC % change 2h after
+  eth_1h_change NUMERIC,
+  vol_spike_pct NUMERIC,          -- Volatility increase %
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+```
+
+Display in CalendarTab:
+
+```
+Non-Farm Payroll
+Historical: BTC avg move 2.3% in 2h (n=24 events)
+Volatility spike probability: 68%
+```
+
+- Build a one-time backfill edge function using historical Forex Factory + Binance kline data
+- Update on each calendar fetch with new realized data
+- Show correlation stats alongside AI predictions
+
+### 4B. Multi-Currency Support
+
+Currently the calendar filters primarily USD events. Expand to include EUR, GBP, JPY, CNY with relevance scoring for crypto markets.
+
+---
+
+## Phase 5: Top Movers Liquidity Context
+
+**Goal:** Transform from "pump list" to "tradeable opportunity scanner."
+
+### 5A. Add Liquidity Metrics
+
+For each top mover, display:
+
+```
+SPACE +121% | Vol: $2.1M | Spread: 1.8% | Depth: Thin
+```
+
+- Fetch order book depth from Binance `api/v3/depth?symbol=X&limit=5`
+- Calculate bid-ask spread percentage
+- Classify liquidity depth: Deep (>$5M within 2%), Normal ($1-5M), Thin (<$1M)
+- Add a "Liquidity Warning" badge for thin markets
+
+### 5B. Market Cap Filter (via CoinGecko)
+
+Add a filter to exclude micro-cap coins:
+
+- Fetch market cap from CoinGecko for displayed symbols
+- Add filter toggles: "All", ">$100M", ">$1B"
+- Default to ">$100M" to filter out pump-and-dump tokens
+
+### 5C. Volume Quality Score
+
+Add a computed metric:
+
+```
+Volume Quality: 72% (vs 7d avg)
+```
+
+- Compare current 24h volume against 7-day average volume
+- Score: current/avg * 100 (capped at 200%)
+- Flag "Unusual Volume" when >200% of average
+
+---
+
+## Phase 6: Portfolio Impact Mode
+
+**Goal:** Connect market data to the user's actual positions.
+
+### 6A. "What If" Scenario Calculator
+
+Add a card to Market Data page:
+
+```
+If BTC drops 5%:
+  Portfolio impact: -3.2% (-$640)
+  Affected positions: BTC (direct), ETH (corr 0.85), SOL (corr 0.72)
+```
+
+- Use existing `correlation-utils.ts` correlation map
+- Pull current open positions from trade entries
+- Calculate weighted impact using position sizes and correlations
+- Display as a collapsible "Portfolio Impact" card
+
+---
+
+## Phase 7: De-duplication of Redundant Data
+
+**Goal:** Eliminate copy-paste between pages.
+
+### 7A. Remove Duplicate Sentiment
+
+- Market Data page: Keep the Binance-native sentiment (pro traders, funding, OI) -- this is unique
+- AI Analysis page: Keep the AI-generated macro analysis -- this is the interpretation layer
+- Remove Fear & Greed display from AI Analysis (already shown in Combined Analysis score)
+- Remove raw funding rate from AI Analysis (already detailed in Market Data)
+
+### 7B. Clear Page Purposes
+
+| Page | Purpose | Unique Value |
+|------|---------|--------------|
+| Market Data | Real-time derivatives signals + quantified alerts | OI, funding, volume anomalies with percentiles |
+| AI Analysis | AI interpretation + combined scoring + portfolio impact | Quantified recommendations with triggers |
+| Economic Calendar | Event timing + historical crypto correlation | Statistical impact data |
+| Top Movers | Filtered opportunity scanner with liquidity context | Tradeable setups, not pump lists |
+
+---
+
+## Implementation Priority
+
+1. **Phase 1** (Historical Context) -- Highest impact/effort ratio. Makes existing data immediately more useful
+2. **Phase 3A** (Trigger Alerts) -- Transforms passive data into active signals
+3. **Phase 5A/5B** (Top Movers Liquidity) -- Prevents retail traps
+4. **Phase 2B/2C** (OI + Divergence) -- Adds real derivatives edge
+5. **Phase 4A** (Calendar Correlation) -- Statistical backing for events
+6. **Phase 6** (Portfolio Impact) -- Connects market data to personal risk
+7. **Phase 7** (De-duplication) -- Cleanup after new features are in place
+
+---
 
 ## Technical Details
 
-### Fix 1: Replace `||` with `??` for PnL extraction (8 files, ~12 occurrences)
+### New Database Tables
 
-In each file, replace:
-```typescript
-trade.realized_pnl || trade.pnl || 0
-```
-With:
-```typescript
-trade.realized_pnl ?? trade.pnl ?? 0
-```
+1. `volatility_history` -- daily volatility snapshots per symbol
+2. `funding_rate_history` -- funding rate snapshots per symbol
+3. `market_alert_config` -- user-customizable alert thresholds
+4. `calendar_event_impact` -- historical event-to-crypto correlation data
 
-Affected files and lines:
-- `src/components/analytics/charts/DrawdownChart.tsx` line 37
-- `src/components/analytics/charts/TradingHeatmap.tsx` line 93
-- `src/components/analytics/CryptoRanking.tsx` line 48
-- `src/components/analytics/AIPatternInsights.tsx` lines 40, 42
-- `src/lib/export/heatmap-export.ts` line 25
-- `src/pages/TradingHeatmap.tsx` lines 98, 130, 156, 372, 373
+### Modified Edge Functions
 
-### Fix 2: Replace undefined `text-warning` / `hsl(var(--warning))` tokens (3 files)
+1. `market-insight` -- add percentile calculations, OI change, funding divergence detection, structured AI output
+2. `macro-analysis` -- add Fear & Greed percentile from historical data
+3. `economic-calendar` -- add correlation stats lookup from `calendar_event_impact`
+4. New: `binance-market-data` endpoint for order book depth (Top Movers liquidity)
 
-**`src/components/analytics/charts/EquityCurveWithEvents.tsx`:**
-- Line 161: `text-warning` to `text-[hsl(var(--chart-4))]`
-- Line 243: `hsl(var(--warning))` to `hsl(var(--chart-4))`
-- Line 257: `text-warning` to `text-[hsl(var(--chart-4))]`
+### Modified Frontend Components
 
-**`src/components/analytics/charts/TradingHeatmap.tsx`:**
-- Line 225: `bg-warning` to `bg-[hsl(var(--chart-4))]`
-- Line 226: `text-warning-foreground` to `text-background`
-- Line 252: `text-warning bg-warning/10` to `text-[hsl(var(--chart-4))] bg-[hsl(var(--chart-4))]/10`
-- Line 310: `ring-warning` to `ring-[hsl(var(--chart-4))]`
-- Line 311: `text-warning` to `text-[hsl(var(--chart-4))]`
+1. `VolatilityMeterWidget` -- add percentile badge
+2. `MarketSentimentWidget` -- add OI change, funding divergence, funding percentile
+3. `WhaleTrackingWidget` -- add method disclosure expandable
+4. `TradingOpportunitiesWidget` -- add quantified AI output with triggers
+5. `CalendarTab` -- add historical correlation stats section
+6. `TopMovers` -- add liquidity metrics, market cap filter, volume quality
+7. New: `PortfolioImpactCard` -- what-if scenario calculator
+8. `useMarketAlerts` -- add configurable trigger system
 
-**`src/components/analytics/contextual/EventDayComparison.tsx`:**
-- Line 75: `text-warning` to `text-[hsl(var(--chart-4))]`
+### New Hooks
 
-### Fix 3: Add ErrorBoundary to Performance page
+1. `useVolatilityPercentile` -- fetch and compute percentile rank
+2. `useMarketTriggers` -- configurable alert engine
+3. `usePortfolioImpact` -- what-if calculations
+4. `useTopMoversEnriched` -- combine tickers with liquidity data
 
-Import `ErrorBoundary` from `@/components/ui/error-boundary`. Add `retryKey` state. Wrap the main content with `ErrorBoundary` using the standard retry pattern.
