@@ -1,172 +1,188 @@
 
+# Daily P&L & Trading Heatmap: Data Integrity & UX Fixes
 
-# Metric Integrity Hardening: 7 Refinements
-
-Targeted fixes for edge cases and consistency gaps identified after the initial metric integrity pass.
+Targeted fixes for misleading metrics, undefined-as-zero display, and missing context across both pages.
 
 ---
 
-## Changes
+## Daily P&L Page Fixes
 
-### 1. Type-Safe R:R with `null` Instead of Magic Zero
+### 1. Fix "+100% vs last week" When Baseline is Zero
 
-**File:** `src/lib/trading-calculations.ts`
+**File:** `src/hooks/analytics/use-unified-week-comparison.ts`
 
-Change `avgRR` type from `number` to `number | null` in `TradingStats` interface. Return `null` when no trades have stop-loss data (currently returns `0`, which is ambiguous).
+The current logic at line 121 returns `100` when `previousWeek.netPnl === 0` and current week has activity. This creates a misleading "+100%" display.
+
+Fix: Return a sentinel value (e.g., `null`) instead of `100` when baseline is zero.
 
 ```typescript
-// TradingStats interface
-avgRR: number | null;
-
-// In calculateTradingStats
-const avgRR = rrValues.length > 0
-  ? rrValues.reduce((sum, rr) => sum + Math.abs(rr), 0) / rrValues.length
-  : null;
-
-// emptyStats
-avgRR: null,
+// Change type of pnlPercent and tradesPercent to number | null
+pnlPercent: number | null;
+tradesPercent: number | null;
 ```
 
-**File:** `src/components/performance/PerformanceKeyMetrics.tsx`
-
-Update guard to use `null` check:
+Calculation change:
 ```typescript
-{stats.avgRR === null
-  ? <span className="text-muted-foreground">N/A</span>
-  : formatRatio(stats.avgRR)
-}
+const pnlPercentChange = previousWeek.netPnl !== 0
+  ? ((currentWeek.netPnl - previousWeek.netPnl) / Math.abs(previousWeek.netPnl)) * 100
+  : null;  // was: currentWeek.netPnl !== 0 ? 100 : 0
+
+const tradesPercentChange = previousWeek.trades !== 0
+  ? ((currentWeek.trades - previousWeek.trades) / previousWeek.trades) * 100
+  : null;  // was: currentWeek.trades !== 0 ? 100 : 0
 ```
 
-**File:** `src/components/performance/PerformanceSummaryCard.tsx` -- no change needed (doesn't display R:R).
+**File:** `src/pages/DailyPnL.tsx`
 
-**Downstream callers** (`StrategyPerformance`, `BulkExport`, `FinalChecklist`): Update type references. `StrategyPerformance.avgRR` also becomes `number | null`.
-
-### 2. Sharpe Ratio: Guard Zero Variance
-
-**File:** `src/lib/trading-calculations.ts`
-
-When `stdDev === 0`, Sharpe is mathematically undefined. Currently returns `0`. Change to `null`.
+Update `ChangeIndicator` to handle `null`:
 
 ```typescript
-// TradingStats interface
-sharpeRatio: number | null;
-
-// In calculateTradingStats
-const sharpeRatio = stdDev > 0 ? (meanReturn / stdDev) * Math.sqrt(252) : null;
+const ChangeIndicator = ({ value, suffix = '' }: { value: number | null; suffix?: string }) => {
+  if (value === null) return <span className="text-muted-foreground text-xs">New activity</span>;
+  // ... existing logic
+};
 ```
 
-**File:** `src/components/performance/PerformanceKeyMetrics.tsx`
+### 2. Fix "Win Rate 0%" When 0 Trades Today
+
+**File:** `src/pages/DailyPnL.tsx`
+
+Line 132 currently shows `0%` when no trades exist today. Change to show a dash with context:
 
 ```typescript
-<div className="text-xl font-bold">
-  {stats.sharpeRatio === null
-    ? <span className="text-muted-foreground">N/A</span>
-    : stats.sharpeRatio.toFixed(2)
-  }
+<div>
+  <p className="text-sm text-muted-foreground">Win Rate</p>
+  {dailyStats.totalTrades === 0 ? (
+    <>
+      <p className="text-2xl font-bold text-muted-foreground">--</p>
+      <p className="text-xs text-muted-foreground">No trades today</p>
+    </>
+  ) : (
+    <p className="text-2xl font-bold">{dailyStats.winRate.toFixed(0)}%</p>
+  )}
 </div>
 ```
 
-### 3. Verdict Condition Reorder
+### 3. Add Tooltip to Best/Worst Trade Cards
 
-**File:** `src/components/performance/PerformanceSummaryCard.tsx`
+**File:** `src/pages/DailyPnL.tsx`
 
-Current order checks `expectancy < 0.1` before `winRate < 40`. A low-win-rate system that is profitable is structurally more important than thin expectancy. Reorder:
-
-```typescript
-if (stats.totalPnl < 0) {
-  // Unprofitable
-} else if (stats.totalPnl > 0 && stats.winRate < 40) {
-  // Profitable but inconsistent -- structural signal first
-} else if (stats.totalPnl > 0 && stats.expectancy < 0.1) {
-  // Borderline break-even -- thin edge second
-} else if (stats.winRate >= 50 && stats.profitFactor >= 1.5) {
-  // Consistently profitable
-} else {
-  // Moderately profitable
-}
-```
-
-This is already the correct order in the current file (lines 19-29). Confirmed -- no change needed here.
-
-### 4. Edge Badge Color Mapping
-
-**File:** `src/components/performance/PerformanceSummaryCard.tsx`
-
-Current `getEdgeLabel` returns Badge `variant` but all variants use the same muted palette. Map to semantic colors for instant scan:
-
-| Edge | Badge variant | Tailwind class override |
-|------|--------------|------------------------|
-| Strong | `default` | green tint: `bg-profit/10 text-profit border-profit/20` |
-| Moderate | `outline` | default (no override) |
-| Low | `secondary` | yellow tint: `bg-yellow-500/10 text-yellow-600 border-yellow-500/20` |
-| Negative | `destructive` | already red |
-
-Use `className` overrides on the Badge rather than adding new variants.
-
-### 5. initialBalance = 0 Warning
-
-**File:** `src/components/performance/PerformanceKeyMetrics.tsx`
-
-When `stats.maxDrawdownPercent > 0` and no initial balance is available (pass as prop), show a subtle hint under the Max Drawdown card:
+Add an `InfoTooltip` to Best Trade and Worst Trade card titles (lines 209, 229):
 
 ```typescript
-{!hasInitialBalance && stats.totalTrades > 0 && (
-  <p className="text-xs text-muted-foreground">Set initial balance for accurate %</p>
-)}
+<CardTitle className="text-lg flex items-center gap-2">
+  <TrendingUp className="h-5 w-5 text-profit" />
+  Best Trade (7 Days)
+  <InfoTooltip content="Based on realized P&L of closed trades in the last 7 days." />
+</CardTitle>
 ```
 
-This requires passing a `hasInitialBalance: boolean` prop from Performance.tsx (derived from whether accounts data has a non-zero balance).
+Same pattern for Worst Trade.
 
-### 6. DrawdownChart Consistency Verification
+### 4. Fix Symbol Breakdown Showing P&L with 0 Trades
 
-**File:** `src/pages/Performance.tsx`
+**File:** `src/hooks/analytics/use-symbol-breakdown.ts`
 
-Currently `DrawdownChart` is called without `initialBalance`:
+The Binance path (line 123-134) counts trades from `data.count` which tracks REALIZED_PNL income records. But `net` includes commission rebates and funding, which can exist without a REALIZED_PNL entry.
+
+Fix: Filter out symbols with zero trade count from the output:
+
 ```typescript
-<DrawdownChart trades={filteredTrades} />
+.filter(([symbol, data]) => symbol !== 'N/A' && data.count > 0)
 ```
 
-Pass `initialBalance` to match `calculateTradingStats`:
-```typescript
-<DrawdownChart trades={filteredTrades} initialBalance={initialBalance} />
-```
-
-This ensures the chart and the key metric card always show the same number.
-
-### 7. Context Tab -- Already Correct
-
-The `PerformanceContextTab` already guards sections with `totalTrades > 0` (not `totalPnl !== 0`). Sections with valid data but zero PnL will still render. No change needed.
+This ensures no symbol appears with "0 trades" but non-zero P&L.
 
 ---
 
-## Technical Details
+## Trading Heatmap Page Fixes
 
-### Type Change Ripple
+### 5. Low Sample Size Indicator on Session Cards
 
-Changing `avgRR` and `sharpeRatio` to `number | null` affects:
+**File:** `src/pages/TradingHeatmap.tsx`
 
-| Consumer | Impact |
-|----------|--------|
-| `PerformanceKeyMetrics` | Already guarded, update to `null` check |
-| `PerformanceSummaryCard` | Does not display R:R or Sharpe |
-| `BulkExport` | Uses `stats.avgRR` in export -- format as "N/A" when null |
-| `FinalChecklist` | Passes stats to AI -- null is fine for AI context |
-| `StrategyPerformance` | `avgRR` in strategy breakdown also becomes `number \| null` |
-| `calculateStrategyPerformance` | Same null logic for per-strategy R:R |
-
-### Edge Badge Colors
+Add a "Low sample" badge when a session has fewer than 10 trades (line 274):
 
 ```typescript
-function getEdgeBadgeClass(label: string): string {
-  switch (label) {
-    case 'Strong': return 'bg-profit/10 text-profit border-profit/20';
-    case 'Low': return 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20';
-    default: return '';
-  }
-}
+<p className="text-sm text-muted-foreground">
+  {s.trades} trades {'\u2022'} {formatWinRate(s.winRate)} win rate
+  {s.trades > 0 && s.trades < 10 && (
+    <span className="text-xs opacity-60 ml-1">(low sample)</span>
+  )}
+</p>
 ```
 
-Applied via `className` on Badge, works with existing `variant` prop.
+### 6. Fix Best/Worst Hour Identical & Negative Framing
+
+**File:** `src/pages/TradingHeatmap.tsx`
+
+When best and worst are the same hour, or when "Best Hour" has negative P&L, rename labels dynamically (lines 288-329):
+
+```typescript
+// Determine labels
+const bestLabel = hourlyStats.best
+  ? (hourlyStats.best.pnl < 0 ? 'Least Loss Hour' : 'Best Hour')
+  : 'Best Hour';
+const worstLabel = hourlyStats.worst
+  ? (hourlyStats.worst.pnl > 0 ? 'Smallest Gain Hour' : 'Worst Hour')
+  : 'Worst Hour';
+
+// If best === worst (same hour), only show one
+const showWorst = !hourlyStats.best || !hourlyStats.worst
+  || hourlyStats.best.hour !== hourlyStats.worst.hour;
+```
+
+If `showWorst` is false, the Worst Hour card shows "Same as best" instead of duplicating identical data.
+
+### 7. Fix Longest Win Streak "0 trades"
+
+**File:** `src/pages/TradingHeatmap.tsx`
+
+Line 340 shows "0 trades" when no wins exist. Change:
+
+```typescript
+<CardContent>
+  {streakData.longestWin === 0 ? (
+    <>
+      <div className="text-lg font-bold text-muted-foreground">--</div>
+      <p className="text-sm text-muted-foreground">No winning trades in selected period</p>
+    </>
+  ) : (
+    <>
+      <div className="text-lg font-bold">{streakData.longestWin} trades</div>
+      <p className="text-sm text-muted-foreground">
+        Current: {streakData.currentStreak > 0 ? `${streakData.currentStreak} wins` : 'N/A'}
+      </p>
+    </>
+  )}
+</CardContent>
+```
+
+Same pattern for Longest Loss Streak when `longestLoss === 0`.
+
+### 8. Add Sample Size Context to Summary Footer
+
+**File:** `src/pages/TradingHeatmap.tsx`
+
+Enhance the existing footer (lines 365-376) with a sample size warning when trades are fewer than 20:
+
+```typescript
+<div className="flex items-center justify-between text-xs text-muted-foreground border-t pt-4">
+  <span>
+    Showing {filteredTrades.length} closed trades
+    {selectedPair !== 'all' && ` for ${selectedPair}`}
+    {dateRange !== 'all' && ` in last ${dateRange.replace('d', ' days')}`}
+    {filteredTrades.length < 20 && filteredTrades.length > 0 && (
+      <span className="ml-1 opacity-60">-- Sample size is limited</span>
+    )}
+  </span>
+  {/* ... Total P&L stays same */}
+</div>
+```
+
+### 9. Session Overlap: Already Correct
+
+The `getSessionForTime()` in `session-utils.ts` assigns each trade to exactly one session using a priority waterfall (Sydney first, then Tokyo, London, NY). The `getTradeSession()` function used in the heatmap page also returns a single session per trade. No double-counting occurs. No change needed.
 
 ---
 
@@ -174,26 +190,14 @@ Applied via `className` on Badge, works with existing `variant` prop.
 
 | File | Change |
 |------|--------|
-| `src/lib/trading-calculations.ts` | `avgRR` and `sharpeRatio` become `number \| null`; null returns for invalid states |
-| `src/components/performance/PerformanceKeyMetrics.tsx` | Null checks for R:R and Sharpe; initialBalance warning |
-| `src/components/performance/PerformanceSummaryCard.tsx` | Semantic badge colors for edge label |
-| `src/pages/Performance.tsx` | Pass `initialBalance` to DrawdownChart |
-
----
-
-## What Changes
-
-| Before | After |
-|--------|-------|
-| `avgRR: 0` when no SL data (ambiguous) | `avgRR: null` (explicit "no data") |
-| `sharpeRatio: 0` when zero variance | `sharpeRatio: null` (explicit "undefined") |
-| Edge badge all same muted color | Green/Yellow/Red semantic tints |
-| DrawdownChart missing initialBalance | Receives same initialBalance as stats |
-| No warning when initialBalance = 0 | Subtle hint under Max Drawdown |
+| `src/hooks/analytics/use-unified-week-comparison.ts` | `pnlPercent` and `tradesPercent` become `number \| null`; return `null` when baseline is zero |
+| `src/pages/DailyPnL.tsx` | Handle null in ChangeIndicator; show "--" for 0-trade win rate; add tooltips to Best/Worst trade |
+| `src/hooks/analytics/use-symbol-breakdown.ts` | Filter out symbols with `count === 0` from Binance breakdown |
+| `src/pages/TradingHeatmap.tsx` | Low sample badge on sessions; adaptive Best/Worst Hour labels; fix 0-streak display; sample size footer warning |
 
 ## What Does NOT Change
 
-- Verdict condition order (already correct after review)
-- Context tab guards (already uses `totalTrades > 0`)
-- Drawdown formula itself (already fixed in prior pass)
-- Calculation logic for other metrics
+- Session assignment logic (already single-session, no overlap double-counting)
+- Weekly P&L trend chart data/logic
+- Heatmap grid component (`TradingHeatmap.tsx`)
+- Any backend/hook calculation logic beyond the two specified fixes
