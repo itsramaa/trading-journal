@@ -17,7 +17,7 @@ interface StrategyPerf {
   totalTrades: number;
   totalPnl: number;
   winRate: number;
-  avgRR: number;
+  avgRR: number | null;
   avgPnl: number;
   wins: number;
   losses: number;
@@ -94,7 +94,7 @@ export function PerformanceStrategiesTab({
                     </div>
                     <div>
                       <span className="text-muted-foreground">Avg R:R</span>
-                      <div className="font-medium">{formatRatio(sp.avgRR)}</div>
+                      <div className="font-medium">{sp.avgRR !== null ? formatRatio(sp.avgRR) : <span className="text-muted-foreground">N/A</span>}</div>
                     </div>
                     <div>
                       <span className="text-muted-foreground">Avg P&L</span>

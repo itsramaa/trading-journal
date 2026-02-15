@@ -265,7 +265,7 @@ export default function Performance() {
 
             <div className="space-y-4">
               <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Risk Analysis</h3>
-              <DrawdownChart trades={filteredTrades} />
+              <DrawdownChart trades={filteredTrades} initialBalance={initialBalance} />
             </div>
           </TabsContent>
 

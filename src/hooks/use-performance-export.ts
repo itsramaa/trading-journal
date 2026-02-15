@@ -29,8 +29,8 @@ interface PerformanceStats {
   avgWin: number;
   avgLoss: number;
   maxDrawdownPercent: number;
-  sharpeRatio: number;
-  avgRR: number;
+  sharpeRatio: number | null;
+  avgRR: number | null;
   expectancy: number;
 }
 
@@ -78,8 +78,8 @@ export function usePerformanceExport() {
     csv += `Avg Win,$${stats.avgWin.toFixed(2)}\n`;
     csv += `Avg Loss,$${stats.avgLoss.toFixed(2)}\n`;
     csv += `Max Drawdown,${stats.maxDrawdownPercent.toFixed(2)}%\n`;
-    csv += `Sharpe Ratio,${stats.sharpeRatio.toFixed(2)}\n`;
-    csv += `Avg R:R,${stats.avgRR.toFixed(2)}\n`;
+    csv += `Sharpe Ratio,${stats.sharpeRatio !== null ? stats.sharpeRatio.toFixed(2) : 'N/A'}\n`;
+    csv += `Avg R:R,${stats.avgRR !== null ? stats.avgRR.toFixed(2) : 'N/A'}\n`;
     csv += `Expectancy,$${stats.expectancy.toFixed(2)}\n`;
     csv += '\n';
     
@@ -158,8 +158,8 @@ export function usePerformanceExport() {
         ['Total Trades', stats.totalTrades.toString(), 'Win Rate', `${stats.winRate.toFixed(1)}%`],
         ['Total P&L', `$${stats.totalPnl.toFixed(2)}`, 'Profit Factor', stats.profitFactor === Infinity ? '∞' : stats.profitFactor.toFixed(2)],
         ['Avg Win', `$${stats.avgWin.toFixed(2)}`, 'Avg Loss', `$${stats.avgLoss.toFixed(2)}`],
-        ['Max Drawdown', `${stats.maxDrawdownPercent.toFixed(2)}%`, 'Sharpe Ratio', stats.sharpeRatio.toFixed(2)],
-        ['Avg R:R', `${stats.avgRR.toFixed(2)}:1`, 'Expectancy', `$${stats.expectancy.toFixed(2)}`],
+        ['Max Drawdown', `${stats.maxDrawdownPercent.toFixed(2)}%`, 'Sharpe Ratio', stats.sharpeRatio !== null ? stats.sharpeRatio.toFixed(2) : 'N/A'],
+        ['Avg R:R', `${stats.avgRR !== null ? stats.avgRR.toFixed(2) + ':1' : 'N/A'}`, 'Expectancy', `$${stats.expectancy.toFixed(2)}`],
       ],
       theme: 'striped',
       headStyles: { fillColor: [59, 130, 246] },
