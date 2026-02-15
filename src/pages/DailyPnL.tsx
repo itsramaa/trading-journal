@@ -44,8 +44,9 @@ import { format } from "date-fns";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 // Extracted to module-level to avoid re-creation on every render
-const ChangeIndicator = ({ value, suffix = '' }: { value: number | null; suffix?: string }) => {
+const ChangeIndicator = ({ value, suffix = '', previousNegative, currentPositive }: { value: number | null; suffix?: string; previousNegative?: boolean; currentPositive?: boolean }) => {
   if (value === null) return <span className="text-muted-foreground text-xs">New activity</span>;
+  if (previousNegative && currentPositive) return <span className="text-profit text-xs">Turned profitable</span>;
   if (value > 0) return <span className="text-profit flex items-center gap-1"><ArrowUp className="h-3 w-3" />+{value.toFixed(1)}{suffix}</span>;
   if (value < 0) return <span className="text-loss flex items-center gap-1"><ArrowDown className="h-3 w-3" />{value.toFixed(1)}{suffix}</span>;
   return <span className="text-muted-foreground flex items-center gap-1"><Minus className="h-3 w-3" />0{suffix}</span>;
@@ -157,7 +158,12 @@ export default function DailyPnL() {
                 {formatCompact(weekComparison.currentWeek.netPnl)}
               </div>
               <div className="text-xs text-muted-foreground mt-1">
-                vs last week: <ChangeIndicator value={weekComparison.change.pnlPercent} suffix="%" />
+                vs last week: <ChangeIndicator 
+                  value={weekComparison.change.pnlPercent} 
+                  suffix="%" 
+                  previousNegative={weekComparison.previousWeek.netPnl < 0}
+                  currentPositive={weekComparison.currentWeek.netPnl > 0}
+                />
               </div>
             </CardContent>
           </Card>
@@ -215,7 +221,7 @@ export default function DailyPnL() {
               <CardTitle className="text-lg flex items-center gap-2">
                 <TrendingUp className="h-5 w-5 text-profit" />
                 Best Trade (7 Days)
-                <InfoTooltip content="Based on realized P&L of closed trades in the last 7 days." />
+                <InfoTooltip content="Based on realized P&L of closed trades in the last 7 days. Excludes open trades." />
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -237,7 +243,7 @@ export default function DailyPnL() {
               <CardTitle className="text-lg flex items-center gap-2">
                 <TrendingDown className="h-5 w-5 text-loss" />
                 Worst Trade (7 Days)
-                <InfoTooltip content="Based on realized P&L of closed trades in the last 7 days." />
+                <InfoTooltip content="Based on realized P&L of closed trades in the last 7 days. Excludes open trades." />
               </CardTitle>
             </CardHeader>
             <CardContent>
