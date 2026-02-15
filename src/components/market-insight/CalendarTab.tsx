@@ -1,6 +1,7 @@
 /**
  * Calendar Tab Component - Economic Calendar with Volatility Engine
  */
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { 
   Collapsible, 
   CollapsibleContent, 
@@ -25,7 +27,8 @@ import {
   Minus,
   ChevronDown,
   Activity,
-  Gauge
+  Gauge,
+  CheckCircle2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEconomicCalendar } from "@/features/calendar";
@@ -37,29 +40,96 @@ import {
   getPositionAdjustment,
   VOLATILITY_REGIME_COLORS,
 } from "@/lib/constants/economic-calendar";
-import type { VolatilityEngine } from "@/features/calendar/types";
+import type { VolatilityEngine, EconomicEvent } from "@/features/calendar/types";
 
-interface CalendarTabProps {
-  hideTitle?: boolean;
+// ============================================
+// Pure utility functions (P4: extracted from component)
+// ============================================
+
+function formatEventDate(dateString: string): string {
+  const date = new Date(dateString);
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  
+  if (date.toDateString() === today.toDateString()) return 'Today';
+  if (date.toDateString() === tomorrow.toDateString()) return 'Tomorrow';
+  return format(date, 'EEE');
 }
+
+/** P1 fix: Display local time without misleading "UTC" label */
+function formatEventTime(dateString: string): string {
+  return format(new Date(dateString), 'HH:mm');
+}
+
+/** Check if an event has already been released (has actual value) */
+function isReleasedEvent(event: EconomicEvent): boolean {
+  return event.actual != null && event.actual !== '';
+}
+
+/** P3: Parse timeUntil string to total minutes for countdown */
+function parseTimeUntilToMs(timeUntil: string): number | null {
+  const hMatch = timeUntil.match(/(\d+)h/);
+  const mMatch = timeUntil.match(/(\d+)m/);
+  const hours = hMatch ? parseInt(hMatch[1]) : 0;
+  const minutes = mMatch ? parseInt(mMatch[1]) : 0;
+  return (hours * 60 + minutes) * 60 * 1000;
+}
+
+/** Format ms to human readable countdown */
+function formatCountdown(ms: number): string {
+  if (ms <= 0) return 'Now';
+  const totalMinutes = Math.floor(ms / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}
+
+// ============================================
+// Regime tooltip descriptions
+// ============================================
+const REGIME_TOOLTIPS: Record<string, string> = {
+  EXTREME: "Extreme risk: Multiple correlated high-impact events imminent. Expect outsized moves. Strongly consider reducing exposure.",
+  HIGH: "High risk: Significant macro event(s) within the next few hours. Elevated probability of large BTC moves.",
+  ELEVATED: "Elevated risk: Notable events approaching but not imminent. Stay alert for potential volatility.",
+  NORMAL: "Normal conditions: No significant macro events in the near-term window.",
+  LOW: "Low risk: No upcoming macro events detected. Volatility expected to remain subdued.",
+};
+
+// ============================================
+// Sub-components
+// ============================================
 
 function VolatilityEngineCard({ engine }: { engine: VolatilityEngine }) {
   const colors = VOLATILITY_REGIME_COLORS[engine.riskRegime];
   const reductionPct = Math.round((1 - engine.positionSizeMultiplier) * 100);
 
   return (
-    <Card className={cn("border-2", colors.bg, colors.border, engine.riskRegime === 'EXTREME' && "animate-pulse")}>
+    <Card className={cn(
+      "border-2", colors.bg, colors.border, 
+      engine.riskRegime === 'EXTREME' && "motion-safe:animate-pulse"
+    )}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Activity className={cn("h-5 w-5", colors.text)} />
             <CardTitle className="text-lg">Volatility Engine</CardTitle>
+            <InfoTooltip 
+              content="Event-driven volatility model using historical BTC reactions to US macro events within a rolling 48-hour window."
+            />
           </div>
-          <Badge 
-            variant={engine.riskRegime === 'EXTREME' ? 'destructive' : engine.riskRegime === 'LOW' ? 'secondary' : 'default'}
-          >
-            {engine.riskRegime}
-          </Badge>
+          <div className="flex items-center gap-1.5">
+            <Badge 
+              variant={engine.riskRegime === 'EXTREME' ? 'destructive' : engine.riskRegime === 'LOW' ? 'secondary' : 'default'}
+            >
+              {engine.riskRegime}
+            </Badge>
+            <InfoTooltip 
+              content={REGIME_TOOLTIPS[engine.riskRegime] || "Current volatility risk regime based on upcoming economic events."}
+              side="left"
+            />
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -69,7 +139,10 @@ function VolatilityEngineCard({ engine }: { engine: VolatilityEngine }) {
             <span className="text-muted-foreground flex items-center gap-1">
               <Gauge className="h-3.5 w-3.5" />
               Composite Move Probability
-              <span className="text-[10px] opacity-60">(correlation-adjusted)</span>
+              <InfoTooltip 
+                content="Probability of BTC moving >2% within 2 hours of upcoming events. Correlation-adjusted so related events (e.g., CPI + Core CPI) aren't double-counted."
+                side="right"
+              />
             </span>
             <span className={cn("font-mono font-bold", 
               engine.compositeMoveProbability >= 70 ? 'text-destructive' : 
@@ -90,7 +163,13 @@ function VolatilityEngineCard({ engine }: { engine: VolatilityEngine }) {
         {/* Expected Ranges */}
         <div className="grid grid-cols-2 gap-3">
           <div className="p-2.5 rounded-md bg-background/60 border">
-            <p className="text-xs text-muted-foreground mb-1">Expected Range (2h)</p>
+            <div className="flex items-center gap-1 mb-1">
+              <p className="text-xs text-muted-foreground">Expected Range (2h)</p>
+              <InfoTooltip 
+                content="Estimated BTC price range 2 hours after event release. Calculated as 70% median + 30% extreme historical move, adjusted for event clustering."
+                side="right"
+              />
+            </div>
             <div className="flex items-baseline gap-1">
               <span className="font-mono text-sm font-medium text-loss">{engine.expectedRange2h.low}%</span>
               <span className="text-xs text-muted-foreground">to</span>
@@ -99,7 +178,13 @@ function VolatilityEngineCard({ engine }: { engine: VolatilityEngine }) {
             <p className="text-[10px] text-muted-foreground mt-0.5">median + 90th pct blend</p>
           </div>
           <div className="p-2.5 rounded-md bg-background/60 border">
-            <p className="text-xs text-muted-foreground mb-1">Expected Range (24h)</p>
+            <div className="flex items-center gap-1 mb-1">
+              <p className="text-xs text-muted-foreground">Expected Range (24h)</p>
+              <InfoTooltip 
+                content="24-hour expected range, derived from 2h range × 1.8 multiplier. Floored by current realized daily volatility."
+                side="left"
+              />
+            </div>
             <div className="flex items-baseline gap-1">
               <span className="font-mono text-sm font-medium text-loss">{engine.expectedRange24h.low}%</span>
               <span className="text-xs text-muted-foreground">to</span>
@@ -112,9 +197,14 @@ function VolatilityEngineCard({ engine }: { engine: VolatilityEngine }) {
 
         {/* Position Sizing */}
         <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium">Position Size: {engine.positionSizeMultiplier}x</p>
-            <p className="text-xs text-muted-foreground">{engine.positionSizeReason}</p>
+          <div className="flex items-center gap-1.5">
+            <div>
+              <p className="text-sm font-medium">Position Size: {engine.positionSizeMultiplier}x</p>
+              <p className="text-xs text-muted-foreground">{engine.positionSizeReason}</p>
+            </div>
+            <InfoTooltip 
+              content="Recommended position size relative to your normal size. 0.5x means use half your usual position size during this risk regime."
+            />
           </div>
           {reductionPct > 0 && (
             <Badge variant="destructive" className="text-xs">
@@ -130,6 +220,10 @@ function VolatilityEngineCard({ engine }: { engine: VolatilityEngine }) {
             <span>
               {engine.eventCluster.count} high-impact events clustered — {engine.eventCluster.amplificationFactor}x volatility amplification
             </span>
+            <InfoTooltip 
+              content="Multiple high-impact events in the same window amplify expected volatility beyond the sum of individual events."
+              side="right"
+            />
           </div>
         )}
       </CardContent>
@@ -137,76 +231,115 @@ function VolatilityEngineCard({ engine }: { engine: VolatilityEngine }) {
   );
 }
 
+/** P3: Calm state card when no events in the 48h window */
+function VolatilityCalmCard() {
+  return (
+    <Card className={cn("border", VOLATILITY_REGIME_COLORS.LOW.bg, VOLATILITY_REGIME_COLORS.LOW.border)}>
+      <CardContent className="py-6">
+        <div className="flex items-center gap-3">
+          <Shield className={cn("h-5 w-5", VOLATILITY_REGIME_COLORS.LOW.text)} />
+          <div>
+            <p className="text-sm font-medium">Volatility Engine: Calm</p>
+            <p className="text-xs text-muted-foreground">
+              No significant macro events within the 48-hour window. Normal volatility expected.
+            </p>
+          </div>
+          <Badge variant="secondary" className="ml-auto">LOW</Badge>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** P3: Live countdown hook */
+function useCountdown(initialTimeUntil: string | null | undefined, lastUpdated: string | undefined) {
+  const [remaining, setRemaining] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!initialTimeUntil || !lastUpdated) {
+      setRemaining(initialTimeUntil || null);
+      return;
+    }
+
+    const fetchedAt = new Date(lastUpdated).getTime();
+    const initialMs = parseTimeUntilToMs(initialTimeUntil);
+    if (initialMs === null) {
+      setRemaining(initialTimeUntil);
+      return;
+    }
+
+    const updateCountdown = () => {
+      const elapsed = Date.now() - fetchedAt;
+      const remainingMs = Math.max(0, initialMs - elapsed);
+      setRemaining(formatCountdown(remainingMs));
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 30_000); // every 30s
+    return () => clearInterval(interval);
+  }, [initialTimeUntil, lastUpdated]);
+
+  return remaining;
+}
+
+// ============================================
+// Main Component
+// ============================================
+
+interface CalendarTabProps {
+  hideTitle?: boolean;
+}
+
 export function CalendarTab({ hideTitle = false }: CalendarTabProps) {
   const { data, isLoading, isError, refetch, isFetching } = useEconomicCalendar();
 
-  const formatEventDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    
-    if (date.toDateString() === today.toDateString()) {
-      return 'Today';
-    } else if (date.toDateString() === tomorrow.toDateString()) {
-      return 'Tomorrow';
-    }
-    return format(date, 'EEE');
-  };
+  const countdown = useCountdown(data?.todayHighlight?.timeUntil, data?.lastUpdated);
 
-  const formatEventTime = (dateString: string) => {
-    return format(new Date(dateString), 'HH:mm');
-  };
-
-  const getImpactIcon = (impact: 'bullish' | 'bearish' | 'neutral' | null) => {
+  const getImpactIcon = useCallback((impact: 'bullish' | 'bearish' | 'neutral' | null) => {
     switch (impact) {
       case 'bullish': return <TrendingUp className="h-3 w-3" />;
       case 'bearish': return <TrendingDown className="h-3 w-3" />;
       default: return <Minus className="h-3 w-3" />;
     }
-  };
+  }, []);
+
+  // P4: Deduplicated refresh button
+  const RefreshButton = useMemo(() => (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={() => refetch()}
+      disabled={isFetching}
+      aria-label="Refresh economic calendar data"
+    >
+      <RefreshCw className={cn("h-4 w-4 mr-2", isFetching && "animate-spin")} aria-hidden="true" />
+      Refresh
+    </Button>
+  ), [refetch, isFetching]);
 
   return (
     <div className="space-y-6 w-full min-w-0 overflow-x-hidden">
       {/* Header with Refresh */}
-      {!hideTitle && (
+      {!hideTitle ? (
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <CalendarIcon className="h-5 w-5 text-primary" />
             <h2 className="text-lg font-semibold">Economic Calendar</h2>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refetch()}
-            disabled={isFetching}
-            aria-label="Refresh economic calendar data"
-          >
-            <RefreshCw className={cn("h-4 w-4 mr-2", isFetching && "animate-spin")} aria-hidden="true" />
-            Refresh
-          </Button>
+          {RefreshButton}
         </div>
-      )}
-      
-      {hideTitle && (
+      ) : (
         <div className="flex justify-end">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refetch()}
-            disabled={isFetching}
-            aria-label="Refresh economic calendar data"
-          >
-            <RefreshCw className={cn("h-4 w-4 mr-2", isFetching && "animate-spin")} aria-hidden="true" />
-            Refresh
-          </Button>
+          {RefreshButton}
         </div>
       )}
 
-      {/* Volatility Engine Card */}
-      {data?.volatilityEngine && (
+      {/* Volatility Engine Card -- P3: show calm state instead of hiding */}
+      {data?.volatilityEngine ? (
         <VolatilityEngineCard engine={data.volatilityEngine} />
-      )}
+      ) : data && !isLoading ? (
+        <VolatilityCalmCard />
+      ) : null}
 
       {/* Impact Alert Banner */}
       {data?.impactSummary?.hasHighImpact && data.impactSummary.riskLevel !== RISK_LEVELS.LOW && (
@@ -242,11 +375,14 @@ export function CalendarTab({ hideTitle = false }: CalendarTabProps) {
               <div className="flex items-center gap-2">
                 <AlertTriangle className="h-5 w-5 text-primary" />
                 <CardTitle className="text-lg">Today's Key Release</CardTitle>
+                <InfoTooltip 
+                  content="The highest-impact economic event scheduled for today. If multiple high-impact events exist, the first one is shown."
+                />
               </div>
-              {data.todayHighlight.timeUntil && (
+              {countdown && (
                 <Badge variant="outline" className="flex items-center gap-1">
                   <Clock className="h-3 w-3" />
-                  {data.todayHighlight.timeUntil}
+                  {countdown}
                 </Badge>
               )}
             </div>
@@ -259,17 +395,26 @@ export function CalendarTab({ hideTitle = false }: CalendarTabProps) {
               </div>
               
               <div className="grid gap-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Forecast:</span>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground flex items-center gap-1">
+                    Forecast
+                    <InfoTooltip content="Market consensus estimate for this economic indicator." side="right" />
+                  </span>
                   <span className="font-mono font-medium">{data.todayHighlight.event.forecast || 'N/A'}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Previous:</span>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground flex items-center gap-1">
+                    Previous
+                    <InfoTooltip content="The value from the last release of this indicator." side="right" />
+                  </span>
                   <span className="font-mono">{data.todayHighlight.event.previous || 'N/A'}</span>
                 </div>
                 {data.todayHighlight.event.actual && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Actual:</span>
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground flex items-center gap-1">
+                      Actual
+                      <InfoTooltip content="The released value. Compare against forecast to gauge surprise factor." side="right" />
+                    </span>
                     <span className="font-mono font-bold">{data.todayHighlight.event.actual}</span>
                   </div>
                 )}
@@ -320,10 +465,21 @@ export function CalendarTab({ hideTitle = false }: CalendarTabProps) {
           <div className="flex items-center gap-2">
             <CalendarIcon className="h-5 w-5 text-primary" aria-hidden="true" />
             <CardTitle className="text-lg">Upcoming Events</CardTitle>
-            <Badge variant="outline" className="text-xs">AI Powered</Badge>
+            <div className="flex items-center gap-1">
+              <Badge variant="outline" className="text-xs">AI Powered</Badge>
+              <InfoTooltip 
+                content="AI predictions are generated for the top 5 high-impact events using Gemini. Lower-impact events show historical stats only."
+              />
+            </div>
           </div>
-          <CardDescription>
+          <CardDescription className="flex items-center gap-2">
             High-impact economic events with AI predictions
+            {/* P2: Importance dot legend */}
+            <span className="inline-flex items-center gap-2 ml-2 text-[10px]">
+              <span className="inline-flex items-center gap-0.5"><span className="w-1.5 h-1.5 rounded-full bg-loss inline-block" /> High</span>
+              <span className="inline-flex items-center gap-0.5"><span className="w-1.5 h-1.5 rounded-full bg-secondary inline-block" /> Med</span>
+              <span className="inline-flex items-center gap-0.5"><span className="w-1.5 h-1.5 rounded-full bg-profit inline-block" /> Low</span>
+            </span>
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -342,10 +498,15 @@ export function CalendarTab({ hideTitle = false }: CalendarTabProps) {
             </div>
           ) : data?.events && data.events.length > 0 ? (
             <div className="space-y-3" role="list" aria-label="Upcoming economic events">
-              {data.events.map((event) => (
+              {data.events.map((event) => {
+                const released = isReleasedEvent(event);
+                return (
                 <Collapsible key={event.id}>
                   <div 
-                    className="p-3 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors"
+                    className={cn(
+                      "p-3 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors",
+                      released && "opacity-70"
+                    )}
                     role="listitem"
                   >
                     <div className="flex items-start gap-3">
@@ -358,7 +519,16 @@ export function CalendarTab({ hideTitle = false }: CalendarTabProps) {
                       />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
-                          <p className="font-medium text-sm truncate">{event.event}</p>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <p className="font-medium text-sm truncate">{event.event}</p>
+                            {/* P3: Released badge for past events */}
+                            {released && (
+                              <Badge variant="secondary" className="text-[10px] h-4 px-1.5 gap-0.5 shrink-0">
+                                <CheckCircle2 className="h-2.5 w-2.5" />
+                                Released
+                              </Badge>
+                            )}
+                          </div>
                           <div className="flex items-center gap-2 shrink-0">
                             {event.cryptoImpact && (
                               <Badge 
@@ -381,7 +551,8 @@ export function CalendarTab({ hideTitle = false }: CalendarTabProps) {
                         </div>
                         <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                           <span>{formatEventDate(event.date)}</span>
-                          <span>{formatEventTime(event.date)} UTC</span>
+                          {/* P1: Fixed — removed misleading "UTC" label */}
+                          <span>{formatEventTime(event.date)}</span>
                           <span>{event.country}</span>
                         </div>
                         
@@ -422,15 +593,30 @@ export function CalendarTab({ hideTitle = false }: CalendarTabProps) {
                               >
                                 {event.historicalStats.upsideBias}% historical upside bias
                               </Badge>
+                              <InfoTooltip 
+                                content={`Based on ${event.historicalStats.sampleSize} historical occurrences (2020-2025). Upside bias shows % of times BTC moved up after this event. >60% = historically bullish.`}
+                                side="right"
+                              />
                             </div>
                             <div className="flex flex-wrap items-center gap-3 text-muted-foreground">
                               <span>
-                                Median move: <span className="font-mono font-medium text-foreground">+{event.historicalStats.medianBtcMove2h.toFixed(1)}%</span>
+                                {/* P1: Fixed — display as absolute magnitude without misleading + */}
+                                Median |move|: <span className="font-mono font-medium text-foreground">±{event.historicalStats.medianBtcMove2h.toFixed(1)}%</span>
                               </span>
-                              <span>
+                              <span className="flex items-center gap-0.5">
                                 Worst case: <span className="font-mono font-medium text-loss">{event.historicalStats.worstCase2h.toFixed(1)}%</span>
+                                <InfoTooltip 
+                                  content="Largest observed BTC decline within 2 hours of this event type historically. Not a theoretical maximum."
+                                  side="right"
+                                />
                               </span>
-                              <span>(n={event.historicalStats.sampleSize})</span>
+                              <span className="flex items-center gap-0.5">
+                                (n={event.historicalStats.sampleSize})
+                                <InfoTooltip 
+                                  content="Number of historical event occurrences used for these statistics. Higher sample sizes provide more reliable estimates."
+                                  side="right"
+                                />
+                              </span>
                             </div>
                           </div>
                         )}
@@ -455,7 +641,7 @@ export function CalendarTab({ hideTitle = false }: CalendarTabProps) {
                     </div>
                   </div>
                 </Collapsible>
-              ))}
+              )})}
             </div>
           ) : (
             <div className="py-8 text-center text-muted-foreground">
