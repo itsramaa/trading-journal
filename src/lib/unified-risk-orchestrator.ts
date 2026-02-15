@@ -66,7 +66,9 @@ export function calculateUnifiedPositionSize(inputs: RiskInputs): UnifiedRiskOut
     const calSoftening = 1.0 - ow.calendar; // Higher cal weight = less softening
     const adaptiveCalendar = 1.0 - (1.0 - calendarMultiplier) * (1.0 - calSoftening * 0.5);
     const weightedBlend = adaptiveCalendar * ow.calendar + regimeMultiplier * ow.regime + volatilityMultiplier * ow.volatility;
-    finalMultiplier = weightedBlend;
+    const hardFloor = Math.min(calendarMultiplier, regimeMultiplier, volatilityMultiplier);
+    // Never exceed blend, never go below 70% of the floor (adaptive allows some lift)
+    finalMultiplier = Math.min(weightedBlend, Math.max(hardFloor * 0.7 + weightedBlend * 0.3, hardFloor));
     mode = 'adaptive';
   }
 
@@ -100,6 +102,16 @@ export function calculateUnifiedPositionSize(inputs: RiskInputs): UnifiedRiskOut
     breakdown: inputs,
     mode,
   };
+}
+
+/**
+ * Event decay weight — smooth exponential decay beyond the full-weight window.
+ * Within the window: full weight (1.0).
+ * Beyond: exponential decay with half-life ≈ 6h (decay constant = 1/6).
+ */
+export function eventDecayWeight(hoursToEvent: number, fullWeightWindowHours: number): number {
+  if (hoursToEvent <= fullWeightWindowHours) return 1.0;
+  return Math.exp(-(hoursToEvent - fullWeightWindowHours) / 6);
 }
 
 /**

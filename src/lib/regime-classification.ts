@@ -55,7 +55,7 @@ interface RegimeInput {
  */
 export function classifyMarketRegime(input: RegimeInput): RegimeOutput {
   const styleConfig = input.tradingStyle ? TRADING_STYLE_CONTEXT[input.tradingStyle] : undefined;
-  const compositeScore = calculateComposite(input, styleConfig);
+  const compositeScore = calculateComposite(input);
   const alignment = determineAlignment(input);
   const regime = determineRegime(compositeScore, input, alignment, styleConfig);
   const riskMode = determineRiskMode(regime, alignment, input);
@@ -111,8 +111,9 @@ function transformFearGreed(fg: number): number {
   return fg;
 }
 
-function calculateComposite(input: RegimeInput, styleConfig?: StyleContextConfig): number {
-  const w = styleConfig?.weights.composite ?? { technical: 0.35, onChain: 0.20, macro: 0.25, fearGreed: 0.20 };
+function calculateComposite(input: RegimeInput): number {
+  // Global weights — composite score is market state, invariant across trading styles
+  const w = { technical: 0.35, onChain: 0.20, macro: 0.25, fearGreed: 0.20 };
 
   const technical = input.technicalScore * w.technical;
   const onChain = input.onChainScore * w.onChain;
