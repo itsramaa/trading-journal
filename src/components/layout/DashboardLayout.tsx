@@ -45,17 +45,17 @@ interface RouteInfo {
 const routeHierarchy: Record<string, RouteInfo> = {
   "/": { title: "Dashboard" },
   
-  // Market domain - Market Data is primary entry point
-  "/market-data": { title: "Market Data", domain: "Market", domainPath: "/market-data" },
-  "/calendar": { title: "Economic Calendar", domain: "Market", domainPath: "/market-data" },
-  "/market": { title: "Market Bias", domain: "Market", domainPath: "/market-data" },
+  // Market domain
+  "/flow-liquidity": { title: "Flow & Liquidity", domain: "Market", domainPath: "/flow-liquidity" },
+  "/calendar": { title: "Economic Calendar", domain: "Market", domainPath: "/flow-liquidity" },
+  "/market-bias": { title: "Market Bias", domain: "Market", domainPath: "/flow-liquidity" },
   
   // Journal domain
   "/trading": { title: "Trading Journal", domain: "Journal", domainPath: "/trading" },
   
   // Risk domain
-  "/risk": { title: "Risk Overview", domain: "Risk", domainPath: "/risk" },
-  "/calculator": { title: "Position Calculator", domain: "Risk", domainPath: "/risk" },
+  "/risk-analytics": { title: "Risk Analytics", domain: "Risk", domainPath: "/risk-analytics" },
+  "/risk-calculator": { title: "Risk Calculator", domain: "Risk", domainPath: "/risk-analytics" },
   
   // Strategy domain
   "/strategies": { title: "My Strategies", domain: "Strategy", domainPath: "/strategies" },
@@ -71,7 +71,7 @@ const routeHierarchy: Record<string, RouteInfo> = {
   "/accounts": { title: "Account List", domain: "Accounts", domainPath: "/accounts" },
   
   // Tools domain
-  "/top-movers": { title: "Top Movers", domain: "Market", domainPath: "/market-data" },
+  "/top-movers": { title: "Top Movers", domain: "Market", domainPath: "/flow-liquidity" },
   "/import": { title: "Import & Sync", domain: "Journal", domainPath: "/trading" },
   "/export": { title: "Bulk Export", domain: "Tools", domainPath: "/export" },
   

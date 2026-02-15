@@ -35,9 +35,9 @@ const NAVIGATION_SHORTCUTS: Record<string, { path: string; label: string; domain
   'd': { path: '/', label: 'Dashboard', domain: '' },
   
   // Market domain
-  'm': { path: '/market', label: 'Market Bias', domain: 'Market' },
+  'm': { path: '/market-bias', label: 'Market Bias', domain: 'Market' },
   'c': { path: '/calendar', label: 'Economic Calendar', domain: 'Market' },
-  'v': { path: '/market-data', label: 'Market Data', domain: 'Market' },
+  'v': { path: '/flow-liquidity', label: 'Flow & Liquidity', domain: 'Market' },
   'o': { path: '/top-movers', label: 'Top Movers', domain: 'Market' },
   
   // Journal domain  
@@ -45,8 +45,8 @@ const NAVIGATION_SHORTCUTS: Record<string, { path: string; label: string; domain
   'n': { path: '/import', label: 'Import & Sync', domain: 'Journal' },
   
   // Risk domain
-  'r': { path: '/risk', label: 'Risk Overview', domain: 'Risk' },
-  'x': { path: '/calculator', label: 'Position Calculator', domain: 'Risk' },
+  'r': { path: '/risk-analytics', label: 'Risk Analytics', domain: 'Risk' },
+  'x': { path: '/risk-calculator', label: 'Risk Calculator', domain: 'Risk' },
   
   // Strategy domain
   's': { path: '/strategies', label: 'My Strategies', domain: 'Strategy' },

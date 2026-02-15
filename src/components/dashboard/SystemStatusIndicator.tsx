@@ -160,7 +160,7 @@ export function SystemStatusIndicator({ compact = false }: SystemStatusIndicator
             </div>
           </div>
           <Button variant="ghost" size="sm" asChild>
-            <Link to="/risk" className="flex items-center gap-1">
+            <Link to="/risk-analytics" className="flex items-center gap-1">
               <Shield className="h-4 w-4" aria-hidden="true" />
               <span className="hidden md:inline">Details</span>
               <ChevronRight className="h-4 w-4" aria-hidden="true" />

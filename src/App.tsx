@@ -128,9 +128,9 @@ const App = () => (
                 <Route path="/" element={<Dashboard />} />
                 
                 {/* Market Domain */}
-                <Route path="/market" element={<MarketInsight />} />
+                <Route path="/market-bias" element={<MarketInsight />} />
                 <Route path="/calendar" element={<EconomicCalendar />} />
-                <Route path="/market-data" element={<MarketData />} />
+                <Route path="/flow-liquidity" element={<MarketData />} />
                 <Route path="/top-movers" element={<TopMovers />} />
                 
                 {/* Journal Domain */}
@@ -140,8 +140,8 @@ const App = () => (
                 <Route path="/import" element={<ImportTrades />} />
                 
                 {/* Risk Domain */}
-                <Route path="/risk" element={<RiskManagement />} />
-                <Route path="/calculator" element={<PositionCalculator />} />
+                <Route path="/risk-analytics" element={<RiskManagement />} />
+                <Route path="/risk-calculator" element={<PositionCalculator />} />
                 
                 {/* Strategy Domain */}
                 <Route path="/strategies" element={<StrategyManagement />} />
@@ -167,6 +167,10 @@ const App = () => (
               
               {/* Legacy Redirects */}
               <Route path="/ai" element={<Navigate to="/trading" replace />} />
+              <Route path="/market" element={<Navigate to="/market-bias" replace />} />
+              <Route path="/market-data" element={<Navigate to="/flow-liquidity" replace />} />
+              <Route path="/risk" element={<Navigate to="/risk-analytics" replace />} />
+              <Route path="/calculator" element={<Navigate to="/risk-calculator" replace />} />
               
               <Route path="*" element={<NotFound />} />
             </Routes>
