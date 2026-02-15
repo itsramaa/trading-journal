@@ -1,87 +1,145 @@
 
 
-# Fix Style-Aware Engine: 5 Corrections
+# Account Detail UX Overhaul: State-Aware Information Architecture
 
-Addresses statistical errors and architectural violations in the current style-aware implementation.
+Redesign the Account Detail page to show contextually relevant information based on account state, fix the drawdown calculation bug, and clarify the realized vs unrealized P&L model.
 
 ---
 
-## Problems and Fixes
+## Changes
 
-### 1. Composite Score Must Be Global (Not Style-Dependent)
+### 1. State-Aware Metrics Strip (AccountDetailMetrics)
 
-**Problem:** `calculateComposite()` currently accepts `styleConfig` and shifts weights per style. This means the same market produces different regime classifications per style -- regime becomes "strategy-relative state" instead of "market state."
+**File:** `src/components/accounts/detail/AccountDetailMetrics.tsx`
 
-**Fix in `src/lib/regime-classification.ts`:**
-- Remove `styleConfig` parameter from `calculateComposite()` -- always use the default balanced weights (0.35/0.20/0.25/0.20)
-- Remove `styleConfig` parameter from `determineRegime()` -- regime classification is market-state only
-- Keep `regimeRelevance` usage ONLY in `determineRegime` for controlling override sensitivity (RISK_OFF/HIGH_VOL triggers), NOT for changing the composite score
-- Style context metadata (`styleContext`) still populates from config for UI labeling, but the score itself is invariant
+When `totalTrades === 0`, replace the 5-card metrics grid with a condensed 2-card layout:
 
-**Result:** All three styles see the same regime (e.g., RANGING). Style only changes sizing, range display, and risk tolerance.
+- **Card 1: Balance** -- shows current balance and initial capital
+- **Card 2: Status** -- "No closed trades yet" with a prompt to start trading
 
-### 2. Range Multiplier: Use sqrt(hours/24), Not Hardcoded 0.12
+Hide Win Rate, Profit Factor, and Avg P&L cards entirely when there are no trades. These appear only when `totalTrades > 0`.
 
-**Problem:** Scalping uses `rangeBaseMultiplier: 0.12` but `sqrt(2/24) = 0.289`. Current value understates scalping volatility by ~2.4x.
-
-**Fix in `src/lib/constants/trading-style-context.ts`:**
-
-```
-scalping:   rangeBaseMultiplier: 0.289  // sqrt(2/24)
-short_trade: rangeBaseMultiplier: 0.577  // sqrt(8/24)
-swing:       rangeBaseMultiplier: 1.0    // sqrt(24/24)
+Add `totalTrades` awareness:
+```typescript
+const hasTrades = totalTrades > 0;
 ```
 
-Add a comment documenting the formula: `rangeBaseMultiplier = sqrt(horizonHours / 24)`.
+When `hasTrades === false`: render only Balance + Onboarding prompt (2 cards).
+When `hasTrades === true`: render the full 5-card strip as-is.
 
-### 3. Orchestrator: Restore min() as Hard Floor
+### 2. Equity vs Balance Clarity (AccountDetailHeader)
 
-**Problem:** In adaptive mode, the orchestrator uses a pure weighted blend without any floor. Example: Cal=0.4, Reg=0.8, Vol=0.9 with scalping weights (0.1/0.3/0.6) produces 0.82 -- more than 2x the most cautious signal.
+**File:** `src/components/accounts/detail/AccountDetailHeader.tsx`
 
-**Fix in `src/lib/unified-risk-orchestrator.ts`:**
+For Binance (live) accounts, replace the single "Balance" display with:
 
-In defensive mode, the current logic is already sound (blend floored by min). In adaptive mode, add a hard floor:
+```
+Balance (Realized): $47.83
+Equity:             $48.27
+Unrealized P&L:     +$0.44
+```
+
+Implementation:
+- Accept new props: `unrealizedPnl` and `equity` (balance + unrealized)
+- Show the 3-line breakdown when `isBinanceVirtual && unrealizedPnl !== 0`
+- For paper/DB accounts, keep the single "Balance" display (no unrealized concept)
+
+**File:** `src/pages/AccountDetail.tsx`
+
+Pass `unrealizedPnl` and computed `equity` (displayBalance + unrealizedPnl) to the header.
+
+### 3. Fix Drawdown Calculation Bug
+
+**File:** `src/pages/AccountDetail.tsx` (equityData memo)
+
+Current drawdown formula:
+```typescript
+const drawdown = peak > 0 ? ((peak - cumulative) / peak) * 100 : 0;
+```
+
+Bug: When cumulative P&L goes negative (e.g., -$5) and peak is $0.44, the formula produces `((0.44 - (-5)) / 0.44) * 100 = 1236%`. This is mathematically wrong -- drawdown should be measured against **initial capital + peak**, not peak P&L alone.
+
+Fix: Use `initialBalance + peak` as the denominator:
+```typescript
+const drawdownBase = initialBalance + peak;
+const drawdown = drawdownBase > 0 ? ((peak - cumulative) / drawdownBase) * 100 : 0;
+```
+
+This ensures drawdown is a percentage of total equity at peak, not just cumulative P&L at peak. Maximum drawdown is capped at 100%.
+
+Also apply this fix in `src/components/analytics/charts/DrawdownChart.tsx` for consistency.
+
+### 4. Conditional Rendering in Overview Tab
+
+**File:** `src/components/accounts/detail/AccountDetailOverview.tsx`
+
+When `equityData.length === 0` AND no active positions:
+- Show a single onboarding empty state card instead of the equity curve placeholder + hidden drawdown
+- Use the existing `EmptyState` component pattern with a contextual message
+
+When there ARE active positions but no closed trades (live account):
+- Show only the Active Positions table
+- Hide equity curve and drawdown (no closed trade data to chart)
+
+Fee Breakdown: already conditionally rendered (only when `totalFees > 0`) -- no change needed.
+
+### 5. Financial Tab: State-Aware Content
+
+**File:** `src/components/accounts/detail/AccountDetailFinancial.tsx`
+
+Accept `totalTrades` prop. When `totalTrades === 0`:
+- Show a simplified card: "No trading activity yet. Financial summary will appear after your first closed trade."
+- Hide the Gross/Net P&L breakdown, Fee Breakdown, and Capital Efficiency sections
+
+When `totalTrades > 0`: show full content as-is.
+
+### 6. Remove Unrealized P&L from Metrics Card (De-duplicate)
+
+**File:** `src/components/accounts/detail/AccountDetailMetrics.tsx`
+
+Since unrealized P&L will now be prominently shown in the header (change 2), remove the small unrealized badge from the Net P&L metrics card to avoid redundancy. The metrics strip should only show realized (closed trade) performance.
+
+---
+
+## Technical Details
+
+### Drawdown Fix Formula
+
+Current (broken):
+```text
+drawdown% = (peak_cumPnL - current_cumPnL) / peak_cumPnL * 100
+```
+When peak = $0.44 and current = -$5: drawdown = 1236% (impossible)
+
+Fixed:
+```text
+drawdown% = (peak_cumPnL - current_cumPnL) / (initialBalance + peak_cumPnL) * 100
+```
+When initialBalance = $47, peak = $0.44, current = -$5:
+drawdown = ($0.44 - (-$5)) / ($47 + $0.44) * 100 = 11.5% (realistic)
+
+Cap at 100%:
+```typescript
+const drawdown = Math.min(drawdownBase > 0 ? ((peak - cumulative) / drawdownBase) * 100 : 0, 100);
+```
+
+### State Detection Logic
 
 ```typescript
-// Adaptive mode
-const weightedBlend = adaptiveCalendar * ow.calendar + regimeMultiplier * ow.regime + volatilityMultiplier * ow.volatility;
-const hardFloor = Math.min(calendarMultiplier, regimeMultiplier, volatilityMultiplier);
-// Never exceed blend, never go below 70% of the floor (adaptive allows some lift)
-finalMultiplier = Math.min(weightedBlend, Math.max(hardFloor * 0.7 + weightedBlend * 0.3, hardFloor));
+const totalTrades = stats?.totalTrades || 0;
+const hasTrades = totalTrades > 0;
+const hasActivePositions = isBinanceVirtual && activePositions.length > 0;
 ```
 
-This preserves the adaptive lift for directional opportunities but ensures the most cautious signal still anchors the result.
+### Header Equity Display (Live accounts only)
 
-### 4. Event Sensitivity: Decay Function Instead of Hard Cutoff
-
-**Problem:** `eventSensitivityWindowHours` is used as a binary cutoff. An event at 3h01 for scalping is fully ignored; at 2h59 it has full weight.
-
-**Fix in `src/lib/constants/trading-style-context.ts`:**
-- Keep `eventSensitivityWindowHours` as the "full weight" window
-- Document that consumers should apply exponential decay beyond it
-
-**Fix in `src/lib/unified-risk-orchestrator.ts`** (or wherever calendar multiplier is consumed):
-- Add a utility function:
-
-```typescript
-function eventDecayWeight(hoursToEvent: number, fullWeightWindow: number): number {
-  if (hoursToEvent <= fullWeightWindow) return 1.0;
-  // Exponential decay beyond window, half-life = 6h
-  return Math.exp(-(hoursToEvent - fullWeightWindow) / 6);
-}
+```text
+Balance (Realized)    $47.83
+Equity                $48.27    <- balance + unrealized
+Unrealized P&L        +$0.44   <- colored profit/loss
 ```
 
-- Apply this decay to the calendar multiplier before it enters the orchestrator blend, so events slightly beyond the window still have partial influence instead of zero.
-
-### 5. Regime Relevance: Restrict to Override Sensitivity Only
-
-**Problem:** `regimeRelevance` currently changes both regime overrides AND composite weights. The composite weight shift is the violation from point 1.
-
-**Fix:** After point 1 is applied (composite becomes global), `regimeRelevance` only controls:
-- Whether HIGH event risk triggers RISK_OFF (already correct in `determineRegime`)
-- Whether high volatility triggers HIGH_VOL regime (already correct)
-
-No other use. It does NOT change the composite score or regime thresholds.
+For paper accounts, just show "Balance" as before.
 
 ---
 
@@ -89,9 +147,12 @@ No other use. It does NOT change the composite score or regime thresholds.
 
 | File | Change |
 |------|--------|
-| `src/lib/regime-classification.ts` | Remove styleConfig from `calculateComposite()` and `determineRegime()` composite path; keep regimeRelevance for override sensitivity only |
-| `src/lib/constants/trading-style-context.ts` | Fix rangeBaseMultiplier to sqrt(h/24); composite weights become documentation-only (not used in composite calculation) |
-| `src/lib/unified-risk-orchestrator.ts` | Add hard floor in adaptive mode; add `eventDecayWeight()` utility |
+| `src/components/accounts/detail/AccountDetailMetrics.tsx` | Conditional 2-card vs 5-card based on trade count; remove unrealized badge |
+| `src/components/accounts/detail/AccountDetailHeader.tsx` | Add equity breakdown for live accounts |
+| `src/pages/AccountDetail.tsx` | Fix drawdown formula with initialBalance; pass equity/unrealized to header; pass totalTrades to financial |
+| `src/components/accounts/detail/AccountDetailOverview.tsx` | State-aware empty states; hide drawdown when no trades |
+| `src/components/accounts/detail/AccountDetailFinancial.tsx` | Accept totalTrades; show empty state when 0 |
+| `src/components/analytics/charts/DrawdownChart.tsx` | Same drawdown formula fix for consistency |
 
 ---
 
@@ -99,9 +160,8 @@ No other use. It does NOT change the composite score or regime thresholds.
 
 | Before | After |
 |--------|-------|
-| Composite score differs per style | Composite score is global market state |
-| Scalping range = 0.12x (too small) | Scalping range = 0.289x (statistically correct) |
-| Adaptive blend can be 2x the min signal | Adaptive blend anchored to min() floor |
-| Event sensitivity is binary cutoff | Smooth exponential decay beyond window |
-| regimeRelevance shifts composite weights | regimeRelevance only controls overrides |
-
+| 5 metric cards showing 0% / 0.00 with no trades | 2 cards (Balance + Status) when no trades |
+| "Balance: $47.83" + tiny unrealized badge | Balance / Equity / Unrealized breakdown for live |
+| Drawdown showing -300% | Drawdown capped at realistic % using initial capital as base |
+| Full financial summary with all zeros | "No trading activity yet" empty state |
+| Unrealized shown in both header area and metrics | Unrealized shown only in header equity section |
