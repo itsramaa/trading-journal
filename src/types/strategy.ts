@@ -7,7 +7,7 @@ export type TimeframeType = '1m' | '5m' | '15m' | '1h' | '4h' | '1d' | '1w';
 export type MarketType = 'spot' | 'futures';
 export type StrategyStatus = 'active' | 'paused' | 'killed';
 
-// NEW: Trading Methodology Types
+// Trading Methodology Types
 export type TradingMethodology = 
   | 'indicator_based'
   | 'price_action' 
@@ -50,6 +50,16 @@ export type ExitRuleType =
 
 export type ExitRuleUnit = 'percent' | 'atr' | 'rr' | 'pips';
 
+// Position Sizing Models
+export type PositionSizingModel = 
+  | 'fixed_percent'
+  | 'fixed_usd'
+  | 'kelly'
+  | 'atr_based';
+
+// Margin Mode for futures
+export type MarginMode = 'cross' | 'isolated';
+
 export interface EntryRule {
   id: string;
   type: EntryRuleType;
@@ -66,14 +76,38 @@ export interface ExitRule {
   unit: ExitRuleUnit;
 }
 
+// Trade Management Rules
+export interface PartialTpLevel {
+  percent: number;  // % of position to close
+  at_rr: number;    // at what R:R to close
+}
+
+export interface TradeManagement {
+  partial_tp_enabled: boolean;
+  partial_tp_levels: PartialTpLevel[];
+  move_sl_to_be: boolean;
+  move_sl_to_be_at_rr: number;
+  max_trades_per_day: number | null;
+  max_daily_loss_percent: number | null;
+  max_consecutive_losses: number | null;
+}
+
+export const DEFAULT_TRADE_MANAGEMENT: TradeManagement = {
+  partial_tp_enabled: false,
+  partial_tp_levels: [],
+  move_sl_to_be: false,
+  move_sl_to_be_at_rr: 1,
+  max_trades_per_day: null,
+  max_daily_loss_percent: null,
+  max_consecutive_losses: null,
+};
+
 export interface TradingStrategyEnhanced {
   id: string;
   user_id: string;
   name: string;
   description: string | null;
-  // Primary timeframe for trade management
   timeframe: TimeframeType | null;
-  // Multi-Timeframe Analysis (MTFA)
   higher_timeframe: TimeframeType | null;
   lower_timeframe: TimeframeType | null;
   market_type: MarketType;
@@ -87,11 +121,18 @@ export interface TradingStrategyEnhanced {
   tags: string[] | null;
   color: string | null;
   is_active: boolean;
-  // NEW: Professional trading fields
   methodology: TradingMethodology;
   trading_style: TradingStyle;
   session_preference: TradingSession[];
   difficulty_level: DifficultyLevel | null;
+  // Position sizing
+  position_sizing_model: PositionSizingModel;
+  position_sizing_value: number;
+  // Trade management
+  trade_management: TradeManagement;
+  // Futures-specific
+  default_leverage: number;
+  margin_mode: MarginMode;
   // YouTube import fields
   validation_score: number | null;
   automation_score: number | null;
@@ -101,7 +142,7 @@ export interface TradingStrategyEnhanced {
   updated_at: string;
 }
 
-// Default entry rules template per Markdown spec
+// Default entry rules template - 2 mandatory, 2 optional for flexibility
 export const DEFAULT_ENTRY_RULES: EntryRule[] = [
   {
     id: 'price_action_sr',
@@ -120,13 +161,13 @@ export const DEFAULT_ENTRY_RULES: EntryRule[] = [
     type: 'indicator',
     indicator: 'RSI/MACD',
     condition: 'Technical indicator alignment',
-    is_mandatory: true,
+    is_mandatory: false,
   },
   {
     id: 'higher_tf',
     type: 'higher_tf',
     condition: 'Higher timeframe trend alignment',
-    is_mandatory: true,
+    is_mandatory: false,
   },
   {
     id: 'on_chain',

@@ -989,6 +989,7 @@ export type Database = {
           clone_count: number | null
           color: string | null
           created_at: string
+          default_leverage: number | null
           deleted_at: string | null
           description: string | null
           difficulty_level: string | null
@@ -1000,11 +1001,14 @@ export type Database = {
           is_shared: boolean | null
           last_cloned_at: string | null
           lower_timeframe: string | null
+          margin_mode: string | null
           market_type: string | null
           methodology: string | null
           min_confluences: number | null
           min_rr: number | null
           name: string
+          position_sizing_model: string | null
+          position_sizing_value: number | null
           session_preference: string[] | null
           share_token: string | null
           source: string | null
@@ -1012,6 +1016,7 @@ export type Database = {
           status: string | null
           tags: string[] | null
           timeframe: string | null
+          trade_management: Json | null
           trading_style: string | null
           updated_at: string
           user_id: string
@@ -1024,6 +1029,7 @@ export type Database = {
           clone_count?: number | null
           color?: string | null
           created_at?: string
+          default_leverage?: number | null
           deleted_at?: string | null
           description?: string | null
           difficulty_level?: string | null
@@ -1035,11 +1041,14 @@ export type Database = {
           is_shared?: boolean | null
           last_cloned_at?: string | null
           lower_timeframe?: string | null
+          margin_mode?: string | null
           market_type?: string | null
           methodology?: string | null
           min_confluences?: number | null
           min_rr?: number | null
           name: string
+          position_sizing_model?: string | null
+          position_sizing_value?: number | null
           session_preference?: string[] | null
           share_token?: string | null
           source?: string | null
@@ -1047,6 +1056,7 @@ export type Database = {
           status?: string | null
           tags?: string[] | null
           timeframe?: string | null
+          trade_management?: Json | null
           trading_style?: string | null
           updated_at?: string
           user_id: string
@@ -1059,6 +1069,7 @@ export type Database = {
           clone_count?: number | null
           color?: string | null
           created_at?: string
+          default_leverage?: number | null
           deleted_at?: string | null
           description?: string | null
           difficulty_level?: string | null
@@ -1070,11 +1081,14 @@ export type Database = {
           is_shared?: boolean | null
           last_cloned_at?: string | null
           lower_timeframe?: string | null
+          margin_mode?: string | null
           market_type?: string | null
           methodology?: string | null
           min_confluences?: number | null
           min_rr?: number | null
           name?: string
+          position_sizing_model?: string | null
+          position_sizing_value?: number | null
           session_preference?: string[] | null
           share_token?: string | null
           source?: string | null
@@ -1082,6 +1096,7 @@ export type Database = {
           status?: string | null
           tags?: string[] | null
           timeframe?: string | null
+          trade_management?: Json | null
           trading_style?: string | null
           updated_at?: string
           user_id?: string

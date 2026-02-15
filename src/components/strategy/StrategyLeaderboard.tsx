@@ -233,7 +233,9 @@ export function StrategyLeaderboard() {
               Strategy Leaderboard
             </CardTitle>
             <CardDescription>
-              {hasActiveFilters 
+              {allFilteredStrategies.length === 0
+                ? "Be the first to share and get cloned!"
+                : hasActiveFilters 
                 ? `Showing ${allFilteredStrategies.length} filtered strategies`
                 : `Top ${allFilteredStrategies.length} cloned strategies globally`
               }

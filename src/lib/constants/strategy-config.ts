@@ -13,7 +13,7 @@ export const STRATEGY_DEFAULTS = {
   COLOR: 'blue',
   MARKET_TYPE: 'spot' as const,
   STATUS: 'active' as const,
-  MIN_CONFLUENCES: 4,
+  MIN_CONFLUENCES: 3,
   MIN_RR: 1.5,
   VALID_PAIRS: ['BTC', 'ETH', 'BNB'],
   // Entry rules slice for new strategies
@@ -21,11 +21,17 @@ export const STRATEGY_DEFAULTS = {
   // YouTube import defaults
   YOUTUBE_MANDATORY_ENTRY_RULES: 2,
   YOUTUBE_MAX_TAGS: 5,
-  // NEW: Professional trading defaults
+  // Professional trading defaults
   METHODOLOGY: 'price_action' as TradingMethodology,
   TRADING_STYLE: 'day_trading' as TradingStyle,
   SESSION_PREFERENCE: ['all'] as TradingSession[],
   DIFFICULTY_LEVEL: 'intermediate' as DifficultyLevel,
+  // Position sizing defaults
+  POSITION_SIZING_MODEL: 'fixed_percent' as const,
+  POSITION_SIZING_VALUE: 2,
+  // Futures defaults
+  DEFAULT_LEVERAGE: 1,
+  MARGIN_MODE: 'cross' as const,
 } as const;
 
 // =============================================================================
@@ -233,4 +239,24 @@ export const STRATEGY_FIT_CONFIG = {
 export const STRATEGY_FORM_CONSTRAINTS = {
   MIN_CONFLUENCES: { MIN: 1, MAX: 10 },
   MIN_RR: { MIN: 0.5, MAX: 10, STEP: 0.1 },
+  LEVERAGE: { MIN: 1, MAX: 125 },
 } as const;
+
+// =============================================================================
+// POSITION SIZING MODELS
+// =============================================================================
+
+export interface PositionSizingModelOption {
+  value: string;
+  label: string;
+  description: string;
+  defaultValue: number;
+  unit: string;
+}
+
+export const POSITION_SIZING_MODELS: PositionSizingModelOption[] = [
+  { value: 'fixed_percent', label: 'Fixed % Risk', description: 'Risk a fixed percentage of equity per trade', defaultValue: 2, unit: '%' },
+  { value: 'fixed_usd', label: 'Fixed USD', description: 'Risk a fixed dollar amount per trade', defaultValue: 100, unit: 'USD' },
+  { value: 'kelly', label: 'Kelly Fraction', description: 'Optimal sizing based on win rate and R:R', defaultValue: 0.25, unit: 'fraction' },
+  { value: 'atr_based', label: 'ATR-Based', description: 'Size based on Average True Range volatility', defaultValue: 1.5, unit: 'ATR multiplier' },
+];

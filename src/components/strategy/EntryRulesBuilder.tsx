@@ -72,7 +72,7 @@ export function EntryRulesBuilder({ rules, onChange }: EntryRulesBuilderProps) {
           </Badge>
         </div>
         <p className="text-xs text-muted-foreground">
-          Define confluence requirements. Markdown spec requires min {RULE_BUILDER_CONFIG.DEFAULT_MANDATORY_THRESHOLD} confluences.
+          Define confluence requirements. Set rules as mandatory or optional, then configure min confluences in Entry tab.
         </p>
       </CardHeader>
       <CardContent className="space-y-3">

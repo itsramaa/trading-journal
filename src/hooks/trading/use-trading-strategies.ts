@@ -12,7 +12,11 @@ import type {
   TradingStyle,
   TradingSession,
   DifficultyLevel,
+  PositionSizingModel,
+  MarginMode,
+  TradeManagement,
 } from "@/types/strategy";
+import { DEFAULT_TRADE_MANAGEMENT } from "@/types/strategy";
 import { STRATEGY_DEFAULTS } from "@/lib/constants/strategy-config";
 
 export interface TradingStrategy {
@@ -23,9 +27,7 @@ export interface TradingStrategy {
   tags: string[] | null;
   color: string | null;
   is_active: boolean;
-  // Primary timeframe for trade management
   timeframe: TimeframeType | null;
-  // Multi-Timeframe Analysis (MTFA)
   higher_timeframe: TimeframeType | null;
   lower_timeframe: TimeframeType | null;
   market_type: MarketType | null;
@@ -36,11 +38,18 @@ export interface TradingStrategy {
   valid_pairs: string[] | null;
   version: number | null;
   status: StrategyStatus | null;
-  // NEW: Professional trading fields
   methodology: TradingMethodology | null;
   trading_style: TradingStyle | null;
   session_preference: TradingSession[] | null;
   difficulty_level: DifficultyLevel | null;
+  // Position sizing
+  position_sizing_model: PositionSizingModel;
+  position_sizing_value: number;
+  // Trade management
+  trade_management: TradeManagement;
+  // Futures-specific
+  default_leverage: number;
+  margin_mode: MarginMode;
   // YouTube import fields
   validation_score: number | null;
   automation_score: number | null;
@@ -64,11 +73,16 @@ export interface CreateStrategyInput {
   entry_rules?: EntryRule[];
   exit_rules?: ExitRule[];
   valid_pairs?: string[];
-  // NEW: Professional trading fields
   methodology?: TradingMethodology;
   trading_style?: TradingStyle;
   session_preference?: TradingSession[];
   difficulty_level?: DifficultyLevel;
+  // New fields
+  position_sizing_model?: PositionSizingModel;
+  position_sizing_value?: number;
+  trade_management?: TradeManagement;
+  default_leverage?: number;
+  margin_mode?: MarginMode;
 }
 
 export interface UpdateStrategyInput extends Partial<CreateStrategyInput> {
@@ -93,7 +107,6 @@ export function useTradingStrategies() {
 
       if (error) throw error;
       
-      // Transform JSONB fields to typed arrays with proper casting
       return (data || []).map(s => ({
         ...s,
         entry_rules: (Array.isArray(s.entry_rules) ? s.entry_rules : []) as unknown as EntryRule[] | null,
@@ -107,6 +120,11 @@ export function useTradingStrategies() {
         trading_style: (s.trading_style || STRATEGY_DEFAULTS.TRADING_STYLE) as TradingStyle,
         session_preference: (s.session_preference || STRATEGY_DEFAULTS.SESSION_PREFERENCE) as TradingSession[],
         difficulty_level: s.difficulty_level as DifficultyLevel | null,
+        position_sizing_model: ((s as any).position_sizing_model || STRATEGY_DEFAULTS.POSITION_SIZING_MODEL) as PositionSizingModel,
+        position_sizing_value: (s as any).position_sizing_value ?? STRATEGY_DEFAULTS.POSITION_SIZING_VALUE,
+        trade_management: ((s as any).trade_management || DEFAULT_TRADE_MANAGEMENT) as TradeManagement,
+        default_leverage: (s as any).default_leverage ?? STRATEGY_DEFAULTS.DEFAULT_LEVERAGE,
+        margin_mode: ((s as any).margin_mode || STRATEGY_DEFAULTS.MARGIN_MODE) as MarginMode,
         validation_score: s.validation_score,
         automation_score: s.automation_score,
         source: s.source || null,
@@ -143,11 +161,15 @@ export function useCreateTradingStrategy() {
           entry_rules: JSON.parse(JSON.stringify(input.entry_rules || [])),
           exit_rules: JSON.parse(JSON.stringify(input.exit_rules || [])),
           valid_pairs: input.valid_pairs || [...STRATEGY_DEFAULTS.VALID_PAIRS],
-          // NEW: Professional trading fields
           methodology: input.methodology || STRATEGY_DEFAULTS.METHODOLOGY,
           trading_style: input.trading_style || STRATEGY_DEFAULTS.TRADING_STYLE,
           session_preference: input.session_preference || [...STRATEGY_DEFAULTS.SESSION_PREFERENCE],
           difficulty_level: input.difficulty_level || null,
+          position_sizing_model: input.position_sizing_model || STRATEGY_DEFAULTS.POSITION_SIZING_MODEL,
+          position_sizing_value: input.position_sizing_value ?? STRATEGY_DEFAULTS.POSITION_SIZING_VALUE,
+          trade_management: input.trade_management ? JSON.parse(JSON.stringify(input.trade_management)) : DEFAULT_TRADE_MANAGEMENT,
+          default_leverage: input.default_leverage ?? STRATEGY_DEFAULTS.DEFAULT_LEVERAGE,
+          margin_mode: input.margin_mode || STRATEGY_DEFAULTS.MARGIN_MODE,
         }])
         .select()
         .single();
@@ -173,7 +195,6 @@ export function useUpdateTradingStrategy() {
     mutationFn: async (input: UpdateStrategyInput) => {
       const { id, ...updates } = input;
 
-      // Build update object with only provided fields
       const updateData: Record<string, unknown> = { 
         updated_at: new Date().toISOString() 
       };
@@ -191,11 +212,16 @@ export function useUpdateTradingStrategy() {
       if (updates.entry_rules !== undefined) updateData.entry_rules = updates.entry_rules;
       if (updates.exit_rules !== undefined) updateData.exit_rules = updates.exit_rules;
       if (updates.valid_pairs !== undefined) updateData.valid_pairs = updates.valid_pairs;
-      // NEW: Professional trading fields
       if (updates.methodology !== undefined) updateData.methodology = updates.methodology;
       if (updates.trading_style !== undefined) updateData.trading_style = updates.trading_style;
       if (updates.session_preference !== undefined) updateData.session_preference = updates.session_preference;
       if (updates.difficulty_level !== undefined) updateData.difficulty_level = updates.difficulty_level;
+      // New fields
+      if (updates.position_sizing_model !== undefined) updateData.position_sizing_model = updates.position_sizing_model;
+      if (updates.position_sizing_value !== undefined) updateData.position_sizing_value = updates.position_sizing_value;
+      if (updates.trade_management !== undefined) updateData.trade_management = updates.trade_management;
+      if (updates.default_leverage !== undefined) updateData.default_leverage = updates.default_leverage;
+      if (updates.margin_mode !== undefined) updateData.margin_mode = updates.margin_mode;
 
       const { data, error } = await supabase
         .from("trading_strategies")

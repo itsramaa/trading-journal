@@ -111,7 +111,7 @@ export type IndicatorType = typeof INDICATOR_OPTIONS[number];
 
 export const RULE_BUILDER_CONFIG = {
   // Default mandatory threshold for entry rules
-  DEFAULT_MANDATORY_THRESHOLD: 4,
+  DEFAULT_MANDATORY_THRESHOLD: 2,
   // Default indicator when creating new indicator rule
   DEFAULT_INDICATOR: 'RSI',
 } as const;
