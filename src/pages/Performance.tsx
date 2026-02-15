@@ -33,6 +33,7 @@ import { TradingBehaviorAnalytics } from "@/components/analytics/TradingBehavior
 import { EquityCurveWithEvents } from "@/components/analytics/charts/EquityCurveWithEvents";
 import { TradingHeatmapChart } from "@/components/analytics/charts/TradingHeatmapChart";
 import { SevenDayStatsCard } from "@/components/analytics/SevenDayStatsCard";
+import { PerformanceSummaryCard } from "@/components/performance/PerformanceSummaryCard";
 import { SessionPerformanceChart } from "@/components/analytics/session/SessionPerformanceChart";
 
 // Hooks
@@ -136,7 +137,17 @@ export default function Performance() {
     }).length;
   }, [trades]);
 
-  const stats = useMemo(() => calculateTradingStats(filteredTrades), [filteredTrades]);
+  // Derive initial balance from account data for accurate drawdown %
+  const initialBalance = useMemo(() => {
+    if (analyticsSelection.level === 'account') {
+      const acc = accounts.find(a => a.id === analyticsSelection.accountId);
+      return acc?.balance ?? 0;
+    }
+    const totalBalance = accounts.reduce((sum, a) => sum + (a.balance ?? 0), 0);
+    return totalBalance;
+  }, [accounts, analyticsSelection]);
+
+  const stats = useMemo(() => calculateTradingStats(filteredTrades, initialBalance), [filteredTrades, initialBalance]);
   const strategyPerformance = useMemo(() => calculateStrategyPerformance(filteredTrades, strategies), [filteredTrades, strategies]);
   const equityData = useMemo(() => generateEquityCurve(filteredTrades), [filteredTrades]);
   const chartFormatCurrency = (v: number) => formatCompact(v);
@@ -223,6 +234,7 @@ export default function Performance() {
 
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-8">
+            <PerformanceSummaryCard stats={stats} formatCurrency={chartFormatCurrency} />
             <SevenDayStatsCard trades={filteredTrades} />
             <PerformanceKeyMetrics stats={stats} formatCurrency={chartFormatCurrency} binanceStats={binanceStats} showExchangeData={showExchangeData} />
             <TradingBehaviorAnalytics trades={filteredTrades} />
