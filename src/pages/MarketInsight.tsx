@@ -17,6 +17,7 @@ import {
 import { cn } from "@/lib/utils";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { 
   useMarketSentiment, 
   BIAS_VALIDITY_MINUTES,
@@ -234,7 +235,16 @@ function MacroGrid({ correlations, isLoading }: { correlations?: MacroCorrelatio
             {correlations.map((item) => (
               <div key={item.name} className="p-3 rounded-lg border bg-muted/30">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm font-medium">{item.name}</span>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="text-sm font-medium cursor-default">{item.name}</span>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <p className="text-sm">{item.impact}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                   <div className="flex items-center gap-1">
                     {item.change >= 0 ? (
                       <TrendingUp className="h-3 w-3 text-profit" />
