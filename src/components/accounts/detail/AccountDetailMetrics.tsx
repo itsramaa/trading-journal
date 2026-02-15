@@ -5,6 +5,8 @@ import {
   Activity,
   BarChart3,
   Percent,
+  Wallet,
+  Info,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +43,50 @@ export function AccountDetailMetrics({
   const winRate = stats?.winRate || 0;
   const profitFactor = stats?.profitFactor || 0;
   const totalTrades = stats?.totalTrades || 0;
+  const hasTrades = totalTrades > 0;
+
+  // When no closed trades, show condensed 2-card layout
+  if (!hasTrades && !statsLoading) {
+    return (
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* Balance Card */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Balance</p>
+                <p className="text-2xl font-bold font-mono-numbers">
+                  {formatCurrency(displayBalance)}
+                </p>
+              </div>
+              <Wallet className="h-8 w-8 text-muted-foreground/50" />
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Initial Capital: {formatCurrency(initialBalance)}
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Status Card */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Status</p>
+                <p className="text-lg font-semibold">No closed trades yet</p>
+              </div>
+              <Info className="h-8 w-8 text-muted-foreground/50" />
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {isBinanceVirtual && activePositionsCount > 0
+                ? `${activePositionsCount} open position${activePositionsCount > 1 ? 's' : ''} active`
+                : 'Start trading to see performance metrics'}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="grid gap-4 md:grid-cols-5">
@@ -62,16 +108,9 @@ export function AccountDetailMetrics({
               <TrendingDown className="h-8 w-8 text-loss/50" />
             )}
           </div>
-          <div className="flex items-center gap-2 mt-1">
-            <p className="text-xs text-muted-foreground">
-              Gross: {formatPnl(stats?.totalPnlGross || 0)}
-            </p>
-            {isBinanceVirtual && unrealizedPnl !== 0 && (
-              <Badge variant="outline" className={`text-xs ${unrealizedPnl >= 0 ? 'text-profit border-profit/30' : 'text-loss border-loss/30'}`}>
-                {formatPnl(unrealizedPnl)} unrealized
-              </Badge>
-            )}
-          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            Gross: {formatPnl(stats?.totalPnlGross || 0)}
+          </p>
         </CardContent>
       </Card>
 
@@ -146,16 +185,9 @@ export function AccountDetailMetrics({
             </div>
             <BarChart3 className="h-8 w-8 text-muted-foreground/50" />
           </div>
-          <div className="flex items-center gap-2 mt-1">
-            <p className="text-xs text-muted-foreground">
-              Avg P&L: {formatPnl(stats?.avgPnlPerTrade || 0)}
-            </p>
-            {isBinanceVirtual && activePositionsCount > 0 && (
-              <Badge variant="outline" className="text-xs">
-                {activePositionsCount} open
-              </Badge>
-            )}
-          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            Avg P&L: {formatPnl(stats?.avgPnlPerTrade || 0)}
+          </p>
         </CardContent>
       </Card>
     </div>

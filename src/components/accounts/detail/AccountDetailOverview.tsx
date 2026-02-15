@@ -55,11 +55,16 @@ export function AccountDetailOverview({
           <CardDescription>Cumulative P&L over time for this account</CardDescription>
         </CardHeader>
         <CardContent>
-          {equityData.length === 0 ? (
+          {equityData.length === 0 && !(isBinanceVirtual && activePositions.length > 0) ? (
             <div className="text-center py-12 text-muted-foreground">
               <TrendingUp className="h-12 w-12 mx-auto mb-3 opacity-50" />
-              <p>No closed trades yet</p>
-              <p className="text-sm">Complete trades to see equity curve</p>
+              <p className="text-lg font-medium">No closed trades yet</p>
+              <p className="text-sm mt-1">Complete your first trade to see equity curve and performance analytics</p>
+            </div>
+          ) : equityData.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <p>No closed trade data to chart</p>
+              <p className="text-sm">Equity curve appears after your first closed trade</p>
             </div>
           ) : (
             <div className="h-[300px]">

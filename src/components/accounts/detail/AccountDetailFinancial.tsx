@@ -8,12 +8,14 @@ interface AccountDetailFinancialProps {
   stats: TradeStats | undefined;
   statsLoading: boolean;
   initialBalance: number;
+  totalTrades?: number;
 }
 
 export function AccountDetailFinancial({
   stats,
   statsLoading,
   initialBalance,
+  totalTrades = 0,
 }: AccountDetailFinancialProps) {
   const { format: formatCurrency, formatPnl } = useCurrencyConversion();
 
@@ -27,6 +29,11 @@ export function AccountDetailFinancial({
         {statsLoading ? (
           <div className="space-y-3">
             {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
+          </div>
+        ) : totalTrades === 0 ? (
+          <div className="text-center py-12 text-muted-foreground">
+            <p className="text-lg font-medium">No trading activity yet</p>
+            <p className="text-sm mt-1">Financial summary will appear after your first closed trade.</p>
           </div>
         ) : (
           <div className="space-y-6">
