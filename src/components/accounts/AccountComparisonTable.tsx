@@ -16,6 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { TrendingUp, TrendingDown, BarChart3, ExternalLink } from "lucide-react";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { useAccountLevelStats } from "@/hooks/use-exchange-analytics";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { useModeVisibility } from "@/hooks/use-mode-visibility";
@@ -85,11 +86,21 @@ export function AccountComparisonTable() {
               <TableRow>
                 <TableHead>Account</TableHead>
                 <TableHead>Exchange</TableHead>
-                <TableHead className="text-right">Trades</TableHead>
-                <TableHead className="text-right">Win Rate</TableHead>
-                <TableHead className="text-right">Net P&L</TableHead>
-                <TableHead className="text-right">Avg P&L</TableHead>
-                <TableHead className="text-right">Profit Factor</TableHead>
+                <TableHead className="text-right">
+                  <span className="flex items-center justify-end gap-1">Trades <InfoTooltip content="Total closed trades for this account." /></span>
+                </TableHead>
+                <TableHead className="text-right">
+                  <span className="flex items-center justify-end gap-1">Win Rate <InfoTooltip content="Percentage of profitable trades. 60%+ is generally considered good." /></span>
+                </TableHead>
+                <TableHead className="text-right">
+                  <span className="flex items-center justify-end gap-1">Net P&L <InfoTooltip content="Total profit/loss after all fees and commissions." /></span>
+                </TableHead>
+                <TableHead className="text-right">
+                  <span className="flex items-center justify-end gap-1">Avg P&L <InfoTooltip content="Average profit/loss per trade." /></span>
+                </TableHead>
+                <TableHead className="text-right">
+                  <span className="flex items-center justify-end gap-1">Profit Factor <InfoTooltip content="Gross Profits ÷ Gross Losses. Above 1.0 = profitable. 1.5+ is good, 2.0+ is excellent." /></span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

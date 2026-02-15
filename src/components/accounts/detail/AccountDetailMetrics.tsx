@@ -104,7 +104,10 @@ export function AccountDetailMetrics({
         <CardContent className="pt-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">Net P&L</p>
+              <p className="text-sm text-muted-foreground flex items-center gap-1">
+                Net P&L
+                <InfoTooltip content="Total profit/loss after all fees (commission + funding). Gross P&L shown below." />
+              </p>
               {statsLoading ? <Skeleton className="h-7 w-24" /> : (
                 <p className={`text-xl font-bold ${netPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
                   {formatPnl(netPnl)}
@@ -128,7 +131,10 @@ export function AccountDetailMetrics({
         <CardContent className="pt-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">Return on Capital</p>
+              <p className="text-sm text-muted-foreground flex items-center gap-1">
+                Return on Capital
+                <InfoTooltip content="Net P&L ÷ Initial Capital × 100. Measures how efficiently your capital is generating returns." variant="help" />
+              </p>
               {statsLoading ? <Skeleton className="h-7 w-16" /> : (
                 <p className={`text-xl font-bold ${roc >= 0 ? 'text-profit' : 'text-loss'}`}>
                   {roc >= 0 ? '+' : ''}{roc.toFixed(2)}%
@@ -138,8 +144,7 @@ export function AccountDetailMetrics({
             <Percent className="h-8 w-8 text-muted-foreground/50" />
           </div>
           <p className="text-xs text-muted-foreground mt-1">
-            <InfoTooltip content="Net P&L ÷ Initial Capital × 100" variant="help" />
-            {' '}vs initial capital
+            vs initial capital
           </p>
         </CardContent>
       </Card>
@@ -149,7 +154,10 @@ export function AccountDetailMetrics({
         <CardContent className="pt-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">Win Rate</p>
+              <p className="text-sm text-muted-foreground flex items-center gap-1">
+                Win Rate
+                <InfoTooltip content="Percentage of profitable trades. Combined with Risk:Reward ratio, this determines overall profitability." />
+              </p>
               {statsLoading ? <Skeleton className="h-7 w-16" /> : (
                 <p className="text-xl font-bold">{winRate.toFixed(1)}%</p>
               )}
@@ -167,7 +175,10 @@ export function AccountDetailMetrics({
         <CardContent className="pt-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">Profit Factor</p>
+              <p className="text-sm text-muted-foreground flex items-center gap-1">
+                Profit Factor
+                <InfoTooltip content="Gross Profits ÷ Gross Losses. Above 1.0 = profitable. 1.5+ is good, 2.0+ is excellent." />
+              </p>
               {statsLoading ? <Skeleton className="h-7 w-16" /> : (
                 <p className={`text-xl font-bold ${profitFactor >= 1 ? 'text-profit' : 'text-loss'}`}>
                   {profitFactor >= 999 ? '∞' : profitFactor.toFixed(2)}
@@ -177,7 +188,7 @@ export function AccountDetailMetrics({
             <Activity className="h-8 w-8 text-muted-foreground/50" />
           </div>
           <p className="text-xs text-muted-foreground mt-1">
-            Avg Win: {formatCurrency(Math.abs(stats?.avgWin || 0))}
+            W: {formatCurrency(Math.abs(stats?.avgWin || 0))} · L: {formatCurrency(Math.abs(stats?.avgLoss || 0))}
           </p>
         </CardContent>
       </Card>
@@ -187,7 +198,10 @@ export function AccountDetailMetrics({
         <CardContent className="pt-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">Total Trades</p>
+              <p className="text-sm text-muted-foreground flex items-center gap-1">
+                Total Trades
+                <InfoTooltip content="Count of closed trades only. Open trades are not included in this metric." />
+              </p>
               {statsLoading ? <Skeleton className="h-7 w-12" /> : (
                 <p className="text-xl font-bold">{totalTrades}</p>
               )}

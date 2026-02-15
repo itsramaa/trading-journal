@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import type { TradeStats } from "@/hooks/trading/use-trade-stats";
 
@@ -101,7 +102,10 @@ export function AccountDetailFinancial({
                         </p>
                       </div>
                       <div className="rounded-lg border p-4">
-                        <p className="text-sm text-muted-foreground">Fee Impact</p>
+                        <p className="text-sm text-muted-foreground flex items-center gap-1">
+                          Fee Impact
+                          <InfoTooltip content="Percentage of gross profits consumed by fees. Below 10% is efficient; above 30% significantly erodes returns." variant="help" />
+                        </p>
                         <p className="text-2xl font-bold text-loss">
                           {feeImpact.toFixed(1)}%
                         </p>

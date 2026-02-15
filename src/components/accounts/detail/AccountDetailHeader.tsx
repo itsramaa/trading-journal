@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import {
   ArrowLeft,
   CandlestickChart,
@@ -105,14 +106,16 @@ export function AccountDetailHeader({
         </div>
         <div className="flex items-center gap-3 sm:ml-auto">
           <div className="text-right">
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground flex items-center justify-end gap-1">
               {isBinanceVirtual && unrealizedPnl !== 0 ? 'Balance (Realized)' : 'Balance'}
+              <InfoTooltip content={isBinanceVirtual ? "Realized wallet balance on exchange, excluding unrealized P&L from open positions." : "Current account balance including all realized gains/losses and capital flows."} />
             </p>
             <p className="text-2xl font-bold">{formatCurrency(displayBalance)}</p>
             {isBinanceVirtual && unrealizedPnl !== 0 && (
               <div className="mt-1 space-y-0.5">
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-muted-foreground flex items-center justify-end gap-1">
                   Equity: <span className="font-semibold text-foreground">{formatCurrency(displayBalance + unrealizedPnl)}</span>
+                  <InfoTooltip content="Balance + Unrealized P&L. Represents total account value if all positions were closed now." />
                 </p>
                 <p className={`text-sm font-medium ${unrealizedPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
                   {unrealizedPnl >= 0 ? '+' : ''}{formatCurrency(Math.abs(unrealizedPnl))} unrealized
