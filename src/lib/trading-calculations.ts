@@ -113,7 +113,7 @@ function getTradeNetPnl(t: TradeEntry): number {
   return t.realized_pnl ?? t.pnl ?? 0;
 }
 
-export function calculateTradingStats(trades: TradeEntry[]): TradingStats {
+export function calculateTradingStats(trades: TradeEntry[], initialBalance: number = 0): TradingStats {
   const emptyStats: TradingStats = {
     totalTrades: 0,
     wins: 0,
@@ -202,7 +202,8 @@ export function calculateTradingStats(trades: TradeEntry[]): TradingStats {
     if (drawdown > maxDrawdown) maxDrawdown = drawdown;
   }
   
-  const maxDrawdownPercent = peak > 0 ? (maxDrawdown / peak) * 100 : 0;
+  const drawdownBase = initialBalance + peak;
+  const maxDrawdownPercent = drawdownBase > 0 ? Math.min((maxDrawdown / drawdownBase) * 100, 100) : 0;
 
   // Sharpe Ratio (simplified: using daily returns)
   // Sharpe = (Mean Return - Risk Free Rate) / Std Dev of Returns

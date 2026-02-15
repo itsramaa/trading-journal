@@ -143,7 +143,12 @@ export function PerformanceKeyMetrics({ stats, formatCurrency, binanceStats, sho
               <InfoTooltip content="Risk-adjusted return. Above 1.0 is acceptable, above 2.0 is excellent. Measures return per unit of risk." />
             </CardTitle>
           </CardHeader>
-          <CardContent><div className="text-xl font-bold">{stats.sharpeRatio.toFixed(2)}</div></CardContent>
+          <CardContent>
+            <div className="text-xl font-bold">{stats.sharpeRatio.toFixed(2)}</div>
+            {stats.totalTrades < 30 && stats.totalTrades > 0 && (
+              <p className="text-xs text-muted-foreground">(low sample)</p>
+            )}
+          </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
@@ -152,7 +157,17 @@ export function PerformanceKeyMetrics({ stats, formatCurrency, binanceStats, sho
               <InfoTooltip content="Average Reward-to-Risk ratio. 2:1 means you make $2 for every $1 risked. Higher is better." />
             </CardTitle>
           </CardHeader>
-          <CardContent><div className="text-xl font-bold">{formatRatio(stats.avgRR)}</div></CardContent>
+          <CardContent>
+            <div className="text-xl font-bold">
+              {stats.avgRR === 0 && stats.totalTrades > 0
+                ? <span className="text-muted-foreground">N/A</span>
+                : formatRatio(stats.avgRR)
+              }
+            </div>
+            {stats.avgRR === 0 && stats.totalTrades > 0 && (
+              <p className="text-xs text-muted-foreground">Set stop loss to calculate</p>
+            )}
+          </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Total Trades</CardTitle></CardHeader>

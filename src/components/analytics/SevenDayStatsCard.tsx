@@ -99,12 +99,17 @@ export function SevenDayStatsCard({ trades: externalTrades }: SevenDayStatsCardP
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Best Day</p>
+                <p className="text-sm text-muted-foreground">
+                  {sevenDayStats.bestDay.pnl < 0 ? 'Least Loss Day' : 'Best Day'}
+                </p>
                 <p className={`text-2xl font-bold ${sevenDayStats.bestDay.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
                   {formatPnl(sevenDayStats.bestDay.pnl)}
                 </p>
               </div>
-              <Trophy className="h-8 w-8 text-profit" />
+              {sevenDayStats.bestDay.pnl < 0
+                ? <Activity className="h-8 w-8 text-muted-foreground" />
+                : <Trophy className="h-8 w-8 text-profit" />
+              }
             </div>
           </CardContent>
         </Card>
@@ -112,12 +117,17 @@ export function SevenDayStatsCard({ trades: externalTrades }: SevenDayStatsCardP
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Worst Day</p>
+                <p className="text-sm text-muted-foreground">
+                  {sevenDayStats.worstDay.pnl > 0 ? 'Smallest Gain Day' : 'Worst Day'}
+                </p>
                 <p className={`text-2xl font-bold ${sevenDayStats.worstDay.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
                   {formatPnl(sevenDayStats.worstDay.pnl)}
                 </p>
               </div>
-              <AlertTriangle className="h-8 w-8 text-loss" />
+              {sevenDayStats.worstDay.pnl > 0
+                ? <Activity className="h-8 w-8 text-muted-foreground" />
+                : <AlertTriangle className="h-8 w-8 text-loss" />
+              }
             </div>
           </CardContent>
         </Card>
