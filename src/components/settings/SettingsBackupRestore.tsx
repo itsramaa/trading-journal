@@ -238,7 +238,7 @@ export function SettingsBackupRestore() {
                 <Label>Trading Strategies</Label>
                 {strategies && (
                   <Badge variant="secondary" className="text-xs">
-                    {strategies.length} strategies
+                    {strategies.length} {strategies.length === 1 ? 'strategy' : 'strategies'}
                   </Badge>
                 )}
               </div>

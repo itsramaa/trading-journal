@@ -1,6 +1,6 @@
 /**
  * Bulk Export Page - Consolidated Export Hub
- * Tabs: Binance | Journal | Analytics | Reports | Backup
+ * Tabs: Exchange | Journal | Analytics | Reports | Backup
  */
 import { useState, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
@@ -33,8 +33,9 @@ import {
   Grid3X3,
   Brain,
   ClipboardList,
+  Lock,
 } from "lucide-react";
-import { format, subDays, startOfYear, endOfDay, startOfDay } from "date-fns";
+import { format, subDays, startOfYear, endOfDay, startOfDay, startOfWeek, endOfWeek } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useBinanceConnectionStatus } from "@/features/binance";
 import { 
@@ -57,6 +58,8 @@ import { useBinanceWeeklyPnl } from "@/hooks/use-binance-weekly-pnl";
 import { useSyncStore } from "@/store/sync-store";
 import { exportHeatmapCSV } from "@/lib/export/heatmap-export";
 import { calculateTradingStats } from "@/lib/trading-calculations";
+import { logAuditEvent } from "@/lib/audit-logger";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 const exportTypes: { type: BulkExportType; icon: typeof FileText }[] = [
@@ -64,6 +67,17 @@ const exportTypes: { type: BulkExportType; icon: typeof FileText }[] = [
   { type: 'order', icon: FileText },
   { type: 'trade', icon: BarChart3 },
 ];
+
+/** Compute date range label from trades */
+function getTradesDateRange(trades: { trade_date: string }[]): string {
+  if (!trades.length) return '';
+  const sorted = [...trades].sort((a, b) => 
+    new Date(a.trade_date).getTime() - new Date(b.trade_date).getTime()
+  );
+  const from = format(new Date(sorted[0].trade_date), 'MMM d, yyyy');
+  const to = format(new Date(sorted[sorted.length - 1].trade_date), 'MMM d, yyyy');
+  return `${from} – ${to}`;
+}
 
 export default function BulkExport() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -95,6 +109,14 @@ export default function BulkExport() {
 
   const closedTrades = useMemo(() => trades.filter(t => t.status === 'closed'), [trades]);
   const stats = useMemo(() => calculateTradingStats(closedTrades), [closedTrades]);
+  const closedTradesDateRange = useMemo(() => getTradesDateRange(closedTrades), [closedTrades]);
+
+  // Weekly report date ranges
+  const now = new Date();
+  const thisWeekStart = startOfWeek(now, { weekStartsOn: 1 });
+  const thisWeekEnd = endOfWeek(now, { weekStartsOn: 1 });
+  const lastWeekStart = subDays(thisWeekStart, 7);
+  const lastWeekEnd = subDays(thisWeekStart, 1);
 
   const handleExport = async (type: BulkExportType) => {
     try {
@@ -103,6 +125,16 @@ export default function BulkExport() {
         const filename = `binance_${type}_${format(dateRange.from, 'yyyyMMdd')}_${format(dateRange.to, 'yyyyMMdd')}.csv`;
         downloadFile(url, filename);
         toast.success(`${getExportTypeLabel(type)} downloaded successfully`);
+        
+        // Audit log
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          logAuditEvent(user.id, {
+            action: 'export_completed',
+            entityType: 'sync_operation',
+            metadata: { exportType: type, from: dateRange.from.toISOString(), to: dateRange.to.toISOString() },
+          });
+        }
       }
     } catch {
       toast.error(`Failed to export ${getExportTypeLabel(type)}`);
@@ -152,6 +184,11 @@ export default function BulkExport() {
   const activeTab = searchParams.get('tab') || resolvedDefaultTab;
   const setActiveTab = (tab: string) => setSearchParams({ tab });
 
+  // Connection label
+  const connectionLabel = isConnected
+    ? `Connected: Binance Futures (${tradeMode === 'live' ? 'Live' : 'Testnet'})`
+    : '📝 Paper Mode';
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -160,10 +197,7 @@ export default function BulkExport() {
         description="Download trading history, analytics reports, and backup settings"
       >
         <Badge variant={isConnected ? "default" : "secondary"}>
-          {isConnected ? "🔗 Exchange Connected" : "📝 Paper Mode"}
-        </Badge>
-        <Badge variant="outline">
-          Mode: {TRADE_MODE_LABELS[tradeMode]}
+          {isConnected ? `🔗 ${connectionLabel}` : connectionLabel}
         </Badge>
       </PageHeader>
 
@@ -171,7 +205,7 @@ export default function BulkExport() {
         <TabsList className="grid w-full grid-cols-5 lg:w-[600px]">
           <TabsTrigger value="binance" className="gap-2">
             <Receipt className="h-4 w-4" />
-            <span className="hidden sm:inline">Binance</span>
+            <span className="hidden sm:inline">Exchange</span>
           </TabsTrigger>
           <TabsTrigger value="journal" className="gap-2">
             <Database className="h-4 w-4" />
@@ -191,14 +225,14 @@ export default function BulkExport() {
           </TabsTrigger>
         </TabsList>
 
-        {/* Binance Export Tab */}
+        {/* Exchange Export Tab */}
         <TabsContent value="binance" className="space-y-6">
           {!isConnected ? (
             <Alert>
               <AlertTriangle className="h-4 w-4" />
               <AlertTitle>Exchange Not Connected</AlertTitle>
               <AlertDescription>
-                Connect your Binance API in Settings → Exchange to export transaction, 
+                Connect your exchange API in Settings → Exchange to export transaction, 
                 order, and trade history for tax reporting.
               </AlertDescription>
             </Alert>
@@ -206,9 +240,9 @@ export default function BulkExport() {
             <>
               <Alert>
                 <Info className="h-4 w-4" />
-                <AlertTitle>About Binance Exports</AlertTitle>
+                <AlertTitle>About Exchange Exports</AlertTitle>
                 <AlertDescription>
-                  Binance processes bulk export requests asynchronously. Large date ranges may take 
+                  Exchange bulk export requests are processed asynchronously. Large date ranges may take 
                   a few minutes to prepare. The download will start automatically once ready.
                 </AlertDescription>
               </Alert>
@@ -288,7 +322,10 @@ export default function BulkExport() {
                   </div>
 
                   <p className="text-sm text-muted-foreground">
-                    Selected range: {format(dateRange.from, 'MMM d, yyyy')} - {format(dateRange.to, 'MMM d, yyyy')}
+                    Selected range: {format(dateRange.from, 'MMM d, yyyy')} – {format(dateRange.to, 'MMM d, yyyy')}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    All timestamps are in UTC. End date is inclusive.
                   </p>
                 </CardContent>
               </Card>
@@ -402,11 +439,11 @@ export default function BulkExport() {
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="text-chart-4">•</span>
-                      <span><strong>Trade History</strong> includes individual trade details with entry/exit prices and quantities.</span>
+                      <span><strong>Trade History</strong> includes individual executed fills with entry/exit prices and quantities.</span>
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="text-chart-4">•</span>
-                      <span>All amounts are in <strong>USDT</strong>. Convert to your local currency using the exchange rate on the transaction date.</span>
+                      <span>All amounts are denominated in your <strong>margin asset</strong> (typically USDT). Multi-asset margin accounts may include other stablecoins.</span>
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="text-chart-4">•</span>
@@ -439,7 +476,9 @@ export default function BulkExport() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                <Badge variant="secondary">{closedTrades.length} trades</Badge>
+                <Badge variant="secondary">
+                  {closedTrades.length} trades{closedTradesDateRange ? ` (${closedTradesDateRange})` : ''}
+                </Badge>
                 <div className="flex gap-2">
                   <Button
                     variant="outline"
@@ -477,7 +516,9 @@ export default function BulkExport() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                <Badge variant="secondary">{closedTrades.length} trades</Badge>
+                <Badge variant="secondary">
+                  {closedTrades.length} trades{closedTradesDateRange ? ` (${closedTradesDateRange})` : ''}
+                </Badge>
                 <Button
                   variant="outline"
                   size="sm"
@@ -506,9 +547,17 @@ export default function BulkExport() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                <Badge variant={contextualData ? "secondary" : "outline"}>
-                  {contextualData ? `${contextualData.tradesWithContext} trades analyzed` : 'No data'}
-                </Badge>
+                {contextualData && contextualData.tradesWithContext > 0 ? (
+                  <Badge variant="secondary">
+                    {contextualData.tradesWithContext} trades analyzed
+                  </Badge>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    {contextualData 
+                      ? 'No trades have market context attached. Enrich trades via Import & Sync.'
+                      : 'No trades match contextual filters for the selected period.'}
+                  </p>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
@@ -519,7 +568,7 @@ export default function BulkExport() {
                       toast.success('Contextual PDF exported');
                     }
                   }}
-                  disabled={!contextualData}
+                  disabled={!contextualData || contextualData.tradesWithContext === 0}
                 >
                   <FileText className="h-4 w-4" />
                   Export PDF
@@ -540,13 +589,20 @@ export default function BulkExport() {
                   Sync Reconciliation Report
                 </CardTitle>
                 <CardDescription>
-                  Export the last sync reconciliation data including P&L matching, lifecycle stats, and trade details.
+                  Compares exchange trades with journal records to detect discrepancies in P&L, lifecycle, and trade details.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                <Badge variant={lastSyncResult ? "secondary" : "outline"}>
-                  {lastSyncResult ? `${lastSyncResult.stats.validTrades} trades` : 'No sync data'}
-                </Badge>
+                {lastSyncResult ? (
+                  <Badge variant="secondary">
+                    {lastSyncResult.stats.validTrades} trades
+                  </Badge>
+                ) : (
+                  <div className="text-sm text-muted-foreground space-y-1">
+                    <p>No reconciliation data available.</p>
+                    <p className="text-xs">Run a Full Recovery sync from Import & Sync to generate this report.</p>
+                  </div>
+                )}
                 <div className="flex gap-2">
                   <Button
                     variant="outline"
@@ -603,7 +659,7 @@ export default function BulkExport() {
                     disabled={isWeeklyGenerating}
                   >
                     {isWeeklyGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-                    This Week
+                    This Week ({format(thisWeekStart, 'MMM d')} – {format(thisWeekEnd, 'MMM d')})
                   </Button>
                   <Button
                     variant="outline"
@@ -613,7 +669,7 @@ export default function BulkExport() {
                     disabled={isWeeklyGenerating}
                   >
                     {isWeeklyGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-                    Last Week
+                    Last Week ({format(lastWeekStart, 'MMM d')} – {format(lastWeekEnd, 'MMM d')})
                   </Button>
                 </div>
               </CardContent>
@@ -626,6 +682,15 @@ export default function BulkExport() {
           <SettingsBackupRestore />
         </TabsContent>
       </Tabs>
+
+      {/* Privacy & Security Notice */}
+      <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground pt-2">
+        <Lock className="h-3 w-3" />
+        <p>
+          All data is stored encrypted at rest. Exported files are generated locally in your browser 
+          and are not uploaded to any server. Exchange exports are fetched via secure server-side functions.
+        </p>
+      </div>
     </div>
   );
 }
