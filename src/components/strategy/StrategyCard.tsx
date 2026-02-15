@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { MoreVertical, Edit, Play, Trash2, Clock, TrendingUp, Shield, Target, Tag, Star, Brain, Activity, Youtube, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 import type { TradingStrategy } from "@/hooks/use-trading-strategies";
@@ -34,7 +35,6 @@ export function StrategyCard({ strategy, performance, onEdit, onDelete, onBackte
   const marketFit = strategyContext?.marketFit;
 
   const handleBacktest = () => {
-    // Navigate to backtest page with strategy pre-selected
     navigate(`/backtest?strategy=${strategy.id}`);
   };
 
@@ -150,7 +150,8 @@ export function StrategyCard({ strategy, performance, onEdit, onDelete, onBackte
         <div className="space-y-3">
           {/* Methodology & Style badges */}
           <div className="flex flex-wrap gap-1.5">
-            {strategy.methodology && strategy.methodology !== 'price_action' && (
+            {/* Always show methodology badge — "price_action" is a valid, explicit choice */}
+            {strategy.methodology && (
               <Badge variant="secondary" className="text-xs uppercase">
                 {strategy.methodology === 'smc' ? 'SMC' : 
                  strategy.methodology === 'ict' ? 'ICT' : 
@@ -178,28 +179,55 @@ export function StrategyCard({ strategy, performance, onEdit, onDelete, onBackte
               <TrendingUp className="h-3 w-3 mr-1" aria-hidden="true" />
               {strategy.market_type || STRATEGY_DEFAULTS.MARKET_TYPE}
             </Badge>
-            <Badge variant="outline" className="text-xs">
-              <Shield className="h-3 w-3 mr-1" aria-hidden="true" />
-              {strategy.min_confluences || STRATEGY_DEFAULTS.MIN_CONFLUENCES} confluences
-            </Badge>
-            <Badge variant="outline" className="text-xs">
-              <Target className="h-3 w-3 mr-1" aria-hidden="true" />
-              {strategy.min_rr || STRATEGY_DEFAULTS.MIN_RR}:1 R:R
-            </Badge>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge variant="outline" className="text-xs cursor-help">
+                    <Shield className="h-3 w-3 mr-1" aria-hidden="true" />
+                    {strategy.min_confluences || STRATEGY_DEFAULTS.MIN_CONFLUENCES} confluences
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="text-sm">Minimum number of entry rule confirmations required before taking a trade.</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge variant="outline" className="text-xs cursor-help">
+                    <Target className="h-3 w-3 mr-1" aria-hidden="true" />
+                    {strategy.min_rr || STRATEGY_DEFAULTS.MIN_RR}:1 R:R
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="text-sm">Minimum Risk:Reward ratio required. Trades below this ratio are rejected.</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
 
           {/* Performance stats if available */}
           {performance && performance.totalTrades > 0 && (
-            <div className="flex items-center gap-3 text-xs text-muted-foreground bg-muted/50 rounded-md px-2 py-1.5">
-              <span className="flex items-center gap-1">
-                <Star className="h-3 w-3" aria-hidden="true" />
-                {performance.wins}W / {performance.losses}L
-              </span>
-              <span>|</span>
-              <span className={performance.winRate >= 0.5 ? 'text-profit' : 'text-loss'}>
-                {formatWinRate(performance.winRate * 100).replace('%', '')}% WR
-              </span>
-            </div>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground bg-muted/50 rounded-md px-2 py-1.5 cursor-help">
+                    <span className="flex items-center gap-1">
+                      <Star className="h-3 w-3" aria-hidden="true" />
+                      {performance.wins}W / {performance.losses}L
+                    </span>
+                    <span>|</span>
+                    <span className={performance.winRate >= 0.5 ? 'text-profit' : 'text-loss'}>
+                      {formatWinRate(performance.winRate * 100).replace('%', '')}% WR
+                    </span>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="text-sm">Win/Loss record and win rate based on closed trades assigned to this strategy.</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
 
           {/* Tags */}
@@ -217,7 +245,7 @@ export function StrategyCard({ strategy, performance, onEdit, onDelete, onBackte
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span>Created {format(new Date(strategy.created_at), 'MMM d, yyyy')}</span>
             
-            {/* YouTube Source Badge - Only shown for imported strategies */}
+            {/* YouTube Source Badge */}
             {(strategy as TradingStrategy & { source?: string; source_url?: string }).source === 'youtube' && (
               <TooltipProvider>
                 <Tooltip>

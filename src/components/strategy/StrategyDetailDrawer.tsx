@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { 
   Clock, 
   TrendingUp, 
@@ -145,7 +146,10 @@ export function StrategyDetailDrawer({
           {/* Strategy Metadata */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Strategy Details</CardTitle>
+              <CardTitle className="text-sm font-medium flex items-center gap-1">
+                Strategy Details
+                <InfoTooltip content="Configuration and rules for this trading strategy." />
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Methodology & Style */}
@@ -176,6 +180,7 @@ export function StrategyDetailDrawer({
                 <div className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                   <Clock className="h-3 w-3" />
                   Multi-Timeframe Analysis
+                  <InfoTooltip content="Three-timeframe system: Higher TF for directional bias, Primary TF for trade decisions, Lower TF for precise entries." />
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div>
@@ -344,6 +349,7 @@ export function StrategyDetailDrawer({
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
                   <Brain className="h-4 w-4 text-primary" />
                   AI Quality Score
+                  <InfoTooltip content="Composite score (0-100) based on Win Rate (40%), Profit Factor (30%), Consistency (20%), and Sample Size (10%)." />
                 </CardTitle>
                 <Badge className={`${scoreInfo.colorClass}`}>
                   {qualityScore > 0 ? `${qualityScore}% - ${scoreInfo.label}` : 'No Data'}
@@ -356,15 +362,15 @@ export function StrategyDetailDrawer({
                   <Progress value={qualityScore} className="h-2" />
                   <div className="grid grid-cols-3 gap-4 text-center">
                     <div>
-                      <div className="text-lg font-bold">{(performance.winRate * 100).toFixed(0)}%</div>
+                      <div className="text-lg font-bold font-mono-numbers">{(performance.winRate * 100).toFixed(0)}%</div>
                       <div className="text-xs text-muted-foreground">Win Rate</div>
                     </div>
                     <div>
-                      <div className="text-lg font-bold">{performance.totalTrades}</div>
+                      <div className="text-lg font-bold font-mono-numbers">{performance.totalTrades}</div>
                       <div className="text-xs text-muted-foreground">Total Trades</div>
                     </div>
                     <div>
-                      <div className="text-lg font-bold">{performance.profitFactor.toFixed(2)}</div>
+                      <div className="text-lg font-bold font-mono-numbers">{performance.profitFactor.toFixed(2)}</div>
                       <div className="text-xs text-muted-foreground">Profit Factor</div>
                     </div>
                   </div>
@@ -452,7 +458,10 @@ export function StrategyDetailDrawer({
           {strategyContext?.performance && strategyContext.performance.totalTrades > 0 && (
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">Historical Insights</CardTitle>
+                <CardTitle className="text-sm font-medium flex items-center gap-1">
+                  Historical Insights
+                  <InfoTooltip content="Performance metrics derived from your actual trades using this strategy." />
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
                 {strategyContext.performance.bestTimeframe && (

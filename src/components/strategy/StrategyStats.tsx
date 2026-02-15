@@ -12,7 +12,9 @@ interface StrategyStatsProps {
 
 export function StrategyStats({ strategies }: StrategyStatsProps) {
   const totalStrategies = strategies?.length || 0;
-  const activeStrategies = strategies?.filter(s => s.is_active).length || 0;
+  // Count strategies with status 'active' (vs 'paused'/'killed') — meaningful distinction
+  // since the query already filters by is_active=true (soft-delete gate)
+  const activeStrategies = strategies?.filter(s => !s.status || s.status === 'active').length || 0;
   const spotStrategies = strategies?.filter(s => s.market_type === 'spot' || !s.market_type).length || 0;
   const futuresStrategies = strategies?.filter(s => s.market_type === 'futures').length || 0;
 
@@ -35,7 +37,7 @@ export function StrategyStats({ strategies }: StrategyStatsProps) {
         <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
           <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
             Active
-            <InfoTooltip content="Strategies currently enabled for trading. Active strategies appear in your trade entry form for quick selection." />
+            <InfoTooltip content="Strategies with 'active' status, currently enabled for trading. Paused or killed strategies are excluded from this count." />
           </CardTitle>
           <Zap className="h-4 w-4 text-primary" aria-hidden="true" />
         </CardHeader>
