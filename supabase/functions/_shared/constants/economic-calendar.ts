@@ -58,6 +58,32 @@ export const TIME_WINDOWS = {
   WEEK_DAYS: 7,
 } as const;
 
+// Volatility Engine Configuration
+export const VOLATILITY_ENGINE = {
+  REGIME_THRESHOLDS: {
+    EXTREME: { minProbability: 85, minHighEvents: 2 },
+    HIGH: { minProbability: 70, minHighEvents: 1 },
+    ELEVATED: { minProbability: 50, minHighEvents: 0 },
+    NORMAL: { minProbability: 0, minHighEvents: 0 },
+    LOW: { maxEvents: 0 },
+  },
+  POSITION_MULTIPLIERS: {
+    EXTREME: 0.25,
+    HIGH: 0.5,
+    ELEVATED: 0.7,
+    NORMAL: 1.0,
+    LOW: 1.1,
+  },
+  CLUSTER_AMPLIFICATION: {
+    TWO_EVENTS: 1.2,
+    THREE_PLUS: 1.4,
+  },
+  RANGE_EXPANSION: {
+    CLUSTER_FACTOR: 1.3,
+    BASE_24H_MULTIPLIER: 1.8,
+  },
+} as const;
+
 // Helper functions
 export function mapImportance(importance: number): 'high' | 'medium' | 'low' {
   if (importance >= IMPORTANCE_THRESHOLDS.HIGH) return 'high';

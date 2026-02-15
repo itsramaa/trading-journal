@@ -1,6 +1,5 @@
 /**
- * Calendar Tab Component - Economic Calendar with AI Predictions
- * Extracted from Calendar.tsx for use in Market Insight tabbed interface
+ * Calendar Tab Component - Economic Calendar with Volatility Engine
  */
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
 import { 
   Collapsible, 
   CollapsibleContent, 
@@ -23,7 +23,9 @@ import {
   Shield,
   Clock,
   Minus,
-  ChevronDown
+  ChevronDown,
+  Activity,
+  Gauge
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEconomicCalendar } from "@/features/calendar";
@@ -31,13 +33,106 @@ import { format } from "date-fns";
 import { 
   RISK_LEVELS, 
   RISK_LEVEL_CONFIG,
-  POSITION_ADJUSTMENTS,
   IMPORTANCE_CONFIG,
-  getPositionAdjustment 
+  getPositionAdjustment,
+  VOLATILITY_REGIME_COLORS,
 } from "@/lib/constants/economic-calendar";
+import type { VolatilityEngine } from "@/features/calendar/types";
 
 interface CalendarTabProps {
   hideTitle?: boolean;
+}
+
+function VolatilityEngineCard({ engine }: { engine: VolatilityEngine }) {
+  const colors = VOLATILITY_REGIME_COLORS[engine.riskRegime];
+  const reductionPct = Math.round((1 - engine.positionSizeMultiplier) * 100);
+
+  return (
+    <Card className={cn("border-2", colors.bg, colors.border, engine.riskRegime === 'EXTREME' && "animate-pulse")}>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Activity className={cn("h-5 w-5", colors.text)} />
+            <CardTitle className="text-lg">Volatility Engine</CardTitle>
+          </div>
+          <Badge 
+            variant={engine.riskRegime === 'EXTREME' ? 'destructive' : engine.riskRegime === 'LOW' ? 'secondary' : 'default'}
+          >
+            {engine.riskRegime}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Composite Move Probability */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground flex items-center gap-1">
+              <Gauge className="h-3.5 w-3.5" />
+              Composite Move Probability
+            </span>
+            <span className={cn("font-mono font-bold", 
+              engine.compositeMoveProbability >= 70 ? 'text-destructive' : 
+              engine.compositeMoveProbability >= 40 ? 'text-chart-4' : 'text-profit'
+            )}>
+              {engine.compositeMoveProbability}%
+            </span>
+          </div>
+          <Progress 
+            value={engine.compositeMoveProbability} 
+            className={cn("h-2",
+              engine.compositeMoveProbability >= 70 ? '[&>div]:bg-destructive' :
+              engine.compositeMoveProbability >= 40 ? '[&>div]:bg-chart-4' : '[&>div]:bg-profit'
+            )}
+          />
+        </div>
+
+        {/* Expected Ranges */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="p-2.5 rounded-md bg-background/60 border">
+            <p className="text-xs text-muted-foreground mb-1">Expected Range (2h)</p>
+            <div className="flex items-baseline gap-1">
+              <span className="font-mono text-sm font-medium text-loss">{engine.expectedRange2h.low}%</span>
+              <span className="text-xs text-muted-foreground">to</span>
+              <span className="font-mono text-sm font-medium text-profit">+{engine.expectedRange2h.high}%</span>
+            </div>
+          </div>
+          <div className="p-2.5 rounded-md bg-background/60 border">
+            <p className="text-xs text-muted-foreground mb-1">Expected Range (24h)</p>
+            <div className="flex items-baseline gap-1">
+              <span className="font-mono text-sm font-medium text-loss">{engine.expectedRange24h.low}%</span>
+              <span className="text-xs text-muted-foreground">to</span>
+              <span className="font-mono text-sm font-medium text-profit">+{engine.expectedRange24h.high}%</span>
+            </div>
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* Position Sizing */}
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium">Position Size: {engine.positionSizeMultiplier}x</p>
+            <p className="text-xs text-muted-foreground">{engine.positionSizeReason}</p>
+          </div>
+          {reductionPct > 0 && (
+            <Badge variant="destructive" className="text-xs">
+              Reduce {reductionPct}%
+            </Badge>
+          )}
+        </div>
+
+        {/* Event Cluster */}
+        {engine.eventCluster.count > 1 && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground p-2 rounded bg-background/60 border">
+            <AlertTriangle className="h-3.5 w-3.5 text-chart-4 shrink-0" />
+            <span>
+              {engine.eventCluster.count} high-impact events clustered — {engine.eventCluster.amplificationFactor}x volatility amplification
+            </span>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 export function CalendarTab({ hideTitle = false }: CalendarTabProps) {
@@ -71,7 +166,7 @@ export function CalendarTab({ hideTitle = false }: CalendarTabProps) {
 
   return (
     <div className="space-y-6 w-full min-w-0 overflow-x-hidden">
-      {/* Header with Refresh - conditionally show title */}
+      {/* Header with Refresh */}
       {!hideTitle && (
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -91,7 +186,6 @@ export function CalendarTab({ hideTitle = false }: CalendarTabProps) {
         </div>
       )}
       
-      {/* Refresh button when title hidden */}
       {hideTitle && (
         <div className="flex justify-end">
           <Button
@@ -105,6 +199,11 @@ export function CalendarTab({ hideTitle = false }: CalendarTabProps) {
             Refresh
           </Button>
         </div>
+      )}
+
+      {/* Volatility Engine Card */}
+      {data?.volatilityEngine && (
+        <VolatilityEngineCard engine={data.volatilityEngine} />
       )}
 
       {/* Impact Alert Banner */}
@@ -314,13 +413,10 @@ export function CalendarTab({ hideTitle = false }: CalendarTabProps) {
                               </Badge>
                               <Badge 
                                 variant="outline" 
-                                className={`text-[10px] h-4 px-1.5 ${
-                                  event.historicalStats.upsideBias >= 60 
-                                    ? 'border-profit/40 text-profit' 
-                                    : event.historicalStats.upsideBias <= 40 
-                                      ? 'border-loss/40 text-loss' 
-                                      : ''
-                                }`}
+                                className={cn("text-[10px] h-4 px-1.5",
+                                  event.historicalStats.upsideBias >= 60 && 'border-profit/40 text-profit',
+                                  event.historicalStats.upsideBias <= 40 && 'border-loss/40 text-loss'
+                                )}
                               >
                                 {event.historicalStats.upsideBias}% historical upside bias
                               </Badge>

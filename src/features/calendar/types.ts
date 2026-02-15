@@ -40,10 +40,26 @@ export interface ImpactSummary {
   positionAdjustment: 'reduce_50%' | 'reduce_30%' | 'normal';
 }
 
+export interface VolatilityEngine {
+  riskRegime: 'EXTREME' | 'HIGH' | 'ELEVATED' | 'NORMAL' | 'LOW';
+  regimeScore: number;
+  expectedRange2h: { low: number; high: number };
+  expectedRange24h: { low: number; high: number };
+  compositeMoveProbability: number;
+  positionSizeMultiplier: number;
+  positionSizeReason: string;
+  eventCluster: {
+    count: number;
+    within24h: boolean;
+    amplificationFactor: number;
+  };
+}
+
 export interface EconomicCalendarResponse {
   events: EconomicEvent[];
   todayHighlight: TodayHighlight;
   impactSummary: ImpactSummary;
+  volatilityEngine: VolatilityEngine | null;
   lastUpdated: string;
 }
 
