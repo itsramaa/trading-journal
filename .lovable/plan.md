@@ -1,260 +1,176 @@
 
 
-# Deep-Dive Analysis: Flow & Liquidity Page
+# Deep-Dive Analysis: Market Bias Page
 
 ---
 
-## 1. Page Structure (`MarketData.tsx`)
+## 1. Page Structure (`MarketInsight.tsx`)
 
 ### A. Comprehensiveness
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Page header with icon/description | Done | PageHeader + Refresh button |
-| ARIA region role | Done | `role="region" aria-label` present |
-| Funding & OI Dashboard | Done | Top section, derivatives data |
-| Volatility Meter Widget | Done | Per-symbol annualized vol + percentiles |
-| Volume Anomaly Detector | Done | Collapsible items with method transparency |
-| Portfolio Impact Calculator | Done | What-if scenario slider with correlations |
-| Data quality/last updated footer | Done | Quality % + timestamp + sources |
-| Refresh with spinner | Done | Disabled while loading |
-| Error normalization | Done | `normalizeError()` utility |
-| Symbol context integration | Done | MarketContext + dynamic watchlist |
+| PageHeader with icon/description | Done | TrendingUp icon, "Regime classification engine" |
+| Refresh button with spinner | Done | Disabled while loading, aria-label present |
+| ErrorBoundary with retry | Done | Wraps all content |
+| BiasExpiryIndicator | Done | Style-aware TTL with auto-refresh on expiry |
+| RegimeCard (decisional core) | Done | Composite score, regime, direction, range, risk mode, size |
+| SignalsGrid (key signals) | Done | Per-asset direction + 24h change |
+| MacroGrid (macro indicators) | Done | Correlations with change % and impact text |
+| Market alerts (toasts) | Done | Fear/Greed, conflict, OI spike, divergence |
+| Trading style integration | Done | Style-aware weights, range scaling, bias validity |
 
 **Gaps:**
 
-1. **PortfolioImpactCard returns `null` when no positions**: Line 64-66 returns `null` if loading or no positions, violating the layout stability UX standard. Should show an empty-state card instead ("Open positions to see impact analysis").
+1. **No `role="region"` on root container**: Unlike the 11+ analytics components that are standardized with ARIA region roles, this page lacks `role="region"` and `aria-label`.
 
-2. **`setSelectedSymbol` is destructured but never used**: Line 23 destructures `setSelectedSymbol` from `useMarketContext()` but it is never referenced anywhere on the page -- dead code.
+2. **`calendarLoading` destructured but never used** (line 54): Dead code -- only `calendarData` is passed to RegimeCard.
 
-3. **No tooltip on "Data quality" footer**: The footer shows `Data quality: X%` but no tooltip explains what this percentage means or how it is calculated.
+3. **SignalsGrid and MacroGrid return `null` via conditional rendering** (lines 124-131): When data is absent or loading, these sections disappear entirely, causing layout shifts. Should show empty-state cards instead.
+
+4. **Hardcoded `$` in SignalsGrid** (line 163): `${signal.price.toLocaleString(...)}` bypasses the global `format()` currency conversion utility. Users with non-USD currencies see inconsistent formatting.
 
 ---
 
-## 2. FundingOIDashboard
+## 2. RegimeCard (`RegimeCard.tsx`)
 
 ### A. Comprehensiveness
 
 | Feature | Status |
 |---------|--------|
 | Loading skeleton | Done |
-| Empty state | Done |
-| Divergence alerts (bullish/bearish) | Done |
-| Per-symbol funding rate | Done |
-| OI 24h change | Done |
-| Trend icons (>5%, <-5%) | Done |
-| Error boundary wrapper | Done |
-| Semantic colors (text-profit/loss) | Done |
+| Error fallback | Done |
+| No-data empty state | Done |
+| ErrorBoundary wrapper | Done |
+| Regime badge with semantic colors | Done |
+| Direction probability with progress bar | Done |
+| Expected range (style-scaled) | Done |
+| Risk mode badge | Done |
+| Unified position size | Done |
+| Score breakdown footer | Done |
+| Orchestrator multiplier footer | Done |
+| Alignment + dominant factor + mode badge | Done |
+| Style context label | Done |
 
 ### B. Accuracy
 
 | Check | Result |
 |-------|--------|
-| Funding rate sign display | Correct -- conditional `+` prefix |
-| Funding rate precision `.toFixed(4)` | Correct for funding rates (typically 0.01%) |
-| OI change precision `.toFixed(2)` | Correct |
-| Divergence color mapping | Correct -- bullish=profit, bearish=loss |
-| Combined data join (funding + OI + divergence) | Correct -- matched by `symbol` |
+| Composite score: weighted sum with divergence penalty | Correct -- capped at 5pts, direction-aware |
+| Fear/Greed non-linear transform | Correct -- contrarian: extreme fear maps 35-50, extreme greed maps 50-65 |
+| Regime priority: RISK_OFF > HIGH_VOL > TRENDING > RANGING | Correct |
+| Regime style sensitivity (scalping ignores HIGH event risk) | Correct |
+| Direction probability: 30 + (score/100)*40 = [30-70] range | Correct |
+| Expected range: base ATR x regime multiplier x style sqrt-time multiplier | Correct |
+| Unified orchestrator: defensive min-floor vs adaptive blend | Correct |
+| Orchestrator hard floor at 0.25 | Correct |
+| Event decay weight: exponential with 6h half-life | Correct |
+| Volatility multiplier thresholds (40/80/120) | Correct |
 
-### C. Clarity -- Missing Tooltips
+### C. Clarity -- Missing Tooltips (13 items)
 
-4. **"Funding & OI" card title** -- No tooltip. Should say: "Real-time derivatives data showing funding rates, open interest changes, and funding/price divergence alerts for watchlist symbols."
+5. **"Market Regime" card title** -- No tooltip. Should say: "The classified market state based on a composite of technical, on-chain, macro, and sentiment signals. Determines risk mode and position sizing."
 
-5. **"Derivatives" badge** -- No tooltip. Should say: "Data sourced from Binance Futures perpetual contracts."
+6. **Regime badge** (e.g., "Trending Bullish") -- No tooltip explaining what each regime means. Should say: "Trending Bullish: Score >65, positive momentum, crypto/macro aligned. Trending Bearish: Score <35, negative momentum. Ranging: Score 35-65 or no clear momentum. High Volatility: Elevated vol override. Risk Off: Extreme event risk override."
 
-6. **"Funding:" label** -- No tooltip. Should say: "The periodic fee paid between longs and shorts. Positive = longs pay shorts (bullish crowding). Negative = shorts pay longs (bearish crowding)."
+7. **"Direction (Xh)" label** -- No tooltip. Should say: "Estimated probability of upward price movement over the style-specific horizon. Derived from the composite score. 50% = neutral."
 
-7. **"P{percentile}" badge** -- No tooltip. Should say: "Current funding rate percentile over the last 90 days. P90+ indicates extreme crowding."
+8. **"Expected Range (Xh)" label** -- No tooltip. Should say: "Estimated price movement range based on ATR, volatility regime, and momentum skew. Scaled to the selected trading style horizon using sqrt-time."
 
-8. **"OI 24h:" label** -- No tooltip. Should say: "24-hour change in open interest (total outstanding derivative contracts). Rising OI with rising price = new money entering; falling OI = positions closing."
+9. **"Risk Mode" label** -- No tooltip. Should say: "Aggressive: Trend + alignment confirmed, normal sizing. Neutral: No strong conviction, reduce 30%. Defensive: Conflict, high vol, or event risk -- reduce 50-75%."
 
-9. **Divergence alert description** -- No tooltip on "Funding/Price Divergence" label. Should say: "When funding rate direction contradicts price direction, it signals potential mean-reversion. Bullish divergence = negative funding while price rises. Bearish = positive funding while price falls."
+10. **"Position Size" label** -- No tooltip. Should say: "Unified position size recommendation from the Risk Orchestrator. Blends calendar, regime, and volatility signals. Style-weighted with a hard floor at 25%."
 
-10. **Trend icons (TrendingUp/Down/Activity)** -- No tooltip. The >5%/<-5% OI threshold that triggers these icons is invisible to users.
+11. **"Score X" in footer** -- No tooltip. Should say: "Composite market score (0-100). Weighted: Tech 35%, On-Chain 20%, Macro 25%, Fear/Greed 20%. A divergence penalty (max 5pts) applies when factors conflict."
+
+12. **"Tech X" in footer** -- No tooltip. Should say: "Technical analysis score (0-100) from price action, trend indicators, and momentum signals."
+
+13. **"Macro X" in footer** -- No tooltip. Should say: "Macroeconomic score (0-100) reflecting conditions like DXY, bond yields, and liquidity."
+
+14. **"F&G X" in footer** -- No tooltip. Should say: "Fear & Greed Index (0-100). Non-linear transform: extreme values (<20, >80) are treated as contrarian mean-reversion signals."
+
+15. **"Cal Xx" multiplier** -- No tooltip. Should say: "Calendar multiplier (0.25-1.0). Reduces size when high-impact economic events are imminent."
+
+16. **"Reg Xx" multiplier** -- No tooltip. Should say: "Regime multiplier. Derived from risk mode: Aggressive=1.0, Neutral=0.7, Defensive=0.25-0.5."
+
+17. **"Vol Xx" multiplier** -- No tooltip. Should say: "Volatility multiplier (0.5-1.0). Reduces size when annualized BTC volatility exceeds 80%."
 
 ### D. Code Quality
 
-11. **No `React.memo` or memoization on `combinedData`**: `combinedData` is recomputed on every render. Should use `useMemo` since it depends only on `fundingRates`, `oiChanges`, and `divergences`.
+18. **Footer breakdown is a single inline string** (lines 189-198): The breakdown data (Score, Tech, Macro, F&G, multipliers) is rendered as a raw text string with no semantic structure. Each metric should be a discrete, tooltipped element for both accessibility and clarity.
 
 ---
 
-## 3. VolatilityMeterWidget
+## 3. BiasExpiryIndicator
 
-### A. Comprehensiveness
+### A. Comprehensiveness & Accuracy
 
 | Feature | Status |
 |---------|--------|
-| Loading skeleton | Done |
-| Error state | Done |
-| Error boundary with retry | Done |
-| Market average with bar | Done |
-| Per-symbol volatility | Done |
-| Volatility level badges | Done |
-| Percentile badges (180d) | Done |
-| ATR fallback when no percentile | Done |
-| Legend with icons | Done |
-| CryptoIcon with fallback | Done |
+| Countdown timer (30s interval) | Done |
+| Expired state with destructive styling | Done |
+| Warning state (<5min remaining) | Done |
+| Valid state with profit styling | Done |
+| Auto-refresh on expiry via `onExpired` | Done |
+| Hour + minute formatting | Done |
 
-### B. Accuracy
+**No issues found.** This component is clean and correct.
 
-| Check | Result |
-|-------|--------|
-| Average volatility calculation | Correct -- simple mean of annualized values |
-| Market condition thresholds | Correct -- from centralized config |
-| Percentile guard (min 7 data points) | Correct |
-| Bar percentage capped at 100% | Correct |
-| Level classification thresholds | Correct -- <30, <60, <100, >=100 |
+### C. Clarity
 
-### C. Clarity -- Missing Tooltips
-
-12. **"Volatility Meter" card title** -- No tooltip. Should say: "Annualized volatility calculated from recent price returns. Higher values indicate larger expected price swings."
-
-13. **"Market Average" label** -- No tooltip. Should say: "Simple average of annualized volatility across all watchlist symbols."
-
-14. **"{X} Market" badge** (Calm/Normal/Volatile/Extreme) -- No tooltip. Should explain each regime: "Calm (<30%): Low activity, range-bound. Normal (30-60%): Standard conditions. Volatile (60-100%): Elevated risk, wider stops needed. Extreme (>100%): Crisis-level, reduce exposure."
-
-15. **Volatility level badge** (low/medium/high/extreme) per symbol -- No tooltip. Should say: "Volatility regime for this specific asset based on its annualized return volatility."
-
-16. **"P{percentile}" percentile badge** -- No tooltip. Should say: "Current volatility percentile over the past 180 days. P90+ means volatility is higher than 90% of the last 6 months -- historically elevated."
-
-17. **"Top X% (180d)" sub-label** -- No tooltip. Should say: "This asset's current volatility ranks in the top X% of the last 180 days of observations."
-
-18. **"ATR: X%" fallback sub-label** -- No tooltip. Should say: "Average True Range as a percentage of price. Measures average bar-to-bar price movement."
-
-19. **Legend items** -- No tooltips on the icon+range labels.
-
-### D. Code Quality
-
-20. **Hardcoded color classes in `MARKET_CONDITIONS`**: `text-blue-500`, `text-warning`, `text-destructive` -- these bypass the semantic token system. Should use semantic tokens (e.g., `text-profit` for calm isn't right either, but at minimum `text-chart-*` tokens for consistency).
-
-21. **`badgeVariant` cast `as any`**: Line 162 casts `getVolatilityBadgeVariant()` result as `any` to satisfy Badge props. Should type correctly.
+19. **No tooltip on the badge itself**: Should say: "Time remaining before the AI bias analysis expires. After expiry, data auto-refreshes. Duration depends on trading style: Scalping=15m, Short=60m, Swing=240m."
 
 ---
 
-## 4. WhaleTrackingWidget (Volume Anomaly Detector)
+## 4. SignalsGrid & MacroGrid (inline components)
 
-### A. Comprehensiveness
-
-| Feature | Status |
-|---------|--------|
-| Loading skeleton | Done |
-| Error state with retry | Done |
-| Error boundary wrapper | Done |
-| Empty state | Done |
-| Collapsible items with details | Done |
-| Signal labels (HIGH VOL BULLISH/BEARISH) | Done |
-| Volume change % display | Done |
-| Percentile rank / confidence | Done |
-| Method transparency (collapsible) | Done |
-| Threshold transparency (collapsible) | Done |
-| Badge for additional symbol | Done |
-
-### B. Accuracy
+### A. Accuracy
 
 | Check | Result |
 |-------|--------|
-| Volume change sign handling | Correct -- conditional `+` prefix |
-| Percentile vs confidence fallback | Correct -- `percentileRank ?? confidence` |
-| Signal color mapping | Correct -- ACCUMULATION=profit, DISTRIBUTION=loss |
-| Data slice limit | Correct -- `DISPLAY_LIMITS.WHALE_ACTIVITY` (6) |
+| Signal direction icon mapping | Correct |
+| 24h change sign + color | Correct -- semantic text-profit/text-loss |
+| Macro value formatting (>1000 vs small) | Correct |
+| Macro change precision (.toFixed(2)) | Correct |
 
 ### C. Clarity -- Missing Tooltips
 
-22. **"Volume Anomaly Detector" card title** -- No tooltip. Should say: "Detects statistically significant volume spikes exceeding the 95th percentile of a rolling 30-day window. Not wallet-level tracking."
+20. **"Key Signals" card title** -- No tooltip. Should say: "Summary of directional signals for major crypto assets, including trend description and 24h price change."
 
-23. **"Top 5" / "+{symbol}" badge** -- No tooltip. Should say: "Monitoring the top 5 watchlist symbols. Additional symbols from your selected asset are included when applicable."
+21. **"Macro Indicators" card title** -- No tooltip. Should say: "Key macroeconomic indicators and their recent changes. These feed into the regime classification composite score."
 
-24. **"HIGH VOL BULLISH" / "HIGH VOL BEARISH" signal badge** -- No tooltip. Should say: "HIGH VOL BULLISH: Volume spike with positive price action, suggesting aggressive buying. HIGH VOL BEARISH: Volume spike with negative price action, suggesting aggressive selling."
-
-25. **Volume change percentage** -- No tooltip. Should say: "24-hour volume change compared to the rolling 30-day average volume."
-
-26. **"P{rank}" / "conf." label** -- No tooltip. Should say: "P{rank}: Volume percentile rank in the 30-day distribution. Higher = more unusual. Conf: Statistical confidence of the anomaly detection."
-
-27. **"Method:" / "Threshold:" in collapsible** -- No tooltip explaining why these are shown. Should have a small header: "Detection methodology transparency."
-
-### D. Code Quality
-
-28. **Signal dot has no accessible label**: The colored dot (line 110-113) has no `aria-label` or `title` for screen readers.
+22. **Individual macro indicator names** (DXY, Gold, etc.) -- No tooltips explaining relevance to crypto. Should add per-item tooltip based on `item.impact` (already present as text, but a tooltip on the name itself would help).
 
 ---
 
-## 5. PortfolioImpactCard
+## 5. Summary of Recommendations
 
-### A. Comprehensiveness
+### Priority 1 -- Bugs & Layout Stability
 
-| Feature | Status |
-|---------|--------|
-| BTC scenario slider (-20% to +20%) | Done |
-| Total portfolio impact (absolute + %) | Done |
-| Affected positions list (top 5) | Done |
-| Correlation display per position | Done |
-| Direct vs correlated badge | Done |
-| Currency conversion via `format()` | Done |
-| InfoTooltip on card title | Done |
-| ARIA region role | Done |
-
-### B. Accuracy
-
-| Check | Result |
-|-------|--------|
-| Correlation lookup (bidirectional) | Correct -- `getCorrelation()` handles both directions |
-| SHORT position sign inversion | Correct -- `* (pos.side === 'SHORT' ? -1 : 1)` |
-| Portfolio % impact calculation | Correct -- `totalImpact / totalNotional * 100` |
-| Zero-notional guard | Correct -- `totalNotional > 0` check |
-| Impact sort by absolute value | Correct -- `Math.abs(b) - Math.abs(a)` |
-
-**Bug:**
-
-29. **Static correlation coefficients**: The `CRYPTO_CORRELATIONS` map uses hardcoded values (e.g., BTC-ETH = 0.82). These never update. During market regime shifts, real correlations can diverge significantly (crypto correlations go to 1.0 in crashes). The impact calculator may underestimate risk during high-stress periods. This is a known limitation but should be disclosed to users.
-
-### C. Clarity -- Missing Tooltips
-
-30. **"BTC Move Scenario" label** -- No tooltip. Should say: "Hypothetical BTC price change to simulate. The impact on your portfolio is estimated using cross-asset correlations."
-
-31. **"Total exposure" label** -- No tooltip. Should say: "Sum of absolute notional values of all open positions."
-
-32. **"Portfolio Impact" result label** -- No tooltip. Should say: "Estimated P&L change across all open positions if BTC moves by the selected percentage."
-
-33. **"direct" badge** -- No tooltip. Should say: "This is a BTC position -- impact is calculated directly from the scenario move, not via correlation."
-
-34. **"corr X.XX" label** -- No tooltip. Should say: "Historical correlation coefficient with BTC. 1.0 = moves identically, 0.5 = moves ~50% as much, 0 = independent."
-
-35. **Slider range labels (-20%, 0%, +20%)** -- No tooltip explaining the range choice.
-
-36. **"Affected Positions" header** -- No tooltip. Should say: "Top 5 positions most impacted by the scenario, sorted by absolute impact size. Positions with zero BTC correlation are excluded."
-
-37. **Static correlation disclaimer missing**: No visible note that correlations are static estimates. Should add a small disclaimer: "Correlations are static historical estimates and may differ during extreme market conditions."
-
----
-
-## 6. Summary of Recommendations
-
-### Priority 1 -- Bugs / Incorrect Behavior
-
-| # | Issue | Fix |
-|---|-------|-----|
-| 1 | PortfolioImpactCard returns `null` (layout shift) | Show empty-state card instead |
-| 2 | `setSelectedSymbol` dead code | Remove unused destructure |
-| 29 | Static correlations not disclosed | Add disclaimer tooltip |
+| # | Issue | File | Fix |
+|---|-------|------|-----|
+| 1 | No `role="region"` on root | MarketInsight.tsx | Add `role="region" aria-label="Market Bias"` |
+| 2 | `calendarLoading` dead code | MarketInsight.tsx | Remove from destructure |
+| 3 | SignalsGrid/MacroGrid return null (layout shift) | MarketInsight.tsx | Always render cards; show empty state when no data |
+| 4 | Hardcoded `$` in SignalsGrid price | MarketInsight.tsx | Use `format()` from `useCurrencyConversion` |
 
 ### Priority 2 -- Missing Tooltips (Clarity)
 
 | # | Element | Component |
 |---|---------|-----------|
-| 3 | "Data quality: X%" footer | MarketData.tsx |
-| 4-10 | Funding & OI labels | FundingOIDashboard.tsx |
-| 12-19 | Volatility Meter labels | VolatilityMeterWidget.tsx |
-| 22-27 | Volume Anomaly labels | WhaleTrackingWidget.tsx |
-| 30-37 | Portfolio Impact labels | PortfolioImpactCard.tsx |
+| 5-6 | Market Regime title + badge | RegimeCard.tsx |
+| 7-10 | Direction, Range, Risk Mode, Position Size | RegimeCard.tsx |
+| 11-17 | Footer breakdown (Score, Tech, Macro, F&G, Cal, Reg, Vol) | RegimeCard.tsx |
+| 18 | Footer structure (raw string to semantic elements) | RegimeCard.tsx |
+| 19 | BiasExpiryIndicator badge | BiasExpiryIndicator.tsx |
+| 20-21 | Key Signals + Macro Indicators titles | MarketInsight.tsx |
 
 ### Priority 3 -- Code Quality
 
 | # | Issue | Fix |
 |---|-------|-----|
-| 11 | No `useMemo` on `combinedData` in FundingOIDashboard | Wrap in `useMemo` |
-| 20 | Hardcoded color classes in volatility config | Note: low-priority, config-level concern |
-| 21 | `badgeVariant` cast `as any` | Type correctly or use `satisfies` |
-| 28 | Signal dot missing accessible label | Add `aria-label` |
+| 2 | Dead `calendarLoading` destructure | Remove |
+| 18 | Footer breakdown is raw string | Refactor into discrete tooltipped spans |
 
 ---
 
@@ -262,9 +178,7 @@
 
 | File | Changes |
 |------|---------|
-| `src/pages/MarketData.tsx` | Remove dead `setSelectedSymbol` (P1), add "Data quality" tooltip (P2) |
-| `src/components/market/FundingOIDashboard.tsx` | Add 7 tooltips (P2), add `useMemo` on `combinedData` (P3), add tooltips for trend icons (P2) |
-| `src/components/market/VolatilityMeterWidget.tsx` | Add 8 tooltips (P2), fix `as any` cast (P3) |
-| `src/components/market/WhaleTrackingWidget.tsx` | Add 6 tooltips (P2), add `aria-label` on signal dot (P3) |
-| `src/components/market/PortfolioImpactCard.tsx` | Replace `null` return with empty-state card (P1), add 8 tooltips (P2), add static correlation disclaimer (P1) |
+| `src/pages/MarketInsight.tsx` | Add `role="region"` (P1), remove `calendarLoading` (P1), replace conditional null renders with empty-state cards for SignalsGrid/MacroGrid (P1), fix hardcoded `$` with `format()` (P1), add tooltips to "Key Signals" and "Macro Indicators" titles (P2) |
+| `src/components/market-insight/RegimeCard.tsx` | Add 13 tooltips to all labels and footer breakdown metrics (P2), refactor footer from raw string to semantic tooltipped elements (P3) |
+| `src/components/market-insight/BiasExpiryIndicator.tsx` | Add tooltip explaining validity duration per trading style (P2) |
 
