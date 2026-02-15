@@ -3,14 +3,20 @@
  * Renamed from "Whale Tracking" — honest labeling of volume-based detection
  * Wrapped with ErrorBoundary for graceful API failure handling
  */
-import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ErrorBoundary, AsyncErrorFallback } from "@/components/ui/error-boundary";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Activity, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { WhaleActivity, WhaleSignal } from "@/features/market-insight/types";
 import { DISPLAY_LIMITS, BADGE_LABELS } from "@/lib/constants/market-config";
 
@@ -78,12 +84,22 @@ function WhaleTrackingContent({
           <div className="flex items-center gap-2">
             <Activity className="h-5 w-5 text-primary" />
             <CardTitle className="text-lg">Volume Anomaly Detector</CardTitle>
+            <InfoTooltip content="Detects statistically significant volume spikes exceeding the 95th percentile of a rolling 30-day window. Not wallet-level tracking." />
           </div>
-          <Badge variant="outline">
-            {!isSelectedInWatchlist && selectedAsset 
-              ? BADGE_LABELS.formatAdditionalSymbol(selectedAsset) 
-              : BADGE_LABELS.TOP_WATCHLIST}
-          </Badge>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <Badge variant="outline">
+                    {!isSelectedInWatchlist && selectedAsset 
+                      ? BADGE_LABELS.formatAdditionalSymbol(selectedAsset) 
+                      : BADGE_LABELS.TOP_WATCHLIST}
+                  </Badge>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent><p className="text-sm">Monitoring the top 5 watchlist symbols. Additional symbols from your selected asset are included when applicable.</p></TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
         <CardDescription>
           Statistical volume spike detection (&gt;95th percentile)
@@ -107,23 +123,43 @@ function WhaleTrackingContent({
               <div className="rounded-lg border overflow-hidden">
                 <CollapsibleTrigger className="flex items-center justify-between p-3 w-full hover:bg-muted/50 transition-colors">
                   <div className="flex items-center gap-3">
-                    <div className={cn(
-                      "w-2 h-2 rounded-full",
-                      getWhaleSignalColor(whale.signal)
-                    )} />
+                    <div 
+                      className={cn(
+                        "w-2 h-2 rounded-full",
+                        getWhaleSignalColor(whale.signal)
+                      )}
+                      aria-label={`Signal: ${getSignalLabel(whale.signal)}`}
+                    />
                     <div className="text-left">
                       <div className="flex items-center gap-2">
                         <Badge variant="outline" className="text-xs">{whale.asset}</Badge>
-                        <Badge 
-                          variant="secondary" 
-                          className={cn(
-                            "text-[10px]",
-                            whale.signal === 'ACCUMULATION' && "bg-profit/20 text-profit",
-                            whale.signal === 'DISTRIBUTION' && "bg-loss/20 text-loss"
-                          )}
-                        >
-                          {getSignalLabel(whale.signal)}
-                        </Badge>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div>
+                                <Badge 
+                                  variant="secondary" 
+                                  className={cn(
+                                    "text-[10px]",
+                                    whale.signal === 'ACCUMULATION' && "bg-profit/20 text-profit",
+                                    whale.signal === 'DISTRIBUTION' && "bg-loss/20 text-loss"
+                                  )}
+                                >
+                                  {getSignalLabel(whale.signal)}
+                                </Badge>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="text-sm">
+                                {whale.signal === 'ACCUMULATION' 
+                                  ? "Volume spike with positive price action, suggesting aggressive buying."
+                                  : whale.signal === 'DISTRIBUTION'
+                                  ? "Volume spike with negative price action, suggesting aggressive selling."
+                                  : "Volume within normal statistical range."}
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       </div>
                       <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
                         {whale.description}
@@ -132,20 +168,35 @@ function WhaleTrackingContent({
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <div className="text-right">
-                      <span className="text-sm font-medium">
-                        {whale.volumeChange24h > 0 ? '+' : ''}{whale.volumeChange24h.toFixed(1)}%
-                      </span>
-                      <p className="text-xs text-muted-foreground">
-                        {whale.percentileRank !== undefined ? `P${whale.percentileRank}` : `${whale.confidence}%`} conf.
-                      </p>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="text-sm font-medium cursor-help">
+                              {whale.volumeChange24h > 0 ? '+' : ''}{whale.volumeChange24h.toFixed(1)}%
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent><p className="text-sm">24-hour volume change compared to the rolling 30-day average volume.</p></TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <p className="text-xs text-muted-foreground cursor-help">
+                              {whale.percentileRank !== undefined ? `P${whale.percentileRank}` : `${whale.confidence}%`} conf.
+                            </p>
+                          </TooltipTrigger>
+                          <TooltipContent><p className="text-sm">Volume percentile rank in the 30-day distribution. Higher = more unusual. Conf = statistical confidence of the anomaly detection.</p></TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </div>
                     <ChevronDown className="h-3 w-3 text-muted-foreground transition-transform duration-200" />
                   </div>
                 </CollapsibleTrigger>
-                {/* Method transparency - Phase 2A */}
+                {/* Method transparency */}
                 {(whale.method || whale.thresholds) && (
                   <CollapsibleContent>
                     <div className="px-3 pb-3 pt-1 border-t bg-muted/30 space-y-1">
+                      <span className="text-[10px] text-muted-foreground font-medium">Detection methodology transparency</span>
                       {whale.method && (
                         <div className="flex items-start gap-2 text-xs">
                           <span className="text-muted-foreground shrink-0">Method:</span>

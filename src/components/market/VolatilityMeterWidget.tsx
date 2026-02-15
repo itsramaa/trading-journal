@@ -8,12 +8,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Activity, TrendingUp, AlertTriangle, Flame, Snowflake } from "lucide-react";
 import { useMultiSymbolVolatility } from "@/features/binance";
 import { useVolatilityPercentiles } from "@/features/market-insight";
 import { cn } from "@/lib/utils";
 import { CryptoIcon } from "@/components/ui/crypto-icon";
 import { DEFAULT_WATCHLIST_SYMBOLS, DISPLAY_LIMITS } from "@/lib/constants/market-config";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { 
   getMarketCondition, 
   getVolatilityLevelConfig,
@@ -42,7 +49,7 @@ function getVolatilityColor(level: VolatilityLevel) {
   return getVolatilityLevelConfig(level).color;
 }
 
-function getVolatilityBadgeVariant(level: VolatilityLevel) {
+function getVolatilityBadgeVariant(level: VolatilityLevel): string {
   return getVolatilityLevelConfig(level).badgeVariant;
 }
 
@@ -119,10 +126,22 @@ function VolatilityMeterContent({
           <CardTitle className="flex items-center gap-2 text-base">
             <Activity className="h-4 w-4" />
             Volatility Meter
+            <InfoTooltip content="Annualized volatility calculated from recent price returns. Higher values indicate larger expected price swings." />
           </CardTitle>
-          <Badge variant="outline" className={marketCondition.colorClass}>
-            {marketCondition.label} Market
-          </Badge>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <Badge variant="outline" className={marketCondition.colorClass}>
+                    {marketCondition.label} Market
+                  </Badge>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="text-sm">Calm (&lt;30%): Range-bound. Normal (30-60%): Standard. Volatile (60-100%): Wider stops needed. Extreme (&gt;100%): Reduce exposure.</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
         <CardDescription>
           Annualized volatility for top assets
@@ -132,7 +151,10 @@ function VolatilityMeterContent({
         {/* Overall Market Volatility */}
         <div className="p-3 rounded-lg bg-muted/50">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium">Market Average</span>
+            <span className="text-sm font-medium flex items-center gap-1">
+              Market Average
+              <InfoTooltip content="Simple average of annualized volatility across all watchlist symbols." />
+            </span>
             <span className={cn("text-lg font-bold", marketCondition.colorClass)}>
               {avgVolatility.toFixed(1)}%
             </span>
@@ -158,23 +180,41 @@ function VolatilityMeterContent({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-sm">{symbolName}</span>
-                    <Badge 
-                      variant={getVolatilityBadgeVariant(data.risk.level) as any}
-                      className="text-xs h-5"
-                    >
-                      {data.risk.level}
-                    </Badge>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div>
+                            <Badge 
+                              variant={getVolatilityBadgeVariant(data.risk.level) as any}
+                              className="text-xs h-5"
+                            >
+                              {data.risk.level}
+                            </Badge>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent><p className="text-sm">Volatility regime for this asset based on its annualized return volatility.</p></TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                     {showPercentile && (
-                      <Badge 
-                        variant="outline" 
-                        className={cn(
-                          "text-xs h-5 font-mono",
-                          pctData.percentile180d >= 90 && "border-loss/50 text-loss",
-                          pctData.percentile180d <= 10 && "border-profit/50 text-profit"
-                        )}
-                      >
-                        P{pctData.percentile180d}
-                      </Badge>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div>
+                              <Badge 
+                                variant="outline" 
+                                className={cn(
+                                  "text-xs h-5 font-mono",
+                                  pctData.percentile180d >= 90 && "border-loss/50 text-loss",
+                                  pctData.percentile180d <= 10 && "border-profit/50 text-profit"
+                                )}
+                              >
+                                P{pctData.percentile180d}
+                              </Badge>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent><p className="text-sm">Current volatility percentile over the past 180 days. P90+ means historically elevated volatility.</p></TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     )}
                   </div>
                   <div className="mt-1">
@@ -186,12 +226,25 @@ function VolatilityMeterContent({
                   <div className="text-sm font-mono-numbers font-medium">
                     {data.annualizedVolatility.toFixed(1)}%
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    {showPercentile 
-                      ? `Top ${100 - pctData.percentile180d}% (180d)`
-                      : `ATR: ${data.atrPercent.toFixed(2)}%`
-                    }
-                  </div>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="text-xs text-muted-foreground cursor-help">
+                          {showPercentile 
+                            ? `Top ${100 - pctData.percentile180d}% (180d)`
+                            : `ATR: ${data.atrPercent.toFixed(2)}%`
+                          }
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="text-sm">
+                          {showPercentile
+                            ? `This asset's current volatility ranks in the top ${100 - pctData.percentile180d}% of the last 180 days.`
+                            : "Average True Range as a percentage of price. Measures average bar-to-bar price movement."}
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
               </div>
             );
@@ -203,10 +256,17 @@ function VolatilityMeterContent({
           {Object.entries(VOLATILITY_LEVEL_CONFIG).map(([level, config]) => {
             const Icon = getVolatilityIcon(level as VolatilityLevel);
             return (
-              <div key={level} className="flex items-center gap-1">
-                <Icon className={cn("h-3 w-3", config.color)} />
-                <span>{config.rangeLabel}</span>
-              </div>
+              <TooltipProvider key={level}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-1 cursor-help">
+                      <Icon className={cn("h-3 w-3", config.color)} />
+                      <span>{config.rangeLabel}</span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent><p className="text-sm">Annualized volatility range: {config.rangeLabel}</p></TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             );
           })}
         </div>
