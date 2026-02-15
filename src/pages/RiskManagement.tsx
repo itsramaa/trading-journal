@@ -16,6 +16,8 @@ import {
   CorrelationMatrix,
   RiskProfileSummaryCard,
 } from "@/components/risk";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { TooltipProvider, Tooltip as RadixTooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { useRiskProfile } from "@/hooks/use-risk-profile";
 import { useRiskEvents } from "@/hooks/use-risk-events";
 import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
@@ -53,7 +55,7 @@ export default function RiskManagement() {
 
   return (
     <ErrorBoundary title="Risk Management" onRetry={() => setRetryKey(k => k + 1)}>
-      <div key={retryKey} className="space-y-6">
+      <div key={retryKey} className="space-y-6" role="region" aria-label="Risk Management">
         <PageHeader
           icon={Shield}
           title="Risk Management"
@@ -62,14 +64,26 @@ export default function RiskManagement() {
 
         <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
           <TabsList className="grid w-full grid-cols-2 lg:w-auto lg:inline-flex">
-            <TabsTrigger value="overview" className="gap-2">
-              <LayoutDashboard className="h-4 w-4" />
-              <span className="hidden sm:inline">Overview</span>
-            </TabsTrigger>
-            <TabsTrigger value="history" className="gap-2">
-              <History className="h-4 w-4" />
-              <span className="hidden sm:inline">History</span>
-            </TabsTrigger>
+            <TooltipProvider>
+              <RadixTooltip>
+                <TooltipTrigger asChild>
+                  <TabsTrigger value="overview" className="gap-2">
+                    <LayoutDashboard className="h-4 w-4" />
+                    <span className="hidden sm:inline">Overview</span>
+                  </TabsTrigger>
+                </TooltipTrigger>
+                <TooltipContent><p className="text-sm">Daily loss tracking, risk profile summary, alerts, and position correlation</p></TooltipContent>
+              </RadixTooltip>
+              <RadixTooltip>
+                <TooltipTrigger asChild>
+                  <TabsTrigger value="history" className="gap-2">
+                    <History className="h-4 w-4" />
+                    <span className="hidden sm:inline">History</span>
+                  </TabsTrigger>
+                </TooltipTrigger>
+                <TooltipContent><p className="text-sm">Full log of risk events, liquidations, and margin changes</p></TooltipContent>
+              </RadixTooltip>
+            </TooltipProvider>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
@@ -90,8 +104,9 @@ export default function RiskManagement() {
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-lg flex items-center gap-2">
-                    <AlertTriangle className="h-5 w-5 text-primary" />
+                    <AlertTriangle className="h-5 w-5 text-chart-4" />
                     Risk Alerts
+                    <InfoTooltip content="Recent threshold breaches and warnings from your daily loss tracker and correlation checks." />
                   </CardTitle>
                   <CardDescription>
                     Recent risk events and warnings
@@ -116,9 +131,16 @@ export default function RiskManagement() {
                               {format(new Date(event.created_at || event.event_date), 'MMM dd, HH:mm')}
                             </p>
                           </div>
-                          <Badge variant="outline" className="text-xs shrink-0">
-                            {event.trigger_value.toFixed(0)}%
-                          </Badge>
+                          <TooltipProvider>
+                            <RadixTooltip>
+                              <TooltipTrigger asChild>
+                                <Badge variant="outline" className="text-xs shrink-0">
+                                  {event.trigger_value.toFixed(0)}%
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent><p className="text-sm">The loss limit percentage that triggered this alert</p></TooltipContent>
+                            </RadixTooltip>
+                          </TooltipProvider>
                         </div>
                       ))}
                       {riskEvents.length > 3 && (

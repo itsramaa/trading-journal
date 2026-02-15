@@ -13,6 +13,9 @@ import {
   Clock,
   Wallet
 } from "lucide-react";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { useBinanceMarginHistory, useBinanceConnectionStatus } from "@/features/binance";
 import { usePositions } from "@/hooks/use-positions";
 import { useModeVisibility } from "@/hooks/use-mode-visibility";
@@ -24,6 +27,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 export function MarginHistoryTab() {
   const { showExchangeData } = useModeVisibility();
+  const { format: formatCurrency } = useCurrencyConversion();
   const { data: connectionStatus, isLoading: statusLoading } = useBinanceConnectionStatus();
   const isConfigured = connectionStatus?.isConfigured ?? false;
   
@@ -78,21 +82,24 @@ export function MarginHistoryTab() {
   return (
     <div className="space-y-4 mt-4">
       {/* Symbol selector */}
-      <Select 
-        value={selectedSymbol || symbols[0]} 
-        onValueChange={setSelectedSymbol}
-      >
-        <SelectTrigger className="w-[200px]">
-          <SelectValue placeholder="Select symbol" />
-        </SelectTrigger>
+      <div className="flex items-center gap-2">
+        <Select 
+          value={selectedSymbol || symbols[0]} 
+          onValueChange={setSelectedSymbol}
+        >
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="Select symbol" />
+          </SelectTrigger>
         <SelectContent>
           {symbols.map(symbol => (
             <SelectItem key={symbol} value={symbol}>
               {symbol}
             </SelectItem>
           ))}
-        </SelectContent>
-      </Select>
+          </SelectContent>
+        </Select>
+        <InfoTooltip content="Select a position symbol to view its margin adjustment history." />
+      </div>
 
       {/* Margin history list */}
       {!marginHistory || marginHistory.length === 0 ? (
@@ -129,12 +136,19 @@ export function MarginHistoryTab() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <Badge 
-                        variant="outline" 
-                        className={isAddition ? "text-profit" : "text-chart-5"}
-                      >
-                        {isAddition ? "Add Margin" : "Reduce Margin"}
-                      </Badge>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Badge 
+                              variant="outline" 
+                              className={isAddition ? "text-profit" : "text-chart-5"}
+                            >
+                              {isAddition ? "Add Margin" : "Reduce Margin"}
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent><p className="text-sm">{isAddition ? "You deposited additional collateral for this position" : "You withdrew excess collateral from this position"}</p></TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                       <Badge variant="secondary">
                         {change.positionSide}
                       </Badge>
@@ -150,7 +164,7 @@ export function MarginHistoryTab() {
                           "ml-1 font-medium",
                           isAddition ? "text-profit" : "text-chart-5"
                         )}>
-                          {isAddition ? "+" : "-"}${Math.abs(change.amount).toFixed(2)}
+                          {isAddition ? "+" : "-"}{formatCurrency(Math.abs(change.amount))}
                         </span>
                       </div>
                       <div>

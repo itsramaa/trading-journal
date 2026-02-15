@@ -127,7 +127,13 @@ export function RiskSettingsForm({
         {/* Max Position Size */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <Label>Max Position Size</Label>
+            <Label className="flex items-center gap-2">
+              Max Position Size
+              <InfoTooltip 
+                content="Maximum percentage of capital to deploy in a single position. Helps prevent overconcentration."
+                variant="help"
+              />
+            </Label>
             <span className="font-medium text-primary">{maxPositionSize}%</span>
           </div>
           <Slider
@@ -146,7 +152,13 @@ export function RiskSettingsForm({
         {/* Max Concurrent Positions */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <Label>Max Concurrent Positions</Label>
+            <Label className="flex items-center gap-2">
+              Max Concurrent Positions
+              <InfoTooltip 
+                content="Maximum open positions at once. Limits concentration risk and cognitive overload."
+                variant="help"
+              />
+            </Label>
             <span className="font-medium text-primary">{maxConcurrentPositions}</span>
           </div>
           <Slider

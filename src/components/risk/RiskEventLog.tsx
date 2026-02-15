@@ -8,6 +8,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { AlertTriangle, Shield, XCircle, CheckCircle, Clock, Skull, TrendingDown, Wallet, Wifi } from "lucide-react";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { useRiskEvents } from "@/hooks/use-risk-events";
 import { useBinanceForceOrders, useBinanceConnectionStatus } from "@/features/binance";
 import { useModeVisibility } from "@/hooks/use-mode-visibility";
@@ -66,6 +68,7 @@ const eventTypeConfig: Record<string, { icon: typeof AlertTriangle; color: strin
 
 export function RiskEventLog() {
   const { events, isLoading } = useRiskEvents();
+  const { format: formatCurrency } = useCurrencyConversion();
   const { data: connectionStatus } = useBinanceConnectionStatus();
   const { showExchangeData } = useModeVisibility();
   const isConfigured = connectionStatus?.isConfigured ?? false;
@@ -108,6 +111,7 @@ export function RiskEventLog() {
         <CardTitle className="flex items-center gap-2">
           <Shield className="h-5 w-5" />
           Risk Event Log
+          <InfoTooltip content="Complete history of risk threshold breaches, trading gate events, and exchange liquidations." />
         </CardTitle>
         <CardDescription>
           Risk events, threshold breaches, and liquidation history
@@ -116,7 +120,7 @@ export function RiskEventLog() {
       <CardContent>
         <Tabs defaultValue="events" className="w-full">
           <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="events">
+            <TabsTrigger value="events" title="System-generated alerts when your daily loss approaches or reaches configured limits">
               Risk Events
               {events && events.length > 0 && (
                 <Badge variant="secondary" className="ml-2">{events.length}</Badge>
@@ -196,10 +200,10 @@ export function RiskEventLog() {
                           </div>
                           <p className="text-sm mt-1">{event.message}</p>
                           <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                            <span>
+                            <span title="The actual loss percentage that caused this event">
                               Trigger: <span className="font-medium">{event.trigger_value.toFixed(1)}%</span>
                             </span>
-                            <span>
+                            <span title="The configured limit that was breached">
                               Threshold: <span className="font-medium">{event.threshold_value.toFixed(1)}%</span>
                             </span>
                             <span>
@@ -265,7 +269,7 @@ export function RiskEventLog() {
                           </div>
                           <div>
                             <span className="text-muted-foreground">Avg Price:</span>
-                            <span className="ml-1 font-medium">${order.avgPrice.toLocaleString()}</span>
+                            <span className="ml-1 font-medium">{formatCurrency(order.avgPrice)}</span>
                           </div>
                         </div>
                         <div className="mt-2 text-xs text-muted-foreground">

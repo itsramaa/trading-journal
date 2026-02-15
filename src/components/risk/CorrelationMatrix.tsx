@@ -8,6 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { AlertTriangle, Link2, ChevronDown, ChevronRight } from "lucide-react";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import { cn } from "@/lib/utils";
 import { getCorrelation } from "@/lib/correlation-utils";
@@ -84,7 +86,15 @@ export function CorrelationMatrix() {
           <CardTitle className="flex items-center gap-2 text-base">
             <Link2 className="h-5 w-5" />
             Position Correlation
-            <Badge variant="secondary" className="ml-2 text-xs">Advanced</Badge>
+            <InfoTooltip content="Measures how similarly your open positions move. High correlation (>70%) means positions amplify each other's risk." />
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge variant="secondary" className="ml-2 text-xs">Advanced</Badge>
+                </TooltipTrigger>
+                <TooltipContent><p className="text-sm">Advanced risk metric. Requires 2+ open positions for analysis.</p></TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </CardTitle>
           <CardDescription>
             Correlation analysis between open positions
@@ -107,7 +117,15 @@ export function CorrelationMatrix() {
           <CardTitle className="flex items-center gap-2 text-base">
             <Link2 className="h-5 w-5" />
             Position Correlation
-            <Badge variant="secondary" className="ml-2 text-xs">Advanced</Badge>
+            <InfoTooltip content="Measures how similarly your open positions move. High correlation (>70%) means positions amplify each other's risk." />
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge variant="secondary" className="ml-2 text-xs">Advanced</Badge>
+                </TooltipTrigger>
+                <TooltipContent><p className="text-sm">Advanced risk metric. Requires 2+ open positions for analysis.</p></TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </CardTitle>
           <CardDescription>
             Correlation analysis between open positions
@@ -135,7 +153,15 @@ export function CorrelationMatrix() {
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Link2 className="h-5 w-5" />
                   Position Correlation
-                  <Badge variant="secondary" className="ml-2 text-xs">Advanced</Badge>
+                  <InfoTooltip content="Measures how similarly your open positions move. High correlation (>70%) means positions amplify each other's risk." />
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Badge variant="secondary" className="ml-2 text-xs">Advanced</Badge>
+                      </TooltipTrigger>
+                      <TooltipContent><p className="text-sm">Advanced risk metric. Requires 2+ open positions for analysis.</p></TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                   {highCorrelationPairs.length > 0 && (
                     <Badge variant="destructive" className="ml-1">
                       <AlertTriangle className="h-3 w-3 mr-1" />
@@ -217,24 +243,46 @@ export function CorrelationMatrix() {
             </div>
 
             {/* Legend - Using design tokens */}
-            <div className="flex flex-wrap gap-3 text-xs text-muted-foreground pt-2 border-t">
-              <div className="flex items-center gap-1">
-                <div className="w-2 h-2 rounded bg-loss" />
-                <span>≥80% Very High</span>
+            <TooltipProvider>
+              <div className="flex flex-wrap gap-3 text-xs text-muted-foreground pt-2 border-t">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-1 cursor-help">
+                      <div className="w-2 h-2 rounded bg-loss" />
+                      <span>≥80% Very High</span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent><p className="text-sm">Positions behave almost identically. Consider closing one to reduce amplified risk.</p></TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-1 cursor-help">
+                      <div className="w-2 h-2 rounded bg-[hsl(var(--chart-4))]" />
+                      <span>70-79% High</span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent><p className="text-sm">Strong similarity. Monitor closely and avoid adding more correlated exposure.</p></TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-1 cursor-help">
+                      <div className="w-2 h-2 rounded bg-[hsl(var(--chart-6))]" />
+                      <span>50-69% Moderate</span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent><p className="text-sm">Some correlation exists. Acceptable with proper position sizing.</p></TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-1 cursor-help">
+                      <div className="w-2 h-2 rounded bg-profit" />
+                      <span>&lt;50% Low</span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent><p className="text-sm">Good diversification. Positions move independently of each other.</p></TooltipContent>
+                </Tooltip>
               </div>
-              <div className="flex items-center gap-1">
-                <div className="w-2 h-2 rounded bg-[hsl(var(--chart-4))]" />
-                <span>70-79% High</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-2 h-2 rounded bg-[hsl(var(--chart-6))]" />
-                <span>50-69% Moderate</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-2 h-2 rounded bg-profit" />
-                <span>&lt;50% Low</span>
-              </div>
-            </div>
+            </TooltipProvider>
           </CardContent>
         </CollapsibleContent>
       </Collapsible>
