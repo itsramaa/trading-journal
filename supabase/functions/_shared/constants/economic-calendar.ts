@@ -72,7 +72,7 @@ export const VOLATILITY_ENGINE = {
     HIGH: 0.5,
     ELEVATED: 0.7,
     NORMAL: 1.0,
-    LOW: 1.1,
+    LOW: 1.0, // Capped at 1.0 — never increase size based solely on no macro events
   },
   CLUSTER_AMPLIFICATION: {
     TWO_EVENTS: 1.2,
@@ -82,6 +82,19 @@ export const VOLATILITY_ENGINE = {
     CLUSTER_FACTOR: 1.3,
     BASE_24H_MULTIPLIER: 1.8,
   },
+  // Correlation dampener: correlated event pairs get reduced weight
+  CORRELATION_GROUPS: [
+    ['CPI', 'Core CPI', 'Consumer Price Index'],
+    ['PPI', 'Core PPI'],
+    ['PCE Price Index', 'Core PCE'],
+    ['FOMC', 'Federal Funds Rate'],
+    ['Non-Farm Employment Change', 'Nonfarm Payrolls', 'Unemployment Rate'],
+  ] as string[][],
+  // Within a correlated group, subsequent events use this dampened weight
+  CORRELATION_DAMPENER: 0.4,
+  // Sample size below which range estimates are compressed
+  SMALL_SAMPLE_THRESHOLD: 30,
+  SMALL_SAMPLE_COMPRESSION: 0.75,
 } as const;
 
 // Helper functions
