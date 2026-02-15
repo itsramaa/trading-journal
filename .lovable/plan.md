@@ -1,223 +1,176 @@
 
 
-# AI Insights Statistical Integrity & Variance Awareness Upgrade
+# AI Insights: Variance Awareness, Risk-Adjusted Rankings & Data Integrity
 
-Systematic fixes to eliminate overconfident claims, add sample size context, introduce expectancy-aware logic, and remove misleading streak framing.
-
----
-
-## Overview
-
-The AI Insights page currently generates template-like recommendations without statistical rigor. This plan addresses 8 specific issues across Pattern Analysis, Session Insights, Predictions, and Action Items.
+Addresses 5 remaining statistical gaps: variance metrics, expectancy-based pair ranking, drawdown context for streak insights, correlation data gating, and prediction confidence tightening.
 
 ---
 
-## 1. Win Rate Insight: Add R:R Context
+## 1. Add Variance Metrics to Stats (Std Dev, Rolling Performance)
 
-**File:** `src/pages/AIInsights.tsx` (lines 192-209)
+**File:** `src/pages/AIInsights.tsx`
 
-Currently says "Win Rate Needs Improvement" without considering R:R. A 26% win rate with 3:1 R:R is profitable.
-
-Calculate breakeven win rate from avgWin/avgLoss, then compare:
+Extend the `stats` useMemo to calculate:
 
 ```typescript
-const breakevenWR = stats.avgLoss > 0 
-  ? (stats.avgLoss / (stats.avgWin + stats.avgLoss)) * 100 
-  : 50;
+// Standard deviation of per-trade returns
+const pnls = closedTrades.map(t => getPnl(t));
+const meanPnl = totalPnl / closedTrades.length;
+const stdDev = Math.sqrt(pnls.reduce((s, p) => s + Math.pow(p - meanPnl, 2), 0) / pnls.length);
 
-// If winRate < breakevenWR -> truly underperforming
-// If winRate >= breakevenWR -> profitable despite low raw %
+// Rolling 30-trade performance (last 30 closed trades)
+const last30 = sortedTrades.slice(0, Math.min(30, sortedTrades.length));
+const last30Pnl = last30.reduce((s, t) => s + getPnl(t), 0);
+const last30WinRate = last30.filter(t => getPnl(t) > 0).length / last30.length * 100;
 ```
 
-Change description from generic "focus on refining entry criteria" to:
+Add these to the returned stats object: `stdDev`, `last30Pnl`, `last30WinRate`.
 
-- If below breakeven: `"At X%, your win rate is below your breakeven threshold of Y% (based on your R:R profile)."`
-- If above breakeven but below 45%: `"Your X% win rate is sustained by a strong R:R ratio. Maintain your current risk-reward discipline."`
+**New insight card** in the insights array:
+
+- If `stdDev` is large relative to `avgWin` (stdDev > avgWin * 1.5), generate a neutral insight:
+  - Title: "High Return Variance"
+  - Description: `"Your per-trade P&L std dev (${formatPnl(stdDev)}) is high relative to avg win (${formatPnl(avgWin)}). Short-term results may not reflect true edge — evaluate over 100+ trades."`
+  - Confidence: based on total trade count
+
+- Rolling 30 vs overall comparison insight:
+  - If `last30WinRate` differs from overall `winRate` by more than 10 percentage points, add a pattern insight indicating improving or declining recent performance.
 
 ---
 
-## 2. Profit Factor Insight: Diagnose Root Cause
+## 2. Pair Ranking: Sort by Expectancy, Not Raw P&L
 
-**File:** `src/pages/AIInsights.tsx` (lines 220-228)
+**File:** `src/pages/AIInsights.tsx`
 
-Currently gives generic "hold winners longer or tighten stop losses." Diagnose whether the problem is win size or frequency:
+Currently pairs are sorted by `b.pnl - a.pnl` (line 146). This biases toward high-volume or lucky small-sample pairs.
+
+Change to expectancy-based ranking:
 
 ```typescript
-if (stats.profitFactor < PERFORMANCE_THRESHOLDS.PROFIT_FACTOR_POOR) {
-  const isWinSizeProblem = stats.avgWin < stats.avgLoss;
-  const description = isWinSizeProblem
-    ? `Avg win (${formatPnl(stats.avgWin)}) is smaller than avg loss (${formatPnl(stats.avgLoss)}). Focus on holding winners longer or tightening stops.`
-    : `Win frequency is the issue -- your avg win exceeds avg loss but you're not winning often enough. Review entry quality.`;
+const pairRankings = Object.entries(pairStats)
+  .map(([pair, s]) => ({
+    pair,
+    ...s,
+    winRate: (s.wins / (s.wins + s.losses)) * 100,
+    trades: s.wins + s.losses,
+    expectancy: s.pnl / (s.wins + s.losses),  // avg P&L per trade
+  }))
+  .filter(p => p.trades >= DATA_QUALITY.MIN_TRADES_FOR_RANKING)
+  .sort((a, b) => b.expectancy - a.expectancy);
+```
+
+Update the Pair Performance Ranking UI to show expectancy alongside total P&L:
+
+```typescript
+<p className="text-sm text-muted-foreground">
+  {pair.trades} trades • {pair.winRate.toFixed(0)}% WR • {formatPnl(pair.expectancy)}/trade
+</p>
+```
+
+Update best/worst pair insight descriptions to reference expectancy instead of total P&L.
+
+---
+
+## 3. Drawdown Context for Streak Insights
+
+**File:** `src/pages/AIInsights.tsx`
+
+Import and use `calculateAdvancedRiskMetrics` from `src/lib/advanced-risk-metrics.ts` to add drawdown context to streak insights.
+
+```typescript
+import { calculateAdvancedRiskMetrics } from "@/lib/advanced-risk-metrics";
+```
+
+In the stats useMemo, compute:
+
+```typescript
+const riskMetrics = calculateAdvancedRiskMetrics(
+  closedTrades.map(t => ({
+    pnl: getPnl(t),
+    trade_date: t.trade_date,
+    result: t.result || '',
+  }))
+);
+```
+
+Expose `maxDrawdownPercent` and `currentDrawdownPercent` in stats.
+
+Update the losing streak insight description:
+
+```typescript
+description: `Statistically rare streak. Current drawdown: ${stats.currentDrawdownPercent.toFixed(1)}% from peak (max historical: ${stats.maxDrawdownPercent.toFixed(1)}%). Review recent trade quality and setup adherence.`,
+```
+
+This grounds the streak warning in concrete equity context rather than emotional assumption.
+
+---
+
+## 4. Correlation Section: Gate by Data Availability
+
+**File:** `src/components/analytics/contextual/ContextualPerformance.tsx`
+
+The `CorrelationRow` currently shows `0.00 Weak None` when there's no market context data. This is misleading because 0 means "no data," not "no relationship."
+
+Update the CorrelationRow component to check `tradesWithContext`:
+
+```typescript
+function CorrelationRow({ label, value, description, hasData }: { 
+  label: string; value: number; description: string; hasData: boolean;
+}) {
+  if (!hasData) {
+    return (
+      <div className="flex items-center justify-between py-2 border-b last:border-0">
+        <div>
+          <p className="font-medium text-sm">{label}</p>
+          <p className="text-xs text-muted-foreground">{description}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-sm text-muted-foreground">Insufficient data</p>
+        </div>
+      </div>
+    );
+  }
+  // ... existing render logic
 }
 ```
 
----
+Pass `hasData={data.tradesWithContext >= DATA_QUALITY.MIN_TRADES_FOR_CORRELATION}` to each CorrelationRow.
 
-## 3. Losing Streak: Remove Emotional Assumption
-
-**File:** `src/pages/AIInsights.tsx` (lines 240-248)
-
-Current text: "Consider taking a break to reset mentally" implies tilting without evidence.
-
-Change to statistical framing:
-
-```typescript
-description: `Statistically rare streak. Review recent trade quality and setup adherence rather than assuming tilt.`,
-```
-
-Also in Action Items (line 329): change "Losing streak may indicate tilting or market misread" to "Review whether recent setups met your strategy criteria."
+Additionally, if ALL correlations lack data, collapse the entire Correlations card into a single message rather than showing 3 "Insufficient data" rows.
 
 ---
 
-## 4. Best Time Slot & Best Pair: Show Sample Size + Confidence Badge
-
-**File:** `src/pages/AIInsights.tsx` (lines 252-282)
-
-Add sample size to all insights. Update the `PerformanceInsight` interface to include optional `sampleSize` and `confidence` fields:
-
-```typescript
-interface PerformanceInsight {
-  type: 'positive' | 'negative' | 'neutral';
-  title: string;
-  description: string;
-  metric?: string;
-  icon: typeof TrendingUp;
-  sampleSize?: number;
-  confidence?: 'low' | 'medium' | 'high';
-}
-```
-
-For best time slot:
-```typescript
-description: `${slot.day} ${slot.hour}:00 — ${slot.winRate.toFixed(0)}% win rate.`,
-sampleSize: slot.trades,
-confidence: slot.trades >= 30 ? 'high' : slot.trades >= 15 ? 'medium' : 'low',
-```
-
-For best/worst pair:
-```typescript
-description: `...${pair.trades} trades, ${pair.winRate.toFixed(0)}% win rate.`,
-sampleSize: pair.trades,
-confidence: pair.trades >= 20 ? 'high' : pair.trades >= 10 ? 'medium' : 'low',
-```
-
-Render confidence badge next to the metric badge in the insight card UI. If confidence is `low`, append "(low sample)" to the description.
-
----
-
-## 5. Raise Minimum Thresholds
-
-**File:** `src/lib/constants/ai-analytics.ts`
-
-Current `MIN_TRADES_FOR_RANKING: 3` is far too low for recommendations like "Focus on X pair."
-
-Update:
-
-```typescript
-MIN_TRADES_FOR_RANKING: 10,    // was 3 -- minimum for pair/time recommendations
-MIN_TRADES_FOR_SESSION: 10,    // was 3 -- minimum for session-level advice
-MIN_TRADES_FOR_CORRELATION: 5, // was 3
-```
-
-This single change filters out all 3-trade noise from pair rankings, time slots, and session insights across the entire page.
-
----
-
-## 6. Session Insights: Add Expectancy Check
-
-**File:** `src/components/analytics/session/SessionInsights.tsx` (lines 96-103)
-
-Currently "Avoid Tokyo Session" is based solely on win rate. A 20% win rate with 4x R:R is profitable.
-
-Add expectancy calculation before issuing warnings:
-
-```typescript
-// Calculate expectancy: (winRate * avgWin) - ((1 - winRate) * avgLoss)
-const wr = data.winRate / 100;
-const expectancy = (wr * data.avgPnl) ... // or use totalPnl / trades as proxy
-
-// Only warn if BOTH win rate is low AND expectancy is negative
-if (data.winRate < SESSION_THRESHOLDS.SESSION_WARNING_WIN_RATE && data.totalPnl < 0) {
-  // Issue warning
-}
-```
-
-If win rate is low but totalPnl is positive, change to a pattern insight instead:
-```typescript
-title: `${SESSION_LABELS[worstSession]} Low Win Rate, Positive Edge`,
-description: `Despite ${formatWinRate(data.winRate)} win rate, this session is net profitable (${formatPnl(data.totalPnl)}). Your R:R compensates.`,
-```
-
-Also add sample size badge to session summary grid cards when trades < 10:
-```typescript
-{data.trades > 0 && data.trades < 10 && (
-  <div className="text-xs opacity-60 mt-1">Low sample</div>
-)}
-```
-
----
-
-## 7. Predictions: Fix Streak Independence Framing
-
-**File:** `src/lib/predictive-analytics.ts` (line 97)
-
-Current description: "80% chance next trade also loss" implies dependency.
-
-The function correctly uses historical pattern matching (not raw probability), but the description doesn't clarify this. Update:
-
-```typescript
-description: `After ${currentStreak} consecutive ${streakType}s, historically ${prob.toFixed(0)}% of similar streaks continued. Based on ${occurrences} pattern matches in your history.`,
-```
-
-This clarifies it's empirical pattern matching, not theoretical probability.
-
----
-
-## 8. Predictions: Enforce Confidence Thresholds
+## 5. Prediction Confidence: Penalize Imbalanced Distributions
 
 **File:** `src/lib/predictive-analytics.ts`
 
-Current confidence thresholds are too generous:
+Current confidence is purely sample-count based. A 25-sample prediction with 24/25 continuations (96%) gets "low" confidence, but it might be from a single cluster period.
+
+Add a distribution quality check to `calculateStreakProbability`:
+
 ```typescript
-LOW: 5,    // 5 samples = "low" -- should be higher
-MEDIUM: 15,
-HIGH: 30,
+// After computing occurrences and continuations:
+const continuationRate = continuations / occurrences;
+
+// Penalize extreme imbalance: if rate > 90% or < 10%, 
+// the pattern may be clustering, not a true edge
+const isImbalanced = continuationRate > 0.9 || continuationRate < 0.1;
+
+// Downgrade confidence by one level if imbalanced AND sample is not large
+function getAdjustedConfidence(n: number, imbalanced: boolean): Confidence {
+  const base = getConfidence(n);
+  if (imbalanced && base !== 'low') {
+    return base === 'high' ? 'medium' : 'low';
+  }
+  return base;
+}
 ```
 
-Update:
-```typescript
-LOW: 10,
-MEDIUM: 30,
-HIGH: 100,
-```
-
-Also update `getDayOfWeekEdge` minimum from 3 to 10:
-```typescript
-if (todayTrades.length < 10) return null;  // was 3
-```
-
-And `getSessionOutlook` minimum from 3 to 10:
-```typescript
-if (sessionTrades.length < 10) return null;  // was 3
-```
-
----
-
-## 9. Action Items: Add Quantified Impact
-
-**File:** `src/pages/AIInsights.tsx` (lines 288-334)
-
-Currently actions are template checklists. Add quantified reasoning:
+Update the description to include a caveat when imbalanced:
 
 ```typescript
-// Win rate action -- add breakeven context
-reason: `Win rate ${stats.winRate.toFixed(0)}% is below breakeven threshold of ${breakevenWR.toFixed(0)}%`
-
-// Profit factor action -- add target
-reason: `Profit factor ${stats.profitFactor.toFixed(2)} — improving to 1.50 would increase expectancy by ~${((1.5 - stats.profitFactor) * stats.avgLoss).toFixed(2)} per trade`
-
-// Worst time slot -- add sample context
-reason: `Only ${stats.worstTimeSlot.winRate.toFixed(0)}% win rate (${stats.worstTimeSlot.trades} trades) during this time`
+description: `After ${currentStreak} consecutive ${streakType}s, historically ${prob.toFixed(0)}% of similar streaks continued. Based on ${occurrences} pattern matches.${isImbalanced ? ' Note: distribution is heavily skewed — interpret with caution.' : ''}`,
+confidence: getAdjustedConfidence(occurrences, isImbalanced),
 ```
 
 ---
@@ -226,15 +179,15 @@ reason: `Only ${stats.worstTimeSlot.winRate.toFixed(0)}% win rate (${stats.worst
 
 | File | Change |
 |------|--------|
-| `src/lib/constants/ai-analytics.ts` | Raise MIN_TRADES_FOR_RANKING to 10, MIN_TRADES_FOR_SESSION to 10 |
-| `src/pages/AIInsights.tsx` | R:R-aware win rate insight; diagnostic profit factor; statistical streak text; sample size on all insights; quantified action items |
-| `src/components/analytics/session/SessionInsights.tsx` | Expectancy-gated warnings; low sample badges |
-| `src/lib/predictive-analytics.ts` | Fix streak description; raise confidence thresholds; raise minimum samples for day/session predictions |
+| `src/pages/AIInsights.tsx` | Add stdDev/rolling30 to stats; expectancy-based pair sort; drawdown context via advanced-risk-metrics; variance insight card |
+| `src/components/analytics/contextual/ContextualPerformance.tsx` | Gate CorrelationRow with `hasData` prop; show "Insufficient data" instead of 0.00 |
+| `src/lib/predictive-analytics.ts` | Add imbalance penalty to confidence; append skew caveat to description |
 
 ## What Does NOT Change
 
-- PredictiveInsights.tsx component (already renders confidence from the lib)
-- Contextual Performance tab
-- Emotional Pattern Analysis
-- Any backend or edge function logic
+- `src/lib/advanced-risk-metrics.ts` (already has all needed calculations)
+- `src/lib/constants/ai-analytics.ts` (thresholds sufficient)
+- Session Insights component (already addressed in previous iteration)
+- Contextual insight generation logic in `use-contextual-analytics.ts`
+- Any backend or database logic
 
