@@ -1,208 +1,188 @@
 
 
-# Harden Regime Engine: Fix Double-Counting, Add Statistical Rigor, Correct Evaluation Order
+# Unified Risk Orchestration & Calendar Engine Fixes
 
-Six targeted fixes to address the critical feedback on the regime classification system.
+This plan addresses 7 interconnected issues to create a coherent risk system where calendar, regime, and volatility engines produce unified outputs.
 
 ---
 
-## Problem Analysis
+## Problem Root Causes
 
-| Issue | Current Code | Risk |
-|-------|-------------|------|
-| Double-counting: Event Risk | `market-scoring.ts` penalizes event risk in composite score (line 74-78) AND `regime-classification.ts` uses event risk as regime override (line 93) | Event risk is weighted twice -- overweight |
-| Double-counting: Volatility | `market-scoring.ts` has no direct volatility in composite, but `regime-classification.ts` uses `volatilityLevel` as override AND range multiplier | Less severe, but range calc uses volatility twice |
-| Evaluation order wrong | Composite check (line 101-108) runs BEFORE volatility check (line 96-99) in `determineRegime` | Score=68 + FOMC in 6h + 3x vol = TRENDING_BULL instead of HIGH_VOL |
-| Composite too linear | `calculateComposite` in regime-classification.ts (line 67-74) is a simple weighted average with no event/volatility influence -- separate from `market-scoring.ts` weights | Two different composite formulas exist |
-| Volume detection not statistical | `calculateWhaleSignal` uses `volume_today / prev_24h_volume` ratio, not percentile rank | Spike vs average is not a statistical anomaly |
-| Momentum inflates range | `calculateExpectedRange` uses momentum as additive skew (0.3), not multiplicative | Minor, but momentum should skew direction, not expand range symmetrically |
+| Issue | Root Cause | Location |
+|-------|-----------|----------|
+| Calendar probability 0% | `calculateVolatilityEngine()` filters `isToday(e.date)` only -- upcoming FOMC/GDP within 24h are excluded | `economic-calendar/index.ts` line 135 |
+| "6 events" vs "no events" UX conflict | Impact summary counts all week events, but volatility engine only processes today | Same function, two different scopes |
+| Volume "8 samples" | `KLINES_LIMIT: 200` in `market-config.ts` = 200 hourly candles = 8 days. Rolling window yields ~177 samples, but 200h is still too small for robust P95 | `_shared/constants/market-config.ts` line 21 |
+| Calendar ignores realized volatility | Calendar expected range is purely event-driven. No ATR/vol floor | `economic-calendar/index.ts` `calculateVolatilityEngine()` |
+| 3 independent position sizes | Calendar, Regime, and useContextAwareRisk each compute their own multiplier independently | Multiple files |
+| Fear and Greed linear | F&G = 8 (extreme fear) treated with flat 20% weight, no asymmetric behavior | `regime-classification.ts` `calculateComposite()` |
+| Regime not aware of calendar | RegimeCard does not receive `eventRiskLevel` from calendar data | `RegimeCard.tsx` line 41 |
 
 ---
 
 ## Changes
 
-### 1. Fix Double-Counting: Remove Event Risk from Composite Score
+### 1. Fix Calendar: Rolling 24h Window Instead of "Today Only"
+
+**File:** `supabase/functions/economic-calendar/index.ts`
+
+Replace `isToday()` filter in `calculateVolatilityEngine()` with a rolling 24h window:
+
+```typescript
+function isWithin24h(dateString: string): boolean {
+  const eventTime = new Date(dateString).getTime();
+  const now = Date.now();
+  // Events in the past 2h (still affecting vol) or next 22h
+  return eventTime >= now - (2 * 60 * 60 * 1000) && eventTime <= now + (22 * 60 * 60 * 1000);
+}
+```
+
+Update `calculateVolatilityEngine()`:
+- Replace `events.filter(e => isToday(e.date))` with `events.filter(e => isWithin24h(e.date))`
+- This ensures FOMC in 6h, GDP tomorrow morning, etc. are included in probability calculations
+- The "6 high-impact events detected" vs "no events today" UX conflict resolves naturally: window shows what is actionable
+
+Also update `calculateRiskAdjustment()` to use the same rolling window for `todayHighImpact`.
+
+### 2. Add Realized Volatility Floor to Calendar Range
+
+**File:** `supabase/functions/economic-calendar/index.ts`
+
+When volatility engine returns LOW regime with tiny ranges, but realized volatility is extreme, the range should have a floor.
+
+The calendar edge function does not currently have access to realized volatility. Two options:
+
+**Option chosen: Accept a `realizedVolPct` parameter from the client.**
+
+The client already has volatility data from the market-insight response. Pass it when calling the calendar:
+- In `useEconomicCalendar.ts`, pass the BTC annualized volatility (if available) as a query param
+- In the edge function, use it as a floor:
+
+```typescript
+// After calculating event-based range
+const volFloor = realizedVolPct ? realizedVolPct / Math.sqrt(365) : 0; // daily vol approx
+const finalRange24h = {
+  low: Math.min(expectedRange24h.low, -volFloor),
+  high: Math.max(expectedRange24h.high, volFloor),
+};
+```
+
+This ensures the calendar never shows +/-1% when realized daily vol is 4%+.
+
+### 3. Increase Klines Limit for Volume Percentile
+
+**File:** `supabase/functions/_shared/constants/market-config.ts`
+
+Change `KLINES_LIMIT` from `200` to `720` (30 days of hourly data).
+
+This gives `720 - 24 + 1 = 697` rolling windows for percentile calculation -- statistically robust for P95.
+
+Going higher (e.g., 2160 for 90d) risks Binance API rate limits and response size. 720 is a practical balance: sufficient for reliable percentiles without excessive API load.
+
+### 4. Non-Linear Fear and Greed in Composite
 
 **File:** `src/lib/regime-classification.ts` -- `calculateComposite()`
 
-The regime engine has its own composite that does NOT include event risk (correct). But `market-scoring.ts` `calculateCompositeScore()` DOES include event risk penalty. Since `market-scoring.ts` is used by the `UnifiedMarketContext` capture system (trade entry), and `regime-classification.ts` is used by the RegimeCard, they are separate paths -- no double-counting in the regime path.
-
-However, the weights differ:
-- `regime-classification.ts`: technical 0.35, onChain 0.20, macro 0.25, fearGreed 0.20
-- `market-scoring.ts`: technical 0.25, onChain 0.15, fearGreed 0.15, macro 0.15, eventRisk 0.15, momentum 0.15
-
-**Fix:** Unify composite weights. The regime engine composite should be the single formula. Remove event risk and volatility from the composite entirely -- they belong ONLY as regime overrides. Document this explicitly.
-
-Updated `calculateComposite()`:
-```typescript
-function calculateComposite(input: RegimeInput): number {
-  // Pure signal composite -- event risk and volatility are NOT included here
-  // They act as regime overrides only, preventing double-counting
-  const technical = input.technicalScore * 0.35;
-  const onChain = input.onChainScore * 0.20;
-  const macro = input.macroScore * 0.25;
-  const fearGreed = input.fearGreedValue * 0.20;
-  return Math.round(technical + onChain + macro + fearGreed);
-}
-```
-(No change needed here -- already correct. But add the documentation comment.)
-
-Also update `market-scoring.ts` `calculateCompositeScore()` to remove eventRisk from the composite calculation and document it as "override-only":
-- Remove lines 74-78 (event risk penalty from composite)
-- Remove `eventRisk` from `WEIGHTS` constant
-- Redistribute weight: technical 0.30, onChain 0.20, fearGreed 0.15, macro 0.20, momentum 0.15
-
-### 2. Fix Evaluation Order in `determineRegime()`
-
-**File:** `src/lib/regime-classification.ts` -- `determineRegime()`
-
-Current order (WRONG):
-1. Event risk check (RISK_OFF)
-2. Volatility check (HIGH_VOL) -- but only if `alignment !== 'ALIGNED'`
-3. Composite score check (TRENDING)
-4. Default (RANGING)
-
-The volatility check has a gap: `alignment === 'ALIGNED'` skips HIGH_VOL even when volatility is extreme. A trending bull with FOMC in 6h and 3x normal vol should NOT be AGGRESSIVE.
-
-**Fix:** Tighten the volatility override -- remove the alignment exception for extreme volatility:
+Replace linear F&G weight with asymmetric scaling:
 
 ```typescript
-function determineRegime(compositeScore, input, alignment): MarketRegime {
-  // Priority 1: Event risk override (highest priority)
-  if (input.eventRiskLevel === 'VERY_HIGH' || input.eventRiskLevel === 'HIGH') {
-    return 'RISK_OFF';
+// Fear & Greed non-linear transformation
+// Extreme fear (<20) and extreme greed (>80) should have outsized influence
+function transformFearGreed(fg: number): number {
+  if (fg <= 20) {
+    // Extreme fear: amplify signal (historically = bottoming zone)
+    // Map 0-20 to 0-15 (compressed low range, strong bearish signal)
+    return fg * 0.75;
   }
-  // Priority 2: Extreme volatility override (no alignment exception)
-  if (input.volatilityLevel === 'high') {
-    return 'HIGH_VOL';
+  if (fg >= 80) {
+    // Extreme greed: amplify signal (historically = topping zone)
+    // Map 80-100 to 85-100 (compressed high range, strong bullish but risky)
+    return 85 + (fg - 80) * 0.75;
   }
-  // Priority 3: Trending (requires conviction + alignment)
-  const momentum = input.momentum24h ?? 0;
-  if (compositeScore >= 65 && momentum > 0 && alignment !== 'CONFLICT') {
-    return 'TRENDING_BULL';
-  }
-  if (compositeScore <= 35 && momentum < 0 && alignment !== 'CONFLICT') {
-    return 'TRENDING_BEAR';
-  }
-  // Default
-  return 'RANGING';
+  // Normal range: linear pass-through
+  return fg;
 }
 ```
 
-### 3. Add Risk Mode Guard for Volatility Spike
+Use `transformFearGreed(input.fearGreedValue)` instead of raw `input.fearGreedValue` in the composite calculation.
 
-**File:** `src/lib/regime-classification.ts` -- `determineRiskMode()`
+This means F&G = 8 becomes ~6 (stronger bearish pull), while F&G = 50 stays 50. The divergence penalty then catches the conflict between Tech 76 and transformed F&G 6 more aggressively.
 
-Current logic allows AGGRESSIVE when trending + aligned. But if volatility is extreme or event risk is HIGH, this is dangerous.
+### 5. Feed Calendar Event Risk into Regime Engine
 
-**Fix:** Add volatility/event guards:
+**File:** `src/components/market-insight/RegimeCard.tsx`
+
+Currently RegimeCard does not pass `eventRiskLevel` to `classifyMarketRegime()`. It needs calendar data.
+
+- Accept optional `calendarData` prop (from `useEconomicCalendar`)
+- Map `impactSummary.riskLevel` to `eventRiskLevel` in the regime input
+- This connects the calendar engine to the regime engine, so RISK_OFF triggers correctly
 
 ```typescript
-function determineRiskMode(regime, alignment, input): RiskMode {
-  if (regime === 'RISK_OFF' || regime === 'HIGH_VOL') return 'DEFENSIVE';
-  if (alignment === 'CONFLICT') return 'DEFENSIVE';
-  // Guard: even if trending+aligned, extreme vol or high events force defensive
-  if (input.volatilityLevel === 'high') return 'DEFENSIVE';
-  if (input.eventRiskLevel === 'HIGH' || input.eventRiskLevel === 'VERY_HIGH') return 'DEFENSIVE';
-  if ((regime === 'TRENDING_BULL' || regime === 'TRENDING_BEAR') && alignment === 'ALIGNED') return 'AGGRESSIVE';
-  return 'NEUTRAL';
+interface RegimeCardProps {
+  sentimentData?: MarketInsightResponse;
+  macroData?: MacroAnalysisResponse;
+  calendarData?: EconomicCalendarResponse; // NEW
+  isLoading: boolean;
+  onRefresh: () => void;
+  error?: Error | null;
 }
 ```
 
-### 4. Fix Expected Range: Use Regime Multiplier, Momentum as Skew Only
+In the `classifyMarketRegime()` call, add:
+```typescript
+eventRiskLevel: calendarData?.impactSummary?.riskLevel ?? 'LOW',
+```
 
-**File:** `src/lib/regime-classification.ts` -- `calculateExpectedRange()`
+Update `MarketInsight.tsx` to pass calendar data to RegimeCard.
 
-Current: momentum adds flat +/-0.3 to both sides (expands range).
-Fix: momentum only shifts the center (skew), does not expand total range.
+### 6. Create Unified Risk Orchestrator
+
+**New file:** `src/lib/unified-risk-orchestrator.ts`
+
+A single function that combines all three risk signals into one final multiplier:
 
 ```typescript
-function calculateExpectedRange(input, regime): { low: number; high: number } {
-  // ATR-based range (normalized %)
-  let baseRange = 2.0;
-  if (input.volatilityLevel === 'low') baseRange = 1.2;
-  if (input.volatilityLevel === 'high') baseRange = 4.5;
+interface RiskInputs {
+  calendarMultiplier: number;    // from volatility engine positionSizeMultiplier
+  regimeMultiplier: number;      // from regime sizePercent / 100
+  volatilityMultiplier: number;  // from useContextAwareRisk volatilityMultiplier
+}
 
-  // Regime multiplier
-  const regimeMultipliers: Record<string, number> = {
-    HIGH_VOL: 2.0,
-    RISK_OFF: 1.3,
-    TRENDING_BULL: 1.4,
-    TRENDING_BEAR: 1.4,
-    RANGING: 0.8,
-  };
-  const multiplier = regimeMultipliers[regime] ?? 1.0;
-  const range = baseRange * multiplier;
+function calculateFinalPositionMultiplier(inputs: RiskInputs): {
+  finalMultiplier: number;
+  dominantFactor: string;
+  breakdown: RiskInputs;
+} {
+  // Take the MINIMUM (most conservative) as the final multiplier
+  // This ensures no single engine can override the others' caution
+  const finalMultiplier = Math.min(
+    inputs.calendarMultiplier,
+    inputs.regimeMultiplier,
+    inputs.volatilityMultiplier
+  );
 
-  // Momentum shifts center (skew), does NOT expand range
-  const momentum = input.momentum24h ?? 0;
-  const skew = Math.max(-0.5, Math.min(0.5, momentum * 0.05)); // Capped skew
+  // Identify which factor is most restrictive
+  let dominantFactor = 'regime';
+  if (finalMultiplier === inputs.calendarMultiplier) dominantFactor = 'calendar';
+  if (finalMultiplier === inputs.volatilityMultiplier) dominantFactor = 'volatility';
 
-  return {
-    low: Math.round((-range + skew) * 10) / 10,
-    high: Math.round((range + skew) * 10) / 10,
-  };
+  return { finalMultiplier, dominantFactor, breakdown: inputs };
 }
 ```
 
-### 5. Upgrade Volume Detection to Percentile-Based (Edge Function)
+### 7. Display Unified Position Size in RegimeCard
 
-**File:** `supabase/functions/market-insight/index.ts` -- `calculateWhaleSignal()`
+**File:** `src/components/market-insight/RegimeCard.tsx`
 
-Current: compares 24h volume vs previous 24h volume (ratio).
-Fix: compute percentile rank using all available klines data as rolling window.
+Update to use the orchestrator's unified multiplier instead of the regime-only size.
 
-```typescript
-function calculateWhaleSignal(klines, change24h) {
-  if (klines.length < 48) return { signal: 'NONE', ... };
-
-  const recentVolume = klines.slice(0, 24).reduce((sum, k) => sum + parseFloat(String(k[5])), 0);
-  
-  // Build rolling 24h volume windows for percentile calculation
-  const windowVolumes: number[] = [];
-  for (let i = 0; i + 24 <= klines.length; i += 24) {
-    const windowVol = klines.slice(i, i + 24).reduce((sum, k) => sum + parseFloat(String(k[5])), 0);
-    windowVolumes.push(windowVol);
-  }
-  
-  // Percentile rank: % of historical windows below current
-  const below = windowVolumes.filter(v => v < recentVolume).length;
-  const percentileRank = windowVolumes.length > 1 
-    ? Math.round((below / (windowVolumes.length - 1)) * 100)  // exclude self
-    : 50;
-  
-  const volumeChange = windowVolumes.length > 1
-    ? ((recentVolume - windowVolumes[1]) / windowVolumes[1]) * 100  // vs previous window
-    : 0;
-
-  let signal = 'NONE';
-  let confidence = 40;
-  let method = `P${percentileRank} vs ${windowVolumes.length} windows`;
-
-  // Statistical anomaly = >95th percentile
-  if (percentileRank >= 95 && change24h > 2) {
-    signal = 'ACCUMULATION';
-    confidence = 70 + Math.min(20, (percentileRank - 95) * 4);
-    method = `Vol P${percentileRank} (>P95 anomaly) + Price +${change24h.toFixed(1)}%`;
-  } else if (percentileRank >= 95 && change24h < -2) {
-    signal = 'DISTRIBUTION';
-    confidence = 70 + Math.min(20, (percentileRank - 95) * 4);
-    method = `Vol P${percentileRank} (>P95 anomaly) + Price ${change24h.toFixed(1)}%`;
-  }
-
-  return { signal, volumeChange, confidence, method, thresholds: `P95 threshold, ${windowVolumes.length} samples`, percentileRank };
-}
+Show the breakdown in the footer:
+```
+Size: Reduce 50% | Calendar 1.0x | Regime 0.7x | Vol 0.5x (dominant)
 ```
 
-Add `percentileRank` to the whale activity response object and update the WhaleTrackingWidget to display it.
-
-### 6. Add `regimeScore` Mathematical Definition
-
-**File:** `src/lib/regime-classification.ts`
-
-Currently `regimeScore` is not emitted. The composite score IS the regime score. Make this explicit by adding it to the output:
-
-Add `regimeScore: number` to `RegimeOutput` (equals `compositeScore` from `calculateComposite`). This is the ONLY score the system exposes -- all other scores (technical, macro, fearGreed) are breakdown components, not independent scores.
+This makes it transparent which engine is driving the position sizing.
 
 ---
 
@@ -210,24 +190,24 @@ Add `regimeScore: number` to `RegimeOutput` (equals `compositeScore` from `calcu
 
 | File | Change |
 |------|--------|
-| `src/lib/regime-classification.ts` | Fix eval order, add vol/event guards to riskMode, fix expected range skew, add regimeScore, add documentation |
-| `src/lib/market-scoring.ts` | Remove eventRisk from composite (override-only), redistribute weights |
-| `supabase/functions/market-insight/index.ts` | Upgrade volume detection to percentile-based with rolling windows |
-| `src/components/market/WhaleTrackingWidget.tsx` | Display percentile rank (P97 vs 8 windows) |
-| `src/components/market-insight/RegimeCard.tsx` | Show regimeScore in breakdown footer |
-| `src/features/market-insight/types.ts` | Add `percentileRank` to `WhaleActivity` interface |
+| `supabase/functions/economic-calendar/index.ts` | Rolling 24h window, realized vol floor, fix probability 0% bug |
+| `supabase/functions/_shared/constants/market-config.ts` | `KLINES_LIMIT: 200` to `720` |
+| `src/lib/regime-classification.ts` | Non-linear F&G transform in composite |
+| `src/lib/unified-risk-orchestrator.ts` | **NEW** -- min(calendar, regime, vol) position sizing |
+| `src/components/market-insight/RegimeCard.tsx` | Accept calendar data, use unified orchestrator, show breakdown |
+| `src/pages/MarketInsight.tsx` | Pass calendar data to RegimeCard |
+| `src/features/calendar/useEconomicCalendar.ts` | (Optional) Pass realized vol to calendar endpoint |
 
 ---
 
-## Double-Counting Audit Summary
+## Fix Verification Matrix
 
-| Factor | In Composite? | As Override? | Status |
-|--------|:---:|:---:|--------|
-| Technical Score | Yes (0.35) | No | Clean |
-| On-Chain Score | Yes (0.20) | No | Clean |
-| Macro Score | Yes (0.25) | No | Clean |
-| Fear/Greed | Yes (0.20) | No | Clean |
-| Event Risk | No (removed from composite) | Yes (RISK_OFF override) | Fixed -- was double-counted in market-scoring.ts |
-| Volatility | No | Yes (HIGH_VOL override + range multiplier) | Clean |
-| Momentum | No | Yes (range skew only) | Clean |
+| Bug | Fix | Expected Result |
+|-----|-----|----------------|
+| Probability 0% with 6 events | Rolling 24h window replaces `isToday()` | Events within 24h contribute to probability |
+| Calendar LOW + Volatility EXTREME | Realized vol floor on calendar range | Calendar range >= daily realized vol |
+| Volume P95 with 8 samples | `KLINES_LIMIT: 720` = 697 rolling windows | Statistically robust percentile |
+| 3 independent position sizes | `min(calendar, regime, vol)` orchestrator | Single unified output |
+| F&G 8 barely affects composite | Non-linear transform amplifies extremes | F&G 8 becomes ~6, larger divergence penalty |
+| Regime unaware of calendar events | Pass `calendarData` to RegimeCard | RISK_OFF triggers on event days |
 
