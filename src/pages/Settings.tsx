@@ -133,7 +133,7 @@ const Settings = () => {
                   <div className="flex items-center justify-between">
                     <div className="space-y-0.5">
                       <Label>Weekly Report</Label>
-                      <p className="text-sm text-muted-foreground">Weekly performance report. Sent every Monday at 00:00 UTC.</p>
+                      <p className="text-sm text-muted-foreground">Weekly performance report. Sent every Monday at 00:00 UTC (may vary by local timezone).</p>
                     </div>
                     <Switch
                       checked={settings?.notify_weekly_report ?? false}

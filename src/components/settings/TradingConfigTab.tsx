@@ -166,6 +166,9 @@ export function TradingConfigTab() {
               <AlertTriangle className="h-3 w-3 text-[hsl(var(--chart-4))]" />
               <span>Warning at {RISK_THRESHOLDS.warning_percent}% • Trade Entry blocked in this app at 100%</span>
             </div>
+            <p className="text-xs text-muted-foreground">
+              Resets daily at 00:00 UTC. Synced and imported trades are still recorded but do not bypass the guard.
+            </p>
           </div>
 
           <Separator />
