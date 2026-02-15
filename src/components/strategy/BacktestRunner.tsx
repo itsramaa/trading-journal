@@ -12,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { 
   Play, 
   Loader2, 
@@ -57,6 +58,10 @@ export function BacktestRunner() {
   const [periodEnd, setPeriodEnd] = useState<Date>(new Date());
   const [initialCapital, setInitialCapital] = useState<number>(BACKTEST_DEFAULTS.INITIAL_CAPITAL);
   const [commissionRate, setCommissionRate] = useState<number>(EXCHANGE_COMMISSION_RATES.BINANCE_FUTURES.TAKER);
+  const [slippage, setSlippage] = useState<number>(BACKTEST_DEFAULTS.SLIPPAGE * 100); // 0.1%
+  const [riskPerTrade, setRiskPerTrade] = useState<number>(BACKTEST_DEFAULTS.RISK_PER_TRADE * 100); // 2%
+  const [compounding, setCompounding] = useState<boolean>(false);
+  const [leverage, setLeverage] = useState<number>(1);
   const [result, setResult] = useState<BacktestResult | null>(null);
 
   // Enhanced filters
@@ -87,6 +92,7 @@ export function BacktestRunner() {
   const binanceAvailableBalance = !isPaper && binanceBalance?.availableBalance ? binanceBalance.availableBalance : 0;
 
   const selectedStrategy = strategies?.find(s => s.id === selectedStrategyId);
+  const isFutures = selectedStrategy?.market_type === 'futures';
 
   // Update selected strategy when URL param changes or strategies load
   useEffect(() => {
@@ -94,6 +100,15 @@ export function BacktestRunner() {
       setSelectedStrategyId(strategyFromUrl);
     }
   }, [strategyFromUrl, strategies]);
+
+  // Auto-populate leverage from strategy
+  useEffect(() => {
+    if (selectedStrategy?.default_leverage) {
+      setLeverage(selectedStrategy.default_leverage);
+    } else {
+      setLeverage(1);
+    }
+  }, [selectedStrategy]);
 
   // Auto-populate session filter from strategy's session_preference
   useEffect(() => {
@@ -117,7 +132,11 @@ export function BacktestRunner() {
       periodStart: periodStart.toISOString(),
       periodEnd: periodEnd.toISOString(),
       initialCapital,
-      commissionRate: commissionRate / 100, // Convert percentage to decimal
+      commissionRate: commissionRate / 100,
+      slippage: slippage / 100,
+      riskPerTrade: riskPerTrade / 100,
+      compounding,
+      leverage: isFutures ? leverage : undefined,
       // Enhanced filters
       eventFilter: eventFilter.excludeHighImpact ? eventFilter : undefined,
       sessionFilter: sessionFilter !== 'all' ? sessionFilter : undefined,
@@ -172,6 +191,36 @@ export function BacktestRunner() {
               </p>
             )}
           </div>
+
+          {/* Strategy Context Badges */}
+          {selectedStrategy && (
+            <div className="space-y-2">
+              <div className="flex flex-wrap gap-2">
+                <Badge variant={selectedStrategy.timeframe ? "secondary" : "destructive"}>
+                  TF: {selectedStrategy.timeframe || 'Not set'}
+                </Badge>
+                {isFutures && (
+                  <Badge variant="secondary">
+                    Leverage: {leverage}x
+                  </Badge>
+                )}
+                <Badge variant="secondary">
+                  Sizing: {selectedStrategy.position_sizing_model || 'fixed_percent'}
+                </Badge>
+                {selectedStrategy.methodology && (
+                  <Badge variant="outline">
+                    {selectedStrategy.methodology.toUpperCase()}
+                  </Badge>
+                )}
+              </div>
+              {!selectedStrategy.timeframe && (
+                <p className="text-xs text-destructive flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3" />
+                  Strategy has no timeframe defined. Backtest results may be unreliable.
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Trading Pair */}
           <div className="space-y-2">
@@ -244,7 +293,7 @@ export function BacktestRunner() {
             </div>
           </div>
 
-          {/* Capital & Commission */}
+          {/* Capital & Risk */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="capital">Initial Capital (USDT)</Label>
@@ -282,7 +331,41 @@ export function BacktestRunner() {
                   </Button>
                 ))}
               </div>
+              <p className="text-xs text-muted-foreground">
+                Backtest uses simulated capital — not your actual account balance. Quick-fill buttons copy your current balance for realistic simulation.
+              </p>
             </div>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="riskPerTrade">Risk Per Trade (%)</Label>
+                <Input
+                  id="riskPerTrade"
+                  type="number"
+                  value={riskPerTrade}
+                  onChange={(e) => setRiskPerTrade(Number(e.target.value))}
+                  min={BACKTEST_DEFAULTS.MIN_RISK_PER_TRADE}
+                  max={BACKTEST_DEFAULTS.MAX_RISK_PER_TRADE}
+                  step={BACKTEST_DEFAULTS.RISK_PER_TRADE_STEP}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="compounding" className="text-sm">Compounding</Label>
+                <Switch
+                  id="compounding"
+                  checked={compounding}
+                  onCheckedChange={setCompounding}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {compounding 
+                  ? "Position size recalculates from current equity each trade." 
+                  : "Position size always based on initial capital."}
+              </p>
+            </div>
+          </div>
+
+          {/* Commission, Slippage & Leverage */}
+          <div className={cn("grid grid-cols-1 gap-4", isFutures ? "md:grid-cols-3" : "md:grid-cols-2")}>
             <div className="space-y-2">
               <Label htmlFor="commission">Commission Rate (%)</Label>
               <Input
@@ -298,6 +381,40 @@ export function BacktestRunner() {
                 Binance Futures: 0.02% maker / 0.04% taker
               </p>
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="slippage">Slippage (%)</Label>
+              <Input
+                id="slippage"
+                type="number"
+                value={slippage}
+                onChange={(e) => setSlippage(Number(e.target.value))}
+                min={BACKTEST_DEFAULTS.MIN_SLIPPAGE}
+                max={BACKTEST_DEFAULTS.MAX_SLIPPAGE}
+                step={BACKTEST_DEFAULTS.SLIPPAGE_STEP}
+              />
+              <p className="text-xs text-muted-foreground">
+                Estimated price impact per fill
+              </p>
+            </div>
+            {isFutures && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>Leverage</Label>
+                  <span className="text-sm font-mono font-medium">{leverage}x</span>
+                </div>
+                <Slider
+                  value={[leverage]}
+                  onValueChange={([v]) => setLeverage(v)}
+                  min={1}
+                  max={BACKTEST_DEFAULTS.MAX_LEVERAGE}
+                  step={1}
+                  className="w-full"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Default from strategy: {selectedStrategy?.default_leverage || 1}x
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Advanced Filters */}
@@ -409,31 +526,40 @@ export function BacktestRunner() {
             </CollapsibleContent>
           </Collapsible>
 
-          {/* Strategy Info */}
+          {/* Strategy Info (collapsible detail) */}
           {selectedStrategy && (
-            <Alert>
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>
-                <strong>{selectedStrategy.name}</strong> will be tested with:
-                <ul className="list-disc list-inside mt-1 text-sm">
-                  <li>
-                    Timeframe: {selectedStrategy.higher_timeframe && `${selectedStrategy.higher_timeframe} → `}
-                    {selectedStrategy.timeframe || 'Not set'}
-                    {selectedStrategy.lower_timeframe && ` → ${selectedStrategy.lower_timeframe}`}
-                  </li>
-                  {selectedStrategy.methodology && (
-                    <li>Methodology: {selectedStrategy.methodology.toUpperCase()}</li>
-                  )}
-                  {selectedStrategy.session_preference && !selectedStrategy.session_preference.includes('all') && (
-                    <li>Sessions: {selectedStrategy.session_preference.join(', ')}</li>
-                  )}
-                  <li>Market: {selectedStrategy.market_type || 'spot'}</li>
-                  <li>Min confluences: {selectedStrategy.min_confluences || 4}</li>
-                  <li>TP/SL from exit rules</li>
-                  {hasActiveFilters && <li className="text-primary">+ Advanced filters applied</li>}
-                </ul>
-              </AlertDescription>
-            </Alert>
+            <Collapsible>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" size="sm" className="text-xs text-muted-foreground">
+                  View full strategy config ▾
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <Alert>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    <strong>{selectedStrategy.name}</strong> will be tested with:
+                    <ul className="list-disc list-inside mt-1 text-sm">
+                      <li>
+                        Timeframe: {selectedStrategy.higher_timeframe && `${selectedStrategy.higher_timeframe} → `}
+                        {selectedStrategy.timeframe || 'Not set'}
+                        {selectedStrategy.lower_timeframe && ` → ${selectedStrategy.lower_timeframe}`}
+                      </li>
+                      {selectedStrategy.methodology && (
+                        <li>Methodology: {selectedStrategy.methodology.toUpperCase()}</li>
+                      )}
+                      {selectedStrategy.session_preference && !selectedStrategy.session_preference.includes('all') && (
+                        <li>Sessions: {selectedStrategy.session_preference.join(', ')}</li>
+                      )}
+                      <li>Market: {selectedStrategy.market_type || 'spot'}</li>
+                      <li>Min confluences: {selectedStrategy.min_confluences || 4}</li>
+                      <li>TP/SL from exit rules</li>
+                      {hasActiveFilters && <li className="text-primary">+ Advanced filters applied</li>}
+                    </ul>
+                  </AlertDescription>
+                </Alert>
+              </CollapsibleContent>
+            </Collapsible>
           )}
 
           {/* Run Button */}
