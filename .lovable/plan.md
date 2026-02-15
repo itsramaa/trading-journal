@@ -1,139 +1,260 @@
 
 
-# Deep-Dive Analysis: Top Movers Page
+# Deep-Dive Analysis: Flow & Liquidity Page
 
 ---
 
-## 1. Page Structure (`src/pages/TopMovers.tsx`)
+## 1. Page Structure (`MarketData.tsx`)
 
 ### A. Comprehensiveness
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Page header with icon/description | Done | PageHeader component |
-| Sort by selector (%, price, volume) | Done | 3 sort modes |
-| Min volume filter | Done | 4 tiers: All, 100K, 1M, 10M |
-| Show 10/20 toggle | Done | Limit toggle |
-| Refresh button with spinner | Done | Manual + auto-refetch (15s) |
-| Last updated timestamp | Done | Local time |
-| 3 summary cards (Gainer, Loser, Volume) | Done | Top #1 spotlight |
-| Tabbed lists (Gainers, Losers, Volume) | Done | 3 tabs |
-| Loading skeletons | Done | 10 skeleton rows |
-| Empty state | Done | EmptyState component |
-| Low liquidity badge | Done | Flags quoteVolume < $100K |
-| Crypto icon with fallback | Done | Multi-source fallback |
+| Page header with icon/description | Done | PageHeader + Refresh button |
+| ARIA region role | Done | `role="region" aria-label` present |
+| Funding & OI Dashboard | Done | Top section, derivatives data |
+| Volatility Meter Widget | Done | Per-symbol annualized vol + percentiles |
+| Volume Anomaly Detector | Done | Collapsible items with method transparency |
+| Portfolio Impact Calculator | Done | What-if scenario slider with correlations |
+| Data quality/last updated footer | Done | Quality % + timestamp + sources |
+| Refresh with spinner | Done | Disabled while loading |
+| Error normalization | Done | `normalizeError()` utility |
+| Symbol context integration | Done | MarketContext + dynamic watchlist |
 
 **Gaps:**
 
-1. **No tab URL persistence**: The Tabs component uses `defaultValue="gainers"` instead of controlled state via `useSearchParams`. This violates the UX Consistency Standard -- refreshing the page always resets to the Gainers tab.
+1. **PortfolioImpactCard returns `null` when no positions**: Line 64-66 returns `null` if loading or no positions, violating the layout stability UX standard. Should show an empty-state card instead ("Open positions to see impact analysis").
 
-2. **No detail page or click-through**: Clicking a MoverCard does nothing. There is no detail view for a specific coin (e.g., mini chart, order book depth, recent trades). This limits actionability.
+2. **`setSelectedSymbol` is destructured but never used**: Line 23 destructures `setSelectedSymbol` from `useMarketContext()` but it is never referenced anywhere on the page -- dead code.
 
-3. **No ARIA region role**: The page lacks `role="region"` and `aria-label` on the main container, unlike the 11+ analytics components that already have this standardized.
+3. **No tooltip on "Data quality" footer**: The footer shows `Data quality: X%` but no tooltip explains what this percentage means or how it is calculated.
+
+---
+
+## 2. FundingOIDashboard
+
+### A. Comprehensiveness
+
+| Feature | Status |
+|---------|--------|
+| Loading skeleton | Done |
+| Empty state | Done |
+| Divergence alerts (bullish/bearish) | Done |
+| Per-symbol funding rate | Done |
+| OI 24h change | Done |
+| Trend icons (>5%, <-5%) | Done |
+| Error boundary wrapper | Done |
+| Semantic colors (text-profit/loss) | Done |
 
 ### B. Accuracy
 
 | Check | Result |
 |-------|--------|
-| USDT pair filtering | Correct -- `isUsdtPair()` |
-| Stale pair exclusion | Correct -- `closeTime > 25h ago` |
-| Top gainers sort | Correct -- desc by `priceChangePercent` |
-| Top losers sort | Correct -- asc by `priceChangePercent` |
-| Top volume sort | Correct -- desc by `quoteVolume` |
-| Volume filter threshold | Correct -- mapped from select value |
-| 15s auto-refetch | Correct -- `refetchInterval` + background |
+| Funding rate sign display | Correct -- conditional `+` prefix |
+| Funding rate precision `.toFixed(4)` | Correct for funding rates (typically 0.01%) |
+| OI change precision `.toFixed(2)` | Correct |
+| Divergence color mapping | Correct -- bullish=profit, bearish=loss |
+| Combined data join (funding + OI + divergence) | Correct -- matched by `symbol` |
 
-**Bugs:**
+### C. Clarity -- Missing Tooltips
 
-4. **Hardcoded `$` in price change display**: Line 84 shows `${Math.abs(ticker.priceChange).toFixed(4)}` with a literal dollar sign, bypassing the currency conversion system (`format()`). Users who set a non-USD currency (e.g., IDR, EUR) will see dollar signs alongside converted values elsewhere on the page -- inconsistent.
+4. **"Funding & OI" card title** -- No tooltip. Should say: "Real-time derivatives data showing funding rates, open interest changes, and funding/price divergence alerts for watchlist symbols."
 
-5. **`.toFixed(4)` truncates high-value coins**: Line 84 and 99 use `.toFixed(4)` for price change. For BTC (price change of e.g., +$2,150.00), this displays `+$2150.0000` -- four unnecessary decimals. For low-cap coins (change of $0.0000001), it displays `+$0.0000` -- truncated. Should use dynamic precision or `format()`.
+5. **"Derivatives" badge** -- No tooltip. Should say: "Data sourced from Binance Futures perpetual contracts."
 
-6. **Losers volume sort is inverted**: Line 193 sorts losers by `a.quoteVolume - b.quoteVolume` (ascending) when `sortBy === 'volume'`. This returns the LOWEST volume coins, not the highest-volume losers. The intent should be to show the biggest losers that also have the highest volume (most significant declines). Should sort descending, then filter to negative-change coins.
+6. **"Funding:" label** -- No tooltip. Should say: "The periodic fee paid between longs and shorts. Positive = longs pay shorts (bullish crowding). Negative = shorts pay longs (bearish crowding)."
 
-7. **`filteredTickers` fallback logic includes all directions**: Lines 180 and 191 use `filteredTickers` (which is ALL USDT pairs filtered by volume) as the source for both gainers and losers. When `minVolume` is not "all", `sortedGainers` correctly sorts desc and gets top positive movers. But `sortedLosers` sorts asc and gets the bottom movers from the SAME pool -- this works functionally but is fragile. If `filteredTickers` is empty (all coins below threshold), the fallback is `topGainers` for gainers and `topLosers` for losers, which don't respect the volume filter. This creates an inconsistency: the volume filter appears to work, but when it filters out ALL coins, it silently falls back to unfiltered data.
+7. **"P{percentile}" badge** -- No tooltip. Should say: "Current funding rate percentile over the last 90 days. P90+ indicates extreme crowding."
 
-8. **Summary cards ignore volume filter**: The 3 summary cards (lines 255-328) always use `topGainers[0]`, `topLosers[0]`, `topVolume[0]` from the raw hook data, not the filtered/sorted data. If a user sets "Min Volume > $10M", the summary card might show a coin that doesn't pass the filter -- misleading.
+8. **"OI 24h:" label** -- No tooltip. Should say: "24-hour change in open interest (total outstanding derivative contracts). Rising OI with rising price = new money entering; falling OI = positions closing."
 
-### C. Clarity and Readability
+9. **Divergence alert description** -- No tooltip on "Funding/Price Divergence" label. Should say: "When funding rate direction contradicts price direction, it signals potential mean-reversion. Bullish divergence = negative funding while price rises. Bearish = positive funding while price falls."
 
-**Missing tooltips:**
-
-9. **"Top Gainer" summary card** -- No tooltip. Should say: "The coin with the largest percentage price increase in the last 24 hours across all USDT pairs on Binance."
-
-10. **"Top Loser" summary card** -- No tooltip. Should say: "The coin with the largest percentage price decrease in the last 24 hours."
-
-11. **"Highest Volume" summary card** -- No tooltip. Should say: "The coin with the highest 24-hour USDT trading volume on Binance."
-
-12. **"Low Liq" badge** -- No tooltip explaining the threshold or why it matters. Should say: "24h trading volume below $100,000. Low liquidity means wider spreads and higher slippage risk."
-
-13. **Sort selector** -- No label or tooltip. Should have a tooltip: "Sort coins by percentage change, absolute price change, or trading volume."
-
-14. **Min Volume filter** -- No tooltip. Should say: "Filter out low-volume coins to focus on actively traded assets. Higher thresholds reduce noise from illiquid pairs."
-
-15. **"Show 10/20" button** -- No tooltip clarifying this controls the list length.
-
-16. **"USDT" badge** on each card -- No tooltip explaining why only USDT pairs are shown. Should say: "Only USDT-denominated pairs are included for consistent comparison."
-
-17. **"Vol:" label in MoverCard subtitle** -- No tooltip. Should say: "24-hour quote volume in USDT. Higher volume indicates more active trading and better liquidity."
-
-18. **"24h Volume" label in volume view** -- No tooltip explaining this is quote volume, not base volume.
+10. **Trend icons (TrendingUp/Down/Activity)** -- No tooltip. The >5%/<-5% OI threshold that triggers these icons is invisible to users.
 
 ### D. Code Quality
 
-19. **`useCurrencyConversion()` called per MoverCard**: Each MoverCard component calls the hook independently. With 10-20 cards rendered, this creates 10-20 identical hook subscriptions. The `format` function should be passed as a prop from the parent.
-
-20. **No `useMemo` on summary card data**: Summary cards read `topGainers[0]` etc. directly. Should be memoized or derived from filtered data.
-
-21. **MoverCard has 3 near-identical JSX branches**: Lines 74-103 have three conditional branches (showVolume, priceChange, percentage) that share ~80% identical markup. Should be refactored into a single block with variable content.
-
-22. **No `React.memo` on MoverCard**: Since the parent re-renders on every 15s refetch, all MoverCards re-render even if their data hasn't changed. `React.memo` with a shallow equality check on `ticker` would prevent unnecessary re-renders.
-
-23. **`format` is unused in parent**: Line 150 destructures `format` from `useCurrencyConversion()` but it's only used inside summary cards for `topVolume[0].quoteVolume`. The parent-level hook call is fine since it's needed there, but the duplicate calls in children are wasteful.
+11. **No `React.memo` or memoization on `combinedData`**: `combinedData` is recomputed on every render. Should use `useMemo` since it depends only on `fundingRates`, `oiChanges`, and `divergences`.
 
 ---
 
-## 2. Summary of Recommendations
+## 3. VolatilityMeterWidget
+
+### A. Comprehensiveness
+
+| Feature | Status |
+|---------|--------|
+| Loading skeleton | Done |
+| Error state | Done |
+| Error boundary with retry | Done |
+| Market average with bar | Done |
+| Per-symbol volatility | Done |
+| Volatility level badges | Done |
+| Percentile badges (180d) | Done |
+| ATR fallback when no percentile | Done |
+| Legend with icons | Done |
+| CryptoIcon with fallback | Done |
+
+### B. Accuracy
+
+| Check | Result |
+|-------|--------|
+| Average volatility calculation | Correct -- simple mean of annualized values |
+| Market condition thresholds | Correct -- from centralized config |
+| Percentile guard (min 7 data points) | Correct |
+| Bar percentage capped at 100% | Correct |
+| Level classification thresholds | Correct -- <30, <60, <100, >=100 |
+
+### C. Clarity -- Missing Tooltips
+
+12. **"Volatility Meter" card title** -- No tooltip. Should say: "Annualized volatility calculated from recent price returns. Higher values indicate larger expected price swings."
+
+13. **"Market Average" label** -- No tooltip. Should say: "Simple average of annualized volatility across all watchlist symbols."
+
+14. **"{X} Market" badge** (Calm/Normal/Volatile/Extreme) -- No tooltip. Should explain each regime: "Calm (<30%): Low activity, range-bound. Normal (30-60%): Standard conditions. Volatile (60-100%): Elevated risk, wider stops needed. Extreme (>100%): Crisis-level, reduce exposure."
+
+15. **Volatility level badge** (low/medium/high/extreme) per symbol -- No tooltip. Should say: "Volatility regime for this specific asset based on its annualized return volatility."
+
+16. **"P{percentile}" percentile badge** -- No tooltip. Should say: "Current volatility percentile over the past 180 days. P90+ means volatility is higher than 90% of the last 6 months -- historically elevated."
+
+17. **"Top X% (180d)" sub-label** -- No tooltip. Should say: "This asset's current volatility ranks in the top X% of the last 180 days of observations."
+
+18. **"ATR: X%" fallback sub-label** -- No tooltip. Should say: "Average True Range as a percentage of price. Measures average bar-to-bar price movement."
+
+19. **Legend items** -- No tooltips on the icon+range labels.
+
+### D. Code Quality
+
+20. **Hardcoded color classes in `MARKET_CONDITIONS`**: `text-blue-500`, `text-warning`, `text-destructive` -- these bypass the semantic token system. Should use semantic tokens (e.g., `text-profit` for calm isn't right either, but at minimum `text-chart-*` tokens for consistency).
+
+21. **`badgeVariant` cast `as any`**: Line 162 casts `getVolatilityBadgeVariant()` result as `any` to satisfy Badge props. Should type correctly.
+
+---
+
+## 4. WhaleTrackingWidget (Volume Anomaly Detector)
+
+### A. Comprehensiveness
+
+| Feature | Status |
+|---------|--------|
+| Loading skeleton | Done |
+| Error state with retry | Done |
+| Error boundary wrapper | Done |
+| Empty state | Done |
+| Collapsible items with details | Done |
+| Signal labels (HIGH VOL BULLISH/BEARISH) | Done |
+| Volume change % display | Done |
+| Percentile rank / confidence | Done |
+| Method transparency (collapsible) | Done |
+| Threshold transparency (collapsible) | Done |
+| Badge for additional symbol | Done |
+
+### B. Accuracy
+
+| Check | Result |
+|-------|--------|
+| Volume change sign handling | Correct -- conditional `+` prefix |
+| Percentile vs confidence fallback | Correct -- `percentileRank ?? confidence` |
+| Signal color mapping | Correct -- ACCUMULATION=profit, DISTRIBUTION=loss |
+| Data slice limit | Correct -- `DISPLAY_LIMITS.WHALE_ACTIVITY` (6) |
+
+### C. Clarity -- Missing Tooltips
+
+22. **"Volume Anomaly Detector" card title** -- No tooltip. Should say: "Detects statistically significant volume spikes exceeding the 95th percentile of a rolling 30-day window. Not wallet-level tracking."
+
+23. **"Top 5" / "+{symbol}" badge** -- No tooltip. Should say: "Monitoring the top 5 watchlist symbols. Additional symbols from your selected asset are included when applicable."
+
+24. **"HIGH VOL BULLISH" / "HIGH VOL BEARISH" signal badge** -- No tooltip. Should say: "HIGH VOL BULLISH: Volume spike with positive price action, suggesting aggressive buying. HIGH VOL BEARISH: Volume spike with negative price action, suggesting aggressive selling."
+
+25. **Volume change percentage** -- No tooltip. Should say: "24-hour volume change compared to the rolling 30-day average volume."
+
+26. **"P{rank}" / "conf." label** -- No tooltip. Should say: "P{rank}: Volume percentile rank in the 30-day distribution. Higher = more unusual. Conf: Statistical confidence of the anomaly detection."
+
+27. **"Method:" / "Threshold:" in collapsible** -- No tooltip explaining why these are shown. Should have a small header: "Detection methodology transparency."
+
+### D. Code Quality
+
+28. **Signal dot has no accessible label**: The colored dot (line 110-113) has no `aria-label` or `title` for screen readers.
+
+---
+
+## 5. PortfolioImpactCard
+
+### A. Comprehensiveness
+
+| Feature | Status |
+|---------|--------|
+| BTC scenario slider (-20% to +20%) | Done |
+| Total portfolio impact (absolute + %) | Done |
+| Affected positions list (top 5) | Done |
+| Correlation display per position | Done |
+| Direct vs correlated badge | Done |
+| Currency conversion via `format()` | Done |
+| InfoTooltip on card title | Done |
+| ARIA region role | Done |
+
+### B. Accuracy
+
+| Check | Result |
+|-------|--------|
+| Correlation lookup (bidirectional) | Correct -- `getCorrelation()` handles both directions |
+| SHORT position sign inversion | Correct -- `* (pos.side === 'SHORT' ? -1 : 1)` |
+| Portfolio % impact calculation | Correct -- `totalImpact / totalNotional * 100` |
+| Zero-notional guard | Correct -- `totalNotional > 0` check |
+| Impact sort by absolute value | Correct -- `Math.abs(b) - Math.abs(a)` |
+
+**Bug:**
+
+29. **Static correlation coefficients**: The `CRYPTO_CORRELATIONS` map uses hardcoded values (e.g., BTC-ETH = 0.82). These never update. During market regime shifts, real correlations can diverge significantly (crypto correlations go to 1.0 in crashes). The impact calculator may underestimate risk during high-stress periods. This is a known limitation but should be disclosed to users.
+
+### C. Clarity -- Missing Tooltips
+
+30. **"BTC Move Scenario" label** -- No tooltip. Should say: "Hypothetical BTC price change to simulate. The impact on your portfolio is estimated using cross-asset correlations."
+
+31. **"Total exposure" label** -- No tooltip. Should say: "Sum of absolute notional values of all open positions."
+
+32. **"Portfolio Impact" result label** -- No tooltip. Should say: "Estimated P&L change across all open positions if BTC moves by the selected percentage."
+
+33. **"direct" badge** -- No tooltip. Should say: "This is a BTC position -- impact is calculated directly from the scenario move, not via correlation."
+
+34. **"corr X.XX" label** -- No tooltip. Should say: "Historical correlation coefficient with BTC. 1.0 = moves identically, 0.5 = moves ~50% as much, 0 = independent."
+
+35. **Slider range labels (-20%, 0%, +20%)** -- No tooltip explaining the range choice.
+
+36. **"Affected Positions" header** -- No tooltip. Should say: "Top 5 positions most impacted by the scenario, sorted by absolute impact size. Positions with zero BTC correlation are excluded."
+
+37. **Static correlation disclaimer missing**: No visible note that correlations are static estimates. Should add a small disclaimer: "Correlations are static historical estimates and may differ during extreme market conditions."
+
+---
+
+## 6. Summary of Recommendations
 
 ### Priority 1 -- Bugs / Incorrect Behavior
 
-| # | Issue | File | Fix |
-|---|-------|------|-----|
-| 4 | Hardcoded `$` in price change | `TopMovers.tsx:84,99` | Use `format(ticker.priceChange)` or remove `$` prefix and use `format()` |
-| 5 | `.toFixed(4)` on all price changes | `TopMovers.tsx:84,99` | Use dynamic precision: `format()` for currency values |
-| 6 | Losers volume sort ascending | `TopMovers.tsx:193` | Sort descending (`b - a`), then filter to negative `priceChangePercent` only |
-| 7 | Empty filteredTickers fallback ignores filter | `TopMovers.tsx:180,191` | Return empty array instead of falling back to unfiltered data; let EmptyState show |
-| 8 | Summary cards ignore volume filter | `TopMovers.tsx:255-328` | Derive summary from filtered/sorted data |
+| # | Issue | Fix |
+|---|-------|-----|
+| 1 | PortfolioImpactCard returns `null` (layout shift) | Show empty-state card instead |
+| 2 | `setSelectedSymbol` dead code | Remove unused destructure |
+| 29 | Static correlations not disclosed | Add disclaimer tooltip |
 
 ### Priority 2 -- Missing Tooltips (Clarity)
 
-| # | Element | Tooltip Content |
-|---|---------|-----------------|
-| 9 | Top Gainer card | "Largest 24h percentage increase across all USDT pairs on Binance." |
-| 10 | Top Loser card | "Largest 24h percentage decrease across all USDT pairs." |
-| 11 | Highest Volume card | "Highest 24-hour USDT trading volume on Binance." |
-| 12 | Low Liq badge | "Volume below $100K. Low liquidity means wider spreads and higher slippage." |
-| 13 | Sort selector | "Sort coins by % change, absolute price change, or 24h volume." |
-| 14 | Min Volume filter | "Filter out low-volume coins. Higher thresholds focus on actively traded assets." |
-| 15 | Show 10/20 button | "Toggle between showing top 10 or top 20 results." |
-| 16 | USDT badge | "Only USDT-denominated trading pairs are shown for consistent comparison." |
-| 17 | Vol: label | "24-hour trading volume denominated in USDT." |
-| 18 | 24h Volume label | "Total quote (USDT) volume traded in the last 24 hours." |
+| # | Element | Component |
+|---|---------|-----------|
+| 3 | "Data quality: X%" footer | MarketData.tsx |
+| 4-10 | Funding & OI labels | FundingOIDashboard.tsx |
+| 12-19 | Volatility Meter labels | VolatilityMeterWidget.tsx |
+| 22-27 | Volume Anomaly labels | WhaleTrackingWidget.tsx |
+| 30-37 | Portfolio Impact labels | PortfolioImpactCard.tsx |
 
-### Priority 3 -- Comprehensiveness Gaps
-
-| # | Gap | Fix |
-|---|-----|-----|
-| 1 | No tab URL persistence | Replace `defaultValue` with controlled `useSearchParams` state |
-| 3 | No ARIA region | Add `role="region"` and `aria-label="Top Movers"` to root container |
-
-### Priority 4 -- Code Quality
+### Priority 3 -- Code Quality
 
 | # | Issue | Fix |
 |---|-------|-----|
-| 19 | `useCurrencyConversion()` per MoverCard | Pass `format` as prop from parent |
-| 21 | 3 near-identical JSX branches in MoverCard | Refactor to single block with conditional values |
-| 22 | No `React.memo` on MoverCard | Wrap with `React.memo` for 15s refetch optimization |
+| 11 | No `useMemo` on `combinedData` in FundingOIDashboard | Wrap in `useMemo` |
+| 20 | Hardcoded color classes in volatility config | Note: low-priority, config-level concern |
+| 21 | `badgeVariant` cast `as any` | Type correctly or use `satisfies` |
+| 28 | Signal dot missing accessible label | Add `aria-label` |
 
 ---
 
@@ -141,5 +262,9 @@
 
 | File | Changes |
 |------|---------|
-| `src/pages/TopMovers.tsx` | Fix hardcoded `$` (P1), fix `.toFixed(4)` precision (P1), fix losers volume sort (P1), fix filteredTickers fallback (P1), derive summary from filtered data (P1), add all tooltips (P2), add `useSearchParams` for tabs (P3), add ARIA role (P3), pass `format` as prop (P4), refactor MoverCard branches (P4), add `React.memo` (P4) |
+| `src/pages/MarketData.tsx` | Remove dead `setSelectedSymbol` (P1), add "Data quality" tooltip (P2) |
+| `src/components/market/FundingOIDashboard.tsx` | Add 7 tooltips (P2), add `useMemo` on `combinedData` (P3), add tooltips for trend icons (P2) |
+| `src/components/market/VolatilityMeterWidget.tsx` | Add 8 tooltips (P2), fix `as any` cast (P3) |
+| `src/components/market/WhaleTrackingWidget.tsx` | Add 6 tooltips (P2), add `aria-label` on signal dot (P3) |
+| `src/components/market/PortfolioImpactCard.tsx` | Replace `null` return with empty-state card (P1), add 8 tooltips (P2), add static correlation disclaimer (P1) |
 
