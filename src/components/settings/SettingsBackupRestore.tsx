@@ -24,8 +24,13 @@ import { useUserSettings, useUpdateUserSettings } from "@/hooks/use-user-setting
 import { useRiskProfile } from "@/hooks/use-risk-profile";
 import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 import { DEFAULT_RISK_PROFILE } from "@/types/risk";
+import { logAuditEvent } from "@/lib/audit-logger";
+import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { toast } from "sonner";
+
+const CURRENT_BACKUP_VERSION = '1.0';
+const COMPATIBLE_VERSIONS = ['1.0'];
 
 interface BackupData {
   version: string;
@@ -131,6 +136,16 @@ export function SettingsBackupRestore() {
       URL.revokeObjectURL(url);
       
       toast.success('Backup exported successfully');
+
+      // Audit log
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        logAuditEvent(user.id, {
+          action: 'backup_exported',
+          entityType: 'user_settings',
+          metadata: { includeSettings, includeRiskProfile, includeStrategies },
+        });
+      }
     } catch (error) {
       toast.error('Failed to export backup');
     } finally {
@@ -149,6 +164,12 @@ export function SettingsBackupRestore() {
         
         if (!backup.version || !backup.data) {
           throw new Error('Invalid backup file format');
+        }
+
+        if (!COMPATIBLE_VERSIONS.includes(backup.version)) {
+          toast.error(`Incompatible backup version: ${backup.version}. Current version: ${CURRENT_BACKUP_VERSION}`);
+          setImportPreview(null);
+          return;
         }
         
         setImportPreview(backup);
@@ -179,6 +200,17 @@ export function SettingsBackupRestore() {
       // For now, we just update settings
       
       toast.success('Settings restored successfully');
+
+      // Audit log
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        logAuditEvent(user.id, {
+          action: 'backup_restored',
+          entityType: 'user_settings',
+          metadata: { version: importPreview.version, contents: Object.keys(importPreview.data) },
+        });
+      }
+
       setImportPreview(null);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
@@ -300,7 +332,7 @@ export function SettingsBackupRestore() {
                 <CheckCircle className="h-4 w-4" />
                 <AlertTitle>Backup File Loaded</AlertTitle>
                 <AlertDescription>
-                  Exported on: {format(new Date(importPreview.exportedAt), 'PPP p')}
+                  Exported on: {format(new Date(importPreview.exportedAt), 'PPP p')} (v{importPreview.version})
                 </AlertDescription>
               </Alert>
               
