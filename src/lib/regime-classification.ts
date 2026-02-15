@@ -68,13 +68,27 @@ export function classifyMarketRegime(input: RegimeInput): RegimeOutput {
 }
 
 /**
- * Non-linear Fear & Greed transformation.
- * Extreme fear (<20) and extreme greed (>80) have outsized influence.
- * Historically, F&G < 15 = bottoming zone, > 85 = topping zone.
+ * Non-linear Fear & Greed transformation with contrarian asymmetry.
+ * 
+ * Extreme fear (<20): Contrarian bullish signal — pulls composite toward neutral (50),
+ * not deeper bearish. Historically, F&G < 15 is a bottoming zone.
+ * 
+ * Extreme greed (>80): Contrarian bearish signal — pulls composite toward neutral,
+ * not higher. Historically, F&G > 85 is a topping zone.
+ * 
+ * Normal range (20-80): Linear pass-through.
  */
 function transformFearGreed(fg: number): number {
-  if (fg <= 20) return fg * 0.75; // 8 → 6, stronger bearish pull
-  if (fg >= 80) return 85 + (fg - 80) * 0.75; // 90 → 92.5, amplified greed
+  if (fg <= 20) {
+    // Extreme fear → contrarian bullish: compress toward 35-50 instead of 0-15
+    // fg=0 → 35, fg=10 → 42.5, fg=20 → 50 (meets normal range boundary)
+    return 35 + (fg / 20) * 15;
+  }
+  if (fg >= 80) {
+    // Extreme greed → contrarian bearish: compress toward 50-65 instead of 80-100
+    // fg=80 → 50, fg=90 → 57.5, fg=100 → 65
+    return 50 + ((fg - 80) / 20) * 15;
+  }
   return fg; // normal range: pass-through
 }
 

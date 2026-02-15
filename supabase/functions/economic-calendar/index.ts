@@ -84,18 +84,36 @@ function isToday(dateString: string): boolean {
 }
 
 /**
- * Rolling 24h window: events in the past 2h (still affecting vol) or next 22h.
- * This ensures FOMC in 6h, GDP tomorrow morning, etc. are included in probability calculations.
+ * Time-decay weight for event risk based on hours-to-event.
+ * Uses exponential decay: weight = exp(-hoursToEvent / 24)
+ * Events in the past 2h still contribute (post-event vol).
+ * Events up to 48h out contribute with diminishing weight.
+ * Returns 0 if event is >48h away or >2h in the past.
  */
-function isWithin24h(dateString: string): boolean {
+function eventTimeDecayWeight(dateString: string): number {
   const eventTime = new Date(dateString).getTime();
   const now = Date.now();
-  return eventTime >= now - (2 * 60 * 60 * 1000) && eventTime <= now + (22 * 60 * 60 * 1000);
+  const hoursToEvent = (eventTime - now) / (60 * 60 * 1000);
+
+  // Past events: up to 2h ago, linear decay from 0.5 to 0
+  if (hoursToEvent < -2) return 0;
+  if (hoursToEvent < 0) return 0.5 * (1 + hoursToEvent / 2); // -2h → 0, 0h → 0.5
+
+  // Future events: exponential decay over 48h window
+  if (hoursToEvent > 48) return 0;
+  return Math.exp(-hoursToEvent / 24); // 0h → 1.0, 24h → 0.37, 48h → 0.14
+}
+
+/**
+ * Check if event is within actionable window (has non-zero decay weight).
+ */
+function isWithinWindow(dateString: string): boolean {
+  return eventTimeDecayWeight(dateString) > 0;
 }
 
 function calculateRiskAdjustment(events: ProcessedEvent[]) {
-  // Use rolling 24h window instead of today-only for risk assessment
-  const windowHighImpact = events.filter(e => isWithin24h(e.date) && e.importance === 'high').length;
+  // Use rolling window with time-decay instead of hard cutoff
+  const windowHighImpact = events.filter(e => isWithinWindow(e.date) && e.importance === 'high').length;
   const weekHighImpact = events.filter(e => e.importance === 'high').length;
   
   return calculateRiskLevel(windowHighImpact, weekHighImpact);
@@ -143,14 +161,14 @@ function assignCorrelationWeights(events: { name: string; prob: number; sampleSi
 }
 
 function calculateVolatilityEngine(events: ProcessedEvent[], realizedVolPct?: number) {
-  // Use rolling 24h window instead of today-only — fixes 0% probability bug
-  const windowEvents = events.filter(e => isWithin24h(e.date));
+  // Use time-decay window: events within 48h contribute with exponential decay weight
+  const windowEvents = events.filter(e => isWithinWindow(e.date));
   const highImpactWindow = windowEvents.filter(e => e.importance === 'high');
   
-  // Collect stats from 24h-window events with historical data
+  // Collect stats with time-decay weights for probability calculation
   const windowStatsRaw = windowEvents
     .filter(e => e.historicalStats !== null)
-    .map(e => ({ name: e.event, prob: e.historicalStats!.probMoveGt2Pct, sampleSize: e.historicalStats!.sampleSize, stats: e.historicalStats! }));
+    .map(e => ({ name: e.event, prob: e.historicalStats!.probMoveGt2Pct, sampleSize: e.historicalStats!.sampleSize, stats: e.historicalStats!, decayWeight: eventTimeDecayWeight(e.date) }));
 
   if (windowStatsRaw.length === 0) {
     // Even with no events, apply realized volatility floor if available
@@ -173,13 +191,16 @@ function calculateVolatilityEngine(events: ProcessedEvent[], realizedVolPct?: nu
 
   const windowStats = windowStatsRaw.map(r => r.stats);
 
-  // Correlation-dampened composite move probability
-  // effectiveP = 1 - Π(1 - P_i * weight_i)
+  // Correlation-dampened composite move probability with time-decay weighting
+  // effectiveP = 1 - Π(1 - P_i * correlationWeight * decayWeight)
   const weighted = assignCorrelationWeights(
     windowStatsRaw.map(r => ({ name: r.name, prob: r.prob, sampleSize: r.sampleSize }))
   );
   const compositeMoveProbability = Math.round(
-    (1 - weighted.reduce((acc, w) => acc * (1 - (w.prob / 100) * w.weight), 1)) * 100
+    (1 - weighted.reduce((acc, w, i) => {
+      const decay = windowStatsRaw[i].decayWeight;
+      return acc * (1 - (w.prob / 100) * w.weight * decay);
+    }, 1)) * 100
   );
 
   // Event clustering
