@@ -1,144 +1,208 @@
 
 
-# Refactor: De-duplicate Market Domain & Upgrade to Decisional Architecture
+# Harden Regime Engine: Fix Double-Counting, Add Statistical Rigor, Correct Evaluation Order
 
-This plan addresses three critical issues: overlapping data between Market Data and Market Bias, misleading "Whale Tracking" labeling, and inconsistent scoring across pages.
+Six targeted fixes to address the critical feedback on the regime classification system.
 
 ---
 
-## Problem Summary
+## Problem Analysis
 
-| Issue | Current State | Target State |
-|-------|--------------|--------------|
-| Market Data vs Market Bias | Both show sentiment, funding, scores -- mixed raw data + synthesis | Market Data = pure raw metrics; Market Bias = synthesis engine |
-| Whale Tracking | Volume spike labeled as "whale" -- no wallet/order flow data | Rename to "Volume Anomaly Detector" with statistical thresholds |
-| Market Bias output | Multiple overlapping scores (AI Confidence, Overall Score, Crypto Sentiment %, Combined Analysis) | 5 clean outputs: Regime, Direction, Expected Move, Risk Mode, Size % |
-| Scoring overlap | `technicalScore`, `confidence`, `compositeScore`, `cryptoScore`, `macroScore`, `alignmentPercent` all displayed separately | Single regime-based classification eliminates confusion |
+| Issue | Current Code | Risk |
+|-------|-------------|------|
+| Double-counting: Event Risk | `market-scoring.ts` penalizes event risk in composite score (line 74-78) AND `regime-classification.ts` uses event risk as regime override (line 93) | Event risk is weighted twice -- overweight |
+| Double-counting: Volatility | `market-scoring.ts` has no direct volatility in composite, but `regime-classification.ts` uses `volatilityLevel` as override AND range multiplier | Less severe, but range calc uses volatility twice |
+| Evaluation order wrong | Composite check (line 101-108) runs BEFORE volatility check (line 96-99) in `determineRegime` | Score=68 + FOMC in 6h + 3x vol = TRENDING_BULL instead of HIGH_VOL |
+| Composite too linear | `calculateComposite` in regime-classification.ts (line 67-74) is a simple weighted average with no event/volatility influence -- separate from `market-scoring.ts` weights | Two different composite formulas exist |
+| Volume detection not statistical | `calculateWhaleSignal` uses `volume_today / prev_24h_volume` ratio, not percentile rank | Spike vs average is not a statistical anomaly |
+| Momentum inflates range | `calculateExpectedRange` uses momentum as additive skew (0.3), not multiplicative | Minor, but momentum should skew direction, not expand range symmetrically |
 
 ---
 
 ## Changes
 
-### 1. Rename "Whale Tracking" to "Volume Anomaly Detector"
+### 1. Fix Double-Counting: Remove Event Risk from Composite Score
 
-**Files:** `WhaleTrackingWidget.tsx`, `MarketData.tsx`, `market-insight/types.ts`
+**File:** `src/lib/regime-classification.ts` -- `calculateComposite()`
 
-- Rename component title from "Whale Tracking" to "Volume Anomaly Detector"  
-- Update subtitle from "Volume-based whale activity detection" to "Statistical volume spike detection (>95th percentile)"
-- Rename signal labels: ACCUMULATION -> "HIGH_VOL_BULLISH", DISTRIBUTION -> "HIGH_VOL_BEARISH", NONE -> "NORMAL"
-- Add percentile context to volume change display (e.g., "Vol +45% | P97 vs 90d")
-- Keep existing detection logic but surface it honestly as volume anomaly, not wallet tracking
+The regime engine has its own composite that does NOT include event risk (correct). But `market-scoring.ts` `calculateCompositeScore()` DOES include event risk penalty. Since `market-scoring.ts` is used by the `UnifiedMarketContext` capture system (trade entry), and `regime-classification.ts` is used by the RegimeCard, they are separate paths -- no double-counting in the regime path.
 
-**Edge function (`market-insight/index.ts`):**
-- Update whale description text to remove "Whales accumulating/distributing" language
-- Replace with: "Volume anomaly: +X% spike with bullish/bearish price action"
-- Add percentile rank to whale detection output (compare current volume vs 90-day average)
+However, the weights differ:
+- `regime-classification.ts`: technical 0.35, onChain 0.20, macro 0.25, fearGreed 0.20
+- `market-scoring.ts`: technical 0.25, onChain 0.15, fearGreed 0.15, macro 0.15, eventRisk 0.15, momentum 0.15
 
-### 2. Refocus Market Data Page as "Flow & Liquidity Dashboard"
+**Fix:** Unify composite weights. The regime engine composite should be the single formula. Remove event risk and volatility from the composite entirely -- they belong ONLY as regime overrides. Document this explicitly.
 
-**File:** `MarketData.tsx`
-
-- Update page title to "Flow & Liquidity" with description "Derivatives flow, volume anomalies, and liquidity metrics"
-- Update sidebar label in `AppSidebar.tsx`: "Market Data" -> "Flow & Liquidity"
-- **Remove** `MarketSentimentWidget` from this page (sentiment belongs in Market Bias only)
-- **Keep and elevate:**
-  - `VolatilityMeterWidget` (raw volatility data)
-  - Renamed `WhaleTrackingWidget` -> Volume Anomaly Detector
-  - OI delta and funding data (already in MarketSentimentWidget -- extract into standalone widget)
-- **Remove** `TradingOpportunitiesWidget` from this page (trade setups belong in Market Bias)
-- **Keep** `PortfolioImpactCard` (scenario calculator is unique here)
-
-**New widget: `FundingOIDashboard.tsx`** (extracted from MarketSentimentWidget)
-- Funding rate per symbol with percentile context
-- OI change 24h with interpretation
-- Funding/Price divergence alerts
-- Long/Short ratio from existing Binance data
-- Pure data display, no narrative summaries
-
-### 3. Refactor Market Bias Page as "Regime Classification Engine"
-
-**File:** `MarketInsight.tsx` (Market Bias page)
-
-**Remove** from display:
-- "AI Confidence: X%" (redundant with regime)
-- "Overall Score: X%" (redundant with regime)  
-- Verbose AI recommendation text
-- Separate "Combined Analysis" card with its own scoring system
-- "Crypto Sentiment %" and "Macro Sentiment %" as separate progress bars
-
-**Replace with 5 clean outputs in a single `RegimeCard` component:**
-
+Updated `calculateComposite()`:
+```typescript
+function calculateComposite(input: RegimeInput): number {
+  // Pure signal composite -- event risk and volatility are NOT included here
+  // They act as regime overrides only, preventing double-counting
+  const technical = input.technicalScore * 0.35;
+  const onChain = input.onChainScore * 0.20;
+  const macro = input.macroScore * 0.25;
+  const fearGreed = input.fearGreedValue * 0.20;
+  return Math.round(technical + onChain + macro + fearGreed);
+}
 ```
-+--------------------------------------------------+
-| MARKET REGIME                                     |
-|                                                   |
-| Regime:     TRENDING BULLISH                      |
-| Direction:  72% probability upside (24h)          |
-| Expected:   +1.8% to +4.2% range                 |
-| Risk Mode:  AGGRESSIVE                            |
-| Size:       100% (normal)                         |
-|                                                   |
-| Based on: Technical 68 | Macro 72 | F&G 65       |
-| Alignment: Crypto + Macro ALIGNED                 |
-+--------------------------------------------------+
-```
+(No change needed here -- already correct. But add the documentation comment.)
 
-**New component:** `src/components/market-insight/RegimeCard.tsx`
-- Regime classification: TRENDING_BULL | TRENDING_BEAR | RANGING | HIGH_VOL | RISK_OFF
-- Direction probability: derived from composite score mapped to percentage
-- Expected move %: derived from volatility data + momentum
-- Risk mode: AGGRESSIVE (score >65, aligned) | NEUTRAL (45-65) | DEFENSIVE (score <45 or conflict)
-- Suggested size %: from existing `positionSizeAdjustment` logic
+Also update `market-scoring.ts` `calculateCompositeScore()` to remove eventRisk from the composite calculation and document it as "override-only":
+- Remove lines 74-78 (event risk penalty from composite)
+- Remove `eventRisk` from `WEIGHTS` constant
+- Redistribute weight: technical 0.30, onChain 0.20, fearGreed 0.15, macro 0.20, momentum 0.15
 
-**Keep but simplify:**
-- `BiasExpiryIndicator` (useful)
-- Market signals list (condensed, no narration)
-- Macro correlations grid (raw data only, no AI summary paragraph)
+### 2. Fix Evaluation Order in `determineRegime()`
 
-**Remove:**
-- `CombinedAnalysisCard.tsx` (absorbed into RegimeCard)
-- AI narrative summaries ("The market is showing..." paragraphs)
-- `AIAnalysisTab.tsx` rewritten as `RegimeCard.tsx` + simplified signals
+**File:** `src/lib/regime-classification.ts` -- `determineRegime()`
 
-### 4. Regime Classification Logic
+Current order (WRONG):
+1. Event risk check (RISK_OFF)
+2. Volatility check (HIGH_VOL) -- but only if `alignment !== 'ALIGNED'`
+3. Composite score check (TRENDING)
+4. Default (RANGING)
 
-**New file:** `src/lib/regime-classification.ts`
+The volatility check has a gap: `alignment === 'ALIGNED'` skips HIGH_VOL even when volatility is extreme. A trending bull with FOMC in 6h and 3x normal vol should NOT be AGGRESSIVE.
+
+**Fix:** Tighten the volatility override -- remove the alignment exception for extreme volatility:
 
 ```typescript
-type MarketRegime = 'TRENDING_BULL' | 'TRENDING_BEAR' | 'RANGING' | 'HIGH_VOL' | 'RISK_OFF';
-type RiskMode = 'AGGRESSIVE' | 'NEUTRAL' | 'DEFENSIVE';
-
-function classifyRegime(context): MarketRegime
-  - compositeScore > 65 + momentum positive + alignment -> TRENDING_BULL
-  - compositeScore < 35 + momentum negative + alignment -> TRENDING_BEAR
-  - volatility > HIGH threshold -> HIGH_VOL
-  - event risk VERY_HIGH or HIGH -> RISK_OFF
-  - else -> RANGING
-
-function calculateDirectionProbability(compositeScore): number
-  - Maps 0-100 score to upside probability (30-70% range, not extreme)
-
-function determineRiskMode(regime, alignment): RiskMode
-  - TRENDING + aligned -> AGGRESSIVE
-  - RANGING or partial conflict -> NEUTRAL
-  - HIGH_VOL or RISK_OFF or strong conflict -> DEFENSIVE
-
-function calculateExpectedRange(volatility, momentum, regime): { low, high }
-  - Uses ATR-based volatility + momentum direction
+function determineRegime(compositeScore, input, alignment): MarketRegime {
+  // Priority 1: Event risk override (highest priority)
+  if (input.eventRiskLevel === 'VERY_HIGH' || input.eventRiskLevel === 'HIGH') {
+    return 'RISK_OFF';
+  }
+  // Priority 2: Extreme volatility override (no alignment exception)
+  if (input.volatilityLevel === 'high') {
+    return 'HIGH_VOL';
+  }
+  // Priority 3: Trending (requires conviction + alignment)
+  const momentum = input.momentum24h ?? 0;
+  if (compositeScore >= 65 && momentum > 0 && alignment !== 'CONFLICT') {
+    return 'TRENDING_BULL';
+  }
+  if (compositeScore <= 35 && momentum < 0 && alignment !== 'CONFLICT') {
+    return 'TRENDING_BEAR';
+  }
+  // Default
+  return 'RANGING';
+}
 ```
 
-Uses existing `calculateCompositeScore` and `calculateTradingBias` from `market-scoring.ts` as inputs.
+### 3. Add Risk Mode Guard for Volatility Spike
 
-### 5. Update Sidebar Navigation
+**File:** `src/lib/regime-classification.ts` -- `determineRiskMode()`
 
-**File:** `AppSidebar.tsx`
+Current logic allows AGGRESSIVE when trending + aligned. But if volatility is extreme or event risk is HIGH, this is dangerous.
 
+**Fix:** Add volatility/event guards:
+
+```typescript
+function determineRiskMode(regime, alignment, input): RiskMode {
+  if (regime === 'RISK_OFF' || regime === 'HIGH_VOL') return 'DEFENSIVE';
+  if (alignment === 'CONFLICT') return 'DEFENSIVE';
+  // Guard: even if trending+aligned, extreme vol or high events force defensive
+  if (input.volatilityLevel === 'high') return 'DEFENSIVE';
+  if (input.eventRiskLevel === 'HIGH' || input.eventRiskLevel === 'VERY_HIGH') return 'DEFENSIVE';
+  if ((regime === 'TRENDING_BULL' || regime === 'TRENDING_BEAR') && alignment === 'ALIGNED') return 'AGGRESSIVE';
+  return 'NEUTRAL';
+}
 ```
-Economic Calendar  /calendar
-Top Movers         /top-movers  
-Flow & Liquidity   /market-data    (renamed from "Market Data")
-Market Bias        /market         (unchanged)
+
+### 4. Fix Expected Range: Use Regime Multiplier, Momentum as Skew Only
+
+**File:** `src/lib/regime-classification.ts` -- `calculateExpectedRange()`
+
+Current: momentum adds flat +/-0.3 to both sides (expands range).
+Fix: momentum only shifts the center (skew), does not expand total range.
+
+```typescript
+function calculateExpectedRange(input, regime): { low: number; high: number } {
+  // ATR-based range (normalized %)
+  let baseRange = 2.0;
+  if (input.volatilityLevel === 'low') baseRange = 1.2;
+  if (input.volatilityLevel === 'high') baseRange = 4.5;
+
+  // Regime multiplier
+  const regimeMultipliers: Record<string, number> = {
+    HIGH_VOL: 2.0,
+    RISK_OFF: 1.3,
+    TRENDING_BULL: 1.4,
+    TRENDING_BEAR: 1.4,
+    RANGING: 0.8,
+  };
+  const multiplier = regimeMultipliers[regime] ?? 1.0;
+  const range = baseRange * multiplier;
+
+  // Momentum shifts center (skew), does NOT expand range
+  const momentum = input.momentum24h ?? 0;
+  const skew = Math.max(-0.5, Math.min(0.5, momentum * 0.05)); // Capped skew
+
+  return {
+    low: Math.round((-range + skew) * 10) / 10,
+    high: Math.round((range + skew) * 10) / 10,
+  };
+}
 ```
+
+### 5. Upgrade Volume Detection to Percentile-Based (Edge Function)
+
+**File:** `supabase/functions/market-insight/index.ts` -- `calculateWhaleSignal()`
+
+Current: compares 24h volume vs previous 24h volume (ratio).
+Fix: compute percentile rank using all available klines data as rolling window.
+
+```typescript
+function calculateWhaleSignal(klines, change24h) {
+  if (klines.length < 48) return { signal: 'NONE', ... };
+
+  const recentVolume = klines.slice(0, 24).reduce((sum, k) => sum + parseFloat(String(k[5])), 0);
+  
+  // Build rolling 24h volume windows for percentile calculation
+  const windowVolumes: number[] = [];
+  for (let i = 0; i + 24 <= klines.length; i += 24) {
+    const windowVol = klines.slice(i, i + 24).reduce((sum, k) => sum + parseFloat(String(k[5])), 0);
+    windowVolumes.push(windowVol);
+  }
+  
+  // Percentile rank: % of historical windows below current
+  const below = windowVolumes.filter(v => v < recentVolume).length;
+  const percentileRank = windowVolumes.length > 1 
+    ? Math.round((below / (windowVolumes.length - 1)) * 100)  // exclude self
+    : 50;
+  
+  const volumeChange = windowVolumes.length > 1
+    ? ((recentVolume - windowVolumes[1]) / windowVolumes[1]) * 100  // vs previous window
+    : 0;
+
+  let signal = 'NONE';
+  let confidence = 40;
+  let method = `P${percentileRank} vs ${windowVolumes.length} windows`;
+
+  // Statistical anomaly = >95th percentile
+  if (percentileRank >= 95 && change24h > 2) {
+    signal = 'ACCUMULATION';
+    confidence = 70 + Math.min(20, (percentileRank - 95) * 4);
+    method = `Vol P${percentileRank} (>P95 anomaly) + Price +${change24h.toFixed(1)}%`;
+  } else if (percentileRank >= 95 && change24h < -2) {
+    signal = 'DISTRIBUTION';
+    confidence = 70 + Math.min(20, (percentileRank - 95) * 4);
+    method = `Vol P${percentileRank} (>P95 anomaly) + Price ${change24h.toFixed(1)}%`;
+  }
+
+  return { signal, volumeChange, confidence, method, thresholds: `P95 threshold, ${windowVolumes.length} samples`, percentileRank };
+}
+```
+
+Add `percentileRank` to the whale activity response object and update the WhaleTrackingWidget to display it.
+
+### 6. Add `regimeScore` Mathematical Definition
+
+**File:** `src/lib/regime-classification.ts`
+
+Currently `regimeScore` is not emitted. The composite score IS the regime score. Make this explicit by adding it to the output:
+
+Add `regimeScore: number` to `RegimeOutput` (equals `compositeScore` from `calculateComposite`). This is the ONLY score the system exposes -- all other scores (technical, macro, fearGreed) are breakdown components, not independent scores.
 
 ---
 
@@ -146,44 +210,24 @@ Market Bias        /market         (unchanged)
 
 | File | Change |
 |------|--------|
-| `src/components/layout/AppSidebar.tsx` | Rename "Market Data" to "Flow & Liquidity" |
-| `src/pages/MarketData.tsx` | Remove MarketSentimentWidget + TradingOpportunities, add FundingOIDashboard, update title |
-| `src/pages/MarketInsight.tsx` | Replace AIAnalysisTab + CombinedAnalysisCard with RegimeCard |
-| `src/components/market/WhaleTrackingWidget.tsx` | Rename to "Volume Anomaly Detector", update labels |
-| `src/components/market-insight/RegimeCard.tsx` | **NEW** - 5-output regime classification display |
-| `src/components/market/FundingOIDashboard.tsx` | **NEW** - Extracted funding/OI/divergence from sentiment widget |
-| `src/lib/regime-classification.ts` | **NEW** - Regime, risk mode, direction probability logic |
-| `src/components/market-insight/AIAnalysisTab.tsx` | Remove (replaced by RegimeCard) |
-| `src/components/market-insight/CombinedAnalysisCard.tsx` | Remove (absorbed into RegimeCard) |
-| `supabase/functions/market-insight/index.ts` | Update whale descriptions, add volume percentile |
-| `src/components/market/index.ts` | Update exports |
-| `src/components/market-insight/index.ts` | Update exports |
-| `src/components/layout/CommandPalette.tsx` | Rename "Market Data" to "Flow & Liquidity" |
+| `src/lib/regime-classification.ts` | Fix eval order, add vol/event guards to riskMode, fix expected range skew, add regimeScore, add documentation |
+| `src/lib/market-scoring.ts` | Remove eventRisk from composite (override-only), redistribute weights |
+| `supabase/functions/market-insight/index.ts` | Upgrade volume detection to percentile-based with rolling windows |
+| `src/components/market/WhaleTrackingWidget.tsx` | Display percentile rank (P97 vs 8 windows) |
+| `src/components/market-insight/RegimeCard.tsx` | Show regimeScore in breakdown footer |
+| `src/features/market-insight/types.ts` | Add `percentileRank` to `WhaleActivity` interface |
 
 ---
 
-## What Gets Removed vs Kept
+## Double-Counting Audit Summary
 
-**Removed from Market Data (now Flow & Liquidity):**
-- MarketSentimentWidget (big gauge + bull/bear bar) -- moves to nowhere, sentiment synthesis is in Market Bias regime
-- TradingOpportunitiesWidget -- trade setups belong in Market Bias
-
-**Removed from Market Bias:**
-- AI Confidence % display
-- Overall Score % display  
-- CombinedAnalysisCard (separate crypto/macro scores)
-- Long AI narrative summaries
-- Separate "AI Recommendation" text box
-
-**Kept in Flow & Liquidity:**
-- VolatilityMeterWidget (pure raw data)
-- Volume Anomaly Detector (renamed whale)
-- PortfolioImpactCard (unique scenario tool)
-- NEW: FundingOIDashboard (funding rates, OI changes, divergences, L/S ratio)
-
-**Kept in Market Bias:**
-- BiasExpiryIndicator
-- Market signals list (condensed)
-- Macro correlations grid (data only)
-- NEW: RegimeCard (single output: regime + direction + range + risk mode + size)
+| Factor | In Composite? | As Override? | Status |
+|--------|:---:|:---:|--------|
+| Technical Score | Yes (0.35) | No | Clean |
+| On-Chain Score | Yes (0.20) | No | Clean |
+| Macro Score | Yes (0.25) | No | Clean |
+| Fear/Greed | Yes (0.20) | No | Clean |
+| Event Risk | No (removed from composite) | Yes (RISK_OFF override) | Fixed -- was double-counted in market-scoring.ts |
+| Volatility | No | Yes (HIGH_VOL override + range multiplier) | Clean |
+| Momentum | No | Yes (range skew only) | Clean |
 
