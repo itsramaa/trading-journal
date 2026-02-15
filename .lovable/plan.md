@@ -1,271 +1,300 @@
 
+# Backtest System: Configuration Completeness & Results Integrity
 
-# Strategy System: Statistical Depth & Integration Layer
-
-Addresses 4 remaining gaps: Kelly safety, expectancy preview, validation logic, and strategy-performance integration.
-
----
-
-## 1. Kelly Fraction Safety Guard + ATR Parameter Fields
-
-**Problem:** Kelly sizing without verified win rate can overfit. ATR-based sizing has no configurable parameters.
-
-### Kelly Guard
-
-**File:** `src/components/strategy/StrategyFormDialog.tsx`
-
-When `positionSizingModel === 'kelly'`:
-- Force value to max 25% of full Kelly (Fractional Kelly 0.25x) via clamping
-- Show a warning badge below the selector: "Kelly requires a reliable win-rate estimate from 50+ trades. Using 1/4 Kelly to limit risk."
-- Change the value label from raw input to a display: "Fraction: 0.25x (max)"
-
-**File:** `src/lib/constants/strategy-config.ts`
-
-Add `KELLY_FRACTION_CAP: 0.25` and `KELLY_MIN_TRADES_WARNING: 50` constants.
-
-### ATR Parameters
-
-**File:** `src/components/strategy/StrategyFormDialog.tsx`
-
-When `positionSizingModel === 'atr_based'`, show two additional inputs:
-- ATR Period (default 14, range 5-50)
-- ATR Multiplier (default 1.5, range 0.5-5.0)
-
-**File:** `src/types/strategy.ts`
-
-Extend `TradeManagement` or add to strategy type:
-```typescript
-atr_period?: number;      // default 14
-atr_multiplier?: number;  // default 1.5
-```
-
-**Database:** Add two nullable columns (no migration needed if stored inside `trade_management` JSONB).
-
-Store ATR params inside `trade_management` JSONB to avoid schema change:
-```typescript
-trade_management: {
-  ...existing,
-  atr_period: 14,
-  atr_multiplier: 1.5,
-}
-```
+Addresses 10 issues across the Run and Compare tabs: missing config fields, absent metrics, broken chart scaling, and lack of edge diagnostics.
 
 ---
 
-## 2. Expectancy Preview Table (Pre-Save)
+## Scope & Priority
 
-**Problem:** Users create strategies with R:R settings but have no preview of expected outcomes across different win rates.
+**Tier 1 -- Critical Config Gaps (Run tab)**
+1. Slippage input field
+2. Risk per trade / position sizing config
+3. Timeframe display clarity
+4. Leverage input (futures strategies)
+5. Initial Capital UX clarification
 
-### Implementation
+**Tier 2 -- Results Intelligence (Results + Compare)**
+6. Break-even threshold insight banner
+7. Expectancy metric in results
+8. CAGR + Sortino + Calmar in comparison table
+9. Equity curve Y-axis scaling fix
 
-**File:** New component `src/components/strategy/ExpectancyPreview.tsx`
-
-A small card shown in the Exit tab of `StrategyFormDialog`, below the Effective R:R display.
-
-Props: `effectiveRR: number | null`
-
-When `effectiveRR` is available, render a sensitivity table:
-
-```
-Win Rate | Expectancy (per R risked)
-20%      | -0.40R
-25%      | -0.25R
-30%      | -0.10R
-35%      | +0.05R  <-- breakeven zone
-40%      | +0.20R
-50%      | +0.50R
-```
-
-Formula: `Expectancy = WR * R - (1 - WR)`
-
-Where R = effectiveRR.
-
-Highlight the breakeven row (where expectancy crosses zero) with a subtle accent.
-
-If `effectiveRR` is null, show a muted message: "Define TP and SL in R:R units to see expectancy projections."
-
-**File:** `src/components/strategy/StrategyFormDialog.tsx`
-
-Import and render `ExpectancyPreview` in the Exit tab, after the Effective R:R badge and min_rr validation warning.
+**Tier 3 -- Deferred (out of scope)**
+10. Monte Carlo / Walk-forward (requires dedicated simulation engine -- not journal scope)
 
 ---
 
-## 3. Structural Validation Layer (Pre-Save)
+## 1. Slippage Input Field
 
-**Problem:** No logical contradiction detection. User can set min_confluences=3 with only 2 entry rules defined.
+**Problem:** Commission exists but slippage is missing from the config form despite being defined in `BacktestConfig.slippage`.
 
-### Implementation
+**File:** `src/components/strategy/BacktestRunner.tsx`
 
-**File:** `src/components/strategy/StrategyFormDialog.tsx`
-
-Add a `validationWarnings` useMemo that checks for logical issues before save:
+Add a slippage state and input next to the commission field:
 
 ```typescript
-const validationWarnings = useMemo(() => {
-  const warnings: string[] = [];
-  
-  // 1. Min confluences > total entry rules
-  if (form.getValues('min_confluences') > entryRules.length) {
-    warnings.push(`Min confluences (${form.getValues('min_confluences')}) exceeds total entry rules (${entryRules.length}).`);
-  }
-  
-  // 2. Min confluences > mandatory rules count (impossible to fail)
-  const mandatoryCount = entryRules.filter(r => r.is_mandatory).length;
-  if (mandatoryCount >= form.getValues('min_confluences') && entryRules.length === mandatoryCount) {
-    warnings.push('All rules are mandatory — min confluences has no effect.');
-  }
-  
-  // 3. No exit rules defined
-  if (exitRules.length === 0) {
-    warnings.push('No exit rules defined. Strategy is incomplete without TP/SL.');
-  }
-  
-  // 4. Effective R:R below min_rr
-  if (effectiveRR !== null && effectiveRR < form.getValues('min_rr')) {
-    warnings.push(`Effective R:R (${effectiveRR.toFixed(1)}) is below minimum (${form.getValues('min_rr')}).`);
-  }
-  
-  // 5. Kelly without enough historical trades (informational)
-  if (positionSizingModel === 'kelly') {
-    warnings.push('Kelly sizing requires verified win-rate data. Using fractional Kelly (0.25x) until validated.');
-  }
-
-  // 6. Futures without leverage set
-  if (selectedMarketType === 'futures' && defaultLeverage <= 1) {
-    warnings.push('Futures strategy with 1x leverage — consider setting appropriate leverage.');
-  }
-  
-  return warnings;
-}, [entryRules, exitRules, effectiveRR, positionSizingModel, selectedMarketType, defaultLeverage, form]);
+const [slippage, setSlippage] = useState<number>(BACKTEST_DEFAULTS.SLIPPAGE * 100); // 0.1%
 ```
 
-Render warnings as a collapsible alert section above the Save button:
+Add to config in `handleRunBacktest`:
+```typescript
+slippage: slippage / 100, // Convert percentage to decimal
+```
+
+Render a slippage input alongside commission in the Capital & Commission grid (change to 3-column on md):
+- Label: "Slippage (%)"
+- Default: 0.1
+- Range: 0-2, step 0.01
+- Helper text: "Estimated price impact per fill"
+
+**File:** `src/lib/constants/backtest-config.ts`
+
+Add to `BACKTEST_DEFAULTS`:
+```typescript
+MIN_SLIPPAGE: 0,
+MAX_SLIPPAGE: 2,
+SLIPPAGE_STEP: 0.01,
+```
+
+---
+
+## 2. Risk Per Trade / Position Sizing Config
+
+**Problem:** No risk-per-trade or compounding toggle. Backtest assumes flat position sizing.
+
+**File:** `src/components/strategy/BacktestRunner.tsx`
+
+Add two new fields below Initial Capital:
+- **Risk Per Trade (%)**: Default 2%, range 0.5-10%, step 0.5
+- **Compounding**: Toggle (on/off). When ON, position size recalculates from current equity. When OFF, always uses initial capital.
+
+**File:** `src/types/backtest.ts`
+
+Extend `BacktestConfig`:
+```typescript
+riskPerTrade?: number;   // e.g., 0.02 for 2%
+compounding?: boolean;   // recalculate from running equity
+```
+
+These get passed to the edge function which will use them for position sizing in the simulation.
+
+---
+
+## 3. Timeframe Display & Strategy Context
+
+**Problem:** Timeframe is shown in strategy info alert but not as a prominent config element. Users may not realize which TF the backtest runs on.
+
+**Solution:** This is NOT a separate input -- the timeframe comes from the strategy definition. But it needs to be displayed prominently.
+
+**File:** `src/components/strategy/BacktestRunner.tsx`
+
+When a strategy is selected, show a prominent info badge row above the Run button (outside the collapsible alert):
 
 ```typescript
-{validationWarnings.length > 0 && (
-  <div className="space-y-1 p-3 rounded-lg bg-[hsl(var(--chart-4))]/10 border border-[hsl(var(--chart-4))]/30">
-    <div className="flex items-center gap-2 text-sm font-medium text-[hsl(var(--chart-4))]">
-      <AlertTriangle className="h-4 w-4" />
-      {validationWarnings.length} validation warning{validationWarnings.length > 1 ? 's' : ''}
-    </div>
-    {validationWarnings.map((w, i) => (
-      <p key={i} className="text-xs text-muted-foreground ml-6">{w}</p>
-    ))}
+{selectedStrategy && (
+  <div className="flex flex-wrap gap-2">
+    <Badge variant="secondary">
+      TF: {selectedStrategy.timeframe || 'Not set'}
+    </Badge>
+    {selectedStrategy.market_type === 'futures' && (
+      <Badge variant="secondary">
+        Leverage: {selectedStrategy.default_leverage || 1}x
+      </Badge>
+    )}
+    <Badge variant="secondary">
+      Sizing: {selectedStrategy.position_sizing_model || 'fixed_percent'}
+    </Badge>
   </div>
 )}
 ```
 
-These are warnings, not blockers. User can still save.
+If `selectedStrategy.timeframe` is null/empty, show a warning: "Strategy has no timeframe defined. Backtest results may be unreliable."
 
 ---
 
-## 4. Strategy Adherence Tracking in AI Insights
+## 4. Leverage Input (Futures)
 
-**Problem:** AI Insights analyzes trades globally but does not show per-strategy adherence or performance breakdown.
+**Problem:** Futures strategies lack leverage configuration in the backtest form.
 
-### Data Source
+**File:** `src/components/strategy/BacktestRunner.tsx`
 
-The `strategy_adherence` field already exists in trade post-analysis (confirmed in `TradeDetail.tsx` and `TradeEnrichmentDrawer.tsx`). The `useStrategyPerformance` hook already groups trades by strategy and calculates win rate, profit factor, and quality score.
+When `selectedStrategy?.market_type === 'futures'`, show a leverage slider:
+- Label: "Leverage"
+- Default: pulled from `selectedStrategy.default_leverage || 1`
+- Range: 1-125x
+- Show as state variable so user can override per-backtest
 
-### Integration into AI Insights
+**File:** `src/types/backtest.ts`
 
-**File:** `src/pages/AIInsights.tsx`
-
-Import `useStrategyPerformance` and `useTradingStrategies`.
-
-Add a new insight generation block in the insights useMemo:
-
+Add to `BacktestConfig`:
 ```typescript
-// Strategy adherence insights
-const strategyPerformance = strategyPerfMap; // from hook
-const strategies = strategiesData; // from hook
-
-if (strategies && strategies.length > 0) {
-  strategies.forEach(strategy => {
-    const perf = strategyPerformance.get(strategy.id);
-    if (!perf || perf.totalTrades < DATA_QUALITY.MIN_TRADES_FOR_RANKING) return;
-    
-    // Compare strategy performance vs overall
-    const stratWR = perf.winRate * 100;
-    const overallWR = stats.winRate;
-    const delta = stratWR - overallWR;
-    
-    if (Math.abs(delta) > 10) {
-      insights.push({
-        type: delta > 0 ? 'positive' : 'negative',
-        title: `${strategy.name}: ${delta > 0 ? 'Outperforming' : 'Underperforming'}`,
-        description: `${stratWR.toFixed(0)}% win rate vs ${overallWR.toFixed(0)}% overall (${perf.totalTrades} trades). ${delta > 0 ? 'This strategy shows edge.' : 'Review setup quality or consider pausing.'}`,
-        metric: `${delta > 0 ? '+' : ''}${delta.toFixed(0)}%`,
-        icon: delta > 0 ? TrendingUp : TrendingDown,
-        sampleSize: perf.totalTrades,
-        confidence: perf.totalTrades >= 30 ? 'high' : perf.totalTrades >= 15 ? 'medium' : 'low',
-      });
-    }
-  });
-}
+leverage?: number;  // default 1, max 125
 ```
 
-### Strategy Adherence Aggregation
+Pass to edge function in `handleRunBacktest`.
 
-For trades that have `post_analysis.strategy_adherence` values (text like "Good", "Partial", "Poor"), aggregate per strategy:
+---
 
+## 5. Initial Capital UX Clarification
+
+**Problem:** Quick-fill buttons showing Binance/account balances alongside the 10000 default is confusing.
+
+**File:** `src/components/strategy/BacktestRunner.tsx`
+
+Add a helper text below the quick-fill buttons:
 ```typescript
-// Count adherence ratings per strategy
-const adherenceStats = new Map<string, { good: number; partial: number; poor: number; total: number }>();
-
-closedTrades.forEach(trade => {
-  if (!trade.strategies || !trade.post_analysis?.strategy_adherence) return;
-  const rating = trade.post_analysis.strategy_adherence.toLowerCase();
-  trade.strategies.forEach(s => {
-    const stat = adherenceStats.get(s.id) || { good: 0, partial: 0, poor: 0, total: 0 };
-    if (rating.includes('good') || rating.includes('high')) stat.good++;
-    else if (rating.includes('partial') || rating.includes('medium')) stat.partial++;
-    else stat.poor++;
-    stat.total++;
-    adherenceStats.set(s.id, stat);
-  });
-});
+<p className="text-xs text-muted-foreground mt-1">
+  Backtest uses simulated capital — not your actual account balance. Quick-fill buttons copy your current balance for realistic simulation.
+</p>
 ```
 
-Generate an insight if a strategy has low adherence rate:
+---
+
+## 6. Break-Even Threshold Insight Banner
+
+**Problem:** Results show -85% return but don't explain WHY. With 20% WR and 2.68 R:R, the breakeven WR is 27.2% -- the strategy is mathematically below edge.
+
+**File:** `src/components/strategy/BacktestResults.tsx`
+
+After the Summary Card, add a diagnostic banner:
 
 ```typescript
-adherenceStats.forEach((stat, stratId) => {
-  if (stat.total < 10) return;
-  const adherenceRate = (stat.good / stat.total) * 100;
-  const stratName = strategies?.find(s => s.id === stratId)?.name || 'Unknown';
-  
-  if (adherenceRate < 50) {
-    insights.push({
-      type: 'negative',
-      title: `Low Strategy Adherence: ${stratName}`,
-      description: `Only ${adherenceRate.toFixed(0)}% of trades followed the strategy rules closely (${stat.total} trades). Discipline may be impacting results.`,
-      metric: `${adherenceRate.toFixed(0)}%`,
-      icon: AlertTriangle,
-      sampleSize: stat.total,
-      confidence: stat.total >= 20 ? 'medium' : 'low',
-    });
-  }
-});
+const breakevenWR = 1 / (1 + metrics.avgRiskReward);
+const isBelowBreakeven = metrics.winRate < breakevenWR;
+const expectancy = (metrics.winRate * metrics.avgWin) - ((1 - metrics.winRate) * metrics.avgLoss);
+
+{metrics.avgRiskReward > 0 && isBelowBreakeven && (
+  <Alert variant="destructive">
+    <AlertTriangle className="h-4 w-4" />
+    <AlertDescription>
+      <strong>Below break-even threshold.</strong> Win rate ({(metrics.winRate * 100).toFixed(1)}%) 
+      is below the break-even requirement ({(breakevenWR * 100).toFixed(1)}%) for the observed 
+      {metrics.avgRiskReward.toFixed(2)} R:R. Expected loss per trade: {format(Math.abs(expectancy))}.
+    </AlertDescription>
+  </Alert>
+)}
 ```
+
+Also show a positive variant when above breakeven with a healthy margin.
+
+---
+
+## 7. Expectancy Metric in Results
+
+**Problem:** Avg Win, Avg Loss, and Win Rate are shown but Expectancy is not calculated or displayed.
+
+**File:** `src/types/backtest.ts`
+
+Add to `BacktestMetrics`:
+```typescript
+expectancy: number;        // (WR * avgWin) - (LR * avgLoss)
+expectancyPerR: number;    // WR * R - (1 - WR)
+```
+
+**File:** `src/types/backtest.ts` (in `calculateMetrics`)
+
+Compute expectancy in the existing `calculateMetrics` function:
+```typescript
+expectancy: (winRate * avgWin) - ((1 - winRate) * avgLoss),
+expectancyPerR: avgRiskReward > 0 ? (winRate * avgRiskReward) - (1 - winRate) : 0,
+```
+
+**File:** `src/components/strategy/BacktestResults.tsx`
+
+Add expectancy to the Detailed Metrics grid:
+```typescript
+<div className="flex justify-between items-center">
+  <span className="text-muted-foreground text-sm">Expectancy</span>
+  <span className={cn("font-medium font-mono", metrics.expectancy >= 0 ? "text-profit" : "text-loss")}>
+    {format(metrics.expectancy)}/trade
+  </span>
+</div>
+```
+
+---
+
+## 8. CAGR + Sortino + Calmar in Comparison
+
+**Problem:** Compare tab only shows Sharpe. Crypto needs Sortino and Calmar. Total Return without CAGR is misleading across different periods.
+
+**File:** `src/lib/constants/backtest-config.ts`
+
+Add new entries to `METRICS_CONFIG`:
+
+```typescript
+{ key: 'expectancy', label: 'Expectancy', format: (v) => `$${v.toFixed(2)}`, higherIsBetter: true },
+{ key: 'calmarRatio', label: 'Calmar Ratio', format: (v) => v.toFixed(2), higherIsBetter: true },
+```
+
+**File:** `src/types/backtest.ts`
+
+Add to `BacktestMetrics`:
+```typescript
+calmarRatio: number;   // annualized return / max drawdown
+```
+
+Compute in `calculateMetrics`:
+```typescript
+// Calmar = Annualized Return / MaxDD
+calmarRatio: maxDD > 0 ? (totalReturn / periodYears) / (maxDD * 100) : 0,
+```
+
+Note: CAGR and Sortino are best computed with the full trade series and time period. CAGR will be computed at display time in the results component using `periodStart`/`periodEnd` dates rather than storing in metrics, since it needs the date range.
+
+**File:** `src/components/strategy/BacktestResults.tsx`
+
+Add CAGR as a computed display metric:
+```typescript
+const periodDays = (new Date(result.periodEnd).getTime() - new Date(result.periodStart).getTime()) / (1000 * 60 * 60 * 24);
+const periodYears = periodDays / 365;
+const cagr = periodYears > 0 
+  ? (Math.pow(result.finalCapital / result.initialCapital, 1 / periodYears) - 1) * 100 
+  : metrics.totalReturn;
+```
+
+Display below Total Return in the metrics grid.
+
+---
+
+## 9. Equity Curve Y-Axis Fix
+
+**Problem:** Comparison chart shows "$0k / $0k / $0k" when values are small (e.g., equity drops to < $1000).
+
+**File:** `src/components/strategy/BacktestComparison.tsx`
+
+Fix the Y-axis formatter to handle small values:
+
+```typescript
+<YAxis 
+  tickFormatter={(v) => {
+    if (v >= 1000) return `$${(v / 1000).toFixed(1)}k`;
+    return `$${v.toFixed(0)}`;
+  }}
+  domain={['dataMin', 'dataMax']}
+  className="text-muted-foreground"
+/>
+```
+
+Adding `domain={['dataMin', 'dataMax']}` ensures the axis scales to the actual data range rather than defaulting to 0-based.
 
 ---
 
 ## Technical Summary
 
-| File | Change |
-|------|--------|
-| `src/components/strategy/ExpectancyPreview.tsx` | New component: sensitivity table showing expectancy across win rates for given R:R |
-| `src/components/strategy/StrategyFormDialog.tsx` | Kelly warning + cap; ATR params; validation warnings; ExpectancyPreview integration |
-| `src/lib/constants/strategy-config.ts` | Add KELLY_FRACTION_CAP, KELLY_MIN_TRADES_WARNING constants |
-| `src/types/strategy.ts` | Add optional atr_period/atr_multiplier to TradeManagement interface |
-| `src/pages/AIInsights.tsx` | Import strategy hooks; generate per-strategy performance + adherence insights |
+| File | Changes |
+|------|---------|
+| `src/components/strategy/BacktestRunner.tsx` | Add slippage input, risk-per-trade, compounding toggle, leverage slider (futures), timeframe badge row, capital helper text |
+| `src/types/backtest.ts` | Extend BacktestConfig with riskPerTrade, compounding, leverage; extend BacktestMetrics with expectancy, expectancyPerR, calmarRatio |
+| `src/types/backtest.ts` (calculateMetrics) | Compute expectancy, expectancyPerR, calmarRatio |
+| `src/components/strategy/BacktestResults.tsx` | Break-even insight banner, expectancy display, CAGR computed metric |
+| `src/components/strategy/BacktestComparison.tsx` | Fix Y-axis formatter for small values, add domain auto-scaling |
+| `src/lib/constants/backtest-config.ts` | Add slippage constraints, expectancy + calmar to METRICS_CONFIG |
 
 ## What Does NOT Change
 
-- Database schema (ATR params stored in existing trade_management JSONB)
-- Backtest engine (separate iteration)
-- Monte Carlo simulation (out of scope -- requires dedicated engine)
-- Risk of Ruin calculation (requires Monte Carlo, deferred)
-- YouTube import scoring logic
-- Strategy sharing/cloning flow
+- Edge function `backtest-strategy` (will consume new config fields in a backend iteration)
+- Monte Carlo simulation (out of scope -- requires separate engine, not journal feature)
+- Walk-forward optimization (quant tool, not trading journal)
+- Liquidation modeling (requires exchange-specific margin logic)
+- Funding rate awareness (requires historical funding data API)
