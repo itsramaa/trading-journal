@@ -4,7 +4,7 @@
  */
 import { useMemo } from "react";
 import { PageHeader } from "@/components/ui/page-header";
-import { MarketSentimentWidget, WhaleTrackingWidget, TradingOpportunitiesWidget, VolatilityMeterWidget } from "@/components/market";
+import { MarketSentimentWidget, WhaleTrackingWidget, TradingOpportunitiesWidget, VolatilityMeterWidget, PortfolioImpactCard } from "@/components/market";
 import { BarChart3, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMultiSymbolMarketInsight } from "@/features/market-insight";
@@ -96,6 +96,8 @@ export default function MarketData() {
         isSelectedInWatchlist={isSelectedInWatchlist}
         onRetry={() => refetch()}
       />
+
+      <PortfolioImpactCard />
 
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
         <span>

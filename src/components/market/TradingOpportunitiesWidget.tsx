@@ -105,6 +105,13 @@ function TradingOpportunitiesContent({
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground">{opp.reason}</p>
+                {opp.targetPrice && opp.stopLoss && (
+                  <div className="flex items-center gap-3 mt-2 text-xs">
+                    <span className="text-profit font-mono">TP: {opp.targetPrice}%</span>
+                    <span className="text-loss font-mono">SL: {opp.stopLoss}%</span>
+                    <span className="text-muted-foreground font-mono">Risk: {opp.entryPrice}%</span>
+                  </div>
+                )}
               </div>
             ))}
           </div>

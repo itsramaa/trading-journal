@@ -118,21 +118,41 @@ export function AIAnalysisTab({
                   </div>
                 </div>
                 <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                  <span className="text-sm font-medium">Fear & Greed</span>
+                  <span className="text-sm font-medium">Overall Score</span>
                   <div className="flex items-center gap-2">
-                    <span className="text-xl font-bold">{sentimentData.sentiment.fearGreed.value}</span>
-                    <Badge variant="outline">{sentimentData.sentiment.fearGreed.label}</Badge>
+                    <span className="text-xl font-bold">{sentimentData.sentiment.technicalScore}%</span>
+                    <Badge variant="outline" className="capitalize">{sentimentData.sentiment.overall}</Badge>
                   </div>
                 </div>
               </div>
 
-              {/* AI Recommendation */}
-              <div className="p-3 rounded-lg border border-primary/30 bg-primary/5">
+              {/* AI Recommendation - Enhanced with structured data */}
+              <div className="p-3 rounded-lg border border-primary/30 bg-primary/5 space-y-2">
                 <div className="flex items-center gap-2 mb-1">
                   <Zap className="h-4 w-4 text-primary" />
                   <span className="text-sm font-medium">AI Recommendation</span>
                 </div>
                 <p className="text-sm text-muted-foreground">{sentimentData.sentiment.recommendation}</p>
+                {sentimentData.sentiment.structuredRecommendation && (
+                  <div className="space-y-1.5 pt-2 border-t border-primary/20 text-xs">
+                    <div className="flex items-center gap-2">
+                      <Badge variant={sentimentData.sentiment.structuredRecommendation.direction === 'LONG' ? 'default' : sentimentData.sentiment.structuredRecommendation.direction === 'SHORT' ? 'destructive' : 'secondary'} className="text-[10px]">
+                        {sentimentData.sentiment.structuredRecommendation.direction}
+                      </Badge>
+                      <span className="text-muted-foreground">
+                        Risk: {sentimentData.sentiment.structuredRecommendation.riskPct}% | 
+                        Target: +{sentimentData.sentiment.structuredRecommendation.targetPct}% | 
+                        Stop: -{sentimentData.sentiment.structuredRecommendation.stopPct}%
+                      </span>
+                    </div>
+                    <p className="text-muted-foreground italic">
+                      Trigger: {sentimentData.sentiment.structuredRecommendation.trigger}
+                    </p>
+                    <p className="text-muted-foreground">
+                      📊 {sentimentData.sentiment.structuredRecommendation.historicalContext}
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Market Signals */}

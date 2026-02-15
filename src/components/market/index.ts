@@ -6,3 +6,4 @@ export * from './MarketContextBadge';
 export * from './WhaleTrackingWidget';
 export * from './TradingOpportunitiesWidget';
 export * from './VolatilityMeterWidget';
+export * from './PortfolioImpactCard';

@@ -302,6 +302,22 @@ export function CalendarTab({ hideTitle = false }: CalendarTabProps) {
                           )}
                         </div>
                         
+                        {/* Historical Crypto Correlation Stats */}
+                        {event.historicalStats && event.historicalStats.sampleSize > 0 && (
+                          <div className="flex items-center gap-3 mt-2 text-xs p-1.5 rounded bg-primary/5 border border-primary/20">
+                            <Badge variant="outline" className="text-[10px] h-4 px-1">Historical</Badge>
+                            <span className="text-muted-foreground">
+                              BTC avg move: <span className="font-mono font-medium text-foreground">{event.historicalStats.avgBtcMove2h > 0 ? '+' : ''}{event.historicalStats.avgBtcMove2h.toFixed(1)}%</span> in 2h
+                            </span>
+                            <span className="text-muted-foreground">
+                              Vol spike prob: <span className="font-mono font-medium text-foreground">{event.historicalStats.volatilitySpikeProb}%</span>
+                            </span>
+                            <span className="text-muted-foreground">
+                              (n={event.historicalStats.sampleSize})
+                            </span>
+                          </div>
+                        )}
+                        
                         {event.aiPrediction && (
                           <div className="mt-2">
                             <CollapsibleTrigger className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors group">

@@ -22,12 +22,22 @@ export interface MarketSignal {
   change24h?: number;
 }
 
+export interface StructuredRecommendation {
+  trigger: string;
+  direction: string;
+  riskPct: number;
+  targetPct: number;
+  stopPct: number;
+  historicalContext: string;
+}
+
 export interface MarketSentiment {
   overall: SentimentDirection;
   confidence: number;
   signals: MarketSignal[];
   fearGreed: FearGreedIndex;
   recommendation: string;
+  structuredRecommendation?: StructuredRecommendation | null;
   technicalScore: number;
   onChainScore: number;
   macroScore: number;
