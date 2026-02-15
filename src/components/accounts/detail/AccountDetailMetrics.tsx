@@ -79,8 +79,10 @@ export function AccountDetailMetrics({
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               {isBinanceVirtual && activePositionsCount > 0
-                ? `${activePositionsCount} open position${activePositionsCount > 1 ? 's' : ''} active`
-                : 'Start trading to see performance metrics'}
+                ? `${activePositionsCount} open position${activePositionsCount > 1 ? 's' : ''} active. Metrics update after first close.`
+                : isBinanceVirtual
+                  ? 'Open a position to start tracking performance.'
+                  : 'Start trading or import history.'}
             </p>
           </CardContent>
         </Card>
