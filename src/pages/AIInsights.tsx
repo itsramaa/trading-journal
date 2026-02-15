@@ -47,6 +47,8 @@ import {
   getDayLabel
 } from "@/lib/constants/ai-analytics";
 import { calculateAdvancedRiskMetrics } from "@/lib/advanced-risk-metrics";
+import { useStrategyPerformance } from "@/hooks/use-strategy-performance";
+import { useTradingStrategies } from "@/hooks/use-trading-strategies";
 
 // Types
 interface PerformanceInsight {
@@ -80,6 +82,8 @@ export default function AIInsights() {
   const { data: contextualData } = useContextualAnalytics();
   const { formatPnl } = useCurrencyConversion();
   const [retryKey, setRetryKey] = useState(0);
+  const strategyPerfMap = useStrategyPerformance();
+  const { data: strategiesData } = useTradingStrategies();
 
   const closedTrades = useMemo(() => 
     trades.filter(t => t.status === 'closed'), [trades]
@@ -362,8 +366,65 @@ export default function AIInsights() {
       });
     }
 
+    // Strategy performance insights
+    if (strategiesData && strategiesData.length > 0) {
+      strategiesData.forEach(strategy => {
+        const perf = strategyPerfMap.get(strategy.id);
+        if (!perf || perf.totalTrades < DATA_QUALITY.MIN_TRADES_FOR_RANKING) return;
+        
+        const stratWR = perf.winRate * 100;
+        const overallWR = stats.winRate;
+        const delta = stratWR - overallWR;
+        
+        if (Math.abs(delta) > 10) {
+          result.push({
+            type: delta > 0 ? 'positive' : 'negative',
+            title: `${strategy.name}: ${delta > 0 ? 'Outperforming' : 'Underperforming'}`,
+            description: `${stratWR.toFixed(0)}% win rate vs ${overallWR.toFixed(0)}% overall (${perf.totalTrades} trades). ${delta > 0 ? 'This strategy shows edge.' : 'Review setup quality or consider pausing.'}`,
+            metric: `${delta > 0 ? '+' : ''}${delta.toFixed(0)}%`,
+            icon: delta > 0 ? TrendingUp : TrendingDown,
+            sampleSize: perf.totalTrades,
+            confidence: perf.totalTrades >= 30 ? 'high' : perf.totalTrades >= 15 ? 'medium' : 'low',
+          });
+        }
+      });
+    }
+
+    // Strategy adherence aggregation
+    const adherenceStats = new Map<string, { good: number; partial: number; poor: number; total: number }>();
+    closedTrades.forEach(trade => {
+      if (!trade.strategies || !(trade as any).post_trade_analysis?.strategy_adherence) return;
+      const rating = String((trade as any).post_trade_analysis.strategy_adherence).toLowerCase();
+      (trade.strategies as any[]).forEach((s: any) => {
+        const stat = adherenceStats.get(s.id) || { good: 0, partial: 0, poor: 0, total: 0 };
+        if (rating.includes('good') || rating.includes('high')) stat.good++;
+        else if (rating.includes('partial') || rating.includes('medium')) stat.partial++;
+        else stat.poor++;
+        stat.total++;
+        adherenceStats.set(s.id, stat);
+      });
+    });
+
+    adherenceStats.forEach((stat, stratId) => {
+      if (stat.total < 10) return;
+      const adherenceRate = (stat.good / stat.total) * 100;
+      const stratName = strategiesData?.find(s => s.id === stratId)?.name || 'Unknown';
+      
+      if (adherenceRate < 50) {
+        result.push({
+          type: 'negative',
+          title: `Low Strategy Adherence: ${stratName}`,
+          description: `Only ${adherenceRate.toFixed(0)}% of trades followed the strategy rules closely (${stat.total} trades). Discipline may be impacting results.`,
+          metric: `${adherenceRate.toFixed(0)}%`,
+          icon: AlertTriangle,
+          sampleSize: stat.total,
+          confidence: stat.total >= 20 ? 'medium' : 'low',
+        });
+      }
+    });
+
     return result;
-  }, [stats, formatPnl]);
+  }, [stats, formatPnl, strategiesData, strategyPerfMap, closedTrades]);
 
   // Generate action items
   const actionItems = useMemo((): ActionItem[] => {
