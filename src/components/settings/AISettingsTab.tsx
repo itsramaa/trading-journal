@@ -192,7 +192,7 @@ export function AISettingsTab() {
           <div className="flex items-center justify-between">
             <div>
               <Label>Learn from Wins</Label>
-              <p className="text-xs text-muted-foreground">Analyze winning patterns</p>
+              <p className="text-xs text-muted-foreground">Weight winning trade patterns higher in AI recommendations</p>
             </div>
             <Switch 
               checked={settings.learn_from_wins}
@@ -203,7 +203,7 @@ export function AISettingsTab() {
           <div className="flex items-center justify-between">
             <div>
               <Label>Learn from Losses</Label>
-              <p className="text-xs text-muted-foreground">Identify losing patterns to avoid</p>
+              <p className="text-xs text-muted-foreground">Include loss patterns in AI analysis to flag similar setups as warnings</p>
             </div>
             <Switch 
               checked={settings.learn_from_losses}
@@ -234,7 +234,7 @@ export function AISettingsTab() {
             step={5}
           />
           <p className="text-xs text-muted-foreground">
-            AI suggestions below this confidence level will be marked as less reliable
+            Confidence is based on historical pattern similarity and statistical edge strength. Suggestions below this threshold are shown with a low-confidence warning.
           </p>
         </CardContent>
       </Card>
@@ -258,9 +258,9 @@ export function AISettingsTab() {
               >
                 <span className="capitalize font-medium">{style}</span>
                 <span className="text-xs opacity-70">
-                  {style === 'conservative' && 'Fewer, safer signals'}
-                  {style === 'balanced' && 'Balanced approach'}
-                  {style === 'aggressive' && 'More opportunities'}
+                  {style === 'conservative' && 'Fewer signals, higher confidence filter, tighter entry criteria'}
+                  {style === 'balanced' && 'Standard signal frequency with moderate confidence filter'}
+                  {style === 'aggressive' && 'More signals, wider criteria, includes lower-confidence setups'}
                 </span>
               </Button>
             ))}

@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Trash2, RotateCcw, Calendar, TrendingUp, TrendingDown, AlertTriangle } from "lucide-react";
+import { Trash2, RotateCcw, Calendar, TrendingUp, TrendingDown, AlertTriangle, RefreshCw } from "lucide-react";
 import { useDeletedTrades, useRestoreDeletedTrade } from "@/hooks/use-deleted-trades";
 import { format, formatDistanceToNow } from "date-fns";
 import {
@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dialog";
 
 export function DeletedTradesPanel() {
-  const { data: deletedTrades, isLoading, error } = useDeletedTrades();
+  const { data: deletedTrades, isLoading, error, refetch } = useDeletedTrades();
   const restoreTrade = useRestoreDeletedTrade();
   const [restoringId, setRestoringId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState<string | null>(null);
@@ -70,7 +70,11 @@ export function DeletedTradesPanel() {
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
-              Failed to load deleted trades. The restore function may not be available yet.
+              Unable to load deleted trades. This could be a temporary connection issue.
+              <Button variant="outline" size="sm" onClick={() => refetch()} className="mt-2 ml-0 block">
+                <RefreshCw className="h-3 w-3 mr-2 inline" />
+                Retry
+              </Button>
             </AlertDescription>
           </Alert>
         </CardContent>

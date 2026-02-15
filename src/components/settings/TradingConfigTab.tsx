@@ -134,7 +134,7 @@ export function TradingConfigTab() {
               aria-label={`Risk per trade: ${riskPerTrade}%`}
             />
             <p className="text-xs text-muted-foreground">
-              Used for position size calculations in Risk Calculator
+              Used for position sizing across the app (Risk Calculator, Trade Entry, AI risk monitoring)
             </p>
           </div>
 
@@ -164,7 +164,7 @@ export function TradingConfigTab() {
             />
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <AlertTriangle className="h-3 w-3 text-[hsl(var(--chart-4))]" />
-              <span>Warning at {RISK_THRESHOLDS.warning_percent}% • Trading disabled at 100%</span>
+              <span>Warning at {RISK_THRESHOLDS.warning_percent}% • Trade Entry blocked in this app at 100%</span>
             </div>
           </div>
 
@@ -263,8 +263,13 @@ export function TradingConfigTab() {
             <p className="text-xs text-muted-foreground">
               {tradingAccounts.length === 0 
                 ? "No trading accounts available. Create one in the Accounts page."
-                : `${tradingAccounts.length} trading account(s) available`}
+                : `${tradingAccounts.length} trading ${tradingAccounts.length === 1 ? 'account' : 'accounts'} available`}
             </p>
+            {tradingAccounts.length === 1 && !defaultAccountId && (
+              <p className="text-xs text-[hsl(var(--chart-4))]">
+                Only one account available — consider setting it as default to skip selection.
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>

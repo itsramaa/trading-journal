@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Trash2, Info, Loader2 } from "lucide-react";
+import { Trash2, Info, Loader2, AlertTriangle } from "lucide-react";
 import { useUserSettings, useUpdateUserSettings } from "@/hooks/use-user-settings";
 import { toast } from "sonner";
 
@@ -93,6 +93,16 @@ export function RetentionPeriodSetting() {
             </div>
           ))}
         </RadioGroup>
+
+        {currentValue === "180" && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription className="text-sm">
+              Short retention may affect tax reporting if you need older records. 
+              Consider "1 Year" or "Never Delete" for compliance.
+            </AlertDescription>
+          </Alert>
+        )}
 
         <Alert>
           <Info className="h-4 w-4" />

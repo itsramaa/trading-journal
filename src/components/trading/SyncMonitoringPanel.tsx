@@ -62,6 +62,11 @@ export function SyncMonitoringPanel({
   } = useSyncMonitoring();
 
   const hasIssues = consecutiveFailures > 0 || dataQuality.hasReconciliationIssue;
+  const syncStatus = !lastSyncResult && consecutiveFailures === 0 
+    ? 'no-data' 
+    : hasIssues 
+      ? 'issues' 
+      : 'good';
 
   return (
     <div className={`space-y-4 ${className}`}>
@@ -72,10 +77,15 @@ export function SyncMonitoringPanel({
           <h3 className="font-semibold">Sync Monitoring</h3>
         </div>
         <Badge 
-          variant={hasIssues ? "secondary" : "outline"}
-          className={hasIssues ? "text-warning" : "text-profit"}
+          variant={syncStatus === 'good' ? "outline" : "secondary"}
+          className={syncStatus === 'good' ? "text-profit" : syncStatus === 'issues' ? "text-warning" : "text-muted-foreground"}
         >
-          {hasIssues ? (
+          {syncStatus === 'no-data' ? (
+            <>
+              <Clock className="h-3 w-3 mr-1" />
+              No Sync Yet
+            </>
+          ) : syncStatus === 'issues' ? (
             <>
               <AlertTriangle className="h-3 w-3 mr-1" />
               Needs Attention
