@@ -90,7 +90,7 @@ export function RiskMetricsCards({ className }: RiskMetricsCardsProps) {
       badgeVariant: metrics.sortinoRatio >= 1 ? 'profit' : 'loss',
     },
     {
-      label: 'Max Drawdown',
+      label: 'Max DD (All-Time)',
       value: `-${metrics.maxDrawdownPercent.toFixed(1)}%`,
       icon: TrendingDown,
       color: metrics.maxDrawdownPercent > 20 ? 'text-loss' : metrics.maxDrawdownPercent > 10 ? 'text-[hsl(var(--chart-4))]' : 'text-profit',

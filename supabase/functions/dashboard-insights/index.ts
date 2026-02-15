@@ -87,13 +87,19 @@ serve(async (req) => {
     // Always output in English per project language standard
     const systemPrompt = `You are an AI trading assistant helping traders analyze their portfolio. Provide concise, actionable, and constructive insights in English.
 
+CRITICAL RULES:
+- Use EXACT numbers as provided. Do NOT round, estimate, multiply, or change any financial figures.
+- If the balance is $47.85, write "$47.85" — never "$47,850" or "$47,846".
+- All monetary values in the data are already in their correct denomination.
+- When mentioning win rates, always specify the sample size (e.g., "10% win rate over last 20 trades").
+
 Focus on:
 1. Current portfolio status and deployment
 2. Risk warnings if any
 3. Recommendations based on trading patterns
 4. Best setups based on historical performance
 
-Use the provided function to return structured analysis.`;
+Use the provided function to return structured analysis. Do NOT include raw financial numbers in the summary text — they are already shown in the dashboard UI.`;
 
     // Calculate some metrics
     const totalPnl = recentTrades.reduce((sum: number, t: any) => sum + t.pnl, 0);

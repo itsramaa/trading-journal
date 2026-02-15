@@ -24,6 +24,7 @@ const riskLevelConfig = {
     icon: CheckCircle,
     label: 'Low Risk',
     description: 'Position is safe from ADL',
+    guidance: 'Your position is safe. No action needed.',
   },
   medium: {
     color: 'text-chart-4',
@@ -32,6 +33,7 @@ const riskLevelConfig = {
     icon: Shield,
     label: 'Medium Risk',
     description: 'Monitor your position',
+    guidance: 'Monitor your position. Consider reducing size if market volatility increases.',
   },
   high: {
     color: 'text-chart-5',
@@ -40,6 +42,7 @@ const riskLevelConfig = {
     icon: AlertTriangle,
     label: 'High Risk',
     description: 'Consider reducing position',
+    guidance: 'Your position may be auto-deleveraged. Reduce position size or add margin to lower risk.',
   },
   critical: {
     color: 'text-loss',
@@ -48,6 +51,7 @@ const riskLevelConfig = {
     icon: AlertTriangle,
     label: 'Critical Risk',
     description: 'ADL likely if market moves',
+    guidance: 'Immediate action recommended. Your position is at the front of the ADL queue. Reduce position now.',
   },
 };
 
@@ -65,37 +69,44 @@ function PositionADLRow({ symbol, side, quantile }: PositionADLProps) {
 
   return (
     <div className={cn(
-      "flex items-center justify-between p-3 rounded-lg border",
+      "p-3 rounded-lg border space-y-2",
       config.bgColor,
       config.borderColor
     )}>
-      <div className="flex items-center gap-3 min-w-0">
-        <div className={cn("shrink-0", config.color)}>
-          {side === 'LONG' ? (
-            <TrendingUp className="h-4 w-4" />
-          ) : (
-            <TrendingDown className="h-4 w-4" />
-          )}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className={cn("shrink-0", config.color)}>
+            {side === 'LONG' ? (
+              <TrendingUp className="h-4 w-4" />
+            ) : (
+              <TrendingDown className="h-4 w-4" />
+            )}
+          </div>
+          <CryptoIcon symbol={symbol} size={18} />
+          <div className="min-w-0">
+            <p className="text-sm font-medium truncate">{symbol}</p>
+            <p className="text-xs text-muted-foreground">{side}</p>
+          </div>
         </div>
-        <CryptoIcon symbol={symbol} size={18} />
-        <div className="min-w-0">
-          <p className="text-sm font-medium truncate">{symbol}</p>
-          <p className="text-xs text-muted-foreground">{side}</p>
-        </div>
-      </div>
 
-      <div className="flex items-center gap-3">
-        <div className="w-16">
-          <Progress 
-            value={progressValue} 
-            className={cn("h-2", riskLevel === 'critical' && "bg-loss/20")}
-          />
+        <div className="flex items-center gap-3">
+          <div className="w-16">
+            <Progress 
+              value={progressValue} 
+              className={cn("h-2", riskLevel === 'critical' && "bg-loss/20")}
+            />
+          </div>
+          <Badge variant="outline" className={cn("gap-1 shrink-0", config.color)}>
+            <Icon className="h-3 w-3" />
+            {quantile}/5
+          </Badge>
         </div>
-        <Badge variant="outline" className={cn("gap-1 shrink-0", config.color)}>
-          <Icon className="h-3 w-3" />
-          {quantile}/5
-        </Badge>
       </div>
+      {(riskLevel === 'high' || riskLevel === 'critical') && (
+        <p className={cn("text-xs pl-7", config.color)}>
+          💡 {config.guidance}
+        </p>
+      )}
     </div>
   );
 }

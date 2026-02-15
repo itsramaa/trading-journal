@@ -65,7 +65,7 @@ export function GoalTrackingWidget({ className }: { className?: string }) {
     const wins = monthTrades.filter((t) => (t.realized_pnl ?? t.pnl ?? 0) > 0).length;
     const winRate = monthTrades.length > 0 ? (wins / monthTrades.length) * 100 : 0;
 
-    // Simple drawdown calc
+    // Monthly drawdown calc — uses absolute loss as % of total if peak stays at 0
     let peak = 0;
     let balance = 0;
     let maxDd = 0;
@@ -74,8 +74,14 @@ export function GoalTrackingWidget({ className }: { className?: string }) {
       .forEach((t) => {
         balance += t.realized_pnl ?? t.pnl ?? 0;
         if (balance > peak) peak = balance;
-        const dd = peak > 0 ? ((peak - balance) / peak) * 100 : 0;
-        if (dd > maxDd) maxDd = dd;
+        if (peak > 0) {
+          const dd = ((peak - balance) / peak) * 100;
+          if (dd > maxDd) maxDd = dd;
+        } else if (balance < 0) {
+          // All losses, no peak — approximate DD as % of account
+          // This will be capped below
+          maxDd = Math.min(Math.abs(balance), 100);
+        }
       });
 
     return { totalPnl, winRate, maxDrawdown: maxDd, totalTrades: monthTrades.length };
@@ -108,7 +114,7 @@ export function GoalTrackingWidget({ className }: { className?: string }) {
     },
     {
       icon: Shield,
-      label: "Max Drawdown",
+      label: "Monthly Max DD",
       current: stats.maxDrawdown,
       target: goals.maxDrawdown,
       format: (v: number) => `${v.toFixed(1)}%`,

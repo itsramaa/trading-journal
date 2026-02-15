@@ -22,6 +22,7 @@ import { GoalTrackingWidget } from "@/components/dashboard/GoalTrackingWidget";
 import { WidgetErrorBoundary } from "@/components/ErrorBoundary";
 import { useTradeEntries } from "@/hooks/use-trade-entries";
 import { useRealtime } from "@/hooks/use-realtime";
+import { useUnifiedPortfolioData } from "@/hooks/use-unified-portfolio-data";
 import { useBinanceConnectionStatus } from "@/features/binance";
 import { usePositions } from "@/hooks/use-positions";
 import { useModeVisibility } from "@/hooks/use-mode-visibility";
@@ -63,6 +64,7 @@ const Dashboard = () => {
 
   // Trading data
   const { data: trades = [] } = useTradeEntries();
+  const portfolio = useUnifiedPortfolioData();
   
   // Mode visibility (C-01)
   const { showExchangeData } = useModeVisibility();
@@ -173,7 +175,7 @@ const Dashboard = () => {
         {/* Row 7: Equity Curve + Goal Tracking */}
         <div className="grid gap-4 lg:grid-cols-3">
           <WidgetErrorBoundary name="Equity Curve">
-            <EquityCurveChart className="lg:col-span-2" />
+            <EquityCurveChart className="lg:col-span-2" initialBalance={portfolio.totalCapital || 0} />
           </WidgetErrorBoundary>
           <WidgetErrorBoundary name="Goal Tracking">
             <GoalTrackingWidget />

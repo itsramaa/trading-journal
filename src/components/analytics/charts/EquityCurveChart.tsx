@@ -28,7 +28,7 @@ interface EquityCurveChartProps {
 export function EquityCurveChart({ initialBalance = 0, className }: EquityCurveChartProps) {
   const { data: trades = [] } = useModeFilteredTrades();
   const { format: formatCurrency } = useCurrencyConversion();
-  const [showAnnotations, setShowAnnotations] = useState(true);
+  const [showAnnotations, setShowAnnotations] = useState(false);
 
   const { curveData, maxDrawdown, maxDrawdownPercent, peakBalance, currentBalance } = useMemo(() => {
     const sorted = [...trades]
@@ -39,7 +39,9 @@ export function EquityCurveChart({ initialBalance = 0, className }: EquityCurveC
       return { curveData: [] as CurveDataPoint[], maxDrawdown: 0, maxDrawdownPercent: 0, peakBalance: 0, currentBalance: 0 };
     }
 
-    let balance = initialBalance;
+    // Use first trade's PnL to infer baseline if initialBalance is 0
+    const effectiveInitial = initialBalance > 0 ? initialBalance : 0;
+    let balance = effectiveInitial;
     let peak = balance;
     let maxDd = 0;
     let maxDdPercent = 0;
@@ -49,7 +51,8 @@ export function EquityCurveChart({ initialBalance = 0, className }: EquityCurveC
       balance += pnl;
       if (balance > peak) peak = balance;
       const drawdown = peak - balance;
-      const ddPercent = peak > 0 ? (drawdown / peak) * 100 : 0;
+      const denominator = effectiveInitial > 0 ? (effectiveInitial + peak - effectiveInitial) : peak;
+      const ddPercent = denominator > 0 ? Math.min((drawdown / denominator) * 100, 100) : 0;
       if (drawdown > maxDd) {
         maxDd = drawdown;
         maxDdPercent = ddPercent;
@@ -223,13 +226,15 @@ export function EquityCurveChart({ initialBalance = 0, className }: EquityCurveC
         {/* Summary stats row */}
         <div className="grid grid-cols-3 gap-4 mt-4 pt-3 border-t" role="group" aria-label="Equity curve summary statistics">
           <div>
-            <p className="text-xs text-muted-foreground">Peak</p>
-            <p className="text-sm font-semibold font-mono-numbers">{formatCurrency(peakBalance)}</p>
+            <p className="text-xs text-muted-foreground">Balance</p>
+            <p className={`text-sm font-semibold font-mono-numbers ${isProfit ? "text-profit" : "text-loss"}`}>
+              {formatCurrency(currentBalance)}
+            </p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Max Drawdown</p>
+            <p className="text-xs text-muted-foreground">Max DD (%)</p>
             <p className="text-sm font-semibold text-loss font-mono-numbers">
-              -{formatCurrency(maxDrawdown)}
+              -{maxDrawdownPercent.toFixed(1)}%
             </p>
           </div>
           <div>
