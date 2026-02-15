@@ -155,12 +155,39 @@ export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
         pnl: t.pnl || 0,
         date: t.trade_date,
       })),
-      strategies: strategies.map(s => ({
-        name: s.name,
-        trades: 0,
-        winRate: 0,
-      })),
-      source: portfolio.source, // Pass source to AI for context
+      strategies: strategies.map(s => {
+        // Calculate actual per-strategy win rate from closed trades
+        const strategyTrades = trades.filter(t => {
+          if (t.status !== 'closed') return false;
+          const pnl = t.realized_pnl ?? t.pnl ?? 0;
+          if (pnl === 0) return false;
+          // Match by trade_entry_strategies relation or tag/name match
+          const tradeStrategies = (t as any).trade_entry_strategies;
+          if (Array.isArray(tradeStrategies)) {
+            return tradeStrategies.some((ts: any) => ts.strategy_id === s.id);
+          }
+          // Fallback: check tags for strategy name
+          if (Array.isArray(t.tags)) {
+            return t.tags.some((tag: string) => tag.toLowerCase() === s.name.toLowerCase());
+          }
+          return false;
+        });
+        const wins = strategyTrades.filter(t => (t.realized_pnl ?? t.pnl ?? 0) > 0).length;
+        const total = strategyTrades.length;
+        return {
+          name: s.name,
+          trades: total,
+          winRate: total > 0 ? (wins / total) * 100 : 0,
+        };
+      }),
+      deploymentCategory: (() => {
+        const percent = totalBalance > 0 ? (deployedCapital / totalBalance) * 100 : 0;
+        if (percent === 0) return 'none';
+        if (percent < 10) return 'light';
+        if (percent <= 40) return 'moderate';
+        return 'heavy';
+      })(),
+      source: portfolio.source,
     };
   }, [portfolio, trades, strategies, positions]);
 
@@ -177,10 +204,10 @@ export function AIInsightsWidget({ className }: AIInsightsWidgetProps) {
   // Auto-load on mount if we have data and feature is enabled
   useEffect(() => {
     const positionsReady = portfolio.source !== 'binance' || !positionsLoading;
-    if (!hasLoaded && (trades.length > 0 || portfolio.hasData) && isDailySuggestionsEnabled && !settingsLoading && positionsReady) {
+    if (!hasLoaded && (trades.length > 0 || portfolio.hasData) && isDailySuggestionsEnabled && !settingsLoading && positionsReady && !marketLoading) {
       handleRefresh();
     }
-  }, [trades.length, portfolio.hasData, hasLoaded, isDailySuggestionsEnabled, settingsLoading]);
+  }, [trades.length, portfolio.hasData, hasLoaded, isDailySuggestionsEnabled, settingsLoading, positionsLoading, portfolio.source, marketLoading]);
 
   const getSentimentIcon = (sentiment: string) => {
     switch (sentiment) {

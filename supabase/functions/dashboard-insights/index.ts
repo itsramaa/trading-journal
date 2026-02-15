@@ -85,7 +85,11 @@ serve(async (req) => {
     // === END VALIDATION ===
 
     // Always output in English per project language standard
-    const marketScoreLabel = sanitizeString(body.marketScoreLabel || 'Unknown', 50);
+    const marketScoreLabel = sanitizeString(body.marketScoreLabel || 'Unavailable', 50);
+    const isMarketAvailable = !['Unavailable', 'Loading...', 'Unknown'].includes(marketScoreLabel);
+
+    // Deployment category from client (formal categories instead of raw %)
+    const deploymentCategory = sanitizeString(body.deploymentCategory || 'unknown', 20);
 
     // Categorize account size abstractly — no dollar thresholds in prompt
     const accountSizeCategory = (() => {
@@ -97,13 +101,18 @@ serve(async (req) => {
       return 'large';
     })();
 
+    // Market context block — only include if data is ready
+    const marketBlock = isMarketAvailable
+      ? `- The current market regime is: ${marketScoreLabel}. Treat this as authoritative. Do not contradict or reinterpret it.`
+      : `- Market regime data is not available. Do not mention or speculate about market conditions.`;
+
     const systemPrompt = `You are an AI trading assistant helping traders analyze their portfolio. Provide concise, actionable, and constructive insights in English.
 
 CRITICAL RULES:
 - Do NOT mention any specific dollar amounts, balances, or financial figures in your summary. The dashboard UI displays all financial numbers — you must never duplicate or rephrase them.
 - Refer to the account abstractly: "your account", "your balance", "your portfolio". Never say "$X" or "X dollars".
 - When mentioning win rates, always specify the sample size (e.g., "10% win rate over last 20 trades").
-- The current market regime is: ${marketScoreLabel}. Treat this as authoritative. Do not contradict or reinterpret it.
+${marketBlock}
 - You are a narrative layer, not an accounting engine. Never be a source of truth for financial numbers.
 
 Focus on:
@@ -126,11 +135,23 @@ Use the provided function to return structured analysis.`;
       ? strategies.reduce((best: any, s: any) => s.winRate > best.winRate ? s : best, strategies[0])
       : null;
 
+    // Deployment category descriptions
+    const deploymentDesc: Record<string, string> = {
+      none: 'none (no capital deployed)',
+      light: 'light (under 10% of capital)',
+      moderate: 'moderate (10-40% of capital)',
+      heavy: 'heavy (over 40% of capital)',
+    };
+
+    const marketLine = isMarketAvailable
+      ? `\nMARKET REGIME (authoritative): ${marketScoreLabel}`
+      : '';
+
     const userPrompt = `Analyze this trading dashboard data. Do NOT include any dollar amounts or financial figures in your summary.
 
 PORTFOLIO CONTEXT:
 - Account size: ${accountSizeCategory}
-- Capital deployment: ${deploymentPercent}%
+- Capital deployment: ${deploymentDesc[deploymentCategory] || `${deploymentCategory} (${deploymentPercent}%)`}
 - Open Positions: ${portfolioStatus.openPositions}
 
 RISK STATUS:
@@ -141,15 +162,17 @@ RECENT PERFORMANCE (last ${recentTrades.length} trades):
 - Win Rate: ${winRate}% (${wins} wins out of ${recentTrades.length})
 - Net result: ${totalPnl >= 0 ? 'Positive' : 'Negative'}
 ${recentTrades.slice(0, 5).map((t: any) => `- ${t.pair} ${t.direction}: ${t.pnl > 0 ? 'win' : t.pnl < 0 ? 'loss' : 'breakeven'}`).join('\n')}
-
-MARKET REGIME (authoritative): ${marketScoreLabel}
+${marketLine}
 
 STRATEGIES:
 ${strategies.length > 0 
-  ? strategies.map((s: any) => `- ${s.name}: ${s.trades} trades, ${s.winRate.toFixed(1)}% win rate`).join('\n')
+  ? strategies.map((s: any) => s.trades === 0 
+      ? `- ${s.name}: No trade data` 
+      : `- ${s.name}: ${s.trades} trades, ${s.winRate.toFixed(1)}% win rate`
+    ).join('\n')
   : 'No strategies defined yet'}
 
-Best performing strategy: ${bestStrategy ? `${bestStrategy.name} (${bestStrategy.winRate.toFixed(1)}%)` : 'N/A'}
+${bestStrategy && bestStrategy.trades > 0 ? `Best performing strategy: ${bestStrategy.name} (${bestStrategy.winRate.toFixed(1)}%)` : ''}
 
 Provide dashboard insights in English. Remember: absolutely no dollar amounts, no financial figures in the summary text.`;
 
