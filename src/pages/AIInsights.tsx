@@ -366,7 +366,7 @@ export default function AIInsights() {
       });
     }
 
-    // Strategy performance insights
+    // Strategy performance insights with adaptive threshold based on sample size
     if (strategiesData && strategiesData.length > 0) {
       strategiesData.forEach(strategy => {
         const perf = strategyPerfMap.get(strategy.id);
@@ -376,7 +376,10 @@ export default function AIInsights() {
         const overallWR = stats.winRate;
         const delta = stratWR - overallWR;
         
-        if (Math.abs(delta) > 10) {
+        // Adaptive threshold: require larger delta for smaller samples to reduce false edges
+        const deltaThreshold = perf.totalTrades >= 30 ? 10 : 20;
+        
+        if (Math.abs(delta) > deltaThreshold) {
           result.push({
             type: delta > 0 ? 'positive' : 'negative',
             title: `${strategy.name}: ${delta > 0 ? 'Outperforming' : 'Underperforming'}`,
@@ -410,11 +413,17 @@ export default function AIInsights() {
       const adherenceRate = (stat.good / stat.total) * 100;
       const stratName = strategiesData?.find(s => s.id === stratId)?.name || 'Unknown';
       
-      if (adherenceRate < 50) {
+      // Only warn if adherence is low AND strategy is underperforming
+      // Low adherence + outperformance may indicate flexible execution, not a problem
+      const perf = strategyPerfMap.get(stratId);
+      const stratWR = perf ? perf.winRate * 100 : null;
+      const isUnderperforming = stratWR !== null && stratWR < stats.winRate;
+      
+      if (adherenceRate < 50 && isUnderperforming) {
         result.push({
           type: 'negative',
           title: `Low Strategy Adherence: ${stratName}`,
-          description: `Only ${adherenceRate.toFixed(0)}% of trades followed the strategy rules closely (${stat.total} trades). Discipline may be impacting results.`,
+          description: `Only ${adherenceRate.toFixed(0)}% adherence with ${stratWR?.toFixed(0)}% win rate (below ${stats.winRate.toFixed(0)}% overall). Discipline may be impacting results.`,
           metric: `${adherenceRate.toFixed(0)}%`,
           icon: AlertTriangle,
           sampleSize: stat.total,

@@ -148,14 +148,22 @@ export function StrategyFormDialog({
     },
   });
 
-  // Computed effective R:R from exit rules
+  // Computed effective R:R from exit rules — only when units are consistent
   const effectiveRR = useMemo(() => {
-    const tp = exitRules.find(r => r.type === 'take_profit' && r.unit === 'rr');
-    const sl = exitRules.find(r => r.type === 'stop_loss' && r.unit === 'rr');
-    if (tp && sl && sl.value > 0) {
-      return tp.value / sl.value;
-    }
-    return null;
+    const tp = exitRules.find(r => r.type === 'take_profit');
+    const sl = exitRules.find(r => r.type === 'stop_loss');
+    if (!tp || !sl || sl.value <= 0) return null;
+    // Only compute if both use the same unit
+    if (tp.unit !== sl.unit) return null;
+    return tp.value / sl.value;
+  }, [exitRules]);
+
+  // Detect unit mismatch between TP and SL
+  const hasUnitMismatch = useMemo(() => {
+    const tp = exitRules.find(r => r.type === 'take_profit');
+    const sl = exitRules.find(r => r.type === 'stop_loss');
+    if (!tp || !sl) return false;
+    return tp.unit !== sl.unit;
   }, [exitRules]);
 
   // Structural validation warnings
@@ -188,9 +196,14 @@ export function StrategyFormDialog({
     if (selectedMarketType === 'futures' && defaultLeverage <= 1) {
       warnings.push('Futures strategy with 1x leverage — consider setting appropriate leverage.');
     }
+
+    // TP/SL unit mismatch
+    if (hasUnitMismatch) {
+      warnings.push('TP and SL use different units — Effective R:R cannot be calculated. Use consistent units for accurate validation.');
+    }
     
     return warnings;
-  }, [entryRules, exitRules, effectiveRR, positionSizingModel, selectedMarketType, defaultLeverage, form]);
+  }, [entryRules, exitRules, effectiveRR, hasUnitMismatch, positionSizingModel, selectedMarketType, defaultLeverage, form]);
 
   // Reset form when dialog opens/closes or editing strategy changes
   useEffect(() => {
@@ -702,8 +715,8 @@ export function StrategyFormDialog({
                     </SelectTrigger>
                     <SelectContent>
                       {POSITION_SIZING_MODELS.map(m => (
-                        <SelectItem key={m.value} value={m.value}>
-                          {m.label}
+                        <SelectItem key={m.value} value={m.value} disabled={m.value === 'kelly'}>
+                          {m.label}{m.value === 'kelly' ? ' (requires history)' : ''}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -712,12 +725,12 @@ export function StrategyFormDialog({
                     {POSITION_SIZING_MODELS.find(m => m.value === positionSizingModel)?.description}
                   </p>
 
-                  {/* Kelly warning */}
+                  {/* Kelly warning — disabled without trade history */}
                   {positionSizingModel === 'kelly' && (
                     <div className="p-2 rounded-md bg-[hsl(var(--chart-4))]/10 border border-[hsl(var(--chart-4))]/30">
                       <p className="text-xs text-[hsl(var(--chart-4))] flex items-center gap-1.5">
                         <AlertTriangle className="h-3 w-3 shrink-0" />
-                        Kelly requires a reliable win-rate estimate from {KELLY_MIN_TRADES_WARNING}+ trades. Using 1/4 Kelly ({KELLY_FRACTION_CAP}x) to limit risk.
+                        Kelly is disabled until this strategy has {KELLY_MIN_TRADES_WARNING}+ verified trades. Switch to Fixed % Risk until then.
                       </p>
                     </div>
                   )}
@@ -738,16 +751,13 @@ export function StrategyFormDialog({
                     </div>
                   )}
 
-                  {positionSizingModel === 'kelly' && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">Fraction: {KELLY_FRACTION_CAP}x (max)</span>
-                    </div>
-                  )}
-
                   {/* ATR Parameters */}
                   {positionSizingModel === 'atr_based' && (
                     <div className="space-y-2 p-2 border rounded-md bg-muted/20">
                       <Label className="text-xs font-medium">ATR Parameters</Label>
+                      <p className="text-[10px] text-muted-foreground">
+                        Position Size = Risk Amount / (ATR × Multiplier). These parameters will be consumed by the backtest engine.
+                      </p>
                       <div className="flex items-center gap-3">
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Period</Label>

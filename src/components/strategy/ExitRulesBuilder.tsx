@@ -63,12 +63,20 @@ export function ExitRulesBuilder({ rules, onChange }: ExitRulesBuilderProps) {
     return EXIT_RULE_COLOR_CLASSES[type] || 'border-border bg-muted/30';
   };
 
-  // Compute effective R:R from TP/SL
+  // Compute effective R:R from TP/SL — only when units match
   const effectiveRR = useMemo(() => {
-    const tp = rules.find(r => r.type === 'take_profit' && r.unit === 'rr');
-    const sl = rules.find(r => r.type === 'stop_loss' && r.unit === 'rr');
-    if (tp && sl && sl.value > 0) return tp.value / sl.value;
-    return null;
+    const tp = rules.find(r => r.type === 'take_profit');
+    const sl = rules.find(r => r.type === 'stop_loss');
+    if (!tp || !sl || sl.value <= 0) return null;
+    if (tp.unit !== sl.unit) return null;
+    return tp.value / sl.value;
+  }, [rules]);
+
+  const hasUnitMismatch = useMemo(() => {
+    const tp = rules.find(r => r.type === 'take_profit');
+    const sl = rules.find(r => r.type === 'stop_loss');
+    if (!tp || !sl) return false;
+    return tp.unit !== sl.unit;
   }, [rules]);
 
   return (
@@ -80,6 +88,11 @@ export function ExitRulesBuilder({ rules, onChange }: ExitRulesBuilderProps) {
             {effectiveRR !== null && (
               <Badge variant="secondary" className="text-xs">
                 Effective R:R {effectiveRR.toFixed(1)}:1
+              </Badge>
+            )}
+            {hasUnitMismatch && (
+              <Badge variant="destructive" className="text-xs">
+                Unit mismatch
               </Badge>
             )}
             <Badge variant="outline" className="text-xs">
