@@ -1,180 +1,172 @@
 
 
-# Performance Page: Metric Integrity & Information Hierarchy Fix
+# Metric Integrity Hardening: 7 Refinements
 
-Four targeted fixes addressing calculation inconsistency, misleading empty metrics, missing narrative, and cognitive overload.
-
----
-
-## Problem Summary
-
-1. **Max Drawdown mismatch**: Key Metrics shows 108.40% while Drawdown Chart shows -100.00%. Root cause: `calculateTradingStats()` divides by `peak` (cumulative PnL) instead of `initialBalance + peak` (total equity at peak). Without initial balance, small accounts get impossible percentages.
-2. **Avg R:R = 0.00:1**: `calculateRR()` returns 0 when `stop_loss` is null. Displaying "0.00:1" implies zero edge; it actually means "not enough data to calculate."
-3. **Best Day negative**: Technically correct (no profit day in 7D window), but "Best Day: -$0.98" with a Trophy icon sends contradictory signals.
-4. **No narrative**: 20+ metrics displayed flat, no hierarchy, no verdict. User must self-interpret.
+Targeted fixes for edge cases and consistency gaps identified after the initial metric integrity pass.
 
 ---
 
 ## Changes
 
-### 1. Fix Max Drawdown Calculation (Critical)
+### 1. Type-Safe R:R with `null` Instead of Magic Zero
 
 **File:** `src/lib/trading-calculations.ts`
 
-The `calculateTradingStats` function currently computes drawdown as:
+Change `avgRR` type from `number` to `number | null` in `TradingStats` interface. Return `null` when no trades have stop-loss data (currently returns `0`, which is ambiguous).
 
+```typescript
+// TradingStats interface
+avgRR: number | null;
+
+// In calculateTradingStats
+const avgRR = rrValues.length > 0
+  ? rrValues.reduce((sum, rr) => sum + Math.abs(rr), 0) / rrValues.length
+  : null;
+
+// emptyStats
+avgRR: null,
 ```
-maxDrawdownPercent = peak > 0 ? (maxDrawdown / peak) * 100 : 0
-```
-
-This divides by cumulative PnL peak only, ignoring initial capital. For a $47 wallet with $5 cumulative peak, a $6 drawdown becomes 120%.
-
-Fix: Add optional `initialBalance` parameter and use the standardized formula (matching `DrawdownChart` and the project's drawdown-calculation-standard memory):
-
-```
-drawdownBase = initialBalance + peak
-maxDrawdownPercent = drawdownBase > 0 ? (maxDrawdown / drawdownBase) * 100 : 0
-```
-
-Cap at 100%.
-
-**File:** `src/pages/Performance.tsx`
-
-Pass the user's initial balance (from account data or a sensible default) to `calculateTradingStats()`.
-
-### 2. Guard Invalid Metrics Display
 
 **File:** `src/components/performance/PerformanceKeyMetrics.tsx`
 
-| Metric | Current | Fix |
-|--------|---------|-----|
-| Avg R:R | Shows "0.00:1" when no SL data | Show "N/A" with tooltip "Set stop loss on trades to calculate R:R" |
-| Sharpe Ratio | Shows value even with < 30 trades | Show value but add "(low sample)" subtitle when totalTrades < 30 |
-| Max Drawdown | Shows raw number | Already fixed by calculation fix above |
-
-The R:R card checks `stats.avgRR === 0 && stats.totalTrades > 0` to distinguish "no data" from "actual zero."
-
-### 3. Fix 7-Day Best/Worst Day Framing
-
-**File:** `src/components/analytics/SevenDayStatsCard.tsx`
-
-When `bestDay.pnl < 0`:
-- Change label from "Best Day" to "Least Loss Day"
-- Change icon from Trophy (gold, implies achievement) to a neutral Activity icon
-
-When `worstDay.pnl > 0`:
-- Change label from "Worst Day" to "Smallest Gain Day"
-
-This ensures the framing matches the data's actual meaning.
-
-### 4. Add Performance Summary Card
-
-**File:** New component `src/components/performance/PerformanceSummaryCard.tsx`
-
-A single card at the top of the Overview tab (above 7-Day Stats) that provides a quick verdict:
-
-```
-+------------------------------------------------------------------+
-| Performance Summary                               115 trades     |
-|                                                                  |
-| Net P&L: +$3.33          Win Rate: 26.1%                        |
-| Expectancy: $0.02/trade  Profit Factor: 1.04                    |
-|                                                                  |
-| Verdict: Borderline break-even. Low win rate offset by           |
-|          favorable R:R on winners. Drawdown risk elevated.       |
-+------------------------------------------------------------------+
+Update guard to use `null` check:
+```typescript
+{stats.avgRR === null
+  ? <span className="text-muted-foreground">N/A</span>
+  : formatRatio(stats.avgRR)
+}
 ```
 
-The verdict is generated deterministically (not AI) using a simple rule engine:
+**File:** `src/components/performance/PerformanceSummaryCard.tsx` -- no change needed (doesn't display R:R).
 
-| Condition | Label |
-|-----------|-------|
-| expectancy > avgPnl * 0.5 AND winRate > 50 | "Consistently profitable" |
-| totalPnl > 0 AND winRate < 40 | "Profitable but inconsistent. Gains driven by large winners." |
-| totalPnl > 0 AND expectancy < 0.1 | "Borderline break-even. Edge is thin." |
-| totalPnl < 0 | "Currently unprofitable. Review risk and strategy." |
-| maxDrawdownPercent > 30 | Append "Drawdown risk elevated." |
+**Downstream callers** (`StrategyPerformance`, `BulkExport`, `FinalChecklist`): Update type references. `StrategyPerformance.avgRR` also becomes `number | null`.
 
-This provides the "story headline" the page currently lacks.
+### 2. Sharpe Ratio: Guard Zero Variance
 
-### 5. Hide Empty Context Sections
+**File:** `src/lib/trading-calculations.ts`
 
-**File:** `src/components/performance/PerformanceContextTab.tsx`
+When `stdDev === 0`, Sharpe is mathematically undefined. Currently returns `0`. Change to `null`.
 
-Currently renders "0 trades analyzed" sections. Fix:
-- `CombinedContextualScore`: Only render if `filteredTrades` has at least 1 trade with `market_context` data.
-- `EventDayComparison`: Only render if either `eventDay` or `normalDay` has `totalTrades > 0`.
-- `VolatilityLevelChart`: Only render if `byVolatility` has entries with data.
+```typescript
+// TradingStats interface
+sharpeRatio: number | null;
 
-When the entire Context tab has zero renderable sections, show a single empty state: "Complete trades with market context enabled to see environmental analysis."
+// In calculateTradingStats
+const sharpeRatio = stdDev > 0 ? (meanReturn / stdDev) * Math.sqrt(252) : null;
+```
+
+**File:** `src/components/performance/PerformanceKeyMetrics.tsx`
+
+```typescript
+<div className="text-xl font-bold">
+  {stats.sharpeRatio === null
+    ? <span className="text-muted-foreground">N/A</span>
+    : stats.sharpeRatio.toFixed(2)
+  }
+</div>
+```
+
+### 3. Verdict Condition Reorder
+
+**File:** `src/components/performance/PerformanceSummaryCard.tsx`
+
+Current order checks `expectancy < 0.1` before `winRate < 40`. A low-win-rate system that is profitable is structurally more important than thin expectancy. Reorder:
+
+```typescript
+if (stats.totalPnl < 0) {
+  // Unprofitable
+} else if (stats.totalPnl > 0 && stats.winRate < 40) {
+  // Profitable but inconsistent -- structural signal first
+} else if (stats.totalPnl > 0 && stats.expectancy < 0.1) {
+  // Borderline break-even -- thin edge second
+} else if (stats.winRate >= 50 && stats.profitFactor >= 1.5) {
+  // Consistently profitable
+} else {
+  // Moderately profitable
+}
+```
+
+This is already the correct order in the current file (lines 19-29). Confirmed -- no change needed here.
+
+### 4. Edge Badge Color Mapping
+
+**File:** `src/components/performance/PerformanceSummaryCard.tsx`
+
+Current `getEdgeLabel` returns Badge `variant` but all variants use the same muted palette. Map to semantic colors for instant scan:
+
+| Edge | Badge variant | Tailwind class override |
+|------|--------------|------------------------|
+| Strong | `default` | green tint: `bg-profit/10 text-profit border-profit/20` |
+| Moderate | `outline` | default (no override) |
+| Low | `secondary` | yellow tint: `bg-yellow-500/10 text-yellow-600 border-yellow-500/20` |
+| Negative | `destructive` | already red |
+
+Use `className` overrides on the Badge rather than adding new variants.
+
+### 5. initialBalance = 0 Warning
+
+**File:** `src/components/performance/PerformanceKeyMetrics.tsx`
+
+When `stats.maxDrawdownPercent > 0` and no initial balance is available (pass as prop), show a subtle hint under the Max Drawdown card:
+
+```typescript
+{!hasInitialBalance && stats.totalTrades > 0 && (
+  <p className="text-xs text-muted-foreground">Set initial balance for accurate %</p>
+)}
+```
+
+This requires passing a `hasInitialBalance: boolean` prop from Performance.tsx (derived from whether accounts data has a non-zero balance).
+
+### 6. DrawdownChart Consistency Verification
+
+**File:** `src/pages/Performance.tsx`
+
+Currently `DrawdownChart` is called without `initialBalance`:
+```typescript
+<DrawdownChart trades={filteredTrades} />
+```
+
+Pass `initialBalance` to match `calculateTradingStats`:
+```typescript
+<DrawdownChart trades={filteredTrades} initialBalance={initialBalance} />
+```
+
+This ensures the chart and the key metric card always show the same number.
+
+### 7. Context Tab -- Already Correct
+
+The `PerformanceContextTab` already guards sections with `totalTrades > 0` (not `totalPnl !== 0`). Sections with valid data but zero PnL will still render. No change needed.
 
 ---
 
 ## Technical Details
 
-### Drawdown Fix in `calculateTradingStats`
+### Type Change Ripple
+
+Changing `avgRR` and `sharpeRatio` to `number | null` affects:
+
+| Consumer | Impact |
+|----------|--------|
+| `PerformanceKeyMetrics` | Already guarded, update to `null` check |
+| `PerformanceSummaryCard` | Does not display R:R or Sharpe |
+| `BulkExport` | Uses `stats.avgRR` in export -- format as "N/A" when null |
+| `FinalChecklist` | Passes stats to AI -- null is fine for AI context |
+| `StrategyPerformance` | `avgRR` in strategy breakdown also becomes `number \| null` |
+| `calculateStrategyPerformance` | Same null logic for per-strategy R:R |
+
+### Edge Badge Colors
 
 ```typescript
-export function calculateTradingStats(
-  trades: TradeEntry[],
-  initialBalance: number = 0  // NEW optional param
-): TradingStats {
-  // ... existing code ...
-
-  // Max drawdown calculation (equity curve based)
-  // ... existing peak/drawdown loop ...
-
-  const drawdownBase = initialBalance + peak;
-  const maxDrawdownPercent = drawdownBase > 0
-    ? Math.min((maxDrawdown / drawdownBase) * 100, 100)
-    : 0;
-
-  // ... rest unchanged ...
+function getEdgeBadgeClass(label: string): string {
+  switch (label) {
+    case 'Strong': return 'bg-profit/10 text-profit border-profit/20';
+    case 'Low': return 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20';
+    default: return '';
+  }
 }
 ```
 
-### Summary Verdict Engine
-
-```typescript
-function generateVerdict(stats: TradingStats): string {
-  const parts: string[] = [];
-  
-  if (stats.totalPnl < 0) {
-    parts.push("Currently unprofitable. Review risk controls and strategy adherence.");
-  } else if (stats.expectancy < 0.1 && stats.totalPnl > 0) {
-    parts.push("Borderline break-even. Edge is thin.");
-  } else if (stats.winRate < 40 && stats.totalPnl > 0) {
-    parts.push("Profitable but inconsistent. Gains driven by large winners.");
-  } else if (stats.winRate >= 50 && stats.profitFactor >= 1.5) {
-    parts.push("Consistently profitable with solid edge.");
-  } else {
-    parts.push("Moderately profitable.");
-  }
-  
-  if (stats.maxDrawdownPercent > 30) {
-    parts.push("Drawdown risk elevated relative to returns.");
-  }
-  
-  return parts.join(" ");
-}
-```
-
-### R:R Display Guard
-
-```typescript
-// In PerformanceKeyMetrics
-<CardContent>
-  <div className="text-xl font-bold">
-    {stats.avgRR === 0 && stats.totalTrades > 0
-      ? <span className="text-muted-foreground">N/A</span>
-      : formatRatio(stats.avgRR)
-    }
-  </div>
-  {stats.avgRR === 0 && stats.totalTrades > 0 && (
-    <p className="text-xs text-muted-foreground">Set stop loss to calculate</p>
-  )}
-</CardContent>
-```
+Applied via `className` on Badge, works with existing `variant` prop.
 
 ---
 
@@ -182,12 +174,10 @@ function generateVerdict(stats: TradingStats): string {
 
 | File | Change |
 |------|--------|
-| `src/lib/trading-calculations.ts` | Add `initialBalance` param to `calculateTradingStats`; fix drawdown % formula |
-| `src/pages/Performance.tsx` | Pass initialBalance to stats calculation; add SummaryCard to overview |
-| `src/components/performance/PerformanceKeyMetrics.tsx` | Guard R:R and Sharpe display for insufficient data |
-| `src/components/analytics/SevenDayStatsCard.tsx` | Fix Best/Worst Day label when value contradicts framing |
-| `src/components/performance/PerformanceContextTab.tsx` | Hide sections with zero analyzable data |
-| `src/components/performance/PerformanceSummaryCard.tsx` | New: deterministic verdict card |
+| `src/lib/trading-calculations.ts` | `avgRR` and `sharpeRatio` become `number \| null`; null returns for invalid states |
+| `src/components/performance/PerformanceKeyMetrics.tsx` | Null checks for R:R and Sharpe; initialBalance warning |
+| `src/components/performance/PerformanceSummaryCard.tsx` | Semantic badge colors for edge label |
+| `src/pages/Performance.tsx` | Pass `initialBalance` to DrawdownChart |
 
 ---
 
@@ -195,9 +185,15 @@ function generateVerdict(stats: TradingStats): string {
 
 | Before | After |
 |--------|-------|
-| Max Drawdown 108.40% (impossible) | Capped, uses equity base (initialBalance + peak) |
-| Avg R:R "0.00:1" (misleading) | "N/A" with explanation when no SL data |
-| Best Day -$0.98 with Trophy icon | "Least Loss Day" with neutral icon |
-| No narrative, 20+ flat metrics | Summary card with deterministic verdict at top |
-| Empty context sections rendered | Hidden when no data; single empty state fallback |
+| `avgRR: 0` when no SL data (ambiguous) | `avgRR: null` (explicit "no data") |
+| `sharpeRatio: 0` when zero variance | `sharpeRatio: null` (explicit "undefined") |
+| Edge badge all same muted color | Green/Yellow/Red semantic tints |
+| DrawdownChart missing initialBalance | Receives same initialBalance as stats |
+| No warning when initialBalance = 0 | Subtle hint under Max Drawdown |
 
+## What Does NOT Change
+
+- Verdict condition order (already correct after review)
+- Context tab guards (already uses `totalTrades > 0`)
+- Drawdown formula itself (already fixed in prior pass)
+- Calculation logic for other metrics
