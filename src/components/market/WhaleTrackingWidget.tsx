@@ -1,8 +1,7 @@
 /**
- * Whale Tracking Widget - Volume-based whale activity detection
- * Extracted from MarketData.tsx for reusability
+ * Volume Anomaly Detector - Statistical volume spike detection (>95th percentile)
+ * Renamed from "Whale Tracking" — honest labeling of volume-based detection
  * Wrapped with ErrorBoundary for graceful API failure handling
- * Phase 2A: Shows detection methodology for transparency
  */
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +24,14 @@ interface WhaleTrackingWidgetProps {
   className?: string;
 }
 
+function getSignalLabel(signal: WhaleSignal): string {
+  switch (signal) {
+    case 'ACCUMULATION': return 'HIGH VOL BULLISH';
+    case 'DISTRIBUTION': return 'HIGH VOL BEARISH';
+    default: return 'NORMAL';
+  }
+}
+
 function getWhaleSignalColor(signal: WhaleSignal) {
   switch (signal) {
     case 'ACCUMULATION': return 'bg-profit';
@@ -45,11 +52,11 @@ function WhaleTrackingContent({
   // Handle async data errors
   if (error) {
     return (
-      <Card className={className} role="region" aria-label="Whale Tracking">
+      <Card className={className} role="region" aria-label="Volume Anomaly Detector">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-lg">
             <Activity className="h-5 w-5 text-primary" />
-            Whale Tracking
+            Volume Anomaly Detector
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -65,12 +72,12 @@ function WhaleTrackingContent({
   }
 
   return (
-    <Card className={className} role="region" aria-label="Whale Tracking">
+    <Card className={className} role="region" aria-label="Volume Anomaly Detector">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Activity className="h-5 w-5 text-primary" />
-            <CardTitle className="text-lg">Whale Tracking</CardTitle>
+            <CardTitle className="text-lg">Volume Anomaly Detector</CardTitle>
           </div>
           <Badge variant="outline">
             {!isSelectedInWatchlist && selectedAsset 
@@ -79,7 +86,7 @@ function WhaleTrackingContent({
           </Badge>
         </div>
         <CardDescription>
-          Volume-based whale activity detection
+          Statistical volume spike detection (&gt;95th percentile)
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -92,7 +99,7 @@ function WhaleTrackingContent({
         ) : whaleData.length === 0 ? (
           <div className="text-center py-6 text-muted-foreground">
             <Activity className="h-8 w-8 mx-auto mb-2 opacity-50" />
-            <p className="text-sm">No whale activity detected</p>
+            <p className="text-sm">No volume anomalies detected</p>
           </div>
         ) : (
           whaleData.map((whale) => (
@@ -110,12 +117,12 @@ function WhaleTrackingContent({
                         <Badge 
                           variant="secondary" 
                           className={cn(
-                            "text-xs",
+                            "text-[10px]",
                             whale.signal === 'ACCUMULATION' && "bg-profit/20 text-profit",
                             whale.signal === 'DISTRIBUTION' && "bg-loss/20 text-loss"
                           )}
                         >
-                          {whale.signal}
+                          {getSignalLabel(whale.signal)}
                         </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
@@ -169,7 +176,7 @@ function WhaleTrackingContent({
 export function WhaleTrackingWidget(props: WhaleTrackingWidgetProps) {
   return (
     <ErrorBoundary 
-      title="Whale Tracking" 
+      title="Volume Anomaly Detector" 
       onRetry={props.onRetry}
     >
       <WhaleTrackingContent {...props} />

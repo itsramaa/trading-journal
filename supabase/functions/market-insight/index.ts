@@ -519,10 +519,10 @@ serve(async (req) => {
         exchangeFlowEstimate: data.whale.volumeChange > 20 ? (data.ticker.change > 0 ? 'outflow' : 'inflow') : 'balanced',
         confidence: data.whale.confidence,
         description: data.whale.signal === 'ACCUMULATION'
-          ? `High volume with price increase. Whales accumulating ${data.asset}.`
+          ? `Volume anomaly: +${data.whale.volumeChange.toFixed(1)}% spike with bullish price action for ${data.asset}.`
           : data.whale.signal === 'DISTRIBUTION'
-          ? `High volume with price decrease. Distribution detected for ${data.asset}.`
-          : `Normal trading activity for ${data.asset}. No clear whale signal.`,
+          ? `Volume anomaly: +${data.whale.volumeChange.toFixed(1)}% spike with bearish price action for ${data.asset}.`
+          : `Normal trading volume for ${data.asset}. No statistical anomaly.`,
         method: data.whale.method,
         thresholds: data.whale.thresholds,
       });

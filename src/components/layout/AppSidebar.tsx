@@ -48,7 +48,7 @@ const navigationGroups = [
     items: [
       { title: "Economic Calendar", url: "/calendar", icon: Calendar },
       { title: "Top Movers", url: "/top-movers", icon: Flame },
-      { title: "Market Data", url: "/market-data", icon: BarChart3 },
+      { title: "Flow & Liquidity", url: "/market-data", icon: BarChart3 },
       { title: "Market Bias", url: "/market", icon: TrendingUp },
     ],
   },

@@ -49,7 +49,7 @@ const PAGES = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard, shortcut: "D", domain: null },
   { title: "Market Bias", url: "/market", icon: TrendingUp, shortcut: "M", domain: "Market" },
   { title: "Economic Calendar", url: "/calendar", icon: Calendar, shortcut: "C", domain: "Market" },
-  { title: "Market Data", url: "/market-data", icon: BarChart3, shortcut: "V", domain: "Market" },
+  { title: "Flow & Liquidity", url: "/market-data", icon: BarChart3, shortcut: "V", domain: "Market" },
   { title: "Top Movers", url: "/top-movers", icon: Flame, shortcut: "O", domain: "Market" },
   { title: "Trading Journal", url: "/trading", icon: Notebook, shortcut: "T", domain: "Journal" },
   { title: "Closed Trades", url: "/trading?tab=closed", icon: History, shortcut: null, domain: "Journal" },
