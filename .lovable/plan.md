@@ -1,84 +1,216 @@
 
 
-# Backtest Engine: Leverage Model Fix
+# Bulk Export Page: UX Polish & Information Clarity
 
-Addresses the critical leverage × risk distortion. The other two concerns (PnL unit consistency and exposure overlap) are verified safe -- no changes needed.
+Addresses feedback across all 5 tabs plus 3 system-level improvements.
 
 ---
 
-## Issue: Leverage Multiplies Risk Instead of Reducing Margin
+## Tab 1: "Binance" → "Exchange"
 
-**Current code (line 326):**
-```
-quantity = (riskAmount / stopDistance) * leverageMultiplier
-```
+### 1a. Rename tab and internal references
 
-This makes a 10x leveraged trade risk 10x the intended amount. That is not how futures work -- leverage reduces margin requirement, not increases risk per trade.
+**File:** `src/pages/BulkExport.tsx`
 
-**Correct model:**
+- Tab trigger label: "Binance" → "Exchange"
+- Tab value stays `binance` internally (no URL breakage)
+- Alert title: "About Binance Exports" → "About Exchange Exports"
+- Update the "Exchange Not Connected" alert to say: "Connect your exchange API in Settings to export..."
 
-In futures, risk is always:
-```
-PositionSize = RiskAmount / StopDistance
-```
+### 1b. Connection badge clarity
 
-Leverage only determines how much margin (collateral) is required to hold that position:
+Replace the header badges:
 ```
-MarginRequired = (PositionSize * EntryPrice) / Leverage
+Before: "Exchange Connected" + "Mode: Live"
+After:  "Connected: Binance Futures (Live)" or "Connected: Binance Futures (Testnet)"
 ```
 
-So **quantity stays the same regardless of leverage**. What changes is whether the trader has enough margin to open the position.
+If not connected, keep "Paper Mode" badge as-is.
 
-### Fix
+The mode badge currently shows `TRADE_MODE_LABELS[tradeMode]` which is "Live" or "Paper". Instead, when connected, combine into one badge showing exchange name + account type.
 
-**File:** `supabase/functions/backtest-strategy/index.ts` (lines 321-326)
+### 1c. UTC timezone notice
 
-Replace the position sizing block:
+Add below the date range description (line 291):
+```
+All timestamps are in UTC. End date is inclusive.
+```
+
+### 1d. Export type descriptions - add clarification
+
+Update `getExportTypeDescription` in `src/features/binance/useBinanceBulkExport.ts`:
+```
+order: "All placed orders (instructions to buy/sell) including cancelled and filled"
+trade: "Executed fills with entry/exit prices, quantities, and commission details"
+```
+
+### 1e. Tax tips - adaptive currency note
+
+Change line 409 from:
+```
+"All amounts are in USDT"
+```
+To:
+```
+"All amounts are denominated in your margin asset (typically USDT). Multi-asset margin accounts may include other stablecoins."
+```
+
+---
+
+## Tab 2: Journal Export - Period context
+
+**File:** `src/components/settings/JournalExportCard.tsx`
+
+The button currently says "Export {trades.length} Trades" with no date context.
+
+Compute the date range from the actual trades data:
+```typescript
+const dateRangeLabel = useMemo(() => {
+  if (!trades || trades.length === 0) return '';
+  const sorted = [...trades].sort((a, b) => 
+    new Date(a.trade_date).getTime() - new Date(b.trade_date).getTime()
+  );
+  const from = format(new Date(sorted[0].trade_date), 'MMM d, yyyy');
+  const to = format(new Date(sorted[sorted.length - 1].trade_date), 'MMM d, yyyy');
+  return `${from} - ${to}`;
+}, [trades]);
+```
+
+Update button text:
+```
+Export 115 Trades (Jan 1 - Feb 15, 2026)
+```
+
+---
+
+## Tab 3: Analytics - Period context + empty states
+
+**File:** `src/pages/BulkExport.tsx` (analytics tab section, lines 428-529)
+
+### 3a. Performance & Heatmap cards: add date range
+
+Same approach as Journal -- compute from `closedTrades` and show the period:
+```
+Badge: "114 trades (Jan 1 - Feb 15, 2026)"
+```
+
+### 3b. Heatmap card layout fix
+
+The badge and button currently stack without spacing. Add proper `space-y-3` structure (already present but the badge text may run into the button). Ensure the badge is on its own line with the period label.
+
+### 3c. Contextual Analytics empty state
+
+Replace:
+```
+"0 trades analyzed"
+```
+With:
+```
+"No trades match contextual filters. Visit AI Insights to configure analysis."
+```
+
+When data exists but `tradesWithContext === 0`:
+```
+"No trades have market context attached. Enrich trades via Import & Sync."
+```
+
+---
+
+## Tab 4: Reports - Better empty states + weekly details
+
+**File:** `src/pages/BulkExport.tsx` (reports tab, lines 532-621)
+
+### 4a. Sync Reconciliation empty state
+
+Replace "No sync data" badge with an informative description:
+```typescript
+{!lastSyncResult && (
+  <div className="text-sm text-muted-foreground space-y-1">
+    <p>No reconciliation data available.</p>
+    <p className="text-xs">This report compares exchange trades with journal records. Run a Full Recovery sync first.</p>
+  </div>
+)}
+```
+
+### 4b. Weekly Report - show date ranges
+
+Add week range labels to the buttons:
+```typescript
+const now = new Date();
+const thisWeekStart = startOfWeek(now, { weekStartsOn: 1 });
+const thisWeekEnd = endOfWeek(now, { weekStartsOn: 1 });
+const lastWeekStart = subDays(thisWeekStart, 7);
+const lastWeekEnd = subDays(thisWeekStart, 1);
+```
+
+Display:
+```
+This Week (Feb 10 - Feb 16)
+Last Week (Feb 3 - Feb 9)
+```
+
+Import `startOfWeek`, `endOfWeek` from date-fns.
+
+---
+
+## Tab 5: Backup - Grammar fix + restore warning
+
+**File:** `src/components/settings/SettingsBackupRestore.tsx`
+
+### 5a. Pluralization fix (line 241)
 
 ```typescript
-const riskBase = config.compounding ? balance : config.initialCapital;
-const riskPercent = config.riskPerTrade || 0.02;
-const riskAmount = riskBase * riskPercent;
-const stopDistance = entryPrice * (slPercent / 100);
-const quantity = riskAmount / stopDistance;  // Leverage does NOT scale risk
-
-// Margin check: ensure position fits within available margin
-const leverageMultiplier = config.leverage || 1;
-const notionalValue = quantity * entryPrice;
-const marginRequired = notionalValue / leverageMultiplier;
-
-// If margin exceeds available balance, cap position size
-const finalQuantity = marginRequired > balance
-  ? (balance * leverageMultiplier) / entryPrice
-  : quantity;
+{strategies.length} {strategies.length === 1 ? 'strategy' : 'strategies'}
 ```
 
-Use `finalQuantity` instead of `quantity` in the position object.
+### 5b. Restore warning
 
-This means:
-- **Low leverage**: May cap position size if margin is insufficient (realistic constraint)
-- **High leverage**: Allows the full risk-based position because margin requirement is lower
-- **Risk per trade**: Always determined by stop distance, never by leverage
-
-### PnL Calculation Impact
-
-The existing PnL formula (line 369-372) uses `position.quantity * price_delta` which remains correct -- the P&L on a futures position is based on notional size, not margin.
+Already implemented! Lines 324-330 show a yellow warning alert: "This will overwrite your current settings. This action cannot be undone." -- This is already correct. No change needed.
 
 ---
 
-## Verified Safe: No Changes Needed
+## System-Level: Audit trail for exports
 
-### PnL Unit Consistency
-- `rawPnl` = gross (price delta x quantity)
-- `pnl` = `rawPnl - commission` = net
-- `totalPnl` = sum of net `pnl` values
-- `grossPnl = totalPnl + totalCommissions` = correct reconstruction
-- Units are consistent.
+**File:** `src/pages/BulkExport.tsx`
 
-### Exposure Overlap
-- Engine uses single-position model (`position = null` on exit, line 390)
-- No pyramiding or concurrent positions possible
-- Simple sum of trade durations is accurate
+Integrate `logAuditEvent` from `src/lib/audit-logger.ts` into export actions:
+
+- On Binance export success: `logAuditEvent(userId, { action: 'sync_completed', entityType: 'sync_operation', metadata: { exportType: type, dateRange } })`
+- On Journal export: same pattern
+- On Backup export/restore: same pattern
+
+This uses the existing audit system -- no new tables needed. Add a new audit action type if needed (e.g., `'export_completed'`).
+
+**File:** `src/lib/audit-logger.ts`
+
+Add new action:
+```typescript
+| 'export_completed'
+| 'backup_exported'
+| 'backup_restored'
+```
+
+---
+
+## System-Level: Privacy/Encryption notice
+
+**File:** `src/pages/BulkExport.tsx`
+
+Add a small footer notice at the bottom of the page (below the Tabs):
+```typescript
+<p className="text-xs text-muted-foreground text-center pt-4">
+  All data is stored encrypted at rest. Exported files are generated locally in your browser 
+  and are not uploaded to any server. For exchange exports, data is fetched directly from 
+  the exchange API via secure server-side functions.
+</p>
+```
+
+---
+
+## Out of Scope (Deferred)
+
+- **Full Account Archive (ZIP)**: Requires bundling multiple export formats into a ZIP. Needs a ZIP library (e.g., JSZip). Good feature but separate task.
+- **Export history log UI**: The audit trail captures metadata, but a dedicated "Export History" viewer is a separate feature.
 
 ---
 
@@ -86,6 +218,9 @@ The existing PnL formula (line 369-372) uses `position.quantity * price_delta` w
 
 | File | Changes |
 |------|---------|
-| `supabase/functions/backtest-strategy/index.ts` | Replace leverage x quantity with margin-based position cap; leverage only affects margin requirement |
+| `src/pages/BulkExport.tsx` | Rename tab label, fix connection badge, add UTC notice, period context on analytics cards, contextual empty state, reconciliation empty state, weekly report date ranges, audit logging, privacy footer |
+| `src/features/binance/useBinanceBulkExport.ts` | Update export type descriptions (order vs trade clarity) |
+| `src/components/settings/JournalExportCard.tsx` | Add date range to export button label |
+| `src/components/settings/SettingsBackupRestore.tsx` | Fix pluralization ("1 strategy") |
+| `src/lib/audit-logger.ts` | Add export_completed, backup_exported, backup_restored actions |
 
-No other files need changes.
