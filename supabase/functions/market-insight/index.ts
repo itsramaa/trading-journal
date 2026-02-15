@@ -62,6 +62,22 @@ function calculateVolatility(closes: number[]): number {
   return Math.sqrt(variance) * 100;
 }
 
+/** Calculate annualized volatility from hourly closes */
+function calculateAnnualizedVolatility(closes: number[]): number {
+  if (closes.length < 2) return 0;
+  const returns: number[] = [];
+  for (let i = 1; i < closes.length; i++) {
+    if (closes[i] > 0) {
+      returns.push(Math.log(closes[i - 1] / closes[i]));
+    }
+  }
+  if (returns.length === 0) return 0;
+  const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
+  const variance = returns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / returns.length;
+  // Annualize: hourly data → sqrt(24 * 365) ≈ sqrt(8760)
+  return Math.sqrt(variance) * Math.sqrt(8760) * 100;
+}
+
 async function fetchFearGreedIndex(): Promise<{ value: number; label: string; timestamp: string }> {
   try {
     const response = await fetch('https://api.alternative.me/fng/');
@@ -109,6 +125,18 @@ async function fetchBinanceTicker(symbol: string): Promise<{ price: number; chan
   }
 }
 
+/** Fetch current funding rate from Binance Futures */
+async function fetchFundingRate(symbol: string): Promise<number> {
+  try {
+    const response = await fetch(`https://fapi.binance.com/fapi/v1/premiumIndex?symbol=${encodeURIComponent(symbol)}`);
+    const data = await response.json();
+    return parseFloat(data.lastFundingRate || '0') * 100; // Convert to percentage
+  } catch (error) {
+    console.error(`Funding rate error for ${symbol}:`, error);
+    return 0;
+  }
+}
+
 async function fetchCoinGeckoGlobal(): Promise<{ btcDominance: number; marketCapChange: number }> {
   try {
     const response = await fetch('https://api.coingecko.com/api/v3/global');
@@ -144,21 +172,27 @@ function generateTechnicalSignal(asset: string, closes: number[], price: number,
 
 function calculateWhaleSignal(klines: (string | number)[][], change24h: number) {
   if (klines.length < TECHNICAL_ANALYSIS.MIN_KLINES_FOR_WHALE) {
-    return { signal: 'NONE' as const, volumeChange: 0, confidence: 30 };
+    return { signal: 'NONE' as const, volumeChange: 0, confidence: 30, method: '', thresholds: '' };
   }
   const recentVolume = klines.slice(0, 24).reduce((sum, k) => sum + parseFloat(String(k[5] || '0')), 0);
   const prevVolume = klines.slice(24, 48).reduce((sum, k) => sum + parseFloat(String(k[5] || '0')), 0);
   const volumeChange = prevVolume > 0 ? ((recentVolume - prevVolume) / prevVolume) * 100 : 0;
   let signal: 'ACCUMULATION' | 'DISTRIBUTION' | 'NONE' = 'NONE';
   let confidence = WHALE_DETECTION.BASE_CONFIDENCE;
+  let method = 'Normal activity';
+  let thresholds = `Vol >${WHALE_DETECTION.VOLUME_SPIKE_THRESHOLD}%, Price >${WHALE_DETECTION.PRICE_UP_THRESHOLD}%`;
+
   if (volumeChange > WHALE_DETECTION.VOLUME_SPIKE_THRESHOLD && change24h > WHALE_DETECTION.PRICE_UP_THRESHOLD) {
     signal = 'ACCUMULATION'; confidence = WHALE_DETECTION.SPIKE_CONFIDENCE + Math.min(20, volumeChange / 5);
+    method = `Vol +${volumeChange.toFixed(1)}% (24h) + Price +${change24h.toFixed(1)}% = Breakout pattern`;
   } else if (volumeChange > WHALE_DETECTION.VOLUME_SPIKE_THRESHOLD && change24h < WHALE_DETECTION.PRICE_DOWN_THRESHOLD) {
     signal = 'DISTRIBUTION'; confidence = WHALE_DETECTION.SPIKE_CONFIDENCE + Math.min(20, volumeChange / 5);
+    method = `Vol +${volumeChange.toFixed(1)}% (24h) + Price ${change24h.toFixed(1)}% = Distribution pattern`;
   } else if (volumeChange > WHALE_DETECTION.EXTREME_VOLUME_SPIKE) {
     signal = change24h > 0 ? 'ACCUMULATION' : 'DISTRIBUTION'; confidence = 60;
+    method = `Extreme volume spike +${volumeChange.toFixed(1)}% (>${WHALE_DETECTION.EXTREME_VOLUME_SPIKE}% threshold)`;
   }
-  return { signal, volumeChange, confidence: Math.min(WHALE_DETECTION.MAX_CONFIDENCE, confidence) };
+  return { signal, volumeChange, confidence: Math.min(WHALE_DETECTION.MAX_CONFIDENCE, confidence), method, thresholds };
 }
 
 function generateRecommendation(sentimentScore: number, confidence: number, fearGreed: number): string {
@@ -177,14 +211,89 @@ async function processSymbol(symbol: string) {
   ]);
   if (!klines || klines.length === 0) {
     const asset = symbol.replace('USDT', '');
-    return { symbol, asset, klines: [], closes: [], ticker, signal: { trend: 'No data available', direction: 'neutral' as const, score: 0.5 }, volatility: 0, whale: { signal: 'NONE' as const, volumeChange: 0, confidence: 30 }, valid: false };
+    return { symbol, asset, klines: [], closes: [], ticker, signal: { trend: 'No data available', direction: 'neutral' as const, score: 0.5 }, volatility: 0, annualizedVolatility: 0, whale: { signal: 'NONE' as const, volumeChange: 0, confidence: 30, method: '', thresholds: '' }, valid: false, fundingRate: 0 };
   }
   const closes = klines.map((k) => parseFloat(String(k[4]))).reverse();
   const asset = symbol.replace('USDT', '');
   const signal = generateTechnicalSignal(asset, closes, ticker.price, ticker.change);
   const volatility = calculateVolatility(closes);
+  const annualizedVolatility = calculateAnnualizedVolatility(closes);
   const whale = calculateWhaleSignal(klines, ticker.change);
-  return { symbol, asset, klines, closes, ticker, signal, volatility, whale, valid: true };
+  const fundingRate = await fetchFundingRate(symbol);
+  return { symbol, asset, klines, closes, ticker, signal, volatility, annualizedVolatility, whale, valid: true, fundingRate };
+}
+
+// === Percentile helpers ===
+
+/** Compute percentile rank: what percentage of historical values are below the current value */
+function computePercentile(currentValue: number, historicalValues: number[]): number {
+  if (historicalValues.length === 0) return 50;
+  const below = historicalValues.filter(v => v < currentValue).length;
+  return Math.round((below / historicalValues.length) * 100);
+}
+
+/** Store volatility snapshot and compute percentile (180d) */
+async function storeAndGetVolatilityPercentile(
+  supabaseAdmin: any,
+  symbol: string,
+  annualizedVol: number
+): Promise<{ percentile180d: number; dataPoints: number }> {
+  const today = new Date().toISOString().split('T')[0];
+
+  // Upsert today's snapshot
+  await supabaseAdmin
+    .from('volatility_history')
+    .upsert(
+      { symbol, annualized_volatility: annualizedVol, snapshot_date: today },
+      { onConflict: 'symbol,snapshot_date' }
+    );
+
+  // Fetch last 180 days
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 180);
+  const { data: history } = await supabaseAdmin
+    .from('volatility_history')
+    .select('annualized_volatility')
+    .eq('symbol', symbol)
+    .gte('snapshot_date', cutoff.toISOString().split('T')[0])
+    .order('snapshot_date', { ascending: true });
+
+  const values = (history || []).map((h: any) => Number(h.annualized_volatility));
+  return {
+    percentile180d: computePercentile(annualizedVol, values),
+    dataPoints: values.length,
+  };
+}
+
+/** Store funding rate snapshot and compute percentile (90d) */
+async function storeAndGetFundingPercentile(
+  supabaseAdmin: any,
+  symbol: string,
+  fundingRate: number
+): Promise<{ percentile90d: number; dataPoints: number }> {
+  const today = new Date().toISOString().split('T')[0];
+
+  await supabaseAdmin
+    .from('funding_rate_history')
+    .upsert(
+      { symbol, funding_rate: fundingRate, snapshot_date: today },
+      { onConflict: 'symbol,snapshot_date' }
+    );
+
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 90);
+  const { data: history } = await supabaseAdmin
+    .from('funding_rate_history')
+    .select('funding_rate')
+    .eq('symbol', symbol)
+    .gte('snapshot_date', cutoff.toISOString().split('T')[0])
+    .order('snapshot_date', { ascending: true });
+
+  const values = (history || []).map((h: any) => Number(h.funding_rate));
+  return {
+    percentile90d: computePercentile(Math.abs(fundingRate), values.map(v => Math.abs(v))),
+    dataPoints: values.length,
+  };
 }
 
 serve(async (req) => {
@@ -216,6 +325,12 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    // Service role client for writing history tables (bypasses RLS)
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    );
     // === END AUTH CHECK ===
 
     // Parse & validate request body
@@ -240,15 +355,38 @@ serve(async (req) => {
       ...requestedSymbols.map(processSymbol),
     ]);
 
+    // Store snapshots and compute percentiles in parallel
+    const percentileResults = await Promise.all(
+      symbolsData.map(async (data) => {
+        if (!data.valid) return { volPercentile: null, fundingPercentile: null };
+        const [volPercentile, fundingPercentile] = await Promise.all([
+          storeAndGetVolatilityPercentile(supabaseAdmin, data.symbol, data.annualizedVolatility),
+          storeAndGetFundingPercentile(supabaseAdmin, data.symbol, data.fundingRate),
+        ]);
+        return { volPercentile, fundingPercentile };
+      })
+    );
+
     // Build response arrays
     const signals: Array<{ asset: string; trend: string; direction: 'up' | 'down' | 'neutral'; price: number; change24h: number }> = [];
-    const volatilityData: Array<{ asset: string; level: string; value: number; status: string }> = [];
+    const volatilityData: Array<{ asset: string; level: string; value: number; status: string; annualizedVolatility?: number; percentile180d?: number; percentileDataPoints?: number }> = [];
     const opportunities: Array<{ pair: string; confidence: number; direction: string; reason: string }> = [];
-    const whaleActivity: Array<{ asset: string; signal: string; volumeChange24h: number; exchangeFlowEstimate: string; confidence: number; description: string }> = [];
+    const whaleActivity: Array<{ asset: string; signal: string; volumeChange24h: number; exchangeFlowEstimate: string; confidence: number; description: string; method: string; thresholds: string }> = [];
+    const fundingRates: Array<{ symbol: string; rate: number; percentile90d: number; percentileDataPoints: number }> = [];
 
-    symbolsData.forEach((data) => {
+    symbolsData.forEach((data, idx) => {
+      const pctResult = percentileResults[idx];
+
       signals.push({ asset: data.asset, trend: data.signal.trend, direction: data.signal.direction, price: data.ticker.price, change24h: data.ticker.change });
-      volatilityData.push({ asset: data.asset, level: getVolatilityLevel(data.volatility), value: normalizeVolatilityDisplay(data.volatility), status: getVolatilityStatus(data.volatility) });
+      volatilityData.push({
+        asset: data.asset,
+        level: getVolatilityLevel(data.volatility),
+        value: normalizeVolatilityDisplay(data.volatility),
+        status: getVolatilityStatus(data.volatility),
+        annualizedVolatility: data.annualizedVolatility,
+        percentile180d: pctResult.volPercentile?.percentile180d,
+        percentileDataPoints: pctResult.volPercentile?.dataPoints,
+      });
       opportunities.push({ pair: `${data.asset}/USDT`, confidence: Math.round(data.signal.score * 100), direction: data.signal.direction === 'up' ? 'LONG' : data.signal.direction === 'down' ? 'SHORT' : 'WAIT', reason: data.signal.trend });
       whaleActivity.push({
         asset: data.asset, signal: data.whale.signal, volumeChange24h: data.whale.volumeChange,
@@ -259,6 +397,14 @@ serve(async (req) => {
           : data.whale.signal === 'DISTRIBUTION'
           ? `High volume with price decrease. Distribution detected for ${data.asset}.`
           : `Normal trading activity for ${data.asset}. No clear whale signal.`,
+        method: data.whale.method,
+        thresholds: data.whale.thresholds,
+      });
+      fundingRates.push({
+        symbol: data.symbol,
+        rate: data.fundingRate,
+        percentile90d: pctResult.fundingPercentile?.percentile90d ?? 50,
+        percentileDataPoints: pctResult.fundingPercentile?.dataPoints ?? 0,
       });
     });
 
@@ -293,7 +439,7 @@ serve(async (req) => {
         macroScore: Math.round(macroScore * 100),
         lastUpdated: new Date().toISOString(),
       },
-      volatility: volatilityData, opportunities, whaleActivity, requestedSymbols,
+      volatility: volatilityData, opportunities, whaleActivity, fundingRates, requestedSymbols,
       lastUpdated: new Date().toISOString(),
       dataQuality: Math.round(dataQuality * 100),
     };

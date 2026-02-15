@@ -42,6 +42,12 @@ export interface VolatilityData {
   value: number;
   status: string;
   atr?: number;
+  /** Annualized volatility from hourly data */
+  annualizedVolatility?: number;
+  /** Percentile rank vs last 180 days (0-100) */
+  percentile180d?: number;
+  /** Number of historical data points used for percentile */
+  percentileDataPoints?: number;
 }
 
 export interface TradingOpportunity {
@@ -68,6 +74,13 @@ export interface MacroAnalysis {
   lastUpdated: string;
   marketCapTrend: 'up' | 'down' | 'stable';
   btcDominance: number;
+  /** Fear & Greed percentile context */
+  fearGreedPercentile?: {
+    value: number;
+    percentile365d: number;
+    dataPoints: number;
+    label: string;
+  };
 }
 
 export interface WhaleActivity {
@@ -78,6 +91,19 @@ export interface WhaleActivity {
   fundingRate?: number;
   confidence: number;
   description: string;
+  /** Detection method description for transparency */
+  method?: string;
+  /** Threshold criteria used for detection */
+  thresholds?: string;
+}
+
+/** Funding rate with historical percentile context */
+export interface FundingRateContext {
+  symbol: string;
+  rate: number;
+  /** Percentile rank vs last 90 days */
+  percentile90d: number;
+  percentileDataPoints: number;
 }
 
 export interface MarketInsightResponse {
@@ -85,6 +111,8 @@ export interface MarketInsightResponse {
   volatility: VolatilityData[];
   opportunities: TradingOpportunity[];
   whaleActivity: WhaleActivity[];
+  /** Funding rate percentile context per symbol */
+  fundingRates?: FundingRateContext[];
   lastUpdated: string;
   dataQuality: number;
 }
