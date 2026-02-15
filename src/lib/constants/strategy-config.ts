@@ -260,3 +260,19 @@ export const POSITION_SIZING_MODELS: PositionSizingModelOption[] = [
   { value: 'kelly', label: 'Kelly Fraction', description: 'Optimal sizing based on win rate and R:R', defaultValue: 0.25, unit: 'fraction' },
   { value: 'atr_based', label: 'ATR-Based', description: 'Size based on Average True Range volatility', defaultValue: 1.5, unit: 'ATR multiplier' },
 ];
+
+// =============================================================================
+// KELLY FRACTION SAFETY
+// =============================================================================
+
+export const KELLY_FRACTION_CAP = 0.25;
+export const KELLY_MIN_TRADES_WARNING = 50;
+
+// =============================================================================
+// ATR PARAMETER DEFAULTS
+// =============================================================================
+
+export const ATR_DEFAULTS = {
+  PERIOD: { DEFAULT: 14, MIN: 5, MAX: 50 },
+  MULTIPLIER: { DEFAULT: 1.5, MIN: 0.5, MAX: 5.0, STEP: 0.1 },
+} as const;

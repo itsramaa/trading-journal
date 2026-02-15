@@ -23,6 +23,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Target, ListChecks, LogOut, X, ChevronsUpDown, Clock, Layers, Settings2, AlertTriangle } from "lucide-react";
 import { EntryRulesBuilder } from "@/components/strategy/EntryRulesBuilder";
 import { ExitRulesBuilder } from "@/components/strategy/ExitRulesBuilder";
+import { ExpectancyPreview } from "@/components/strategy/ExpectancyPreview";
 import { 
   TIMEFRAME_OPTIONS, 
   COMMON_PAIRS, 
@@ -50,6 +51,9 @@ import {
   SESSION_OPTIONS,
   DIFFICULTY_OPTIONS,
   POSITION_SIZING_MODELS,
+  KELLY_FRACTION_CAP,
+  KELLY_MIN_TRADES_WARNING,
+  ATR_DEFAULTS,
 } from "@/lib/constants/strategy-config";
 
 const strategyFormSchema = z.object({
@@ -153,6 +157,40 @@ export function StrategyFormDialog({
     }
     return null;
   }, [exitRules]);
+
+  // Structural validation warnings
+  const validationWarnings = useMemo(() => {
+    const warnings: string[] = [];
+    const minConf = form.getValues('min_confluences');
+    const minRR = form.getValues('min_rr');
+    
+    if (minConf > entryRules.length) {
+      warnings.push(`Min confluences (${minConf}) exceeds total entry rules (${entryRules.length}).`);
+    }
+    
+    const mandatoryCount = entryRules.filter(r => r.is_mandatory).length;
+    if (mandatoryCount >= minConf && entryRules.length === mandatoryCount && entryRules.length > 0) {
+      warnings.push('All rules are mandatory — min confluences has no effect.');
+    }
+    
+    if (exitRules.length === 0) {
+      warnings.push('No exit rules defined. Strategy is incomplete without TP/SL.');
+    }
+    
+    if (effectiveRR !== null && effectiveRR < minRR) {
+      warnings.push(`Effective R:R (${effectiveRR.toFixed(1)}) is below minimum (${minRR}).`);
+    }
+    
+    if (positionSizingModel === 'kelly') {
+      warnings.push(`Kelly sizing requires verified win-rate data from ${KELLY_MIN_TRADES_WARNING}+ trades. Using fractional Kelly (${KELLY_FRACTION_CAP}x) until validated.`);
+    }
+
+    if (selectedMarketType === 'futures' && defaultLeverage <= 1) {
+      warnings.push('Futures strategy with 1x leverage — consider setting appropriate leverage.');
+    }
+    
+    return warnings;
+  }, [entryRules, exitRules, effectiveRR, positionSizingModel, selectedMarketType, defaultLeverage, form]);
 
   // Reset form when dialog opens/closes or editing strategy changes
   useEffect(() => {
@@ -647,6 +685,9 @@ export function StrategyFormDialog({
                 onChange={setExitRules}
               />
 
+              {/* Expectancy Preview */}
+              <ExpectancyPreview effectiveRR={effectiveRR} />
+
               {/* Position Sizing */}
               <Card>
                 <CardContent className="pt-4 space-y-3">
@@ -670,19 +711,70 @@ export function StrategyFormDialog({
                   <p className="text-xs text-muted-foreground">
                     {POSITION_SIZING_MODELS.find(m => m.value === positionSizingModel)?.description}
                   </p>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="number"
-                      value={positionSizingValue}
-                      onChange={(e) => setPositionSizingValue(parseFloat(e.target.value) || 0)}
-                      className="w-24"
-                      step={0.1}
-                      min={0}
-                    />
-                    <span className="text-sm text-muted-foreground">
-                      {POSITION_SIZING_MODELS.find(m => m.value === positionSizingModel)?.unit}
-                    </span>
-                  </div>
+
+                  {/* Kelly warning */}
+                  {positionSizingModel === 'kelly' && (
+                    <div className="p-2 rounded-md bg-[hsl(var(--chart-4))]/10 border border-[hsl(var(--chart-4))]/30">
+                      <p className="text-xs text-[hsl(var(--chart-4))] flex items-center gap-1.5">
+                        <AlertTriangle className="h-3 w-3 shrink-0" />
+                        Kelly requires a reliable win-rate estimate from {KELLY_MIN_TRADES_WARNING}+ trades. Using 1/4 Kelly ({KELLY_FRACTION_CAP}x) to limit risk.
+                      </p>
+                    </div>
+                  )}
+
+                  {positionSizingModel !== 'kelly' && (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        value={positionSizingValue}
+                        onChange={(e) => setPositionSizingValue(parseFloat(e.target.value) || 0)}
+                        className="w-24"
+                        step={0.1}
+                        min={0}
+                      />
+                      <span className="text-sm text-muted-foreground">
+                        {POSITION_SIZING_MODELS.find(m => m.value === positionSizingModel)?.unit}
+                      </span>
+                    </div>
+                  )}
+
+                  {positionSizingModel === 'kelly' && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">Fraction: {KELLY_FRACTION_CAP}x (max)</span>
+                    </div>
+                  )}
+
+                  {/* ATR Parameters */}
+                  {positionSizingModel === 'atr_based' && (
+                    <div className="space-y-2 p-2 border rounded-md bg-muted/20">
+                      <Label className="text-xs font-medium">ATR Parameters</Label>
+                      <div className="flex items-center gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Period</Label>
+                          <Input
+                            type="number"
+                            value={tradeManagement.atr_period ?? ATR_DEFAULTS.PERIOD.DEFAULT}
+                            onChange={(e) => updateTradeManagement({ atr_period: parseInt(e.target.value) || ATR_DEFAULTS.PERIOD.DEFAULT })}
+                            className="w-20 h-8"
+                            min={ATR_DEFAULTS.PERIOD.MIN}
+                            max={ATR_DEFAULTS.PERIOD.MAX}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Multiplier</Label>
+                          <Input
+                            type="number"
+                            value={tradeManagement.atr_multiplier ?? ATR_DEFAULTS.MULTIPLIER.DEFAULT}
+                            onChange={(e) => updateTradeManagement({ atr_multiplier: parseFloat(e.target.value) || ATR_DEFAULTS.MULTIPLIER.DEFAULT })}
+                            className="w-20 h-8"
+                            step={ATR_DEFAULTS.MULTIPLIER.STEP}
+                            min={ATR_DEFAULTS.MULTIPLIER.MIN}
+                            max={ATR_DEFAULTS.MULTIPLIER.MAX}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -834,6 +926,19 @@ export function StrategyFormDialog({
               </Card>
             </TabsContent>
           </Tabs>
+
+          {/* Validation Warnings */}
+          {validationWarnings.length > 0 && (
+            <div className="space-y-1 p-3 rounded-lg bg-[hsl(var(--chart-4))]/10 border border-[hsl(var(--chart-4))]/30">
+              <div className="flex items-center gap-2 text-sm font-medium text-[hsl(var(--chart-4))]">
+                <AlertTriangle className="h-4 w-4" />
+                {validationWarnings.length} validation warning{validationWarnings.length > 1 ? 's' : ''}
+              </div>
+              {validationWarnings.map((w, i) => (
+                <p key={i} className="text-xs text-muted-foreground ml-6">{w}</p>
+              ))}
+            </div>
+          )}
 
           {/* Form-level error feedback */}
           {Object.keys(form.formState.errors).length > 0 && (

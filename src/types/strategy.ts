@@ -90,6 +90,9 @@ export interface TradeManagement {
   max_trades_per_day: number | null;
   max_daily_loss_percent: number | null;
   max_consecutive_losses: number | null;
+  // ATR-based sizing parameters
+  atr_period?: number;      // default 14
+  atr_multiplier?: number;  // default 1.5
 }
 
 export const DEFAULT_TRADE_MANAGEMENT: TradeManagement = {
