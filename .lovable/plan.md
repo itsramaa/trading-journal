@@ -1,171 +1,184 @@
 
-# Deep-Dive Analysis: Accounts Page and Account Detail Page
+
+# Deep-Dive Analysis: Economic Calendar Page
 
 ---
 
-## 1. Accounts Page (`src/pages/Accounts.tsx`)
+## 1. Page Structure (`EconomicCalendar.tsx` + `CalendarTab.tsx`)
 
 ### A. Comprehensiveness
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Summary cards (Balance, Count, Positions) | Done | Mode-filtered correctly |
-| Add Account (Paper mode) | Done | Form with validation |
-| Account card list | Done | Binance virtual card + DB accounts |
-| Account comparison table | Done | Side-by-side stats |
-| Deposit/Withdraw dialog | Done | With account select, validation |
-| Edit account dialog | Done | Name, broker, description, account number |
-| Delete with soft-delete | Done | 30-day recovery messaging |
-| Realtime updates | Done | `useAccountsRealtime()` |
-| Mode filtering (Paper/Live) | Done | via `useModeVisibility` |
+| Page header with icon/description | Done | PageHeader component |
+| Error boundary with retry | Done | Key-based remount pattern |
+| Volatility Engine card | Done | Risk regime, ranges, position sizing |
+| Impact Alert banner | Done | Risk level with position adjustment advice |
+| Today's Key Release card | Done | Highlight + countdown + AI prediction |
+| Upcoming Events list | Done | Collapsible items with stats |
+| Historical crypto correlation stats | Done | Per-event BTC move data |
+| AI predictions (collapsible) | Done | Gemini-powered analysis |
+| Loading skeletons | Done | 5 skeleton rows |
+| Error state with retry | Done | "Try again" button |
+| Empty state | Done | "No upcoming events this week" |
+| Data attribution footer | Done | "Data from Forex Factory" |
+| Auto-refresh (30m) | Done | via react-query refetchInterval |
+| Manual refresh button | Done | With spinning icon feedback |
 
 **Gaps:**
 
-1. **Stale route link**: Line 158 links to `/risk?tab=settings` -- should be `/risk-analytics?tab=settings` after the route rename.
-2. **No sorting/filtering on the card list**: Users with many accounts have no way to sort (by balance, name, P&L) or search.
-3. **FinancialSummaryCard is not used** on the Accounts page -- it exists as a standalone component but isn't mounted anywhere. It could add value for Live mode users.
+1. **No timezone indicator**: Event times display as "HH:mm UTC" (line 384), but the `formatEventTime` function (line 157-159) uses the browser's local `new Date()` with `format(date, 'HH:mm')`, which outputs LOCAL time, not UTC. The "UTC" label is misleading -- this is a bug.
+
+2. **No event filtering/search**: Users cannot filter events by importance level (high/medium/low) or search by event name. With up to 15 events, a filter toggle would improve usability.
+
+3. **"Today's Key Release" only shows one event**: If there are multiple high-impact events today (e.g., CPI + Core CPI), only the first is highlighted. The rest require scrolling through the list.
+
+4. **No "past event" visual distinction**: Events that have already occurred (with `actual` values) look the same as upcoming events in the list. A subtle visual cue (e.g., reduced opacity or a "Released" badge) would help.
+
+5. **Volatility Engine card not shown when no events in window**: When `volatilityEngine` is `null` (no events within 48h), the card disappears entirely. An empty/calm state card saying "No significant events -- normal volatility expected" would maintain layout stability per the UX standard.
 
 ### B. Accuracy
 
 | Check | Result |
 |-------|--------|
-| Balance aggregation | Correct -- `totalDbBalance` from mode-filtered accounts + Binance wallet balance |
-| Account count | Correct -- `modeAccountsCount + (isConnected ? 1 : 0)` |
-| Open positions | Correct -- DB open trades (query) + Binance active positions |
-| Unrealized P&L display | Correct -- uses `balance.totalUnrealizedProfit` |
-| Open trades query | Correct -- filters by `deleted_at IS NULL`, `status = 'open'`, and mode account IDs |
+| Composite Move Probability formula | Correct -- correlation-adjusted union: `1 - product(1 - P_i * weight * decay)` |
+| Time-decay weighting | Correct -- exponential decay for future (0-48h), linear for past (0-2h) |
+| Correlation dampening | Correct -- uses `CORRELATION_GROUPS` and `0.4` dampener for correlated pairs |
+| Small sample compression | Correct -- 0.75x factor when min sample < 30 |
+| Expected range blend | Correct -- 70% median + 30% extreme |
+| Realized vol floor | Correct -- daily vol from annual: `realizedVolPct / sqrt(365)` |
+| Risk regime classification | Correct -- thresholds from constants |
+| Position size multiplier | Correct -- maps from regime to multiplier |
+| Event cluster amplification | Correct -- 1.2x for 2 events, 1.4x for 3+ |
+| Impact summary risk level | Correct -- delegates to `calculateRiskLevel()` |
+| Historical stats matching | Correct -- keyword matching with static dataset |
 
 **Gaps:**
 
-3. **Position icon logic is ambiguous**: The trending icon for "Open Positions" card (lines 204-212) uses Binance `totalUnrealizedProfit` to determine the icon even in Paper mode where `showExchangeData` might be false but `displayPositions > 0`. In that case, the icon defaults to green `TrendingUp` regardless of actual paper P&L.
+6. **`realizedVolPct` is never passed from the page**: The `EconomicCalendar.tsx` page calls `useEconomicCalendar()` with no arguments (line 141 of CalendarTab via import). The `realizedVolPct` parameter defaults to `0`, meaning the realized volatility floor is never applied on this page. The floor is only used when `useEconomicCalendar(realizedVolPct)` is called from other consumers (like the heatmap). This means the expected ranges shown on the Calendar page may be narrower than reality during volatile periods.
+
+7. **"Median move" display always shows positive sign**: Line 428 displays `+{event.historicalStats.medianBtcMove2h.toFixed(1)}%` with a hardcoded `+` prefix. The median move is an absolute value representing magnitude, but showing it with `+` implies directional upside, which is misleading. It should be displayed without a sign or labeled "Median |move|".
+
+8. **`timeUntil` does not update in real-time**: The countdown badge (e.g., "2h 30m") is computed server-side at fetch time and cached for 15 minutes (`staleTime`). It becomes stale quickly. A client-side countdown timer would be more accurate.
 
 ### C. Clarity and Readability
 
-**Gaps (missing tooltips):**
+**Missing tooltips:**
 
-4. **"Balance" card** -- No tooltip. Should explain: "Total balance across all accounts in the active mode (Paper or Live). For Live mode, includes connected exchange wallet balance."
-5. **"Accounts" card** -- No tooltip. Should explain: "Number of active trading accounts in the current mode."
-6. **"Open Positions" card** -- No tooltip explaining what counts as an open position (DB trades with status 'open' + exchange active positions).
-7. **"unrealized" label in positions card** -- Only appears for Binance. Paper open trades show no unrealized P&L summary.
-8. **Comparison table column headers** -- No tooltips on "Win Rate", "Net P&L", "Avg P&L", "Profit Factor". These should have brief explanations for users unfamiliar with the metrics.
+9. **"Volatility Engine" card title** -- No tooltip explaining what this card represents. Should say: "Event-driven volatility assessment using historical BTC reactions to macro events. Updates based on events within a rolling 48-hour window."
+
+10. **"Composite Move Probability"** -- Has "(correlation-adjusted)" tag but no tooltip explaining the formula or what the percentage means. Should say: "Probability of BTC moving >2% within 2 hours of upcoming events. Adjusted for correlated events (e.g., CPI + Core CPI count as ~1.4 events, not 2)."
+
+11. **"Expected Range (2h)"** -- Has "median + 90th pct blend" sub-label but no tooltip. Should explain: "Estimated BTC price range 2 hours after event release. Calculated as 70% median historical move + 30% extreme historical move."
+
+12. **"Expected Range (24h)"** -- No sub-label or tooltip. Should say: "24-hour expected range, derived from 2h range x 1.8 multiplier. Floored by current realized daily volatility."
+
+13. **"Position Size: Nx"** -- No tooltip on the multiplier. Should say: "Recommended position size adjustment relative to your normal size. 0.5x means use half your usual position size."
+
+14. **"Event Cluster" warning** -- No tooltip explaining what "amplification" means. Should say: "Multiple high-impact events in the same window amplify expected volatility beyond the sum of individual events."
+
+15. **Risk level badge** (EXTREME/HIGH/etc.) -- No tooltip. Should explain each regime briefly.
+
+16. **"AI Powered" badge** on Upcoming Events -- No tooltip. Should say: "AI predictions are generated by Gemini for high-impact events only. Limited to top 5 events per refresh."
+
+17. **Importance dot colors** -- The colored dots (red/yellow/green) have no legend or tooltip. Users must guess what each color means. Should add a small legend or tooltip on hover.
+
+18. **"prob BTC move >2% in 2h" badge** -- No tooltip explaining this is based on historical data. Should say: "Based on N historical occurrences of this event type (2020-2025)."
+
+19. **"historical upside bias" badge** -- No tooltip. Should say: "Percentage of historical occurrences where BTC moved upward after this event. 50% = neutral, >60% = historically bullish."
+
+20. **"Worst case" stat** -- No tooltip explaining this is worst observed, not theoretical worst. Should say: "Largest observed BTC decline within 2 hours of this event type historically."
+
+21. **Sample size "(n=X)"** -- No tooltip. Should say: "Number of historical event occurrences used for these statistics. Higher sample sizes provide more reliable estimates."
+
+22. **"Today's Key Release" card** -- No tooltip on the card title explaining selection criteria. Should say: "The highest-impact economic event scheduled for today. If multiple high-impact events exist, the first one is shown."
+
+23. **Forecast/Previous/Actual labels** -- No tooltips in the event list rows. Should explain: Forecast = market consensus estimate, Previous = last release value, Actual = released value (if available).
 
 ### D. Code Quality
 
-9. **`useEffect` missing deps warning in `AccountTransactionDialog`** (line 75-78): `depositForm` and `withdrawForm` are not in the dependency array. React Hook Form instances are stable, but the linter may flag this.
-10. **Inline query in page component**: The `openTradesCount` query (lines 94-113) is an inline `useQuery` with raw Supabase calls. Should be extracted to a hook for consistency with the rest of the codebase.
-11. **`AccountCardList` filter logic overlap**: `excludeBacktest` and `backtestOnly` props are confusing -- `backtestOnly` is passed when `showPaperData` is true, but these are paper accounts, not "backtest" accounts. The naming is a legacy artifact from when `is_backtest` was the identifier.
+24. **Duplicated refresh button logic**: Lines 172-204 have two nearly identical refresh button blocks (one for `!hideTitle`, one for `hideTitle`). Should be extracted to a single block rendered in both cases.
+
+25. **`formatEventDate` timezone issue**: Uses `new Date(dateString)` which depends on the browser's timezone interpretation. If the API returns dates without timezone info, the "Today"/"Tomorrow" logic could be wrong for users in different timezones.
+
+26. **`VolatilityEngineCard` has `animate-pulse` for EXTREME regime**: While attention-grabbing, a perpetually pulsing card can be distracting and may trigger motion sensitivity issues. Should use `prefers-reduced-motion` media query.
+
+27. **No memoization**: `CalendarTab` recalculates `formatEventDate` and `formatEventTime` on every render. These could be memoized or extracted as pure utility functions outside the component.
+
+28. **Edge function error returns HTTP 200**: Line 551 returns status 200 even on error, with empty data + error message in body. This makes it harder to distinguish real failures from empty data in client-side error handling.
 
 ---
 
-## 2. Account Detail Page (`src/pages/AccountDetail.tsx`)
+## 2. Edge Function (`economic-calendar/index.ts`)
 
 ### A. Comprehensiveness
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Header with balance/equity/unrealized | Done | 3-tier model for Binance |
-| 5 metric cards (P&L, ROC, WR, PF, Trades) | Done | State-aware (condensed when no trades) |
-| Equity curve chart | Done | Cumulative P&L over time |
-| Drawdown chart | Done | Peak-to-trough with standardized formula |
-| Active positions table (Live) | Done | Symbol, side, size, entry, mark, uPnL, leverage |
-| Fee breakdown | Done | Commission, funding, total |
-| Capital flow (deposits/withdrawals) | Done | Net flow calculation |
-| Transaction history tab | Done | Search + filter by type |
-| Financial summary tab | Done | P&L breakdown, fee impact, ROC |
-| Tab URL persistence | Done | via `useSearchParams` |
-| Back navigation | Done | Arrow back to /accounts |
-| Edit/Delete/Deposit/Withdraw actions | Done | Paper accounts only |
+| Feature | Status |
+|---------|--------|
+| JWT auth check | Done |
+| Forex Factory data fetch | Done |
+| Country/importance filtering | Done |
+| Historical stats matching | Done |
+| AI prediction generation | Done |
+| Volatility engine calculation | Done |
+| Risk level assessment | Done |
+| Today highlight extraction | Done |
+| Graceful error fallback | Done |
 
 **Gaps:**
 
-12. **No Max Drawdown metric card**: The drawdown chart exists but there's no summary card showing the max drawdown percentage. This is a key risk metric that should be surfaced in the metrics row.
-13. **No trade list/history on the detail page**: The overview shows equity curve but doesn't list recent trades for the account. Users must navigate to Trade History and filter separately.
-14. **Binance initial balance estimation**: Line 78 uses `walletBalance - netPnl` as a fallback for initial capital. This is documented in memory but has no tooltip or explanation for the user.
-15. **No "Avg Loss" display**: `AccountDetailMetrics` shows "Avg Win" under Profit Factor but never shows "Avg Loss". Both should be visible for a complete picture.
+29. **No caching**: Every authenticated request hits Forex Factory's API. With 15-minute `staleTime` on the client, multiple users hitting the endpoint within that window each trigger a separate external API call. A server-side cache (even in-memory for 5 minutes) would reduce external calls.
 
-### B. Accuracy
+30. **AI prediction matching is fragile**: Line 377-380 uses `includes()` for fuzzy matching between AI response event names and processed event names. If the AI rephrases "Non-Farm Employment Change" as "NFP", the match fails silently.
 
-| Check | Result |
-|-------|--------|
-| PnL calculation | Correct -- uses `realized_pnl ?? pnl ?? 0` fallback chain |
-| Drawdown formula | Correct -- `(peak - current) / (initialBalance + peak) * 100`, capped at 100 |
-| ROC calculation | Correct -- `netPnl / initialBalance * 100` |
-| Equity curve data | Correct -- sorted by date, cumulative sum |
-| Flow stats | Correct -- deposits minus withdrawals |
-| Fee breakdown | Correct -- commission + funding + total from RPC stats |
-| Win/Loss counts | Correct -- from `get_trade_stats` RPC |
-
-**Gaps:**
-
-16. **Fee breakdown conditionally hidden**: Line 211 in `AccountDetailOverview` only shows fee breakdown when `totalFees > 0`. For accounts with zero fees (paper trading), this is fine. But if an account has positive rebates that offset fees to exactly 0, the breakdown disappears. Edge case, but worth noting.
-17. **Capital flow conditionally hidden**: Line 236 only renders when `flowStats` is non-null. Since `flowStats` is null when `transactions` is empty, users see nothing -- no empty state card. This violates the layout stability standard.
-
-### C. Clarity and Readability
-
-**Gaps (missing tooltips):**
-
-18. **"Net P&L" metric card** -- Has "Gross:" subtitle but no tooltip explaining Gross vs Net (fees deducted).
-19. **"Return on Capital" metric card** -- Has a formula tooltip but it's on a separate line, not inline with the label. The UX could be cleaner.
-20. **"Win Rate" metric card** -- No tooltip. Should reference `WinRateTooltip` component that already exists.
-21. **"Profit Factor" metric card** -- No tooltip. Should reference `ProfitFactorTooltip` that already exists.
-22. **"Total Trades" metric card** -- No tooltip clarifying these are closed trades only.
-23. **"Equity Curve" chart** -- No tooltip on the title explaining this tracks cumulative realized P&L, not account equity (which would include unrealized).
-24. **"Drawdown" chart** -- Has a tooltip but it says "from peak cumulative P&L" which is technically correct but could add "Formula: (Peak - Current) / (Initial + Peak)".
-25. **Active positions table** -- "Size" column doesn't clarify the unit (contracts vs base asset). "Entry Price" and "Mark Price" lack currency labels.
-26. **Financial tab** -- "Fee Impact" (line ~95 of `AccountDetailFinancial`) shows "Fees as % of gross P&L" but has no tooltip explaining why this matters or what a good/bad percentage looks like.
-27. **Balance/Equity/Unrealized in header** -- No tooltips explaining the three-tier model for Binance accounts.
-
-### D. Code Quality
-
-28. **`AccountDetailFinancial` has an unused import**: `Link` from `react-router-dom` is imported and used, but the component pattern is fine.
-29. **`equityData` memo recalculates on every `initialBalance` change**: Since `initialBalance` for Binance is derived from `walletBalance - netPnl`, it can fluctuate. This causes unnecessary re-renders of the equity chart. Consider memoizing `initialBalance` separately.
-30. **Active positions table hardcodes `.toFixed(2)` for prices**: Low-cap altcoins (e.g., PEPEUSDT) can have prices like `0.00001234` which would display as `0.00`. Should use dynamic precision.
+### B. Accuracy -- covered above in section 1B.
 
 ---
 
-## 3. Summary of All Recommendations
+## 3. Summary of Recommendations
 
-### Priority 1 -- Bugs / Incorrect Behavior
+### Priority 1 -- Bugs
 
 | # | Issue | File | Fix |
 |---|-------|------|-----|
-| 1 | Stale route `/risk?tab=settings` | `Accounts.tsx:158` | Change to `/risk-analytics?tab=settings` |
-| 30 | Price `.toFixed(2)` truncates small values | `AccountDetailOverview.tsx:189-192` | Use dynamic precision based on price magnitude |
+| 1 | "UTC" label on local time | `CalendarTab.tsx:384` | Remove "UTC" suffix or convert to actual UTC display |
+| 7 | Hardcoded `+` on median move | `CalendarTab.tsx:428` | Display as absolute value: `+-{val}%` or `|{val}|%` |
 
 ### Priority 2 -- Missing Tooltips (Clarity)
 
-| # | Element | File | Tooltip Content |
-|---|---------|------|-----------------|
-| 4 | Balance summary card | `Accounts.tsx` | "Total balance across all accounts in the active mode. Live mode includes exchange wallet." |
-| 5 | Accounts count card | `Accounts.tsx` | "Number of active trading accounts in the current mode." |
-| 6 | Open Positions card | `Accounts.tsx` | "Trades with status 'open' plus active exchange positions." |
-| 8 | Comparison table headers | `AccountComparisonTable.tsx` | Use existing `WinRateTooltip`, `ProfitFactorTooltip` etc. |
-| 18 | Net P&L metric | `AccountDetailMetrics.tsx` | "Total profit/loss after all fees. Gross P&L shown below." |
-| 20 | Win Rate metric | `AccountDetailMetrics.tsx` | Reference `WinRateTooltip` |
-| 21 | Profit Factor metric | `AccountDetailMetrics.tsx` | Reference `ProfitFactorTooltip` |
-| 22 | Total Trades metric | `AccountDetailMetrics.tsx` | "Count of closed trades only. Open trades are not included." |
-| 23 | Equity Curve title | `AccountDetailOverview.tsx` | "Cumulative realized P&L over time. Does not include unrealized gains/losses." |
-| 25 | Positions table columns | `AccountDetailOverview.tsx` | "Size" -> "Size (base asset)", price columns with currency |
-| 26 | Fee Impact | `AccountDetailFinancial.tsx` | "Percentage of gross profits consumed by fees. Below 10% is efficient." |
-| 27 | Header balance labels | `AccountDetailHeader.tsx` | Tooltips on Balance, Equity, Unrealized explaining the three-tier model |
+| # | Element | Tooltip Content |
+|---|---------|-----------------|
+| 9 | Volatility Engine title | "Event-driven volatility model using historical BTC reactions to US macro events within a rolling 48-hour window." |
+| 10 | Composite Move Probability | "Probability of BTC moving >2% within 2h of events. Correlation-adjusted so related events (CPI + Core CPI) aren't double-counted." |
+| 11 | Expected Range (2h) | "Estimated BTC range after event: 70% median + 30% extreme historical move, adjusted for event clustering." |
+| 12 | Expected Range (24h) | "24-hour range estimate. 2h range x 1.8, floored by current realized daily volatility." |
+| 13 | Position Size multiplier | "Recommended position size relative to normal. 0.5x = use half your usual size during this risk regime." |
+| 14 | Event Cluster warning | "Multiple high-impact events amplify volatility beyond individual event impact." |
+| 15 | Risk regime badge | Brief description per regime level |
+| 16 | "AI Powered" badge | "AI predictions generated for top 5 high-impact events using Gemini." |
+| 17 | Importance dots | Add legend or tooltip: red = high, yellow = medium, green = low |
+| 18 | prob BTC move badge | "Based on N historical occurrences (2020-2025 data)." |
+| 19 | Upside bias badge | "% of times BTC moved up after this event. >60% = historically bullish." |
+| 20 | Worst case stat | "Largest observed BTC decline within 2h of this event type." |
+| 21 | Sample size (n=X) | "Number of historical data points. Higher = more reliable." |
+| 22 | Today's Key Release title | "Highest-impact event scheduled for today." |
+| 23 | Forecast/Previous/Actual | Brief explanations for each data point |
 
 ### Priority 3 -- Comprehensiveness Gaps
 
 | # | Gap | Fix |
 |---|-----|-----|
-| 3 | Position icon logic for paper mode | Use paper trade uPnL to determine icon direction, not just Binance |
-| 7 | No unrealized P&L for paper open trades | Calculate paper uPnL summary from open trade entries |
-| 12 | No max drawdown metric card | Add a 6th metric or replace/augment one of the 5 |
-| 15 | No "Avg Loss" shown | Add Avg Loss next to Avg Win under Profit Factor subtitle |
-| 17 | Capital Flow hidden when no transactions | Show empty state card instead of hiding entirely |
+| 5 | Volatility Engine disappears when null | Show a "calm state" card instead |
+| 8 | Stale `timeUntil` countdown | Add client-side countdown interval |
+| 4 | No visual distinction for past events | Add "Released" badge or reduced opacity |
 
 ### Priority 4 -- Code Quality
 
 | # | Issue | Fix |
 |---|-------|-----|
-| 10 | Inline query for openTradesCount | Extract to `useOpenTradesCount(accountIds)` hook |
-| 11 | `backtestOnly`/`excludeBacktest` naming confusion | Rename to `paperOnly`/`exchangeOnly` for clarity |
-| 29 | `initialBalance` fluctuation causing re-renders | Memoize `initialBalance` with stable reference |
+| 24 | Duplicated refresh button | Extract to single block |
+| 26 | `animate-pulse` motion sensitivity | Wrap with `motion-safe:animate-pulse` |
+| 27 | No memoization of format functions | Move to module-level pure functions |
 
 ---
 
@@ -173,10 +186,8 @@
 
 | File | Changes |
 |------|---------|
-| `src/pages/Accounts.tsx` | Fix stale route (P1), add tooltips to 3 summary cards (P2), extract openTradesCount to hook (P4) |
-| `src/components/accounts/AccountCardList.tsx` | Rename prop naming (P4) |
-| `src/components/accounts/AccountComparisonTable.tsx` | Add tooltips to table headers (P2) |
-| `src/components/accounts/detail/AccountDetailMetrics.tsx` | Add tooltips to all 5 metric cards, add Avg Loss (P2/P3) |
-| `src/components/accounts/detail/AccountDetailOverview.tsx` | Add tooltips to chart titles, fix price precision, add empty state for Capital Flow (P1/P2/P3) |
-| `src/components/accounts/detail/AccountDetailHeader.tsx` | Add tooltips to Balance/Equity/Unrealized labels (P2) |
-| `src/components/accounts/detail/AccountDetailFinancial.tsx` | Add tooltip to Fee Impact (P2) |
+| `src/components/market-insight/CalendarTab.tsx` | Fix UTC label (P1), fix median sign (P1), add all tooltips (P2), add calm-state card (P3), add past-event styling (P3), client-side countdown (P3), deduplicate refresh button (P4), motion-safe class (P4) |
+| `src/features/calendar/types.ts` | No changes needed |
+| `src/features/calendar/useEconomicCalendar.ts` | No changes needed |
+| `supabase/functions/economic-calendar/index.ts` | No changes needed (AI matching and caching are noted but lower priority) |
+
