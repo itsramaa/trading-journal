@@ -1,198 +1,179 @@
 
 
-# Import Page Restructure: From Dev Console to Professional Data Hub
+# Performance Page: Metric Integrity & Information Hierarchy Fix
 
-The current `/import` page mixes three fundamentally different workflows (auto sync, full recovery, on-chain scanner) on one flat surface with inconsistent state feedback and no clear primary path. This plan restructures it into a layered, mode-switched interface.
+Four targeted fixes addressing calculation inconsistency, misleading empty metrics, missing narrative, and cognitive overload.
 
 ---
 
 ## Problem Summary
 
-1. Three distinct products (Auto Sync, Full Recovery, On-Chain Scanner) share one flat page
-2. No clear "what am I doing right now?" context
-3. Logs, progress, and controls are mixed on the same visual level
-4. Solana scanner shows confusing "0 scanned, 0 found" in idle state (state machine ambiguity)
-5. Feature highlight cards at the top add noise without guiding action
-
----
-
-## Architecture
-
-The page becomes a clean mode-switched interface with 3 explicit tabs:
-
-```text
-ImportTrades
-  +-- PageHeader (same)
-  +-- Mode Tabs: [ Incremental Sync | Full Recovery | On-Chain Scanner ]
-  +-- Active Mode Content:
-       +-- Action Layer (controls)
-       +-- Status Layer (progress, separate card)
-       +-- Diagnostic Layer (logs, collapsed by default)
-```
-
-Each tab owns its entire vertical space. No cross-tab visual bleed.
+1. **Max Drawdown mismatch**: Key Metrics shows 108.40% while Drawdown Chart shows -100.00%. Root cause: `calculateTradingStats()` divides by `peak` (cumulative PnL) instead of `initialBalance + peak` (total equity at peak). Without initial balance, small accounts get impossible percentages.
+2. **Avg R:R = 0.00:1**: `calculateRR()` returns 0 when `stop_loss` is null. Displaying "0.00:1" implies zero edge; it actually means "not enough data to calculate."
+3. **Best Day negative**: Technically correct (no profit day in 7D window), but "Best Day: -$0.98" with a Trophy icon sends contradictory signals.
+4. **No narrative**: 20+ metrics displayed flat, no hierarchy, no verdict. User must self-interpret.
 
 ---
 
 ## Changes
 
-### 1. Replace Feature Highlight Cards with Mode Tabs
+### 1. Fix Max Drawdown Calculation (Critical)
 
-**File:** `src/pages/ImportTrades.tsx`
+**File:** `src/lib/trading-calculations.ts`
 
-Remove the 3 feature highlight cards (lines 84-128). They describe capabilities but do not guide action.
+The `calculateTradingStats` function currently computes drawdown as:
 
-Replace with 3 explicit mode tabs:
-
-| Tab | Label | Icon | When Disabled |
-|-----|-------|------|---------------|
-| `incremental` | Incremental Sync | Zap | Paper mode or not connected |
-| `full-recovery` | Full Recovery | Database | Paper mode or not connected |
-| `solana` | On-Chain Scanner | Globe | Never (works in both modes) |
-
-The current "Binance Sync" tab conflates incremental + full sync. Splitting them makes each mode's purpose clear.
-
-URL persistence stays via `useSearchParams` (existing pattern).
-
-Default tab logic:
-- Paper mode: `solana`
-- Live + connected: `incremental`
-- Live + not connected: `solana`
-
-### 2. Incremental Sync Tab -- Clean Action-First Layout
-
-Extract the current "Quick Actions" card content into its own tab. Structure:
-
-```text
-[Connection Status Banner -- if not connected]
-[Action Card]
-  - Sync button (primary CTA)
-  - Last sync time
-  - Stale indicator
-[Enrichment Card -- only if trades need enrichment]
-  - Count + Enrich button
-  - Progress bar when running
+```
+maxDrawdownPercent = peak > 0 ? (maxDrawdown / peak) * 100 : 0
 ```
 
-No logs. No recovery options. Just "sync latest trades."
+This divides by cumulative PnL peak only, ignoring initial capital. For a $47 wallet with $5 cumulative peak, a $6 drawdown becomes 120%.
 
-### 3. Full Recovery Tab -- Power Tool with Clear Layers
+Fix: Add optional `initialBalance` parameter and use the standardized formula (matching `DrawdownChart` and the project's drawdown-calculation-standard memory):
 
-Move `BinanceFullSyncPanel` into its own tab. Add visual separation between layers:
-
-```text
-[Quota Display]
-[Action Card]
-  - Range selector
-  - Force re-fetch toggle
-  - Start button
-[Status Card -- only when running or has result]
-  - Progress indicator
-  - ETA
-  - Reconciliation report
-[Diagnostic Logs -- collapsed by default, unchanged]
+```
+drawdownBase = initialBalance + peak
+maxDrawdownPercent = drawdownBase > 0 ? (maxDrawdown / drawdownBase) * 100 : 0
 ```
 
-The key change: BinanceFullSyncPanel stays as-is internally, but it now owns the full tab width without competing with incremental sync controls.
+Cap at 100%.
 
-### 4. Solana Scanner -- Fix State Machine Display
+**File:** `src/pages/Performance.tsx`
 
-**File:** `src/components/wallet/SolanaTradeImport.tsx`
+Pass the user's initial balance (from account data or a sensible default) to `calculateTradingStats()`.
 
-Fix the confusing idle state. Currently when `status === 'parsed'` and `result.totalTransactions === 0`, it shows "No DEX trades found in recent 0 transactions." This happens because the summary grid renders even before a real scan.
+### 2. Guard Invalid Metrics Display
 
-Add explicit state handling:
+**File:** `src/components/performance/PerformanceKeyMetrics.tsx`
 
-| State | What Shows |
-|-------|-----------|
-| `idle` | Scan controls only. No summary grid. No "0 Scanned" counters. |
-| `fetching` | Spinner + "Scanning X transactions..." |
-| `parsed` (trades > 0) | Summary grid + trade list + import button |
-| `parsed` (trades = 0) | "No trades found" message with "Scan More" option |
-| `importing` | Progress indicator |
-| `done` | Success + actions |
-| `error` | Error message + retry |
+| Metric | Current | Fix |
+|--------|---------|-----|
+| Avg R:R | Shows "0.00:1" when no SL data | Show "N/A" with tooltip "Set stop loss on trades to calculate R:R" |
+| Sharpe Ratio | Shows value even with < 30 trades | Show value but add "(low sample)" subtitle when totalTrades < 30 |
+| Max Drawdown | Shows raw number | Already fixed by calculation fix above |
 
-The summary grid (Scanned / Trades Found / Selected) only appears after a successful parse with `totalTransactions > 0`.
+The R:R card checks `stats.avgRR === 0 && stats.totalTrades > 0` to distinguish "no data" from "actual zero."
 
-### 5. Remove "Experimental" Badge from Solana Tab
+### 3. Fix 7-Day Best/Worst Day Framing
 
-The tab label changes from:
+**File:** `src/components/analytics/SevenDayStatsCard.tsx`
+
+When `bestDay.pnl < 0`:
+- Change label from "Best Day" to "Least Loss Day"
+- Change icon from Trophy (gold, implies achievement) to a neutral Activity icon
+
+When `worstDay.pnl > 0`:
+- Change label from "Worst Day" to "Smallest Gain Day"
+
+This ensures the framing matches the data's actual meaning.
+
+### 4. Add Performance Summary Card
+
+**File:** New component `src/components/performance/PerformanceSummaryCard.tsx`
+
+A single card at the top of the Overview tab (above 7-Day Stats) that provides a quick verdict:
+
 ```
-Solana Import [Experimental]
++------------------------------------------------------------------+
+| Performance Summary                               115 trades     |
+|                                                                  |
+| Net P&L: +$3.33          Win Rate: 26.1%                        |
+| Expectancy: $0.02/trade  Profit Factor: 1.04                    |
+|                                                                  |
+| Verdict: Borderline break-even. Low win rate offset by           |
+|          favorable R:R on winners. Drawdown risk elevated.       |
++------------------------------------------------------------------+
 ```
-to:
-```
-On-Chain Scanner
-```
 
-"Experimental" creates low confidence. The scanner works -- just label it by function.
+The verdict is generated deterministically (not AI) using a simple rule engine:
 
-### 6. Consistent Not-Connected State
+| Condition | Label |
+|-----------|-------|
+| expectancy > avgPnl * 0.5 AND winRate > 50 | "Consistently profitable" |
+| totalPnl > 0 AND winRate < 40 | "Profitable but inconsistent. Gains driven by large winners." |
+| totalPnl > 0 AND expectancy < 0.1 | "Borderline break-even. Edge is thin." |
+| totalPnl < 0 | "Currently unprofitable. Review risk and strategy." |
+| maxDrawdownPercent > 30 | Append "Drawdown risk elevated." |
 
-When Binance is not connected:
-- Incremental Sync tab: Shows connection CTA (link to Settings)
-- Full Recovery tab: Shows same connection CTA
-- On-Chain Scanner: Unaffected
+This provides the "story headline" the page currently lacks.
 
-Both Binance tabs share the same `NotConnectedBanner` component (extracted, DRY).
+### 5. Hide Empty Context Sections
+
+**File:** `src/components/performance/PerformanceContextTab.tsx`
+
+Currently renders "0 trades analyzed" sections. Fix:
+- `CombinedContextualScore`: Only render if `filteredTrades` has at least 1 trade with `market_context` data.
+- `EventDayComparison`: Only render if either `eventDay` or `normalDay` has `totalTrades > 0`.
+- `VolatilityLevelChart`: Only render if `byVolatility` has entries with data.
+
+When the entire Context tab has zero renderable sections, show a single empty state: "Complete trades with market context enabled to see environmental analysis."
 
 ---
 
 ## Technical Details
 
-### Tab Configuration
+### Drawdown Fix in `calculateTradingStats`
 
 ```typescript
-type ImportMode = 'incremental' | 'full-recovery' | 'solana';
+export function calculateTradingStats(
+  trades: TradeEntry[],
+  initialBalance: number = 0  // NEW optional param
+): TradingStats {
+  // ... existing code ...
 
-const tabs: Array<{ value: ImportMode; label: string; icon: LucideIcon; disabled: boolean }> = [
-  { value: 'incremental', label: 'Incremental Sync', icon: Zap, disabled: isBinanceDisabled },
-  { value: 'full-recovery', label: 'Full Recovery', icon: Database, disabled: isBinanceDisabled },
-  { value: 'solana', label: 'On-Chain Scanner', icon: Globe, disabled: false },
-];
-```
+  // Max drawdown calculation (equity curve based)
+  // ... existing peak/drawdown loop ...
 
-### Default Tab Selection
+  const drawdownBase = initialBalance + peak;
+  const maxDrawdownPercent = drawdownBase > 0
+    ? Math.min((maxDrawdown / drawdownBase) * 100, 100)
+    : 0;
 
-```typescript
-const defaultTab: ImportMode = isPaperMode
-  ? 'solana'
-  : isBinanceConnected
-    ? 'incremental'
-    : 'solana';
-```
-
-### Solana State Guard
-
-In `SolanaTradeImport.tsx`, wrap the summary grid:
-
-```typescript
-{status === 'parsed' && result && result.totalTransactions > 0 && (
-  <div className="grid grid-cols-3 gap-3">
-    {/* Summary counters */}
-  </div>
-)}
-```
-
-This prevents showing "0 Scanned / 0 Found / 0 Selected" in any state.
-
-### NotConnectedBanner (shared)
-
-```typescript
-function NotConnectedBanner() {
-  return (
-    <Alert>
-      <Wifi className="h-4 w-4" />
-      <AlertDescription className="flex items-center justify-between">
-        <span>Connect your Binance API credentials in Settings to use this feature.</span>
-        <Button asChild variant="outline" size="sm">
-          <Link to="/settings">Go to Settings</Link>
-        </Button>
-      </AlertDescription>
-    </Alert>
-  );
+  // ... rest unchanged ...
 }
+```
+
+### Summary Verdict Engine
+
+```typescript
+function generateVerdict(stats: TradingStats): string {
+  const parts: string[] = [];
+  
+  if (stats.totalPnl < 0) {
+    parts.push("Currently unprofitable. Review risk controls and strategy adherence.");
+  } else if (stats.expectancy < 0.1 && stats.totalPnl > 0) {
+    parts.push("Borderline break-even. Edge is thin.");
+  } else if (stats.winRate < 40 && stats.totalPnl > 0) {
+    parts.push("Profitable but inconsistent. Gains driven by large winners.");
+  } else if (stats.winRate >= 50 && stats.profitFactor >= 1.5) {
+    parts.push("Consistently profitable with solid edge.");
+  } else {
+    parts.push("Moderately profitable.");
+  }
+  
+  if (stats.maxDrawdownPercent > 30) {
+    parts.push("Drawdown risk elevated relative to returns.");
+  }
+  
+  return parts.join(" ");
+}
+```
+
+### R:R Display Guard
+
+```typescript
+// In PerformanceKeyMetrics
+<CardContent>
+  <div className="text-xl font-bold">
+    {stats.avgRR === 0 && stats.totalTrades > 0
+      ? <span className="text-muted-foreground">N/A</span>
+      : formatRatio(stats.avgRR)
+    }
+  </div>
+  {stats.avgRR === 0 && stats.totalTrades > 0 && (
+    <p className="text-xs text-muted-foreground">Set stop loss to calculate</p>
+  )}
+</CardContent>
 ```
 
 ---
@@ -201,8 +182,12 @@ function NotConnectedBanner() {
 
 | File | Change |
 |------|--------|
-| `src/pages/ImportTrades.tsx` | Replace feature cards with 3 mode tabs; split Binance into Incremental + Full Recovery; extract NotConnectedBanner |
-| `src/components/wallet/SolanaTradeImport.tsx` | Fix idle state display; guard summary grid behind successful parse |
+| `src/lib/trading-calculations.ts` | Add `initialBalance` param to `calculateTradingStats`; fix drawdown % formula |
+| `src/pages/Performance.tsx` | Pass initialBalance to stats calculation; add SummaryCard to overview |
+| `src/components/performance/PerformanceKeyMetrics.tsx` | Guard R:R and Sharpe display for insufficient data |
+| `src/components/analytics/SevenDayStatsCard.tsx` | Fix Best/Worst Day label when value contradicts framing |
+| `src/components/performance/PerformanceContextTab.tsx` | Hide sections with zero analyzable data |
+| `src/components/performance/PerformanceSummaryCard.tsx` | New: deterministic verdict card |
 
 ---
 
@@ -210,20 +195,9 @@ function NotConnectedBanner() {
 
 | Before | After |
 |--------|-------|
-| 2 tabs (Binance Sync, Solana Import) | 3 tabs (Incremental Sync, Full Recovery, On-Chain Scanner) |
-| Feature highlight cards at top | Removed (tabs self-describe) |
-| Incremental + Full Sync in same tab | Separated into distinct modes |
-| "0 Scanned / 0 Found" shown before scan | Only summary grid after actual scan |
-| "Experimental" badge on Solana | Clean "On-Chain Scanner" label |
-| Different not-connected banners | Shared NotConnectedBanner component |
-
----
-
-## What Does NOT Change
-
-- `BinanceFullSyncPanel` internal logic (sync engine, logs, reconciliation)
-- `SolanaTradeImport` scan/import logic
-- URL persistence pattern (`useSearchParams`)
-- All hook integrations (sync store, enrichment, quota)
-- Supported DEX protocols card (stays in Solana tab)
+| Max Drawdown 108.40% (impossible) | Capped, uses equity base (initialBalance + peak) |
+| Avg R:R "0.00:1" (misleading) | "N/A" with explanation when no SL data |
+| Best Day -$0.98 with Trophy icon | "Least Loss Day" with neutral icon |
+| No narrative, 20+ flat metrics | Summary card with deterministic verdict at top |
+| Empty context sections rendered | Hidden when no data; single empty state fallback |
 
