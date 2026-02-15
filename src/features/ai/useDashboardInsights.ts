@@ -6,6 +6,7 @@ import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserSettings } from "@/hooks/use-user-settings";
 import { useAISettingsEnforcement } from "@/hooks/use-ai-settings-enforcement";
+import { useUnifiedMarketScore } from "@/hooks/use-unified-market-score";
 
 export interface DashboardInsights {
   summary: string;
@@ -57,6 +58,7 @@ export function useDashboardInsights() {
   const [insights, setInsights] = useState<DashboardInsights | null>(null);
   const { data: settings } = useUserSettings();
   const { shouldRunAIFeature, filterByConfidence } = useAISettingsEnforcement();
+  const { scoreLabel: marketScoreLabel } = useUnifiedMarketScore();
 
   const getInsights = useCallback(async (params: InsightsParams): Promise<DashboardInsights | null> => {
     // Check if daily suggestions is enabled
@@ -74,8 +76,9 @@ export function useDashboardInsights() {
         { 
           body: { 
             ...params, 
-            language: settings?.language || 'en' 
-          } 
+            language: settings?.language || 'en',
+            marketScoreLabel: marketScoreLabel || 'Unknown',
+          }
         }
       );
 
@@ -107,7 +110,7 @@ export function useDashboardInsights() {
     } finally {
       setIsLoading(false);
     }
-  }, [settings?.language, shouldRunAIFeature, filterByConfidence]);
+  }, [settings?.language, shouldRunAIFeature, filterByConfidence, marketScoreLabel]);
 
   const refresh = useCallback((params: InsightsParams) => {
     return getInsights(params);

@@ -53,7 +53,7 @@ function calculatePairStats(trades: any[]) {
     }
     pairStats[pair].total++;
     pairStats[pair].pnl += (trade.realized_pnl ?? trade.pnl ?? 0);
-    if (trade.result === 'win') {
+    if ((trade.realized_pnl ?? trade.pnl ?? 0) > 0) {
       pairStats[pair].wins++;
     }
   });

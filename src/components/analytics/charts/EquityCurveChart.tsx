@@ -39,19 +39,26 @@ export function EquityCurveChart({ initialBalance = 0, className }: EquityCurveC
       return { curveData: [] as CurveDataPoint[], maxDrawdown: 0, maxDrawdownPercent: 0, peakBalance: 0, currentBalance: 0 };
     }
 
-    // Use first trade's PnL to infer baseline if initialBalance is 0
-    const effectiveInitial = initialBalance > 0 ? initialBalance : 0;
+    // Use first trade's PnL to infer baseline if initialBalance is 0 or very small
+    // If no initialBalance, use absolute value of first balance point as baseline
+    let effectiveInitial = initialBalance > 0 ? initialBalance : 0;
     let balance = effectiveInitial;
     let peak = balance;
     let maxDd = 0;
     let maxDdPercent = 0;
 
-    const data: CurveDataPoint[] = sorted.map((trade) => {
+    const data: CurveDataPoint[] = sorted.map((trade, idx) => {
       const pnl = trade.realized_pnl ?? trade.pnl ?? 0;
       balance += pnl;
+      // If no initialBalance was provided, use the first positive balance as baseline
+      if (idx === 0 && effectiveInitial <= 0 && Math.abs(balance) > 0) {
+        effectiveInitial = Math.abs(balance);
+      }
       if (balance > peak) peak = balance;
       const drawdown = peak - balance;
-      const denominator = effectiveInitial > 0 ? (effectiveInitial + peak - effectiveInitial) : peak;
+      // Use standardized formula: drawdown / (initialBalance + peakCumulativePnl)
+      const peakCumPnl = peak - effectiveInitial;
+      const denominator = effectiveInitial + peakCumPnl; // = peak when effectiveInitial > 0
       const ddPercent = denominator > 0 ? Math.min((drawdown / denominator) * 100, 100) : 0;
       if (drawdown > maxDd) {
         maxDd = drawdown;

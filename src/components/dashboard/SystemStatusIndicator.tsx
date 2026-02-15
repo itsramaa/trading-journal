@@ -14,6 +14,7 @@ import {
   Loader2 
 } from "lucide-react";
 import { useTradingGate } from "@/hooks/use-trading-gate";
+import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
@@ -36,6 +37,36 @@ export function SystemStatusIndicator({ compact = false }: SystemStatusIndicator
     currentPnl,
     isLoading,
   } = useTradingGate();
+  const { data: allTrades = [] } = useModeFilteredTrades();
+
+  // Performance advisory based on last 20 trades
+  const performanceAdvisory = (() => {
+    const closedTrades = allTrades
+      .filter(t => t.status === 'closed')
+      .sort((a, b) => new Date(b.trade_date).getTime() - new Date(a.trade_date).getTime())
+      .slice(0, 20);
+    
+    if (closedTrades.length < 10) return null;
+    
+    const wins = closedTrades.filter(t => (t.realized_pnl ?? t.pnl ?? 0) > 0).length;
+    const winRate = (wins / closedTrades.length) * 100;
+    
+    // Check current loss streak
+    let lossStreak = 0;
+    for (const t of closedTrades) {
+      if ((t.realized_pnl ?? t.pnl ?? 0) < 0) lossStreak++;
+      else break;
+    }
+    
+    if (winRate < 30 || lossStreak > 10) {
+      return {
+        message: winRate < 30 
+          ? `Win rate ${winRate.toFixed(0)}% over last ${closedTrades.length} trades`
+          : `${lossStreak}-trade losing streak`,
+      };
+    }
+    return null;
+  })();
 
   if (isLoading) {
     return (
@@ -167,6 +198,20 @@ export function SystemStatusIndicator({ compact = false }: SystemStatusIndicator
             </span>
           </div>
         </div>
+
+        {/* Performance Advisory */}
+        {performanceAdvisory && (
+          <div className="mt-3 pt-3 border-t border-border/50">
+            <div className="flex items-center gap-2 text-sm">
+              <AlertTriangle className="h-4 w-4 text-[hsl(var(--chart-4))]" />
+              <span className="text-[hsl(var(--chart-4))] font-medium">Performance Advisory</span>
+              <InfoTooltip content="Based on your last 20 trades. This monitors trading performance, not daily risk limits." />
+            </div>
+            <p className="text-xs text-muted-foreground mt-1 pl-6">
+              {performanceAdvisory.message}. Review recent performance before trading.
+            </p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
