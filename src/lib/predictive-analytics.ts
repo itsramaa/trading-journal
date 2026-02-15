@@ -92,12 +92,23 @@ export function calculateStreakProbability(trades: TradeData[]): PredictionResul
   if (occurrences < 3) return null;
 
   const prob = (continuations / occurrences) * 100;
+  const continuationRate = continuations / occurrences;
+  const isImbalanced = continuationRate > 0.9 || continuationRate < 0.1;
+
   return {
     value: prob,
-    description: `After ${currentStreak} consecutive ${streakType}s, historically ${prob.toFixed(0)}% of similar streaks continued. Based on ${occurrences} pattern matches in your history.`,
-    confidence: getConfidence(occurrences),
+    description: `After ${currentStreak} consecutive ${streakType}s, historically ${prob.toFixed(0)}% of similar streaks continued. Based on ${occurrences} pattern matches.${isImbalanced ? ' Note: distribution is heavily skewed — interpret with caution.' : ''}`,
+    confidence: getAdjustedConfidence(occurrences, isImbalanced),
     sampleSize: occurrences,
   };
+}
+
+function getAdjustedConfidence(n: number, imbalanced: boolean): Confidence {
+  const base = getConfidence(n);
+  if (imbalanced && base !== 'low') {
+    return base === 'high' ? 'medium' : 'low';
+  }
+  return base;
 }
 
 /**
