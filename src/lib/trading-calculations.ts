@@ -13,12 +13,12 @@ export interface TradingStats {
   winRate: number;
   totalPnl: number;
   avgPnl: number;
-  avgRR: number;
+  avgRR: number | null;
   profitFactor: number;
   expectancy: number;
   maxDrawdown: number;
   maxDrawdownPercent: number;
-  sharpeRatio: number;
+  sharpeRatio: number | null;
   grossProfit: number;
   grossLoss: number;
   largestWin: number;
@@ -37,7 +37,7 @@ export interface StrategyPerformance {
   winRate: number;
   totalPnl: number;
   avgPnl: number;
-  avgRR: number;
+  avgRR: number | null;
   contribution: number;
 }
 
@@ -122,12 +122,12 @@ export function calculateTradingStats(trades: TradeEntry[], initialBalance: numb
     winRate: 0,
     totalPnl: 0,
     avgPnl: 0,
-    avgRR: 0,
+    avgRR: null,
     profitFactor: 0,
     expectancy: 0,
     maxDrawdown: 0,
     maxDrawdownPercent: 0,
-    sharpeRatio: 0,
+    sharpeRatio: null,
     grossProfit: 0,
     grossLoss: 0,
     largestWin: 0,
@@ -184,7 +184,7 @@ export function calculateTradingStats(trades: TradeEntry[], initialBalance: numb
   const rrValues = trades.map(t => calculateRR(t)).filter(rr => rr !== 0);
   const avgRR = rrValues.length > 0 
     ? rrValues.reduce((sum, rr) => sum + Math.abs(rr), 0) / rrValues.length
-    : 0;
+    : null;
 
   // Max drawdown calculation (equity curve based)
   const sortedTrades = [...trades].sort(
@@ -212,7 +212,7 @@ export function calculateTradingStats(trades: TradeEntry[], initialBalance: numb
   const meanReturn = avgPnl;
   const variance = pnlValues.reduce((sum, pnl) => sum + Math.pow(pnl - meanReturn, 2), 0) / pnlValues.length;
   const stdDev = Math.sqrt(variance);
-  const sharpeRatio = stdDev > 0 ? (meanReturn / stdDev) * Math.sqrt(252) : 0; // Annualized
+  const sharpeRatio = stdDev > 0 ? (meanReturn / stdDev) * Math.sqrt(252) : null; // Annualized
 
   // Consecutive wins/losses
   let currentWinStreak = 0;
@@ -281,7 +281,7 @@ export function calculateStrategyPerformance(
         winRate: 0,
         totalPnl: 0,
         avgPnl: 0,
-        avgRR: 0,
+        avgRR: null,
         contribution: 0,
       };
     }
@@ -293,7 +293,7 @@ export function calculateStrategyPerformance(
     const rrValues = strategyTrades.map(t => calculateRR(t)).filter(rr => rr !== 0);
     const avgRR = rrValues.length > 0
       ? rrValues.reduce((sum, rr) => sum + Math.abs(rr), 0) / rrValues.length
-      : 0;
+      : null;
 
     return {
       strategy,

@@ -25,8 +25,8 @@ interface PerformanceKeyMetricsProps {
     maxDrawdownPercent: number;
     largestWin: number;
     largestLoss: number;
-    sharpeRatio: number;
-    avgRR: number;
+    sharpeRatio: number | null;
+    avgRR: number | null;
     totalTrades: number;
     totalPnl: number;
   };
@@ -144,8 +144,13 @@ export function PerformanceKeyMetrics({ stats, formatCurrency, binanceStats, sho
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold">{stats.sharpeRatio.toFixed(2)}</div>
-            {stats.totalTrades < 30 && stats.totalTrades > 0 && (
+            <div className="text-xl font-bold">
+              {stats.sharpeRatio === null
+                ? <span className="text-muted-foreground">N/A</span>
+                : stats.sharpeRatio.toFixed(2)
+              }
+            </div>
+            {stats.sharpeRatio !== null && stats.totalTrades < 30 && stats.totalTrades > 0 && (
               <p className="text-xs text-muted-foreground">(low sample)</p>
             )}
           </CardContent>
@@ -159,12 +164,12 @@ export function PerformanceKeyMetrics({ stats, formatCurrency, binanceStats, sho
           </CardHeader>
           <CardContent>
             <div className="text-xl font-bold">
-              {stats.avgRR === 0 && stats.totalTrades > 0
+              {stats.avgRR === null
                 ? <span className="text-muted-foreground">N/A</span>
                 : formatRatio(stats.avgRR)
               }
             </div>
-            {stats.avgRR === 0 && stats.totalTrades > 0 && (
+            {stats.avgRR === null && stats.totalTrades > 0 && (
               <p className="text-xs text-muted-foreground">Set stop loss to calculate</p>
             )}
           </CardContent>

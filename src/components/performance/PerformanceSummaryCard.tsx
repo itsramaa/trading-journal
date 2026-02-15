@@ -18,10 +18,10 @@ function generateVerdict(stats: TradingStats): string {
 
   if (stats.totalPnl < 0) {
     parts.push("Currently unprofitable. Review risk controls and strategy adherence.");
-  } else if (stats.totalPnl > 0 && stats.expectancy < 0.1) {
-    parts.push("Borderline break-even. Edge is thin.");
   } else if (stats.totalPnl > 0 && stats.winRate < 40) {
     parts.push("Profitable but inconsistent. Gains driven by large winners.");
+  } else if (stats.totalPnl > 0 && stats.expectancy < 0.1) {
+    parts.push("Borderline break-even. Edge is thin.");
   } else if (stats.winRate >= 50 && stats.profitFactor >= 1.5) {
     parts.push("Consistently profitable with solid edge.");
   } else {
@@ -42,6 +42,14 @@ function getEdgeLabel(stats: TradingStats): { label: string; variant: "default" 
   return { label: "Moderate", variant: "outline" };
 }
 
+function getEdgeBadgeClass(label: string): string {
+  switch (label) {
+    case 'Strong': return 'bg-profit/10 text-profit border-profit/20';
+    case 'Low': return 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20';
+    default: return '';
+  }
+}
+
 export function PerformanceSummaryCard({ stats, formatCurrency }: PerformanceSummaryCardProps) {
   if (stats.totalTrades === 0) return null;
 
@@ -57,7 +65,7 @@ export function PerformanceSummaryCard({ stats, formatCurrency }: PerformanceSum
         </CardTitle>
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="text-xs">{stats.totalTrades} trades</Badge>
-          <Badge variant={edge.variant} className="text-xs">Edge: {edge.label}</Badge>
+          <Badge variant={edge.variant} className={`text-xs ${getEdgeBadgeClass(edge.label)}`}>Edge: {edge.label}</Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
