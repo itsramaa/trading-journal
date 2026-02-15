@@ -1,193 +1,229 @@
 
+# Strategy System: Structural Integrity & Completeness Upgrade
 
-# AI Insights: Variance Awareness, Risk-Adjusted Rankings & Data Integrity
-
-Addresses 5 remaining statistical gaps: variance metrics, expectancy-based pair ranking, drawdown context for streak insights, correlation data gating, and prediction confidence tightening.
-
----
-
-## 1. Add Variance Metrics to Stats (Std Dev, Rolling Performance)
-
-**File:** `src/pages/AIInsights.tsx`
-
-Extend the `stats` useMemo to calculate:
-
-```typescript
-// Standard deviation of per-trade returns
-const pnls = closedTrades.map(t => getPnl(t));
-const meanPnl = totalPnl / closedTrades.length;
-const stdDev = Math.sqrt(pnls.reduce((s, p) => s + Math.pow(p - meanPnl, 2), 0) / pnls.length);
-
-// Rolling 30-trade performance (last 30 closed trades)
-const last30 = sortedTrades.slice(0, Math.min(30, sortedTrades.length));
-const last30Pnl = last30.reduce((s, t) => s + getPnl(t), 0);
-const last30WinRate = last30.filter(t => getPnl(t) > 0).length / last30.length * 100;
-```
-
-Add these to the returned stats object: `stdDev`, `last30Pnl`, `last30WinRate`.
-
-**New insight card** in the insights array:
-
-- If `stdDev` is large relative to `avgWin` (stdDev > avgWin * 1.5), generate a neutral insight:
-  - Title: "High Return Variance"
-  - Description: `"Your per-trade P&L std dev (${formatPnl(stdDev)}) is high relative to avg win (${formatPnl(avgWin)}). Short-term results may not reflect true edge — evaluate over 100+ trades."`
-  - Confidence: based on total trade count
-
-- Rolling 30 vs overall comparison insight:
-  - If `last30WinRate` differs from overall `winRate` by more than 10 percentage points, add a pattern insight indicating improving or declining recent performance.
+Addresses 9 issues: R:R redundancy, confluence logic, confidence transparency, position sizing, trade management rules, leaderboard empty state, timeframe labels, futures-specific fields, and validation scoring.
 
 ---
 
-## 2. Pair Ranking: Sort by Expectancy, Not Raw P&L
+## Scope & Priority
 
-**File:** `src/pages/AIInsights.tsx`
+Issues are grouped into 3 tiers:
 
-Currently pairs are sorted by `b.pnl - a.pnl` (line 146). This biases toward high-volume or lucky small-sample pairs.
+**Tier 1 -- Logic Fixes (prevent conflicts)**
+1. R:R single source of truth
+2. Min Confluences vs mandatory rules decoupling
+3. Confidence score transparency
 
-Change to expectancy-based ranking:
+**Tier 2 -- Feature Completions (strategy engine gaps)**
+4. Position sizing model
+5. Trade management rules
+6. Futures-specific fields (leverage, margin mode)
 
-```typescript
-const pairRankings = Object.entries(pairStats)
-  .map(([pair, s]) => ({
-    pair,
-    ...s,
-    winRate: (s.wins / (s.wins + s.losses)) * 100,
-    trades: s.wins + s.losses,
-    expectancy: s.pnl / (s.wins + s.losses),  // avg P&L per trade
-  }))
-  .filter(p => p.trades >= DATA_QUALITY.MIN_TRADES_FOR_RANKING)
-  .sort((a, b) => b.expectancy - a.expectancy);
-```
-
-Update the Pair Performance Ranking UI to show expectancy alongside total P&L:
-
-```typescript
-<p className="text-sm text-muted-foreground">
-  {pair.trades} trades • {pair.winRate.toFixed(0)}% WR • {formatPnl(pair.expectancy)}/trade
-</p>
-```
-
-Update best/worst pair insight descriptions to reference expectancy instead of total P&L.
+**Tier 3 -- UX Polish**
+7. Leaderboard empty state
+8. Timeframe hierarchy labels
+9. Validation score explainability (tooltip)
 
 ---
 
-## 3. Drawdown Context for Streak Insights
+## 1. R:R Single Source of Truth
 
-**File:** `src/pages/AIInsights.tsx`
+**Problem:** `min_rr` in Entry tab and TP/SL R values in Exit tab are independent. A user sets min_rr=1.5 but exit TP=2R/SL=1R (implied R:R=2:1). Which is authoritative?
 
-Import and use `calculateAdvancedRiskMetrics` from `src/lib/advanced-risk-metrics.ts` to add drawdown context to streak insights.
+**Solution:** Make `min_rr` a **validation gate** only. It validates that the exit rules produce an R:R >= min_rr. Remove it from the Entry tab and move it to the Exit tab as a derived/validated field.
 
-```typescript
-import { calculateAdvancedRiskMetrics } from "@/lib/advanced-risk-metrics";
-```
-
-In the stats useMemo, compute:
-
-```typescript
-const riskMetrics = calculateAdvancedRiskMetrics(
-  closedTrades.map(t => ({
-    pnl: getPnl(t),
-    trade_date: t.trade_date,
-    result: t.result || '',
-  }))
-);
-```
-
-Expose `maxDrawdownPercent` and `currentDrawdownPercent` in stats.
-
-Update the losing streak insight description:
-
-```typescript
-description: `Statistically rare streak. Current drawdown: ${stats.currentDrawdownPercent.toFixed(1)}% from peak (max historical: ${stats.maxDrawdownPercent.toFixed(1)}%). Review recent trade quality and setup adherence.`,
-```
-
-This grounds the streak warning in concrete equity context rather than emotional assumption.
+**Files:**
+- `src/components/strategy/StrategyFormDialog.tsx`: Move `min_rr` input from Entry tab to Exit tab. Add a computed R:R display derived from exit rules (TP value / SL value when both are in `rr` unit). Show a warning badge if derived R:R < min_rr.
+- `src/components/strategy/ExitRulesBuilder.tsx`: Add a computed "Effective R:R" display at the top showing TP/SL ratio when both exist in the rules.
 
 ---
 
-## 4. Correlation Section: Gate by Data Availability
+## 2. Decouple Min Confluences from Mandatory Count
 
-**File:** `src/components/analytics/contextual/ContextualPerformance.tsx`
+**Problem:** 4 mandatory rules + min_confluences=4 makes the setting redundant.
 
-The `CorrelationRow` currently shows `0.00 Weak None` when there's no market context data. This is misleading because 0 means "no data," not "no relationship."
+**Solution:** Change the default to 2 mandatory, 2 optional (out of the 4 default rules). Update the default `min_confluences` to 3.
 
-Update the CorrelationRow component to check `tradesWithContext`:
+**Files:**
+- `src/types/strategy.ts`: Update `DEFAULT_ENTRY_RULES` -- set `on_chain` and `sentiment` as `is_mandatory: false` (already done), and also set `indicator_confirmation` to `is_mandatory: false`.
+- `src/lib/constants/strategy-config.ts`: Change `MIN_CONFLUENCES: 3` (from 4), `DEFAULT_ENTRY_RULES_COUNT: 4` stays.
+- `src/lib/constants/strategy-rules.ts`: Change `DEFAULT_MANDATORY_THRESHOLD: 2` (from 4).
+- `src/components/strategy/EntryRulesBuilder.tsx`: Update description text to reflect the new threshold.
 
+---
+
+## 3. Confidence Score Transparency
+
+**Problem:** YouTube-imported strategies show "Confidence: 91%" without explaining the formula.
+
+**Solution:** Add a tooltip/hover explanation on any confidence or validation_score display.
+
+**Files:**
+- `src/components/strategy/StrategyCard.tsx`: Where validation_score is potentially shown (via YouTube badge area), add a tooltip: "Confidence score is based on: completeness of entry/exit rules, specificity of conditions, and backtest-readiness. Not a win rate prediction."
+- `src/components/strategy/StrategyDetailDrawer.tsx`: If `strategy.validation_score` exists, render it with the same tooltip.
+- `src/hooks/use-youtube-strategy-import.ts`: Add a comment documenting the confidence formula for developer clarity.
+
+---
+
+## 4. Position Sizing Model Field
+
+**Problem:** Strategies have no position sizing model. Backtest uses flat risk.
+
+**Solution:** Add a `position_sizing_model` field to strategies with options: Fixed % Risk (default), Fixed USD, Kelly Fraction, Volatility-Adjusted (ATR).
+
+**Database Migration:**
+```sql
+ALTER TABLE trading_strategies
+  ADD COLUMN position_sizing_model text DEFAULT 'fixed_percent',
+  ADD COLUMN position_sizing_value numeric DEFAULT 2;
+```
+
+**Files:**
+- `src/types/strategy.ts`: Add `PositionSizingModel` type and fields to `TradingStrategyEnhanced`.
+- `src/lib/constants/strategy-config.ts`: Add `POSITION_SIZING_MODELS` array with label/description/default for each model.
+- `src/components/strategy/StrategyFormDialog.tsx`: Add a "Risk & Sizing" section in the Exit tab with model selector and value input.
+- `src/hooks/trading/use-trading-strategies.ts`: Map the new columns.
+- `src/components/strategy/StrategyDetailDrawer.tsx`: Display the sizing model in Strategy Details card.
+
+---
+
+## 5. Trade Management Rules
+
+**Problem:** Only TP/SL exist. No partial TP, move SL to BE, max trades per day, or kill switch.
+
+**Solution:** Add a `trade_management` JSONB field to store structured management rules.
+
+**Database Migration:**
+```sql
+ALTER TABLE trading_strategies
+  ADD COLUMN trade_management jsonb DEFAULT '{}';
+```
+
+**New type:**
 ```typescript
-function CorrelationRow({ label, value, description, hasData }: { 
-  label: string; value: number; description: string; hasData: boolean;
-}) {
-  if (!hasData) {
-    return (
-      <div className="flex items-center justify-between py-2 border-b last:border-0">
-        <div>
-          <p className="font-medium text-sm">{label}</p>
-          <p className="text-xs text-muted-foreground">{description}</p>
-        </div>
-        <div className="text-right">
-          <p className="text-sm text-muted-foreground">Insufficient data</p>
-        </div>
-      </div>
-    );
-  }
-  // ... existing render logic
+interface TradeManagement {
+  partial_tp_enabled: boolean;
+  partial_tp_levels: { percent: number; at_rr: number }[];  // e.g., close 50% at 1R
+  move_sl_to_be: boolean;
+  move_sl_to_be_at_rr: number;  // e.g., move SL to BE at 1R
+  max_trades_per_day: number | null;
+  max_daily_loss_percent: number | null;  // kill switch
+  max_consecutive_losses: number | null;  // streak kill switch
 }
 ```
 
-Pass `hasData={data.tradesWithContext >= DATA_QUALITY.MIN_TRADES_FOR_CORRELATION}` to each CorrelationRow.
-
-Additionally, if ALL correlations lack data, collapse the entire Correlations card into a single message rather than showing 3 "Insufficient data" rows.
+**Files:**
+- `src/types/strategy.ts`: Add `TradeManagement` interface and default.
+- `src/components/strategy/StrategyFormDialog.tsx`: Add a 5th tab "Manage" with toggles and inputs for partial TP, SL-to-BE, max trades, kill switch.
+- `src/components/strategy/StrategyDetailDrawer.tsx`: Display management rules.
+- `src/hooks/trading/use-trading-strategies.ts`: Map the new column.
 
 ---
 
-## 5. Prediction Confidence: Penalize Imbalanced Distributions
+## 6. Futures-Specific Fields
 
-**File:** `src/lib/predictive-analytics.ts`
+**Problem:** Futures strategies have no leverage or margin mode settings.
 
-Current confidence is purely sample-count based. A 25-sample prediction with 24/25 continuations (96%) gets "low" confidence, but it might be from a single cluster period.
+**Solution:** Conditionally show leverage and margin mode fields when `market_type === 'futures'`.
 
-Add a distribution quality check to `calculateStreakProbability`:
+**Database Migration:**
+```sql
+ALTER TABLE trading_strategies
+  ADD COLUMN default_leverage integer DEFAULT 1,
+  ADD COLUMN margin_mode text DEFAULT 'cross';
+```
 
+**Files:**
+- `src/types/strategy.ts`: Add fields to enhanced type.
+- `src/components/strategy/StrategyFormDialog.tsx`: In Method tab, conditionally render leverage slider (1-125x) and margin mode toggle (Cross/Isolated) when market type is "futures".
+- `src/components/strategy/StrategyDetailDrawer.tsx`: Show leverage and margin mode badges for futures strategies.
+- `src/hooks/trading/use-trading-strategies.ts`: Map columns.
+
+---
+
+## 7. Leaderboard Empty State
+
+**Problem:** Shows "Top 0 cloned strategies globally" when empty.
+
+**Solution:** Already partially handled (lines 349-352 of StrategyLeaderboard.tsx have an empty message), but the `CardDescription` on line 238 still shows "Top 0 cloned strategies globally".
+
+**File:** `src/components/strategy/StrategyLeaderboard.tsx`
+
+Fix the description:
 ```typescript
-// After computing occurrences and continuations:
-const continuationRate = continuations / occurrences;
-
-// Penalize extreme imbalance: if rate > 90% or < 10%, 
-// the pattern may be clustering, not a true edge
-const isImbalanced = continuationRate > 0.9 || continuationRate < 0.1;
-
-// Downgrade confidence by one level if imbalanced AND sample is not large
-function getAdjustedConfidence(n: number, imbalanced: boolean): Confidence {
-  const base = getConfidence(n);
-  if (imbalanced && base !== 'low') {
-    return base === 'high' ? 'medium' : 'low';
+<CardDescription>
+  {allFilteredStrategies.length === 0
+    ? "Be the first to share and get cloned!"
+    : hasActiveFilters
+    ? `Showing ${allFilteredStrategies.length} filtered strategies`
+    : `Top ${allFilteredStrategies.length} cloned strategies globally`
   }
-  return base;
-}
+</CardDescription>
 ```
 
-Update the description to include a caveat when imbalanced:
+---
 
-```typescript
-description: `After ${currentStreak} consecutive ${streakType}s, historically ${prob.toFixed(0)}% of similar streaks continued. Based on ${occurrences} pattern matches.${isImbalanced ? ' Note: distribution is heavily skewed — interpret with caution.' : ''}`,
-confidence: getAdjustedConfidence(occurrences, isImbalanced),
-```
+## 8. Timeframe Hierarchy Labels
+
+**Problem:** Timeframe display shows "not_specified" and labels are unclear.
+
+**Solution:** Update the detail drawer and card to use clear hierarchy labels.
+
+**Files:**
+- `src/components/strategy/StrategyDetailDrawer.tsx`: Change the MTFA display labels:
+  - "Higher TF (Bias)" with value or "Not set"
+  - "Primary TF (Trade)" with value or "Not set"
+  - "Lower TF (Entry)" with value or "Not set"
+  - Never show raw "not_specified" -- treat empty/null as "Not set".
+
+- `src/components/strategy/StrategyFormDialog.tsx`: Already uses "Higher TF (Bias)", "Primary TF", "Lower TF (Entry)" labels (lines 396, 413, 429). No changes needed here.
+
+---
+
+## 9. Validation Score Explainability
+
+**Problem:** validation_score (from YouTube imports) has no visible formula.
+
+**Solution:** Covered by item #3 above. Additionally, in `StrategyValidationBadge.tsx`, add a `title` attribute showing the score breakdown basis.
+
+**File:** `src/components/strategy/StrategyValidationBadge.tsx`: Wrap the badge in a Tooltip explaining: "Score based on: entry rule count, exit rule presence, timeframe defined, pair specificity."
 
 ---
 
 ## Technical Summary
 
-| File | Change |
-|------|--------|
-| `src/pages/AIInsights.tsx` | Add stdDev/rolling30 to stats; expectancy-based pair sort; drawdown context via advanced-risk-metrics; variance insight card |
-| `src/components/analytics/contextual/ContextualPerformance.tsx` | Gate CorrelationRow with `hasData` prop; show "Insufficient data" instead of 0.00 |
-| `src/lib/predictive-analytics.ts` | Add imbalance penalty to confidence; append skew caveat to description |
+### Database Migrations (single migration)
 
-## What Does NOT Change
+```sql
+ALTER TABLE trading_strategies
+  ADD COLUMN IF NOT EXISTS position_sizing_model text DEFAULT 'fixed_percent',
+  ADD COLUMN IF NOT EXISTS position_sizing_value numeric DEFAULT 2,
+  ADD COLUMN IF NOT EXISTS trade_management jsonb DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS default_leverage integer DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS margin_mode text DEFAULT 'cross';
+```
 
-- `src/lib/advanced-risk-metrics.ts` (already has all needed calculations)
-- `src/lib/constants/ai-analytics.ts` (thresholds sufficient)
-- Session Insights component (already addressed in previous iteration)
-- Contextual insight generation logic in `use-contextual-analytics.ts`
-- Any backend or database logic
+### Files Modified
 
+| File | Changes |
+|------|---------|
+| `src/types/strategy.ts` | Add PositionSizingModel, TradeManagement types; update defaults; add new fields to TradingStrategyEnhanced |
+| `src/lib/constants/strategy-config.ts` | MIN_CONFLUENCES to 3; add POSITION_SIZING_MODELS array |
+| `src/lib/constants/strategy-rules.ts` | DEFAULT_MANDATORY_THRESHOLD to 2 |
+| `src/components/strategy/StrategyFormDialog.tsx` | Move min_rr to Exit tab; add 5th "Manage" tab; futures fields; position sizing selector; derived R:R display |
+| `src/components/strategy/ExitRulesBuilder.tsx` | Add computed Effective R:R display |
+| `src/components/strategy/EntryRulesBuilder.tsx` | Update description text for new threshold |
+| `src/components/strategy/StrategyDetailDrawer.tsx` | Display sizing model, management rules, leverage/margin, confidence tooltip, clean MTFA labels |
+| `src/components/strategy/StrategyCard.tsx` | Confidence tooltip on validation_score |
+| `src/components/strategy/StrategyLeaderboard.tsx` | Fix empty state description |
+| `src/components/strategy/StrategyValidationBadge.tsx` | Add explanatory tooltip |
+| `src/hooks/trading/use-trading-strategies.ts` | Map new DB columns |
+| `src/pages/trading-journey/StrategyManagement.tsx` | Pass new fields through form submit handler |
+
+### What Does NOT Change
+
+- Backtest engine logic (will consume new fields in a separate iteration)
+- AI Quality Score calculation
+- Strategy sharing/cloning flow
+- YouTube import flow (scores remain as-is, just made transparent)
+- Position calculator page (separate tool, not strategy-embedded)
