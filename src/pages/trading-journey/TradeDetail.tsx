@@ -60,11 +60,27 @@ function safeFixed(val: unknown, digits = 2): string | undefined {
   return n.toFixed(digits);
 }
 
-/** Calculate distance to liquidation as percentage */
-function distanceToLiquidation(markPrice: number | null | undefined, liqPrice: number | null | undefined): string | undefined {
+/** Calculate leverage-aware liquidation distance metrics */
+function liqDistanceMetrics(
+  markPrice: number | null | undefined,
+  liqPrice: number | null | undefined,
+  leverage: number | null | undefined
+) {
   if (!markPrice || !liqPrice || liqPrice === 0) return undefined;
-  const pct = Math.abs(markPrice - liqPrice) / markPrice * 100;
-  return `${pct.toFixed(2)}%`;
+  const pricePct = Math.abs(markPrice - liqPrice) / markPrice * 100;
+  const equityPct = leverage ? pricePct * leverage : undefined;
+  return { pricePct, equityPct };
+}
+
+/** Calculate unrealized R for live positions with SL */
+function unrealizedR(
+  entry: number | null | undefined, mark: number | null | undefined, sl: number | null | undefined, direction: string
+): string | undefined {
+  if (!entry || !mark || !sl) return undefined;
+  const risk = Math.abs(entry - sl);
+  if (risk === 0) return undefined;
+  const reward = direction === 'LONG' ? mark - entry : entry - mark;
+  return (reward / risk).toFixed(2);
 }
 
 function KeyMetric({ label, value, className }: { label: string; value: React.ReactNode; className?: string }) {
@@ -344,12 +360,15 @@ export default function TradeDetail() {
   const hasTimeframeData = hasContent(trade.bias_timeframe, trade.execution_timeframe, (trade as any).precision_timeframe);
   const hasStrategyData = hasContent(trade.entry_signal, trade.market_condition, trade.confluence_score) || (trade.strategies?.length > 0);
   const hasJournalData = hasContent(trade.emotional_state, trade.notes, trade.lesson_learned) || (trade.tags?.length > 0) || (ruleCompliance && Object.keys(ruleCompliance).length > 0);
+  // For live trades, only operational journal data matters (not reflective emotion/compliance)
+  const hasLiveJournalData = hasContent(trade.notes, trade.lesson_learned) || (trade.tags?.length > 0);
   const hasAnyEnrichment = hasStrategyData || hasJournalData || hasTimeframeData || screenshots.length > 0;
 
   // Live-specific data
   const markPrice = trade._markPrice;
   const liqPrice = trade._liquidationPrice;
-  const liqDistance = distanceToLiquidation(markPrice, liqPrice);
+  const liqMetrics = liqDistanceMetrics(markPrice, liqPrice, (trade as any).leverage);
+  const liveUnrealizedR = unrealizedR(trade.entry_price, markPrice, trade.stop_loss, trade.direction);
 
   return (
     <ErrorBoundary title="Trade Detail" onRetry={() => setRetryKey(k => k + 1)}>
@@ -411,7 +430,9 @@ export default function TradeDetail() {
                 <KeyMetric label="Mark Price" value={safeFixed(markPrice, 2)} />
                 <KeyMetric label="Size" value={safeFixed(trade.quantity, 4)} />
                 <KeyMetric label="Leverage" value={(trade as any).leverage ? `${(trade as any).leverage}x` : undefined} />
-                {liqDistance && <KeyMetric label="Liq. Distance" value={liqDistance} />}
+                {liqMetrics && <KeyMetric label="Liq. Distance (Price)" value={`${liqMetrics.pricePct.toFixed(2)}%`} />}
+                {liqMetrics?.equityPct !== undefined && <KeyMetric label="Liq. Distance (Equity)" value={`${liqMetrics.equityPct.toFixed(2)}%`} />}
+                {liveUnrealizedR && <KeyMetric label="Unrealized R" value={`${parseFloat(liveUnrealizedR) >= 0 ? '+' : ''}${liveUnrealizedR}R`} className={parseFloat(liveUnrealizedR) >= 0 ? 'text-profit' : 'text-loss'} />}
                 <KeyMetric
                   label="Unrealized P&L"
                   value={formatPnl(pnlValue)}
@@ -420,21 +441,29 @@ export default function TradeDetail() {
               </>
             ) : (
               <>
-                <KeyMetric label="Entry" value={safeFixed(trade.entry_price, 2)} />
-                <KeyMetric label="Exit" value={safeFixed(trade.exit_price, 2)} />
-                <KeyMetric label="Size" value={safeFixed(trade.quantity, 4)} />
-                <KeyMetric label="Leverage" value={(trade as any).leverage ? `${(trade as any).leverage}x` : undefined} />
+                <KeyMetric
+                  label="Net P&L"
+                  value={formatPnl(netPnl)}
+                  className={netPnl >= 0 ? 'text-profit' : 'text-loss'}
+                />
+                {trade.result && (
+                  <KeyMetric
+                    label="Result"
+                    value={trade.result.toUpperCase()}
+                    className={trade.result === 'win' ? 'text-profit' : trade.result === 'loss' ? 'text-loss' : 'text-muted-foreground'}
+                  />
+                )}
                 {hasContent((trade as any).r_multiple) && (
                   <KeyMetric label="R-Multiple" value={safeFixed((trade as any).r_multiple, 2)} />
                 )}
                 {hasContent((trade as any).hold_time_minutes) && (
                   <KeyMetric label="Hold Time" value={formatHoldTime((trade as any).hold_time_minutes)} />
                 )}
-                <KeyMetric
-                  label="Net P&L"
-                  value={formatPnl(netPnl)}
-                  className={netPnl >= 0 ? 'text-profit' : 'text-loss'}
-                />
+                {hasContent((trade as any).max_adverse_excursion) && (
+                  <KeyMetric label="MAE" value={safeFixed((trade as any).max_adverse_excursion, 4)} />
+                )}
+                <KeyMetric label="Entry" value={safeFixed(trade.entry_price, 2)} />
+                <KeyMetric label="Exit" value={safeFixed(trade.exit_price, 2)} />
               </>
             )}
           </div>
@@ -469,7 +498,9 @@ export default function TradeDetail() {
               <DetailRow label="Mark Price" value={safeFixed(markPrice, 4)} />
               <DetailRow label="Entry Price" value={safeFixed(trade.entry_price, 4)} />
               <DetailRow label="Liq. Price" value={safeFixed(liqPrice, 4)} />
-              <DetailRow label="Liq. Distance" value={liqDistance} />
+              <DetailRow label="Liq. Distance (Price)" value={liqMetrics ? `${liqMetrics.pricePct.toFixed(2)}%` : undefined} />
+              {liqMetrics?.equityPct !== undefined && <DetailRow label="Liq. Distance (Equity)" value={`${liqMetrics.equityPct.toFixed(2)}%`} />}
+              {liveUnrealizedR && <DetailRow label="Unrealized R" value={`${parseFloat(liveUnrealizedR) >= 0 ? '+' : ''}${liveUnrealizedR}R`} className={parseFloat(liveUnrealizedR) >= 0 ? 'text-profit' : 'text-loss'} />}
               <DetailRow label="Margin Type" value={(trade as any).margin_type} />
               <DetailRow label="Leverage" value={(trade as any).leverage ? `${(trade as any).leverage}x` : undefined} />
               {hasContent(trade.stop_loss) && <DetailRow label="Stop Loss" value={safeFixed(trade.stop_loss, 4)} />}
@@ -616,7 +647,7 @@ export default function TradeDetail() {
       )}
 
       {/* ===== PROGRESSIVE DISCLOSURE: Analysis & Journal for LIVE trades ===== */}
-      {isLive && (hasStrategyData || hasJournalData) && (
+      {isLive && (hasStrategyData || hasLiveJournalData) && (
         <Collapsible>
           <CollapsibleTrigger asChild>
             <Button variant="ghost" className="w-full justify-between text-muted-foreground hover:text-foreground">
@@ -645,9 +676,8 @@ export default function TradeDetail() {
                 </SectionCard>
               )}
 
-              {hasJournalData && (
+              {hasLiveJournalData && (
                 <SectionCard title="Journal" icon={MessageSquare}>
-                  {trade.emotional_state && <DetailRow label="Emotion" value={trade.emotional_state} />}
                   {trade.notes && (
                     <div className="pt-2">
                       <p className="text-xs text-muted-foreground mb-1">Notes</p>
