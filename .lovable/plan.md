@@ -1,133 +1,144 @@
 
 
-# Economic Calendar --> Volatility Engine
+# Refactor: De-duplicate Market Domain & Upgrade to Decisional Architecture
 
-Transform the Economic Calendar from a simple event list into a full **Volatility Engine** that outputs event-driven move probabilities, expected price ranges, risk regime classification, and concrete position sizing adjustments.
+This plan addresses three critical issues: overlapping data between Market Data and Market Bias, misleading "Whale Tracking" labeling, and inconsistent scoring across pages.
 
 ---
 
-## What Changes
+## Problem Summary
 
-### 1. New Data Model: Volatility Engine Output
+| Issue | Current State | Target State |
+|-------|--------------|--------------|
+| Market Data vs Market Bias | Both show sentiment, funding, scores -- mixed raw data + synthesis | Market Data = pure raw metrics; Market Bias = synthesis engine |
+| Whale Tracking | Volume spike labeled as "whale" -- no wallet/order flow data | Rename to "Volume Anomaly Detector" with statistical thresholds |
+| Market Bias output | Multiple overlapping scores (AI Confidence, Overall Score, Crypto Sentiment %, Combined Analysis) | 5 clean outputs: Regime, Direction, Expected Move, Risk Mode, Size % |
+| Scoring overlap | `technicalScore`, `confidence`, `compositeScore`, `cryptoScore`, `macroScore`, `alignmentPercent` all displayed separately | Single regime-based classification eliminates confusion |
 
-The edge function response gets a new top-level `volatilityEngine` object alongside existing `events` and `impactSummary`:
+---
+
+## Changes
+
+### 1. Rename "Whale Tracking" to "Volume Anomaly Detector"
+
+**Files:** `WhaleTrackingWidget.tsx`, `MarketData.tsx`, `market-insight/types.ts`
+
+- Rename component title from "Whale Tracking" to "Volume Anomaly Detector"  
+- Update subtitle from "Volume-based whale activity detection" to "Statistical volume spike detection (>95th percentile)"
+- Rename signal labels: ACCUMULATION -> "HIGH_VOL_BULLISH", DISTRIBUTION -> "HIGH_VOL_BEARISH", NONE -> "NORMAL"
+- Add percentile context to volume change display (e.g., "Vol +45% | P97 vs 90d")
+- Keep existing detection logic but surface it honestly as volume anomaly, not wallet tracking
+
+**Edge function (`market-insight/index.ts`):**
+- Update whale description text to remove "Whales accumulating/distributing" language
+- Replace with: "Volume anomaly: +X% spike with bullish/bearish price action"
+- Add percentile rank to whale detection output (compare current volume vs 90-day average)
+
+### 2. Refocus Market Data Page as "Flow & Liquidity Dashboard"
+
+**File:** `MarketData.tsx`
+
+- Update page title to "Flow & Liquidity" with description "Derivatives flow, volume anomalies, and liquidity metrics"
+- Update sidebar label in `AppSidebar.tsx`: "Market Data" -> "Flow & Liquidity"
+- **Remove** `MarketSentimentWidget` from this page (sentiment belongs in Market Bias only)
+- **Keep and elevate:**
+  - `VolatilityMeterWidget` (raw volatility data)
+  - Renamed `WhaleTrackingWidget` -> Volume Anomaly Detector
+  - OI delta and funding data (already in MarketSentimentWidget -- extract into standalone widget)
+- **Remove** `TradingOpportunitiesWidget` from this page (trade setups belong in Market Bias)
+- **Keep** `PortfolioImpactCard` (scenario calculator is unique here)
+
+**New widget: `FundingOIDashboard.tsx`** (extracted from MarketSentimentWidget)
+- Funding rate per symbol with percentile context
+- OI change 24h with interpretation
+- Funding/Price divergence alerts
+- Long/Short ratio from existing Binance data
+- Pure data display, no narrative summaries
+
+### 3. Refactor Market Bias Page as "Regime Classification Engine"
+
+**File:** `MarketInsight.tsx` (Market Bias page)
+
+**Remove** from display:
+- "AI Confidence: X%" (redundant with regime)
+- "Overall Score: X%" (redundant with regime)  
+- Verbose AI recommendation text
+- Separate "Combined Analysis" card with its own scoring system
+- "Crypto Sentiment %" and "Macro Sentiment %" as separate progress bars
+
+**Replace with 5 clean outputs in a single `RegimeCard` component:**
 
 ```
-volatilityEngine: {
-  riskRegime: 'EXTREME' | 'HIGH' | 'ELEVATED' | 'NORMAL' | 'LOW',
-  regimeScore: 0-100,
-  expectedRange2h: { low: -4.5, high: +3.8 },   // BTC % range
-  expectedRange24h: { low: -6.2, high: +5.1 },
-  compositeMoveProbability: 78,                    // % chance of >2% move today
-  positionSizeMultiplier: 0.5,                     // direct multiplier for risk
-  positionSizeReason: 'FOMC + CPI cluster = reduce 50%',
-  eventCluster: {                                  // stacked event detection
-    count: 2,
-    within24h: true,
-    amplificationFactor: 1.4                       // stacked events amplify vol
-  }
-}
++--------------------------------------------------+
+| MARKET REGIME                                     |
+|                                                   |
+| Regime:     TRENDING BULLISH                      |
+| Direction:  72% probability upside (24h)          |
+| Expected:   +1.8% to +4.2% range                 |
+| Risk Mode:  AGGRESSIVE                            |
+| Size:       100% (normal)                         |
+|                                                   |
+| Based on: Technical 68 | Macro 72 | F&G 65       |
+| Alignment: Crypto + Macro ALIGNED                 |
++--------------------------------------------------+
 ```
 
-### 2. Edge Function: Volatility Engine Calculator (economic-calendar/index.ts)
+**New component:** `src/components/market-insight/RegimeCard.tsx`
+- Regime classification: TRENDING_BULL | TRENDING_BEAR | RANGING | HIGH_VOL | RISK_OFF
+- Direction probability: derived from composite score mapped to percentage
+- Expected move %: derived from volatility data + momentum
+- Risk mode: AGGRESSIVE (score >65, aligned) | NEUTRAL (45-65) | DEFENSIVE (score <45 or conflict)
+- Suggested size %: from existing `positionSizeAdjustment` logic
 
-Add a `calculateVolatilityEngine()` function that:
+**Keep but simplify:**
+- `BiasExpiryIndicator` (useful)
+- Market signals list (condensed, no narration)
+- Macro correlations grid (raw data only, no AI summary paragraph)
 
-- **Move Probability**: Aggregates `probMoveGt2Pct` from all today's events using probability union formula: `P(A or B) = 1 - (1-P(A)) * (1-P(B))` for stacked events
-- **Expected Range**: Computes 2h and 24h expected BTC price ranges using `maxBtcMove2h`, `worstCase2h`, and event clustering amplification
-- **Risk Regime**: Classifies today into EXTREME/HIGH/ELEVATED/NORMAL/LOW based on composite probability and event count
-- **Position Size Multiplier**: Maps regime to a concrete multiplier (EXTREME=0.25, HIGH=0.5, ELEVATED=0.7, NORMAL=1.0, LOW=1.1) -- these values are added to the shared constants file
-- **Event Clustering**: Detects multiple high-impact events within 24h and applies amplification factor (1.2x for 2 events, 1.4x for 3+)
+**Remove:**
+- `CombinedAnalysisCard.tsx` (absorbed into RegimeCard)
+- AI narrative summaries ("The market is showing..." paragraphs)
+- `AIAnalysisTab.tsx` rewritten as `RegimeCard.tsx` + simplified signals
 
-### 3. Shared Constants: Volatility Engine Config
+### 4. Regime Classification Logic
 
-Add to `supabase/functions/_shared/constants/economic-calendar.ts` and mirror in `src/lib/constants/economic-calendar.ts`:
+**New file:** `src/lib/regime-classification.ts`
 
 ```typescript
-VOLATILITY_ENGINE = {
-  REGIME_THRESHOLDS: {
-    EXTREME: { minProbability: 85, minHighEvents: 2 },
-    HIGH: { minProbability: 70, minHighEvents: 1 },
-    ELEVATED: { minProbability: 50, minHighEvents: 0 },
-    NORMAL: { minProbability: 0, minHighEvents: 0 },
-    LOW: { maxEvents: 0 },
-  },
-  POSITION_MULTIPLIERS: {
-    EXTREME: 0.25,
-    HIGH: 0.5,
-    ELEVATED: 0.7,
-    NORMAL: 1.0,
-    LOW: 1.1,
-  },
-  CLUSTER_AMPLIFICATION: {
-    TWO_EVENTS: 1.2,
-    THREE_PLUS: 1.4,
-  },
-  RANGE_EXPANSION: {
-    CLUSTER_FACTOR: 1.3,
-    BASE_24H_MULTIPLIER: 1.8,
-  },
-}
+type MarketRegime = 'TRENDING_BULL' | 'TRENDING_BEAR' | 'RANGING' | 'HIGH_VOL' | 'RISK_OFF';
+type RiskMode = 'AGGRESSIVE' | 'NEUTRAL' | 'DEFENSIVE';
+
+function classifyRegime(context): MarketRegime
+  - compositeScore > 65 + momentum positive + alignment -> TRENDING_BULL
+  - compositeScore < 35 + momentum negative + alignment -> TRENDING_BEAR
+  - volatility > HIGH threshold -> HIGH_VOL
+  - event risk VERY_HIGH or HIGH -> RISK_OFF
+  - else -> RANGING
+
+function calculateDirectionProbability(compositeScore): number
+  - Maps 0-100 score to upside probability (30-70% range, not extreme)
+
+function determineRiskMode(regime, alignment): RiskMode
+  - TRENDING + aligned -> AGGRESSIVE
+  - RANGING or partial conflict -> NEUTRAL
+  - HIGH_VOL or RISK_OFF or strong conflict -> DEFENSIVE
+
+function calculateExpectedRange(volatility, momentum, regime): { low, high }
+  - Uses ATR-based volatility + momentum direction
 ```
 
-### 4. Frontend Types (src/features/calendar/types.ts)
+Uses existing `calculateCompositeScore` and `calculateTradingBias` from `market-scoring.ts` as inputs.
 
-Add new interfaces:
+### 5. Update Sidebar Navigation
 
-```typescript
-interface VolatilityEngine {
-  riskRegime: 'EXTREME' | 'HIGH' | 'ELEVATED' | 'NORMAL' | 'LOW';
-  regimeScore: number;
-  expectedRange2h: { low: number; high: number };
-  expectedRange24h: { low: number; high: number };
-  compositeMoveProbability: number;
-  positionSizeMultiplier: number;
-  positionSizeReason: string;
-  eventCluster: {
-    count: number;
-    within24h: boolean;
-    amplificationFactor: number;
-  };
-}
-```
-
-Add `volatilityEngine: VolatilityEngine | null` to `EconomicCalendarResponse`.
-
-### 5. CalendarTab UI: Volatility Engine Dashboard Card
-
-Add a new prominent card at the top of CalendarTab (above the event list) when `volatilityEngine` is present:
-
-**Layout:**
+**File:** `AppSidebar.tsx`
 
 ```
-+-----------------------------------------------+
-| VOLATILITY ENGINE          Risk Regime: HIGH   |
-|                                                 |
-| [====== 78% ======] Composite Move Probability  |
-|                                                 |
-| Expected Range (2h):  -4.5% to +3.8%           |
-| Expected Range (24h): -6.2% to +5.1%           |
-|                                                 |
-| Position Size: 0.5x (reduce 50%)               |
-| Reason: FOMC + CPI cluster = reduce 50%        |
-|                                                 |
-| Event Cluster: 2 high-impact within 24h        |
-| Amplification: 1.4x volatility boost           |
-+-----------------------------------------------+
+Economic Calendar  /calendar
+Top Movers         /top-movers  
+Flow & Liquidity   /market-data    (renamed from "Market Data")
+Market Bias        /market         (unchanged)
 ```
-
-Color scheme by regime:
-- EXTREME: red bg, pulsing border
-- HIGH: orange/amber bg
-- ELEVATED: yellow tint
-- NORMAL: default card
-- LOW: green tint
-
-The progress bar for composite move probability uses gradient coloring (green <40%, yellow 40-70%, red >70%).
-
-### 6. Connect to Existing Risk System
-
-The `useContextAwareRisk` hook already has an `event` multiplier factor. Update the `useEconomicCalendar` hook to expose `volatilityEngine.positionSizeMultiplier` so that the risk calculator can consume it directly instead of the current binary "has high impact event" boolean. This is a non-breaking enhancement -- the existing `EVENT_MULTIPLIERS.HIGH_IMPACT` in `risk-multipliers.ts` becomes a fallback when calendar data is unavailable.
 
 ---
 
@@ -135,19 +146,44 @@ The `useContextAwareRisk` hook already has an `event` multiplier factor. Update 
 
 | File | Change |
 |------|--------|
-| `supabase/functions/_shared/constants/economic-calendar.ts` | Add `VOLATILITY_ENGINE` config block with regime thresholds, position multipliers, cluster amplification |
-| `src/lib/constants/economic-calendar.ts` | Mirror `VOLATILITY_ENGINE` constants for frontend use |
-| `supabase/functions/economic-calendar/index.ts` | Add `calculateVolatilityEngine()` function, include `volatilityEngine` in response |
-| `src/features/calendar/types.ts` | Add `VolatilityEngine` interface, update `EconomicCalendarResponse` |
-| `src/components/market-insight/CalendarTab.tsx` | Add Volatility Engine dashboard card above event list |
+| `src/components/layout/AppSidebar.tsx` | Rename "Market Data" to "Flow & Liquidity" |
+| `src/pages/MarketData.tsx` | Remove MarketSentimentWidget + TradingOpportunities, add FundingOIDashboard, update title |
+| `src/pages/MarketInsight.tsx` | Replace AIAnalysisTab + CombinedAnalysisCard with RegimeCard |
+| `src/components/market/WhaleTrackingWidget.tsx` | Rename to "Volume Anomaly Detector", update labels |
+| `src/components/market-insight/RegimeCard.tsx` | **NEW** - 5-output regime classification display |
+| `src/components/market/FundingOIDashboard.tsx` | **NEW** - Extracted funding/OI/divergence from sentiment widget |
+| `src/lib/regime-classification.ts` | **NEW** - Regime, risk mode, direction probability logic |
+| `src/components/market-insight/AIAnalysisTab.tsx` | Remove (replaced by RegimeCard) |
+| `src/components/market-insight/CombinedAnalysisCard.tsx` | Remove (absorbed into RegimeCard) |
+| `supabase/functions/market-insight/index.ts` | Update whale descriptions, add volume percentile |
+| `src/components/market/index.ts` | Update exports |
+| `src/components/market-insight/index.ts` | Update exports |
+| `src/components/layout/CommandPalette.tsx` | Rename "Market Data" to "Flow & Liquidity" |
 
 ---
 
-## Technical Notes
+## What Gets Removed vs Kept
 
-- **Probability math**: Stacked events use union probability `1 - product(1 - P_i)` -- not simple addition -- to avoid exceeding 100%.
-- **Range calculation**: Uses `worstCase2h` for downside, `maxBtcMove2h` for upside, with cluster amplification factor applied. 24h range = 2h range * `BASE_24H_MULTIPLIER`.
-- **No new database tables**: All calculations are derived from the existing static `EVENT_HISTORICAL_STATS` data.
-- **Backward compatible**: `volatilityEngine` is nullable in the response type; UI gracefully hides the card when null.
-- **Edge function deploy**: The `economic-calendar` function will be redeployed with the new logic.
+**Removed from Market Data (now Flow & Liquidity):**
+- MarketSentimentWidget (big gauge + bull/bear bar) -- moves to nowhere, sentiment synthesis is in Market Bias regime
+- TradingOpportunitiesWidget -- trade setups belong in Market Bias
+
+**Removed from Market Bias:**
+- AI Confidence % display
+- Overall Score % display  
+- CombinedAnalysisCard (separate crypto/macro scores)
+- Long AI narrative summaries
+- Separate "AI Recommendation" text box
+
+**Kept in Flow & Liquidity:**
+- VolatilityMeterWidget (pure raw data)
+- Volume Anomaly Detector (renamed whale)
+- PortfolioImpactCard (unique scenario tool)
+- NEW: FundingOIDashboard (funding rates, OI changes, divergences, L/S ratio)
+
+**Kept in Market Bias:**
+- BiasExpiryIndicator
+- Market signals list (condensed)
+- Macro correlations grid (data only)
+- NEW: RegimeCard (single output: regime + direction + range + risk mode + size)
 
