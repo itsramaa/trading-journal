@@ -1,5 +1,6 @@
 
-# Deep-Dive Analysis: AI Insights Page
+
+# Deep-Dive Analysis: My Strategies Page
 
 ---
 
@@ -7,200 +8,264 @@
 
 | File | Role |
 |------|------|
-| `src/pages/AIInsights.tsx` | Page orchestrator (749 lines) |
-| `src/components/analytics/PredictiveInsights.tsx` | Predictions tab component |
-| `src/components/analytics/contextual/ContextualPerformance.tsx` | Contextual Performance tab component |
-| `src/components/analytics/EmotionalPatternAnalysis.tsx` | Emotional pattern sub-component |
-| `src/components/analytics/session/SessionInsights.tsx` | Session insights sub-component |
-| `src/components/analytics/contextual/ContextualOnboardingGuide.tsx` | Onboarding banner |
-| `src/lib/predictive-analytics.ts` | Pure prediction functions |
-| `src/lib/constants/ai-analytics.ts` | Centralized thresholds |
+| `src/pages/trading-journey/StrategyManagement.tsx` | Page orchestrator |
+| `src/components/strategy/StrategyCard.tsx` | Individual strategy card |
+| `src/components/strategy/StrategyStats.tsx` | Summary stats cards |
+| `src/components/strategy/StrategyFormDialog.tsx` | Create/Edit form (986 lines) |
+| `src/components/strategy/StrategyDetailDrawer.tsx` | Detail drawer (488 lines) |
+| `src/components/strategy/StrategyShareDialog.tsx` | Share via link/QR |
+| `src/components/strategy/StrategyLeaderboard.tsx` | Global leaderboard |
+| `src/components/strategy/StrategyValidationBadge.tsx` | Validation badge |
+| `src/components/strategy/EntryRulesBuilder.tsx` | Entry rules builder |
+| `src/components/strategy/ExitRulesBuilder.tsx` | Exit rules builder |
+| `src/components/strategy/ExpectancyPreview.tsx` | Expectancy table |
+| `src/components/strategy/MarketFitSection.tsx` | Market fit analysis |
+| `src/components/strategy/PairRecommendations.tsx` | Pair recommendations |
+| `src/components/dashboard/StrategyCloneStatsWidget.tsx` | Clone stats widget |
+| `src/hooks/analytics/use-strategy-performance.ts` | AI Quality Score hook |
+| `src/hooks/use-strategy-context.ts` | Market fit + pair intelligence |
+| `src/hooks/trading/use-trading-strategies.ts` | CRUD hook |
 
 ---
 
-## 1. Page Orchestrator (`src/pages/AIInsights.tsx`)
+## 1. Page Orchestrator (`StrategyManagement.tsx`)
 
 ### A. Comprehensiveness
 
 | Feature | Status |
 |---------|--------|
 | PageHeader with icon/description | Done |
-| Export button linking to /export | Done |
-| Loading skeleton (MetricsGridSkeleton + ChartSkeleton) | Done |
-| Empty state (fewer than MIN_TRADES_FOR_INSIGHTS) | Done |
-| ErrorBoundary with retryKey | Done |
+| New Strategy button (Library tab only) | Done |
 | URL-driven tabs via `useSearchParams` | Done |
-| Tab: Pattern Analysis (insights + actions + session + pair ranking) | Done |
-| Tab: Predictions (PredictiveInsights component) | Done |
-| Tab: Contextual Performance (ContextualPerformance + EmotionalPatternAnalysis) | Done |
-| `role="region"` + `aria-label` on root | **Missing** |
-| Live/Paper mode badge | **Missing** |
+| Tab: Library (clone stats + stats + card grid) | Done |
+| Tab: Leaderboard (global ranking) | Done |
+| Tab: Import (YouTube importer) | Done |
+| Loading skeleton | Done |
+| Empty state with CTA | Done |
+| Strategy Form Dialog (create/edit) | Done |
+| Strategy Detail Drawer (click to view) | Done |
+| Strategy Share Dialog | Done |
+| Delete confirmation dialog | Done |
+| Dynamic base assets from DB | Done |
+| ErrorBoundary wrapper | **Missing** |
+| `role="region"` + `aria-label` | **Missing** |
 
 **Gaps:**
 
-1. **No `role="region"` on root container** -- inconsistent with the standard applied to 11+ other pages (Performance, Risk, Daily P&L, Heatmap).
+1. **No `role="region"` on root container** -- inconsistent with the ARIA standard applied to 11+ other pages.
 
-2. **No Live/Paper mode badge** -- Every analytics page (Daily P&L, Heatmap, Performance) displays a badge showing the active trade mode. This page does not, despite consuming mode-filtered data via `useModeFilteredTrades`. Users cannot tell which data source they are viewing.
-
-3. **No tooltip on "Export" button** (line 536-545) -- Should say: "Export analytics data to CSV or PDF from the Export page."
+2. **No ErrorBoundary wrapper** -- every other analytics/management page has a top-level `ErrorBoundary` with `retryKey`.
 
 ### B. Accuracy
 
 | Check | Result |
 |-------|--------|
-| PnL uses `realized_pnl ?? pnl ?? 0` | Correct (line 104) |
-| Closed trade filter `status === 'closed'` | Correct (line 89) |
-| Win rate `(wins.length / total) * 100` | Correct (line 107) |
-| Profit factor formula `(avgWin * wins) / (avgLoss * losses)` | Correct (line 112) |
-| Breakeven WR calculation `avgLoss / (avgWin + avgLoss) * 100` | Correct (line 226-228) |
-| Pair ranking min trades threshold (MIN_TRADES_FOR_RANKING) | Correct (line 151) |
-| Time slot analysis with centralized functions | Correct (lines 156-170) |
-| Streak detection sorted descending (most recent first) | Correct (line 117-118) |
-| Rolling 30-trade vs overall comparison | Correct (lines 182-184) |
-| Strategy adherence with `(trade as any)` casting | Functional but type-unsafe |
-| Session data passed as `as any` (line 678) | Functional but type-unsafe |
+| Strategy CRUD operations via hooks | Correct |
+| Soft delete (is_active = false) | Correct |
+| Performance map passed to cards/drawer | Correct |
+| Base assets fallback to COMMON_PAIRS | Correct |
+| Edit propagates all fields correctly | Correct |
 
-4. **`(trade as any).post_trade_analysis` -- double `as any` casting** (lines 399-401): The strategy adherence block accesses `post_trade_analysis.strategy_adherence` via `any` cast twice. This bypasses type safety and will silently fail if the field structure changes. Should use a type guard or proper type extension.
+3. **`as any` casts on timeframe/market_type** (lines 103-106, 128-131): `values.timeframe as any`, `values.higherTimeframe as any`, `values.lowerTimeframe as any`, `values.marketType as any` bypass type safety. These should use proper `TimeframeType` and `MarketType` casts.
 
-5. **`contextualData?.bySession as any`** (line 678): The session data is force-cast to `any` before being passed to `SessionInsights`. This hides potential type mismatches between the hook output and the component's expected `Record<TradingSession, PerformanceMetrics>` prop.
-
-6. **Win rate time slot calculation is mathematically fragile** (lines 168-169): The running average formula `((slot.winRate * (slot.trades - 1) / 100) + 1) / slot.trades * 100` is a non-standard incremental calculation that could accumulate floating-point drift over many trades. A simpler `wins/trades` count would be more reliable, consistent with how every other module calculates win rate.
+4. **Duplicate mutation object shape** (lines 97-121 vs 123-146): The create and update branches construct nearly identical objects. This should be extracted into a shared `buildStrategyPayload()` helper to follow DRY.
 
 ### C. Clarity -- Missing Tooltips
 
-The page has zero `InfoTooltip` components. Every major section and metric lacks contextual guidance:
+5. **Tab titles** ("Library", "Leaderboard", "Import") -- No tooltips. Should say:
+   - Library: "Your personal strategy collection. Create, edit, and manage trading strategies."
+   - Leaderboard: "Top shared strategies ranked by clone count from the community."
+   - Import: "Import trading strategies from YouTube tutorial videos using AI extraction."
 
-7. **"Pattern Analysis" card title** (line 572-576) -- No tooltip. Should say: "Algorithmically detected patterns from your historical trades. Insights are generated from statistical analysis, not AI prediction."
+6. **"New Strategy" button** (line 186) -- No tooltip. Should say: "Create a new trading strategy with entry/exit rules, position sizing, and trade management."
 
-8. **Confidence badge (e.g., "15t")** (lines 607-614) -- No tooltip. The badge shows sample size as "{N}t" but does not explain what it means. Should say: "Number of trades used for this analysis. Higher = more reliable. Color indicates confidence: green (high), yellow (medium), gray (low)."
+---
 
-9. **"Recommended Actions" card title** (line 634-638) -- No tooltip. Should say: "Prioritized action items based on detected performance issues. High priority items should be addressed first."
+## 2. Strategy Stats (`StrategyStats.tsx`)
 
-10. **Priority badge ("high"/"medium"/"low")** (lines 655-665) -- No tooltip. Should say: "Impact priority: High = immediate action needed, Medium = review when convenient, Low = minor optimization."
+### A. Comprehensiveness -- Complete
 
-11. **"Session Insights" section** (line 678) -- The child component has its own header, but no tooltip on the main title explaining: "Performance breakdown by trading session (Sydney, Tokyo, London, New York). Requires minimum 5 trades."
+All 4 cards (Total, Active, Spot, Futures) with InfoTooltips already present.
 
-12. **"Pair Performance Ranking" card title** (line 682-688) -- No tooltip. Should say: "Trading pairs ranked by per-trade expectancy (average P&L per trade). Minimum 10 trades required per pair."
+### B. Accuracy
 
-13. **"Keep Trading" / "Review" badges in pair ranking** (lines 720-725) -- No tooltip. Should say: "'Keep Trading' = positive total P&L. 'Review' = negative total P&L, consider removing from watchlist."
+7. **"Active" count includes all strategies** (line 15): `strategies?.filter(s => s.is_active).length` -- but the query in `useTradingStrategies` already filters `.eq("is_active", true)`, so `activeStrategies` will always equal `totalStrategies`. This metric is redundant and always shows the same number.
 
-14. **Expectancy metric in pair row ("{formatPnl}/trade")** (line 709) -- No tooltip. Should say: "Average profit/loss per trade for this pair. Positive expectancy = edge."
+   **Fix**: Either remove the "Active" card (since soft-deleted strategies are never fetched), or change it to count strategies with `status === 'active'` (vs `'paused'`/`'killed'`) which is the meaningful distinction.
 
-15. **Tab titles** ("Pattern Analysis", "Predictions", "Contextual Performance") (lines 551-563) -- No tooltips describing what each tab contains.
+---
+
+## 3. Strategy Card (`StrategyCard.tsx`)
+
+### A. Comprehensiveness -- Complete
+
+Color indicator, name, description, methodology/style badges, timeframe chain, market type, confluences, R:R, performance stats (W/L, WR), tags, created date, YouTube source badge, Market Fit badge, AI Quality Score badge with rich tooltips.
+
+### B. Accuracy -- Correct
+
+All data flows verified. Performance and market fit data properly consumed.
+
+### C. Clarity
+
+8. **Confluences badge** (line 181-184) -- No tooltip. Should say: "Minimum number of entry rule confirmations required before taking a trade."
+
+9. **R:R badge** (line 185-188) -- No tooltip. Should say: "Minimum Risk:Reward ratio required. Trades below this ratio are rejected."
+
+10. **Performance stats bar** (lines 192-203) -- No tooltip on the W/L and WR display. Should say: "Win/Loss record and win rate based on closed trades assigned to this strategy."
 
 ### D. Code Quality
 
-16. **Missing `font-mono-numbers`** on financial values: Pair ranking P&L values (line 718), expectancy values (line 709), and insight metric badges (line 621) do not use `font-mono-numbers` for consistent alignment.
-
-17. **Page file is 749 lines** -- the `stats` computation (lines 101-217, ~116 lines), `insights` generation (lines 220-436, ~216 lines), and `actionItems` generation (lines 439-491, ~52 lines) are all inline in the page component. These should be extracted into dedicated hooks (e.g., `useAIInsightStats`, `usePatternInsights`, `useActionItems`) following Single Responsibility Principle. However, given the plan scope is focused on UI/clarity/accuracy fixes, this is noted as a future refactor recommendation.
-
-18. **Duplicate breakeven WR calculation** -- `breakevenWR` is computed identically in both `insights` (line 226-228) and `actionItems` (line 445-447). Should be computed once in `stats` and shared.
+11. **`strategy.methodology !== 'price_action'` filter** (line 153): Hides the default methodology badge. This is an undocumented business rule that could confuse users who explicitly chose "Price Action". Should either always show the badge or add a comment explaining the design decision.
 
 ---
 
-## 2. Sub-Component Analysis
+## 4. Strategy Form Dialog (`StrategyFormDialog.tsx`)
 
-### `PredictiveInsights.tsx` -- Predictions Tab
+### A. Comprehensiveness -- Complete
 
-| Check | Status |
-|-------|--------|
-| `role="region"` + `aria-label` | Done (line 61) |
-| `font-mono-numbers` on values | Done (line 159) |
-| ARIA on PredictionCard | Done (line 158) |
-| Empty state | Done |
-| PnL chain `realized_pnl ?? pnl ?? 0` | Correct (in predictive-analytics.ts) |
+5-tab form (Basic, Method, Entry, Exit, Manage) with all professional fields: methodology, trading style, multi-timeframe analysis, session preference, difficulty level, position sizing models, trade management (partial TP, SL-to-BE, kill switches), futures settings, structural validation warnings, expectancy preview.
 
-19. **"Streak Continuation" card** -- No tooltip. Should say: "Probability of your current streak continuing, based on historical pattern matching of similar streak lengths."
+### B. Accuracy
 
-20. **"Today's Edge" card** -- No tooltip. Should say: "Your historical win rate on this day of the week compared to your overall average."
+12. **Partial TP levels do not validate total percentage** (lines 806-858): Users can add partial TP levels that sum to more than 100% (e.g., close 80% at 1R + close 50% at 2R = 130%). No validation prevents this.
 
-21. **"Session Outlook" card** -- No tooltip. Should say: "Your historical performance during the currently active trading session."
+   **Fix**: Add a validation warning when the sum of partial TP `percent` values exceeds 100%.
 
-22. **"Pair Momentum" card** -- No tooltip. Should say: "Recent performance trend per pair based on last 5 trades. Bullish = 60%+ win rate, Bearish = 40% or less."
+### C. Clarity
 
-### `ContextualPerformance.tsx` -- Contextual Tab
+13. **"Basic" tab** -- No label tooltip for "Valid Trading Pairs" explaining: "Assets this strategy is designed for. Used for filtering and recommendations."
 
-| Check | Status |
-|-------|--------|
-| Loading skeleton | Done |
-| Empty state | Done |
-| Data quality banner | Done |
-| Onboarding guide | Done |
-| PnL chain | Correct (via hook) |
+14. **"Method" tab -- "Trading Methodology"** -- Has description text but no InfoTooltip on the label itself explaining the field's purpose: "The analytical framework this strategy uses to identify trade setups."
 
-23. **"Performance by Fear & Greed" card** -- No tooltip. Should say: "Your win rate segmented by the Fear & Greed Index value at the time of each trade. Helps identify which sentiment environments suit your strategy."
+15. **"Entry" tab -- "Min. Confluences"** -- Has inline description but no InfoTooltip: "Minimum number of entry rules that must be satisfied before a trade is valid."
 
-24. **"Performance by Volatility" card** -- No tooltip. Should say: "Win rate in low, medium, and high volatility conditions. Captured from market context at trade entry."
+16. **"Exit" tab -- "Min. Risk:Reward"** -- Has inline description but no InfoTooltip: "Minimum ratio between potential profit and potential loss. Acts as a validation gate."
 
-25. **"Performance by Event Days" card** -- No tooltip. Should say: "Compares your performance on high-impact economic event days vs. normal trading days."
+17. **"Manage" tab -- "Partial Take Profit"** -- No tooltip. Should say: "Close portions of your position at different profit targets to lock in gains."
 
-26. **"Correlation Analysis" card** -- No tooltip. Should say: "Statistical correlation (-1 to +1) between market conditions and your performance. Values near 0 = no relationship, near +/-1 = strong relationship."
+18. **"Manage" tab -- "Move SL to Breakeven"** -- No tooltip. Should say: "Automatically move your stop loss to entry price when trade reaches the specified R multiple."
 
-27. **Correlation values** -- Missing `font-mono-numbers` class on the correlation value display (line 387).
-
-### `EmotionalPatternAnalysis.tsx` -- Contextual Tab Sub-component
-
-| Check | Status |
-|-------|--------|
-| `role="region"` + `aria-label` | Done (lines 154, 177) |
-| PnL chain `realized_pnl ?? pnl ?? 0` | Correct (line 77) |
-| Min trades gating (MIN_TRADES_FOR_PATTERNS) | Correct (line 51) |
-| Empty state | Done |
-
-28. **"Emotional Pattern Analysis" card title** -- No tooltip. Should say: "Win rate and P&L breakdown by the emotional state you logged at trade entry. Requires logging emotions for at least 10 trades."
-
-29. **Win rate progress bar** -- No tooltip explaining the color coding. Should say: "Green bar = win rate above 50%, Red bar = below 50%."
-
-### `SessionInsights.tsx` -- Pattern Analysis Tab Sub-component
-
-| Check | Status |
-|-------|--------|
-| Defensive defaults for missing session data | Done (lines 53-58) |
-| Min trades gating | Done (line 167) |
-| Empty state | Done |
-| PnL chain | Correct (via hook) |
-
-30. **"Low sample" text** (line 228) -- No tooltip. Should say: "Fewer than 10 trades in this session. Statistics may not be statistically significant."
-
-31. **Session summary grid win rate values** -- Missing `font-mono-numbers` on the win rate text (line 222).
+19. **"Manage" tab -- "Kill Switch / Limits"** -- No tooltip. Should say: "Automatic circuit breakers that stop trading when risk limits are hit."
 
 ---
 
-## 3. Summary of All Recommendations
+## 5. Strategy Detail Drawer (`StrategyDetailDrawer.tsx`)
+
+### A. Comprehensiveness -- Complete
+
+Full detail view with action buttons (Edit, Backtest, Share, Export PDF), metadata badges, multi-timeframe display, session preferences, core settings, position sizing, trade management rules, validation score with tooltip, tags, AI Quality Score card with progress bar, Market Fit section, validity reasons, pair recommendations, historical insights.
+
+### B. Accuracy -- Correct
+
+All data flows verified. PnL chain uses `realized_pnl ?? pnl ?? 0` via hook.
+
+### C. Clarity
+
+20. **"Strategy Details" card title** (line 148) -- No tooltip. Should say: "Configuration and rules for this trading strategy."
+
+21. **"Multi-Timeframe Analysis" section** (line 178) -- No tooltip. Should say: "Three-timeframe system: Higher TF for directional bias, Primary TF for trade decisions, Lower TF for precise entries."
+
+22. **"AI Quality Score" card title** (line 344) -- No tooltip. Should say: "Composite score (0-100) based on Win Rate (40%), Profit Factor (30%), Consistency (20%), and Sample Size (10%)."
+
+23. **"Historical Insights" card title** (line 455) -- No tooltip. Should say: "Performance metrics derived from your actual trades using this strategy."
+
+### D. Code Quality
+
+24. **Missing `font-mono-numbers`** on performance metric values (lines 359, 363, 367): Win Rate, Total Trades, and Profit Factor values lack tabular number formatting for alignment consistency.
+
+---
+
+## 6. Strategy Leaderboard (`StrategyLeaderboard.tsx`)
+
+### A. Comprehensiveness -- Complete
+
+Search, filters (timeframe, market type), sorting, pagination, rank icons (Crown/Trophy/Medal), clone count, "Yours" badge, view link. Empty states for both no-data and no-filter-match.
+
+### B. Accuracy
+
+25. **`color` field used as raw CSS** (line 385): `style={{ backgroundColor: strategy.color || "#6b7280" }}` assumes `strategy.color` is a valid CSS color. But the system stores color as semantic names (e.g., "blue", "green") per `STRATEGY_COLORS`. Semantic names like "blue" happen to be valid CSS color keywords, but the system-defined colors ("teal", "pink") may not render as expected.
+
+   **Fix**: Use the same `STRATEGY_CARD_COLOR_CLASSES` mapping from `strategy-config.ts` to convert semantic names to proper CSS classes, or render a div with Tailwind classes instead of inline `backgroundColor`.
+
+26. **`TIMEFRAME_OPTIONS` duplicated** (lines 64-74): The leaderboard defines its own `TIMEFRAME_OPTIONS` array with different values (includes "30m") that don't match the canonical `TIMEFRAME_OPTIONS` from `src/types/strategy.ts` (which doesn't include "30m"). This could lead to filter mismatches.
+
+   **Fix**: Import and extend the canonical `TIMEFRAME_OPTIONS` from `src/types/strategy.ts`.
+
+27. **`MARKET_TYPE_OPTIONS` includes "margin"** (line 81): The system only supports "spot" and "futures" as `MarketType`. Including "margin" in the filter options creates a dead filter that will never match any strategy.
+
+   **Fix**: Remove "margin" from the options or align with the actual `MarketType` type.
+
+### C. Clarity
+
+28. **"Strategy Leaderboard" card title** -- No tooltip. Should say: "Community-ranked strategies sorted by clone count. Share your strategies to appear here."
+
+29. **Clone count display** -- No tooltip. Should say: "Number of times this strategy has been cloned by other traders."
+
+---
+
+## 7. Strategy Context Hook (`use-strategy-context.ts`)
+
+### B. Accuracy
+
+30. **PnL uses only `trade.pnl`** (line 155): The per-pair performance calculation uses `trade.pnl || 0` instead of the standardized `realized_pnl ?? pnl ?? 0` chain. This is inconsistent with the platform-wide PnL standard and will produce inaccurate pair-level analytics for Binance-synced trades that have `realized_pnl` but different `pnl`.
+
+   **Fix**: Change line 155 to `existing.totalPnl += (trade as any).realized_pnl ?? trade.pnl ?? 0;`. Additionally, the query at line 112 should include `realized_pnl` in the select fields.
+
+31. **Session match logic is overly simplified** (lines 235-238): The current check uses arbitrary UTC hour ranges that don't properly map to standard trading sessions (Sydney 21:00-06:00, Tokyo 00:00-09:00, London 07:00-16:00, New York 13:00-22:00 UTC). A strategy with `session_preference: ['london']` should check against actual London hours, but the current code ignores the strategy's session preference entirely.
+
+   This is a known limitation noted in the code comment "simplified - could be enhanced". Recommend adding a comment-level note but not fixing in this scope since it requires integrating `session-utils.ts`.
+
+---
+
+## 8. Strategy Performance Hook (`use-strategy-performance.ts`)
+
+### B. Accuracy -- Correct
+
+| Check | Result |
+|-------|--------|
+| PnL chain `realized_pnl ?? pnl ?? 0` | Correct (lines 85-86, 89-90, 101) |
+| Closed trade filter via `trade.status` | Correct (line 67) |
+| Win rate `wins / totalTrades` | Correct (line 81) |
+| Profit factor with infinity fallback | Correct (lines 92-96) |
+| AI Quality Score weighted formula | Correct (lines 36-50) |
+
+No issues found.
+
+---
+
+## 9. Summary of All Recommendations
 
 ### Priority 1 -- Accuracy / Logic
 
 | # | Issue | File | Fix |
 |---|-------|------|-----|
-| 4 | `(trade as any)` double cast for strategy adherence | AIInsights.tsx | Add type guard or create typed interface for `post_trade_analysis` |
-| 5 | `contextualData?.bySession as any` force cast | AIInsights.tsx | Type the cast properly using the hook's exported types |
-| 6 | Fragile incremental win rate formula in time slots | AIInsights.tsx | Use simple `wins/trades` counter approach |
-| 18 | Duplicate breakeven WR calculation | AIInsights.tsx | Compute once in `stats` memo |
+| 7 | "Active" count always equals "Total" (redundant) | StrategyStats.tsx | Change to count `status === 'active'` vs paused/killed |
+| 12 | Partial TP levels can exceed 100% total | StrategyFormDialog.tsx | Add validation warning |
+| 25 | Color field used as raw CSS for semantic names | StrategyLeaderboard.tsx | Use color class mapping |
+| 26 | Duplicated TIMEFRAME_OPTIONS with extra "30m" | StrategyLeaderboard.tsx | Import canonical options |
+| 27 | "margin" market type in filter doesn't match schema | StrategyLeaderboard.tsx | Remove "margin" option |
+| 30 | PnL uses `trade.pnl` instead of standardized chain | use-strategy-context.ts | Use `realized_pnl ?? pnl ?? 0` |
 
 ### Priority 2 -- Missing Tooltips (Clarity)
 
 | # | Elements | File |
 |---|----------|------|
-| 3 | Export button | AIInsights.tsx |
-| 7-8 | Pattern Analysis card title, confidence badge | AIInsights.tsx |
-| 9-10 | Recommended Actions card title, priority badges | AIInsights.tsx |
-| 12-14 | Pair Ranking card title, badges, expectancy | AIInsights.tsx |
-| 15 | Tab titles (Pattern/Predictions/Contextual) | AIInsights.tsx |
-| 19-22 | PredictiveInsights: all 4 card titles | PredictiveInsights.tsx |
-| 23-26 | ContextualPerformance: all 4 card titles | ContextualPerformance.tsx |
-| 28-29 | EmotionalPatternAnalysis: card title, progress bar | EmotionalPatternAnalysis.tsx |
-| 30 | SessionInsights: "Low sample" text | SessionInsights.tsx |
+| 5 | Tab titles (Library, Leaderboard, Import) | StrategyManagement.tsx |
+| 6 | New Strategy button | StrategyManagement.tsx |
+| 8-10 | Confluences badge, R:R badge, performance stats | StrategyCard.tsx |
+| 13-19 | Form field labels across 5 tabs | StrategyFormDialog.tsx |
+| 20-23 | Drawer section titles | StrategyDetailDrawer.tsx |
+| 28-29 | Leaderboard title, clone count | StrategyLeaderboard.tsx |
 
 ### Priority 3 -- Code Quality and Accessibility
 
 | # | Issue | Fix |
 |---|-------|-----|
-| 1 | Missing `role="region"` on page root | AIInsights.tsx |
-| 2 | No Live/Paper mode badge | AIInsights.tsx |
-| 16 | Missing `font-mono-numbers` on financial values | AIInsights.tsx |
-| 27 | Missing `font-mono-numbers` on correlation values | ContextualPerformance.tsx |
-| 31 | Missing `font-mono-numbers` on session win rate | SessionInsights.tsx |
-| 17 | 749-line file (future refactor note) | AIInsights.tsx (noted, not in scope) |
+| 1 | Missing `role="region"` on page root | StrategyManagement.tsx |
+| 2 | No ErrorBoundary wrapper | StrategyManagement.tsx |
+| 3 | `as any` casts on timeframe/market_type | StrategyManagement.tsx |
+| 4 | Duplicate mutation payload shape (DRY) | StrategyManagement.tsx |
+| 24 | Missing `font-mono-numbers` on drawer metrics | StrategyDetailDrawer.tsx |
 
 ---
 
@@ -208,8 +273,11 @@ The page has zero `InfoTooltip` components. Every major section and metric lacks
 
 | File | Changes |
 |------|---------|
-| `src/pages/AIInsights.tsx` | Add `role="region"` and `aria-label` (#1), add Live/Paper mode badge (#2), add tooltip on Export button (#3), fix `as any` casts (#4, #5), fix time slot win rate formula (#6), add tooltips to Pattern Analysis (#7-8), Recommended Actions (#9-10), Pair Ranking (#12-14), Tab titles (#15), add `font-mono-numbers` (#16), deduplicate breakeven WR (#18) |
-| `src/components/analytics/PredictiveInsights.tsx` | Add tooltips to Streak Continuation (#19), Today's Edge (#20), Session Outlook (#21), Pair Momentum (#22) |
-| `src/components/analytics/contextual/ContextualPerformance.tsx` | Add tooltips to Fear & Greed (#23), Volatility (#24), Event Days (#25), Correlation (#26), add `font-mono-numbers` on correlation values (#27) |
-| `src/components/analytics/EmotionalPatternAnalysis.tsx` | Add tooltip to card title (#28), progress bar color explanation (#29) |
-| `src/components/analytics/session/SessionInsights.tsx` | Add tooltip to "Low sample" text (#30), add `font-mono-numbers` on win rate (#31) |
+| `src/pages/trading-journey/StrategyManagement.tsx` | Add `role="region"` and `aria-label` (#1), wrap with ErrorBoundary (#2), fix `as any` casts (#3), extract shared payload builder (#4), add tooltips to tabs (#5) and button (#6) |
+| `src/components/strategy/StrategyStats.tsx` | Fix "Active" count to use `status` field instead of `is_active` (#7) |
+| `src/components/strategy/StrategyCard.tsx` | Add tooltips to confluences (#8), R:R (#9), and performance stats (#10) |
+| `src/components/strategy/StrategyFormDialog.tsx` | Add partial TP sum validation (#12), add tooltips to form labels (#13-19) |
+| `src/components/strategy/StrategyDetailDrawer.tsx` | Add tooltips to section titles (#20-23), add `font-mono-numbers` to metrics (#24) |
+| `src/components/strategy/StrategyLeaderboard.tsx` | Fix color rendering (#25), import canonical timeframe options (#26), remove "margin" filter (#27), add tooltips (#28-29) |
+| `src/hooks/use-strategy-context.ts` | Fix PnL chain to use `realized_pnl ?? pnl ?? 0` and add `realized_pnl` to query select (#30) |
+
