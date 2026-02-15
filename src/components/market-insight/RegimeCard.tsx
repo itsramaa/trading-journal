@@ -50,10 +50,15 @@ function RegimeCardContent({ sentimentData, macroData, calendarData, isLoading, 
     const btcVol = sentimentData.volatility?.[0]?.annualizedVolatility ?? 50;
     const volMultiplier = deriveVolatilityMultiplier(btcVol);
 
+    const isTrending = regimeResult.regime === 'TRENDING_BULL' || regimeResult.regime === 'TRENDING_BEAR';
+    const eventRisk = (calendarData?.impactSummary?.riskLevel as 'LOW' | 'MODERATE' | 'HIGH' | 'VERY_HIGH') ?? 'LOW';
+
     const unifiedResult = calculateUnifiedPositionSize({
       calendarMultiplier: calendarData?.volatilityEngine?.positionSizeMultiplier ?? 1.0,
       regimeMultiplier: regimeResult.sizePercent / 100,
       volatilityMultiplier: volMultiplier,
+      regimeIsTrending: isTrending,
+      eventRiskLevel: eventRisk,
     });
 
     return { regime: regimeResult, unified: unifiedResult };
@@ -184,7 +189,7 @@ function RegimeCardContent({ sentimentData, macroData, calendarData, isLoading, 
             Cal {unified.breakdown.calendarMultiplier.toFixed(1)}x · Reg {unified.breakdown.regimeMultiplier.toFixed(1)}x · Vol {unified.breakdown.volatilityMultiplier.toFixed(1)}x
           </span>
           <Badge variant="outline" className="text-[10px]">
-            {regime.alignment} · {unified.dominantFactor}
+            {regime.alignment} · {unified.dominantFactor} · {unified.mode}
           </Badge>
         </div>
       </CardContent>
