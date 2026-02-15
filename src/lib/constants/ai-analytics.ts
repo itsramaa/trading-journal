@@ -29,11 +29,11 @@ export const PERFORMANCE_THRESHOLDS = {
 // Data quality thresholds for statistical significance
 export const DATA_QUALITY = {
   // Minimum trades for different analysis types
-  MIN_TRADES_FOR_RANKING: 3,
+  MIN_TRADES_FOR_RANKING: 10,
   MIN_TRADES_FOR_INSIGHTS: 5,
   MIN_TRADES_FOR_PATTERNS: 10,
-  MIN_TRADES_FOR_SESSION: 3,
-  MIN_TRADES_FOR_CORRELATION: 3,
+  MIN_TRADES_FOR_SESSION: 10,
+  MIN_TRADES_FOR_CORRELATION: 5,
   MIN_TRADES_FOR_ZONE_COMPARISON: 5,
   
   // Data quality percentage threshold

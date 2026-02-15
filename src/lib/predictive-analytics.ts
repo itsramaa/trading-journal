@@ -24,9 +24,9 @@ export interface PredictionResult {
 }
 
 const CONFIDENCE_THRESHOLDS = {
-  LOW: 5,
-  MEDIUM: 15,
-  HIGH: 30,
+  LOW: 10,
+  MEDIUM: 30,
+  HIGH: 100,
 } as const;
 
 function getConfidence(n: number): Confidence {
@@ -94,7 +94,7 @@ export function calculateStreakProbability(trades: TradeData[]): PredictionResul
   const prob = (continuations / occurrences) * 100;
   return {
     value: prob,
-    description: `After ${currentStreak} consecutive ${streakType}s, historically ${prob.toFixed(0)}% chance the next trade is also a ${streakType}.`,
+    description: `After ${currentStreak} consecutive ${streakType}s, historically ${prob.toFixed(0)}% of similar streaks continued. Based on ${occurrences} pattern matches in your history.`,
     confidence: getConfidence(occurrences),
     sampleSize: occurrences,
   };
@@ -110,7 +110,7 @@ export function getDayOfWeekEdge(trades: TradeData[]): PredictionResult | null {
   const today = getDayLabel(new Date());
   const todayTrades = closed.filter(t => getDayLabel(new Date(t.trade_date)) === today);
 
-  if (todayTrades.length < 3) return null;
+  if (todayTrades.length < 10) return null;
 
   const wins = todayTrades.filter(t => getPnl(t) > 0).length;
   const winRate = (wins / todayTrades.length) * 100;
@@ -199,7 +199,7 @@ export function getSessionOutlook(trades: TradeData[]): PredictionResult | null 
     return currentSessionKeys.split('|').some(cs => s === cs);
   });
 
-  if (sessionTrades.length < 3) return null;
+  if (sessionTrades.length < 10) return null;
 
   const sessionWins = sessionTrades.filter(t => getPnl(t) > 0).length;
   const sessionWR = (sessionWins / sessionTrades.length) * 100;

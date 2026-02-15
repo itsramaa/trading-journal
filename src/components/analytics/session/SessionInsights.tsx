@@ -92,15 +92,26 @@ export function SessionInsights({ bySession }: SessionInsightsProps) {
       });
     }
     
-    // Worst session warning
+    // Worst session warning — gate by expectancy (totalPnl) not just win rate
     if (safeBySession[worstSession].winRate < SESSION_THRESHOLDS.SESSION_WARNING_WIN_RATE && worstSession !== bestSession) {
-      result.push({
-        type: 'warning',
-        title: `Avoid ${SESSION_LABELS[worstSession]} Session`,
-        description: `Your ${formatWinRate(safeBySession[worstSession].winRate)} win rate during ${SESSION_LABELS[worstSession]} session (${formatSessionTimeLocal(worstSession)}) is below breakeven.`,
-        session: worstSession,
-        recommendation: 'Consider reducing position sizes or avoiding trades during this session.',
-      });
+      const worstData = safeBySession[worstSession];
+      if (worstData.totalPnl < 0) {
+        result.push({
+          type: 'warning',
+          title: `Avoid ${SESSION_LABELS[worstSession]} Session`,
+          description: `Your ${formatWinRate(worstData.winRate)} win rate during ${SESSION_LABELS[worstSession]} session (${formatSessionTimeLocal(worstSession)}) with ${formatPnl(worstData.totalPnl)} net P&L confirms negative edge.`,
+          session: worstSession,
+          recommendation: 'Consider reducing position sizes or avoiding trades during this session.',
+        });
+      } else {
+        result.push({
+          type: 'pattern',
+          title: `${SESSION_LABELS[worstSession]} Low Win Rate, Positive Edge`,
+          description: `Despite ${formatWinRate(worstData.winRate)} win rate, this session is net profitable (${formatPnl(worstData.totalPnl)}). Your R:R compensates.`,
+          session: worstSession,
+          recommendation: 'Monitor this session — your risk-reward offsets low win rate for now.',
+        });
+      }
     }
     
     // Off-hours pattern (now 'other')
@@ -213,6 +224,9 @@ export function SessionInsights({ bySession }: SessionInsightsProps) {
                 <div className="text-xs text-muted-foreground">
                   {data.trades} trades
                 </div>
+                {data.trades > 0 && data.trades < 10 && (
+                  <div className="text-[10px] text-muted-foreground/60 mt-0.5">Low sample</div>
+                )}
                 {data.trades >= 3 && (
                   <div className={cn(
                     "text-sm font-medium mt-1",

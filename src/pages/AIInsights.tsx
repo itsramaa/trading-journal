@@ -54,6 +54,8 @@ interface PerformanceInsight {
   description: string;
   metric?: string;
   icon: typeof TrendingUp;
+  sampleSize?: number;
+  confidence?: 'low' | 'medium' | 'high';
 }
 
 interface ActionItem {
@@ -189,7 +191,12 @@ export default function AIInsights() {
     
     const result: PerformanceInsight[] = [];
 
-    // Win rate insight using centralized thresholds
+    // Breakeven win rate based on R:R profile
+    const breakevenWR = stats.avgLoss > 0 
+      ? (stats.avgLoss / (stats.avgWin + stats.avgLoss)) * 100 
+      : 50;
+
+    // Win rate insight with R:R context
     if (stats.winRate >= PERFORMANCE_THRESHOLDS.WIN_RATE_STRONG) {
       result.push({
         type: 'positive',
@@ -198,13 +205,21 @@ export default function AIInsights() {
         metric: `${stats.winRate.toFixed(1)}%`,
         icon: Trophy
       });
-    } else if (stats.winRate < PERFORMANCE_THRESHOLDS.WIN_RATE_POOR) {
+    } else if (stats.winRate < breakevenWR) {
       result.push({
         type: 'negative',
-        title: 'Win Rate Needs Improvement',
-        description: `At ${stats.winRate.toFixed(0)}%, focus on refining your entry criteria and waiting for higher-quality setups.`,
+        title: 'Win Rate Below Breakeven',
+        description: `At ${stats.winRate.toFixed(0)}%, your win rate is below your breakeven threshold of ${breakevenWR.toFixed(0)}% (based on your R:R profile).`,
         metric: `${stats.winRate.toFixed(1)}%`,
         icon: AlertTriangle
+      });
+    } else if (stats.winRate < PERFORMANCE_THRESHOLDS.WIN_RATE_POOR) {
+      result.push({
+        type: 'neutral',
+        title: 'Low Win Rate, Strong R:R',
+        description: `Your ${stats.winRate.toFixed(0)}% win rate is sustained by a strong R:R ratio (breakeven: ${breakevenWR.toFixed(0)}%). Maintain your current risk-reward discipline.`,
+        metric: `${stats.winRate.toFixed(1)}%`,
+        icon: Target
       });
     }
 
@@ -218,10 +233,13 @@ export default function AIInsights() {
         icon: TrendingUp
       });
     } else if (stats.profitFactor < PERFORMANCE_THRESHOLDS.PROFIT_FACTOR_POOR && stats.profitFactor > 0) {
+      const isWinSizeProblem = stats.avgWin < stats.avgLoss;
       result.push({
         type: 'negative',
         title: 'Improve Risk-Reward Ratio',
-        description: `With a profit factor of ${stats.profitFactor.toFixed(2)}, consider holding winners longer or tightening stop losses.`,
+        description: isWinSizeProblem
+          ? `Avg win (${formatPnl(stats.avgWin)}) is smaller than avg loss (${formatPnl(stats.avgLoss)}). Focus on holding winners longer or tightening stops.`
+          : `Win frequency is the issue — your avg win exceeds avg loss but you're not winning often enough. Review entry quality.`,
         metric: `${stats.profitFactor.toFixed(2)}`,
         icon: Target
       });
@@ -241,7 +259,7 @@ export default function AIInsights() {
         result.push({
           type: 'negative',
           title: `${stats.currentStreak}-Trade Losing Streak`,
-          description: 'Consider taking a break to reset mentally and review your recent entries.',
+          description: 'Statistically rare streak. Review recent trade quality and setup adherence rather than assuming tilt.',
           metric: `${stats.currentStreak} losses`,
           icon: AlertTriangle
         });
@@ -250,34 +268,43 @@ export default function AIInsights() {
 
     // Best time slot insight
     if (stats.bestTimeSlot) {
+      const tsConfidence = stats.bestTimeSlot.trades >= 30 ? 'high' as const : stats.bestTimeSlot.trades >= 15 ? 'medium' as const : 'low' as const;
       result.push({
         type: 'neutral',
         title: 'Best Trading Time',
-        description: `${stats.bestTimeSlot.day} ${stats.bestTimeSlot.hour}:00 has your highest win rate at ${stats.bestTimeSlot.winRate.toFixed(0)}%.`,
+        description: `${stats.bestTimeSlot.day} ${stats.bestTimeSlot.hour}:00 — ${stats.bestTimeSlot.winRate.toFixed(0)}% win rate.${tsConfidence === 'low' ? ' (low sample)' : ''}`,
         metric: `${stats.bestTimeSlot.winRate.toFixed(0)}%`,
-        icon: Clock
+        icon: Clock,
+        sampleSize: stats.bestTimeSlot.trades,
+        confidence: tsConfidence,
       });
     }
 
     // Best pair insight
     if (stats.bestPair) {
+      const bpConfidence = stats.bestPair.trades >= 20 ? 'high' as const : stats.bestPair.trades >= 10 ? 'medium' as const : 'low' as const;
       result.push({
         type: 'positive',
         title: `Focus on ${stats.bestPair.pair}`,
-        description: `Your most profitable pair with ${formatPnl(stats.bestPair.pnl)} total P&L and ${stats.bestPair.winRate.toFixed(0)}% win rate.`,
+        description: `${stats.bestPair.trades} trades, ${stats.bestPair.winRate.toFixed(0)}% win rate, ${formatPnl(stats.bestPair.pnl)} total P&L.${bpConfidence === 'low' ? ' (low sample)' : ''}`,
         metric: formatPnl(stats.bestPair.pnl),
-        icon: CheckCircle
+        icon: CheckCircle,
+        sampleSize: stats.bestPair.trades,
+        confidence: bpConfidence,
       });
     }
 
     // Worst pair warning
     if (stats.worstPair && stats.worstPair.pnl < 0) {
+      const wpConfidence = stats.worstPair.trades >= 20 ? 'high' as const : stats.worstPair.trades >= 10 ? 'medium' as const : 'low' as const;
       result.push({
         type: 'negative',
         title: `Avoid ${stats.worstPair.pair}`,
-        description: `This pair has cost you ${formatPnl(stats.worstPair.pnl)} with only ${stats.worstPair.winRate.toFixed(0)}% win rate.`,
+        description: `${stats.worstPair.trades} trades, ${stats.worstPair.winRate.toFixed(0)}% win rate, ${formatPnl(stats.worstPair.pnl)} total P&L.${wpConfidence === 'low' ? ' (low sample)' : ''}`,
         metric: formatPnl(stats.worstPair.pnl),
-        icon: XCircle
+        icon: XCircle,
+        sampleSize: stats.worstPair.trades,
+        confidence: wpConfidence,
       });
     }
 
@@ -290,19 +317,25 @@ export default function AIInsights() {
     
     const items: ActionItem[] = [];
 
-    if (stats.winRate < PERFORMANCE_THRESHOLDS.ACTION_WIN_RATE_THRESHOLD) {
+    // Breakeven WR for action context
+    const actionBreakevenWR = stats.avgLoss > 0 
+      ? (stats.avgLoss / (stats.avgWin + stats.avgLoss)) * 100 
+      : 50;
+
+    if (stats.winRate < actionBreakevenWR) {
       items.push({
         priority: 'high',
         action: 'Review and refine entry criteria',
-        reason: 'Win rate below 50% suggests premature entries'
+        reason: `Win rate ${stats.winRate.toFixed(0)}% is below breakeven threshold of ${actionBreakevenWR.toFixed(0)}%`
       });
     }
 
-    if (stats.profitFactor < PERFORMANCE_THRESHOLDS.ACTION_PROFIT_FACTOR_THRESHOLD) {
+    if (stats.profitFactor < PERFORMANCE_THRESHOLDS.ACTION_PROFIT_FACTOR_THRESHOLD && stats.profitFactor > 0) {
+      const expectedGain = ((1.5 - stats.profitFactor) * stats.avgLoss);
       items.push({
         priority: 'high',
         action: 'Improve risk-reward targets',
-        reason: 'Low profit factor indicates cutting winners too early'
+        reason: `Profit factor ${stats.profitFactor.toFixed(2)} — improving to 1.50 would increase expectancy by ~${formatPnl(expectedGain)} per trade`
       });
     }
 
@@ -310,7 +343,7 @@ export default function AIInsights() {
       items.push({
         priority: 'medium',
         action: `Avoid trading on ${stats.worstTimeSlot.day} ${stats.worstTimeSlot.hour}:00`,
-        reason: `Only ${stats.worstTimeSlot.winRate.toFixed(0)}% win rate during this time`
+        reason: `Only ${stats.worstTimeSlot.winRate.toFixed(0)}% win rate (${stats.worstTimeSlot.trades} trades) during this time`
       });
     }
 
@@ -318,15 +351,15 @@ export default function AIInsights() {
       items.push({
         priority: 'medium',
         action: `Remove ${stats.worstPair.pair} from watchlist`,
-        reason: 'Consistently unprofitable pair'
+        reason: `${stats.worstPair.trades} trades, ${stats.worstPair.winRate.toFixed(0)}% win rate, ${formatPnl(stats.worstPair.pnl)} total P&L`
       });
     }
 
     if (stats.streakType === 'loss' && stats.currentStreak >= PERFORMANCE_THRESHOLDS.STREAK_SIGNIFICANT) {
       items.push({
         priority: 'high',
-        action: 'Take a trading break',
-        reason: 'Losing streak may indicate tilting or market misread'
+        action: 'Review recent trade quality',
+        reason: 'Review whether recent setups met your strategy criteria'
       });
     }
 
@@ -445,13 +478,25 @@ export default function AIInsights() {
                       </div>
                     </div>
                     {insight.metric && (
-                      <Badge variant="outline" className={cn(
-                        "shrink-0",
-                        insight.type === 'positive' && "border-profit text-profit",
-                        insight.type === 'negative' && "border-loss text-loss"
-                      )}>
-                        {insight.metric}
-                      </Badge>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {insight.confidence && (
+                          <Badge variant="secondary" className={cn(
+                            "text-[10px] px-1.5",
+                            insight.confidence === 'high' && "bg-profit/10 text-profit",
+                            insight.confidence === 'medium' && "bg-chart-4/10 text-chart-4",
+                            insight.confidence === 'low' && "bg-muted text-muted-foreground"
+                          )}>
+                            {insight.sampleSize}t
+                          </Badge>
+                        )}
+                        <Badge variant="outline" className={cn(
+                          "shrink-0",
+                          insight.type === 'positive' && "border-profit text-profit",
+                          insight.type === 'negative' && "border-loss text-loss"
+                        )}>
+                          {insight.metric}
+                        </Badge>
+                      </div>
                     )}
                   </div>
                 </div>
