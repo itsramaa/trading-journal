@@ -172,27 +172,45 @@ function generateTechnicalSignal(asset: string, closes: number[], price: number,
 
 function calculateWhaleSignal(klines: (string | number)[][], change24h: number) {
   if (klines.length < TECHNICAL_ANALYSIS.MIN_KLINES_FOR_WHALE) {
-    return { signal: 'NONE' as const, volumeChange: 0, confidence: 30, method: '', thresholds: '' };
+    return { signal: 'NONE' as const, volumeChange: 0, confidence: 30, method: '', thresholds: '', percentileRank: 50 };
   }
+
   const recentVolume = klines.slice(0, 24).reduce((sum, k) => sum + parseFloat(String(k[5] || '0')), 0);
-  const prevVolume = klines.slice(24, 48).reduce((sum, k) => sum + parseFloat(String(k[5] || '0')), 0);
-  const volumeChange = prevVolume > 0 ? ((recentVolume - prevVolume) / prevVolume) * 100 : 0;
+
+  // Build rolling 24h volume windows for percentile calculation
+  const windowVolumes: number[] = [];
+  for (let i = 0; i + 24 <= klines.length; i += 24) {
+    const windowVol = klines.slice(i, i + 24).reduce((sum, k) => sum + parseFloat(String(k[5] || '0')), 0);
+    windowVolumes.push(windowVol);
+  }
+
+  // Percentile rank: % of historical windows below current
+  const below = windowVolumes.filter(v => v < recentVolume).length;
+  const percentileRank = windowVolumes.length > 1
+    ? Math.round((below / (windowVolumes.length - 1)) * 100) // exclude self
+    : 50;
+
+  const volumeChange = windowVolumes.length > 1
+    ? ((recentVolume - windowVolumes[1]) / windowVolumes[1]) * 100 // vs previous window
+    : 0;
+
   let signal: 'ACCUMULATION' | 'DISTRIBUTION' | 'NONE' = 'NONE';
   let confidence = WHALE_DETECTION.BASE_CONFIDENCE;
-  let method = 'Normal activity';
-  let thresholds = `Vol >${WHALE_DETECTION.VOLUME_SPIKE_THRESHOLD}%, Price >${WHALE_DETECTION.PRICE_UP_THRESHOLD}%`;
+  let method = `P${percentileRank} vs ${windowVolumes.length} windows`;
+  const thresholds = `P95 threshold, ${windowVolumes.length} samples`;
 
-  if (volumeChange > WHALE_DETECTION.VOLUME_SPIKE_THRESHOLD && change24h > WHALE_DETECTION.PRICE_UP_THRESHOLD) {
-    signal = 'ACCUMULATION'; confidence = WHALE_DETECTION.SPIKE_CONFIDENCE + Math.min(20, volumeChange / 5);
-    method = `Vol +${volumeChange.toFixed(1)}% (24h) + Price +${change24h.toFixed(1)}% = Breakout pattern`;
-  } else if (volumeChange > WHALE_DETECTION.VOLUME_SPIKE_THRESHOLD && change24h < WHALE_DETECTION.PRICE_DOWN_THRESHOLD) {
-    signal = 'DISTRIBUTION'; confidence = WHALE_DETECTION.SPIKE_CONFIDENCE + Math.min(20, volumeChange / 5);
-    method = `Vol +${volumeChange.toFixed(1)}% (24h) + Price ${change24h.toFixed(1)}% = Distribution pattern`;
-  } else if (volumeChange > WHALE_DETECTION.EXTREME_VOLUME_SPIKE) {
-    signal = change24h > 0 ? 'ACCUMULATION' : 'DISTRIBUTION'; confidence = 60;
-    method = `Extreme volume spike +${volumeChange.toFixed(1)}% (>${WHALE_DETECTION.EXTREME_VOLUME_SPIKE}% threshold)`;
+  // Statistical anomaly = >95th percentile
+  if (percentileRank >= 95 && change24h > 2) {
+    signal = 'ACCUMULATION';
+    confidence = 70 + Math.min(20, (percentileRank - 95) * 4);
+    method = `Vol P${percentileRank} (>P95 anomaly) + Price +${change24h.toFixed(1)}%`;
+  } else if (percentileRank >= 95 && change24h < -2) {
+    signal = 'DISTRIBUTION';
+    confidence = 70 + Math.min(20, (percentileRank - 95) * 4);
+    method = `Vol P${percentileRank} (>P95 anomaly) + Price ${change24h.toFixed(1)}%`;
   }
-  return { signal, volumeChange, confidence: Math.min(WHALE_DETECTION.MAX_CONFIDENCE, confidence), method, thresholds };
+
+  return { signal, volumeChange, confidence: Math.min(WHALE_DETECTION.MAX_CONFIDENCE, confidence), method, thresholds, percentileRank };
 }
 
 function generateRecommendation(
@@ -495,7 +513,7 @@ serve(async (req) => {
     const signals: Array<{ asset: string; trend: string; direction: 'up' | 'down' | 'neutral'; price: number; change24h: number }> = [];
     const volatilityData: Array<{ asset: string; level: string; value: number; status: string; annualizedVolatility?: number; percentile180d?: number; percentileDataPoints?: number }> = [];
     const opportunities: Array<{ pair: string; confidence: number; direction: string; reason: string }> = [];
-    const whaleActivity: Array<{ asset: string; signal: string; volumeChange24h: number; exchangeFlowEstimate: string; confidence: number; description: string; method: string; thresholds: string }> = [];
+    const whaleActivity: Array<{ asset: string; signal: string; volumeChange24h: number; exchangeFlowEstimate: string; confidence: number; description: string; method: string; thresholds: string; percentileRank: number }> = [];
     const fundingRates: Array<{ symbol: string; rate: number; percentile90d: number; percentileDataPoints: number }> = [];
     const oiChanges: Array<{ symbol: string; oiChange24hPct: number; currentOI: number; prevOI: number }> = [];
     const divergences: Array<{ symbol: string; hasDivergence: boolean; type: string; description: string }> = [];
@@ -525,6 +543,7 @@ serve(async (req) => {
           : `Normal trading volume for ${data.asset}. No statistical anomaly.`,
         method: data.whale.method,
         thresholds: data.whale.thresholds,
+        percentileRank: data.whale.percentileRank,
       });
       fundingRates.push({
         symbol: data.symbol,

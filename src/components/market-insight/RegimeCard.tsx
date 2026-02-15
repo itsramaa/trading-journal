@@ -184,7 +184,7 @@ function RegimeCardContent({ sentimentData, macroData, isLoading, onRefresh, err
         {/* Breakdown Footer */}
         <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t border-border/50">
           <span>
-            Technical {regime.breakdown.technical} | Macro {regime.breakdown.macro} | F&G {regime.breakdown.fearGreed}
+            Score {regime.regimeScore} | Tech {regime.breakdown.technical} | Macro {regime.breakdown.macro} | F&G {regime.breakdown.fearGreed}
           </span>
           <Badge variant="outline" className="text-[10px]">
             {regime.alignment}

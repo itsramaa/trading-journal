@@ -17,12 +17,16 @@ import type {
   MARKET_SCORE_WEIGHTS,
 } from '@/types/market-context';
 
+/**
+ * Composite weights — event risk and volatility are NOT included here.
+ * They act as regime overrides only (in regime-classification.ts),
+ * preventing double-counting.
+ */
 const WEIGHTS = {
-  technical: 0.25,
-  onChain: 0.15,
+  technical: 0.30,
+  onChain: 0.20,
   fearGreed: 0.15,
-  macro: 0.15,
-  eventRisk: 0.15,
+  macro: 0.20,
   momentum: 0.15,
 };
 
@@ -70,12 +74,8 @@ export function calculateCompositeScore(context: {
     totalWeight += WEIGHTS.macro;
   }
   
-  // Event Risk (negative impact - high risk events reduce score)
-  if (context.events?.riskLevel !== undefined) {
-    const eventPenalty = getEventRiskPenalty(context.events.riskLevel);
-    score -= eventPenalty * WEIGHTS.eventRisk * 100;
-    totalWeight += WEIGHTS.eventRisk;
-  }
+  // Event Risk — NOT in composite. Acts as regime override only.
+  // See regime-classification.ts determineRegime() for event risk handling.
   
   // Momentum Score (positive momentum is good for longs)
   if (context.momentum?.priceChange24h !== undefined) {
