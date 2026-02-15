@@ -4,11 +4,19 @@
  * Uses centralized currency conversion for user's preferred currency
  */
 
+import { useState } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { 
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { 
   DollarSign, 
   Wallet, 
@@ -30,13 +38,13 @@ import {
   XAxis, 
   YAxis, 
   CartesianGrid, 
-  Tooltip, 
+  Tooltip as RechartsTooltip, 
   Cell,
 } from "recharts";
 import { useUnifiedDailyPnl } from "@/hooks/use-unified-daily-pnl";
 import { useUnifiedWeeklyPnl } from "@/hooks/use-unified-weekly-pnl";
 import { useUnifiedWeekComparison } from "@/hooks/use-unified-week-comparison";
-import { useSymbolBreakdown } from "@/hooks/use-symbol-breakdown";
+import { useSymbolBreakdown, type SymbolBreakdownItem } from "@/hooks/use-symbol-breakdown";
 import { Link } from "react-router-dom";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { MetricsGridSkeleton } from "@/components/ui/loading-skeleton";
@@ -53,14 +61,18 @@ const ChangeIndicator = ({ value, suffix = '', previousNegative, currentPositive
 };
 
 export default function DailyPnL() {
+  const [retryKey, setRetryKey] = useState(0);
   const dailyStats = useUnifiedDailyPnl();
   const weeklyStats = useUnifiedWeeklyPnl();
   const weekComparison = useUnifiedWeekComparison();
-  const { weeklyBreakdown: symbolBreakdown } = useSymbolBreakdown();
+  const { weeklyBreakdown: symbolBreakdown, source: breakdownSource } = useSymbolBreakdown();
   const { formatCompact, format: formatCurrency } = useCurrencyConversion();
 
   const isLoading = dailyStats.isLoading || weeklyStats.isLoading;
   const hasNoActivity = dailyStats.totalTrades === 0 && weeklyStats.totalTrades === 0;
+
+  // Dynamic label for symbol breakdown period based on data source
+  const breakdownPeriodLabel = breakdownSource === 'binance' ? 'Today' : '7 Days';
 
   if (isLoading) {
     return (
@@ -76,259 +88,305 @@ export default function DailyPnL() {
   }
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-          icon={DollarSign}
-          title="Daily P&L"
-          description="Analyze your daily profit and loss breakdown"
-        >
-          <Badge variant="outline" className="text-xs h-6">
-            {dailyStats.source === 'binance' ? '🔗 Live' : '📝 Paper'}
-          </Badge>
-          <Button variant="outline" size="sm" asChild>
-            <Link to="/export?tab=analytics">
-              <Download className="h-4 w-4 mr-2" />
-              Export
-            </Link>
-          </Button>
-        </PageHeader>
+    <ErrorBoundary key={retryKey}>
+      <TooltipProvider>
+        <div className="space-y-6" role="region" aria-label="Daily P&L Analytics">
+          <PageHeader
+            icon={DollarSign}
+            title="Daily P&L"
+            description="Analyze your daily profit and loss breakdown"
+          >
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge variant="outline" className="text-xs h-6">
+                  {dailyStats.source === 'binance' ? '🔗 Live' : '📝 Paper'}
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="max-w-[220px] text-xs">Data source: Live uses real-time exchange data, Paper uses simulated account data.</p>
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="sm" asChild>
+                  <Link to="/export?tab=analytics">
+                    <Download className="h-4 w-4 mr-2" />
+                    Export
+                  </Link>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="max-w-[220px] text-xs">Export P&L analytics data to CSV or PDF from the Export page.</p>
+              </TooltipContent>
+            </Tooltip>
+          </PageHeader>
 
-        {/* Empty State Banner */}
-        {hasNoActivity && (
-          <Alert>
-            <Info className="h-4 w-4" />
-            <AlertDescription>
-              No trading activity recorded yet. Start trading to see your P&L breakdown here.
-            </AlertDescription>
-          </Alert>
-        )}
+          {/* Empty State Banner */}
+          {hasNoActivity && (
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription>
+                No trading activity recorded yet. Start trading to see your P&L breakdown here.
+              </AlertDescription>
+            </Alert>
+          )}
 
-        {/* Today's P&L Summary */}
-        <Card className="border-primary/20">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2">
-              <Activity className="h-5 w-5 text-primary" />
-              Today's P&L
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 md:grid-cols-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Realized P&L</p>
-                <p className={`text-2xl font-bold ${dailyStats.grossPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                  {formatCompact(dailyStats.grossPnl)}
-                </p>
+          {/* Today's P&L Summary */}
+          <Card className="border-primary/20">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2">
+                <Activity className="h-5 w-5 text-primary" />
+                Today's P&L
+                <InfoTooltip content="Summary of your realized trading activity for today (UTC). Resets daily at 00:00 UTC." />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-4">
+                <div>
+                  <p className="text-sm text-muted-foreground flex items-center gap-1">
+                    Gross P&L
+                    <InfoTooltip content="Total profit/loss from closed trades today, before fee deductions." />
+                  </p>
+                  <p className={`text-2xl font-bold font-mono-numbers ${dailyStats.grossPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                    {formatCompact(dailyStats.grossPnl)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground flex items-center gap-1">
+                    Commission
+                    <InfoTooltip content="Total trading fees (maker/taker commission) deducted from your gross P&L today." />
+                  </p>
+                  <p className="text-2xl font-bold font-mono-numbers text-muted-foreground">
+                    -{formatCurrency(dailyStats.totalCommission)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground flex items-center gap-1">
+                    Trades Today
+                    <InfoTooltip content="Number of closed trades recorded today." />
+                  </p>
+                  <p className="text-2xl font-bold font-mono-numbers">{dailyStats.totalTrades}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground flex items-center gap-1">
+                    Win Rate
+                    <InfoTooltip content="Percentage of today's trades that were profitable." />
+                  </p>
+                  {dailyStats.totalTrades === 0 ? (
+                    <>
+                      <p className="text-2xl font-bold text-muted-foreground">--</p>
+                      <p className="text-xs text-muted-foreground">No trades today</p>
+                    </>
+                  ) : (
+                    <p className="text-2xl font-bold font-mono-numbers">{dailyStats.winRate.toFixed(0)}%</p>
+                  )}
+                </div>
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Commission</p>
-                <p className="text-2xl font-bold text-muted-foreground">
-                  -{formatCurrency(dailyStats.totalCommission)}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Trades Today</p>
-                <p className="text-2xl font-bold">{dailyStats.totalTrades}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Win Rate</p>
-                {dailyStats.totalTrades === 0 ? (
-                  <>
-                    <p className="text-2xl font-bold text-muted-foreground">--</p>
-                    <p className="text-xs text-muted-foreground">No trades today</p>
-                  </>
+            </CardContent>
+          </Card>
+
+          {/* Week Comparison Cards */}
+          <div className="grid gap-4 md:grid-cols-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium flex items-center gap-1">
+                  This Week P&L
+                  <InfoTooltip content="Total realized profit/loss for the current week from your trading activity." />
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className={`text-2xl font-bold font-mono-numbers ${weekComparison.currentWeek.netPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                  {formatCompact(weekComparison.currentWeek.netPnl)}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  vs last week: <ChangeIndicator 
+                    value={weekComparison.change.pnlPercent} 
+                    suffix="%" 
+                    previousNegative={weekComparison.previousWeek.netPnl < 0}
+                    currentPositive={weekComparison.currentWeek.netPnl > 0}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium flex items-center gap-1">
+                  <Wallet className="h-4 w-4" />
+                  Net (After Fees)
+                  <InfoTooltip content="Week's P&L after deducting all fees (commission + funding). Gross amount shown below." />
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className={`text-2xl font-bold font-mono-numbers ${weeklyStats.totalNet >= 0 ? 'text-profit' : 'text-loss'}`}>
+                  {formatCompact(weeklyStats.totalNet)}
+                </div>
+                <p className="text-xs text-muted-foreground">Gross: {formatCompact(weeklyStats.totalGross)}</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium flex items-center gap-1">
+                  <ArrowUpDown className="h-4 w-4" />
+                  Trades This Week
+                  <InfoTooltip content="Total closed trades this week compared to last week." />
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold font-mono-numbers">{weekComparison.currentWeek.trades}</div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  vs last week: <ChangeIndicator value={weekComparison.change.tradesPercent} suffix="%" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium flex items-center gap-1">
+                  <Percent className="h-4 w-4" />
+                  Win Rate
+                  <InfoTooltip content="Percentage of winning trades this week. 'pp' = percentage points change from last week." />
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold font-mono-numbers">{weekComparison.currentWeek.winRate.toFixed(0)}%</div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  vs last week: <ChangeIndicator value={weekComparison.change.winRateChange} suffix="pp" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Best/Worst Trades - Above Chart */}
+          <div className="grid gap-4 md:grid-cols-2">
+            <Card className="border-profit/20">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-profit" />
+                  Best Trade (7 Days)
+                  <InfoTooltip content="Based on realized P&L of closed trades in the last 7 days. Excludes open trades." />
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {weeklyStats.bestTrade ? (
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <Badge variant="outline">{weeklyStats.bestTrade.symbol}</Badge>
+                      <span className="text-profit font-bold font-mono-numbers">{formatCompact(weeklyStats.bestTrade.pnl)}</span>
+                    </div>
+                  </div>
                 ) : (
-                  <p className="text-2xl font-bold">{dailyStats.winRate.toFixed(0)}%</p>
+                  <p className="text-muted-foreground text-sm">No winning trades this week</p>
                 )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
 
-        {/* Week Comparison Cards */}
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium flex items-center gap-1">
-                This Week P&L
-                <InfoTooltip content="Total realized profit/loss for the current week from your trading activity." />
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className={`text-2xl font-bold ${weekComparison.currentWeek.netPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                {formatCompact(weekComparison.currentWeek.netPnl)}
-              </div>
-              <div className="text-xs text-muted-foreground mt-1">
-                vs last week: <ChangeIndicator 
-                  value={weekComparison.change.pnlPercent} 
-                  suffix="%" 
-                  previousNegative={weekComparison.previousWeek.netPnl < 0}
-                  currentPositive={weekComparison.currentWeek.netPnl > 0}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium flex items-center gap-1">
-                <Wallet className="h-4 w-4" />
-                Net (After Fees)
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className={`text-2xl font-bold ${weeklyStats.totalNet >= 0 ? 'text-profit' : 'text-loss'}`}>
-                {formatCompact(weeklyStats.totalNet)}
-              </div>
-              <p className="text-xs text-muted-foreground">Gross: {formatCompact(weeklyStats.totalGross)}</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium flex items-center gap-1">
-                <ArrowUpDown className="h-4 w-4" />
-                Trades This Week
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{weekComparison.currentWeek.trades}</div>
-              <div className="text-xs text-muted-foreground mt-1">
-                vs last week: <ChangeIndicator value={weekComparison.change.tradesPercent} suffix="%" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium flex items-center gap-1">
-                <Percent className="h-4 w-4" />
-                Win Rate
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{weekComparison.currentWeek.winRate.toFixed(0)}%</div>
-              <div className="text-xs text-muted-foreground mt-1">
-                vs last week: <ChangeIndicator value={weekComparison.change.winRateChange} suffix="pp" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Best/Worst Trades - Above Chart */}
-        <div className="grid gap-4 md:grid-cols-2">
-          <Card className="border-profit/20">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-profit" />
-                Best Trade (7 Days)
-                <InfoTooltip content="Based on realized P&L of closed trades in the last 7 days. Excludes open trades." />
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {weeklyStats.bestTrade ? (
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <Badge variant="outline">{weeklyStats.bestTrade.symbol}</Badge>
-                    <span className="text-profit font-bold">{formatCompact(weeklyStats.bestTrade.pnl)}</span>
+            <Card className="border-loss/20">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <TrendingDown className="h-5 w-5 text-loss" />
+                  Worst Trade (7 Days)
+                  <InfoTooltip content="Based on realized P&L of closed trades in the last 7 days. Excludes open trades." />
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {weeklyStats.worstTrade ? (
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <Badge variant="outline">{weeklyStats.worstTrade.symbol}</Badge>
+                      <span className="text-loss font-bold font-mono-numbers">{formatCompact(weeklyStats.worstTrade.pnl)}</span>
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <p className="text-muted-foreground text-sm">No winning trades this week</p>
-              )}
-            </CardContent>
-          </Card>
+                ) : (
+                  <p className="text-muted-foreground text-sm">No losing trades this week</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
 
-          <Card className="border-loss/20">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <TrendingDown className="h-5 w-5 text-loss" />
-                Worst Trade (7 Days)
-                <InfoTooltip content="Based on realized P&L of closed trades in the last 7 days. Excludes open trades." />
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {weeklyStats.worstTrade ? (
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <Badge variant="outline">{weeklyStats.worstTrade.symbol}</Badge>
-                    <span className="text-loss font-bold">{formatCompact(weeklyStats.worstTrade.pnl)}</span>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-muted-foreground text-sm">No losing trades this week</p>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* 7-Day Trend Chart */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">7-Day P&L Trend</CardTitle>
-            <CardDescription>Daily profit/loss over the past week</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={weeklyStats.dailyData}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis 
-                    dataKey="date" 
-                    tickFormatter={(v) => format(new Date(v), 'EEE')}
-                    className="text-xs"
-                  />
-                  <YAxis tickFormatter={(v) => formatCompact(v)} className="text-xs" />
-                  <Tooltip 
-                    formatter={(v: number) => [formatCompact(v), 'P&L']}
-                    labelFormatter={(v) => format(new Date(v), 'MMM dd, yyyy')}
-                  />
-                  <Bar dataKey="netPnl" radius={[4, 4, 0, 0]}>
-                    {weeklyStats.dailyData.map((entry, index) => (
-                      <Cell 
-                        key={`cell-${index}`} 
-                        className={entry.netPnl >= 0 ? 'fill-profit' : 'fill-loss'}
-                      />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Symbol Breakdown - Shown in both modes when data exists */}
-        {symbolBreakdown.length > 0 && (
+          {/* 7-Day Trend Chart */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Symbol Breakdown</CardTitle>
-              <CardDescription>P&L performance by trading pair (7 days)</CardDescription>
+              <CardTitle className="text-lg flex items-center gap-2">
+                7-Day P&L Trend
+                <InfoTooltip content="Daily net P&L bars for the last 7 days. Green = profitable day, Red = loss day." />
+              </CardTitle>
+              <CardDescription>Daily profit/loss over the past week</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {symbolBreakdown.map((item: any) => (
-                  <div key={item.symbol} className="flex items-center justify-between p-3 rounded-lg border">
-                    <div className="flex items-center gap-4">
-                      <Badge variant="outline">{item.symbol}</Badge>
-                      <span className="text-sm text-muted-foreground">{item.trades} trades</span>
-                    </div>
-                    <div className="flex items-center gap-6 text-sm">
-                      <div className="text-right">
-                        <p className="text-muted-foreground text-xs">Fees</p>
-                        <p className="text-muted-foreground">-{formatCurrency(item.fees)}</p>
-                      </div>
-                      <div className="text-right min-w-[80px]">
-                        <p className="text-muted-foreground text-xs">Net P&L</p>
-                        <p className={`font-bold ${item.net >= 0 ? 'text-profit' : 'text-loss'}`}>
-                          {item.net >= 0 ? '+' : ''}{formatCompact(item.net)}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+              <div className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={weeklyStats.dailyData}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis 
+                      dataKey="date" 
+                      tickFormatter={(v) => format(new Date(v), 'EEE')}
+                      className="text-xs"
+                    />
+                    <YAxis tickFormatter={(v) => formatCompact(v)} className="text-xs" />
+                    <RechartsTooltip 
+                      formatter={(v: number) => [formatCompact(v), 'P&L']}
+                      labelFormatter={(v) => format(new Date(v), 'MMM dd, yyyy')}
+                    />
+                    <Bar dataKey="netPnl" radius={[4, 4, 0, 0]}>
+                      {weeklyStats.dailyData.map((entry, index) => (
+                        <Cell 
+                          key={`cell-${index}`} 
+                          className={entry.netPnl >= 0 ? 'fill-profit' : 'fill-loss'}
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
             </CardContent>
           </Card>
-        )}
-    </div>
+
+          {/* Symbol Breakdown */}
+          {symbolBreakdown.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  Symbol Breakdown
+                  <InfoTooltip content="P&L breakdown by trading pair, sorted by absolute net impact." />
+                </CardTitle>
+                <CardDescription>P&L performance by trading pair ({breakdownPeriodLabel})</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {symbolBreakdown.map((item: SymbolBreakdownItem) => (
+                    <div key={item.symbol} className="flex items-center justify-between p-3 rounded-lg border">
+                      <div className="flex items-center gap-4">
+                        <Badge variant="outline">{item.symbol}</Badge>
+                        <span className="text-sm text-muted-foreground">{item.trades} trades</span>
+                      </div>
+                      <div className="flex items-center gap-6 text-sm">
+                        <div className="text-right">
+                          <p className="text-muted-foreground text-xs flex items-center gap-1 justify-end">
+                            Fees
+                            <InfoTooltip content="Total fees (commission + funding) for this symbol during the period." />
+                          </p>
+                          <p className="text-muted-foreground font-mono-numbers">-{formatCurrency(item.fees)}</p>
+                        </div>
+                        <div className="text-right min-w-[80px]">
+                          <p className="text-muted-foreground text-xs flex items-center gap-1 justify-end">
+                            Net P&L
+                            <InfoTooltip content="Profit/loss after all fee deductions for this symbol." />
+                          </p>
+                          <p className={`font-bold font-mono-numbers ${item.net >= 0 ? 'text-profit' : 'text-loss'}`}>
+                            {item.net >= 0 ? '+' : ''}{formatCompact(item.net)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </TooltipProvider>
+    </ErrorBoundary>
   );
 }
