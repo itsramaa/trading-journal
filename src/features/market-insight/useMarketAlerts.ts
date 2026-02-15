@@ -93,8 +93,8 @@ export function useMarketAlerts(config: AlertConfig = DEFAULT_CONFIG) {
   useEffect(() => {
     if (!config.enabled || !sentimentData) return;
 
-    const oiChanges = (sentimentData as any).oiChanges as Array<{ symbol: string; oiChange24hPct: number }> | undefined;
-    const divergences = (sentimentData as any).divergences as Array<{ symbol: string; hasDivergence: boolean; type: string; description: string }> | undefined;
+    const oiChanges = sentimentData.oiChanges;
+    const divergences = sentimentData.divergences;
 
     // OI spike alerts
     const oiThreshold = config.oiSpikeThreshold ?? 5;
