@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import {
   TrendingUp,
   Activity,
+  Wallet,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +22,16 @@ import {
 } from "@/components/ui/table";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import type { TradeStats } from "@/hooks/trading/use-trade-stats";
+
+/** Format a price with dynamic precision based on magnitude */
+function formatDynamicPrice(value: number): string {
+  const abs = Math.abs(value);
+  if (abs === 0) return '0.00';
+  if (abs < 0.001) return value.toPrecision(4);
+  if (abs < 1) return value.toFixed(6);
+  if (abs < 100) return value.toFixed(4);
+  return value.toFixed(2);
+}
 
 interface AccountDetailOverviewProps {
   equityData: Array<{ date: string; pnl: number; cumulative: number; drawdown: number }>;
@@ -51,7 +62,10 @@ export function AccountDetailOverview({
       {/* Equity Curve */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Equity Curve</CardTitle>
+          <CardTitle className="text-lg flex items-center gap-1">
+            Equity Curve
+            <InfoTooltip content="Cumulative realized P&L over time. Does not include unrealized gains/losses from open positions." />
+          </CardTitle>
           <CardDescription>Cumulative P&L over time for this account</CardDescription>
         </CardHeader>
         <CardContent>
@@ -107,7 +121,7 @@ export function AccountDetailOverview({
             <CardTitle className="text-lg">Drawdown</CardTitle>
             <CardDescription>
               Peak-to-trough decline from highest equity point
-              <InfoTooltip content="Drawdown is calculated from peak cumulative P&L, not from initial balance." variant="help" />
+              <InfoTooltip content="Formula: (Peak − Current) ÷ (Initial Balance + Peak) × 100. Capped at 100%. Measures how far your equity has fallen from its peak." variant="help" />
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -163,9 +177,14 @@ export function AccountDetailOverview({
                   <TableRow>
                     <TableHead>Symbol</TableHead>
                     <TableHead>Side</TableHead>
-                    <TableHead className="text-right">Size</TableHead>
-                    <TableHead className="text-right">Entry Price</TableHead>
-                    <TableHead className="text-right">Mark Price</TableHead>
+                    <TableHead className="text-right">
+                      <span className="flex items-center justify-end gap-1">
+                        Size
+                        <InfoTooltip content="Position size in base asset units (e.g. BTC, ETH)." />
+                      </span>
+                    </TableHead>
+                    <TableHead className="text-right">Entry Price (USDT)</TableHead>
+                    <TableHead className="text-right">Mark Price (USDT)</TableHead>
                     <TableHead className="text-right">Unrealized P&L</TableHead>
                     <TableHead className="text-right">Leverage</TableHead>
                   </TableRow>
@@ -186,10 +205,10 @@ export function AccountDetailOverview({
                           {Math.abs(pos.positionAmt).toFixed(4)}
                         </TableCell>
                         <TableCell className="text-right font-mono">
-                          {Number(pos.entryPrice).toFixed(2)}
+                          {formatDynamicPrice(Number(pos.entryPrice))}
                         </TableCell>
                         <TableCell className="text-right font-mono">
-                          {Number(pos.markPrice).toFixed(2)}
+                          {formatDynamicPrice(Number(pos.markPrice))}
                         </TableCell>
                         <TableCell className={`text-right font-mono ${pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
                           {formatPnl(pnl)}
@@ -233,7 +252,7 @@ export function AccountDetailOverview({
       )}
 
       {/* Capital Flow Summary */}
-      {flowStats && (
+      {flowStats ? (
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Capital Flow</CardTitle>
@@ -257,6 +276,18 @@ export function AccountDetailOverview({
                   {formatPnl(flowStats.netFlow)}
                 </p>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Capital Flow</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center py-6 text-muted-foreground">
+              <Wallet className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">No deposits or withdrawals recorded yet.</p>
             </div>
           </CardContent>
         </Card>

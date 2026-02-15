@@ -39,8 +39,8 @@ interface AccountCardListProps {
   onTransact?: (accountId: string, type: 'deposit' | 'withdraw') => void;
   onEdit?: (account: Account) => void;
   filterType?: AccountType;
-  excludeBacktest?: boolean;
-  backtestOnly?: boolean;
+  /** When true, show only paper/manual accounts. When false or undefined, show only exchange accounts. */
+  paperOnly?: boolean;
   emptyMessage?: string;
 }
 
@@ -49,8 +49,7 @@ export function AccountCardList({
   onTransact,
   onEdit,
   filterType, 
-  excludeBacktest = false,
-  backtestOnly = false,
+  paperOnly = false,
   emptyMessage = "No accounts yet"
 }: AccountCardListProps) {
   const navigate = useNavigate();
@@ -66,16 +65,16 @@ export function AccountCardList({
   const isConnected = !showPaperData && (connectionStatus?.isConnected ?? false);
   const activePositions = isConnected ? (binancePositions?.filter(p => p.positionAmt !== 0) || []) : [];
   
-  // Filter accounts based on type and backtest status
+  // Filter accounts based on type and paper/exchange status
   const accounts = allAccounts?.filter(a => {
     // Type filter
     if (filterType && a.account_type !== filterType) return false;
     
-    // Paper/Live filter for trading accounts
+    // Paper/Exchange filter for trading accounts
     if (filterType === 'trading') {
       const paper = isPaperAccount(a);
-      if (excludeBacktest && paper) return false;
-      if (backtestOnly && !paper) return false;
+      if (paperOnly && !paper) return false;
+      if (!paperOnly && paper) return false;
     }
     
     return true;

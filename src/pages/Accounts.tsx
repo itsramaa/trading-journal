@@ -7,7 +7,6 @@ import { useState, useMemo } from "react";
 import { useModeVisibility } from "@/hooks/use-mode-visibility";
 import { Helmet } from "react-helmet";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
 import { 
   CandlestickChart, 
   Settings, 
@@ -21,7 +20,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 
 import { PageHeader } from "@/components/ui/page-header";
 import { AddAccountForm } from "@/components/accounts/AddAccountForm";
@@ -29,7 +28,6 @@ import { AccountCardList } from "@/components/accounts/AccountCardList";
 import { AccountTransactionDialog } from "@/components/accounts/AccountTransactionDialog";
 import { AccountComparisonTable } from "@/components/accounts/AccountComparisonTable";
 import { EditAccountDialog } from "@/components/accounts/EditAccountDialog";
-
 
 import { useAccounts } from "@/hooks/use-accounts";
 import { useAccountsRealtime } from "@/hooks/use-realtime";
@@ -39,9 +37,9 @@ import {
   useBinancePositions,
   useRefreshBinanceData
 } from "@/features/binance";
-import { supabase } from "@/integrations/supabase/client";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { isPaperAccount } from "@/lib/account-utils";
+import { useOpenTradesCount } from "@/hooks/use-open-trades-count";
 import type { Account } from "@/types/account";
 
 
@@ -62,8 +60,6 @@ export default function Accounts() {
   useAccountsRealtime();
   const { format, formatPnl } = useCurrencyConversion();
   const { showExchangeData, showPaperData } = useModeVisibility();
-
-  // openTradesCount moved below modeAccounts declaration
 
   const handleTransact = (accountId: string, type: 'deposit' | 'withdraw') => {
     const account = accounts?.find(a => a.id === accountId);
@@ -90,27 +86,8 @@ export default function Accounts() {
   // Mode-filtered account IDs for open trades query
   const modeAccountIds = useMemo(() => modeAccounts.map(a => a.id), [modeAccounts]);
 
-  // Query for open trades - filtered by active mode
-  const { data: openTradesCount } = useQuery({
-    queryKey: ['open-trades-count', modeAccountIds],
-    queryFn: async () => {
-      if (!modeAccountIds.length) return 0;
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return 0;
-      
-      const { count } = await supabase
-        .from('trade_entries')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-      .eq('status', 'open')
-      .is('deleted_at', null)
-      .in('trading_account_id', modeAccountIds);
-      
-      return count || 0;
-    },
-    enabled: modeAccountIds.length > 0,
-    staleTime: 30 * 1000,
-  });
+  // Query for open trades - extracted to hook
+  const { data: openTradesCount } = useOpenTradesCount(modeAccountIds);
 
   const totalDbBalance = useMemo(() => 
     modeAccounts.reduce((sum, a) => sum + (Number(a.balance) || 0), 0),
@@ -155,7 +132,7 @@ export default function Accounts() {
             </Link>
           </Button>
           <Button variant="outline" asChild>
-            <Link to="/risk?tab=settings" aria-label="Open risk settings">
+            <Link to="/risk-analytics?tab=settings" aria-label="Open risk settings">
               <Shield className="h-4 w-4 mr-2" aria-hidden="true" />
               Risk Settings
             </Link>
@@ -166,7 +143,10 @@ export default function Accounts() {
         <div className="grid gap-4 md:grid-cols-3" role="region" aria-label="Accounts overview">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Balance</CardTitle>
+              <CardTitle className="text-sm font-medium flex items-center gap-1">
+                Balance
+                <InfoTooltip content="Total balance across all accounts in the active mode. Live mode includes connected exchange wallet balance." />
+              </CardTitle>
               <Wallet className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -187,7 +167,10 @@ export default function Accounts() {
           
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Accounts</CardTitle>
+              <CardTitle className="text-sm font-medium flex items-center gap-1">
+                Accounts
+                <InfoTooltip content="Number of active trading accounts in the current mode." />
+              </CardTitle>
               <CandlestickChart className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -200,7 +183,10 @@ export default function Accounts() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Open Positions</CardTitle>
+              <CardTitle className="text-sm font-medium flex items-center gap-1">
+                Open Positions
+                <InfoTooltip content="Trades with status 'open' plus active exchange positions." />
+              </CardTitle>
               {displayPositions > 0 ? (
                 showExchangeData && (balance?.totalUnrealizedProfit || 0) < 0 ? (
                   <TrendingDown className="h-4 w-4 text-loss" />
@@ -236,8 +222,7 @@ export default function Accounts() {
         {/* Account Cards - filtered by mode */}
         <AccountCardList
           filterType="trading"
-          excludeBacktest={!showPaperData}
-          backtestOnly={showPaperData}
+          paperOnly={showPaperData}
           onTransact={handleTransact}
           onEdit={handleEdit}
           emptyMessage={showPaperData 
