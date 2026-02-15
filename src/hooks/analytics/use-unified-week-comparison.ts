@@ -28,9 +28,9 @@ export interface UnifiedWeekComparisonResult {
   previousWeek: WeekStats;
   change: {
     pnl: number;
-    pnlPercent: number;
+    pnlPercent: number | null;
     trades: number;
-    tradesPercent: number;
+    tradesPercent: number | null;
     winRateChange: number;
   };
   source: WeekComparisonSource;
@@ -118,12 +118,12 @@ export function useUnifiedWeekComparison(): UnifiedWeekComparisonResult {
     const pnlChange = currentWeek.netPnl - previousWeek.netPnl;
     const pnlPercentChange = previousWeek.netPnl !== 0
       ? ((currentWeek.netPnl - previousWeek.netPnl) / Math.abs(previousWeek.netPnl)) * 100
-      : currentWeek.netPnl !== 0 ? 100 : 0;
+      : null;
     
     const tradesChange = currentWeek.trades - previousWeek.trades;
     const tradesPercentChange = previousWeek.trades !== 0
       ? ((currentWeek.trades - previousWeek.trades) / previousWeek.trades) * 100
-      : currentWeek.trades !== 0 ? 100 : 0;
+      : null;
     
     const winRateChange = currentWeek.winRate - previousWeek.winRate;
     
@@ -174,7 +174,7 @@ export function useUnifiedWeekComparison(): UnifiedWeekComparisonResult {
     return {
       currentWeek: { ...emptyStats },
       previousWeek: { ...emptyStats },
-      change: { pnl: 0, pnlPercent: 0, trades: 0, tradesPercent: 0, winRateChange: 0 },
+      change: { pnl: 0, pnlPercent: null, trades: 0, tradesPercent: null, winRateChange: 0 },
       source: 'paper',
       isLoading: connectionLoading || tradesLoading,
       hasData: false,
