@@ -204,15 +204,15 @@ function PositionGalleryCard({
       <div className="text-sm text-muted-foreground space-y-1">
         <div className="flex justify-between">
           <span>Entry</span>
-          <span className="font-mono">{position.entryPrice.toFixed(2)}</span>
+          <span className="font-mono">{position.entryPrice.toFixed(4)}</span>
         </div>
         <div className="flex justify-between">
           <span>SL</span>
-          <span className="font-mono">{position.stopLoss ? position.stopLoss.toFixed(2) : '-'}</span>
+          <span className="font-mono">{position.stopLoss ? position.stopLoss.toFixed(4) : '-'}</span>
         </div>
         <div className="flex justify-between">
           <span>TP</span>
-          <span className="font-mono">{position.takeProfit ? position.takeProfit.toFixed(2) : '-'}</span>
+          <span className="font-mono">{position.takeProfit ? position.takeProfit.toFixed(4) : '-'}</span>
         </div>
       </div>
 
@@ -288,14 +288,28 @@ export function AllPositionsTable({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[100px]">Source</TableHead>
+            <TooltipProvider>
+              <Tooltip><TooltipTrigger asChild><TableHead className="w-[100px] cursor-default">Source</TableHead></TooltipTrigger><TooltipContent><p>Data origin: Paper (local) or Binance (exchange)</p></TooltipContent></Tooltip>
+            </TooltipProvider>
             <TableHead>Symbol</TableHead>
-            <TableHead className="hidden sm:table-cell">Direction</TableHead>
-            <TableHead className="hidden sm:table-cell">State</TableHead>
-            <TableHead className="text-right hidden md:table-cell">Entry</TableHead>
-            <TableHead className="text-right hidden md:table-cell">Current</TableHead>
-            <TableHead className="text-right hidden lg:table-cell">Size</TableHead>
-            <TableHead className="text-right">P&L</TableHead>
+            <TooltipProvider>
+              <Tooltip><TooltipTrigger asChild><TableHead className="hidden sm:table-cell cursor-default">Direction</TableHead></TooltipTrigger><TooltipContent><p>Long (buy) or Short (sell) position</p></TooltipContent></Tooltip>
+            </TooltipProvider>
+            <TooltipProvider>
+              <Tooltip><TooltipTrigger asChild><TableHead className="hidden sm:table-cell cursor-default">State</TableHead></TooltipTrigger><TooltipContent><p>Lifecycle state of the position (Active, Partially Filled, etc.)</p></TooltipContent></Tooltip>
+            </TooltipProvider>
+            <TooltipProvider>
+              <Tooltip><TooltipTrigger asChild><TableHead className="text-right hidden md:table-cell cursor-default">Entry</TableHead></TooltipTrigger><TooltipContent><p>Price at which the position was opened</p></TooltipContent></Tooltip>
+            </TooltipProvider>
+            <TooltipProvider>
+              <Tooltip><TooltipTrigger asChild><TableHead className="text-right hidden md:table-cell cursor-default">Current</TableHead></TooltipTrigger><TooltipContent><p>Current mark price from exchange or last known price</p></TooltipContent></Tooltip>
+            </TooltipProvider>
+            <TooltipProvider>
+              <Tooltip><TooltipTrigger asChild><TableHead className="text-right hidden lg:table-cell cursor-default">Size</TableHead></TooltipTrigger><TooltipContent><p>Position quantity in base asset units</p></TooltipContent></Tooltip>
+            </TooltipProvider>
+            <TooltipProvider>
+              <Tooltip><TooltipTrigger asChild><TableHead className="text-right cursor-default">P&L</TableHead></TooltipTrigger><TooltipContent><p>Unrealized profit or loss on this open position</p></TooltipContent></Tooltip>
+            </TooltipProvider>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
@@ -356,10 +370,10 @@ export function AllPositionsTable({
                   </div>
                 </TableCell>
                 <TableCell className="text-right font-mono hidden md:table-cell">
-                  {position.entryPrice.toFixed(2)}
+                  {position.entryPrice.toFixed(4)}
                 </TableCell>
                 <TableCell className="text-right font-mono hidden md:table-cell">
-                  {position.currentPrice?.toFixed(2) || '-'}
+                  {position.currentPrice?.toFixed(4) || '-'}
                 </TableCell>
                 <TableCell className="text-right font-mono hidden lg:table-cell">
                   {position.quantity.toFixed(4)}
@@ -374,54 +388,63 @@ export function AllPositionsTable({
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => startTransition(() => navigate(`/trading/${position.id}`))}
-                      title="View detail"
-                    >
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => onEnrich(position)}
-                      title="Enrich with journal data"
-                    >
-                      <BookOpen className="h-4 w-4" />
-                    </Button>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button size="sm" variant="ghost" onClick={() => startTransition(() => navigate(`/trading/${position.id}`))}>
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent><p>View trade detail</p></TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button size="sm" variant="ghost" onClick={() => onEnrich(position)}>
+                            <BookOpen className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent><p>Enrich with journal data</p></TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                     {!position.isReadOnly && (
                       <>
                         {onEdit && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => onEdit(position.originalData as TradeEntry)}
-                            title="Edit position"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button size="sm" variant="ghost" onClick={() => onEdit(position.originalData as TradeEntry)}>
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent><p>Edit position</p></TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                         )}
                         {onClose && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => onClose(position.originalData as TradeEntry)}
-                            title="Close position"
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button size="sm" variant="ghost" onClick={() => onClose(position.originalData as TradeEntry)}>
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent><p>Close position</p></TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                         )}
                         {onDelete && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-loss hover:text-loss"
-                            onClick={() => onDelete(position.originalData as TradeEntry)}
-                            title="Delete position"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button size="sm" variant="ghost" className="text-loss hover:text-loss" onClick={() => onDelete(position.originalData as TradeEntry)}>
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent><p>Delete position</p></TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                         )}
                       </>
                     )}
