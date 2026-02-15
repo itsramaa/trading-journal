@@ -1,188 +1,177 @@
 
-# Daily P&L & Trading Heatmap: Data Integrity & UX Fixes
 
-Targeted fixes for misleading metrics, undefined-as-zero display, and missing context across both pages.
+# Sidebar Navigation Restructure: Flow-Driven Information Architecture
 
----
-
-## Daily P&L Page Fixes
-
-### 1. Fix "+100% vs last week" When Baseline is Zero
-
-**File:** `src/hooks/analytics/use-unified-week-comparison.ts`
-
-The current logic at line 121 returns `100` when `previousWeek.netPnl === 0` and current week has activity. This creates a misleading "+100%" display.
-
-Fix: Return a sentinel value (e.g., `null`) instead of `100` when baseline is zero.
-
-```typescript
-// Change type of pnlPercent and tradesPercent to number | null
-pnlPercent: number | null;
-tradesPercent: number | null;
-```
-
-Calculation change:
-```typescript
-const pnlPercentChange = previousWeek.netPnl !== 0
-  ? ((currentWeek.netPnl - previousWeek.netPnl) / Math.abs(previousWeek.netPnl)) * 100
-  : null;  // was: currentWeek.netPnl !== 0 ? 100 : 0
-
-const tradesPercentChange = previousWeek.trades !== 0
-  ? ((currentWeek.trades - previousWeek.trades) / previousWeek.trades) * 100
-  : null;  // was: currentWeek.trades !== 0 ? 100 : 0
-```
-
-**File:** `src/pages/DailyPnL.tsx`
-
-Update `ChangeIndicator` to handle `null`:
-
-```typescript
-const ChangeIndicator = ({ value, suffix = '' }: { value: number | null; suffix?: string }) => {
-  if (value === null) return <span className="text-muted-foreground text-xs">New activity</span>;
-  // ... existing logic
-};
-```
-
-### 2. Fix "Win Rate 0%" When 0 Trades Today
-
-**File:** `src/pages/DailyPnL.tsx`
-
-Line 132 currently shows `0%` when no trades exist today. Change to show a dash with context:
-
-```typescript
-<div>
-  <p className="text-sm text-muted-foreground">Win Rate</p>
-  {dailyStats.totalTrades === 0 ? (
-    <>
-      <p className="text-2xl font-bold text-muted-foreground">--</p>
-      <p className="text-xs text-muted-foreground">No trades today</p>
-    </>
-  ) : (
-    <p className="text-2xl font-bold">{dailyStats.winRate.toFixed(0)}%</p>
-  )}
-</div>
-```
-
-### 3. Add Tooltip to Best/Worst Trade Cards
-
-**File:** `src/pages/DailyPnL.tsx`
-
-Add an `InfoTooltip` to Best Trade and Worst Trade card titles (lines 209, 229):
-
-```typescript
-<CardTitle className="text-lg flex items-center gap-2">
-  <TrendingUp className="h-5 w-5 text-profit" />
-  Best Trade (7 Days)
-  <InfoTooltip content="Based on realized P&L of closed trades in the last 7 days." />
-</CardTitle>
-```
-
-Same pattern for Worst Trade.
-
-### 4. Fix Symbol Breakdown Showing P&L with 0 Trades
-
-**File:** `src/hooks/analytics/use-symbol-breakdown.ts`
-
-The Binance path (line 123-134) counts trades from `data.count` which tracks REALIZED_PNL income records. But `net` includes commission rebates and funding, which can exist without a REALIZED_PNL entry.
-
-Fix: Filter out symbols with zero trade count from the output:
-
-```typescript
-.filter(([symbol, data]) => symbol !== 'N/A' && data.count > 0)
-```
-
-This ensures no symbol appears with "0 trades" but non-zero P&L.
+Reorganize the sidebar from generic groupings to a trader's mental model, reducing cognitive load and aligning with the natural workflow: Research, Trade, Analyze, Strategy.
 
 ---
 
-## Trading Heatmap Page Fixes
+## Current vs Proposed Structure
 
-### 5. Low Sample Size Indicator on Session Cards
+```text
+CURRENT (15 items, 4 groups)          PROPOSED (15 items, 5 groups)
+================================      ================================
+Dashboard                             Dashboard
+Accounts
+                                      Research
+Market                                  Economic Calendar
+  Economic Calendar                     Top Movers
+  Top Movers                            Flow & Liquidity
+  Flow & Liquidity                      Market Bias
+  Market Bias
+                                      Trade
+Journal                                 Journal
+  Trading Journal                       Import & Sync
+  Import & Sync                         Risk Calculator
 
-**File:** `src/pages/TradingHeatmap.tsx`
+Analytics                             Analyze
+  Risk Overview                         Performance
+  Performance                           Risk Analytics
+  Daily P&L                             Daily P&L
+  Heatmap                               Heatmap
+  AI Insights                           AI Insights
 
-Add a "Low sample" badge when a session has fewer than 10 trades (line 274):
-
-```typescript
-<p className="text-sm text-muted-foreground">
-  {s.trades} trades {'\u2022'} {formatWinRate(s.winRate)} win rate
-  {s.trades > 0 && s.trades < 10 && (
-    <span className="text-xs opacity-60 ml-1">(low sample)</span>
-  )}
-</p>
+Tools                                 Strategy
+  Risk Calculator                       My Strategies
+  My Strategies                         Backtest
+  Backtest
+  Bulk Export                         Accounts  (bottom standalone)
+                                      Settings  (bottom standalone)
+Settings                              Bulk Export (inside Accounts tooltip or standalone)
 ```
 
-### 6. Fix Best/Worst Hour Identical & Negative Framing
+---
 
-**File:** `src/pages/TradingHeatmap.tsx`
+## Changes
 
-When best and worst are the same hour, or when "Best Hour" has negative P&L, rename labels dynamically (lines 288-329):
+### 1. Rename and Regroup Navigation Array
 
-```typescript
-// Determine labels
-const bestLabel = hourlyStats.best
-  ? (hourlyStats.best.pnl < 0 ? 'Least Loss Hour' : 'Best Hour')
-  : 'Best Hour';
-const worstLabel = hourlyStats.worst
-  ? (hourlyStats.worst.pnl > 0 ? 'Smallest Gain Hour' : 'Worst Hour')
-  : 'Worst Hour';
+**File:** `src/components/layout/AppSidebar.tsx`
 
-// If best === worst (same hour), only show one
-const showWorst = !hourlyStats.best || !hourlyStats.worst
-  || hourlyStats.best.hour !== hourlyStats.worst.hour;
+Replace the `navigationGroups` constant with the new structure:
+
+| Group | Label | Items | Rationale |
+|-------|-------|-------|-----------|
+| Research | "Research" | Calendar, Top Movers, Flow & Liquidity, Market Bias | Pre-trade analysis tools -- "Market" was too generic |
+| Trade | "Trade" | Trading Journal, Import & Sync, Risk Calculator | Input workflow -- Journal + calculator are both trade-time tools |
+| Analyze | "Analyze" | Performance, Risk Analytics, Daily P&L, Heatmap, AI Insights | Output analysis -- all performance review in one group |
+| Strategy | "Strategy" | My Strategies, Backtest | Growth engine -- will expand with optimization tools |
+
+Key item moves:
+- **Risk Calculator**: from Tools to Trade (used during position sizing, not after)
+- **Risk Overview**: renamed to "Risk Analytics", stays in Analyze
+- **Bulk Export**: moves to a standalone item near Accounts/Settings at bottom
+- **Accounts**: moves from top standalone to bottom standalone (alongside Settings and Export)
+- **Settings**: stays standalone at bottom
+
+### 2. Move Accounts & Export to Bottom Section
+
+**File:** `src/components/layout/AppSidebar.tsx`
+
+Currently Dashboard and Accounts are both standalone at top. Accounts is not a frequent-access item during trading flow.
+
+Move Accounts and Bulk Export to the bottom section alongside Settings:
+
+```text
+[Bottom standalone items]
+  Accounts       G A
+  Bulk Export     G W
+  Settings       G ,
 ```
 
-If `showWorst` is false, the Worst Hour card shows "Same as best" instead of duplicating identical data.
+This keeps Dashboard as the only top standalone item, reducing initial visual weight.
 
-### 7. Fix Longest Win Streak "0 trades"
+### 3. Default Collapse State
 
-**File:** `src/pages/TradingHeatmap.tsx`
+**File:** `src/components/layout/AppSidebar.tsx`
 
-Line 340 shows "0 trades" when no wins exist. Change:
+Set `defaultOpen` per group based on frequency:
+- Research: `true` (checked before trading)
+- Trade: `true` (primary workflow)
+- Analyze: `true` (post-trade review)
+- Strategy: `false` (used less frequently, reduces initial item count from 15 to 13 visible)
 
-```typescript
-<CardContent>
-  {streakData.longestWin === 0 ? (
-    <>
-      <div className="text-lg font-bold text-muted-foreground">--</div>
-      <p className="text-sm text-muted-foreground">No winning trades in selected period</p>
-    </>
-  ) : (
-    <>
-      <div className="text-lg font-bold">{streakData.longestWin} trades</div>
-      <p className="text-sm text-muted-foreground">
-        Current: {streakData.currentStreak > 0 ? `${streakData.currentStreak} wins` : 'N/A'}
-      </p>
-    </>
-  )}
-</CardContent>
-```
+### 4. Update Memory Documentation
 
-Same pattern for Longest Loss Streak when `longestLoss === 0`.
+The memory `ui/professional-dashboard-design-system` references the old groupings (Portfolio, Journal, Analytics, Tools / Market). This will need updating after implementation to reflect the new Research, Trade, Analyze, Strategy taxonomy.
 
-### 8. Add Sample Size Context to Summary Footer
+---
 
-**File:** `src/pages/TradingHeatmap.tsx`
+## Technical Details
 
-Enhance the existing footer (lines 365-376) with a sample size warning when trades are fewer than 20:
+### Navigation Array Change
 
 ```typescript
-<div className="flex items-center justify-between text-xs text-muted-foreground border-t pt-4">
-  <span>
-    Showing {filteredTrades.length} closed trades
-    {selectedPair !== 'all' && ` for ${selectedPair}`}
-    {dateRange !== 'all' && ` in last ${dateRange.replace('d', ' days')}`}
-    {filteredTrades.length < 20 && filteredTrades.length > 0 && (
-      <span className="ml-1 opacity-60">-- Sample size is limited</span>
-    )}
-  </span>
-  {/* ... Total P&L stays same */}
-</div>
+const navigationGroups = [
+  {
+    title: "Research",
+    items: [
+      { title: "Economic Calendar", url: "/calendar", icon: Calendar },
+      { title: "Top Movers", url: "/top-movers", icon: Flame },
+      { title: "Flow & Liquidity", url: "/market-data", icon: BarChart3 },
+      { title: "Market Bias", url: "/market", icon: TrendingUp },
+    ],
+  },
+  {
+    title: "Trade",
+    items: [
+      { title: "Trading Journal", url: "/trading", icon: Notebook },
+      { title: "Import & Sync", url: "/import", icon: Download },
+      { title: "Risk Calculator", url: "/calculator", icon: Calculator },
+    ],
+  },
+  {
+    title: "Analyze",
+    items: [
+      { title: "Performance", url: "/performance", icon: LineChart },
+      { title: "Risk Analytics", url: "/risk", icon: Shield },
+      { title: "Daily P&L", url: "/daily-pnl", icon: DollarSign },
+      { title: "Heatmap", url: "/heatmap", icon: Grid3X3 },
+      { title: "AI Insights", url: "/ai-insights", icon: Brain },
+    ],
+  },
+  {
+    title: "Strategy",
+    items: [
+      { title: "My Strategies", url: "/strategies", icon: Lightbulb },
+      { title: "Backtest", url: "/backtest", icon: Play },
+    ],
+  },
+];
 ```
 
-### 9. Session Overlap: Already Correct
+### Bottom Standalone Section
 
-The `getSessionForTime()` in `session-utils.ts` assigns each trade to exactly one session using a priority waterfall (Sydney first, then Tokyo, London, NY). The `getTradeSession()` function used in the heatmap page also returns a single session per trade. No double-counting occurs. No change needed.
+Move Accounts from the top `SidebarMenu` block to the bottom block alongside Settings and add Bulk Export:
+
+```typescript
+{/* Bottom standalone: Accounts, Export, Settings */}
+<SidebarMenu className="px-2">
+  <SidebarMenuItem>
+    <SidebarMenuButton asChild isActive={...} className="group/nav-item">
+      <Link to="/accounts">Accounts</Link>
+    </SidebarMenuButton>
+  </SidebarMenuItem>
+  <SidebarMenuItem>
+    <SidebarMenuButton asChild isActive={...} className="group/nav-item">
+      <Link to="/export">Bulk Export</Link>
+    </SidebarMenuButton>
+  </SidebarMenuItem>
+  <SidebarMenuItem>
+    <SidebarMenuButton asChild isActive={...} className="group/nav-item">
+      <Link to="/settings">Settings</Link>
+    </SidebarMenuButton>
+  </SidebarMenuItem>
+</SidebarMenu>
+```
+
+### No Route Changes
+
+All URLs (`/trading`, `/risk`, `/calendar`, etc.) remain identical. This is purely a sidebar presentation change. No changes to `App.tsx` routing.
+
+### localStorage Migration
+
+The `NavGroup` component uses group titles as localStorage keys for collapse state. Changing group titles (Market to Research, Tools to Strategy, etc.) means old persisted states won't match. This is harmless -- groups will fall back to `defaultOpen` on first load with new titles.
 
 ---
 
@@ -190,14 +179,13 @@ The `getSessionForTime()` in `session-utils.ts` assigns each trade to exactly on
 
 | File | Change |
 |------|--------|
-| `src/hooks/analytics/use-unified-week-comparison.ts` | `pnlPercent` and `tradesPercent` become `number \| null`; return `null` when baseline is zero |
-| `src/pages/DailyPnL.tsx` | Handle null in ChangeIndicator; show "--" for 0-trade win rate; add tooltips to Best/Worst trade |
-| `src/hooks/analytics/use-symbol-breakdown.ts` | Filter out symbols with `count === 0` from Binance breakdown |
-| `src/pages/TradingHeatmap.tsx` | Low sample badge on sessions; adaptive Best/Worst Hour labels; fix 0-streak display; sample size footer warning |
+| `src/components/layout/AppSidebar.tsx` | New navigation groups; move Accounts/Export to bottom; Strategy defaults collapsed |
 
 ## What Does NOT Change
 
-- Session assignment logic (already single-session, no overlap double-counting)
-- Weekly P&L trend chart data/logic
-- Heatmap grid component (`TradingHeatmap.tsx`)
-- Any backend/hook calculation logic beyond the two specified fixes
+- All route URLs (no App.tsx changes)
+- NavGroup component logic
+- Keyboard shortcuts
+- Collapsed/icon mode behavior
+- Mobile sidebar behavior
+- Footer (Wallet + NavUser)
