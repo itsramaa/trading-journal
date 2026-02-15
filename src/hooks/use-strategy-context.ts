@@ -108,7 +108,7 @@ export function useStrategyContext(
 
       const { data: trades } = await supabase
         .from('trade_entries')
-        .select('id, pair, direction, result, pnl, status, entry_datetime, exit_datetime, chart_timeframe')
+        .select('id, pair, direction, result, pnl, realized_pnl, status, entry_datetime, exit_datetime, chart_timeframe')
         .in('id', tradeIds)
         .eq('status', 'closed');
 
@@ -152,7 +152,7 @@ export function useStrategyContext(
       existing.trades++;
       if (trade.result === 'win') existing.wins++;
       if (trade.result === 'loss') existing.losses++;
-      existing.totalPnl += trade.pnl || 0;
+      existing.totalPnl += (trade as any).realized_pnl ?? trade.pnl ?? 0;
       existing.avgPnl = existing.totalPnl / existing.trades;
       existing.winRate = (existing.wins / existing.trades) * 100;
       

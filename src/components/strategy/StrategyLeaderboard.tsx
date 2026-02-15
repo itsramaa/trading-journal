@@ -10,6 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Select,
   SelectContent,
@@ -43,7 +45,8 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Link } from "react-router-dom";
-
+import { STRATEGY_CARD_COLOR_CLASSES } from "@/lib/constants/strategy-config";
+import { TIMEFRAME_OPTIONS as CANONICAL_TIMEFRAME_OPTIONS } from "@/types/strategy";
 interface LeaderboardStrategy {
   id: string;
   name: string;
@@ -61,23 +64,16 @@ interface LeaderboardStrategy {
 const RANK_ICONS = [Crown, Trophy, Medal];
 const RANK_COLORS = ["text-yellow-500", "text-slate-400", "text-amber-600"];
 
+// Use canonical timeframe options with an "all" prepend
 const TIMEFRAME_OPTIONS = [
   { value: "all", label: "All Timeframes" },
-  { value: "1m", label: "1 Minute" },
-  { value: "5m", label: "5 Minutes" },
-  { value: "15m", label: "15 Minutes" },
-  { value: "30m", label: "30 Minutes" },
-  { value: "1h", label: "1 Hour" },
-  { value: "4h", label: "4 Hours" },
-  { value: "1d", label: "Daily" },
-  { value: "1w", label: "Weekly" },
+  ...CANONICAL_TIMEFRAME_OPTIONS,
 ];
 
 const MARKET_TYPE_OPTIONS = [
   { value: "all", label: "All Markets" },
   { value: "spot", label: "Spot" },
   { value: "futures", label: "Futures" },
-  { value: "margin", label: "Margin" },
 ];
 
 const SORT_OPTIONS = [
@@ -231,6 +227,7 @@ export function StrategyLeaderboard() {
             <CardTitle className="flex items-center gap-2">
               <Trophy className="h-5 w-5 text-yellow-500" />
               Strategy Leaderboard
+              <InfoTooltip content="Community-ranked strategies sorted by clone count. Share your strategies to appear here." />
             </CardTitle>
             <CardDescription>
               {allFilteredStrategies.length === 0
@@ -379,10 +376,11 @@ export function StrategyLeaderboard() {
                   )}
                 </div>
 
-                {/* Strategy Color Indicator */}
+                {/* Strategy Color Indicator — use semantic color mapping */}
                 <div
-                  className="w-2 h-10 rounded-full shrink-0"
-                  style={{ backgroundColor: strategy.color || "#6b7280" }}
+                  className={`w-2 h-10 rounded-full shrink-0 ${
+                    (STRATEGY_CARD_COLOR_CLASSES[strategy.color || 'blue'] || STRATEGY_CARD_COLOR_CLASSES.blue).split(' ')[0]
+                  }`}
                 />
 
                 {/* Strategy Info */}
@@ -419,13 +417,22 @@ export function StrategyLeaderboard() {
 
                 {/* Clone Count */}
                 <div className="flex items-center gap-2 shrink-0">
-                  <div className="text-right">
-                    <div className="flex items-center gap-1 text-sm font-semibold">
-                      <Users className="h-4 w-4 text-muted-foreground" />
-                      {strategy.clone_count}
-                    </div>
-                    <span className="text-xs text-muted-foreground">clones</span>
-                  </div>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="text-right cursor-help">
+                          <div className="flex items-center gap-1 text-sm font-semibold">
+                            <Users className="h-4 w-4 text-muted-foreground" />
+                            {strategy.clone_count}
+                          </div>
+                          <span className="text-xs text-muted-foreground">clones</span>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="text-sm">Number of times this strategy has been cloned by other traders.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                   
                   {/* View Button */}
                   {strategy.share_token && !isOwner && (

@@ -20,6 +20,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Card, CardContent } from "@/components/ui/card";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Target, ListChecks, LogOut, X, ChevronsUpDown, Clock, Layers, Settings2, AlertTriangle } from "lucide-react";
 import { EntryRulesBuilder } from "@/components/strategy/EntryRulesBuilder";
 import { ExitRulesBuilder } from "@/components/strategy/ExitRulesBuilder";
@@ -201,6 +202,14 @@ export function StrategyFormDialog({
     if (hasUnitMismatch) {
       warnings.push('TP and SL use different units — Effective R:R cannot be calculated. Use consistent units for accurate validation.');
     }
+
+    // Partial TP levels sum validation (#12)
+    if (tradeManagement.partial_tp_enabled && tradeManagement.partial_tp_levels.length > 0) {
+      const totalPercent = tradeManagement.partial_tp_levels.reduce((sum, level) => sum + (level.percent || 0), 0);
+      if (totalPercent > 100) {
+        warnings.push(`Partial TP levels sum to ${totalPercent}% — total cannot exceed 100%.`);
+      }
+    }
     
     return warnings;
   }, [entryRules, exitRules, effectiveRR, hasUnitMismatch, positionSizingModel, selectedMarketType, defaultLeverage, form]);
@@ -363,6 +372,7 @@ export function StrategyFormDialog({
                 <Label className="flex items-center gap-2">
                   <Target className="h-4 w-4" aria-hidden="true" />
                   Valid Trading Pairs
+                  <InfoTooltip content="Assets this strategy is designed for. Used for filtering and pair recommendations." />
                 </Label>
                 
                 <div className="flex flex-wrap gap-2 min-h-[40px] p-2 border rounded-lg bg-muted/30">
@@ -450,6 +460,7 @@ export function StrategyFormDialog({
                 <Label className="flex items-center gap-2">
                   <Layers className="h-4 w-4" aria-hidden="true" />
                   Trading Methodology
+                  <InfoTooltip content="The analytical framework this strategy uses to identify trade setups." />
                 </Label>
                 <RadioGroup 
                   value={selectedMethodology} 
@@ -644,7 +655,10 @@ export function StrategyFormDialog({
             {/* Entry Rules Tab */}
             <TabsContent value="entry" className="space-y-4 pt-4">
               <div className="space-y-2">
-                <Label>Min. Confluences</Label>
+                <Label className="flex items-center gap-1">
+                  Min. Confluences
+                  <InfoTooltip content="Minimum number of entry rules that must be satisfied before a trade is valid." />
+                </Label>
                 <Input 
                   type="number"
                   {...form.register("min_confluences", { valueAsNumber: true })} 
@@ -666,7 +680,10 @@ export function StrategyFormDialog({
             <TabsContent value="exit" className="space-y-4 pt-4">
               {/* Min R:R validation gate */}
               <div className="space-y-2">
-                <Label>Min. Risk:Reward (Validation Gate)</Label>
+                <Label className="flex items-center gap-1">
+                  Min. Risk:Reward (Validation Gate)
+                  <InfoTooltip content="Minimum ratio between potential profit and potential loss. Acts as a validation gate — trades below this ratio are rejected." />
+                </Label>
                 <Input 
                   type="number"
                   {...form.register("min_rr", { valueAsNumber: true })} 
@@ -795,7 +812,10 @@ export function StrategyFormDialog({
               <Card>
                 <CardContent className="pt-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium">Partial Take Profit</Label>
+                    <Label className="text-sm font-medium flex items-center gap-1">
+                      Partial Take Profit
+                      <InfoTooltip content="Close portions of your position at different profit targets to lock in gains progressively." />
+                    </Label>
                     <Switch
                       checked={tradeManagement.partial_tp_enabled}
                       onCheckedChange={(checked) => updateTradeManagement({ partial_tp_enabled: checked })}
@@ -865,7 +885,10 @@ export function StrategyFormDialog({
               <Card>
                 <CardContent className="pt-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium">Move SL to Breakeven</Label>
+                    <Label className="text-sm font-medium flex items-center gap-1">
+                      Move SL to Breakeven
+                      <InfoTooltip content="Automatically move your stop loss to entry price when trade reaches the specified R multiple." />
+                    </Label>
                     <Switch
                       checked={tradeManagement.move_sl_to_be}
                       onCheckedChange={(checked) => updateTradeManagement({ move_sl_to_be: checked })}
@@ -891,7 +914,10 @@ export function StrategyFormDialog({
               {/* Kill Switch Rules */}
               <Card>
                 <CardContent className="pt-4 space-y-3">
-                  <Label className="text-sm font-medium">Kill Switch / Limits</Label>
+                  <Label className="text-sm font-medium flex items-center gap-1">
+                    Kill Switch / Limits
+                    <InfoTooltip content="Automatic circuit breakers that stop trading when risk limits are hit. Leave empty to disable." />
+                  </Label>
                   
                   <div className="space-y-3">
                     <div className="flex items-center gap-3">
