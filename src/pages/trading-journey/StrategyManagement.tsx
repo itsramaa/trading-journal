@@ -32,7 +32,7 @@ import {
   YouTubeStrategyImporter,
 } from "@/components/strategy";
 import { StrategyCloneStatsWidget } from "@/components/dashboard/StrategyCloneStatsWidget";
-import type { EntryRule, ExitRule, TradingMethodology, TradingStyle, TradingSession, DifficultyLevel } from "@/types/strategy";
+import type { EntryRule, ExitRule, TradingMethodology, TradingStyle, TradingSession, DifficultyLevel, PositionSizingModel, MarginMode, TradeManagement } from "@/types/strategy";
 
 export default function StrategyManagement() {
   const navigate = useNavigate();
@@ -82,6 +82,11 @@ export default function StrategyManagement() {
     tradingStyle: TradingStyle;
     sessionPreference: TradingSession[];
     difficultyLevel: DifficultyLevel | null;
+    positionSizingModel: PositionSizingModel;
+    positionSizingValue: number;
+    tradeManagement: TradeManagement;
+    defaultLeverage: number;
+    marginMode: MarginMode;
   }) => {
     const tagsArray = values.tags
       ? values.tags.split(',').map(t => t.trim()).filter(Boolean)
@@ -108,6 +113,11 @@ export default function StrategyManagement() {
           trading_style: values.tradingStyle,
           session_preference: values.sessionPreference,
           difficulty_level: values.difficultyLevel,
+          position_sizing_model: values.positionSizingModel,
+          position_sizing_value: values.positionSizingValue,
+          trade_management: values.tradeManagement,
+          default_leverage: values.defaultLeverage,
+          margin_mode: values.marginMode,
         });
       } else {
         await createStrategy.mutateAsync({
@@ -128,6 +138,11 @@ export default function StrategyManagement() {
           trading_style: values.tradingStyle,
           session_preference: values.sessionPreference,
           difficulty_level: values.difficultyLevel,
+          position_sizing_model: values.positionSizingModel,
+          position_sizing_value: values.positionSizingValue,
+          trade_management: values.tradeManagement,
+          default_leverage: values.defaultLeverage,
+          margin_mode: values.marginMode,
         });
       }
       setIsFormOpen(false);

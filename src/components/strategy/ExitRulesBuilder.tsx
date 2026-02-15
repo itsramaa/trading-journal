@@ -2,7 +2,7 @@
  * Exit Rules Builder - Dynamic UI for strategy exit rules
  * Per Trading Journey Markdown spec
  */
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -63,14 +63,29 @@ export function ExitRulesBuilder({ rules, onChange }: ExitRulesBuilderProps) {
     return EXIT_RULE_COLOR_CLASSES[type] || 'border-border bg-muted/30';
   };
 
+  // Compute effective R:R from TP/SL
+  const effectiveRR = useMemo(() => {
+    const tp = rules.find(r => r.type === 'take_profit' && r.unit === 'rr');
+    const sl = rules.find(r => r.type === 'stop_loss' && r.unit === 'rr');
+    if (tp && sl && sl.value > 0) return tp.value / sl.value;
+    return null;
+  }, [rules]);
+
   return (
     <Card>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base">Exit Rules</CardTitle>
-          <Badge variant="outline" className="text-xs">
-            {rules.length} rules
-          </Badge>
+          <div className="flex items-center gap-2">
+            {effectiveRR !== null && (
+              <Badge variant="secondary" className="text-xs">
+                Effective R:R {effectiveRR.toFixed(1)}:1
+              </Badge>
+            )}
+            <Badge variant="outline" className="text-xs">
+              {rules.length} rules
+            </Badge>
+          </div>
         </div>
         <p className="text-xs text-muted-foreground">
           Define take profit, stop loss, and other exit conditions.

@@ -1,6 +1,6 @@
 /**
  * StrategyDetailDrawer - Full strategy detail view with Market Fit and Pair Recommendations
- * Enhanced with Multi-Timeframe Analysis and Professional Trading Fields
+ * Enhanced with Position Sizing, Trade Management, and Futures fields
  */
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { 
   Clock, 
   TrendingUp, 
@@ -26,6 +27,8 @@ import {
   Layers,
   Timer,
   Globe,
+  Settings2,
+  Info,
 } from "lucide-react";
 import { format } from "date-fns";
 import type { TradingStrategy } from "@/hooks/use-trading-strategies";
@@ -36,7 +39,7 @@ import { MarketFitSection } from "./MarketFitSection";
 import { PairRecommendations } from "./PairRecommendations";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { METHODOLOGY_OPTIONS, TRADING_STYLE_OPTIONS, SESSION_OPTIONS } from "@/lib/constants/strategy-config";
+import { METHODOLOGY_OPTIONS, TRADING_STYLE_OPTIONS, SESSION_OPTIONS, POSITION_SIZING_MODELS } from "@/lib/constants/strategy-config";
 
 // Design system color tokens
 const colorClasses: Record<string, string> = {
@@ -94,6 +97,9 @@ export function StrategyDetailDrawer({
   };
 
   if (!strategy) return null;
+
+  const positionSizingLabel = POSITION_SIZING_MODELS.find(m => m.value === strategy.position_sizing_model)?.label || 'Fixed % Risk';
+  const positionSizingUnit = POSITION_SIZING_MODELS.find(m => m.value === strategy.position_sizing_model)?.unit || '%';
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -165,33 +171,33 @@ export function StrategyDetailDrawer({
 
               <Separator />
 
-              {/* Multi-Timeframe Analysis */}
-              {(strategy.timeframe || strategy.higher_timeframe || strategy.lower_timeframe) && (
-                <div className="space-y-2">
-                  <div className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
-                    Multi-Timeframe Analysis
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    {strategy.higher_timeframe && (
-                      <>
-                        <Badge variant="outline" className="text-xs">{strategy.higher_timeframe}</Badge>
-                        <span className="text-muted-foreground">→</span>
-                      </>
-                    )}
-                    <Badge variant="default" className="text-xs">{strategy.timeframe || 'N/A'}</Badge>
-                    {strategy.lower_timeframe && (
-                      <>
-                        <span className="text-muted-foreground">→</span>
-                        <Badge variant="outline" className="text-xs">{strategy.lower_timeframe}</Badge>
-                      </>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {strategy.higher_timeframe ? 'Higher TF for bias' : ''}{strategy.higher_timeframe && strategy.lower_timeframe ? ', ' : ''}{strategy.lower_timeframe ? 'Lower TF for entry' : ''}
-                  </p>
+              {/* Multi-Timeframe Analysis - Clean labels */}
+              <div className="space-y-2">
+                <div className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  Multi-Timeframe Analysis
                 </div>
-              )}
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div>
+                    <p className="text-[10px] text-muted-foreground mb-1">Higher TF (Bias)</p>
+                    <Badge variant="outline" className="text-xs">
+                      {strategy.higher_timeframe || 'Not set'}
+                    </Badge>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground mb-1">Primary TF (Trade)</p>
+                    <Badge variant="default" className="text-xs">
+                      {strategy.timeframe || 'Not set'}
+                    </Badge>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground mb-1">Lower TF (Entry)</p>
+                    <Badge variant="outline" className="text-xs">
+                      {strategy.lower_timeframe || 'Not set'}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
 
               {/* Session Preference */}
               {strategy.session_preference && strategy.session_preference.length > 0 && !strategy.session_preference.includes('all') && (
@@ -218,15 +224,100 @@ export function StrategyDetailDrawer({
                   <TrendingUp className="h-3 w-3 mr-1" />
                   {strategy.market_type || 'spot'}
                 </Badge>
+                {/* Futures badges */}
+                {strategy.market_type === 'futures' && (
+                  <>
+                    <Badge variant="outline" className="text-xs">
+                      {strategy.default_leverage}x leverage
+                    </Badge>
+                    <Badge variant="outline" className="text-xs capitalize">
+                      {strategy.margin_mode} margin
+                    </Badge>
+                  </>
+                )}
                 <Badge variant="outline" className="text-xs">
                   <Shield className="h-3 w-3 mr-1" />
-                  {strategy.min_confluences || 4} confluences
+                  {strategy.min_confluences || 3} confluences
                 </Badge>
                 <Badge variant="outline" className="text-xs">
                   <Target className="h-3 w-3 mr-1" />
                   {strategy.min_rr || 1.5}:1 R:R
                 </Badge>
               </div>
+
+              {/* Position Sizing */}
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-muted-foreground">Position Sizing:</span>
+                <Badge variant="outline" className="text-xs">
+                  {positionSizingLabel} — {strategy.position_sizing_value}{positionSizingUnit}
+                </Badge>
+              </div>
+
+              {/* Trade Management Rules */}
+              {strategy.trade_management && (
+                (() => {
+                  const tm = strategy.trade_management;
+                  const hasRules = tm.partial_tp_enabled || tm.move_sl_to_be || 
+                    tm.max_trades_per_day !== null || tm.max_daily_loss_percent !== null || 
+                    tm.max_consecutive_losses !== null;
+                  if (!hasRules) return null;
+                  return (
+                    <div className="space-y-2">
+                      <div className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                        <Settings2 className="h-3 w-3" />
+                        Trade Management
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {tm.partial_tp_enabled && (
+                          <Badge variant="outline" className="text-xs">
+                            Partial TP ({tm.partial_tp_levels.length} levels)
+                          </Badge>
+                        )}
+                        {tm.move_sl_to_be && (
+                          <Badge variant="outline" className="text-xs">
+                            SL→BE at {tm.move_sl_to_be_at_rr}R
+                          </Badge>
+                        )}
+                        {tm.max_trades_per_day !== null && (
+                          <Badge variant="outline" className="text-xs">
+                            Max {tm.max_trades_per_day} trades/day
+                          </Badge>
+                        )}
+                        {tm.max_daily_loss_percent !== null && (
+                          <Badge variant="outline" className="text-xs">
+                            Kill: -{tm.max_daily_loss_percent}% daily
+                          </Badge>
+                        )}
+                        {tm.max_consecutive_losses !== null && (
+                          <Badge variant="outline" className="text-xs">
+                            Kill: {tm.max_consecutive_losses} consec. losses
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()
+              )}
+
+              {/* Validation Score with tooltip */}
+              {strategy.validation_score !== null && strategy.validation_score !== undefined && (
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-muted-foreground">Confidence:</span>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Badge variant="outline" className="text-xs cursor-help">
+                          <Info className="h-3 w-3 mr-1" />
+                          {strategy.validation_score}%
+                        </Badge>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <p className="text-sm">Confidence score is based on: completeness of entry/exit rules, specificity of conditions, and backtest-readiness. Not a win rate prediction.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+              )}
 
               {/* Tags */}
               {strategy.tags && strategy.tags.length > 0 && (

@@ -1,8 +1,8 @@
 /**
  * Strategy Form Dialog - Create/Edit strategy dialog
- * Enhanced with Multi-Timeframe Analysis (MTFA) and Professional Trading Fields
+ * Enhanced with Position Sizing, Trade Management, and Futures fields
  */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -12,12 +12,15 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Target, ListChecks, LogOut, X, ChevronsUpDown, Clock, Layers } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Target, ListChecks, LogOut, X, ChevronsUpDown, Clock, Layers, Settings2, AlertTriangle } from "lucide-react";
 import { EntryRulesBuilder } from "@/components/strategy/EntryRulesBuilder";
 import { ExitRulesBuilder } from "@/components/strategy/ExitRulesBuilder";
 import { 
@@ -25,12 +28,16 @@ import {
   COMMON_PAIRS, 
   DEFAULT_ENTRY_RULES, 
   DEFAULT_EXIT_RULES, 
+  DEFAULT_TRADE_MANAGEMENT,
   type EntryRule, 
   type ExitRule,
   type TradingMethodology,
   type TradingStyle,
   type TradingSession,
   type DifficultyLevel,
+  type PositionSizingModel,
+  type MarginMode,
+  type TradeManagement,
 } from "@/types/strategy";
 import type { TradingStrategy } from "@/hooks/use-trading-strategies";
 import { 
@@ -42,6 +49,7 @@ import {
   TRADING_STYLE_OPTIONS,
   SESSION_OPTIONS,
   DIFFICULTY_OPTIONS,
+  POSITION_SIZING_MODELS,
 } from "@/lib/constants/strategy-config";
 
 const strategyFormSchema = z.object({
@@ -83,6 +91,11 @@ interface StrategyFormDialogProps {
     tradingStyle: TradingStyle;
     sessionPreference: TradingSession[];
     difficultyLevel: DifficultyLevel | null;
+    positionSizingModel: PositionSizingModel;
+    positionSizingValue: number;
+    tradeManagement: TradeManagement;
+    defaultLeverage: number;
+    marginMode: MarginMode;
   }) => Promise<void>;
   isPending: boolean;
 }
@@ -103,11 +116,19 @@ export function StrategyFormDialog({
   const [selectedValidPairs, setSelectedValidPairs] = useState<string[]>([...STRATEGY_DEFAULTS.VALID_PAIRS]);
   const [entryRules, setEntryRules] = useState<EntryRule[]>([]);
   const [exitRules, setExitRules] = useState<ExitRule[]>([]);
-  // NEW: Professional trading fields
+  // Professional trading fields
   const [selectedMethodology, setSelectedMethodology] = useState<TradingMethodology>(STRATEGY_DEFAULTS.METHODOLOGY);
   const [selectedTradingStyle, setSelectedTradingStyle] = useState<TradingStyle>(STRATEGY_DEFAULTS.TRADING_STYLE);
   const [selectedSessions, setSelectedSessions] = useState<TradingSession[]>([...STRATEGY_DEFAULTS.SESSION_PREFERENCE]);
   const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyLevel | null>(null);
+  // Position sizing
+  const [positionSizingModel, setPositionSizingModel] = useState<PositionSizingModel>('fixed_percent');
+  const [positionSizingValue, setPositionSizingValue] = useState<number>(STRATEGY_DEFAULTS.POSITION_SIZING_VALUE);
+  // Trade management
+  const [tradeManagement, setTradeManagement] = useState<TradeManagement>({ ...DEFAULT_TRADE_MANAGEMENT });
+  // Futures-specific
+  const [defaultLeverage, setDefaultLeverage] = useState<number>(STRATEGY_DEFAULTS.DEFAULT_LEVERAGE);
+  const [marginMode, setMarginMode] = useState<MarginMode>('cross');
 
   const form = useForm<StrategyFormValues>({
     resolver: zodResolver(strategyFormSchema),
@@ -122,6 +143,16 @@ export function StrategyFormDialog({
       min_rr: STRATEGY_DEFAULTS.MIN_RR,
     },
   });
+
+  // Computed effective R:R from exit rules
+  const effectiveRR = useMemo(() => {
+    const tp = exitRules.find(r => r.type === 'take_profit' && r.unit === 'rr');
+    const sl = exitRules.find(r => r.type === 'stop_loss' && r.unit === 'rr');
+    if (tp && sl && sl.value > 0) {
+      return tp.value / sl.value;
+    }
+    return null;
+  }, [exitRules]);
 
   // Reset form when dialog opens/closes or editing strategy changes
   useEffect(() => {
@@ -143,11 +174,15 @@ export function StrategyFormDialog({
         setSelectedValidPairs(editingStrategy.valid_pairs || [...STRATEGY_DEFAULTS.VALID_PAIRS]);
         setEntryRules(editingStrategy.entry_rules || []);
         setExitRules(editingStrategy.exit_rules || []);
-        // NEW: Professional fields
         setSelectedMethodology(editingStrategy.methodology || STRATEGY_DEFAULTS.METHODOLOGY);
         setSelectedTradingStyle(editingStrategy.trading_style || STRATEGY_DEFAULTS.TRADING_STYLE);
         setSelectedSessions(editingStrategy.session_preference || [...STRATEGY_DEFAULTS.SESSION_PREFERENCE]);
         setSelectedDifficulty(editingStrategy.difficulty_level || null);
+        setPositionSizingModel(editingStrategy.position_sizing_model || 'fixed_percent');
+        setPositionSizingValue(editingStrategy.position_sizing_value ?? STRATEGY_DEFAULTS.POSITION_SIZING_VALUE);
+        setTradeManagement(editingStrategy.trade_management || { ...DEFAULT_TRADE_MANAGEMENT });
+        setDefaultLeverage(editingStrategy.default_leverage ?? STRATEGY_DEFAULTS.DEFAULT_LEVERAGE);
+        setMarginMode(editingStrategy.margin_mode || 'cross');
       } else {
         form.reset({
           name: '',
@@ -167,11 +202,15 @@ export function StrategyFormDialog({
         setSelectedValidPairs([...STRATEGY_DEFAULTS.VALID_PAIRS]);
         setEntryRules(DEFAULT_ENTRY_RULES.slice(0, STRATEGY_DEFAULTS.DEFAULT_ENTRY_RULES_COUNT));
         setExitRules(DEFAULT_EXIT_RULES);
-        // NEW: Reset professional fields
         setSelectedMethodology(STRATEGY_DEFAULTS.METHODOLOGY);
         setSelectedTradingStyle(STRATEGY_DEFAULTS.TRADING_STYLE);
         setSelectedSessions([...STRATEGY_DEFAULTS.SESSION_PREFERENCE]);
         setSelectedDifficulty(null);
+        setPositionSizingModel('fixed_percent');
+        setPositionSizingValue(STRATEGY_DEFAULTS.POSITION_SIZING_VALUE);
+        setTradeManagement({ ...DEFAULT_TRADE_MANAGEMENT });
+        setDefaultLeverage(STRATEGY_DEFAULTS.DEFAULT_LEVERAGE);
+        setMarginMode('cross');
       }
     }
   }, [open, editingStrategy, form]);
@@ -191,6 +230,11 @@ export function StrategyFormDialog({
       tradingStyle: selectedTradingStyle,
       sessionPreference: selectedSessions,
       difficultyLevel: selectedDifficulty,
+      positionSizingModel: positionSizingModel,
+      positionSizingValue: positionSizingValue,
+      tradeManagement: tradeManagement,
+      defaultLeverage: defaultLeverage,
+      marginMode: marginMode,
     });
   };
 
@@ -210,6 +254,10 @@ export function StrategyFormDialog({
 
   const pairsToShow = availablePairs.length > 0 ? availablePairs : COMMON_PAIRS;
 
+  const updateTradeManagement = (updates: Partial<TradeManagement>) => {
+    setTradeManagement(prev => ({ ...prev, ...updates }));
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
@@ -220,7 +268,7 @@ export function StrategyFormDialog({
         </DialogHeader>
         <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6 pt-4">
           <Tabs defaultValue="basic" className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="basic">Basic</TabsTrigger>
               <TabsTrigger value="method">
                 <Layers className="h-3 w-3 mr-1" aria-hidden="true" />
@@ -233,6 +281,10 @@ export function StrategyFormDialog({
               <TabsTrigger value="exit">
                 <LogOut className="h-3 w-3 mr-1" aria-hidden="true" />
                 Exit
+              </TabsTrigger>
+              <TabsTrigger value="manage">
+                <Settings2 className="h-3 w-3 mr-1" aria-hidden="true" />
+                Manage
               </TabsTrigger>
             </TabsList>
 
@@ -499,37 +551,58 @@ export function StrategyFormDialog({
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Futures-specific fields */}
+              {selectedMarketType === 'futures' && (
+                <div className="space-y-4 p-3 border rounded-lg bg-muted/20">
+                  <Label className="text-sm font-medium">Futures Settings</Label>
+                  
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm">Default Leverage</Label>
+                      <span className="text-sm font-medium">{defaultLeverage}x</span>
+                    </div>
+                    <Slider
+                      value={[defaultLeverage]}
+                      onValueChange={([v]) => setDefaultLeverage(v)}
+                      min={STRATEGY_FORM_CONSTRAINTS.LEVERAGE.MIN}
+                      max={STRATEGY_FORM_CONSTRAINTS.LEVERAGE.MAX}
+                      step={1}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {defaultLeverage <= 5 ? 'Conservative' : defaultLeverage <= 20 ? 'Moderate' : 'Aggressive'} leverage
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm">Margin Mode</Label>
+                    <Select value={marginMode} onValueChange={(v) => setMarginMode(v as MarginMode)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="cross">Cross Margin</SelectItem>
+                        <SelectItem value="isolated">Isolated Margin</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
             </TabsContent>
 
             {/* Entry Rules Tab */}
             <TabsContent value="entry" className="space-y-4 pt-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Min. Confluences</Label>
-                  <Input 
-                    type="number"
-                    {...form.register("min_confluences", { valueAsNumber: true })} 
-                    min={STRATEGY_FORM_CONSTRAINTS.MIN_CONFLUENCES.MIN}
-                    max={STRATEGY_FORM_CONSTRAINTS.MIN_CONFLUENCES.MAX}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Minimum indicators needed before entry
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Min. Risk:Reward</Label>
-                  <Input 
-                    type="number"
-                    {...form.register("min_rr", { valueAsNumber: true })} 
-                    min={STRATEGY_FORM_CONSTRAINTS.MIN_RR.MIN}
-                    max={STRATEGY_FORM_CONSTRAINTS.MIN_RR.MAX}
-                    step={STRATEGY_FORM_CONSTRAINTS.MIN_RR.STEP}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Minimum R:R ratio for entries
-                  </p>
-                </div>
+              <div className="space-y-2">
+                <Label>Min. Confluences</Label>
+                <Input 
+                  type="number"
+                  {...form.register("min_confluences", { valueAsNumber: true })} 
+                  min={STRATEGY_FORM_CONSTRAINTS.MIN_CONFLUENCES.MIN}
+                  max={STRATEGY_FORM_CONSTRAINTS.MIN_CONFLUENCES.MAX}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Minimum indicators needed before entry (mandatory + optional combined)
+                </p>
               </div>
 
               <EntryRulesBuilder 
@@ -540,10 +613,225 @@ export function StrategyFormDialog({
 
             {/* Exit Rules Tab */}
             <TabsContent value="exit" className="space-y-4 pt-4">
+              {/* Min R:R validation gate */}
+              <div className="space-y-2">
+                <Label>Min. Risk:Reward (Validation Gate)</Label>
+                <Input 
+                  type="number"
+                  {...form.register("min_rr", { valueAsNumber: true })} 
+                  min={STRATEGY_FORM_CONSTRAINTS.MIN_RR.MIN}
+                  max={STRATEGY_FORM_CONSTRAINTS.MIN_RR.MAX}
+                  step={STRATEGY_FORM_CONSTRAINTS.MIN_RR.STEP}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Trades must meet this minimum R:R ratio before entry is allowed
+                </p>
+                {effectiveRR !== null && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-muted-foreground">Effective R:R from exit rules:</span>
+                    <Badge variant={effectiveRR >= (form.getValues('min_rr') || STRATEGY_DEFAULTS.MIN_RR) ? "default" : "destructive"}>
+                      {effectiveRR.toFixed(1)}:1
+                    </Badge>
+                    {effectiveRR < (form.getValues('min_rr') || STRATEGY_DEFAULTS.MIN_RR) && (
+                      <span className="text-xs text-destructive flex items-center gap-1">
+                        <AlertTriangle className="h-3 w-3" />
+                        Below min R:R
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <ExitRulesBuilder 
                 rules={exitRules}
                 onChange={setExitRules}
               />
+
+              {/* Position Sizing */}
+              <Card>
+                <CardContent className="pt-4 space-y-3">
+                  <Label className="text-sm font-medium">Position Sizing Model</Label>
+                  <Select value={positionSizingModel} onValueChange={(v) => {
+                    setPositionSizingModel(v as PositionSizingModel);
+                    const model = POSITION_SIZING_MODELS.find(m => m.value === v);
+                    if (model) setPositionSizingValue(model.defaultValue);
+                  }}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {POSITION_SIZING_MODELS.map(m => (
+                        <SelectItem key={m.value} value={m.value}>
+                          {m.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {POSITION_SIZING_MODELS.find(m => m.value === positionSizingModel)?.description}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      value={positionSizingValue}
+                      onChange={(e) => setPositionSizingValue(parseFloat(e.target.value) || 0)}
+                      className="w-24"
+                      step={0.1}
+                      min={0}
+                    />
+                    <span className="text-sm text-muted-foreground">
+                      {POSITION_SIZING_MODELS.find(m => m.value === positionSizingModel)?.unit}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Trade Management Tab */}
+            <TabsContent value="manage" className="space-y-4 pt-4">
+              {/* Partial Take Profit */}
+              <Card>
+                <CardContent className="pt-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-medium">Partial Take Profit</Label>
+                    <Switch
+                      checked={tradeManagement.partial_tp_enabled}
+                      onCheckedChange={(checked) => updateTradeManagement({ partial_tp_enabled: checked })}
+                    />
+                  </div>
+                  {tradeManagement.partial_tp_enabled && (
+                    <div className="space-y-2">
+                      {tradeManagement.partial_tp_levels.map((level, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground">Close</span>
+                          <Input
+                            type="number"
+                            value={level.percent}
+                            onChange={(e) => {
+                              const updated = [...tradeManagement.partial_tp_levels];
+                              updated[idx] = { ...updated[idx], percent: parseFloat(e.target.value) || 0 };
+                              updateTradeManagement({ partial_tp_levels: updated });
+                            }}
+                            className="w-16 h-8"
+                            min={0}
+                            max={100}
+                          />
+                          <span className="text-xs text-muted-foreground">% at</span>
+                          <Input
+                            type="number"
+                            value={level.at_rr}
+                            onChange={(e) => {
+                              const updated = [...tradeManagement.partial_tp_levels];
+                              updated[idx] = { ...updated[idx], at_rr: parseFloat(e.target.value) || 0 };
+                              updateTradeManagement({ partial_tp_levels: updated });
+                            }}
+                            className="w-16 h-8"
+                            step={0.5}
+                            min={0}
+                          />
+                          <span className="text-xs text-muted-foreground">R</span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => {
+                              const updated = tradeManagement.partial_tp_levels.filter((_, i) => i !== idx);
+                              updateTradeManagement({ partial_tp_levels: updated });
+                            }}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => updateTradeManagement({ 
+                          partial_tp_levels: [...tradeManagement.partial_tp_levels, { percent: 50, at_rr: 1 }]
+                        })}
+                      >
+                        + Add Level
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Move SL to BE */}
+              <Card>
+                <CardContent className="pt-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-medium">Move SL to Breakeven</Label>
+                    <Switch
+                      checked={tradeManagement.move_sl_to_be}
+                      onCheckedChange={(checked) => updateTradeManagement({ move_sl_to_be: checked })}
+                    />
+                  </div>
+                  {tradeManagement.move_sl_to_be && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">When price reaches</span>
+                      <Input
+                        type="number"
+                        value={tradeManagement.move_sl_to_be_at_rr}
+                        onChange={(e) => updateTradeManagement({ move_sl_to_be_at_rr: parseFloat(e.target.value) || 1 })}
+                        className="w-16 h-8"
+                        step={0.5}
+                        min={0.5}
+                      />
+                      <span className="text-sm text-muted-foreground">R in profit</span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Kill Switch Rules */}
+              <Card>
+                <CardContent className="pt-4 space-y-3">
+                  <Label className="text-sm font-medium">Kill Switch / Limits</Label>
+                  
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <Label className="text-sm text-muted-foreground min-w-[140px]">Max trades/day</Label>
+                      <Input
+                        type="number"
+                        value={tradeManagement.max_trades_per_day ?? ''}
+                        onChange={(e) => updateTradeManagement({ max_trades_per_day: e.target.value ? parseInt(e.target.value) : null })}
+                        className="w-20 h-8"
+                        placeholder="—"
+                        min={1}
+                      />
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Label className="text-sm text-muted-foreground min-w-[140px]">Max daily loss %</Label>
+                      <Input
+                        type="number"
+                        value={tradeManagement.max_daily_loss_percent ?? ''}
+                        onChange={(e) => updateTradeManagement({ max_daily_loss_percent: e.target.value ? parseFloat(e.target.value) : null })}
+                        className="w-20 h-8"
+                        placeholder="—"
+                        step={0.5}
+                        min={0}
+                      />
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Label className="text-sm text-muted-foreground min-w-[140px]">Max consec. losses</Label>
+                      <Input
+                        type="number"
+                        value={tradeManagement.max_consecutive_losses ?? ''}
+                        onChange={(e) => updateTradeManagement({ max_consecutive_losses: e.target.value ? parseInt(e.target.value) : null })}
+                        className="w-20 h-8"
+                        placeholder="—"
+                        min={1}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Leave empty to disable. Kill switch stops trading when limit is reached.
+                  </p>
+                </CardContent>
+              </Card>
             </TabsContent>
           </Tabs>
 
