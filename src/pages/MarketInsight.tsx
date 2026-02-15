@@ -74,8 +74,8 @@ const MarketInsight = () => {
     <div className="space-y-6">
       <PageHeader
         icon={TrendingUp}
-        title="AI Analysis"
-        description="AI-powered market analysis and trading opportunities"
+        title="Market Bias"
+        description="AI-powered market bias analysis and trading opportunities"
       >
         <Button 
           variant="outline" 
@@ -91,7 +91,7 @@ const MarketInsight = () => {
       </PageHeader>
 
       <ErrorBoundary
-        title="AI Analysis"
+        title="Market Bias"
         onRetry={() => setRetryKey(k => k + 1)}
       >
         <div key={retryKey} className="space-y-6">

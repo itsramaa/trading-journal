@@ -47,7 +47,7 @@ import { Badge } from "@/components/ui/badge";
 // All navigable pages with their shortcuts
 const PAGES = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard, shortcut: "D", domain: null },
-  { title: "AI Analysis", url: "/market", icon: TrendingUp, shortcut: "M", domain: "Market" },
+  { title: "Market Bias", url: "/market", icon: TrendingUp, shortcut: "M", domain: "Market" },
   { title: "Economic Calendar", url: "/calendar", icon: Calendar, shortcut: "C", domain: "Market" },
   { title: "Market Data", url: "/market-data", icon: BarChart3, shortcut: "V", domain: "Market" },
   { title: "Top Movers", url: "/top-movers", icon: Flame, shortcut: "O", domain: "Market" },
