@@ -204,6 +204,69 @@ function generateRecommendation(sentimentScore: number, confidence: number, fear
   return 'Market consolidating. Wait for breakout confirmation before entering.';
 }
 
+/** Fetch current Open Interest from Binance Futures */
+async function fetchOpenInterest(symbol: string): Promise<{ current: number; sumOpenInterestValue: number }> {
+  try {
+    const response = await fetch(`https://fapi.binance.com/fapi/v1/openInterest?symbol=${encodeURIComponent(symbol)}`);
+    const data = await response.json();
+    return {
+      current: parseFloat(data.openInterest || '0'),
+      sumOpenInterestValue: parseFloat(data.openInterest || '0'),
+    };
+  } catch (error) {
+    console.error(`Open Interest error for ${symbol}:`, error);
+    return { current: 0, sumOpenInterestValue: 0 };
+  }
+}
+
+/** Fetch OI statistics (period-based) for 24h comparison */
+async function fetchOIStats24h(symbol: string): Promise<{ oiChange24hPct: number; currentOI: number; prevOI: number }> {
+  try {
+    const response = await fetch(
+      `https://fapi.binance.com/futures/data/openInterestHist?symbol=${encodeURIComponent(symbol)}&period=1h&limit=25`
+    );
+    const data = await response.json();
+    if (!Array.isArray(data) || data.length < 2) {
+      return { oiChange24hPct: 0, currentOI: 0, prevOI: 0 };
+    }
+    const currentOI = parseFloat(data[data.length - 1].sumOpenInterestValue || '0');
+    // Compare to ~24h ago (index 0 if we have 25 entries)
+    const prevOI = parseFloat(data[0].sumOpenInterestValue || '0');
+    const oiChange24hPct = prevOI > 0 ? ((currentOI - prevOI) / prevOI) * 100 : 0;
+    return { oiChange24hPct, currentOI, prevOI };
+  } catch (error) {
+    console.error(`OI stats error for ${symbol}:`, error);
+    return { oiChange24hPct: 0, currentOI: 0, prevOI: 0 };
+  }
+}
+
+/** Detect funding rate vs price divergence */
+function detectFundingPriceDivergence(
+  fundingRate: number,
+  priceChange24h: number
+): { hasDivergence: boolean; type: string; description: string } {
+  const fundingPositive = fundingRate > 0.01; // > 0.01%
+  const fundingNegative = fundingRate < -0.01;
+  const priceUp = priceChange24h > 2;
+  const priceDown = priceChange24h < -2;
+
+  if (fundingPositive && priceDown) {
+    return {
+      hasDivergence: true,
+      type: 'bearish_divergence',
+      description: `Funding +${fundingRate.toFixed(4)}% but Price ${priceChange24h.toFixed(1)}% (24h) — longs paying but price falling, potential long squeeze`,
+    };
+  }
+  if (fundingNegative && priceUp) {
+    return {
+      hasDivergence: true,
+      type: 'bullish_divergence',
+      description: `Funding ${fundingRate.toFixed(4)}% but Price +${priceChange24h.toFixed(1)}% (24h) — shorts paying but price rising, potential short squeeze`,
+    };
+  }
+  return { hasDivergence: false, type: 'none', description: '' };
+}
+
 async function processSymbol(symbol: string) {
   const [klines, ticker] = await Promise.all([
     fetchBinanceKlines(symbol, '1h', API_LIMITS.KLINES_LIMIT),
@@ -211,7 +274,7 @@ async function processSymbol(symbol: string) {
   ]);
   if (!klines || klines.length === 0) {
     const asset = symbol.replace('USDT', '');
-    return { symbol, asset, klines: [], closes: [], ticker, signal: { trend: 'No data available', direction: 'neutral' as const, score: 0.5 }, volatility: 0, annualizedVolatility: 0, whale: { signal: 'NONE' as const, volumeChange: 0, confidence: 30, method: '', thresholds: '' }, valid: false, fundingRate: 0 };
+    return { symbol, asset, klines: [], closes: [], ticker, signal: { trend: 'No data available', direction: 'neutral' as const, score: 0.5 }, volatility: 0, annualizedVolatility: 0, whale: { signal: 'NONE' as const, volumeChange: 0, confidence: 30, method: '', thresholds: '' }, valid: false, fundingRate: 0, oiChange24h: { oiChange24hPct: 0, currentOI: 0, prevOI: 0 }, fundingPriceDivergence: { hasDivergence: false, type: 'none', description: '' } };
   }
   const closes = klines.map((k) => parseFloat(String(k[4]))).reverse();
   const asset = symbol.replace('USDT', '');
@@ -219,8 +282,12 @@ async function processSymbol(symbol: string) {
   const volatility = calculateVolatility(closes);
   const annualizedVolatility = calculateAnnualizedVolatility(closes);
   const whale = calculateWhaleSignal(klines, ticker.change);
-  const fundingRate = await fetchFundingRate(symbol);
-  return { symbol, asset, klines, closes, ticker, signal, volatility, annualizedVolatility, whale, valid: true, fundingRate };
+  const [fundingRate, oiChange24h] = await Promise.all([
+    fetchFundingRate(symbol),
+    fetchOIStats24h(symbol),
+  ]);
+  const fundingPriceDivergence = detectFundingPriceDivergence(fundingRate, ticker.change);
+  return { symbol, asset, klines, closes, ticker, signal, volatility, annualizedVolatility, whale, valid: true, fundingRate, oiChange24h, fundingPriceDivergence };
 }
 
 // === Percentile helpers ===
@@ -373,6 +440,8 @@ serve(async (req) => {
     const opportunities: Array<{ pair: string; confidence: number; direction: string; reason: string }> = [];
     const whaleActivity: Array<{ asset: string; signal: string; volumeChange24h: number; exchangeFlowEstimate: string; confidence: number; description: string; method: string; thresholds: string }> = [];
     const fundingRates: Array<{ symbol: string; rate: number; percentile90d: number; percentileDataPoints: number }> = [];
+    const oiChanges: Array<{ symbol: string; oiChange24hPct: number; currentOI: number; prevOI: number }> = [];
+    const divergences: Array<{ symbol: string; hasDivergence: boolean; type: string; description: string }> = [];
 
     symbolsData.forEach((data, idx) => {
       const pctResult = percentileResults[idx];
@@ -405,6 +474,16 @@ serve(async (req) => {
         rate: data.fundingRate,
         percentile90d: pctResult.fundingPercentile?.percentile90d ?? 50,
         percentileDataPoints: pctResult.fundingPercentile?.dataPoints ?? 0,
+      });
+      oiChanges.push({
+        symbol: data.symbol,
+        oiChange24hPct: data.oiChange24h.oiChange24hPct,
+        currentOI: data.oiChange24h.currentOI,
+        prevOI: data.oiChange24h.prevOI,
+      });
+      divergences.push({
+        symbol: data.symbol,
+        ...data.fundingPriceDivergence,
       });
     });
 
@@ -439,7 +518,7 @@ serve(async (req) => {
         macroScore: Math.round(macroScore * 100),
         lastUpdated: new Date().toISOString(),
       },
-      volatility: volatilityData, opportunities, whaleActivity, fundingRates, requestedSymbols,
+      volatility: volatilityData, opportunities, whaleActivity, fundingRates, oiChanges, divergences, requestedSymbols,
       lastUpdated: new Date().toISOString(),
       dataQuality: Math.round(dataQuality * 100),
     };

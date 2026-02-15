@@ -34,7 +34,8 @@ import {
   Activity,
   Percent,
   ChevronsUpDown,
-  Check
+  Check,
+  AlertTriangle
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useBinanceMarketSentiment } from "@/features/binance";
@@ -349,6 +350,63 @@ function MarketSentimentContent({
                 </div>
               ))}
             </div>
+
+            {/* OI Change 24h */}
+            {sentiment.oiChange24hPct !== undefined && sentiment.oiChange24hPct !== 0 && (
+              <div className="p-2 rounded-lg bg-muted/50">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm">
+                    <Activity className="h-3.5 w-3.5" />
+                    <span className="text-muted-foreground">OI Change 24h</span>
+                  </div>
+                  <Badge 
+                    variant="outline" 
+                    className={cn(
+                      "text-xs font-mono",
+                      sentiment.oiChange24hPct > 0 ? "border-profit/50 text-profit" : "border-loss/50 text-loss"
+                    )}
+                  >
+                    {sentiment.oiChange24hPct > 0 ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
+                    {sentiment.oiChange24hPct > 0 ? '+' : ''}{sentiment.oiChange24hPct.toFixed(2)}%
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1 ml-5.5">
+                  {sentiment.oiChange24hPct > 5 
+                    ? 'Leveraged long buildup — breakout or squeeze incoming'
+                    : sentiment.oiChange24hPct < -5
+                    ? 'Deleveraging — positions closing, volatility expected'
+                    : sentiment.oiChange24hPct > 0 
+                    ? 'Gradual position buildup'
+                    : 'Mild position reduction'
+                  }
+                </p>
+              </div>
+            )}
+
+            {/* Funding/Price Divergence Alert */}
+            {sentiment.fundingPriceDivergence?.hasDivergence && (
+              <div className={cn(
+                "p-2 rounded-lg border",
+                sentiment.fundingPriceDivergence.type === 'bullish_divergence' 
+                  ? "border-profit/30 bg-profit/5" 
+                  : "border-loss/30 bg-loss/5"
+              )}>
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <AlertTriangle className={cn(
+                    "h-3.5 w-3.5",
+                    sentiment.fundingPriceDivergence.type === 'bullish_divergence' ? "text-profit" : "text-loss"
+                  )} />
+                  <span className={cn(
+                    sentiment.fundingPriceDivergence.type === 'bullish_divergence' ? "text-profit" : "text-loss"
+                  )}>
+                    Funding/Price Divergence
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1 ml-5.5">
+                  {sentiment.fundingPriceDivergence.description}
+                </p>
+              </div>
+            )}
 
             {/* Raw Data Summary */}
             {sentiment.rawData?.markPrice && (

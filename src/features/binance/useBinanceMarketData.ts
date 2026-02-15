@@ -356,11 +356,24 @@ export function useBinanceMarketSentiment(
   const topTraderQuery = useBinanceTopTraderRatio(symbol, period, { limit: 1, enabled: options?.enabled });
   const globalRatioQuery = useBinanceGlobalRatio(symbol, period, { limit: 1, enabled: options?.enabled });
   const takerVolumeQuery = useBinanceTakerVolume(symbol, period, { limit: 1, enabled: options?.enabled });
-  const openInterestQuery = useBinanceOpenInterest(symbol, period, { limit: 2, enabled: options?.enabled });
+  const openInterestQuery = useBinanceOpenInterest(symbol, period, { limit: 25, enabled: options?.enabled }); // 25 for 24h comparison
   const markPriceQuery = useBinanceMarkPrice(symbol);
   
+  // Fetch 24hr ticker for price change (used for divergence detection)
+  const tickerQuery = useQuery({
+    queryKey: ['binance-ticker-24h', symbol],
+    queryFn: async () => {
+      const res = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${encodeURIComponent(symbol)}`);
+      const data = await res.json();
+      return { priceChangePercent: parseFloat(data.priceChangePercent || '0') };
+    },
+    enabled: options?.enabled !== false && !!symbol,
+    staleTime: 60 * 1000,
+    retry: 1,
+  });
+  
   const isLoading = topTraderQuery.isLoading || globalRatioQuery.isLoading || 
-                    takerVolumeQuery.isLoading || openInterestQuery.isLoading || markPriceQuery.isLoading;
+                    takerVolumeQuery.isLoading || openInterestQuery.isLoading || markPriceQuery.isLoading || tickerQuery.isLoading;
   
   const isError = topTraderQuery.isError || globalRatioQuery.isError || 
                   takerVolumeQuery.isError || openInterestQuery.isError || markPriceQuery.isError;
@@ -402,16 +415,52 @@ export function useBinanceMarketSentiment(
     }
     
     // Open interest trend
+    let oiChange24hPct = 0;
     if (openInterest && openInterest.length >= 2) {
       const oiChange = openInterest[0].sumOpenInterest - openInterest[1].sumOpenInterest;
-      if (oiChange > 0) bullishFactors++; // Increasing OI with price up = bullish
+      if (oiChange > 0) bullishFactors++;
       else if (oiChange < 0) bearishFactors++;
+      
+      // Calculate 24h OI change % (first entry is most recent, last is oldest)
+      if (openInterest.length >= 2) {
+        const currentOI = openInterest[0].sumOpenInterestValue || openInterest[0].sumOpenInterest;
+        const oldestOI = openInterest[openInterest.length - 1].sumOpenInterestValue || openInterest[openInterest.length - 1].sumOpenInterest;
+        if (oldestOI > 0) {
+          oiChange24hPct = ((currentOI - oldestOI) / oldestOI) * 100;
+        }
+      }
     }
     
     // Funding rate
     if (markPrice && markPrice.lastFundingRate) {
-      if (markPrice.lastFundingRate > FUNDING_RATE.POSITIVE_EXTREME) bearishFactors++; // High positive = potential short squeeze
-      else if (markPrice.lastFundingRate < FUNDING_RATE.NEGATIVE_EXTREME) bullishFactors++; // Negative = potential long squeeze
+      if (markPrice.lastFundingRate > FUNDING_RATE.POSITIVE_EXTREME) bearishFactors++;
+      else if (markPrice.lastFundingRate < FUNDING_RATE.NEGATIVE_EXTREME) bullishFactors++;
+    }
+    
+    // Funding/Price divergence detection
+    const priceChange24h = tickerQuery.data?.priceChangePercent ?? 0;
+    const fundingRateValue = markPrice?.lastFundingRate ? markPrice.lastFundingRate * 100 : 0; // convert to %
+    let fundingPriceDivergence: { hasDivergence: boolean; type: string; description: string } = {
+      hasDivergence: false, type: 'none', description: ''
+    };
+    
+    const fundingPositive = fundingRateValue > 0.01;
+    const fundingNegative = fundingRateValue < -0.01;
+    const priceUp = priceChange24h > 2;
+    const priceDown = priceChange24h < -2;
+    
+    if (fundingPositive && priceDown) {
+      fundingPriceDivergence = {
+        hasDivergence: true,
+        type: 'bearish_divergence',
+        description: `Funding +${fundingRateValue.toFixed(4)}% but Price ${priceChange24h.toFixed(1)}% — potential long squeeze`,
+      };
+    } else if (fundingNegative && priceUp) {
+      fundingPriceDivergence = {
+        hasDivergence: true,
+        type: 'bullish_divergence',
+        description: `Funding ${fundingRateValue.toFixed(4)}% but Price +${priceChange24h.toFixed(1)}% — potential short squeeze`,
+      };
     }
     
     const totalFactors = bullishFactors + bearishFactors;
@@ -434,6 +483,10 @@ export function useBinanceMarketSentiment(
           ? (markPrice.lastFundingRate > 0 ? 'positive' : markPrice.lastFundingRate < 0 ? 'negative' : 'neutral') 
           : 'neutral',
       },
+      /** OI change percentage over available period (~24h) */
+      oiChange24hPct,
+      /** Funding rate vs price direction divergence */
+      fundingPriceDivergence,
       rawData: {
         topTrader,
         globalRatio,
@@ -446,7 +499,7 @@ export function useBinanceMarketSentiment(
     isLoading, isError, symbol,
     topTraderQuery.data, globalRatioQuery.data,
     takerVolumeQuery.data, openInterestQuery.data,
-    markPriceQuery.data
+    markPriceQuery.data, tickerQuery.data
   ]);
   
   return {
