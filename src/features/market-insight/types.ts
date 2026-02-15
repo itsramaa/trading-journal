@@ -106,6 +106,24 @@ export interface FundingRateContext {
   percentileDataPoints: number;
 }
 
+/** Open Interest 24h change data */
+export interface OIChangeData {
+  symbol: string;
+  /** Percentage change in OI over last 24h */
+  oiChange24hPct: number;
+  currentOI: number;
+  prevOI: number;
+}
+
+/** Funding rate vs price divergence signal */
+export interface FundingPriceDivergence {
+  symbol: string;
+  hasDivergence: boolean;
+  /** 'bullish_divergence' | 'bearish_divergence' | 'none' */
+  type: string;
+  description: string;
+}
+
 export interface MarketInsightResponse {
   sentiment: MarketSentiment;
   volatility: VolatilityData[];
@@ -113,6 +131,10 @@ export interface MarketInsightResponse {
   whaleActivity: WhaleActivity[];
   /** Funding rate percentile context per symbol */
   fundingRates?: FundingRateContext[];
+  /** OI change 24h per symbol */
+  oiChanges?: OIChangeData[];
+  /** Funding/price divergence signals per symbol */
+  divergences?: FundingPriceDivergence[];
   lastUpdated: string;
   dataQuality: number;
 }
