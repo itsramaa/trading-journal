@@ -1,170 +1,162 @@
 
 
-# Deep-Dive Analysis: Daily P&L Page
+# Deep-Dive Analysis: Heatmap Page
 
 ---
 
-## 1. Page Orchestrator (`src/pages/DailyPnL.tsx`)
+## Scope: Files Analyzed
+
+| File | Role |
+|------|------|
+| `src/pages/TradingHeatmap.tsx` | Page orchestrator |
+| `src/components/analytics/charts/TradingHeatmap.tsx` | Heatmap grid component |
+| `src/lib/export/heatmap-export.ts` | CSV export logic |
+| `src/hooks/use-economic-events.ts` | Event overlay data |
+| `src/lib/session-utils.ts` | Session definitions |
+
+---
+
+## 1. Page Orchestrator (`src/pages/TradingHeatmap.tsx`)
 
 ### A. Comprehensiveness
 
 | Feature | Status |
 |---------|--------|
 | PageHeader with icon/description | Done |
-| Live/Paper badge | Done |
+| Date range filter (7d/30d/90d/all) | Done |
+| Pair filter (dynamic from trades) | Done |
 | Export button linking to /export | Done |
 | Loading skeleton | Done |
-| Empty state banner (0 trades) | Done |
-| Today's P&L summary (4 metrics) | Done |
-| Week comparison cards (4 cards) | Done |
-| Best/Worst trade cards (7 days) | Done |
-| 7-Day P&L Trend bar chart | Done |
-| Symbol Breakdown table (7 days) | Done |
+| Empty state (0 closed trades) | Done |
+| Session Performance cards (4 sessions) | Done |
+| Main Heatmap grid (child component) | Done |
+| Best/Worst Hour cards (adaptive labels) | Done |
+| Longest Win/Loss Streak cards | Done |
+| Summary footer with trade count + total P&L | Done |
+| Low sample badge on session cards | Done |
 | ErrorBoundary wrapper | **Missing** |
 | `role="region"` + `aria-label` | **Missing** |
 
 **Gaps:**
 
-1. **No `role="region"` on root container** -- inconsistent with the ARIA standard applied to 11+ other pages (Performance, Risk, Dashboard all have it).
+1. **No `role="region"` on root container** -- inconsistent with the ARIA standard applied to 11+ other pages.
 
-2. **No ErrorBoundary wrapper** -- every other analytics page (Performance, Risk, Flow & Liquidity) has a top-level `ErrorBoundary` with `retryKey`. This page has none. Must wrap the entire rendered output with `<ErrorBoundary>`.
+2. **No ErrorBoundary wrapper** -- every other analytics page (Performance, Risk, Daily P&L) has a top-level `ErrorBoundary` with `retryKey`. This page has none.
 
-3. **No tooltip on "Live" / "Paper" badge** (line 85-87) -- Should say: "Data source: Live uses real-time exchange data, Paper uses simulated account data."
+3. **No tooltip on "Date Range" filter** -- Should say: "Filter heatmap and all stats by time period."
 
-4. **No tooltip on "Export" button** (line 88-93) -- Should say: "Export P&L analytics data to CSV or PDF from the Export page."
+4. **No tooltip on "Pair" filter** -- Should say: "Filter by trading pair. Only pairs with closed trades are shown."
 
----
+5. **No tooltip on "Export" button** -- Should say: "Export heatmap data to CSV or PDF from the Export page."
 
 ### B. Accuracy
 
 | Check | Result |
 |-------|--------|
-| Daily P&L hook uses `realized_pnl ?? pnl ?? 0` | Correct |
-| Weekly P&L hook uses same fallback chain | Correct |
-| Week comparison uses Monday-based weeks (`weekStartsOn: 1`) | Correct |
-| Symbol breakdown mode filter (Paper/Live) | Correct |
-| Win rate calculation `(wins / total) * 100` | Correct |
-| `ChangeIndicator` null-safe for new activity | Correct |
-| `ChangeIndicator` sign-flip detection | Correct |
+| PnL uses `realized_pnl ?? pnl ?? 0` | Correct (lines 98, 130, 156, 412-413) |
+| Closed trade filter `status === 'closed'` | Correct (line 68) |
+| Session detection uses `getTradeSession()` (UTC-based) | Correct (line 97) |
+| Win rate `(wins / trades) * 100` | Correct (line 107) |
+| Best/Worst hour min 2 trades threshold | Correct (line 167) |
+| Best/Worst duplicate suppression (same hour) | Correct (line 298-299) |
+| Adaptive labels (Least Loss Hour, Smallest Gain Hour) | Correct (lines 292-297) |
+| Streak analysis sorts by date ascending | Correct (lines 120-122) |
 
-5. **"Realized P&L" label displays `grossPnl`** (lines 117-120): The label says "Realized P&L" but renders `dailyStats.grossPnl`. Per the `useUnifiedDailyPnl` hook, `grossPnl = totalPnl + totalFees` (i.e., P&L before fee deductions). This is actually **Gross P&L**, not Net Realized P&L. The label is misleading.
-   - **Fix**: Rename the label to "Gross P&L" to accurately reflect the value being shown.
-
-6. **Symbol Breakdown label says "7 days" but Binance source only has today's data** (lines 303-304): The `useSymbolBreakdown` hook returns `weeklyBreakdown: binanceBreakdown` with a comment "Binance daily hook only fetches 1 day, so same for now" (line 138 of the hook). For Live/Binance users, the card says "7 days" but only shows today's data.
-   - **Fix**: Make the label dynamic based on source: show "(Today)" when source is `binance`, "(7 Days)" when source is `paper`.
-
----
+6. **Summary footer recalculates total P&L inline** (lines 412-413): `filteredTrades.reduce((sum, t) => sum + (t.realized_pnl ?? t.pnl ?? 0), 0)` is computed twice -- once for the className check and once for the display value. This should be memoized or computed once.
 
 ### C. Clarity -- Missing Tooltips
 
-7. **"Today's P&L" card title** (line 111) -- No tooltip. Should say: "Summary of your realized trading activity for today (UTC). Resets daily at 00:00 UTC."
+7. **Session card titles** (Sydney, Tokyo, London, New York) -- No tooltip. Should say, e.g., for Sydney: "Trades executed during the Sydney session (21:00-06:00 UTC). Time shown in your local timezone."
 
-8. **"Realized P&L" label** (line 117) -- After renaming to "Gross P&L", add tooltip: "Total profit/loss from closed trades today, before fee deductions."
+8. **Session time badge** (e.g., "03:00-12:00") -- No tooltip. Should say: "Session hours converted to your local timezone."
 
-9. **"Commission" label** (line 123) -- No tooltip. Should say: "Total trading fees (maker/taker commission) deducted from your gross P&L today."
+9. **"(low sample)" text** (line 276) -- No tooltip. Should say: "Fewer than 10 trades. Statistics may not be reliable."
 
-10. **"Trades Today" label** (line 129) -- No tooltip. Should say: "Number of closed trades recorded today."
+10. **"Best Hour" / "Least Loss Hour" card title** -- No tooltip. Should say: "The 1-hour block with the highest total P&L (minimum 2 trades required)."
 
-11. **"Win Rate" label** (line 133) -- No tooltip. Should say: "Percentage of today's trades that were profitable."
+11. **"Worst Hour" / "Smallest Gain Hour" card title** -- No tooltip. Should say: "The 1-hour block with the lowest total P&L (minimum 2 trades required)."
 
-12. **"This Week P&L" card** (line 152) -- Already has InfoTooltip. OK.
+12. **"Longest Win Streak" card title** -- No tooltip. Should say: "Maximum consecutive profitable trades in the selected period."
 
-13. **"Net (After Fees)" card title** (line 175) -- No tooltip. Should say: "Week's P&L after deducting all fees (commission + funding). Gross amount shown below."
+13. **"Longest Loss Streak" card title** -- No tooltip. Should say: "Maximum consecutive losing trades in the selected period."
 
-14. **"Trades This Week" card title** (line 190) -- No tooltip. Should say: "Total closed trades this week compared to last week."
-
-15. **"Win Rate" (week) card title** (line 205) -- No tooltip. Should say: "Percentage of winning trades this week. 'pp' = percentage points change from last week."
-
-16. **"Best Trade (7 Days)" card title** (line 223) -- Already has InfoTooltip. OK.
-
-17. **"Worst Trade (7 Days)" card title** (line 245) -- Already has InfoTooltip. OK.
-
-18. **"7-Day P&L Trend" chart title** (line 267) -- No tooltip. Should say: "Daily net P&L bars for the last 7 days. Green = profitable day, Red = loss day."
-
-19. **"Symbol Breakdown" card title** (line 303) -- No tooltip. Should say: "P&L breakdown by trading pair, sorted by absolute net impact."
-
-20. **"Fees" column in symbol breakdown** (line 316) -- No tooltip. Should say: "Total fees (commission + funding) for this symbol during the period."
-
-21. **"Net P&L" column in symbol breakdown** (line 320) -- No tooltip. Should say: "Profit/loss after all fee deductions for this symbol."
-
----
+14. **"Current" streak sub-label** (lines 368, 393) -- No tooltip. Should say: "Your active streak as of the most recent trade."
 
 ### D. Code Quality
 
-22. **No Recharts Tooltip alias** (line 33): `Tooltip` is imported from recharts directly. When adding `InfoTooltip` and potentially Radix `Tooltip` components for the tooltips above, a naming conflict will occur. Must alias the Recharts import as `RechartsTooltip` (same pattern used in the Performance page after its fix).
+15. **Missing `font-mono-numbers`** on session P&L values (line 270), best/worst hour values (lines 313, 335), and streak counts (lines 366, 391). Other pages (Daily P&L, Performance) apply this for alignment consistency.
 
-23. **`symbolBreakdown` typed as `any`** (line 308): `symbolBreakdown.map((item: any) => ...)` loses type safety. The hook exports `SymbolBreakdownItem` -- should use that type instead.
-
-24. **Missing `font-mono-numbers` class** on financial values: The Today's P&L card and week comparison cards don't use `font-mono-numbers` (or `tabular-nums`) for numerical values, unlike Account Detail and Performance pages where this is standard for alignment.
+16. **Total P&L computed twice in footer** (lines 412-413) -- Should extract to a `useMemo` variable (e.g., `totalFilteredPnl`) to avoid duplicate reduce calls.
 
 ---
 
-## 2. Hooks Analysis (All Correct -- No Changes Needed)
+## 2. Heatmap Grid Component (`src/components/analytics/charts/TradingHeatmap.tsx`)
 
-### `useUnifiedDailyPnl` (`src/hooks/analytics/use-unified-daily-pnl.ts`)
-- PnL chain: `realized_pnl ?? pnl ?? 0` -- Correct (line 81)
-- Mode isolation via `trade_mode` + fallback to `source` field -- Correct
-- Source detection from `useBinanceConnectionStatus` + `useTradeMode` -- Correct
-- No issues found.
+### A. Comprehensiveness -- Complete
 
-### `useUnifiedWeeklyPnl` (`src/hooks/analytics/use-unified-weekly-pnl.ts`)
-- PnL chain: `realized_pnl ?? pnl ?? 0` (line 104) -- Correct
-- 7-day window: `subDays(today, 6)` including today -- Correct
-- Best/worst trade tracking with null initialization -- Correct
-- Mode filter identical to daily hook -- Correct
-- No issues found.
+Grid with 7 days x 6 time blocks, dynamic color thresholds, compact P&L in cells, rich hover tooltips (time range, P&L, trades, wins, win rate, avg P&L), session labels, event overlay with ring + badge, and full legend. ARIA `role="region"` already present.
 
-### `useUnifiedWeekComparison` (`src/hooks/analytics/use-unified-week-comparison.ts`)
-- Monday-based weeks (`weekStartsOn: 1`) -- Correct
-- Null-safe percent changes (returns `null` when baseline is 0) -- Correct
-- Sign-flip detection delegated to `ChangeIndicator` -- Correct
-- No issues found.
+### B. Accuracy -- Correct
 
-### `useSymbolBreakdown` (`src/hooks/analytics/use-symbol-breakdown.ts`)
-- PnL chain: `realized_pnl ?? pnl ?? 0` (line 67) -- Correct
-- Mode filter consistent with other hooks -- Correct
-- Binance weekly = daily data (acknowledged limitation with comment) -- Known, addressed by dynamic label fix (#6)
-- No issues found.
+PnL chain, win rate, dynamic color thresholds (based on data range), and event matching all verified.
+
+### C. Clarity -- Missing Tooltips
+
+17. **"Trading Heatmap" card title** (line 178) -- No tooltip. Should say: "Aggregated P&L across day-of-week and 4-hour time blocks. Hover cells for detailed breakdown."
+
+18. **Legend items** (High Loss, Low Loss, No Data, Low Profit, High Profit) -- No tooltips explaining the thresholds. Should say, e.g., for "High Profit": "P&L is greater than 50% of the maximum observed P&L in the dataset."
+
+19. **"High-Impact Event" legend item** -- No tooltip. Should say: "Cells with high-impact economic events (FOMC, CPI, NFP). Data limited to the current week."
+
+20. **Session labels in row headers** (Asia, London, NY at lines 200-204) -- These use simplified labels ("Asia", "London", "NY") which are inconsistent with the page-level SESSION_CONFIG that uses the canonical names from `session-utils.ts` (Sydney, Tokyo, London, New York). Should align or add a tooltip explaining the mapping.
+
+### D. Code Quality
+
+21. **`getCellData` uses `.find()` on array** (line 143): For every cell render (7 days x 6 hours = 42 calls), it does a linear scan. Should use a Map lookup keyed by `${day}-${hour}` instead, which is how the data is already structured during computation.
+
+22. **Unused imports**: `subDays`, `parseISO`, `startOfWeek`, `addDays` from date-fns (line 15) and `Tables` type (line 17) are imported but never used.
+
+23. **`tradeDates` Set** (line 68) is populated but never read. Dead code that should be removed.
 
 ---
 
-## 3. Summary of All Recommendations
+## 3. CSV Export (`src/lib/export/heatmap-export.ts`)
 
-### Priority 1 -- Accuracy Fixes
+### B. Accuracy
 
-| # | Issue | Fix |
-|---|-------|-----|
-| 5 | "Realized P&L" label shows `grossPnl` (before fees) | Rename label to "Gross P&L" |
-| 6 | Symbol Breakdown says "7 days" but Binance source only has today's data | Make label dynamic: "(Today)" for binance, "(7 Days)" for paper |
+24. **Hardcoded `$` in CSV output** (line 40): `$${pnl}` hardcodes the dollar sign. This bypasses the user's currency preference. The export function does not have access to currency context, so the fix is to remove the `$` prefix entirely and let the raw number speak for itself, or accept a currency symbol parameter.
+
+---
+
+## 4. Summary of All Recommendations
+
+### Priority 1 -- Accuracy / Logic
+
+| # | Issue | File | Fix |
+|---|-------|------|-----|
+| 6 | Total P&L computed twice in footer | TradingHeatmap.tsx (page) | Extract to `useMemo` variable |
+| 21 | `getCellData` uses linear `.find()` for 42 cells | TradingHeatmap.tsx (component) | Use Map lookup |
+| 24 | Hardcoded `$` in CSV export | heatmap-export.ts | Remove `$` prefix or accept currency param |
 
 ### Priority 2 -- Missing Tooltips (Clarity)
 
-| # | Elements | Location |
-|---|----------|----------|
-| 3 | Live/Paper badge | PageHeader area |
-| 4 | Export button | PageHeader area |
-| 7 | Today's P&L card title | Today's P&L section |
-| 8 | Gross P&L label (renamed) | Today's P&L section |
-| 9 | Commission label | Today's P&L section |
-| 10 | Trades Today label | Today's P&L section |
-| 11 | Win Rate (today) label | Today's P&L section |
-| 13 | Net (After Fees) card title | Week comparison cards |
-| 14 | Trades This Week card title | Week comparison cards |
-| 15 | Win Rate (week) card title | Week comparison cards |
-| 18 | 7-Day P&L Trend chart title | Chart section |
-| 19 | Symbol Breakdown card title | Symbol table |
-| 20 | Fees column header | Symbol table |
-| 21 | Net P&L column header | Symbol table |
+| # | Elements | File |
+|---|----------|------|
+| 3-5 | Date Range filter, Pair filter, Export button | TradingHeatmap.tsx (page) |
+| 7-9 | Session card titles, time badge, low sample text | TradingHeatmap.tsx (page) |
+| 10-14 | Best/Worst Hour, Win/Loss Streak, Current streak | TradingHeatmap.tsx (page) |
+| 17-20 | Heatmap card title, legend items, event legend, session row labels | TradingHeatmap.tsx (component) |
 
 ### Priority 3 -- Code Quality and Accessibility
 
 | # | Issue | Fix |
 |---|-------|-----|
-| 1 | Missing `role="region"` on page root | Add `role="region"` and `aria-label="Daily P&L Analytics"` to root div |
-| 2 | No ErrorBoundary wrapper | Wrap entire page content with `<ErrorBoundary>` component with `retryKey` |
-| 22 | Recharts `Tooltip` naming conflict risk | Alias import as `RechartsTooltip` |
-| 23 | `any` type on symbol breakdown map | Replace with `SymbolBreakdownItem` type from hook |
-| 24 | Missing `font-mono-numbers` on financial values | Add class to all `text-2xl font-bold` financial value elements |
+| 1 | Missing `role="region"` on page root | TradingHeatmap.tsx (page) |
+| 2 | No ErrorBoundary wrapper | TradingHeatmap.tsx (page) |
+| 15 | Missing `font-mono-numbers` on financial values | TradingHeatmap.tsx (page) |
+| 20 | Session label inconsistency (Asia vs Sydney/Tokyo) | TradingHeatmap.tsx (component) |
+| 22 | Unused imports (date-fns, Tables type) | TradingHeatmap.tsx (component) |
+| 23 | Dead code (`tradeDates` Set) | TradingHeatmap.tsx (component) |
 
 ---
 
@@ -172,7 +164,7 @@
 
 | File | Changes |
 |------|---------|
-| `src/pages/DailyPnL.tsx` | All 24 items: add `role="region"` and `aria-label` (P3-#1), wrap with ErrorBoundary (P3-#2), rename "Realized P&L" to "Gross P&L" (P1-#5), dynamic symbol breakdown period label (P1-#6), add 14 tooltips (P2), alias Recharts Tooltip as `RechartsTooltip` (P3-#22), type symbolBreakdown with `SymbolBreakdownItem` (P3-#23), add `font-mono-numbers` to financial values (P3-#24), add tooltips to Live/Paper badge and Export button (P2-#3,#4) |
-
-This is a single-file change since the entire Daily P&L page is self-contained in one component. The 4 supporting hooks are all accurate and require no modifications.
+| `src/pages/TradingHeatmap.tsx` | Add `role="region"` and `aria-label` (#1), wrap with ErrorBoundary (#2), add tooltips to filters (#3-5), session cards (#7-9), Best/Worst Hour (#10-11), Streak cards (#12-14), add `font-mono-numbers` to financial values (#15), extract `totalFilteredPnl` to useMemo (#6) |
+| `src/components/analytics/charts/TradingHeatmap.tsx` | Add tooltip to card title (#17), legend items (#18-19), fix session row labels (#20), optimize `getCellData` to Map lookup (#21), remove unused imports (#22), remove dead `tradeDates` code (#23) |
+| `src/lib/export/heatmap-export.ts` | Remove hardcoded `$` from CSV output (#24) |
 
