@@ -130,7 +130,8 @@ export function RiskMetricsCards({ className }: RiskMetricsCardsProps) {
         <CardTitle className="flex items-center gap-2 text-base">
           <Shield className="h-5 w-5 text-primary" />
           Advanced Risk Metrics
-          <Badge variant="outline" className="text-xs">
+          <Badge variant="outline" className="text-xs">All-Time</Badge>
+          <Badge variant="secondary" className="text-xs">
             {closedTrades.length} trades
           </Badge>
         </CardTitle>

@@ -39,26 +39,24 @@ export function EquityCurveChart({ initialBalance = 0, className }: EquityCurveC
       return { curveData: [] as CurveDataPoint[], maxDrawdown: 0, maxDrawdownPercent: 0, peakBalance: 0, currentBalance: 0 };
     }
 
-    // Use first trade's PnL to infer baseline if initialBalance is 0 or very small
-    // If no initialBalance, use absolute value of first balance point as baseline
+    // If no valid initialBalance, DD % will show "No baseline"
     let effectiveInitial = initialBalance > 0 ? initialBalance : 0;
     let balance = effectiveInitial;
     let peak = balance;
     let maxDd = 0;
     let maxDdPercent = 0;
+    let hasValidBaseline = effectiveInitial > 0;
 
     const data: CurveDataPoint[] = sorted.map((trade, idx) => {
       const pnl = trade.realized_pnl ?? trade.pnl ?? 0;
       balance += pnl;
-      // If no initialBalance was provided, use the first positive balance as baseline
-      if (idx === 0 && effectiveInitial <= 0 && Math.abs(balance) > 0) {
+      if (idx === 0 && !hasValidBaseline && Math.abs(balance) > 0) {
         effectiveInitial = Math.abs(balance);
+        hasValidBaseline = true;
       }
       if (balance > peak) peak = balance;
       const drawdown = peak - balance;
-      // Use standardized formula: drawdown / (initialBalance + peakCumulativePnl)
-      const peakCumPnl = peak - effectiveInitial;
-      const denominator = effectiveInitial + peakCumPnl; // = peak when effectiveInitial > 0
+      const denominator = hasValidBaseline ? peak : 0;
       const ddPercent = denominator > 0 ? Math.min((drawdown / denominator) * 100, 100) : 0;
       if (drawdown > maxDd) {
         maxDd = drawdown;
@@ -67,7 +65,7 @@ export function EquityCurveChart({ initialBalance = 0, className }: EquityCurveC
       return { date: trade.trade_date, balance, drawdown: -drawdown, pnl };
     });
 
-    return { curveData: data, maxDrawdown: maxDd, maxDrawdownPercent: maxDdPercent, peakBalance: peak, currentBalance: balance };
+    return { curveData: data, maxDrawdown: maxDd, maxDrawdownPercent: hasValidBaseline ? maxDdPercent : -1, peakBalance: peak, currentBalance: balance };
   }, [trades, initialBalance]);
 
   const { streakZones, milestones } = useMemo(() => {
@@ -106,6 +104,7 @@ export function EquityCurveChart({ initialBalance = 0, className }: EquityCurveC
             <CardTitle className="flex items-center gap-2 text-base">
               <BarChart3 className="h-5 w-5" />
               Equity Curve
+              <Badge variant="outline" className="text-xs">All-Time</Badge>
             </CardTitle>
             <CardDescription>{curveData.length} trades</CardDescription>
           </div>
@@ -128,7 +127,7 @@ export function EquityCurveChart({ initialBalance = 0, className }: EquityCurveC
             <div className="text-right">
               <p className="text-xs text-muted-foreground">Max Drawdown</p>
               <Badge variant="destructive" className="text-xs font-mono-numbers">
-                {maxDrawdownPercent.toFixed(1)}%
+                {maxDrawdownPercent >= 0 ? `${maxDrawdownPercent.toFixed(1)}%` : 'N/A'}
               </Badge>
             </div>
           </div>
@@ -241,7 +240,7 @@ export function EquityCurveChart({ initialBalance = 0, className }: EquityCurveC
           <div>
             <p className="text-xs text-muted-foreground">Max DD (%)</p>
             <p className="text-sm font-semibold text-loss font-mono-numbers">
-              -{maxDrawdownPercent.toFixed(1)}%
+              {maxDrawdownPercent >= 0 ? `-${maxDrawdownPercent.toFixed(1)}%` : 'No baseline'}
             </p>
           </div>
           <div>

@@ -46,10 +46,14 @@ export function SystemStatusIndicator({ compact = false }: SystemStatusIndicator
       .sort((a, b) => new Date(b.trade_date).getTime() - new Date(a.trade_date).getTime())
       .slice(0, 20);
     
-    if (closedTrades.length < 10) return null;
+    if (closedTrades.length < 10) {
+      return { insufficient: true } as const;
+    }
     
-    const wins = closedTrades.filter(t => (t.realized_pnl ?? t.pnl ?? 0) > 0).length;
-    const winRate = (wins / closedTrades.length) * 100;
+    // Exclude breakeven from win rate denominator
+    const decisiveTrades = closedTrades.filter(t => (t.realized_pnl ?? t.pnl ?? 0) !== 0);
+    const wins = decisiveTrades.filter(t => (t.realized_pnl ?? t.pnl ?? 0) > 0).length;
+    const winRate = decisiveTrades.length > 0 ? (wins / decisiveTrades.length) * 100 : 50;
     
     // Check current loss streak
     let lossStreak = 0;
@@ -60,6 +64,7 @@ export function SystemStatusIndicator({ compact = false }: SystemStatusIndicator
     
     if (winRate < 30 || lossStreak > 10) {
       return {
+        insufficient: false as const,
         message: winRate < 30 
           ? `Win rate ${winRate.toFixed(0)}% over last ${closedTrades.length} trades`
           : `${lossStreak}-trade losing streak`,
@@ -200,12 +205,21 @@ export function SystemStatusIndicator({ compact = false }: SystemStatusIndicator
         </div>
 
         {/* Performance Advisory */}
-        {performanceAdvisory && (
+        {performanceAdvisory && 'insufficient' in performanceAdvisory && performanceAdvisory.insufficient && (
+          <div className="mt-3 pt-3 border-t border-border/50">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Shield className="h-4 w-4" />
+              <span>Insufficient recent data for performance advisory</span>
+              <InfoTooltip content="Minimum 10 closed trades needed to evaluate recent performance patterns." />
+            </div>
+          </div>
+        )}
+        {performanceAdvisory && !('insufficient' in performanceAdvisory && performanceAdvisory.insufficient) && (
           <div className="mt-3 pt-3 border-t border-border/50">
             <div className="flex items-center gap-2 text-sm">
               <AlertTriangle className="h-4 w-4 text-[hsl(var(--chart-4))]" />
               <span className="text-[hsl(var(--chart-4))] font-medium">Performance Advisory</span>
-              <InfoTooltip content="Based on your last 20 trades. This monitors trading performance, not daily risk limits." />
+              <InfoTooltip content="Based on your last 20 trades (minimum 10 required). This monitors trading performance, not daily risk limits." />
             </div>
             <p className="text-xs text-muted-foreground mt-1 pl-6">
               {performanceAdvisory.message}. Review recent performance before trading.

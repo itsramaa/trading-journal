@@ -196,7 +196,7 @@ export function PortfolioOverviewCard({ className }: PortfolioOverviewCardProps)
             </p>
             {hasUnrealized && (
               <div className="flex items-center gap-1 mt-1">
-                <p className="text-xs text-muted-foreground">Unrealized:</p>
+                <p className="text-xs text-muted-foreground">Unrealized (est.):</p>
                 <p className={cn("text-xs font-medium", unrealizedPnl >= 0 ? 'text-profit' : 'text-loss')}>
                   {formatPnl(unrealizedPnl)}
                 </p>

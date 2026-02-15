@@ -87,15 +87,27 @@ serve(async (req) => {
     // Always output in English per project language standard
     const marketScoreLabel = sanitizeString(body.marketScoreLabel || 'Unknown', 50);
 
+    // Categorize account size abstractly — no dollar thresholds in prompt
+    const accountSizeCategory = (() => {
+      const bal = portfolioStatus.totalBalance;
+      if (bal <= 0) return 'empty';
+      if (bal < 100) return 'micro';
+      if (bal < 1000) return 'small';
+      if (bal < 10000) return 'medium';
+      return 'large';
+    })();
+
     const systemPrompt = `You are an AI trading assistant helping traders analyze their portfolio. Provide concise, actionable, and constructive insights in English.
 
 CRITICAL RULES:
-- Do NOT mention any specific dollar amounts in your summary. Refer to "your balance" or "your account" instead. Financial numbers are already displayed in the dashboard UI.
+- Do NOT mention any specific dollar amounts, balances, or financial figures in your summary. The dashboard UI displays all financial numbers — you must never duplicate or rephrase them.
+- Refer to the account abstractly: "your account", "your balance", "your portfolio". Never say "$X" or "X dollars".
 - When mentioning win rates, always specify the sample size (e.g., "10% win rate over last 20 trades").
-- The current market regime is: ${marketScoreLabel}. Do not contradict this assessment in your summary.
+- The current market regime is: ${marketScoreLabel}. Treat this as authoritative. Do not contradict or reinterpret it.
+- You are a narrative layer, not an accounting engine. Never be a source of truth for financial numbers.
 
 Focus on:
-1. Current portfolio status and deployment
+1. Current portfolio deployment level and risk exposure
 2. Risk warnings if any
 3. Recommendations based on trading patterns
 4. Best setups based on historical performance
@@ -114,10 +126,10 @@ Use the provided function to return structured analysis.`;
       ? strategies.reduce((best: any, s: any) => s.winRate > best.winRate ? s : best, strategies[0])
       : null;
 
-    const userPrompt = `Analyze this trading dashboard data. Do NOT include any dollar amounts in your summary.
+    const userPrompt = `Analyze this trading dashboard data. Do NOT include any dollar amounts or financial figures in your summary.
 
 PORTFOLIO CONTEXT:
-- Account size category: ${portfolioStatus.totalBalance < 100 ? 'Small (under $100)' : portfolioStatus.totalBalance < 1000 ? 'Small' : portfolioStatus.totalBalance < 10000 ? 'Medium' : 'Large'}
+- Account size: ${accountSizeCategory}
 - Capital deployment: ${deploymentPercent}%
 - Open Positions: ${portfolioStatus.openPositions}
 
@@ -130,7 +142,7 @@ RECENT PERFORMANCE (last ${recentTrades.length} trades):
 - Net result: ${totalPnl >= 0 ? 'Positive' : 'Negative'}
 ${recentTrades.slice(0, 5).map((t: any) => `- ${t.pair} ${t.direction}: ${t.pnl > 0 ? 'win' : t.pnl < 0 ? 'loss' : 'breakeven'}`).join('\n')}
 
-MARKET REGIME: ${marketScoreLabel}
+MARKET REGIME (authoritative): ${marketScoreLabel}
 
 STRATEGIES:
 ${strategies.length > 0 
@@ -139,7 +151,7 @@ ${strategies.length > 0
 
 Best performing strategy: ${bestStrategy ? `${bestStrategy.name} (${bestStrategy.winRate.toFixed(1)}%)` : 'N/A'}
 
-Provide dashboard insights in English. Remember: no dollar amounts in summary.`;
+Provide dashboard insights in English. Remember: absolutely no dollar amounts, no financial figures in the summary text.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
