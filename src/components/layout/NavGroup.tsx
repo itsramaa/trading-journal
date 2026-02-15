@@ -47,12 +47,12 @@ function setGroupState(groupTitle: string, isOpen: boolean) {
 // Keyboard shortcut mapping for each route
 const ROUTE_SHORTCUTS: Record<string, string> = {
   "/": "D",
-  "/market": "M",
+  "/market-bias": "M",
   "/calendar": "C",
-  "/market-data": "V",
+  "/flow-liquidity": "V",
   "/trading": "T",
-  "/risk": "R",
-  "/calculator": "X",
+  "/risk-analytics": "R",
+  "/risk-calculator": "X",
   "/strategies": "S",
   "/backtest": "B",
   "/performance": "P",

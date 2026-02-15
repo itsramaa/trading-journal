@@ -169,7 +169,7 @@ function MarketScoreWidgetContent({ symbol = 'BTCUSDT', compact = false }: Marke
               </Tooltip>
             </TooltipProvider>
             <Button variant="outline" size="sm" asChild>
-              <Link to="/market">View Details</Link>
+              <Link to="/market-bias">View Details</Link>
             </Button>
           </div>
         </div>

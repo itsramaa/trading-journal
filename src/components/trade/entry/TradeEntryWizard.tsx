@@ -84,7 +84,7 @@ function TradingBlockedState({ reason, status, onClose }: { reason: string; stat
               
               <div className="flex flex-col gap-2 pt-4">
                 <Button variant="outline" asChild>
-                  <Link to="/risk">
+                  <Link to="/risk-analytics">
                     <ShieldAlert className="h-4 w-4 mr-2" aria-hidden="true" />
                     View Risk Dashboard
                   </Link>

@@ -48,8 +48,8 @@ const navigationGroups = [
     items: [
       { title: "Economic Calendar", url: "/calendar", icon: Calendar },
       { title: "Top Movers", url: "/top-movers", icon: Flame },
-      { title: "Flow & Liquidity", url: "/market-data", icon: BarChart3 },
-      { title: "Market Bias", url: "/market", icon: TrendingUp },
+      { title: "Flow & Liquidity", url: "/flow-liquidity", icon: BarChart3 },
+      { title: "Market Bias", url: "/market-bias", icon: TrendingUp },
     ],
   },
   {
@@ -57,14 +57,14 @@ const navigationGroups = [
     items: [
       { title: "Trading Journal", url: "/trading", icon: Notebook },
       { title: "Import & Sync", url: "/import", icon: Download },
-      { title: "Risk Calculator", url: "/calculator", icon: Calculator },
+      { title: "Risk Calculator", url: "/risk-calculator", icon: Calculator },
     ],
   },
   {
     title: "Analyze",
     items: [
       { title: "Performance", url: "/performance", icon: LineChart },
-      { title: "Risk Analytics", url: "/risk", icon: Shield },
+      { title: "Risk Analytics", url: "/risk-analytics", icon: Shield },
       { title: "Daily P&L", url: "/daily-pnl", icon: DollarSign },
       { title: "Heatmap", url: "/heatmap", icon: Grid3X3 },
       { title: "AI Insights", url: "/ai-insights", icon: Brain },

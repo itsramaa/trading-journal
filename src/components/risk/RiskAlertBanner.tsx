@@ -62,7 +62,7 @@ export function RiskAlertBanner() {
               : "text-[hsl(var(--chart-4))] hover:bg-[hsl(var(--chart-4))]/10"
           )}
         >
-          <Link to="/risk">View Details</Link>
+          <Link to="/risk-analytics">View Details</Link>
         </Button>
         {!isDisabled && (
           <Button
