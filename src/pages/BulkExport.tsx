@@ -3,6 +3,7 @@
  * Tabs: Exchange | Journal | Analytics | Reports | Backup
  */
 import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 
 import { PageHeader } from "@/components/ui/page-header";
@@ -12,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { Calendar } from "@/components/ui/calendar";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -34,8 +36,10 @@ import {
   Brain,
   ClipboardList,
   Lock,
+  ChevronDown,
+  History,
 } from "lucide-react";
-import { format, subDays, startOfYear, endOfDay, startOfDay, startOfWeek, endOfWeek } from "date-fns";
+import { format, subDays, startOfYear, endOfDay, startOfDay, startOfWeek, endOfWeek, differenceInDays, addDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useBinanceConnectionStatus } from "@/features/binance";
 import { 
@@ -110,6 +114,24 @@ export default function BulkExport() {
   const closedTrades = useMemo(() => trades.filter(t => t.status === 'closed'), [trades]);
   const stats = useMemo(() => calculateTradingStats(closedTrades), [closedTrades]);
   const closedTradesDateRange = useMemo(() => getTradesDateRange(closedTrades), [closedTrades]);
+
+  // Date range validation
+  const rangeDays = differenceInDays(dateRange.to, dateRange.from);
+  const isRangeInvalid = rangeDays > 365;
+
+  // Export history from audit logs
+  const { data: exportHistory = [] } = useQuery({
+    queryKey: ['export-history'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('audit_logs')
+        .select('action, metadata, created_at')
+        .in('action', ['export_completed', 'backup_exported', 'backup_restored'])
+        .order('created_at', { ascending: false })
+        .limit(10);
+      return data || [];
+    },
+  });
 
   // Weekly report date ranges
   const now = new Date();
@@ -255,7 +277,7 @@ export default function BulkExport() {
                     Select Date Range
                   </CardTitle>
                   <CardDescription>
-                    Choose the period for your export. Maximum range is 1 year.
+                    Choose the period for your export. Maximum range is 365 days.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -314,7 +336,7 @@ export default function BulkExport() {
                             mode="single"
                             selected={dateRange.to}
                             onSelect={(date) => date && setDateRange(prev => ({ ...prev, to: date }))}
-                            disabled={(date) => date > new Date() || date < dateRange.from}
+                            disabled={(date) => date > new Date() || date < dateRange.from || differenceInDays(date, dateRange.from) > 365}
                           />
                         </PopoverContent>
                       </Popover>
@@ -322,8 +344,13 @@ export default function BulkExport() {
                   </div>
 
                   <p className="text-sm text-muted-foreground">
-                    Selected range: {format(dateRange.from, 'MMM d, yyyy')} – {format(dateRange.to, 'MMM d, yyyy')}
+                    Selected range: {format(dateRange.from, 'MMM d, yyyy')} – {format(dateRange.to, 'MMM d, yyyy')} ({rangeDays} days)
                   </p>
+                  {isRangeInvalid && (
+                    <p className="text-sm text-loss font-medium">
+                      Selected range is {rangeDays} days. Maximum allowed is 365 days.
+                    </p>
+                  )}
                   <p className="text-xs text-muted-foreground">
                     All timestamps are in UTC. End date is inclusive.
                   </p>
@@ -407,7 +434,7 @@ export default function BulkExport() {
                             <Button 
                               className="w-full gap-2"
                               onClick={() => handleExport(type)}
-                              disabled={isWorking}
+                              disabled={isWorking || isRangeInvalid}
                             >
                               {isWorking ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -555,7 +582,9 @@ export default function BulkExport() {
                   <p className="text-sm text-muted-foreground">
                     {contextualData 
                       ? 'No trades have market context attached. Enrich trades via Import & Sync.'
-                      : 'No trades match contextual filters for the selected period.'}
+                      : closedTrades.length > 0
+                        ? 'Insufficient data or context service unavailable. Ensure trades have been enriched with market context.'
+                        : 'No closed trades available for analysis.'}
                   </p>
                 )}
                 <Button
@@ -683,12 +712,59 @@ export default function BulkExport() {
         </TabsContent>
       </Tabs>
 
+      {/* Export History */}
+      {exportHistory.length > 0 && (
+        <Collapsible>
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" size="sm" className="w-full gap-2 text-muted-foreground">
+              <History className="h-4 w-4" />
+              Recent Export Activity ({exportHistory.length})
+              <ChevronDown className="h-4 w-4" />
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <Card className="mt-2">
+              <CardContent className="pt-4">
+                <div className="space-y-2">
+                  {exportHistory.map((entry, i) => {
+                    const actionLabels: Record<string, string> = {
+                      export_completed: 'Export',
+                      backup_exported: 'Backup Exported',
+                      backup_restored: 'Backup Restored',
+                    };
+                    const meta = entry.metadata as Record<string, unknown> | null;
+                    return (
+                      <div key={i} className="flex items-center justify-between text-sm border-b border-border/50 pb-2 last:border-0">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-xs">
+                            {actionLabels[entry.action] || entry.action}
+                          </Badge>
+                          {meta?.exportType && (
+                            <span className="text-muted-foreground text-xs">
+                              {String(meta.exportType)}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          {format(new Date(entry.created_at), 'MMM d, yyyy HH:mm')}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+
       {/* Privacy & Security Notice */}
       <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground pt-2">
         <Lock className="h-3 w-3" />
         <p>
-          All data is stored encrypted at rest. Exported files are generated locally in your browser 
-          and are not uploaded to any server. Exchange exports are fetched via secure server-side functions.
+          Journal and analytics exports are generated locally in your browser. 
+          Exchange exports are fetched securely via server-side functions and are not stored on our servers. 
+          All data is encrypted at rest.
         </p>
       </div>
     </div>
