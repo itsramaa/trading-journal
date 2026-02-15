@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { 
   useMarketSentiment, 
   BIAS_VALIDITY_MINUTES,
@@ -28,11 +29,13 @@ import {
 } from "@/components/market-insight";
 import { RegimeCard } from "@/components/market-insight/RegimeCard";
 import { useTradeMode } from "@/hooks/use-trade-mode";
+import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import type { MacroCorrelation } from "@/features/market-insight/types";
 
 const MarketInsight = () => {
   const [retryKey, setRetryKey] = useState(0);
   const { tradingStyle } = useTradeMode();
+  const { format } = useCurrencyConversion();
   const { 
     data: sentimentData, 
     isLoading: sentimentLoading, 
@@ -51,7 +54,6 @@ const MarketInsight = () => {
   const btcRealizedVol = sentimentData?.volatility?.[0]?.annualizedVolatility;
   const {
     data: calendarData,
-    isLoading: calendarLoading,
   } = useEconomicCalendar(btcRealizedVol);
 
   // Enable market alerts for extreme conditions
@@ -75,9 +77,11 @@ const MarketInsight = () => {
   }, [sentimentData, tradingStyle]);
 
   const isLoading = sentimentLoading || macroLoading;
+  const signals = sentimentData?.sentiment?.signals;
+  const correlations = macroData?.macro?.correlations;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" role="region" aria-label="Market Bias">
       <PageHeader
         icon={TrendingUp}
         title="Market Bias"
@@ -120,15 +124,18 @@ const MarketInsight = () => {
             error={sentimentError || macroError || null}
           />
 
-          {/* Condensed Signals List */}
-          {!isLoading && sentimentData?.sentiment?.signals && (
-            <SignalsGrid signals={sentimentData.sentiment.signals} />
-          )}
+          {/* Condensed Signals List — always rendered */}
+          <SignalsGrid 
+            signals={!isLoading ? signals : undefined} 
+            isLoading={isLoading}
+            formatPrice={format}
+          />
 
-          {/* Macro Correlations Grid — data only, no AI narrative */}
-          {!isLoading && macroData?.macro?.correlations && (
-            <MacroGrid correlations={macroData.macro.correlations} />
-          )}
+          {/* Macro Correlations Grid — always rendered */}
+          <MacroGrid 
+            correlations={!isLoading ? correlations : undefined}
+            isLoading={isLoading}
+          />
         </div>
       </ErrorBoundary>
     </div>
@@ -136,90 +143,122 @@ const MarketInsight = () => {
 };
 
 /** Condensed signals list — no narrative */
-function SignalsGrid({ signals }: { signals: Array<{ asset: string; trend: string; direction: 'up' | 'down' | 'neutral'; price?: number; change24h?: number }> }) {
+function SignalsGrid({ signals, isLoading, formatPrice }: { 
+  signals?: Array<{ asset: string; trend: string; direction: 'up' | 'down' | 'neutral'; price?: number; change24h?: number }>;
+  isLoading: boolean;
+  formatPrice: (usd: number) => string;
+}) {
   return (
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="text-lg flex items-center gap-2">
           <Activity className="h-5 w-5 text-primary" />
           Key Signals
+          <InfoTooltip content="Summary of directional signals for major crypto assets, including trend description and 24h price change." />
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="grid gap-2">
-          {signals.map((signal) => (
-            <div key={signal.asset} className="flex items-center justify-between p-2 rounded border">
-              <div className="flex items-center gap-2">
-                {signal.direction === 'up' ? (
-                  <TrendingUp className="h-4 w-4 text-profit" />
-                ) : signal.direction === 'down' ? (
-                  <TrendingDown className="h-4 w-4 text-loss" />
-                ) : (
-                  <Activity className="h-4 w-4 text-muted-foreground" />
-                )}
-                <span className="font-medium">{signal.asset}</span>
-                {signal.price && (
-                  <span className="text-xs text-muted-foreground font-mono">
-                    ${signal.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                  </span>
-                )}
-                {signal.change24h !== undefined && (
-                  <Badge variant="outline" className={cn(
-                    "text-[10px] font-mono",
-                    signal.change24h >= 0 ? "text-profit" : "text-loss"
-                  )}>
-                    {signal.change24h >= 0 ? '+' : ''}{signal.change24h.toFixed(1)}%
-                  </Badge>
-                )}
+        {isLoading ? (
+          <div className="space-y-2">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="h-10 rounded border bg-muted animate-pulse" />
+            ))}
+          </div>
+        ) : !signals || signals.length === 0 ? (
+          <div className="flex items-center justify-center py-6 text-sm text-muted-foreground">
+            <Activity className="h-4 w-4 mr-2" />
+            No signal data available. Refresh to load.
+          </div>
+        ) : (
+          <div className="grid gap-2">
+            {signals.map((signal) => (
+              <div key={signal.asset} className="flex items-center justify-between p-2 rounded border">
+                <div className="flex items-center gap-2">
+                  {signal.direction === 'up' ? (
+                    <TrendingUp className="h-4 w-4 text-profit" />
+                  ) : signal.direction === 'down' ? (
+                    <TrendingDown className="h-4 w-4 text-loss" />
+                  ) : (
+                    <Activity className="h-4 w-4 text-muted-foreground" />
+                  )}
+                  <span className="font-medium">{signal.asset}</span>
+                  {signal.price && (
+                    <span className="text-xs text-muted-foreground font-mono">
+                      {formatPrice(signal.price)}
+                    </span>
+                  )}
+                  {signal.change24h !== undefined && (
+                    <Badge variant="outline" className={cn(
+                      "text-[10px] font-mono",
+                      signal.change24h >= 0 ? "text-profit" : "text-loss"
+                    )}>
+                      {signal.change24h >= 0 ? '+' : ''}{signal.change24h.toFixed(1)}%
+                    </Badge>
+                  )}
+                </div>
+                <span className="text-xs text-muted-foreground text-right max-w-[50%] truncate">{signal.trend}</span>
               </div>
-              <span className="text-xs text-muted-foreground text-right max-w-[50%] truncate">{signal.trend}</span>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
 }
 
 /** Macro correlations — raw data grid, no AI summary */
-function MacroGrid({ correlations }: { correlations: MacroCorrelation[] }) {
+function MacroGrid({ correlations, isLoading }: { correlations?: MacroCorrelation[]; isLoading: boolean }) {
   return (
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="text-lg flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-primary" />
           Macro Indicators
+          <InfoTooltip content="Key macroeconomic indicators and their recent changes. These feed into the regime classification composite score." />
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {correlations.map((item) => (
-            <div key={item.name} className="p-3 rounded-lg border bg-muted/30">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-sm font-medium">{item.name}</span>
-                <div className="flex items-center gap-1">
-                  {item.change >= 0 ? (
-                    <TrendingUp className="h-3 w-3 text-profit" />
-                  ) : (
-                    <TrendingDown className="h-3 w-3 text-loss" />
-                  )}
-                  <span className={cn(
-                    "text-xs font-mono",
-                    item.change >= 0 ? "text-profit" : "text-loss"
-                  )}>
-                    {item.change >= 0 ? '+' : ''}{item.change.toFixed(2)}%
-                  </span>
+        {isLoading ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="h-24 rounded-lg bg-muted animate-pulse" />
+            ))}
+          </div>
+        ) : !correlations || correlations.length === 0 ? (
+          <div className="flex items-center justify-center py-6 text-sm text-muted-foreground">
+            <Sparkles className="h-4 w-4 mr-2" />
+            No macro data available. Refresh to load.
+          </div>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {correlations.map((item) => (
+              <div key={item.name} className="p-3 rounded-lg border bg-muted/30">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm font-medium">{item.name}</span>
+                  <div className="flex items-center gap-1">
+                    {item.change >= 0 ? (
+                      <TrendingUp className="h-3 w-3 text-profit" />
+                    ) : (
+                      <TrendingDown className="h-3 w-3 text-loss" />
+                    )}
+                    <span className={cn(
+                      "text-xs font-mono",
+                      item.change >= 0 ? "text-profit" : "text-loss"
+                    )}>
+                      {item.change >= 0 ? '+' : ''}{item.change.toFixed(2)}%
+                    </span>
+                  </div>
                 </div>
+                <p className="text-lg font-bold font-mono">
+                  {typeof item.value === 'number' && item.value > 1000 
+                    ? item.value.toLocaleString(undefined, { maximumFractionDigits: 2 })
+                    : item.value.toFixed(2)}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">{item.impact}</p>
               </div>
-              <p className="text-lg font-bold font-mono">
-                {typeof item.value === 'number' && item.value > 1000 
-                  ? item.value.toLocaleString(undefined, { maximumFractionDigits: 2 })
-                  : item.value.toFixed(2)}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">{item.impact}</p>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
