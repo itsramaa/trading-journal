@@ -64,6 +64,10 @@ export interface BacktestMetrics {
   expectancy: number;          // (WR * avgWin) - (LR * avgLoss)
   expectancyPerR: number;      // WR * R - (1 - WR)
   calmarRatio: number;         // annualized return / max drawdown
+  grossPnl: number;            // PnL before commissions
+  totalCommissions: number;    // Total fees paid
+  netPnl: number;              // PnL after commissions
+  exposurePercent: number;     // % of time in market
 }
 
 export interface EquityCurvePoint {
@@ -336,7 +340,12 @@ export const DEFAULT_BACKTEST_CONFIG: Partial<BacktestConfig> = {
 };
 
 // Helper to calculate metrics
-export function calculateMetrics(trades: BacktestTrade[], initialCapital: number): BacktestMetrics {
+export function calculateMetrics(
+  trades: BacktestTrade[], 
+  initialCapital: number,
+  periodStart?: string,
+  periodEnd?: string
+): BacktestMetrics {
   if (trades.length === 0) {
     return {
       totalReturn: 0,
@@ -360,6 +369,10 @@ export function calculateMetrics(trades: BacktestTrade[], initialCapital: number
       expectancy: 0,
       expectancyPerR: 0,
       calmarRatio: 0,
+      grossPnl: 0,
+      totalCommissions: 0,
+      netPnl: 0,
+      exposurePercent: 0,
     };
   }
 
@@ -369,6 +382,18 @@ export function calculateMetrics(trades: BacktestTrade[], initialCapital: number
   const totalPnl = trades.reduce((sum, t) => sum + t.pnl, 0);
   const grossProfit = winningTrades.reduce((sum, t) => sum + t.pnl, 0);
   const grossLoss = Math.abs(losingTrades.reduce((sum, t) => sum + t.pnl, 0));
+  const totalCommissions = trades.reduce((sum, t) => sum + t.commission, 0);
+  const grossPnl = totalPnl + totalCommissions;
+
+  // Market exposure calculation
+  let exposurePercent = 0;
+  if (periodStart && periodEnd && trades.length > 0) {
+    const totalPeriodMs = new Date(periodEnd).getTime() - new Date(periodStart).getTime();
+    const totalInMarketMs = trades.reduce((sum, t) => {
+      return sum + (new Date(t.exitTime).getTime() - new Date(t.entryTime).getTime());
+    }, 0);
+    exposurePercent = totalPeriodMs > 0 ? (totalInMarketMs / totalPeriodMs) * 100 : 0;
+  }
   
   // Calculate consecutive wins/losses
   let maxConsecWins = 0, maxConsecLosses = 0;
@@ -446,8 +471,12 @@ export function calculateMetrics(trades: BacktestTrade[], initialCapital: number
     consecutiveLosses: maxConsecLosses,
     avgRiskReward,
     holdingPeriodAvg: avgHolding,
-    expectancy: winRate * avgWin - ((1 - winRate) * avgLoss),
+    expectancy: winRate * avgWin - ((1 - winRate) * Math.abs(avgLoss)),
     expectancyPerR: avgRiskReward > 0 ? (winRate * avgRiskReward) - (1 - winRate) : 0,
     calmarRatio: maxDD > 0 ? ((totalPnl / initialCapital) * 100) / (maxDD * 100) : 0,
+    grossPnl,
+    totalCommissions,
+    netPnl: totalPnl,
+    exposurePercent,
   };
 }

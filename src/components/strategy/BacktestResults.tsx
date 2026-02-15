@@ -48,6 +48,12 @@ export function BacktestResults({ result }: BacktestResultsProps) {
     return (Math.pow(result.finalCapital / result.initialCapital, 1 / periodYears) - 1) * 100;
   }, [result]);
 
+  // Trade density
+  const tradesPerWeek = useMemo(() => {
+    const periodDays = (new Date(result.periodEnd).getTime() - new Date(result.periodStart).getTime()) / (1000 * 60 * 60 * 24);
+    return periodDays > 0 ? (metrics.totalTrades / periodDays) * 7 : 0;
+  }, [result, metrics.totalTrades]);
+
   // Break-even analysis
   const breakevenWR = metrics.avgRiskReward > 0 ? 1 / (1 + metrics.avgRiskReward) : null;
   const isBelowBreakeven = breakevenWR !== null && metrics.winRate < breakevenWR;
@@ -252,6 +258,10 @@ export function BacktestResults({ result }: BacktestResultsProps) {
                 <span className="font-medium font-mono">{metrics.totalTrades}</span>
               </div>
               <div className="flex justify-between items-center">
+                <span className="text-muted-foreground text-sm">Trade Density</span>
+                <span className="font-medium font-mono">{tradesPerWeek.toFixed(1)}/week</span>
+              </div>
+              <div className="flex justify-between items-center">
                 <span className="text-muted-foreground text-sm">Avg Win</span>
                 <span className="font-medium font-mono text-profit">{format(metrics.avgWin)}</span>
               </div>
@@ -297,12 +307,35 @@ export function BacktestResults({ result }: BacktestResultsProps) {
                 <span className="text-muted-foreground text-sm">Avg Holding</span>
                 <span className="font-medium font-mono">{formatNumber(metrics.holdingPeriodAvg, 1)}h</span>
               </div>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground text-sm">Market Exposure</span>
+                <span className="font-medium font-mono">{formatNumber(metrics.exposurePercent ?? 0, 1)}%</span>
+              </div>
               {breakevenWR !== null && (
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground text-sm">Break-even WR</span>
                   <span className="font-medium font-mono">{(breakevenWR * 100).toFixed(1)}%</span>
                 </div>
               )}
+              {/* Fee Impact Breakdown */}
+              <div className="pt-2 border-t border-border space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground text-sm">Gross P&L</span>
+                  <span className={cn("font-medium font-mono", (metrics.grossPnl ?? 0) >= 0 ? "text-profit" : "text-loss")}>
+                    {format(metrics.grossPnl ?? metrics.totalReturnAmount)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground text-sm">Fees Paid</span>
+                  <span className="font-medium font-mono text-loss">-{format(metrics.totalCommissions ?? 0)}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground text-sm">Net P&L</span>
+                  <span className={cn("font-medium font-mono", (metrics.netPnl ?? metrics.totalReturnAmount) >= 0 ? "text-profit" : "text-loss")}>
+                    {format(metrics.netPnl ?? metrics.totalReturnAmount)}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </CardContent>

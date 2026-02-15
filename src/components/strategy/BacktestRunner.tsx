@@ -417,6 +417,16 @@ export function BacktestRunner() {
             )}
           </div>
 
+          {/* Leverage > 10x Warning */}
+          {isFutures && leverage > 10 && (
+            <Alert className="border-destructive/30">
+              <AlertTriangle className="h-4 w-4 text-destructive" />
+              <AlertDescription className="text-sm">
+                Liquidation modeling not enabled. Results at {leverage}x leverage may be unrealistic.
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Advanced Filters */}
           <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
             <CollapsibleTrigger asChild>
