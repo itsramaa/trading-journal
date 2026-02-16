@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TradeHistoryCard } from "@/components/trading/TradeHistoryCard";
 import { TradeGalleryCard, TradeGalleryCardSkeleton } from "@/components/journal/TradeGalleryCard";
+import { TradeHistoryTable } from "@/components/history/TradeHistoryTable";
 import { History, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import type { TradeEntry } from "@/hooks/use-trade-entries";
@@ -68,6 +69,15 @@ export function TradeHistoryContent({
       );
     }
 
+    if (viewMode === 'table') {
+      return (
+        <TradeHistoryTable
+          trades={trades}
+          formatCurrency={formatCurrency}
+        />
+      );
+    }
+
     if (viewMode === 'gallery') {
       return (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -108,6 +118,15 @@ export function TradeHistoryContent({
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {Array.from({ length: VIEW_MODE_CONFIG.skeletonCount.gallery }).map((_, i) => (
             <TradeGalleryCardSkeleton key={i} />
+          ))}
+        </div>
+      );
+    }
+    if (viewMode === 'table') {
+      return (
+        <div className="space-y-2">
+          {Array.from({ length: VIEW_MODE_CONFIG.skeletonCount.table }).map((_, i) => (
+            <Skeleton key={i} className="h-10 w-full" />
           ))}
         </div>
       );
