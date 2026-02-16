@@ -173,7 +173,7 @@ const INNOVATION_FEATURES = [
 
 const TECH_STACK = [
   { label: 'Frontend', value: 'React 18 + Vite + TypeScript + Tailwind CSS', color: 'text-blue-400' },
-  { label: 'Backend', value: 'Supabase Edge Functions (Deno Runtime)', color: 'text-green-400' },
+  { label: 'Backend', value: 'Serverless Edge Functions (Deno Runtime)', color: 'text-green-400' },
   { label: 'Database', value: 'PostgreSQL with Row-Level Security (17 tables)', color: 'text-purple-400' },
   { label: 'Blockchain', value: 'Solana Web3.js + Wallet Adapter', color: 'text-orange-400' },
   { label: 'AI Engine', value: 'Multi-model (Gemini 3, GPT-5) via AI Gateway', color: 'text-pink-400' },
@@ -183,7 +183,7 @@ const TECH_STACK = [
 const SECURITY_FEATURES = [
   { text: 'Row-Level Security (RLS) on all 17 tables', icon: Lock },
   { text: 'JWT authentication with secure edge functions', icon: Shield },
-  { text: 'Encrypted API credential storage (Base64 + DB-level)', icon: Lock },
+  { text: 'AES-256 encrypted credentials via pgcrypto + Vault', icon: Lock },
   { text: 'Strict data isolation between Paper & Live modes', icon: Shield },
   { text: 'No private keys stored — read-only wallet access', icon: Lock },
   { text: 'Input sanitization & rate limiting on all endpoints', icon: Shield },

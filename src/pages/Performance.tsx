@@ -31,6 +31,7 @@ import { PerformanceStrategiesTab } from "@/components/performance/PerformanceSt
 // Analytics components
 import { DrawdownChart } from "@/components/analytics/charts/DrawdownChart";
 import { TradingBehaviorAnalytics } from "@/components/analytics/TradingBehaviorAnalytics";
+import { CumulativeFeeChart } from "@/components/analytics/CumulativeFeeChart";
 import { EquityCurveWithEvents } from "@/components/analytics/charts/EquityCurveWithEvents";
 import { TradingHeatmapChart } from "@/components/analytics/charts/TradingHeatmapChart";
 import { SevenDayStatsCard } from "@/components/analytics/SevenDayStatsCard";
@@ -304,6 +305,11 @@ export default function Performance() {
                   </CardContent>
                 </Card>
               )}
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Fee Analysis</h3>
+              <CumulativeFeeChart trades={filteredTrades} formatCurrency={chartFormatCurrency} />
             </div>
 
             <div className="space-y-4">

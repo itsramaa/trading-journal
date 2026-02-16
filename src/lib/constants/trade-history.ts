@@ -49,13 +49,14 @@ export const CONFLUENCE_SCALE = {
 // VIEW MODES
 // ============================================================================
 
-export type ViewMode = 'list' | 'gallery';
+export type ViewMode = 'list' | 'gallery' | 'table';
 
 export const VIEW_MODE_CONFIG = {
   default: 'gallery' as ViewMode,
   skeletonCount: {
     list: 5,
     gallery: 8,
+    table: 10,
   },
 } as const;
 

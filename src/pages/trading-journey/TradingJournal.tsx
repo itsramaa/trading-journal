@@ -33,6 +33,7 @@ import {
   List,
   History,
   Download,
+  TableIcon,
 } from "lucide-react";
 import type { ViewMode } from "@/lib/constants/trade-history";
 import { TRADE_HISTORY_CONFIG, VIEW_MODE_CONFIG } from "@/lib/constants/trade-history";
@@ -399,6 +400,9 @@ export default function TradingJournal() {
                 </ToggleGroupItem>
                 <ToggleGroupItem value="list" aria-label="List view">
                   <List className="h-4 w-4" />
+                </ToggleGroupItem>
+                <ToggleGroupItem value="table" aria-label="Table view">
+                  <TableIcon className="h-4 w-4" />
                 </ToggleGroupItem>
               </ToggleGroup>
             </div>
