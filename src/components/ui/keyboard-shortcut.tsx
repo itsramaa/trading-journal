@@ -9,25 +9,30 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 // Keyboard shortcut display component
-interface KbdProps {
+interface KbdProps extends React.HTMLAttributes<HTMLSpanElement> {
   keys: string[];
   className?: string;
 }
 
-export function Kbd({ keys, className }: KbdProps) {
-  return (
-    <span className={cn("inline-flex items-center gap-0.5", className)}>
-      {keys.map((key, i) => (
-        <kbd
-          key={i}
-          className="inline-flex h-5 min-w-5 items-center justify-center rounded border border-border bg-muted px-1 font-mono text-[10px] font-medium text-muted-foreground"
-        >
-          {key}
-        </kbd>
-      ))}
-    </span>
-  );
-}
+import React from "react";
+
+export const Kbd = React.forwardRef<HTMLSpanElement, KbdProps>(
+  ({ keys, className, ...props }, ref) => {
+    return (
+      <span ref={ref} className={cn("inline-flex items-center gap-0.5", className)} {...props}>
+        {keys.map((key, i) => (
+          <kbd
+            key={i}
+            className="inline-flex h-5 min-w-5 items-center justify-center rounded border border-border bg-muted px-1 font-mono text-[10px] font-medium text-muted-foreground"
+          >
+            {key}
+          </kbd>
+        ))}
+      </span>
+    );
+  }
+);
+Kbd.displayName = "Kbd";
 
 // Navigation shortcuts using G+key pattern
 const NAVIGATION_SHORTCUTS: Record<string, { path: string; label: string; domain: string }> = {
