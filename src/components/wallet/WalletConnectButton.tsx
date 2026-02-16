@@ -60,16 +60,16 @@ export function WalletConnectButton({ className, variant = 'outline', size = 'sm
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant={variant} size={size} className={cn('gap-2', className)}>
+        <Button variant={variant} size={size} className={cn('gap-2 min-w-0 overflow-hidden', className)}>
           {wallet?.adapter.icon && (
             <img 
               src={wallet.adapter.icon} 
               alt={wallet.adapter.name}
-              className="h-4 w-4 rounded-sm"
+              className="h-4 w-4 rounded-sm shrink-0"
             />
           )}
-          <span className="font-mono text-xs">{truncatedAddress}</span>
-          <Badge variant="outline" className="text-[10px] px-1 py-0 border-profit/30 text-profit">
+          <span className="font-mono text-xs truncate">{truncatedAddress}</span>
+          <Badge variant="outline" className="text-[10px] px-1 py-0 border-profit/30 text-profit shrink-0 hidden group-data-[collapsible=icon]:hidden sm:inline-flex">
             <CheckCircle className="h-2.5 w-2.5 mr-0.5" />
             Connected
           </Badge>

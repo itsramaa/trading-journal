@@ -252,8 +252,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarContent>
 
       <SidebarFooter>
-        <div className="px-2 pb-2">
-          <WalletConnectButton className="w-full justify-start" />
+        <div className="px-2 pb-2 min-w-0 overflow-hidden">
+          <WalletConnectButton className="w-full justify-start max-w-full" />
         </div>
         <NavUser />
       </SidebarFooter>

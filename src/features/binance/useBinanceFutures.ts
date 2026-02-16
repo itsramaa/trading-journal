@@ -160,6 +160,9 @@ export function useTestBinanceConnection() {
  * Hook to get account balance
  */
 export function useBinanceBalance() {
+  const { data: connectionStatus } = useBinanceConnectionStatus();
+  const isConnected = connectionStatus?.isConnected ?? false;
+
   return useQuery<BinanceAccountSummary | null>({
     queryKey: ['binance', 'balance'],
     queryFn: async () => {
@@ -171,8 +174,9 @@ export function useBinanceBalance() {
       
       return result.data || null;
     },
+    enabled: isConnected,
     staleTime: 30 * 1000, // 30 seconds
-    refetchInterval: 30 * 1000, // Poll every 30 seconds
+    refetchInterval: isConnected ? 30 * 1000 : false, // Poll only when connected
     retry: 2,
   });
 }
@@ -181,6 +185,9 @@ export function useBinanceBalance() {
  * Hook to get current positions
  */
 export function useBinancePositions(symbol?: string) {
+  const { data: connectionStatus } = useBinanceConnectionStatus();
+  const isConnected = connectionStatus?.isConnected ?? false;
+
   return useQuery<BinancePosition[]>({
     queryKey: ['binance', 'positions', symbol],
     queryFn: async () => {
@@ -192,8 +199,9 @@ export function useBinancePositions(symbol?: string) {
       
       return result.data || [];
     },
+    enabled: isConnected,
     staleTime: 15 * 1000, // 15 seconds
-    refetchInterval: 15 * 1000, // Poll every 15 seconds
+    refetchInterval: isConnected ? 15 * 1000 : false, // Poll only when connected
     retry: 2,
   });
 }
@@ -223,6 +231,9 @@ export function useBinanceTrades(symbol: string, limit = 50) {
  * Hook to get open orders
  */
 export function useBinanceOpenOrders(symbol?: string) {
+  const { data: connectionStatus } = useBinanceConnectionStatus();
+  const isConnected = connectionStatus?.isConnected ?? false;
+
   return useQuery<BinanceOrder[]>({
     queryKey: ['binance', 'open-orders', symbol],
     queryFn: async () => {
@@ -234,8 +245,9 @@ export function useBinanceOpenOrders(symbol?: string) {
       
       return result.data || [];
     },
-    staleTime: 30 * 1000, // 30 seconds
-    refetchInterval: 30 * 1000, // Poll every 30 seconds
+    enabled: isConnected,
+    staleTime: 30 * 1000,
+    refetchInterval: isConnected ? 30 * 1000 : false,
     retry: 2,
   });
 }
