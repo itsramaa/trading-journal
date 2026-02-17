@@ -125,17 +125,18 @@ export function DashboardAnalyticsSummary() {
   };
 
   return (
-    <Card>
-      <CardContent className="pt-4">
-        <div className="flex items-center justify-between mb-4">
+    <Card className="h-full">
+      <CardContent className="pt-4 h-full">
+        <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <BarChart3 className="h-5 w-5 text-primary" />
-            <span className="font-semibold">30-Day Performance</span>
-            <Badge variant="outline" className="text-xs">30D</Badge>
+            <div className="p-1.5 rounded-lg bg-primary/10">
+              <BarChart3 className="h-4 w-4 text-primary" />
+            </div>
+            <span className="font-semibold text-sm">30-Day Performance</span>
           </div>
-          <Button variant="ghost" size="sm" asChild>
-            <Link to="/performance" className="flex items-center gap-1 text-xs">
-              View Details <ChevronRight className="h-3 w-3" />
+          <Button variant="ghost" size="sm" asChild className="h-7 px-2">
+            <Link to="/performance" className="flex items-center gap-1 text-xs text-muted-foreground">
+              Details <ChevronRight className="h-3 w-3" />
             </Link>
           </Button>
         </div>

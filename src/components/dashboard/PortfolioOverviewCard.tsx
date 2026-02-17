@@ -133,15 +133,15 @@ export function PortfolioOverviewCard({ className }: PortfolioOverviewCardProps)
   };
 
   return (
-    <Card className={cn("border-primary/20 bg-card/80 backdrop-blur-sm", className)}>
-      <CardHeader className="pb-2">
+    <Card className={cn("border-primary/10 bg-gradient-to-br from-card to-card/80 backdrop-blur-sm", className)}>
+      <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-primary/10">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-primary/10 border border-primary/20">
               <Wallet className="h-4 w-4 text-primary" />
             </div>
-            Portfolio Overview
-          </CardTitle>
+            <CardTitle className="text-base font-semibold">Portfolio Overview</CardTitle>
+          </div>
           {getSourceBadge()}
         </div>
       </CardHeader>
