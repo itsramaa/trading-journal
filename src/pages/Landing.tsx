@@ -4,7 +4,7 @@
  * for competition judges and prospective users.
  */
 import { useNavigate } from 'react-router-dom';
-import deriverseLogo from '@/assets/deriverse-logo.png';
+import { DeriverseIcon } from '@/components/ui/DeriverseIcon';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -202,8 +202,8 @@ export default function Landing() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3">
-              <div className="p-1.5 rounded-xl bg-primary/10 overflow-hidden">
-                <img src={deriverseLogo} alt="Deriverse" className="h-6 w-6 object-cover" />
+              <div className="p-1.5 rounded-xl bg-primary/10">
+                <DeriverseIcon className="h-6 w-6" />
               </div>
               <span className="text-xl font-bold">Deriverse Analytics</span>
             </div>
