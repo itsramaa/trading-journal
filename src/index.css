@@ -56,14 +56,14 @@
     --chart-5: 0 0% 45%;
     --chart-6: 195 85% 50%;
 
-    /* Sidebar - clean dark theme */
-    --sidebar-background: 220 16% 8%;
+    /* Sidebar - light theme */
+    --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 0 0% 9%;
     --sidebar-primary: 161 93% 30%;
     --sidebar-primary-foreground: 151 80% 95%;
-    --sidebar-accent: 0 0% 32%;
-    --sidebar-accent-foreground: 0 0% 98%;
-    --sidebar-border: 0 0% 83%;
+    --sidebar-accent: 0 0% 93%;
+    --sidebar-accent-foreground: 0 0% 20%;
+    --sidebar-border: 0 0% 89%;
     --sidebar-ring: 161 93% 30%;
 
     /* Glass effects */
