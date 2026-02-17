@@ -1,5 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./use-auth";
 
@@ -94,6 +95,7 @@ export function useMarkAsRead() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: NOTIFICATIONS_KEY });
+      toast.success("Notification marked as read");
     },
   });
 }
@@ -116,6 +118,7 @@ export function useMarkAllAsRead() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: NOTIFICATIONS_KEY });
+      toast.success("All notifications marked as read");
     },
   });
 }
@@ -175,6 +178,31 @@ export function useClearAllNotifications() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: NOTIFICATIONS_KEY });
+      toast.success("All notifications cleared");
     },
   });
+}
+
+/**
+ * Creates a welcome notification if user has zero notifications.
+ * Call once in DashboardLayout.
+ */
+export function useWelcomeNotification() {
+  const { user } = useAuth();
+  const { data: notifications, isSuccess } = useNotifications();
+  const createNotification = useCreateNotification();
+  const sentRef = useRef(false);
+
+  useEffect(() => {
+    if (!user?.id || !isSuccess || sentRef.current) return;
+    if (notifications && notifications.length === 0) {
+      sentRef.current = true;
+      createNotification.mutate({
+        type: "system",
+        title: "Welcome to TradeMaster! 🎉",
+        message:
+          "Your notifications will appear here. You'll be notified when trades close, risk limits are hit, or market conditions change.",
+      });
+    }
+  }, [user?.id, isSuccess, notifications]);
 }
