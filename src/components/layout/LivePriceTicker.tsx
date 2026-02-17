@@ -87,20 +87,9 @@ export function LivePriceTicker() {
     setIsDragging(false);
   }, []);
 
+  // Hide ticker completely while loading - no skeleton placeholders
   if (isLoading || tickerItems.length === 0) {
-    return (
-      <div className="h-8 bg-muted/30 border-b flex items-center overflow-hidden">
-        <div className="flex gap-8 px-4 animate-pulse">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded-full bg-muted" />
-              <div className="w-12 h-3 rounded bg-muted" />
-              <div className="w-16 h-3 rounded bg-muted" />
-            </div>
-          ))}
-        </div>
-      </div>
-    );
+    return null;
   }
 
   // Duplicate items for seamless scroll

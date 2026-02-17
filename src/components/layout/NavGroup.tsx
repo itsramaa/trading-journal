@@ -166,7 +166,7 @@ export function NavGroup({
       <SidebarGroup className="py-0 min-w-0">
         <SidebarGroupLabel
           asChild
-          className="group/label h-8 text-xs uppercase tracking-wider text-muted-foreground hover:bg-sidebar-accent"
+          className="group/label h-7 text-[10px] uppercase tracking-widest text-muted-foreground/60 hover:bg-transparent font-semibold"
         >
           <CollapsibleTrigger className="flex w-full items-center px-2">
             <span className={cn(
