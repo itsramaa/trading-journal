@@ -39,6 +39,7 @@ import { StreakAnalysisCard } from "@/components/analytics/StreakAnalysisCard";
 import { TiltDetectionCard } from "@/components/analytics/TiltDetectionCard";
 import { WhatIfSimulator } from "@/components/analytics/WhatIfSimulator";
 import { CorrelationMatrixCard } from "@/components/analytics/CorrelationMatrixCard";
+import { PerformanceOnboardingTour, ReplayTourButton } from "@/components/analytics/PerformanceOnboardingTour";
 import { PerformanceSummaryCard } from "@/components/performance/PerformanceSummaryCard";
 import { SessionPerformanceChart } from "@/components/analytics/session/SessionPerformanceChart";
 
@@ -198,6 +199,7 @@ export default function Performance() {
             <TooltipContent>Export analytics data to CSV or PDF from the Export page.</TooltipContent>
           </Tooltip>
         </TooltipProvider>
+        <ReplayTourButton />
       </PageHeader>
 
       <PerformanceFilters
@@ -347,6 +349,7 @@ export default function Performance() {
           </TabsContent>
         </Tabs>
       )}
+      <PerformanceOnboardingTour />
     </div>
     </ErrorBoundary>
   );
