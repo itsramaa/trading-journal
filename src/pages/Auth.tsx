@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import deriverseLogo from '@/assets/deriverse-logo.png';
+import { DeriverseIcon } from '@/components/ui/DeriverseIcon';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
@@ -366,8 +366,8 @@ export default function Auth() {
         <div className="relative z-10 flex flex-col justify-between px-12 xl:px-16 py-12 w-full">
           {/* Logo */}
            <div className="flex items-center gap-3">
-            <div className="p-2 rounded-2xl bg-primary/10 border border-primary/20 glow-primary overflow-hidden">
-              <img src={deriverseLogo} alt="Deriverse" className="h-8 w-8 object-cover" />
+            <div className="p-2 rounded-2xl bg-primary/10 border border-primary/20 glow-primary">
+              <DeriverseIcon className="h-8 w-8" />
             </div>
             <div>
               <h1 className="text-2xl font-bold text-foreground tracking-tight">Deriverse</h1>

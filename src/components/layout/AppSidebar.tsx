@@ -23,7 +23,7 @@ import {
   Flame,
   Download,
 } from "lucide-react";
-import deriverseLogo from "@/assets/deriverse-logo.png";
+import { DeriverseIcon } from "@/components/ui/DeriverseIcon";
 import { WalletConnectButton } from "@/components/wallet/WalletConnectButton";
 import { Link, useLocation } from "react-router-dom";
 import { NavUser } from "./NavUser";
@@ -117,8 +117,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               tooltip="Deriverse"
             >
               <Link to="/" onClick={handleNavClick}>
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg overflow-hidden">
-                  <img src={deriverseLogo} alt="Deriverse" className="size-8 object-cover" />
+                <div className="flex aspect-square size-8 items-center justify-center rounded-lg">
+                  <DeriverseIcon className="size-7" />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight min-w-0">
                   <span className="truncate font-semibold">Deriverse</span>
