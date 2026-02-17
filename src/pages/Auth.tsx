@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, TrendingUp, ArrowLeft, Mail, CheckCircle, Wallet } from 'lucide-react';
+import { Loader2, TrendingUp, ArrowLeft, Mail, CheckCircle, Wallet, BarChart3, Brain, Link2, ShieldCheck, Sparkles } from 'lucide-react';
 import { WalletConnectButton } from '@/components/wallet/WalletConnectButton';
 
 function WalletConnectCard() {
@@ -348,81 +348,98 @@ export default function Auth() {
     );
   }
 
+  const features = [
+    { icon: BarChart3, title: 'P&L Tracking', desc: 'Real-time performance & drawdown analytics' },
+    { icon: Brain, title: 'AI Insights', desc: 'Pattern recognition & trade scoring' },
+    { icon: Link2, title: 'On-Chain Import', desc: 'Solana DEXs & wallet sync' },
+    { icon: ShieldCheck, title: 'Risk Metrics', desc: 'Sharpe, VaR, Kelly & more' },
+  ];
+
   return (
     <div className="min-h-screen bg-background flex">
       {/* Left Panel - Premium Branding */}
-      <div className="hidden lg:flex lg:w-[55%] relative overflow-hidden">
-        {/* Layered gradient background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/15 via-background to-primary/5" />
-        <div className="absolute top-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-[120px]" />
-        <div className="absolute bottom-0 left-0 w-80 h-80 bg-primary/8 rounded-full blur-[100px]" />
+      <div className="hidden lg:flex lg:w-[55%] relative overflow-hidden bg-card">
+        {/* Ambient glow effects */}
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-primary/5" />
+        <div className="absolute -top-24 -right-24 w-[500px] h-[500px] bg-primary/8 rounded-full blur-[150px]" />
+        <div className="absolute -bottom-32 -left-32 w-[400px] h-[400px] bg-primary/6 rounded-full blur-[120px]" />
         
-        {/* Grid pattern overlay */}
-        <div className="absolute inset-0 opacity-[0.03]" style={{
-          backgroundImage: `linear-gradient(hsl(var(--foreground)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--foreground)) 1px, transparent 1px)`,
-          backgroundSize: '60px 60px'
+        {/* Dot pattern overlay */}
+        <div className="absolute inset-0 opacity-[0.04]" style={{
+          backgroundImage: `radial-gradient(hsl(var(--foreground)) 1px, transparent 1px)`,
+          backgroundSize: '24px 24px'
         }} />
 
         <div className="relative z-10 flex flex-col justify-between px-12 xl:px-16 py-12 w-full">
           {/* Logo */}
-           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-2xl bg-primary/10 border border-primary/20 glow-primary">
-              <DeriverseIcon className="h-8 w-8" />
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-2xl bg-primary/10 border border-primary/20">
+              <DeriverseIcon className="h-7 w-7" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-foreground tracking-tight">Deriverse</h1>
-              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Analytics Platform</p>
+              <h1 className="text-xl font-bold text-foreground tracking-tight">Deriverse</h1>
+              <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-[0.2em]">Analytics Platform</p>
             </div>
           </div>
 
           {/* Hero content */}
-          <div className="space-y-8">
-            <div>
-              <h2 className="text-4xl xl:text-5xl font-bold text-foreground leading-tight tracking-tight">
+          <div className="space-y-10">
+            <div className="space-y-5">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-primary/20 bg-primary/5">
+                <Sparkles className="h-3.5 w-3.5 text-primary" />
+                <span className="text-xs font-medium text-primary">AI-Powered Trading Journal</span>
+              </div>
+              <h2 className="text-4xl xl:text-5xl font-bold text-foreground leading-[1.1] tracking-tight">
                 Trade Smarter.
                 <br />
                 <span className="text-primary">Grow Faster.</span>
               </h2>
-              <p className="text-muted-foreground mt-5 text-lg leading-relaxed max-w-md">
-                Your all-in-one trading journal with AI insights, risk analytics, and on-chain data import.
+              <p className="text-muted-foreground text-base leading-relaxed max-w-md">
+                Professional-grade analytics, AI insights, and risk management — all in one platform built for serious traders.
               </p>
             </div>
 
-            {/* Feature cards */}
+            {/* Feature cards - redesigned */}
             <div className="grid grid-cols-2 gap-3">
-              {[
-                { icon: '📊', title: 'P&L Tracking', desc: 'Real-time performance & drawdown' },
-                { icon: '🧠', title: 'AI Insights', desc: 'Pattern recognition & scoring' },
-                { icon: '🔗', title: 'On-Chain Import', desc: 'Deriverse & Solana DEXs' },
-                { icon: '🛡️', title: 'Risk Metrics', desc: 'Sharpe, VaR, Kelly & more' },
-              ].map((feature) => (
-                <div key={feature.title} className="p-4 rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm hover:bg-card/50 transition-colors">
-                  <div className="text-xl mb-2">{feature.icon}</div>
-                  <p className="font-semibold text-sm text-foreground">{feature.title}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{feature.desc}</p>
+              {features.map((feature) => (
+                <div key={feature.title} className="group p-4 rounded-xl border border-border/40 bg-background/50 backdrop-blur-sm hover:border-primary/30 hover:bg-background/80 transition-all duration-300">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/15 transition-colors">
+                      <feature.icon className="h-4 w-4 text-primary" />
+                    </div>
+                    <p className="font-semibold text-sm text-foreground">{feature.title}</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed pl-11">{feature.desc}</p>
                 </div>
               ))}
             </div>
 
             {/* Stats bar */}
-            <div className="flex items-center gap-8">
+            <div className="flex items-center gap-10 pt-2">
               {[
-                { value: '50+', label: 'Metrics' },
-                { value: '6', label: 'DEXs' },
+                { value: '50+', label: 'Analytics Metrics' },
+                { value: '6', label: 'DEX Integrations' },
                 { value: '5', label: 'Risk Models' },
               ].map((stat) => (
-                <div key={stat.label}>
-                  <p className="text-2xl font-bold text-primary">{stat.value}</p>
-                  <p className="text-xs text-muted-foreground">{stat.label}</p>
+                <div key={stat.label} className="space-y-1">
+                  <p className="text-2xl font-bold text-primary font-mono-numbers">{stat.value}</p>
+                  <p className="text-[11px] text-muted-foreground font-medium">{stat.label}</p>
                 </div>
               ))}
             </div>
           </div>
 
           {/* Footer */}
-          <p className="text-xs text-muted-foreground">
-            Built on Solana • Open Source • Trusted by traders
-          </p>
+          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+              Built on Solana
+            </span>
+            <span>•</span>
+            <span>Open Source</span>
+            <span>•</span>
+            <span>Trusted by traders</span>
+          </div>
         </div>
       </div>
 
@@ -432,8 +449,8 @@ export default function Auth() {
           {/* Mobile logo */}
           <div className="text-center mb-8 lg:hidden">
             <div className="flex items-center justify-center gap-2 mb-4">
-              <div className="p-3 rounded-2xl bg-primary/10 border border-primary/20 glow-primary">
-                <TrendingUp className="h-8 w-8 text-primary" />
+              <div className="p-3 rounded-2xl bg-primary/10 border border-primary/20">
+                <DeriverseIcon className="h-8 w-8" />
               </div>
             </div>
             <h1 className="text-2xl font-bold text-foreground">Deriverse</h1>
