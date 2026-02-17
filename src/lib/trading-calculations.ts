@@ -374,6 +374,206 @@ export function calculateTradingStats(trades: TradeEntry[], initialBalance: numb
   };
 }
 
+// ============================================================================
+// STREAK ANALYSIS
+// ============================================================================
+
+/**
+ * Detailed information about a single streak of consecutive wins or losses.
+ */
+export interface StreakDetail {
+  /** Type of streak */
+  type: 'win' | 'loss';
+  /** Number of consecutive trades */
+  length: number;
+  /** Total P&L during this streak */
+  totalPnl: number;
+  /** Average P&L per trade during this streak */
+  avgPnl: number;
+  /** Start date of the streak */
+  startDate: string;
+  /** End date of the streak */
+  endDate: string;
+  /** Pairs traded during this streak */
+  pairs: string[];
+}
+
+/**
+ * Comprehensive streak analysis results.
+ */
+export interface StreakAnalysis {
+  /** Current active streak (ongoing) */
+  currentStreak: StreakDetail | null;
+  /** Longest winning streak */
+  longestWinStreak: StreakDetail | null;
+  /** Longest losing streak */
+  longestLossStreak: StreakDetail | null;
+  /** All streaks (>= 2 length) for distribution analysis */
+  allStreaks: StreakDetail[];
+  /** Average P&L during win streaks vs normal trades */
+  avgPnlDuringWinStreaks: number;
+  /** Average P&L during loss streaks vs normal trades */
+  avgPnlDuringLossStreaks: number;
+  /** Average P&L for non-streak trades (baseline) */
+  avgPnlBaseline: number;
+  /** Win streak length distribution */
+  winStreakDistribution: Record<number, number>;
+  /** Loss streak length distribution */
+  lossStreakDistribution: Record<number, number>;
+  /** Average win streak length */
+  avgWinStreakLength: number;
+  /** Average loss streak length */
+  avgLossStreakLength: number;
+  /** Recovery: avg trades to recover from a loss streak */
+  avgRecoveryTrades: number;
+}
+
+/**
+ * Performs comprehensive streak analysis on an array of trades.
+ *
+ * Analyzes consecutive winning and losing streaks, their P&L impact,
+ * distribution patterns, and recovery metrics. Trades are sorted
+ * chronologically before analysis.
+ *
+ * @param trades - Array of closed trade entries
+ * @returns Complete {@link StreakAnalysis} with streak details and distributions
+ */
+export function analyzeStreaks(trades: TradeEntry[]): StreakAnalysis {
+  const emptyResult: StreakAnalysis = {
+    currentStreak: null,
+    longestWinStreak: null,
+    longestLossStreak: null,
+    allStreaks: [],
+    avgPnlDuringWinStreaks: 0,
+    avgPnlDuringLossStreaks: 0,
+    avgPnlBaseline: 0,
+    winStreakDistribution: {},
+    lossStreakDistribution: {},
+    avgWinStreakLength: 0,
+    avgLossStreakLength: 0,
+    avgRecoveryTrades: 0,
+  };
+
+  const closed = trades.filter(t => t.status === 'closed' && (t.result === 'win' || t.result === 'loss'));
+  if (closed.length < 2) return emptyResult;
+
+  const sorted = [...closed].sort(
+    (a, b) => new Date(a.trade_date).getTime() - new Date(b.trade_date).getTime()
+  );
+
+  // Build all streaks
+  const allStreaks: StreakDetail[] = [];
+  let streakTrades: TradeEntry[] = [sorted[0]];
+
+  for (let i = 1; i <= sorted.length; i++) {
+    const current = sorted[i];
+    const prev = sorted[i - 1];
+
+    if (current && current.result === prev.result) {
+      streakTrades.push(current);
+    } else {
+      // Close current streak
+      const type = prev.result as 'win' | 'loss';
+      const pnls = streakTrades.map(t => t.realized_pnl ?? t.pnl ?? 0);
+      const totalPnl = pnls.reduce((s, v) => s + v, 0);
+      const pairs = [...new Set(streakTrades.map(t => t.pair))];
+
+      allStreaks.push({
+        type,
+        length: streakTrades.length,
+        totalPnl,
+        avgPnl: totalPnl / streakTrades.length,
+        startDate: streakTrades[0].trade_date,
+        endDate: streakTrades[streakTrades.length - 1].trade_date,
+        pairs,
+      });
+
+      if (current) {
+        streakTrades = [current];
+      }
+    }
+  }
+
+  // Find longest streaks
+  const winStreaks = allStreaks.filter(s => s.type === 'win');
+  const lossStreaks = allStreaks.filter(s => s.type === 'loss');
+  const longestWinStreak = winStreaks.length > 0
+    ? winStreaks.reduce((a, b) => a.length >= b.length ? a : b)
+    : null;
+  const longestLossStreak = lossStreaks.length > 0
+    ? lossStreaks.reduce((a, b) => a.length >= b.length ? a : b)
+    : null;
+
+  // Current streak is the last one
+  const currentStreak = allStreaks.length > 0 ? allStreaks[allStreaks.length - 1] : null;
+
+  // Significant streaks (>= 2)
+  const significantStreaks = allStreaks.filter(s => s.length >= 2);
+
+  // Average P&L during streaks vs baseline
+  const winStreakTradePnls = winStreaks.filter(s => s.length >= 2).flatMap(s => {
+    // Reconstruct avg from total
+    return Array(s.length).fill(s.avgPnl);
+  });
+  const lossStreakTradePnls = lossStreaks.filter(s => s.length >= 2).flatMap(s => {
+    return Array(s.length).fill(s.avgPnl);
+  });
+  const baselineTrades = allStreaks.filter(s => s.length === 1);
+  const baselinePnls = baselineTrades.map(s => s.totalPnl);
+
+  const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((s, v) => s + v, 0) / arr.length : 0;
+
+  // Distribution
+  const winStreakDist: Record<number, number> = {};
+  const lossStreakDist: Record<number, number> = {};
+  winStreaks.forEach(s => { winStreakDist[s.length] = (winStreakDist[s.length] || 0) + 1; });
+  lossStreaks.forEach(s => { lossStreakDist[s.length] = (lossStreakDist[s.length] || 0) + 1; });
+
+  // Average streak length
+  const avgWinStreakLength = winStreaks.length > 0
+    ? winStreaks.reduce((s, v) => s + v.length, 0) / winStreaks.length : 0;
+  const avgLossStreakLength = lossStreaks.length > 0
+    ? lossStreaks.reduce((s, v) => s + v.length, 0) / lossStreaks.length : 0;
+
+  // Recovery: how many wins to recover after a loss streak ends
+  let recoveryTrades: number[] = [];
+  for (let i = 0; i < allStreaks.length; i++) {
+    if (allStreaks[i].type === 'loss' && allStreaks[i].length >= 2) {
+      const lossAmount = Math.abs(allStreaks[i].totalPnl);
+      // Count trades in subsequent win streaks until recovered
+      let recovered = 0;
+      let tradesNeeded = 0;
+      for (let j = i + 1; j < allStreaks.length && recovered < lossAmount; j++) {
+        if (allStreaks[j].type === 'win') {
+          recovered += allStreaks[j].totalPnl;
+          tradesNeeded += allStreaks[j].length;
+        } else {
+          recovered -= Math.abs(allStreaks[j].totalPnl);
+          tradesNeeded += allStreaks[j].length;
+        }
+      }
+      if (recovered >= lossAmount) {
+        recoveryTrades.push(tradesNeeded);
+      }
+    }
+  }
+
+  return {
+    currentStreak,
+    longestWinStreak,
+    longestLossStreak,
+    allStreaks: significantStreaks,
+    avgPnlDuringWinStreaks: avg(winStreakTradePnls),
+    avgPnlDuringLossStreaks: avg(lossStreakTradePnls),
+    avgPnlBaseline: avg(baselinePnls),
+    winStreakDistribution: winStreakDist,
+    lossStreakDistribution: lossStreakDist,
+    avgWinStreakLength,
+    avgLossStreakLength,
+    avgRecoveryTrades: avg(recoveryTrades),
+  };
+}
+
 /**
  * Computes performance metrics for each trading strategy.
  *
