@@ -17,7 +17,7 @@ import { FilterActiveIndicator } from "@/components/ui/filter-active-indicator";
 import { type AnalyticsSelection } from "@/components/analytics/AnalyticsLevelSelector";
 import { type DateRange } from "@/components/trading/DateRangeFilter";
 import { 
-  BarChart3, Calendar, Activity, Trophy, FileText, Download 
+  BarChart3, Calendar, Activity, Trophy, FileText, Download, FileDown
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -54,6 +54,7 @@ import { useMonthlyPnl } from "@/hooks/use-monthly-pnl";
 import { useContextualAnalytics } from "@/hooks/use-contextual-analytics";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
 import { useModeVisibility } from "@/hooks/use-mode-visibility";
+import { useProfessionalReportExport } from "@/hooks/use-professional-report-export";
 import { 
   filterTradesByDateRange, 
   filterTradesByStrategies,
@@ -83,6 +84,7 @@ export default function Performance() {
 
   const { formatCompact } = useCurrencyConversion();
   const { showExchangeData } = useModeVisibility();
+  const { exportProfessionalPDF } = useProfessionalReportExport();
 
   // Data hooks
   const { data: modeFilteredTrades, isLoading: modeTradesLoading } = useModeFilteredTrades();
@@ -197,6 +199,30 @@ export default function Performance() {
               </Button>
             </TooltipTrigger>
             <TooltipContent>Export analytics data to CSV or PDF from the Export page.</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => exportProfessionalPDF({
+                  stats,
+                  trades: filteredTrades,
+                  dateRange,
+                  analyticsLevel: analyticsSelection.level === 'overall' ? 'Overall'
+                    : analyticsSelection.level === 'account' ? `Account`
+                    : analyticsSelection.level === 'exchange' ? `Exchange: ${(analyticsSelection as any).exchange}`
+                    : `${(analyticsSelection as any).tradeType === 'paper' ? 'Paper' : 'Live'}`,
+                })}
+                disabled={!filteredTrades || filteredTrades.length === 0}
+              >
+                <FileDown className="h-4 w-4 mr-2" />
+                PDF Report
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Generate a professional branded PDF report with all analytics.</TooltipContent>
           </Tooltip>
         </TooltipProvider>
         <ReplayTourButton />
