@@ -25,7 +25,7 @@ import { LivePriceTicker } from "./LivePriceTicker";
 import { useNavigationShortcuts, Kbd } from "@/components/ui/keyboard-shortcut";
 import { CommandPalette, useCommandPalette } from "./CommandPalette";
 import { useSidebarPersistence } from "@/hooks/use-sidebar-persistence";
-import { useNotificationsRealtime } from "@/hooks/use-notifications";
+import { useNotificationsRealtime, useWelcomeNotification } from "@/hooks/use-notifications";
 import { useNotificationTriggers } from "@/hooks/use-notification-triggers";
 import { useBinanceBackgroundSync } from "@/hooks/use-binance-background-sync";
 import { GlobalSyncIndicator } from "./GlobalSyncIndicator";
@@ -94,6 +94,7 @@ export function DashboardLayout() {
   
   // Enable realtime notifications
   useNotificationsRealtime();
+  useWelcomeNotification();
   
   // Enable automatic notification triggers (trade closed, risk warnings, market alerts)
   useNotificationTriggers({
