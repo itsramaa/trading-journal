@@ -657,6 +657,287 @@ export function calculateStrategyPerformance(
  * // [{ date: 'Jan 5', cumulative: 150, pnl: 150, pair: 'BTCUSDT', ... }, ...]
  * ```
  */
+// ─── Tilt Detection ───────────────────────────────────────────────────
+
+/**
+ * A detected tilt episode — a window of trades exhibiting revenge trading patterns.
+ */
+export interface TiltEpisode {
+  /** Index of the first trade in the episode */
+  startIndex: number;
+  /** Index of the last trade in the episode */
+  endIndex: number;
+  /** Start date of the episode */
+  startDate: string;
+  /** End date of the episode */
+  endDate: string;
+  /** Number of trades in the episode */
+  tradeCount: number;
+  /** Total PnL during the episode */
+  totalPnl: number;
+  /** Tilt severity: 'mild' | 'moderate' | 'severe' */
+  severity: 'mild' | 'moderate' | 'severe';
+  /** Which signals triggered this detection */
+  signals: string[];
+  /** Pairs traded during the episode */
+  pairs: string[];
+}
+
+/**
+ * Overall tilt analysis results.
+ */
+export interface TiltAnalysis {
+  /** Current tilt risk level */
+  currentRisk: 'none' | 'low' | 'medium' | 'high';
+  /** Score from 0-100 indicating current tilt likelihood */
+  tiltScore: number;
+  /** Detected tilt episodes */
+  episodes: TiltEpisode[];
+  /** Individual signal scores */
+  signals: {
+    /** Rapid-fire trading after losses (trades within short intervals) */
+    frequencyEscalation: number;
+    /** Position size increasing after losses */
+    sizingEscalation: number;
+    /** Consecutive losses triggering emotional response */
+    lossSequence: number;
+    /** Trading outside normal session after losses */
+    sessionDeviation: number;
+    /** Switching pairs frequently after losses */
+    pairScattering: number;
+  };
+  /** Summary metrics */
+  metrics: {
+    /** Average time between trades during tilt vs normal (in minutes) */
+    avgTimeBetweenTradesTilt: number | null;
+    avgTimeBetweenTradesNormal: number | null;
+    /** Average position size during tilt vs normal */
+    avgSizeTilt: number | null;
+    avgSizeNormal: number | null;
+    /** Win rate during tilt vs normal */
+    winRateTilt: number | null;
+    winRateNormal: number | null;
+    /** Total PnL lost during tilt episodes */
+    totalTiltPnl: number;
+    /** Number of tilt episodes detected */
+    episodeCount: number;
+  };
+}
+
+/**
+ * Detects revenge trading / tilt patterns in trade history.
+ *
+ * Analyzes 5 behavioral signals:
+ * 1. **Frequency Escalation** — trades fired rapidly after losses
+ * 2. **Sizing Escalation** — position size increases after losses
+ * 3. **Loss Sequence** — extended losing streaks
+ * 4. **Session Deviation** — trading outside normal hours after losses
+ * 5. **Pair Scattering** — switching pairs erratically after losses
+ *
+ * @param trades - Chronologically sorted closed trades
+ * @returns TiltAnalysis with episodes, signals, and summary metrics
+ */
+export function detectTilt(trades: TradeEntry[]): TiltAnalysis {
+  const sorted = [...trades]
+    .filter(t => t.status === 'closed')
+    .sort((a, b) => new Date(a.trade_date).getTime() - new Date(b.trade_date).getTime());
+
+  const emptyResult: TiltAnalysis = {
+    currentRisk: 'none',
+    tiltScore: 0,
+    episodes: [],
+    signals: { frequencyEscalation: 0, sizingEscalation: 0, lossSequence: 0, sessionDeviation: 0, pairScattering: 0 },
+    metrics: {
+      avgTimeBetweenTradesTilt: null, avgTimeBetweenTradesNormal: null,
+      avgSizeTilt: null, avgSizeNormal: null,
+      winRateTilt: null, winRateNormal: null,
+      totalTiltPnl: 0, episodeCount: 0,
+    },
+  };
+
+  if (sorted.length < 5) return emptyResult;
+
+  // --- Compute per-trade metadata ---
+  const intervals: (number | null)[] = [null];
+  const sizes = sorted.map(t => t.quantity * t.entry_price);
+  const pnls = sorted.map(t => getTradeNetPnl(t));
+  const isLoss = pnls.map(p => p < 0);
+
+  for (let i = 1; i < sorted.length; i++) {
+    const dt = new Date(sorted[i].trade_date).getTime() - new Date(sorted[i - 1].trade_date).getTime();
+    intervals.push(dt / 60000); // minutes
+  }
+
+  // Baseline metrics
+  const avgInterval = intervals.filter(Boolean).reduce((a, b) => a! + b!, 0)! / intervals.filter(Boolean).length;
+  const avgSize = sizes.reduce((a, b) => a + b, 0) / sizes.length;
+
+  // --- Sliding window tilt detection (window = 5 trades) ---
+  const WINDOW = 5;
+  const tiltWindows: boolean[] = new Array(sorted.length).fill(false);
+  const windowSignals: string[][] = new Array(sorted.length).fill(null).map(() => []);
+
+  // Signal scores
+  let freqScore = 0, sizeScore = 0, lossSeqScore = 0, sessionScore = 0, pairScore = 0;
+
+  for (let i = WINDOW - 1; i < sorted.length; i++) {
+    const windowStart = i - WINDOW + 1;
+    const windowTrades = sorted.slice(windowStart, i + 1);
+    const windowPnls = pnls.slice(windowStart, i + 1);
+    const windowSizes = sizes.slice(windowStart, i + 1);
+    const windowIntervals = intervals.slice(windowStart + 1, i + 1).filter(Boolean) as number[];
+    const windowLosses = windowPnls.filter(p => p < 0).length;
+    const signals: string[] = [];
+
+    // Signal 1: Frequency escalation — avg interval < 50% of normal after a loss
+    if (windowIntervals.length > 0 && avgInterval > 0) {
+      const windowAvgInterval = windowIntervals.reduce((a, b) => a + b, 0) / windowIntervals.length;
+      if (windowAvgInterval < avgInterval * 0.5 && windowLosses >= 2) {
+        signals.push('rapid_trading');
+        freqScore = Math.max(freqScore, Math.min(100, Math.round((1 - windowAvgInterval / avgInterval) * 100)));
+      }
+    }
+
+    // Signal 2: Sizing escalation — later trades in window are 50%+ larger than earlier
+    if (windowSizes.length >= 3 && avgSize > 0) {
+      const firstHalf = windowSizes.slice(0, 2).reduce((a, b) => a + b, 0) / 2;
+      const secondHalf = windowSizes.slice(-2).reduce((a, b) => a + b, 0) / 2;
+      if (secondHalf > firstHalf * 1.5 && windowLosses >= 2) {
+        signals.push('size_increase');
+        sizeScore = Math.max(sizeScore, Math.min(100, Math.round(((secondHalf / firstHalf) - 1) * 100)));
+      }
+    }
+
+    // Signal 3: Loss sequence — 3+ consecutive losses in window
+    if (windowLosses >= 3) {
+      signals.push('loss_streak');
+      lossSeqScore = Math.max(lossSeqScore, Math.min(100, windowLosses * 20));
+    }
+
+    // Signal 4: Pair scattering — 4+ unique pairs in a 5-trade window after losses
+    const uniquePairs = new Set(windowTrades.map(t => t.pair));
+    if (uniquePairs.size >= 4 && windowLosses >= 2) {
+      signals.push('pair_scatter');
+      pairScore = Math.max(pairScore, Math.min(100, uniquePairs.size * 20));
+    }
+
+    // Signal 5: Session deviation — trading in unusual sessions after losses
+    const getSession = (d: string) => {
+      const h = new Date(d).getUTCHours();
+      if (h >= 21 || h < 6) return 'sydney';
+      if (h < 9) return 'tokyo';
+      if (h < 16) return 'london';
+      if (h < 21) return 'new_york';
+      return 'other';
+    };
+    const windowSessions = windowTrades.map(t => getSession(t.trade_date));
+    const uniqueSessions = new Set(windowSessions);
+    if (uniqueSessions.size >= 3 && windowLosses >= 2) {
+      signals.push('session_shift');
+      sessionScore = Math.max(sessionScore, Math.min(100, uniqueSessions.size * 25));
+    }
+
+    if (signals.length >= 2) {
+      for (let j = windowStart; j <= i; j++) {
+        tiltWindows[j] = true;
+        windowSignals[j] = [...new Set([...windowSignals[j], ...signals])];
+      }
+    }
+  }
+
+  // --- Group contiguous tilt trades into episodes ---
+  const episodes: TiltEpisode[] = [];
+  let epStart: number | null = null;
+
+  for (let i = 0; i <= sorted.length; i++) {
+    if (i < sorted.length && tiltWindows[i]) {
+      if (epStart === null) epStart = i;
+    } else if (epStart !== null) {
+      const epTrades = sorted.slice(epStart, i);
+      const epPnls = pnls.slice(epStart, i);
+      const totalPnl = epPnls.reduce((a, b) => a + b, 0);
+      const allSignals = [...new Set(windowSignals.slice(epStart, i).flat())];
+      const pairs = [...new Set(epTrades.map(t => t.pair))];
+      const losses = epPnls.filter(p => p < 0).length;
+
+      const severity: TiltEpisode['severity'] =
+        allSignals.length >= 4 || losses >= 5 ? 'severe' :
+        allSignals.length >= 3 || losses >= 3 ? 'moderate' : 'mild';
+
+      episodes.push({
+        startIndex: epStart,
+        endIndex: i - 1,
+        startDate: sorted[epStart].trade_date,
+        endDate: sorted[i - 1].trade_date,
+        tradeCount: epTrades.length,
+        totalPnl,
+        severity,
+        signals: allSignals,
+        pairs,
+      });
+      epStart = null;
+    }
+  }
+
+  // --- Compute comparative metrics ---
+  const tiltIndices = new Set<number>();
+  episodes.forEach(ep => {
+    for (let i = ep.startIndex; i <= ep.endIndex; i++) tiltIndices.add(i);
+  });
+
+  const tiltTradeData = sorted.filter((_, i) => tiltIndices.has(i));
+  const normalTradeData = sorted.filter((_, i) => !tiltIndices.has(i));
+
+  const tiltIntervals = intervals.filter((_, i) => tiltIndices.has(i) && intervals[i] !== null) as number[];
+  const normalIntervals = intervals.filter((_, i) => !tiltIndices.has(i) && intervals[i] !== null) as number[];
+
+  const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
+
+  const tiltSizes = tiltTradeData.map(t => t.quantity * t.entry_price);
+  const normalSizes = normalTradeData.map(t => t.quantity * t.entry_price);
+  const tiltWins = tiltTradeData.filter(t => t.result === 'win').length;
+  const normalWins = normalTradeData.filter(t => t.result === 'win').length;
+
+  const totalTiltPnl = tiltTradeData.reduce((sum, t) => sum + getTradeNetPnl(t), 0);
+
+  // Overall tilt score (weighted average of signals)
+  const tiltScore = Math.min(100, Math.round(
+    freqScore * 0.25 + sizeScore * 0.25 + lossSeqScore * 0.2 + pairScore * 0.15 + sessionScore * 0.15
+  ));
+
+  // Current risk based on last 10 trades
+  const last10 = sorted.slice(-10);
+  const last10Losses = last10.filter(t => getTradeNetPnl(t) < 0).length;
+  const recentTiltTrades = sorted.slice(-10).filter((_, i) => tiltWindows[sorted.length - 10 + i]);
+  const currentRisk: TiltAnalysis['currentRisk'] =
+    recentTiltTrades.length >= 5 || last10Losses >= 7 ? 'high' :
+    recentTiltTrades.length >= 3 || last10Losses >= 5 ? 'medium' :
+    recentTiltTrades.length >= 1 || last10Losses >= 4 ? 'low' : 'none';
+
+  return {
+    currentRisk,
+    tiltScore,
+    episodes,
+    signals: {
+      frequencyEscalation: freqScore,
+      sizingEscalation: sizeScore,
+      lossSequence: lossSeqScore,
+      sessionDeviation: sessionScore,
+      pairScattering: pairScore,
+    },
+    metrics: {
+      avgTimeBetweenTradesTilt: avg(tiltIntervals),
+      avgTimeBetweenTradesNormal: avg(normalIntervals),
+      avgSizeTilt: avg(tiltSizes),
+      avgSizeNormal: avg(normalSizes),
+      winRateTilt: tiltTradeData.length > 0 ? (tiltWins / tiltTradeData.length) * 100 : null,
+      winRateNormal: normalTradeData.length > 0 ? (normalWins / normalTradeData.length) * 100 : null,
+      totalTiltPnl,
+      episodeCount: episodes.length,
+    },
+  };
+}
+
 export function generateEquityCurve(trades: TradeEntry[]) {
   const sortedTrades = [...trades].sort(
     (a, b) => new Date(a.trade_date).getTime() - new Date(b.trade_date).getTime()
