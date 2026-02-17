@@ -37,6 +37,7 @@ import { TradingHeatmapChart } from "@/components/analytics/charts/TradingHeatma
 import { SevenDayStatsCard } from "@/components/analytics/SevenDayStatsCard";
 import { StreakAnalysisCard } from "@/components/analytics/StreakAnalysisCard";
 import { TiltDetectionCard } from "@/components/analytics/TiltDetectionCard";
+import { WhatIfSimulator } from "@/components/analytics/WhatIfSimulator";
 import { PerformanceSummaryCard } from "@/components/performance/PerformanceSummaryCard";
 import { SessionPerformanceChart } from "@/components/analytics/session/SessionPerformanceChart";
 
@@ -286,6 +287,7 @@ export default function Performance() {
             <TradingBehaviorAnalytics trades={filteredTrades} />
             <StreakAnalysisCard trades={filteredTrades} />
             <TiltDetectionCard trades={filteredTrades} />
+            <WhatIfSimulator trades={filteredTrades} />
 
             <div className="space-y-4">
               <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Equity Performance</h3>
