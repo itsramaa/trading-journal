@@ -36,6 +36,7 @@ import { EquityCurveWithEvents } from "@/components/analytics/charts/EquityCurve
 import { TradingHeatmapChart } from "@/components/analytics/charts/TradingHeatmapChart";
 import { SevenDayStatsCard } from "@/components/analytics/SevenDayStatsCard";
 import { StreakAnalysisCard } from "@/components/analytics/StreakAnalysisCard";
+import { TiltDetectionCard } from "@/components/analytics/TiltDetectionCard";
 import { PerformanceSummaryCard } from "@/components/performance/PerformanceSummaryCard";
 import { SessionPerformanceChart } from "@/components/analytics/session/SessionPerformanceChart";
 
@@ -284,6 +285,7 @@ export default function Performance() {
             <PerformanceKeyMetrics stats={stats} formatCurrency={chartFormatCurrency} binanceStats={binanceStats} showExchangeData={showExchangeData} />
             <TradingBehaviorAnalytics trades={filteredTrades} />
             <StreakAnalysisCard trades={filteredTrades} />
+            <TiltDetectionCard trades={filteredTrades} />
 
             <div className="space-y-4">
               <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Equity Performance</h3>
