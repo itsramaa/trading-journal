@@ -372,7 +372,7 @@ export default function Auth() {
 
         <div className="relative z-10 flex flex-col justify-between px-12 xl:px-16 py-12 w-full">
           {/* Logo */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 animate-fade-in" style={{ animationDuration: '0.5s' }}>
             <div className="p-2.5 rounded-2xl bg-primary/10 border border-primary/20">
               <DeriverseIcon className="h-7 w-7" />
             </div>
@@ -385,24 +385,24 @@ export default function Auth() {
           {/* Hero content */}
           <div className="space-y-10">
             <div className="space-y-5">
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-primary/20 bg-primary/5">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-primary/20 bg-primary/5 animate-slide-up" style={{ animationDuration: '0.5s', animationDelay: '0.1s', animationFillMode: 'both' }}>
                 <Sparkles className="h-3.5 w-3.5 text-primary" />
                 <span className="text-xs font-medium text-primary">AI-Powered Trading Journal</span>
               </div>
-              <h2 className="text-4xl xl:text-5xl font-bold text-foreground leading-[1.1] tracking-tight">
+              <h2 className="text-4xl xl:text-5xl font-bold text-foreground leading-[1.1] tracking-tight animate-slide-up" style={{ animationDuration: '0.6s', animationDelay: '0.2s', animationFillMode: 'both' }}>
                 Trade Smarter.
                 <br />
                 <span className="text-primary">Grow Faster.</span>
               </h2>
-              <p className="text-muted-foreground text-base leading-relaxed max-w-md">
+              <p className="text-muted-foreground text-base leading-relaxed max-w-md animate-slide-up" style={{ animationDuration: '0.6s', animationDelay: '0.35s', animationFillMode: 'both' }}>
                 Professional-grade analytics, AI insights, and risk management — all in one platform built for serious traders.
               </p>
             </div>
 
             {/* Feature cards - redesigned */}
             <div className="grid grid-cols-2 gap-3">
-              {features.map((feature) => (
-                <div key={feature.title} className="group p-4 rounded-xl border border-border/40 bg-background/50 backdrop-blur-sm hover:border-primary/30 hover:bg-background/80 transition-all duration-300">
+              {features.map((feature, i) => (
+                <div key={feature.title} className="group p-4 rounded-xl border border-border/40 bg-background/50 backdrop-blur-sm hover:border-primary/30 hover:bg-background/80 transition-all duration-300 animate-slide-up" style={{ animationDuration: '0.5s', animationDelay: `${0.4 + i * 0.1}s`, animationFillMode: 'both' }}>
                   <div className="flex items-center gap-3 mb-2">
                     <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/15 transition-colors">
                       <feature.icon className="h-4 w-4 text-primary" />
@@ -415,7 +415,7 @@ export default function Auth() {
             </div>
 
             {/* Stats bar */}
-            <div className="flex items-center gap-10 pt-2">
+            <div className="flex items-center gap-10 pt-2 animate-slide-up" style={{ animationDuration: '0.5s', animationDelay: '0.8s', animationFillMode: 'both' }}>
               {[
                 { value: '50+', label: 'Analytics Metrics' },
                 { value: '6', label: 'DEX Integrations' },
@@ -445,7 +445,7 @@ export default function Auth() {
 
       {/* Right Panel - Auth Forms */}
       <div className="flex-1 flex items-center justify-center p-6 lg:p-12 bg-background">
-        <div className="w-full max-w-md">
+        <div className="w-full max-w-md animate-fade-in" style={{ animationDuration: '0.6s', animationDelay: '0.15s', animationFillMode: 'both' }}>
           {/* Mobile logo */}
           <div className="text-center mb-8 lg:hidden">
             <div className="flex items-center justify-center gap-2 mb-4">
