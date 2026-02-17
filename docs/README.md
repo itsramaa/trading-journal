@@ -192,3 +192,4 @@ See [API_SERVICE_LAYER.md](./API_SERVICE_LAYER.md) for migration guide.
 - **Predictive Insights**: Forward-looking AI performance predictions
 - **UX Consistency Standard**: URL persistence, accessibility (aria), ErrorBoundary, skeleton loading, source badges
 - **Financial Precision Standard**: Dynamic decimal precision, tabular-nums alignment, currency conversion hooks
+- **Trade Replay**: Visual step-by-step playback of closed trades with price level visualization, auto-play, and timeline navigation
