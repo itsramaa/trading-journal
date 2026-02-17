@@ -1,6 +1,6 @@
 # Trading Journey Documentation
 
-**Last Updated:** 2026-02-16
+**Last Updated:** 2026-02-17
 
 ## Overview
 
@@ -33,6 +33,21 @@ Crypto futures traders who want to:
 | **Analytics** | P&L breakdown, heatmap, contextual analytics, AI insights |
 | **Market Data** | Sentiment aggregation, economic calendar, top movers |
 | **Accounts** | Multi-account management with balance reconciliation |
+
+### Advanced Analytics Suite
+
+| Feature | Description |
+|---------|-------------|
+| **Streak Analysis** | Consecutive win/loss tracking with momentum vs. tilt P&L impact |
+| **Tilt Detection** | 5-signal behavioral detection (frequency, sizing, loss sequences, pair scattering, session drift) |
+| **What-If Simulator** | Interactive historical simulation: tighter stop-losses (MAE), confluence/R:R filters |
+| **Correlation Matrix** | Empirical pair-to-pair daily P&L correlation heatmap with high-risk pair alerts |
+| **Fee Analysis** | Cumulative fee AreaChart and cost-per-trade trend tracking |
+| **Trading Health Score** | Composite 0-100 score (Sharpe, Drawdown, Win Rate, Profit Factor, Consistency, Sample Size) |
+| **PDF Report Export** | Professional branded report with executive summary, metrics grid, symbol breakdown, risk assessment |
+| **Onboarding Tour** | Interactive 10-step guide with replay functionality for new users |
+| **Emotional Pattern Analysis** | AI-powered emotional state tracking and performance correlation |
+| **Predictive Insights** | AI-driven forward-looking performance predictions |
 
 ## Tech Stack
 
@@ -165,3 +180,15 @@ See [API_SERVICE_LAYER.md](./API_SERVICE_LAYER.md) for migration guide.
 - **Backtest Session Breakdown**: Performance per trading session (Sydney, Tokyo, London, NY)
 - **Strategy Schema Enhancement**: Methodology, trading style, session preference fields
 - **Multi-Level Analytics**: Per-account, per-exchange, per-mode, aggregate stats
+- **Streak Analysis**: Consecutive win/loss run tracking with momentum vs. tilt impact
+- **Tilt Detection Engine**: 5-signal behavioral analysis for revenge trading identification
+- **What-If Simulator**: Interactive tool simulating impact of tighter SL or filtered trades
+- **Correlation Matrix**: Empirical pair-to-pair P&L correlation heatmap with risk alerts
+- **Fee Analysis Dashboard**: Cumulative fee tracking and cost-per-trade trend charts
+- **Trading Health Score**: Composite 0-100 graded score (A+ to F) across 6 weighted dimensions
+- **Professional PDF Export**: Branded multi-section report with verdict, metrics, symbol breakdown, risk assessment
+- **Performance Onboarding Tour**: Interactive 10-step guided tour with replay button
+- **Emotional Pattern Analysis**: AI-powered emotional state tracking correlated with outcomes
+- **Predictive Insights**: Forward-looking AI performance predictions
+- **UX Consistency Standard**: URL persistence, accessibility (aria), ErrorBoundary, skeleton loading, source badges
+- **Financial Precision Standard**: Dynamic decimal precision, tabular-nums alignment, currency conversion hooks
