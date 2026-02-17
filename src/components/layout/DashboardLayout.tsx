@@ -1,5 +1,5 @@
 import { useState, useEffect, Suspense } from "react";
-import { Loader2 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { AppSidebar } from "./AppSidebar";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
@@ -34,6 +34,44 @@ import { useUserSettings } from "@/hooks/use-user-settings";
 import { useExchangeCredentials } from "@/hooks/use-exchange-credentials";
 import { Button } from "@/components/ui/button";
 import { Search } from "lucide-react";
+
+// Skeleton loading state for dashboard content
+function DashboardSkeleton() {
+  return (
+    <div className="flex flex-col gap-4 animate-fade-in">
+      {/* Page header skeleton */}
+      <div className="flex items-center justify-between">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-9 w-32" />
+      </div>
+      {/* Metric cards row */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="rounded-xl border bg-card p-4 space-y-3">
+            <Skeleton className="h-4 w-20" />
+            <Skeleton className="h-7 w-28" />
+            <Skeleton className="h-3 w-16" />
+          </div>
+        ))}
+      </div>
+      {/* Main content area */}
+      <div className="grid md:grid-cols-3 gap-4">
+        <div className="md:col-span-2 rounded-xl border bg-card p-4 space-y-4">
+          <Skeleton className="h-5 w-36" />
+          <Skeleton className="h-48 w-full" />
+        </div>
+        <div className="rounded-xl border bg-card p-4 space-y-4">
+          <Skeleton className="h-5 w-28" />
+          <div className="space-y-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-10 w-full" />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // Route hierarchy: domain -> pages
 interface RouteInfo {
@@ -160,7 +198,7 @@ export function DashboardLayout() {
         <SimulationBanner />
         {/* Global Risk Alert Banner */}
         <RiskAlertBanner />
-        <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-2 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
+        <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
           <div className="flex items-center gap-2 px-4">
             <SidebarTrigger className="-ml-1" />
             <Separator orientation="vertical" className="mr-2 h-4" />
@@ -192,23 +230,24 @@ export function DashboardLayout() {
           {/* Spacer */}
           <div className="flex-1" />
 
-          {/* Right side: Global Sync Indicator + Command Palette trigger + Controls */}
-          <div className="flex items-center gap-2 pr-4">
-            {/* Global Trading Mode Selector */}
+          {/* Right side: Grouped controls */}
+          <div className="flex items-center gap-1 pr-4">
+            {/* Trading context group */}
             <TradeModeSelector />
-            
-            {/* Global Sync Progress Indicator */}
             <GlobalSyncIndicator />
             
+            <div className="hidden sm:block h-4 w-px bg-border mx-1" />
+            
+            {/* Info group */}
             <CurrencyDisplay />
             
-            <div className="hidden sm:block h-4 w-px bg-border" />
+            <div className="hidden sm:block h-4 w-px bg-border mx-1" />
             
-            {/* Command Palette Button */}
+            {/* Actions group */}
             <Button
               variant="ghost"
               size="icon"
-              className="h-9 w-9"
+              className="h-8 w-8"
               onClick={() => setCommandOpen(true)}
               aria-label="Search"
             >
@@ -218,12 +257,8 @@ export function DashboardLayout() {
             <ThemeToggle />
           </div>
         </header>
-        <main id="main-content" className="flex flex-1 flex-col gap-6 p-4 md:p-6">
-          <Suspense fallback={
-            <div className="flex flex-1 items-center justify-center py-20">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          }>
+        <main id="main-content" className="flex flex-1 flex-col gap-4 p-4 md:p-6">
+          <Suspense fallback={<DashboardSkeleton />}>
             <Outlet />
           </Suspense>
         </main>
