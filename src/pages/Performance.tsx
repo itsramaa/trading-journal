@@ -38,6 +38,7 @@ import { SevenDayStatsCard } from "@/components/analytics/SevenDayStatsCard";
 import { StreakAnalysisCard } from "@/components/analytics/StreakAnalysisCard";
 import { TiltDetectionCard } from "@/components/analytics/TiltDetectionCard";
 import { WhatIfSimulator } from "@/components/analytics/WhatIfSimulator";
+import { CorrelationMatrixCard } from "@/components/analytics/CorrelationMatrixCard";
 import { PerformanceSummaryCard } from "@/components/performance/PerformanceSummaryCard";
 import { SessionPerformanceChart } from "@/components/analytics/session/SessionPerformanceChart";
 
@@ -320,6 +321,7 @@ export default function Performance() {
 
             <div className="space-y-4">
               <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Risk Analysis</h3>
+              <CorrelationMatrixCard trades={filteredTrades} />
               <DrawdownChart trades={filteredTrades} initialBalance={initialBalance} />
             </div>
           </TabsContent>
