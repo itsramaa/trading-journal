@@ -6,7 +6,7 @@
  * - COCKPIT (live/active): Risk-focused, minimal, action-oriented
  * - FORENSIC LAB (closed): Analysis-focused, full enrichment visible
  */
-import { useMemo, useState, useEffect, startTransition } from "react";
+import { useMemo, useState, useEffect, startTransition, lazy, Suspense } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -26,6 +26,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { TradeEnrichmentDrawer } from "@/components/journal";
 import type { UnifiedPosition } from "@/components/journal";
 import type { TradeEntry, TradeScreenshot } from "@/hooks/use-trade-entries";
+import { TradeReplayCard } from "@/components/trade/TradeReplayCard";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   ArrowLeft,
@@ -628,6 +629,15 @@ export default function TradeDetail() {
             </Button>
           </CardContent>
         </Card>
+      )}
+
+      {/* ===== TRADE REPLAY (closed trades only) ===== */}
+      {!isLive && trade.exit_price && (
+        <TradeReplayCard
+          trade={trade as any}
+          formatCurrency={formatCurrency}
+          formatPnl={formatPnl}
+        />
       )}
 
       {/* ===== UNIFIED CONTENT GRID ===== */}
