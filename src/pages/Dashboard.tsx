@@ -2,7 +2,7 @@
  * Trading Dashboard - Main overview showing trading performance
  * Layout: Clean 2-column grid with clear visual hierarchy
  */
-import { PageHeader } from "@/components/ui/page-header";
+// PageHeader removed - using inline header for cleaner look
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,13 +27,11 @@ import { useBinanceConnectionStatus } from "@/features/binance";
 import { usePositions } from "@/hooks/use-positions";
 import { useModeVisibility } from "@/hooks/use-mode-visibility";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { 
   ChevronRight,
   LineChart,
   Activity,
   ExternalLink,
-  Info,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -79,44 +77,29 @@ const Dashboard = () => {
 
   return (
     <>
-      <div className="space-y-6">
-        {/* Page Header */}
-        <PageHeader
-          icon={Activity}
-          title="Dashboard"
-          description="Your trading overview at a glance"
-        />
-
-        {/* Data Scope Legend */}
-        <Collapsible>
-          <CollapsibleTrigger asChild>
-            <Button variant="ghost" size="sm" className="gap-1.5 text-xs text-muted-foreground h-7 px-2">
-              <Info className="h-3.5 w-3.5" />
-              Data Scope Reference
-            </Button>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-1 text-xs text-muted-foreground p-3 rounded-lg bg-muted/30 border mt-1">
-              <span>• Portfolio Overview: <strong>Real-time</strong></span>
-              <span>• Performance Card: <strong>Last 30 days</strong></span>
-              <span>• AI Insights: <strong>Last 20 trades</strong></span>
-              <span>• Goals: <strong>Current month</strong></span>
-              <span>• Risk Metrics: <strong>All-time</strong></span>
-              <span>• Equity Curve: <strong>All-time</strong></span>
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
+      <div className="space-y-5">
+        {/* Page Header - Simplified */}
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+            <p className="text-sm text-muted-foreground">Your trading overview at a glance</p>
+          </div>
+        </div>
 
         {/* Row 1: Portfolio Overview */}
         <PortfolioOverviewCard />
 
-        {/* Row 2: Quick Actions */}
-        <SmartQuickActions />
+        {/* Row 2: Quick Actions + Analytics Summary */}
+        <div className="grid gap-4 lg:grid-cols-5">
+          <div className="lg:col-span-2">
+            <SmartQuickActions />
+          </div>
+          <div className="lg:col-span-3">
+            <DashboardAnalyticsSummary />
+          </div>
+        </div>
 
-        {/* Row 3: Analytics Summary (sparkline) */}
-        <DashboardAnalyticsSummary />
-
-        {/* Row 4: Market Score + System Status - Side by side */}
+        {/* Row 3: Market Score + System Status - Side by side */}
         <div className="grid gap-4 lg:grid-cols-2">
           <MarketScoreWidget symbol="BTCUSDT" compact />
           <SystemStatusIndicator />
