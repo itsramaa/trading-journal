@@ -1,10 +1,9 @@
 /**
  * Smart Quick Actions - Context-aware action buttons
- * Disables actions based on trading gate status and highlights warnings
  */
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -14,7 +13,7 @@ import {
   LineChart, 
   Shield,
   AlertTriangle,
-  Ban,
+  Zap,
   type LucideIcon
 } from "lucide-react";
 import { useTradingGate } from "@/hooks/use-trading-gate";
@@ -25,6 +24,7 @@ import { cn } from "@/lib/utils";
 interface SmartAction {
   id: string;
   label: string;
+  description: string;
   href: string;
   icon: LucideIcon;
   disabled: boolean;
@@ -37,9 +37,7 @@ export function SmartQuickActions() {
   const { canTrade, reason, status } = useTradingGate();
   const { events: riskEvents = [] } = useRiskEvents();
   const { canCreateManualTrade } = useModeVisibility();
-  
-  
-  // Check for recent risk warnings (last 24h)
+
   const hasRecentWarning = useMemo(() => {
     const oneDayAgo = new Date();
     oneDayAgo.setDate(oneDayAgo.getDate() - 1);
@@ -50,7 +48,6 @@ export function SmartQuickActions() {
   }, [riskEvents]);
 
   const actions = useMemo((): SmartAction[] => {
-    // C-06: Hide "Add Trade" in Live mode
     const tradeDisabled = !canCreateManualTrade || !canTrade;
     const tradeReason = !canCreateManualTrade 
       ? 'Live mode — trades are executed on Binance'
@@ -59,17 +56,19 @@ export function SmartQuickActions() {
     return [
       {
         id: 'add-trade',
-        label: 'Add Trade',
+        label: 'Log Trade',
+        description: 'Record a new trade',
         href: '/trading',
         icon: BookOpen,
         disabled: tradeDisabled,
         disabledReason: tradeReason,
         priority: tradeDisabled ? 'warning' : 'normal',
-        badge: tradeDisabled ? (canCreateManualTrade ? 'Locked' : 'Live Mode') : undefined,
+        badge: tradeDisabled ? (canCreateManualTrade ? 'Locked' : 'Live') : undefined,
       },
       {
         id: 'add-account',
-        label: 'Add Account',
+        label: 'Accounts',
+        description: 'Manage accounts',
         href: '/accounts',
         icon: CandlestickChart,
         disabled: false,
@@ -77,7 +76,8 @@ export function SmartQuickActions() {
       },
       {
         id: 'add-strategy',
-        label: 'Add Strategy',
+        label: 'Strategies',
+        description: 'Build strategies',
         href: '/strategies',
         icon: LineChart,
         disabled: false,
@@ -85,97 +85,88 @@ export function SmartQuickActions() {
       },
       {
         id: 'risk-check',
-        label: 'Risk Check',
+        label: 'Risk',
+        description: 'Check risk status',
         href: '/risk',
         icon: Shield,
         disabled: false,
         priority: hasRecentWarning || status === 'warning' ? 'high' : 'normal',
-        badge: hasRecentWarning ? 'Action Needed' : status === 'warning' ? 'Warning' : undefined,
+        badge: hasRecentWarning ? '!' : status === 'warning' ? '!' : undefined,
       },
     ];
   }, [canTrade, canCreateManualTrade, reason, status, hasRecentWarning]);
 
-  const getButtonVariant = (action: SmartAction) => {
-    if (action.disabled) return 'outline';
-    if (action.priority === 'high') return 'default';
-    if (action.priority === 'warning') return 'outline';
-    return 'outline';
-  };
-
-  const getIconColor = (action: SmartAction) => {
-    if (action.disabled) return 'text-muted-foreground';
-    if (action.priority === 'high') return 'text-primary-foreground';
-    if (action.priority === 'warning') return 'text-loss';
-    return 'text-primary';
-  };
-
   return (
     <Card className="h-full">
-      <CardContent className="p-4 h-full flex flex-col justify-center">
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Quick Actions</p>
+      <CardHeader className="pb-3 pt-4 px-4">
+        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <Zap className="h-4 w-4 text-primary" />
+          Quick Actions
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="px-4 pb-4">
         <div className="grid grid-cols-2 gap-2">
           {actions.map((action) => {
             const ActionIcon = action.icon;
-            
-            const buttonContent = (
-              <Button 
-                variant={getButtonVariant(action)} 
-                className={cn(
-                  "h-auto py-3 px-3 flex flex-col gap-1.5 relative rounded-xl border-border/50",
-                  action.disabled && "opacity-60 cursor-not-allowed",
-                  action.priority === 'high' && "border-primary bg-primary hover:bg-primary/90",
-                  action.priority === 'warning' && !action.disabled && "border-loss/50"
+            const isHigh = action.priority === 'high';
+            const isWarning = action.priority === 'warning';
+
+            const buttonEl = (
+              <div className="relative">
+                {action.badge && (
+                  <span className={cn(
+                    "absolute -top-1.5 -right-1.5 z-10 h-4 w-4 rounded-full text-[10px] font-bold flex items-center justify-center",
+                    isHigh ? "bg-loss text-loss-foreground" : "bg-muted-foreground text-background"
+                  )}>
+                    {action.badge}
+                  </span>
                 )}
-                disabled={action.disabled}
-                asChild={!action.disabled}
-              >
-                {action.disabled ? (
-                  <div className="flex flex-col items-center gap-1.5">
-                    <div className="relative">
-                      <ActionIcon className={cn("h-4 w-4", getIconColor(action))} />
-                      <Ban className="h-2.5 w-2.5 text-loss absolute -top-0.5 -right-0.5" />
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "w-full h-auto py-3 flex flex-col items-center gap-1.5 rounded-xl border transition-all",
+                    action.disabled && "opacity-50 cursor-not-allowed",
+                    isHigh && "border-loss/40 bg-loss/5 hover:bg-loss/10",
+                    !isHigh && !isWarning && !action.disabled && "hover:border-primary/40 hover:bg-primary/5",
+                  )}
+                  disabled={action.disabled}
+                  asChild={!action.disabled}
+                >
+                  {action.disabled ? (
+                    <div className="flex flex-col items-center gap-1.5">
+                      <ActionIcon className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-xs font-medium">{action.label}</span>
                     </div>
-                    <span className="text-xs">{action.label}</span>
-                    {action.badge && (
-                      <Badge variant="destructive" className="text-[10px] absolute -top-1.5 -right-1.5 px-1 py-0">
-                        {action.badge}
-                      </Badge>
-                    )}
-                  </div>
-                ) : (
-                  <Link to={action.href} className="flex flex-col items-center gap-1.5">
-                    <ActionIcon className={cn("h-4 w-4", getIconColor(action))} />
-                    <span className="text-xs">{action.label}</span>
-                    {action.badge && (
-                      <Badge 
-                        variant={action.priority === 'high' ? 'secondary' : 'destructive'} 
-                        className="text-[10px] absolute -top-1.5 -right-1.5 px-1 py-0"
-                      >
-                        {action.badge}
-                      </Badge>
-                    )}
-                  </Link>
-                )}
-              </Button>
+                  ) : (
+                    <Link to={action.href} className="flex flex-col items-center gap-1.5">
+                      <ActionIcon className={cn(
+                        "h-4 w-4",
+                        isHigh ? "text-loss" : "text-primary"
+                      )} />
+                      <span className="text-xs font-medium">{action.label}</span>
+                    </Link>
+                  )}
+                </Button>
+              </div>
             );
 
             if (action.disabledReason) {
               return (
                 <Tooltip key={action.id}>
                   <TooltipTrigger asChild>
-                    {buttonContent}
+                    <div>{buttonEl}</div>
                   </TooltipTrigger>
                   <TooltipContent side="bottom" className="max-w-xs">
                     <div className="flex items-start gap-2">
-                      <AlertTriangle className="h-4 w-4 text-loss shrink-0 mt-0.5" />
-                      <span>{action.disabledReason}</span>
+                      <AlertTriangle className="h-3.5 w-3.5 text-loss shrink-0 mt-0.5" />
+                      <span className="text-xs">{action.disabledReason}</span>
                     </div>
                   </TooltipContent>
                 </Tooltip>
               );
             }
 
-            return <div key={action.id}>{buttonContent}</div>;
+            return <div key={action.id}>{buttonEl}</div>;
           })}
         </div>
       </CardContent>

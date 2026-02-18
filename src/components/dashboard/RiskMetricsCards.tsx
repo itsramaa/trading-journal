@@ -1,6 +1,5 @@
 /**
- * Risk Metrics Cards - Dashboard widget showing advanced risk metrics
- * Sharpe, Sortino, Max Drawdown, VaR, Expectancy, Kelly
+ * Risk Metrics Cards - Advanced risk metrics in a clear, readable grid
  */
 import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,6 +11,8 @@ import {
   Target, 
   Zap,
   AlertTriangle,
+  Flame,
+  RefreshCw,
 } from 'lucide-react';
 import { calculateAdvancedRiskMetrics } from '@/lib/advanced-risk-metrics';
 import { useModeFilteredTrades } from '@/hooks/use-mode-filtered-trades';
@@ -48,17 +49,17 @@ export function RiskMetricsCards({ className }: RiskMetricsCardsProps) {
 
   if (closedTrades.length < 3) {
     return (
-      <Card className={cn('', className)}>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Shield className="h-5 w-5 text-primary" />
-            Advanced Risk Metrics
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Close 3+ trades to unlock advanced risk metrics (Sharpe, Sortino, VaR, and more)
-          </p>
+      <Card className={cn(className)}>
+        <CardContent className="py-5 flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-primary/10">
+            <Shield className="h-4 w-4 text-primary" />
+          </div>
+          <div>
+            <p className="text-sm font-medium">Advanced Risk Metrics</p>
+            <p className="text-xs text-muted-foreground">
+              Close 3+ trades to unlock Sharpe, Sortino, VaR, and more.
+            </p>
+          </div>
         </CardContent>
       </Card>
     );
@@ -70,95 +71,101 @@ export function RiskMetricsCards({ className }: RiskMetricsCardsProps) {
     return 'text-foreground';
   };
 
-  const metricsData = [
+  const mainMetrics = [
     {
       label: 'Sharpe Ratio',
       value: metrics.sharpeRatio.toFixed(2),
       icon: BarChart3,
       color: getRatingColor(metrics.sharpeRatio, { good: 1, bad: 0 }),
-      tooltip: 'Risk-adjusted return. >1 = good, >2 = excellent',
+      tooltip: 'Risk-adjusted return. >1 = Good, >2 = Excellent',
       badge: metrics.sharpeRatio >= 2 ? 'Excellent' : metrics.sharpeRatio >= 1 ? 'Good' : metrics.sharpeRatio > 0 ? 'Fair' : 'Poor',
-      badgeVariant: metrics.sharpeRatio >= 1 ? 'profit' : 'loss',
+      badgePositive: metrics.sharpeRatio >= 1,
     },
     {
       label: 'Sortino Ratio',
       value: metrics.sortinoRatio.toFixed(2),
       icon: Shield,
       color: getRatingColor(metrics.sortinoRatio, { good: 1.5, bad: 0 }),
-      tooltip: 'Downside risk-adjusted return. Higher = better downside protection',
+      tooltip: 'Downside risk-adjusted return. Higher = better protection',
       badge: metrics.sortinoRatio >= 2 ? 'Strong' : metrics.sortinoRatio >= 1 ? 'Good' : 'Weak',
-      badgeVariant: metrics.sortinoRatio >= 1 ? 'profit' : 'loss',
+      badgePositive: metrics.sortinoRatio >= 1,
     },
     {
-      label: 'Max DD (All-Time)',
+      label: 'Max Drawdown',
       value: `-${metrics.maxDrawdownPercent.toFixed(1)}%`,
       icon: TrendingDown,
       color: metrics.maxDrawdownPercent > 20 ? 'text-loss' : metrics.maxDrawdownPercent > 10 ? 'text-[hsl(var(--chart-4))]' : 'text-profit',
-      tooltip: 'Largest peak-to-trough decline',
-      badge: metrics.currentDrawdownPercent > 0 ? `Now: -${metrics.currentDrawdownPercent.toFixed(1)}%` : 'Recovered',
-      badgeVariant: metrics.currentDrawdownPercent > 5 ? 'loss' : 'profit',
+      tooltip: 'Largest peak-to-trough decline in equity',
+      badge: metrics.currentDrawdownPercent > 0 ? `Now -${metrics.currentDrawdownPercent.toFixed(1)}%` : 'Recovered',
+      badgePositive: metrics.currentDrawdownPercent <= 5,
     },
     {
       label: 'VaR (95%)',
       value: format(metrics.valueAtRisk95),
       icon: AlertTriangle,
       color: 'text-foreground',
-      tooltip: '95% confidence: daily loss won\'t exceed this',
+      tooltip: '95% confidence: your daily loss won\'t exceed this amount',
     },
     {
       label: 'Expectancy',
       value: format(metrics.expectancy),
       icon: Target,
       color: getRatingColor(metrics.expectancy, { good: 0.01, bad: -0.01 }),
-      tooltip: 'Expected profit per trade',
+      tooltip: 'Expected profit per trade based on historical data',
       badge: metrics.expectancy > 0 ? 'Positive Edge' : 'No Edge',
-      badgeVariant: metrics.expectancy > 0 ? 'profit' : 'loss',
+      badgePositive: metrics.expectancy > 0,
     },
     {
       label: 'Kelly %',
       value: `${metrics.kellyPercent.toFixed(1)}%`,
       icon: Zap,
       color: 'text-foreground',
-      tooltip: 'Optimal position size based on edge',
-      badge: `Max ${Math.min(metrics.kellyPercent / 2, 25).toFixed(0)}% (half-Kelly)`,
+      tooltip: 'Optimal position sizing based on your edge',
+      badge: `Half-Kelly: ${Math.min(metrics.kellyPercent / 2, 25).toFixed(0)}%`,
     },
   ];
 
   return (
-    <Card className={cn('', className)}>
+    <Card className={cn(className)}>
       <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Shield className="h-5 w-5 text-primary" />
-          Advanced Risk Metrics
-          <Badge variant="outline" className="text-xs">All-Time</Badge>
-          <Badge variant="secondary" className="text-xs">
-            {closedTrades.length} trades
-          </Badge>
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+            <Shield className="h-4 w-4 text-primary" />
+            Advanced Risk Metrics
+          </CardTitle>
+          <div className="flex items-center gap-1.5">
+            <Badge variant="outline" className="text-xs">All-Time</Badge>
+            <Badge variant="secondary" className="text-xs">{closedTrades.length} trades</Badge>
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4" role="group" aria-label="Advanced risk metrics">
-          {metricsData.map((metric) => {
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+          {mainMetrics.map((metric) => {
             const Icon = metric.icon;
             return (
-              <div key={metric.label} className="space-y-1" title={metric.tooltip} role="group" aria-label={`${metric.label}: ${metric.value}`}>
+              <div
+                key={metric.label}
+                className="space-y-1.5 p-3 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors"
+                title={metric.tooltip}
+              >
                 <div className="flex items-center gap-1.5">
-                  <Icon className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">{metric.label}</span>
+                  <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  <span className="text-[11px] font-medium text-muted-foreground leading-tight">{metric.label}</span>
                 </div>
-                <p className={cn('text-lg font-bold font-mono-numbers', metric.color)}>
+                <p className={cn('text-xl font-bold font-mono-numbers leading-none', metric.color)}>
                   {metric.value}
                 </p>
                 {metric.badge && (
-                  <Badge 
-                    variant="outline" 
+                  <Badge
+                    variant="outline"
                     className={cn(
-                      "text-[10px] px-1.5 py-0",
-                      metric.badgeVariant === 'profit' 
-                        ? "border-profit/30 text-profit bg-profit/10" 
-                        : metric.badgeVariant === 'loss'
+                      "text-[10px] px-1.5 py-0 h-4",
+                      metric.badgePositive === true
+                        ? "border-profit/30 text-profit bg-profit/10"
+                        : metric.badgePositive === false
                         ? "border-loss/30 text-loss bg-loss/10"
-                        : ""
+                        : "border-border/50 text-muted-foreground"
                     )}
                   >
                     {metric.badge}
@@ -169,23 +176,30 @@ export function RiskMetricsCards({ className }: RiskMetricsCardsProps) {
           })}
         </div>
 
-        {/* Streak info */}
-        <div className="flex items-center gap-4 mt-4 pt-3 border-t text-xs text-muted-foreground">
-          <span>
-            Best streak: <strong className="text-profit">{metrics.winStreakMax}W</strong>
-          </span>
-          <span>
-            Worst streak: <strong className="text-loss">{metrics.lossStreakMax}L</strong>
-          </span>
-          <span>
-            Recovery Factor: <strong className={metrics.recoveryFactor > 1 ? 'text-profit' : 'text-loss'}>
+        {/* Streak & Recovery footer */}
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 mt-4 pt-3 border-t border-border/50">
+          <div className="flex items-center gap-1.5 text-xs">
+            <Flame className="h-3.5 w-3.5 text-profit" />
+            <span className="text-muted-foreground">Best streak:</span>
+            <span className="font-semibold text-profit">{metrics.winStreakMax}W</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-xs">
+            <TrendingDown className="h-3.5 w-3.5 text-loss" />
+            <span className="text-muted-foreground">Worst streak:</span>
+            <span className="font-semibold text-loss">{metrics.lossStreakMax}L</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-xs">
+            <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-muted-foreground">Recovery factor:</span>
+            <span className={cn("font-semibold", metrics.recoveryFactor > 1 ? 'text-profit' : 'text-loss')}>
               {metrics.recoveryFactor.toFixed(2)}
-            </strong>
-          </span>
-          {metrics.maxDrawdownDuration > 0 && (
-            <span>
-              Max DD Duration: <strong>{metrics.maxDrawdownDuration} trades</strong>
             </span>
+          </div>
+          {metrics.maxDrawdownDuration > 0 && (
+            <div className="flex items-center gap-1.5 text-xs">
+              <span className="text-muted-foreground">DD duration:</span>
+              <span className="font-semibold">{metrics.maxDrawdownDuration} trades</span>
+            </div>
           )}
         </div>
       </CardContent>

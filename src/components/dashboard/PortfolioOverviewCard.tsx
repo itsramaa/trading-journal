@@ -1,11 +1,7 @@
 /**
- * Portfolio Overview Card - System-First Design
- * Shows portfolio data from internal sources (paper accounts, trade entries)
- * Enriched with Binance data when connected
- * 
- * Philosophy: Always renders with available data, exchange is optional enhancement
+ * Portfolio Overview Card - Clear, scannable metrics at a glance
  */
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -35,30 +31,21 @@ interface PortfolioOverviewCardProps {
 export function PortfolioOverviewCard({ className }: PortfolioOverviewCardProps) {
   const portfolio = useUnifiedPortfolioData();
   const { positions: activePositions } = usePositions();
-  const { format, formatPnl, currency } = useCurrencyConversion();
+  const { format, formatPnl } = useCurrencyConversion();
 
-  // Calculate unrealized P&L from any open positions
   const unrealizedPnl = activePositions.reduce((sum, p) => sum + p.unrealizedPnl, 0);
   const hasUnrealized = activePositions.length > 0;
 
-  // Loading state
   if (portfolio.isLoading) {
     return (
-      <Card className={cn("border-primary/20", className)}>
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Wallet className="h-5 w-5 text-primary" />
-              Portfolio Overview
-            </CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-4">
+      <Card className={cn(className)}>
+        <CardContent className="pt-5">
+          <div className="grid gap-6 md:grid-cols-4">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i}>
-                <Skeleton className="h-4 w-20 mb-2" />
-                <Skeleton className="h-8 w-28" />
+              <div key={i} className="space-y-2">
+                <Skeleton className="h-3 w-24" />
+                <Skeleton className="h-7 w-32" />
+                <Skeleton className="h-3 w-16" />
               </div>
             ))}
           </div>
@@ -67,35 +54,28 @@ export function PortfolioOverviewCard({ className }: PortfolioOverviewCardProps)
     );
   }
 
-  // No data state - Show onboarding CTA
   if (!portfolio.hasData) {
     return (
-      <Card className={cn("border-primary/20", className)}>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Wallet className="h-5 w-5 text-primary" />
-            Portfolio Overview
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col items-center justify-center py-6 text-center">
-            <div className="w-12 h-12 rounded-full bg-muted/50 flex items-center justify-center mb-4">
-              <Wallet className="h-6 w-6 text-muted-foreground" />
+      <Card className={cn(className)}>
+        <CardContent className="py-8">
+          <div className="flex flex-col items-center justify-center text-center">
+            <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
+              <Wallet className="h-7 w-7 text-primary" />
             </div>
-            <h3 className="font-medium mb-1">Start Your Trading Analytics</h3>
-            <p className="text-sm text-muted-foreground mb-4 max-w-xs">
-              Create a paper trading account to track your performance, or connect Binance for live data.
+            <h3 className="font-semibold text-base mb-1">No portfolio data yet</h3>
+            <p className="text-sm text-muted-foreground mb-5 max-w-xs">
+              Create a paper trading account or connect your exchange to start tracking your performance.
             </p>
             <div className="flex gap-2">
               <Button asChild size="sm">
                 <Link to="/accounts">
-                  <Plus className="h-4 w-4 mr-1" />
+                  <Plus className="h-4 w-4 mr-1.5" />
                   Create Account
                 </Link>
               </Button>
               <Button variant="outline" size="sm" asChild>
                 <Link to="/settings?tab=exchange">
-                  <Zap className="h-4 w-4 mr-1" />
+                  <Zap className="h-4 w-4 mr-1.5" />
                   Connect Exchange
                 </Link>
               </Button>
@@ -106,7 +86,6 @@ export function PortfolioOverviewCard({ className }: PortfolioOverviewCardProps)
     );
   }
 
-  // Calculate return percentages
   const todayReturnPercent = portfolio.totalCapital > 0 
     ? (portfolio.todayNetPnl / portfolio.totalCapital) * 100 
     : 0;
@@ -115,165 +94,137 @@ export function PortfolioOverviewCard({ className }: PortfolioOverviewCardProps)
     ? (portfolio.weeklyNetPnl / portfolio.totalCapital) * 100 
     : 0;
 
-  // Source badge config
-  const getSourceBadge = () => {
-    if (portfolio.source === 'binance') {
-      return (
-        <Badge variant="outline" className="text-xs gap-1 border-profit/30 text-profit">
-          <Wifi className="h-3 w-3" />
-          Binance Live
-        </Badge>
-      );
-    }
-    return (
-      <Badge variant="outline" className="text-xs gap-1">
-        {portfolio.sourceName}
-      </Badge>
-    );
-  };
+  const metrics = [
+    {
+      label: "Total Capital",
+      sublabel: "Across all accounts",
+      value: portfolio.totalCapital > 0 ? (
+        <AnimatedNumber value={portfolio.totalCapital} format={(v) => format(v)} />
+      ) : <span className="text-muted-foreground">—</span>,
+      icon: Wallet,
+      iconColor: "text-primary",
+      iconBg: "bg-primary/10",
+    },
+    {
+      label: "Today's Realized P&L",
+      sublabel: `${portfolio.todayTrades} trade${portfolio.todayTrades !== 1 ? 's' : ''} today${hasUnrealized ? ` · Unrealized: ${formatPnl(unrealizedPnl)}` : ''}`,
+      value: (
+        <div className="flex items-center gap-2">
+          <AnimatedNumber
+            value={portfolio.todayNetPnl}
+            format={(v) => formatPnl(v)}
+            colorize
+          />
+          {portfolio.todayNetPnl !== 0 && portfolio.totalCapital > 0 && (
+            <Badge
+              variant="outline"
+              className={cn(
+                "text-[11px] font-semibold h-5 px-1.5",
+                portfolio.todayNetPnl >= 0
+                  ? "border-profit/30 text-profit bg-profit/10"
+                  : "border-loss/30 text-loss bg-loss/10"
+              )}
+            >
+              {portfolio.todayNetPnl > 0 ? <ArrowUpRight className="h-3 w-3 mr-0.5 inline" /> : <ArrowDownRight className="h-3 w-3 mr-0.5 inline" />}
+              {formatPercent(todayReturnPercent)}
+            </Badge>
+          )}
+        </div>
+      ),
+      icon: portfolio.todayNetPnl >= 0 ? TrendingUp : TrendingDown,
+      iconColor: portfolio.todayNetPnl >= 0 ? "text-profit" : "text-loss",
+      iconBg: portfolio.todayNetPnl >= 0 ? "bg-profit/10" : "bg-loss/10",
+    },
+    {
+      label: "Weekly Net P&L",
+      sublabel: "Last 7 days",
+      value: (
+        <div className="flex items-center gap-2">
+          <AnimatedNumber
+            value={portfolio.weeklyNetPnl}
+            format={(v) => formatPnl(v)}
+            colorize
+          />
+          {portfolio.weeklyNetPnl !== 0 && portfolio.totalCapital > 0 && (
+            <Badge
+              variant="outline"
+              className={cn(
+                "text-[11px] font-semibold h-5 px-1.5",
+                portfolio.weeklyNetPnl >= 0
+                  ? "border-profit/30 text-profit bg-profit/10"
+                  : "border-loss/30 text-loss bg-loss/10"
+              )}
+            >
+              {formatPercent(weeklyReturnPercent)}
+            </Badge>
+          )}
+        </div>
+      ),
+      icon: portfolio.weeklyNetPnl >= 0 ? TrendingUp : TrendingDown,
+      iconColor: portfolio.weeklyNetPnl >= 0 ? "text-profit" : "text-loss",
+      iconBg: portfolio.weeklyNetPnl >= 0 ? "bg-profit/10" : "bg-loss/10",
+    },
+    {
+      label: "Today's Win Rate",
+      sublabel: portfolio.todayTrades > 0 ? `${portfolio.todayWins}W · ${portfolio.todayLosses}L` : "No trades yet",
+      value: <span>{formatWinRate(portfolio.todayWinRate)}</span>,
+      icon: Target,
+      iconColor: portfolio.todayWinRate >= 50 ? "text-profit" : portfolio.todayTrades > 0 ? "text-loss" : "text-muted-foreground",
+      iconBg: portfolio.todayWinRate >= 50 ? "bg-profit/10" : portfolio.todayTrades > 0 ? "bg-loss/10" : "bg-muted/50",
+    },
+  ];
 
   return (
-    <Card className={cn("border-primary/10 bg-gradient-to-br from-card to-card/80 backdrop-blur-sm", className)}>
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-primary/10 border border-primary/20">
-              <Wallet className="h-4 w-4 text-primary" />
-            </div>
-            <CardTitle className="text-base font-semibold">Portfolio Overview</CardTitle>
-          </div>
-          {getSourceBadge()}
+    <Card className={cn("overflow-hidden", className)}>
+      {/* Header bar */}
+      <div className="flex items-center justify-between px-5 py-3 border-b border-border/50">
+        <div className="flex items-center gap-2.5">
+          <Wallet className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-semibold">Portfolio Overview</span>
         </div>
-      </CardHeader>
-      <CardContent>
-        <div className="grid gap-6 md:grid-cols-4">
-          {/* Total Capital */}
-          <div className="space-y-1">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Total Capital</p>
-            {portfolio.totalCapital > 0 ? (
-              <p className="text-2xl font-bold tracking-tight">
-                <AnimatedNumber 
-                  value={portfolio.totalCapital} 
-                  format={(v) => format(v)} 
-                />
-              </p>
-            ) : (
-              <p className="text-lg text-muted-foreground">—</p>
-            )}
-          </div>
+        <div className="flex items-center gap-2">
+          {portfolio.source === 'binance' ? (
+            <Badge variant="outline" className="text-xs gap-1 border-profit/30 text-profit">
+              <Wifi className="h-3 w-3" />
+              Binance Live
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="text-xs">{portfolio.sourceName}</Badge>
+          )}
+        </div>
+      </div>
 
-          {/* Today's Net P&L */}
-          <div className="space-y-1">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Today's Realized P&L</p>
-            <div className="flex items-center gap-2">
-              <p className={cn(
-                "text-2xl font-bold tracking-tight",
-                portfolio.todayNetPnl >= 0 ? 'text-profit' : 'text-loss'
-              )}>
-                <AnimatedNumber
-                  value={portfolio.todayNetPnl}
-                  format={(v) => formatPnl(v)}
-                  colorize
-                />
-              </p>
-              {portfolio.todayNetPnl !== 0 && portfolio.totalCapital > 0 && (
-                <Badge 
-                  variant="outline" 
-                  className={cn(
-                    "text-xs font-semibold",
-                    portfolio.todayNetPnl >= 0 
-                      ? "border-profit/30 text-profit bg-profit/10" 
-                      : "border-loss/30 text-loss bg-loss/10"
-                  )}
-                >
-                  {portfolio.todayNetPnl > 0 ? <ArrowUpRight className="h-3 w-3 mr-0.5" /> : <ArrowDownRight className="h-3 w-3 mr-0.5" />}
-                  {formatPercent(todayReturnPercent)}
-                </Badge>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {portfolio.todayTrades} trade{portfolio.todayTrades !== 1 ? 's' : ''} today
-            </p>
-            {hasUnrealized && (
-              <div className="flex items-center gap-1 mt-1">
-                <p className="text-xs text-muted-foreground">Unrealized (est.):</p>
-                <p className={cn("text-xs font-medium", unrealizedPnl >= 0 ? 'text-profit' : 'text-loss')}>
-                  {formatPnl(unrealizedPnl)}
-                </p>
+      <CardContent className="p-0">
+        <div className="grid md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-border/50">
+          {metrics.map((metric, i) => {
+            const Icon = metric.icon;
+            return (
+              <div key={i} className="px-5 py-4 space-y-2">
+                <div className="flex items-center gap-2">
+                  <div className={cn("p-1.5 rounded-lg", metric.iconBg)}>
+                    <Icon className={cn("h-3.5 w-3.5", metric.iconColor)} />
+                  </div>
+                  <span className="text-xs font-medium text-muted-foreground">{metric.label}</span>
+                </div>
+                <div className="text-2xl font-bold tracking-tight font-mono-numbers">
+                  {metric.value}
+                </div>
+                <p className="text-xs text-muted-foreground">{metric.sublabel}</p>
               </div>
-            )}
-          </div>
-
-          {/* Weekly P&L */}
-          <div className="space-y-1">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Weekly Net P&L</p>
-            <div className="flex items-center gap-2">
-              <p className={cn(
-                "text-2xl font-bold tracking-tight",
-                portfolio.weeklyNetPnl >= 0 ? 'text-profit' : 'text-loss'
-              )}>
-                <AnimatedNumber
-                  value={portfolio.weeklyNetPnl}
-                  format={(v) => formatPnl(v)}
-                  colorize
-                />
-              </p>
-              {portfolio.weeklyNetPnl !== 0 && portfolio.totalCapital > 0 && (
-                <Badge 
-                  variant="outline" 
-                  className={cn(
-                    "text-xs font-semibold",
-                    portfolio.weeklyNetPnl >= 0 
-                      ? "border-profit/30 text-profit bg-profit/10" 
-                      : "border-loss/30 text-loss bg-loss/10"
-                  )}
-                >
-                  {formatPercent(weeklyReturnPercent)}
-                </Badge>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground">Last 7 days</p>
-          </div>
-
-          {/* Win Rate */}
-          <div className="space-y-1">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Today's Win Rate</p>
-            <div className="flex items-center gap-2">
-              <p className="text-2xl font-bold tracking-tight">
-                {formatWinRate(portfolio.todayWinRate)}
-              </p>
-              <div className={cn(
-                "p-1 rounded-full",
-                portfolio.todayWinRate >= 50 ? "bg-profit/10" : portfolio.todayTrades > 0 ? "bg-loss/10" : "bg-muted"
-              )}>
-                <Target className={cn(
-                  "h-4 w-4",
-                  portfolio.todayWinRate >= 50 ? "text-profit" : portfolio.todayTrades > 0 ? "text-loss" : "text-muted-foreground"
-                )} />
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {portfolio.todayTrades > 0 
-                ? `${portfolio.todayWins}W / ${portfolio.todayLosses}L` 
-                : 'No trades yet'}
-            </p>
-          </div>
+            );
+          })}
         </div>
 
-        {/* Enhancement CTA for non-Binance users */}
+        {/* Connect CTA */}
         {portfolio.source !== 'binance' && portfolio.hasData && (
-          <div className="mt-4 pt-4 border-t border-border/50">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">
-                Want real-time data?
-              </span>
-              <Button variant="ghost" size="sm" asChild className="h-7 text-xs">
-                <Link to="/settings?tab=exchange">
-                  <Zap className="h-3 w-3 mr-1" />
-                  Connect Binance for live sync
-                </Link>
-              </Button>
-            </div>
+          <div className="px-5 py-2.5 bg-muted/30 border-t border-border/50 flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">Want real-time live data?</span>
+            <Button variant="ghost" size="sm" asChild className="h-6 text-xs px-2">
+              <Link to="/settings?tab=exchange">
+                <Zap className="h-3 w-3 mr-1" />
+                Connect Binance
+              </Link>
+            </Button>
           </div>
         )}
       </CardContent>
