@@ -1,11 +1,10 @@
 /**
- * Smart Quick Actions - Context-aware action buttons
+ * Smart Quick Actions - Context-aware action buttons that fill the card
  */
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { 
   BookOpen, 
@@ -57,7 +56,7 @@ export function SmartQuickActions() {
       {
         id: 'add-trade',
         label: 'Log Trade',
-        description: 'Record a new trade',
+        description: 'Record & annotate trades',
         href: '/trading',
         icon: BookOpen,
         disabled: tradeDisabled,
@@ -68,7 +67,7 @@ export function SmartQuickActions() {
       {
         id: 'add-account',
         label: 'Accounts',
-        description: 'Manage accounts',
+        description: 'Manage trading accounts',
         href: '/accounts',
         icon: CandlestickChart,
         disabled: false,
@@ -77,7 +76,7 @@ export function SmartQuickActions() {
       {
         id: 'add-strategy',
         label: 'Strategies',
-        description: 'Build strategies',
+        description: 'Build & test strategies',
         href: '/strategies',
         icon: LineChart,
         disabled: false,
@@ -86,7 +85,7 @@ export function SmartQuickActions() {
       {
         id: 'risk-check',
         label: 'Risk',
-        description: 'Check risk status',
+        description: 'Check risk exposure',
         href: '/risk',
         icon: Shield,
         disabled: false,
@@ -97,22 +96,22 @@ export function SmartQuickActions() {
   }, [canTrade, canCreateManualTrade, reason, status, hasRecentWarning]);
 
   return (
-    <Card className="h-full">
-      <CardHeader className="pb-3 pt-4 px-4">
+    <Card className="h-full flex flex-col">
+      <CardHeader className="pb-2 pt-4 px-4">
         <CardTitle className="text-sm font-semibold flex items-center gap-2">
           <Zap className="h-4 w-4 text-primary" />
           Quick Actions
         </CardTitle>
       </CardHeader>
-      <CardContent className="px-4 pb-4">
-        <div className="grid grid-cols-2 gap-2">
+      <CardContent className="px-4 pb-4 flex-1 flex flex-col">
+        <div className="grid grid-cols-2 gap-2 flex-1">
           {actions.map((action) => {
             const ActionIcon = action.icon;
             const isHigh = action.priority === 'high';
             const isWarning = action.priority === 'warning';
 
             const buttonEl = (
-              <div className="relative">
+              <div className="relative h-full">
                 {action.badge && (
                   <span className={cn(
                     "absolute -top-1.5 -right-1.5 z-10 h-4 w-4 rounded-full text-[10px] font-bold flex items-center justify-center",
@@ -124,7 +123,7 @@ export function SmartQuickActions() {
                 <Button
                   variant="outline"
                   className={cn(
-                    "w-full h-auto py-3 flex flex-col items-center gap-1.5 rounded-xl border transition-all",
+                    "w-full h-full min-h-[72px] py-3 flex flex-col items-center justify-center gap-1.5 rounded-xl border transition-all",
                     action.disabled && "opacity-50 cursor-not-allowed",
                     isHigh && "border-loss/40 bg-loss/5 hover:bg-loss/10",
                     !isHigh && !isWarning && !action.disabled && "hover:border-primary/40 hover:bg-primary/5",
@@ -134,16 +133,18 @@ export function SmartQuickActions() {
                 >
                   {action.disabled ? (
                     <div className="flex flex-col items-center gap-1.5">
-                      <ActionIcon className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-xs font-medium">{action.label}</span>
+                      <ActionIcon className="h-5 w-5 text-muted-foreground" />
+                      <span className="text-xs font-semibold">{action.label}</span>
+                      <span className="text-[10px] text-muted-foreground leading-tight">{action.description}</span>
                     </div>
                   ) : (
                     <Link to={action.href} className="flex flex-col items-center gap-1.5">
                       <ActionIcon className={cn(
-                        "h-4 w-4",
+                        "h-5 w-5",
                         isHigh ? "text-loss" : "text-primary"
                       )} />
-                      <span className="text-xs font-medium">{action.label}</span>
+                      <span className="text-xs font-semibold">{action.label}</span>
+                      <span className="text-[10px] text-muted-foreground leading-tight">{action.description}</span>
                     </Link>
                   )}
                 </Button>
@@ -154,7 +155,7 @@ export function SmartQuickActions() {
               return (
                 <Tooltip key={action.id}>
                   <TooltipTrigger asChild>
-                    <div>{buttonEl}</div>
+                    <div className="h-full">{buttonEl}</div>
                   </TooltipTrigger>
                   <TooltipContent side="bottom" className="max-w-xs">
                     <div className="flex items-start gap-2">
@@ -166,7 +167,7 @@ export function SmartQuickActions() {
               );
             }
 
-            return <div key={action.id}>{buttonEl}</div>;
+            return <div key={action.id} className="h-full">{buttonEl}</div>;
           })}
         </div>
       </CardContent>
