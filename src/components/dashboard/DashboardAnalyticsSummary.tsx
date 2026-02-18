@@ -124,7 +124,7 @@ export function DashboardAnalyticsSummary() {
   const sparkColor = isPositive14d ? "hsl(var(--profit))" : "hsl(var(--loss))";
 
   return (
-    <Card>
+    <Card className="h-full">
       <CardContent className="pt-4 pb-4">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
