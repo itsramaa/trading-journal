@@ -1,6 +1,5 @@
 /**
- * Dashboard Analytics Summary - Compact analytics with sparkline
- * Shows 30-day win rate, profit factor, and 14-day P&L trend
+ * Dashboard Analytics Summary - Compact 30-day analytics with sparkline
  */
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
@@ -18,7 +17,8 @@ import {
   TrendingDown, 
   Target, 
   ChevronRight,
-  BarChart3
+  BarChart3,
+  Percent,
 } from "lucide-react";
 import { useModeFilteredTrades } from "@/hooks/use-mode-filtered-trades";
 import { useCurrencyConversion } from "@/hooks/use-currency-conversion";
@@ -34,10 +34,10 @@ interface SparklineData {
 export function DashboardAnalyticsSummary() {
   const { data: trades = [] } = useModeFilteredTrades();
   const { formatPnl } = useCurrencyConversion();
+
   const analyticsData = useMemo(() => {
     const closedTrades = trades.filter(t => t.status === 'closed');
     
-    // Last 30 days for win rate & profit factor
     const thirtyDaysAgo = subDays(new Date(), 30);
     const last30DayTrades = closedTrades.filter(t => 
       isWithinInterval(new Date(t.trade_date), { start: thirtyDaysAgo, end: new Date() })
@@ -45,14 +45,12 @@ export function DashboardAnalyticsSummary() {
     
     const getPnl = (t: typeof closedTrades[0]) => t.realized_pnl ?? t.pnl ?? 0;
     
-    // Win Rate — exclude breakeven (pnl === 0) from denominator
     const decisiveTrades = last30DayTrades.filter(t => getPnl(t) !== 0);
     const wins = decisiveTrades.filter(t => getPnl(t) > 0);
     const winRate = decisiveTrades.length > 0 
       ? (wins.length / decisiveTrades.length) * 100 
       : 0;
     
-    // Win Rate Trend (compare to previous 30 days)
     const sixtyDaysAgo = subDays(new Date(), 60);
     const prev30DayTrades = closedTrades.filter(t => 
       isWithinInterval(new Date(t.trade_date), { start: sixtyDaysAgo, end: thirtyDaysAgo })
@@ -63,18 +61,14 @@ export function DashboardAnalyticsSummary() {
       : 0;
     const winRateTrend = winRate - prevWinRate;
     
-    // Profit Factor
     const grossProfit = wins.reduce((sum, t) => sum + getPnl(t), 0);
     const losses = last30DayTrades.filter(t => getPnl(t) < 0);
     const grossLoss = Math.abs(losses.reduce((sum, t) => sum + getPnl(t), 0));
     const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? Infinity : 0;
     
-    // 14-day sparkline data
-    const fourteenDaysAgo = subDays(new Date(), 14);
     const sparklineData: SparklineData[] = [];
     let cumulative = 0;
     
-    // Group trades by date for last 14 days
     for (let i = 13; i >= 0; i--) {
       const date = subDays(new Date(), i);
       const dateStr = format(date, 'yyyy-MM-dd');
@@ -85,145 +79,145 @@ export function DashboardAnalyticsSummary() {
       cumulative += dayPnl;
       
       sparklineData.push({
-        date: format(date, 'MMM dd'),
+        date: format(date, 'MMM d'),
         pnl: dayPnl,
         cumulative,
       });
     }
-    
-    const totalPnl14d = cumulative;
     
     return {
       winRate,
       winRateTrend,
       profitFactor,
       sparklineData,
-      totalPnl14d,
+      totalPnl14d: cumulative,
       trades30d: last30DayTrades.length,
     };
   }, [trades]);
 
-  // Show empty state if not enough data
   if (analyticsData.trades30d < 3) {
     return (
-      <Card>
-        <CardContent className="py-4">
+      <Card className="h-full">
+        <CardContent className="h-full flex items-center py-5">
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
-            <BarChart3 className="h-5 w-5 text-primary" />
-            <span>Log 3+ trades this month to unlock 30-day performance analytics</span>
+            <div className="p-2 rounded-lg bg-primary/10">
+              <BarChart3 className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <p className="font-medium text-foreground text-sm">30-Day Performance</p>
+              <p className="text-xs">Log 3+ trades this month to unlock analytics</p>
+            </div>
           </div>
         </CardContent>
       </Card>
     );
   }
 
-  const getProfitFactorColor = (pf: number) => {
+  const getPfColor = (pf: number) => {
     if (pf >= 2) return 'text-profit';
     if (pf >= 1.5) return 'text-foreground';
     if (pf >= 1) return 'text-[hsl(var(--chart-4))]';
     return 'text-loss';
   };
 
+  const isPositive14d = analyticsData.totalPnl14d >= 0;
+  const sparkColor = isPositive14d ? "hsl(var(--profit))" : "hsl(var(--loss))";
+
   return (
     <Card className="h-full">
-      <CardContent className="pt-4 h-full">
-        <div className="flex items-center justify-between mb-3">
+      <CardContent className="pt-4 pb-4 h-full flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <div className="p-1.5 rounded-lg bg-primary/10">
-              <BarChart3 className="h-4 w-4 text-primary" />
+              <BarChart3 className="h-3.5 w-3.5 text-primary" />
             </div>
-            <span className="font-semibold text-sm">30-Day Performance</span>
+            <span className="text-sm font-semibold">30-Day Performance</span>
+            <Badge variant="secondary" className="text-[10px] px-1.5">
+              {analyticsData.trades30d} trades
+            </Badge>
           </div>
-          <Button variant="ghost" size="sm" asChild className="h-7 px-2">
-            <Link to="/performance" className="flex items-center gap-1 text-xs text-muted-foreground">
-              Details <ChevronRight className="h-3 w-3" />
+          <Button variant="ghost" size="sm" asChild className="h-7 px-2 text-xs text-muted-foreground">
+            <Link to="/performance" className="flex items-center gap-0.5">
+              View all <ChevronRight className="h-3 w-3" />
             </Link>
           </Button>
         </div>
 
-        <div className="grid grid-cols-3 gap-4">
+        {/* Metrics row */}
+        <div className="grid grid-cols-3 gap-3 mb-4">
           {/* Win Rate */}
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <Target className="h-4 w-4 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">30D Win Rate</span>
+          <div className="p-3 rounded-xl bg-muted/30 space-y-1">
+            <div className="flex items-center gap-1.5">
+              <Target className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-[11px] text-muted-foreground font-medium">Win Rate</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <span className="text-xl font-bold">{analyticsData.winRate.toFixed(0)}%</span>
               {analyticsData.winRateTrend !== 0 && (
-                <Badge 
-                  variant="secondary" 
+                <Badge
+                  variant="outline"
                   className={cn(
-                    "text-xs px-1",
-                    analyticsData.winRateTrend > 0 ? "bg-profit/10 text-profit" : "bg-loss/10 text-loss"
+                    "text-[10px] px-1 h-4",
+                    analyticsData.winRateTrend > 0 ? "bg-profit/10 text-profit border-profit/30" : "bg-loss/10 text-loss border-loss/30"
                   )}
                 >
                   {analyticsData.winRateTrend > 0 ? '+' : ''}{analyticsData.winRateTrend.toFixed(0)}%
                 </Badge>
               )}
             </div>
+            <p className="text-[10px] text-muted-foreground">vs. prev 30d</p>
           </div>
 
           {/* Profit Factor */}
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <BarChart3 className="h-4 w-4 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">Profit Factor</span>
+          <div className="p-3 rounded-xl bg-muted/30 space-y-1">
+            <div className="flex items-center gap-1.5">
+              <Percent className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-[11px] text-muted-foreground font-medium">Profit Factor</span>
             </div>
-            <span className={cn("text-xl font-bold", getProfitFactorColor(analyticsData.profitFactor))}>
+            <span className={cn("text-xl font-bold block", getPfColor(analyticsData.profitFactor))}>
               {analyticsData.profitFactor === Infinity ? '∞' : analyticsData.profitFactor.toFixed(2)}
             </span>
+            <p className="text-[10px] text-muted-foreground">
+              {analyticsData.profitFactor >= 2 ? 'Excellent' : analyticsData.profitFactor >= 1.5 ? 'Good' : analyticsData.profitFactor >= 1 ? 'Average' : 'Below avg'}
+            </p>
           </div>
 
-          {/* 14-Day P&L with Sparkline */}
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              {analyticsData.totalPnl14d >= 0 ? (
-                <TrendingUp className="h-4 w-4 text-profit" />
+          {/* 14D P&L */}
+          <div className="p-3 rounded-xl bg-muted/30 space-y-1">
+            <div className="flex items-center gap-1.5">
+              {isPositive14d ? (
+                <TrendingUp className="h-3.5 w-3.5 text-profit" />
               ) : (
-                <TrendingDown className="h-4 w-4 text-loss" />
+                <TrendingDown className="h-3.5 w-3.5 text-loss" />
               )}
-              <span className="text-xs text-muted-foreground">14D P&L</span>
+              <span className="text-[11px] text-muted-foreground font-medium">14D P&L</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className={cn(
-                "text-xl font-bold",
-                analyticsData.totalPnl14d >= 0 ? "text-profit" : "text-loss"
-              )}>
-                {formatPnl(analyticsData.totalPnl14d)}
-              </span>
-            </div>
+            <span className={cn("text-xl font-bold block font-mono-numbers", isPositive14d ? "text-profit" : "text-loss")}>
+              {formatPnl(analyticsData.totalPnl14d)}
+            </span>
+            <p className="text-[10px] text-muted-foreground">Cumulative</p>
           </div>
         </div>
 
-        {/* Sparkline Chart */}
-        <div className="h-12 mt-4">
+        {/* Sparkline */}
+        <div className="flex-1 min-h-[52px]">
+          <p className="text-[10px] text-muted-foreground mb-1 font-medium uppercase tracking-wide">14-Day Equity Curve</p>
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={analyticsData.sparklineData}>
+            <AreaChart data={analyticsData.sparklineData} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
               <defs>
-                <linearGradient id="sparklineGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop 
-                    offset="5%" 
-                    stopColor={analyticsData.totalPnl14d >= 0 ? "hsl(var(--profit))" : "hsl(var(--loss))"} 
-                    stopOpacity={0.3}
-                  />
-                  <stop 
-                    offset="95%" 
-                    stopColor={analyticsData.totalPnl14d >= 0 ? "hsl(var(--profit))" : "hsl(var(--loss))"} 
-                    stopOpacity={0}
-                  />
+                <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={sparkColor} stopOpacity={0.25} />
+                  <stop offset="95%" stopColor={sparkColor} stopOpacity={0} />
                 </linearGradient>
               </defs>
               <Tooltip
                 content={({ active, payload }) => {
                   if (active && payload && payload.length) {
                     return (
-                      <div className="bg-popover border rounded-lg p-2 text-xs shadow-md">
-                        <p className="text-muted-foreground">{payload[0].payload.date}</p>
-                        <p className={cn(
-                          "font-medium",
-                          payload[0].payload.cumulative >= 0 ? "text-profit" : "text-loss"
-                        )}>
+                      <div className="bg-popover border rounded-lg px-2.5 py-1.5 text-xs shadow-md">
+                        <p className="text-muted-foreground mb-0.5">{payload[0].payload.date}</p>
+                        <p className={cn("font-semibold", payload[0].payload.cumulative >= 0 ? "text-profit" : "text-loss")}>
                           {formatPnl(payload[0].payload.cumulative)}
                         </p>
                       </div>
@@ -235,9 +229,10 @@ export function DashboardAnalyticsSummary() {
               <Area
                 type="monotone"
                 dataKey="cumulative"
-                stroke={analyticsData.totalPnl14d >= 0 ? "hsl(var(--profit))" : "hsl(var(--loss))"}
-                strokeWidth={2}
-                fill="url(#sparklineGradient)"
+                stroke={sparkColor}
+                strokeWidth={1.5}
+                fill="url(#sparkGrad)"
+                dot={false}
               />
             </AreaChart>
           </ResponsiveContainer>
