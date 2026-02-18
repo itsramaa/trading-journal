@@ -97,7 +97,7 @@ export function SmartQuickActions() {
   }, [canTrade, canCreateManualTrade, reason, status, hasRecentWarning]);
 
   return (
-    <Card className="h-full">
+    <Card>
       <CardHeader className="pb-3 pt-4 px-4">
         <CardTitle className="text-sm font-semibold flex items-center gap-2">
           <Zap className="h-4 w-4 text-primary" />

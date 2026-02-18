@@ -124,8 +124,8 @@ export function DashboardAnalyticsSummary() {
   const sparkColor = isPositive14d ? "hsl(var(--profit))" : "hsl(var(--loss))";
 
   return (
-    <Card className="h-full">
-      <CardContent className="pt-4 pb-4 h-full flex flex-col">
+    <Card>
+      <CardContent className="pt-4 pb-4">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
@@ -201,9 +201,9 @@ export function DashboardAnalyticsSummary() {
         </div>
 
         {/* Sparkline */}
-        <div className="flex-1 min-h-[52px]">
+        <div className="h-[72px]">
           <p className="text-[10px] text-muted-foreground mb-1 font-medium uppercase tracking-wide">14-Day Equity Curve</p>
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height={52}>
             <AreaChart data={analyticsData.sparklineData} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
               <defs>
                 <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
