@@ -242,7 +242,7 @@ Position sizing is automatically adjusted by combining these factors:
 
 ```bash
 # Clone the repository
-git clone <YOUR_GIT_URL>
+git clone https://github.com/itsramaa/trading-journal
 cd deriverse-trading-analytics
 
 # Install dependencies
