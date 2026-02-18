@@ -153,7 +153,7 @@ export function RiskMetricsCards({ className }: RiskMetricsCardsProps) {
                   <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                   <span className="text-[11px] font-medium text-muted-foreground leading-tight">{metric.label}</span>
                 </div>
-                <p className={cn('text-xl font-bold font-mono-numbers leading-none', metric.color)}>
+                <p className={cn('text-lg sm:text-xl font-bold font-mono-numbers leading-none', metric.color)}>
                   {metric.value}
                 </p>
                 {metric.badge && (

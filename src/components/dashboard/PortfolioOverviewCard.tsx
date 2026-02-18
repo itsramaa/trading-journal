@@ -195,7 +195,7 @@ export function PortfolioOverviewCard({ className }: PortfolioOverviewCardProps)
       </div>
 
       <CardContent className="p-0">
-        <div className="grid md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-border/50">
+        <div className="grid grid-cols-2 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-border/50">
           {metrics.map((metric, i) => {
             const Icon = metric.icon;
             return (
@@ -206,7 +206,7 @@ export function PortfolioOverviewCard({ className }: PortfolioOverviewCardProps)
                   </div>
                   <span className="text-xs font-medium text-muted-foreground">{metric.label}</span>
                 </div>
-                <div className="text-2xl font-bold tracking-tight font-mono-numbers">
+                <div className="text-lg sm:text-2xl font-bold tracking-tight font-mono-numbers">
                   {metric.value}
                 </div>
                 <p className="text-xs text-muted-foreground">{metric.sublabel}</p>
