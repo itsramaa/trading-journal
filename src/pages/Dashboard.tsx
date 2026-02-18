@@ -90,17 +90,17 @@ const Dashboard = () => {
         <PortfolioOverviewCard />
 
         {/* Row 2: Quick Actions + Analytics Summary */}
-        <div className="grid gap-4 lg:grid-cols-5">
-          <div className="lg:col-span-2">
+        <div className="grid gap-4 md:grid-cols-5">
+          <div className="md:col-span-2">
             <SmartQuickActions />
           </div>
-          <div className="lg:col-span-3">
+          <div className="md:col-span-3">
             <DashboardAnalyticsSummary />
           </div>
         </div>
 
         {/* Row 3: Market Score + System Status - Side by side */}
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2">
           <MarketScoreWidget symbol="BTCUSDT" compact />
           <SystemStatusIndicator />
         </div>
@@ -172,13 +172,13 @@ const Dashboard = () => {
         )}
 
         {/* Row 6: Risk Summary + ADL Risk - Side by side */}
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2">
           <RiskSummaryCard />
           <ADLRiskWidget />
         </div>
 
         {/* Row 7: Equity Curve + Goal Tracking */}
-        <div className="grid gap-4 lg:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-3">
           <WidgetErrorBoundary name="Equity Curve">
             <EquityCurveChart className="lg:col-span-2" initialBalance={portfolio.totalCapital || 0} />
           </WidgetErrorBoundary>

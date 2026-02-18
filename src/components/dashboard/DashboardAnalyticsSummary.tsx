@@ -145,7 +145,7 @@ export function DashboardAnalyticsSummary() {
         </div>
 
         {/* Metrics row */}
-        <div className="grid grid-cols-3 gap-3 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
           {/* Win Rate */}
           <div className="p-3 rounded-xl bg-muted/30 space-y-1">
             <div className="flex items-center gap-1.5">
@@ -153,7 +153,7 @@ export function DashboardAnalyticsSummary() {
               <span className="text-[11px] text-muted-foreground font-medium">Win Rate</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="text-xl font-bold">{analyticsData.winRate.toFixed(0)}%</span>
+              <span className="text-lg sm:text-xl font-bold">{analyticsData.winRate.toFixed(0)}%</span>
               {analyticsData.winRateTrend !== 0 && (
                 <Badge
                   variant="outline"
@@ -175,7 +175,7 @@ export function DashboardAnalyticsSummary() {
               <Percent className="h-3.5 w-3.5 text-muted-foreground" />
               <span className="text-[11px] text-muted-foreground font-medium">Profit Factor</span>
             </div>
-            <span className={cn("text-xl font-bold block", getPfColor(analyticsData.profitFactor))}>
+            <span className={cn("text-lg sm:text-xl font-bold block", getPfColor(analyticsData.profitFactor))}>
               {analyticsData.profitFactor === Infinity ? '∞' : analyticsData.profitFactor.toFixed(2)}
             </span>
             <p className="text-[10px] text-muted-foreground">
@@ -193,7 +193,7 @@ export function DashboardAnalyticsSummary() {
               )}
               <span className="text-[11px] text-muted-foreground font-medium">14D P&L</span>
             </div>
-            <span className={cn("text-xl font-bold block font-mono-numbers", isPositive14d ? "text-profit" : "text-loss")}>
+            <span className={cn("text-lg sm:text-xl font-bold block font-mono-numbers", isPositive14d ? "text-profit" : "text-loss")}>
               {formatPnl(analyticsData.totalPnl14d)}
             </span>
             <p className="text-[10px] text-muted-foreground">Cumulative</p>
