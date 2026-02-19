@@ -109,7 +109,7 @@ function mapToUnifiedPositions(
       currentPrice: pos.entry_price,
       quantity: pos.quantity,
       unrealizedPnL: pos.pnl || 0,
-      tradeState: pos.trade_state || 'ACTIVE',
+      tradeState: pos.trade_state || 'active',
       tradeRating: pos.trade_rating || null,
       fees: (pos.commission || 0) + (pos.fees || 0),
       fundingFees: (pos as any).funding_fees || 0,
@@ -137,7 +137,7 @@ function mapToUnifiedPositions(
           ? (pos.unrealizedProfit / (pos.entryPrice * Math.abs(pos.positionAmt))) * 100 
           : 0,
         leverage: pos.leverage,
-        tradeState: 'ACTIVE',
+        tradeState: 'active',
         fees: 0,
         fundingFees: 0,
         entryDatetime: null,
