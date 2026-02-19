@@ -25,32 +25,32 @@ const STATE_CONFIG: Record<TradeState, {
   icon: React.ElementType;
   className: string;
 }> = {
-  OPENING: {
+  opening: {
     label: 'Opening',
     icon: Clock,
     className: 'border-amber-500/50 text-amber-500 bg-amber-500/10',
   },
-  PARTIALLY_FILLED: {
+  partially_filled: {
     label: 'Partial',
     icon: Loader2,
     className: 'border-blue-500/50 text-blue-500 bg-blue-500/10',
   },
-  ACTIVE: {
+  active: {
     label: 'Active',
     icon: Zap,
     className: 'border-emerald-500/50 text-emerald-500 bg-emerald-500/10',
   },
-  CLOSED: {
+  closed: {
     label: 'Closed',
     icon: CheckCircle2,
     className: 'border-muted-foreground/50 text-muted-foreground bg-muted/50',
   },
-  CANCELED: {
+  canceled: {
     label: 'Canceled',
     icon: XCircle,
     className: 'border-muted-foreground/30 text-muted-foreground/70 bg-muted/30',
   },
-  LIQUIDATED: {
+  liquidated: {
     label: 'Liquidated',
     icon: AlertTriangle,
     className: 'border-destructive/50 text-destructive bg-destructive/10',
