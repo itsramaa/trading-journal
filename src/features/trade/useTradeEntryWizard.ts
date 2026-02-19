@@ -167,7 +167,7 @@ export const useTradeEntryWizard = create<WizardStore>((set, get) => ({
           quantity: positionSizing.position_size,
           trade_date: new Date().toISOString().split('T')[0],
           status: 'open',
-          trade_state: 'ACTIVE',
+          trade_state: 'active',
           // Immutable context - locked at creation
           trade_mode: tradeMode,
           trade_style: tradingStyle,
