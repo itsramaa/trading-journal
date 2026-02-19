@@ -164,19 +164,21 @@ function PositionGalleryCard({
   position,
   formatCurrency,
   onClick,
+  onClose,
+  onEdit,
 }: {
   position: UnifiedPosition;
   formatCurrency: (v: number) => string;
   onClick: () => void;
+  onClose?: (pos: TradeEntry) => void;
+  onEdit?: (pos: TradeEntry) => void;
 }) {
   const isPaper = position.source === 'paper';
   const pnlColor = position.unrealizedPnL >= 0 ? 'text-profit' : 'text-loss';
+  const canEdit = !position.isReadOnly && isPaper;
 
   return (
-    <Card
-      className="cursor-pointer hover:ring-2 hover:ring-primary/30 transition-all p-4 flex flex-col gap-3"
-      onClick={onClick}
-    >
+    <Card className="hover:ring-2 hover:ring-primary/30 transition-all p-4 flex flex-col gap-3">
       {/* Top: direction + P&L */}
       <div className="flex items-center justify-between">
         <Badge
@@ -191,10 +193,13 @@ function PositionGalleryCard({
         </span>
       </div>
 
-      {/* Symbol row */}
-      <div className="flex items-center gap-2">
+      {/* Symbol row — clickable to navigate */}
+      <div
+        className="flex items-center gap-2 cursor-pointer"
+        onClick={onClick}
+      >
         <CryptoIcon symbol={position.symbol} size={24} />
-        <span className="font-semibold">{position.symbol}</span>
+        <span className="font-semibold hover:underline">{position.symbol}</span>
         {position.leverage && (
           <Badge variant="outline" className="text-xs">{position.leverage}x</Badge>
         )}
@@ -216,13 +221,54 @@ function PositionGalleryCard({
         </div>
       </div>
 
-      {/* Bottom: source + state */}
-      <div className="flex items-center gap-2 pt-1">
-        <Badge variant={isPaper ? "secondary" : "default"} className="gap-1 text-xs">
-          {isPaper ? <><FileText className="h-3 w-3" /> Paper</> : <><Wifi className="h-3 w-3" /> Live</>}
-        </Badge>
-        <TradeStateBadge state={position.tradeState} />
-        <TradeRatingBadge rating={position.tradeRating} />
+      {/* Bottom: source + state + actions */}
+      <div className="flex items-center justify-between pt-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Badge variant={isPaper ? "secondary" : "default"} className="gap-1 text-xs">
+            {isPaper ? <><FileText className="h-3 w-3" /> Paper</> : <><Wifi className="h-3 w-3" /> Live</>}
+          </Badge>
+          <TradeStateBadge state={position.tradeState} />
+          <TradeRatingBadge rating={position.tradeRating} />
+        </div>
+
+        {canEdit && (
+          <div className="flex items-center gap-1">
+            {onEdit && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 w-7 p-0"
+                      onClick={(e) => { e.stopPropagation(); onEdit(position.originalData as TradeEntry); }}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p>Edit position</p></TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            {onClose && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                      onClick={(e) => { e.stopPropagation(); onClose(position.originalData as TradeEntry); }}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p>Close position</p></TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </div>
+        )}
       </div>
     </Card>
   );
@@ -277,6 +323,8 @@ export function AllPositionsTable({
             position={position}
             formatCurrency={formatCurrency}
             onClick={() => startTransition(() => navigate(`/trading/${position.id}`))}
+            onClose={onClose}
+            onEdit={onEdit}
           />
         ))}
       </div>
